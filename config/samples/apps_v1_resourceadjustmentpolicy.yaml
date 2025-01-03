@@ -1,0 +1,39 @@
+apiVersion: apps.apps.devzero.io/v1
+kind: ResourceAdjustmentPolicy
+metadata:
+  labels:
+    app.kubernetes.io/name: resource-adjustment-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: resourceadjustmentpolicy-sample
+spec:
+  targetSelector:
+    matchLabels:
+      app: sample-app
+    namespaces:
+      - default
+  policies:
+    metricsSources:
+      - prometheus
+    cpuRecommendation:
+      sampleInterval: "1m"
+      requestPercentile: "0.95"
+      marginFraction: "0.15"
+      targetUtilization: "0.8"
+      historyLength: "24h"
+    memoryRecommendation:
+      sampleInterval: "1m"
+      requestPercentile: "0.95"
+      marginFraction: "0.15"
+      targetUtilization: "0.75"
+      historyLength: "24h"
+      oomProtection: true
+    normalization:
+      enabled: true
+      config: default
+  logging:
+    level: INFO
+    enableAuditLogs: true
+  exclusions:
+    namespaces:
+      - kube-system
+      - monitoring
