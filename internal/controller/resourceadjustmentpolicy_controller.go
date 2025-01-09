@@ -65,12 +65,12 @@ type HistogramBucket struct {
 	Weight float64
 }
 
-type ResourceConfig struct {
-	RequestPercentile float64
-	MarginFraction    float64
-	TargetUtilization float64
-	BucketSize        float64
-}
+// type ResourceConfig struct {
+// 	RequestPercentile float64
+// 	MarginFraction    float64
+// 	TargetUtilization float64
+// 	BucketSize        float64
+// }
 
 // ResourceAdjustmentPolicyReconciler reconciles a ResourceAdjustmentPolicy object
 type ResourceAdjustmentPolicyReconciler struct {
@@ -251,66 +251,168 @@ func (pc *PrometheusClient) GetCurrentMetric(ctx context.Context, query string) 
 	return float64(vector[0].Value), nil
 }
 
+// type ResourceRecommender struct {
+// 	config      ResourceConfig
+// 	buckets     map[int]*HistogramBucket
+// 	totalWeight float64
+// }
+
+// func NewResourceRecommender(config ResourceConfig) *ResourceRecommender {
+// 	return &ResourceRecommender{
+// 		config:  config,
+// 		buckets: make(map[int]*HistogramBucket),
+// 	}
+// }
+
+// func (r *ResourceRecommender) ProcessValues(values []float64) {
+// 	r.buckets = make(map[int]*HistogramBucket)
+// 	r.totalWeight = 0
+
+// 	for _, v := range values {
+// 		bucketIndex := int(v / r.config.BucketSize)
+// 		if _, exists := r.buckets[bucketIndex]; !exists {
+// 			r.buckets[bucketIndex] = &HistogramBucket{
+// 				Start:  float64(bucketIndex) * r.config.BucketSize,
+// 				End:    float64(bucketIndex+1) * r.config.BucketSize,
+// 				Values: make([]float64, 0),
+// 			}
+// 		}
+// 		r.buckets[bucketIndex].Count++
+// 		r.buckets[bucketIndex].Values = append(r.buckets[bucketIndex].Values, v)
+// 		r.buckets[bucketIndex].Weight += v
+// 		r.totalWeight += v
+// 	}
+// }
+
+// func (r *ResourceRecommender) CalculatePercentileRecommendation() float64 {
+// 	if len(r.buckets) == 0 {
+// 		return 0
+// 	}
+
+// 	targetWeight := r.config.RequestPercentile * r.totalWeight
+// 	cumulativeWeight := 0.0
+// 	maxBucketIndex := 0
+
+// 	for idx := range r.buckets {
+// 		if idx > maxBucketIndex {
+// 			maxBucketIndex = idx
+// 		}
+// 	}
+
+// 	for i := 0; i <= maxBucketIndex; i++ {
+// 		if bucket, exists := r.buckets[i]; exists {
+// 			cumulativeWeight += bucket.Weight
+// 			if cumulativeWeight >= targetWeight {
+// 				// Return the minimum boundary of the next bucket
+// 				// This is exactly what the algorithm specifies
+// 				return float64(i+1) * r.config.BucketSize
+// 			}
+// 		}
+// 	}
+
+// 	return float64(maxBucketIndex+1) * r.config.BucketSize
+// }
+
+// func (r *ResourceRecommender) GetRecommendation(values []float64) (float64, float64) {
+// 	if len(values) == 0 {
+// 		return 0, 0
+// 	}
+
+// 	r.ProcessValues(values)
+
+// 	baseRecommendation := r.CalculatePercentileRecommendation()
+
+// 	marginAdjusted := baseRecommendation * (1 + r.config.MarginFraction)
+
+// 	utilizationAdjusted := marginAdjusted / r.config.TargetUtilization
+
+// 	return math.Ceil(utilizationAdjusted*10) / 10, baseRecommendation
+// }
+
+// New bucket structure
+type Bucket struct {
+	MinBoundary float64
+	Weight      float64
+	Count       int
+	Values      []float64 // Kept for compatibility with existing code
+}
+
+type ResourceConfig struct {
+	RequestPercentile float64
+	MarginFraction    float64
+	TargetUtilization float64
+	BucketSize        float64
+}
+
+// Updated ResourceRecommender structure
 type ResourceRecommender struct {
 	config      ResourceConfig
-	buckets     map[int]*HistogramBucket
-	totalWeight float64
+	Buckets     []Bucket
+	TotalWeight float64
 }
 
 func NewResourceRecommender(config ResourceConfig) *ResourceRecommender {
 	return &ResourceRecommender{
 		config:  config,
-		buckets: make(map[int]*HistogramBucket),
+		Buckets: make([]Bucket, 0),
 	}
+}
+
+func (r *ResourceRecommender) addValue(value float64) {
+	bucketIndex := int(value / r.config.BucketSize)
+
+	// Ensure we have enough buckets
+	for len(r.Buckets) <= bucketIndex {
+		r.Buckets = append(r.Buckets, Bucket{
+			MinBoundary: float64(len(r.Buckets)) * r.config.BucketSize,
+			Weight:      0,
+			Count:       0,
+			Values:      make([]float64, 0),
+		})
+	}
+
+	// Update bucket
+	r.Buckets[bucketIndex].Weight += value
+	r.Buckets[bucketIndex].Count++
+	r.Buckets[bucketIndex].Values = append(r.Buckets[bucketIndex].Values, value)
+	r.TotalWeight += value
 }
 
 func (r *ResourceRecommender) ProcessValues(values []float64) {
-	r.buckets = make(map[int]*HistogramBucket)
-	r.totalWeight = 0
+	// Reset state
+	r.Buckets = make([]Bucket, 0)
+	r.TotalWeight = 0
 
-	for _, v := range values {
-		bucketIndex := int(v / r.config.BucketSize)
-		if _, exists := r.buckets[bucketIndex]; !exists {
-			r.buckets[bucketIndex] = &HistogramBucket{
-				Start:  float64(bucketIndex) * r.config.BucketSize,
-				End:    float64(bucketIndex+1) * r.config.BucketSize,
-				Values: make([]float64, 0),
-			}
-		}
-		r.buckets[bucketIndex].Count++
-		r.buckets[bucketIndex].Values = append(r.buckets[bucketIndex].Values, v)
-		r.buckets[bucketIndex].Weight += v
-		r.totalWeight += v
+	// Process each value
+	for _, value := range values {
+		r.addValue(value)
 	}
 }
 
-func (r *ResourceRecommender) CalculatePercentileRecommendation() float64 {
-	if len(r.buckets) == 0 {
+func (r *ResourceRecommender) getPercentile(percentile float64) float64 {
+	if len(r.Buckets) == 0 {
 		return 0
 	}
 
-	targetWeight := r.config.RequestPercentile * r.totalWeight
-	cumulativeWeight := 0.0
-	maxBucketIndex := 0
+	targetWeight := percentile * r.TotalWeight
+	accumulatedWeight := 0.0
 
-	for idx := range r.buckets {
-		if idx > maxBucketIndex {
-			maxBucketIndex = idx
-		}
-	}
-
-	for i := 0; i <= maxBucketIndex; i++ {
-		if bucket, exists := r.buckets[i]; exists {
-			cumulativeWeight += bucket.Weight
-			if cumulativeWeight >= targetWeight {
-				// Return the minimum boundary of the next bucket
-				// This is exactly what the algorithm specifies
-				return float64(i+1) * r.config.BucketSize
+	for i, bucket := range r.Buckets {
+		accumulatedWeight += bucket.Weight
+		if accumulatedWeight >= targetWeight {
+			// Return the minimum boundary of the next bucket if available
+			if i+1 < len(r.Buckets) {
+				return r.Buckets[i+1].MinBoundary
 			}
+			return bucket.MinBoundary
 		}
 	}
 
-	return float64(maxBucketIndex+1) * r.config.BucketSize
+	// If we haven't reached the target weight, return the last bucket's boundary
+	if len(r.Buckets) > 0 {
+		return r.Buckets[len(r.Buckets)-1].MinBoundary
+	}
+	return 0
 }
 
 func (r *ResourceRecommender) GetRecommendation(values []float64) (float64, float64) {
@@ -320,12 +422,16 @@ func (r *ResourceRecommender) GetRecommendation(values []float64) (float64, floa
 
 	r.ProcessValues(values)
 
-	baseRecommendation := r.CalculatePercentileRecommendation()
+	// Calculate base recommendation using the percentile specified in config
+	baseRecommendation := r.getPercentile(r.config.RequestPercentile)
 
+	// Apply margin
 	marginAdjusted := baseRecommendation * (1 + r.config.MarginFraction)
 
+	// Apply target utilization
 	utilizationAdjusted := marginAdjusted / r.config.TargetUtilization
 
+	// Round only the final recommendation, not the base
 	return math.Ceil(utilizationAdjusted*10) / 10, baseRecommendation
 }
 
