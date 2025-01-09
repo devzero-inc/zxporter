@@ -244,6 +244,8 @@ spec:
                           type: string
                         baseRecommendation:
                           type: string
+                        needToApply:
+                          type: boolean
                       type: object
                     currentCPU:
                       description: ResourceUsage holds details about current resource
@@ -274,6 +276,8 @@ spec:
                           type: string
                         baseRecommendation:
                           type: string
+                        needToApply:
+                          type: boolean
                       type: object
                     namespace:
                       type: string

@@ -99,54 +99,57 @@ func (r *ResourceAdjustmentPolicyReconciler) Reconcile(ctx context.Context, req 
 	log := k8log.FromContext(ctx)
 
 	// Fetch the ResourceAdjustmentPolicy instance
-	// policy := global_policy.Items[0]
 	var policy v1.ResourceAdjustmentPolicy
-	// if err := r.Get(ctx, req.NamespacedName, policy); err != nil {
-	// 	log.Error(err, "Failed to fetch ResourceAdjustmentPolicy")
-	// 	return ctrl.Result{}, client.IgnoreNotFound(err)
-	// }
+	if err := r.Get(ctx, req.NamespacedName, &policy); err != nil {
+		log.Error(err, "Failed to fetch ResourceAdjustmentPolicy")
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
 
-	// Update global configurations if specified in the CRD
+	// Update namespaces
 	if len(policy.Spec.TargetSelector.Namespaces) > 0 && policy.Spec.TargetSelector.Namespaces[0] != "" {
 		namespaces = policy.Spec.TargetSelector.Namespaces
 		log.Info("Updated namespaces", "value", namespaces)
 	}
+
+	// Update CPU Recommendation configurations
 	if policy.Spec.Policies.CPURecommendation.SampleInterval != "" {
-		duration, err := time.ParseDuration(policy.Spec.Policies.CPURecommendation.SampleInterval)
-		if err != nil {
+		if duration, err := time.ParseDuration(policy.Spec.Policies.CPURecommendation.SampleInterval); err != nil {
 			log.Error(err, "Error parsing CPURecommendation.SampleInterval")
 		} else {
 			cpuSampleInterval = duration
 			log.Info("Updated CPURecommendation.SampleInterval", "value", cpuSampleInterval)
 		}
+	}
 
-		historyLength, err := time.ParseDuration(policy.Spec.Policies.CPURecommendation.HistoryLength)
-		if err != nil {
+	if policy.Spec.Policies.CPURecommendation.HistoryLength != "" {
+		if historyLength, err := time.ParseDuration(policy.Spec.Policies.CPURecommendation.HistoryLength); err != nil {
 			log.Error(err, "Error parsing CPURecommendation.HistoryLength")
 		} else {
 			cpuHistoryLength = historyLength
 			log.Info("Updated CPURecommendation.HistoryLength", "value", cpuHistoryLength)
 		}
+	}
 
-		// Parse CPU Recommendation fields
-		requestPercentile, err := strconv.ParseFloat(policy.Spec.Policies.CPURecommendation.RequestPercentile, 64)
-		if err != nil {
+	if policy.Spec.Policies.CPURecommendation.RequestPercentile != "" {
+		if requestPercentile, err := strconv.ParseFloat(policy.Spec.Policies.CPURecommendation.RequestPercentile, 64); err != nil {
 			log.Error(err, "Error parsing CPURecommendation.RequestPercentile")
 		} else {
 			cpuConfig.RequestPercentile = requestPercentile
 			log.Info("Updated CPURecommendation.RequestPercentile", "value", fmt.Sprintf("%.2f", cpuConfig.RequestPercentile))
 		}
+	}
 
-		marginFraction, err := strconv.ParseFloat(policy.Spec.Policies.CPURecommendation.MarginFraction, 64)
-		if err != nil {
+	if policy.Spec.Policies.CPURecommendation.MarginFraction != "" {
+		if marginFraction, err := strconv.ParseFloat(policy.Spec.Policies.CPURecommendation.MarginFraction, 64); err != nil {
 			log.Error(err, "Error parsing CPURecommendation.MarginFraction")
 		} else {
 			cpuConfig.MarginFraction = marginFraction
 			log.Info("Updated CPURecommendation.MarginFraction", "value", fmt.Sprintf("%.2f", cpuConfig.MarginFraction))
 		}
+	}
 
-		targetUtilization, err := strconv.ParseFloat(policy.Spec.Policies.CPURecommendation.TargetUtilization, 64)
-		if err != nil {
+	if policy.Spec.Policies.CPURecommendation.TargetUtilization != "" {
+		if targetUtilization, err := strconv.ParseFloat(policy.Spec.Policies.CPURecommendation.TargetUtilization, 64); err != nil {
 			log.Error(err, "Error parsing CPURecommendation.TargetUtilization")
 		} else {
 			cpuConfig.TargetUtilization = targetUtilization
@@ -154,42 +157,45 @@ func (r *ResourceAdjustmentPolicyReconciler) Reconcile(ctx context.Context, req 
 		}
 	}
 
+	// Update Memory Recommendation configurations
 	if policy.Spec.Policies.MemoryRecommendation.SampleInterval != "" {
-		duration, err := time.ParseDuration(policy.Spec.Policies.MemoryRecommendation.SampleInterval)
-		if err != nil {
+		if duration, err := time.ParseDuration(policy.Spec.Policies.MemoryRecommendation.SampleInterval); err != nil {
 			log.Error(err, "Error parsing MemoryRecommendation.SampleInterval")
 		} else {
 			memorySampleInterval = duration
 			log.Info("Updated MemoryRecommendation.SampleInterval", "value", memorySampleInterval)
 		}
+	}
 
-		historyLength, err := time.ParseDuration(policy.Spec.Policies.MemoryRecommendation.HistoryLength)
-		if err != nil {
+	if policy.Spec.Policies.MemoryRecommendation.HistoryLength != "" {
+		if historyLength, err := time.ParseDuration(policy.Spec.Policies.MemoryRecommendation.HistoryLength); err != nil {
 			log.Error(err, "Error parsing MemoryRecommendation.HistoryLength")
 		} else {
 			memoryHistoryLength = historyLength
 			log.Info("Updated MemoryRecommendation.HistoryLength", "value", memoryHistoryLength)
 		}
+	}
 
-		// Parse Memory Recommendation fields
-		requestPercentile, err := strconv.ParseFloat(policy.Spec.Policies.MemoryRecommendation.RequestPercentile, 64)
-		if err != nil {
+	if policy.Spec.Policies.MemoryRecommendation.RequestPercentile != "" {
+		if requestPercentile, err := strconv.ParseFloat(policy.Spec.Policies.MemoryRecommendation.RequestPercentile, 64); err != nil {
 			log.Error(err, "Error parsing MemoryRecommendation.RequestPercentile")
 		} else {
 			memoryConfig.RequestPercentile = requestPercentile
 			log.Info("Updated MemoryRecommendation.RequestPercentile", "value", fmt.Sprintf("%.2f", memoryConfig.RequestPercentile))
 		}
+	}
 
-		marginFraction, err := strconv.ParseFloat(policy.Spec.Policies.MemoryRecommendation.MarginFraction, 64)
-		if err != nil {
+	if policy.Spec.Policies.MemoryRecommendation.MarginFraction != "" {
+		if marginFraction, err := strconv.ParseFloat(policy.Spec.Policies.MemoryRecommendation.MarginFraction, 64); err != nil {
 			log.Error(err, "Error parsing MemoryRecommendation.MarginFraction")
 		} else {
 			memoryConfig.MarginFraction = marginFraction
 			log.Info("Updated MemoryRecommendation.MarginFraction", "value", fmt.Sprintf("%.2f", memoryConfig.MarginFraction))
 		}
+	}
 
-		targetUtilization, err := strconv.ParseFloat(policy.Spec.Policies.MemoryRecommendation.TargetUtilization, 64)
-		if err != nil {
+	if policy.Spec.Policies.MemoryRecommendation.TargetUtilization != "" {
+		if targetUtilization, err := strconv.ParseFloat(policy.Spec.Policies.MemoryRecommendation.TargetUtilization, 64); err != nil {
 			log.Error(err, "Error parsing MemoryRecommendation.TargetUtilization")
 		} else {
 			memoryConfig.TargetUtilization = targetUtilization
@@ -283,7 +289,7 @@ func (r *ResourceRecommender) CalculatePercentileRecommendation() float64 {
 		return 0
 	}
 
-	targetWeight := r.config.RequestPercentile * r.totalWeight // Using 95th percentile as per algorithm
+	targetWeight := r.config.RequestPercentile * r.totalWeight
 	cumulativeWeight := 0.0
 	maxBucketIndex := 0
 
@@ -297,12 +303,14 @@ func (r *ResourceRecommender) CalculatePercentileRecommendation() float64 {
 		if bucket, exists := r.buckets[i]; exists {
 			cumulativeWeight += bucket.Weight
 			if cumulativeWeight >= targetWeight {
-				return math.Ceil((float64(i)+1)*r.config.BucketSize*10) / 10
+				// Return the minimum boundary of the next bucket
+				// This is exactly what the algorithm specifies
+				return float64(i+1) * r.config.BucketSize
 			}
 		}
 	}
 
-	return math.Ceil((float64(maxBucketIndex)+1)*r.config.BucketSize*10) / 10
+	return float64(maxBucketIndex+1) * r.config.BucketSize
 }
 
 func (r *ResourceRecommender) GetRecommendation(values []float64) (float64, float64) {
@@ -312,21 +320,99 @@ func (r *ResourceRecommender) GetRecommendation(values []float64) (float64, floa
 
 	r.ProcessValues(values)
 
-	// Step 1: Calculate percentile-based recommendation
 	baseRecommendation := r.CalculatePercentileRecommendation()
 
-	// Step 2: Apply margin
 	marginAdjusted := baseRecommendation * (1 + r.config.MarginFraction)
 
-	// Step 3: Apply target utilization
 	utilizationAdjusted := marginAdjusted / r.config.TargetUtilization
 
 	return math.Ceil(utilizationAdjusted*10) / 10, baseRecommendation
 }
 
+func (re *recommender) checkResourceAdjustment(container corev1.Container, recommendedCPU, recommendedMemory float64) (bool, bool) {
+	log := k8log.FromContext(context.Background())
+
+	log.Info("Starting resource adjustment check",
+		"container", container.Name,
+		"recommendedCPU", recommendedCPU,
+		"recommendedMemory", recommendedMemory)
+
+	// Convert CPU request to cores
+	cpuRequest := float64(container.Resources.Requests.Cpu().MilliValue()) / 1000
+	log.Info("Current CPU request",
+		"container", container.Name,
+		"cpuRequest", cpuRequest)
+
+	// Convert Memory request to Mi
+	memoryRequest := float64(container.Resources.Requests.Memory().Value()) / 1048576
+	log.Info("Current Memory request",
+		"container", container.Name,
+		"memoryRequestMi", memoryRequest)
+
+	cpuNeedsAdjustment := false
+	memoryNeedsAdjustment := false
+
+	// Check CPU
+	if cpuRequest > 0 {
+		cpuDiff := ((recommendedCPU - cpuRequest) / cpuRequest) * 100
+		log.Info("CPU difference calculated",
+			"container", container.Name,
+			"cpuDiff", cpuDiff,
+			"currentRequest", cpuRequest,
+			"recommendation", recommendedCPU)
+
+		if cpuDiff >= 5 {
+			cpuNeedsAdjustment = true
+			log.Info("CPU adjustment needed: recommendation is ≥5% greater than request",
+				"container", container.Name,
+				"cpuDiff", cpuDiff)
+		}
+
+		if recommendedCPU <= (cpuRequest * 0.1) {
+			cpuNeedsAdjustment = true
+			log.Info("CPU adjustment needed: recommendation is ≤10% of request",
+				"container", container.Name,
+				"recommendedCPU", recommendedCPU,
+				"tenPercentOfRequest", cpuRequest*0.1)
+		}
+	}
+
+	// Check Memory
+	if memoryRequest > 0 {
+		memoryDiff := ((recommendedMemory - memoryRequest) / memoryRequest) * 100
+		log.Info("Memory difference calculated",
+			"container", container.Name,
+			"memoryDiff", memoryDiff,
+			"currentRequest", memoryRequest,
+			"recommendation", recommendedMemory)
+
+		if memoryDiff >= 5 {
+			memoryNeedsAdjustment = true
+			log.Info("Memory adjustment needed: recommendation is ≥5% greater than request",
+				"container", container.Name,
+				"memoryDiff", memoryDiff)
+		}
+
+		if recommendedMemory <= (memoryRequest * 0.1) {
+			memoryNeedsAdjustment = true
+			log.Info("Memory adjustment needed: recommendation is ≤10% of request",
+				"container", container.Name,
+				"recommendedMemory", recommendedMemory,
+				"tenPercentOfRequest", memoryRequest*0.1)
+		}
+	}
+
+	log.Info("Resource adjustment check completed",
+		"container", container.Name,
+		"cpuNeedsAdjustment", cpuNeedsAdjustment,
+		"memoryNeedsAdjustment", memoryNeedsAdjustment)
+
+	return cpuNeedsAdjustment, memoryNeedsAdjustment
+}
+
 // runRecommender periodically fetches metrics, computes recommendations, and updates the CRD status
 func (re *recommender) runRecommender(r *ResourceAdjustmentPolicyReconciler) {
-	ticker := time.NewTicker(3 * time.Minute) // Use the global cpuSampleInterval as the ticker duration
+	ticker := time.NewTicker(3 * time.Minute)
 	defer ticker.Stop()
 
 	ctx := context.TODO()
@@ -372,8 +458,9 @@ func (re *recommender) runRecommender(r *ResourceAdjustmentPolicyReconciler) {
 						}
 
 						// Get current CPU usage
-						currentCPUQuery := fmt.Sprintf(`rate(container_cpu_usage_seconds_total{pod="%s",container="%s"}[%s])`,
-							pod.Name, container.Name, cpuSampleInterval.String())
+						currentCPUQuery := fmt.Sprintf(`max(
+							rate(container_cpu_usage_seconds_total{namespace="%s",pod="%s",container="%s"}[%s])
+						) by (container)`, pod.Namespace, pod.Name, container.Name, cpuSampleInterval.String())
 						currentCPUValue, err := promClient.GetCurrentMetric(ctx, currentCPUQuery)
 						if err != nil {
 							log.Error(err, "Failed to fetch current CPU metrics", "podName", pod.Name, "containerName", container.Name)
@@ -382,8 +469,9 @@ func (re *recommender) runRecommender(r *ResourceAdjustmentPolicyReconciler) {
 						log.Info("Fetched current CPU metrics", "podName", pod.Name, "containerName", container.Name, "currentCPUValue", currentCPUValue)
 
 						// Get current memory usage
-						currentMemoryQuery := fmt.Sprintf(`rate(container_memory_usage_bytes{pod="%s",container="%s"}[%s])`,
-							pod.Name, container.Name, memorySampleInterval.String())
+						currentMemoryQuery := fmt.Sprintf(`max(
+							container_memory_working_set_bytes{namespace="%s", pod="%s",container="%s"}
+						) by (container)`, pod.Namespace, pod.Name, container.Name)
 						currentMemoryValue, err := promClient.GetCurrentMetric(ctx, currentMemoryQuery)
 						if err != nil {
 							log.Error(err, "Failed to fetch current memory metrics", "podName", pod.Name, "containerName", container.Name)
@@ -392,8 +480,9 @@ func (re *recommender) runRecommender(r *ResourceAdjustmentPolicyReconciler) {
 						log.Info("Fetched current memory metrics", "podName", pod.Name, "containerName", container.Name, "currentMemoryValue", currentMemoryValue)
 
 						// Get CPU metrics range for recommendation
-						cpuQuery := fmt.Sprintf(`rate(container_cpu_usage_seconds_total{pod="%s",container="%s"}[%s])`,
-							pod.Name, container.Name, cpuSampleInterval.String())
+						cpuQuery := fmt.Sprintf(`max(
+							rate(container_cpu_usage_seconds_total{namespace="%s",pod="%s",container="%s"}[%s])
+						) by (container)`, pod.Namespace, pod.Name, container.Name, cpuSampleInterval.String())
 						cpuValues, err := promClient.GetMetricsRange(ctx, cpuQuery, time.Now().Add(-cpuHistoryLength), time.Now(), cpuSampleInterval)
 						if err != nil {
 							log.Error(err, "Failed to fetch CPU metrics range", "podName", pod.Name, "containerName", container.Name)
@@ -404,8 +493,9 @@ func (re *recommender) runRecommender(r *ResourceAdjustmentPolicyReconciler) {
 						log.Info("Computed CPU recommendations", "podName", pod.Name, "containerName", container.Name, "baseCPU", baseCPU, "recommendedCPU", recommendedCPU)
 
 						// Get memory metrics range for recommendation
-						memoryQuery := fmt.Sprintf(`rate(container_memory_usage_bytes{pod="%s",container="%s"}[%s])`,
-							pod.Name, container.Name, memorySampleInterval.String())
+						memoryQuery := fmt.Sprintf(`max(
+							container_memory_working_set_bytes{namespace="%s", pod="%s",container="%s"}
+						) by (container)`, pod.Namespace, pod.Name, container.Name)
 						memoryValues, err := promClient.GetMetricsRange(ctx, memoryQuery, time.Now().Add(-memoryHistoryLength), time.Now(), memorySampleInterval)
 						if err != nil {
 							log.Error(err, "Failed to fetch memory metrics range", "podName", pod.Name, "containerName", container.Name)
@@ -415,7 +505,14 @@ func (re *recommender) runRecommender(r *ResourceAdjustmentPolicyReconciler) {
 						recommendedMemory, baseMemory := memoryRecommender.GetRecommendation(memoryValues)
 						log.Info("Computed memory recommendations", "podName", pod.Name, "containerName", container.Name, "baseMemory", baseMemory, "recommendedMemory", recommendedMemory)
 
-						// Update status
+						// Check if adjustments are needed
+						cpuNeedsAdjustment, memoryNeedsAdjustment := re.checkResourceAdjustment(
+							container,
+							recommendedCPU,
+							recommendedMemory,
+						)
+
+						// Update status with new NeedToApply flags
 						status := v1.ContainerStatus{
 							Namespace:     namespace,
 							PodName:       pod.Name,
@@ -432,12 +529,15 @@ func (re *recommender) runRecommender(r *ResourceAdjustmentPolicyReconciler) {
 							CPURecommendation: v1.RecommendationDetails{
 								BaseRecommendation:     fmt.Sprintf("%.2f", baseCPU),
 								AdjustedRecommendation: fmt.Sprintf("%.2f", recommendedCPU),
+								NeedToApply:            cpuNeedsAdjustment,
 							},
 							MemoryRecommendation: v1.RecommendationDetails{
 								BaseRecommendation:     fmt.Sprintf("%.2f", baseMemory/1048576),
-								AdjustedRecommendation: fmt.Sprintf("%.2f", recommendedMemory/104857),
+								AdjustedRecommendation: fmt.Sprintf("%.2f", recommendedMemory/1048576),
+								NeedToApply:            memoryNeedsAdjustment,
 							},
 						}
+
 						policy.Status.Containers = append(policy.Status.Containers, status)
 						log.Info("Updated policy status for container", "policyName", policy.Name, "podName", pod.Name, "containerName", container.Name)
 					}

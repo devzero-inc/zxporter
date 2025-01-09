@@ -115,6 +115,7 @@ type ResourceUsage struct {
 type RecommendationDetails struct {
 	BaseRecommendation     string `json:"baseRecommendation,omitempty"`     // Base recommendation (e.g., "0.2 cores")
 	AdjustedRecommendation string `json:"adjustedRecommendation,omitempty"` // Adjusted recommendation (e.g., "0.3 cores")
+	NeedToApply            bool   `json:"needToApply,omitempty"`            // Flag indicating if the recommendation needs to be applied
 }
 
 // OOMEvent holds details of an Out-of-Memory event.
