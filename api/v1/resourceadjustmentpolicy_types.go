@@ -43,6 +43,7 @@ type TargetSelector struct {
 // Policies defines the resource adjustment policies
 type Policies struct {
 	MetricsSources       []string             `json:"metricsSources"`
+	Frequency            string               `json:"frequency"`
 	CPURecommendation    CPURecommendation    `json:"cpuRecommendation"`
 	MemoryRecommendation MemoryRecommendation `json:"memoryRecommendation"`
 	Normalization        Normalization        `json:"normalization"`

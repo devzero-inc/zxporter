@@ -86,6 +86,8 @@ spec:
                     - sampleInterval
                     - targetUtilization
                     type: object
+                  frequency:
+                    type: string
                   memoryRecommendation:
                     description: MemoryRecommendation specifies policies for memory
                       adjustments
@@ -127,6 +129,7 @@ spec:
                     type: object
                 required:
                 - cpuRecommendation
+                - frequency
                 - memoryRecommendation
                 - metricsSources
                 - normalization
