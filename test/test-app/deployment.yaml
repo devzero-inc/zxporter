@@ -18,7 +18,7 @@ spec:
     spec:
       containers:
       - name: test-app
-        image: localhost:5000/test-app:v2
+        image: localhost:5000/test-app:ci
         ports:
         - containerPort: 9001
         resources:
