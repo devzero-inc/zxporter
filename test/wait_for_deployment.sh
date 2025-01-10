@@ -7,7 +7,7 @@ wait_for_deployment() {
     if [[ -z "$deployment_name" ]] || [[ -z "$namespace_name" ]]; then
         echo "Usage: $0 <deployment_name> <namespace_name>"
         exit 1
-    }
+    fi
 
     timeout=60 # 5 minutes (60 * 5 sec)
     i=1
