@@ -10,3 +10,100 @@ jobs:
         image: registry:2
         ports:
           - 5000:5000
+    env:
+      REGISTRY_PORT: 5000
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: network=host
+
+      - name: Install dependencies
+        run: |
+          # Install bats
+          sudo apt-get update
+          sudo apt-get install -y bats
+
+          # Install kind
+          curl -sLo kind "$(curl -sL https://api.github.com/repos/kubernetes-sigs/kind/releases/latest | jq -r '[.assets[] | select(.name == "kind-linux-amd64")] | first | .browser_download_url')"
+          chmod +x kind
+          sudo mv kind /bin/
+
+          # Install kubectl
+          curl -LO "https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl"
+          chmod +x kubectl
+          sudo mv kubectl /bin/
+
+      - name: Create Kubernetes cluster
+        run: |
+          kind create cluster --config=./test/kind-config.yaml
+          kind export kubeconfig
+
+      - name: Install Prometheus on the cluster
+        run: |
+          kubectl create namespace monitoring
+          kubectl apply -f ./test/prometheus/clusterRole.yaml
+          kubectl apply -f ./test/prometheus/config-map.yaml
+          kubectl apply -f ./test/prometheus/deployment.yaml
+          kubectl apply -f ./test/prometheus/service.yaml
+
+      - name: Wait for prometheus to be ready
+        run: ./test/wait_for_deployment.sh prometheus-deployment monitoring
+
+      - name: Connect the registry to the Kind network
+        id: connect-registry
+        run: |
+          REGISTRY_ID=$(docker ps -qf "ancestor=registry:2")
+          REGISTRY_NAME=$(docker inspect -f '{{.Name}}' $REGISTRY_ID | sed 's/\///')
+          echo "REGISTRY_NAME=$REGISTRY_NAME" >> $GITHUB_ENV
+          ./test/configure_local_registry.sh
+        env:
+          REGISTRY_PORT: ${{ env.REGISTRY_PORT }}
+          REGISTRY_NAME: ${{ env.REGISTRY_NAME }}
+
+      - name: Build and push operator image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: localhost:5000/resource-adj-operator:ci
+  
+      - name: Build and push test-app image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./test/test-app
+          push: true
+          tags: localhost:5000/test-app:ci
+
+      - name: Deploy test-app to Kubernetes
+        run: |
+          kubectl apply -f ./test/test-app/deployment.yaml
+
+      - name: Wait for deployments to be ready
+        run: ./test/wait_for_deployment.sh test-app default
+
+      - name: Deploy operator to Kubernetes
+        run: |
+          make install
+          make deploy IMG=localhost:5000/resource-adj-operator:ci
+          kubectl apply -f ./config/samples/apps_v1_resourceadjustmentpolicy.yaml
+
+      - name: Wait for deployments to be ready
+        run: ./test/wait_for_deployment.sh resource-adjustment-operator-controller-manager resource-adjustment-operator-system
+
+      - name: Check resources
+        run: kubectl get all -n resource-adjustment-operator-system
+        
+      - name: Run tests
+        run: sudo -E bats -f "test_resource_adjustment_recommendations" test/tests.bats
