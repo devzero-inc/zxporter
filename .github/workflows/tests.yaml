@@ -7,9 +7,9 @@ jobs:
     strategy:
       matrix:
         k8s-version: ['1.29.0', '1.30.0', '1.31.0', '1.32.0']
+        runner: ["ubuntu-24.04", "devzero-ubuntu-24.04"]
       fail-fast: false  # Continue with other versions if one fails
-    
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
     services:
       registry:
         image: registry:2
