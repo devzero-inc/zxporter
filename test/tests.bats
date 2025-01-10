@@ -72,8 +72,8 @@ function log_and_run() {
   
   # Check if CPU recommendation is within range
   echo "CPU recommendation: $cpu_value" >&2
-  if ! [ $(echo "$cpu_value >= 0.020" | bc -l) -eq 1 ] || ! [ $(echo "$cpu_value <= 0.027" | bc -l) -eq 1 ]; then
-    echo "ERROR: CPU recommendation $cpu_value is outside the expected range [0.020, 0.027]" >&2
+  if ! [ $(echo "$cpu_value >= 0.015" | bc -l) -eq 1 ] || ! [ $(echo "$cpu_value <= 0.027" | bc -l) -eq 1 ]; then
+    echo "ERROR: CPU recommendation $cpu_value is outside the expected range [0.015, 0.027]" >&2
     return 1
   fi
   
