@@ -20,13 +20,13 @@ spec:
       requestPercentile: "0.95"
       marginFraction: "0.15"
       targetUtilization: "1"
-      historyLength: "24h"
+      historyLength: "124h"
     memoryRecommendation:
       sampleInterval: "1m"
       requestPercentile: "0.95"
       marginFraction: "0.15"
       targetUtilization: "1"
-      historyLength: "24h"
+      historyLength: "124h"
       oomProtection: true
     normalization:
       enabled: true

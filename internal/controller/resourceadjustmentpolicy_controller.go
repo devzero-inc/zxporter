@@ -596,8 +596,8 @@ func (re *recommender) runRecommender(r *ResourceAdjustmentPolicyReconciler) {
 							}
 
 							currentCPUQuery := fmt.Sprintf(`max(
-                                rate(container_cpu_usage_seconds_total{namespace="%s",pod="%s",container="%s"}[%s])
-                            ) by (container)`, pod.Namespace, pod.Name, container.Name, cpuSampleInterval.String())
+                                rate(container_cpu_usage_seconds_total{namespace="%s",container="%s"}[%s])
+                            ) by (container)`, pod.Namespace, container.Name, cpuSampleInterval.String())
 							currentCPUValue, err := promClient.GetCurrentMetric(ctx, currentCPUQuery)
 							if err != nil {
 								log.Error(err, "Failed to fetch current CPU metrics", "podName", pod.Name, "containerName", container.Name)
@@ -607,8 +607,8 @@ func (re *recommender) runRecommender(r *ResourceAdjustmentPolicyReconciler) {
 
 							// Fetch current memory usage
 							currentMemoryQuery := fmt.Sprintf(`max(
-                                container_memory_working_set_bytes{namespace="%s", pod="%s",container="%s"}
-                            ) by (container)`, pod.Namespace, pod.Name, container.Name)
+                                container_memory_working_set_bytes{namespace="%s", container="%s"}
+                            ) by (container)`, pod.Namespace, container.Name)
 							currentMemoryValue, err := promClient.GetCurrentMetric(ctx, currentMemoryQuery)
 							if err != nil {
 								log.Error(err, "Failed to fetch current memory metrics", "podName", pod.Name, "containerName", container.Name)
@@ -618,8 +618,8 @@ func (re *recommender) runRecommender(r *ResourceAdjustmentPolicyReconciler) {
 
 							// Get CPU metrics range for recommendation
 							cpuQuery := fmt.Sprintf(`max(
-                                rate(container_cpu_usage_seconds_total{namespace="%s",pod="%s",container="%s"}[%s])
-                            ) by (container)`, pod.Namespace, pod.Name, container.Name, cpuSampleInterval.String())
+                                rate(container_cpu_usage_seconds_total{namespace="%s", container="%s"}[%s])
+                            ) by (container)`, pod.Namespace, container.Name, cpuSampleInterval.String())
 							cpuValues, err := promClient.GetMetricsRange(ctx, cpuQuery, time.Now().Add(-cpuHistoryLength), time.Now(), cpuSampleInterval)
 							if err != nil {
 								log.Error(err, "Failed to fetch CPU metrics range", "podName", pod.Name, "containerName", container.Name)
@@ -631,8 +631,8 @@ func (re *recommender) runRecommender(r *ResourceAdjustmentPolicyReconciler) {
 
 							// Get memory metrics range for recommendation
 							memoryQuery := fmt.Sprintf(`max(
-                                container_memory_working_set_bytes{namespace="%s", pod="%s",container="%s"}
-                            ) by (container)`, pod.Namespace, pod.Name, container.Name)
+                                container_memory_working_set_bytes{namespace="%s", container="%s"}
+                            ) by (container)`, pod.Namespace, container.Name)
 							memoryValues, err := promClient.GetMetricsRange(ctx, memoryQuery, time.Now().Add(-memoryHistoryLength), time.Now(), memorySampleInterval)
 							if err != nil {
 								log.Error(err, "Failed to fetch memory metrics range", "podName", pod.Name, "containerName", container.Name)
