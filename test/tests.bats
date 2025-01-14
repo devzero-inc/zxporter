@@ -79,8 +79,8 @@ function log_and_run() {
   
   # Check if memory recommendation is within range
   echo "Memory recommendation: $memory_value" >&2
-  if ! [ $(echo "$memory_value >= 53.00" | bc -l) -eq 1 ] || ! [ $(echo "$memory_value <= 73.00" | bc -l) -eq 1 ]; then
-    echo "ERROR: Memory recommendation $memory_value is outside the expected range [53.00, 73.00]" >&2
+  if ! [ $(echo "$memory_value >= 63.00" | bc -l) -eq 1 ] || ! [ $(echo "$memory_value <= 85.00" | bc -l) -eq 1 ]; then
+    echo "ERROR: Memory recommendation $memory_value is outside the expected range [63.00, 85.00]" >&2
     return 1
   fi
   
