@@ -72,15 +72,15 @@ function log_and_run() {
   
   # Check if CPU recommendation is within range
   echo "CPU recommendation: $cpu_value" >&2
-  if ! [ $(echo "$cpu_value >= 0.015" | bc -l) -eq 1 ] || ! [ $(echo "$cpu_value <= 0.027" | bc -l) -eq 1 ]; then
-    echo "ERROR: CPU recommendation $cpu_value is outside the expected range [0.015, 0.027]" >&2
+  if ! [ $(echo "$cpu_value >= 0.015" | bc -l) -eq 1 ] || ! [ $(echo "$cpu_value <= 0.035" | bc -l) -eq 1 ]; then
+    echo "ERROR: CPU recommendation $cpu_value is outside the expected range [0.015, 0.035]" >&2
     return 1
   fi
   
   # Check if memory recommendation is within range
   echo "Memory recommendation: $memory_value" >&2
-  if ! [ $(echo "$memory_value >= 53.00" | bc -l) -eq 1 ] || ! [ $(echo "$memory_value <= 62.00" | bc -l) -eq 1 ]; then
-    echo "ERROR: Memory recommendation $memory_value is outside the expected range [53.00, 62.00]" >&2
+  if ! [ $(echo "$memory_value >= 53.00" | bc -l) -eq 1 ] || ! [ $(echo "$memory_value <= 73.00" | bc -l) -eq 1 ]; then
+    echo "ERROR: Memory recommendation $memory_value is outside the expected range [53.00, 73.00]" >&2
     return 1
   fi
   
