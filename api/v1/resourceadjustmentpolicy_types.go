@@ -44,6 +44,7 @@ type TargetSelector struct {
 type Policies struct {
 	MetricsSources       []string             `json:"metricsSources"`
 	Frequency            string               `json:"frequency"`
+	AutoApply            bool                 `json:"autoApply"`
 	CPURecommendation    CPURecommendation    `json:"cpuRecommendation"`
 	MemoryRecommendation MemoryRecommendation `json:"memoryRecommendation"`
 	Normalization        Normalization        `json:"normalization"`
@@ -66,6 +67,7 @@ type MemoryRecommendation struct {
 	TargetUtilization string `json:"targetUtilization"`
 	HistoryLength     string `json:"historyLength"`
 	OOMProtection     bool   `json:"oomProtection"`
+	OOMBumpRatio      string `json:"oomBumpRatio"`
 }
 
 // Normalization specifies normalization policies

@@ -66,6 +66,8 @@ spec:
               policies:
                 description: Policies defines the resource adjustment policies
                 properties:
+                  autoApply:
+                    type: boolean
                   cpuRecommendation:
                     description: CPURecommendation specifies policies for CPU adjustments
                     properties:
@@ -96,6 +98,8 @@ spec:
                         type: string
                       marginFraction:
                         type: string
+                      oomBumpRatio:
+                        type: string
                       oomProtection:
                         type: boolean
                       requestPercentile:
@@ -107,6 +111,7 @@ spec:
                     required:
                     - historyLength
                     - marginFraction
+                    - oomBumpRatio
                     - oomProtection
                     - requestPercentile
                     - sampleInterval
@@ -128,6 +133,7 @@ spec:
                     - enabled
                     type: object
                 required:
+                - autoApply
                 - cpuRecommendation
                 - frequency
                 - memoryRecommendation
