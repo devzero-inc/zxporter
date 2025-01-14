@@ -29,8 +29,12 @@ import (
 	pv1 "github.com/prometheus/client_golang/api/prometheus/v1"
 	"github.com/prometheus/common/model"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	k8log "sigs.k8s.io/controller-runtime/pkg/log"
@@ -83,6 +87,7 @@ type ResourceAdjustmentPolicyReconciler struct {
 // +kubebuilder:rbac:groups=apps.apps.devzero.io,resources=resourceadjustmentpolicies/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=apps.apps.devzero.io,resources=resourceadjustmentpolicies/finalizers,verbs=update
 // +kubebuilder:rbac:groups=core,resources=pods,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=core,resources=pods/resize,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=pods/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=core,resources=events,verbs=create;patch
 
@@ -406,7 +411,7 @@ func (r *ResourceRecommender) getPercentile(percentile float64) float64 {
 		return 0
 	}
 
-	targetWeight := percentile * r.TotalWeight
+	targetWeight := (percentile / 100.0) * r.TotalWeight
 	accumulatedWeight := 0.0
 
 	for i, bucket := range r.Buckets {
@@ -674,6 +679,14 @@ func (re *recommender) runRecommender(r *ResourceAdjustmentPolicyReconciler) {
 								},
 							}
 
+							if cpuNeedsAdjustment || memoryNeedsAdjustment {
+								if err := re.applyRecommendations(ctx, r, status); err != nil {
+									log.Error(err, "Failed to apply recommendations",
+										"podName", pod.Name,
+										"containerName", container.Name)
+								}
+							}
+
 							policy.Status.Containers = append(policy.Status.Containers, status)
 							log.Info("Updated policy status for container", "policyName", policy.Name, "podName", pod.Name, "containerName", container.Name)
 						}
@@ -684,6 +697,175 @@ func (re *recommender) runRecommender(r *ResourceAdjustmentPolicyReconciler) {
 						} else {
 							log.Info("Successfully updated status for policy", "policyName", policy.Name)
 						}
+					}
+				}
+			}
+		}
+	}
+}
+
+func (re *recommender) checkFeatureGate(ctx context.Context) (bool, error) {
+	log := k8log.FromContext(ctx)
+	log.Info("Checking InPlacePodVerticalScaling feature gate")
+
+	config, err := rest.InClusterConfig()
+	if err != nil {
+		log.Error(err, "Failed to get cluster config")
+		return false, fmt.Errorf("failed to get cluster config: %v", err)
+	}
+
+	discoveryClient, err := discovery.NewDiscoveryClientForConfig(config)
+	if err != nil {
+		log.Error(err, "Failed to create discovery client")
+		return false, fmt.Errorf("failed to create discovery client: %v", err)
+	}
+
+	featureGates, err := discoveryClient.ServerVersion()
+	if err != nil {
+		log.Error(err, "Failed to get server version")
+		return false, fmt.Errorf("failed to get server version: %v", err)
+	}
+
+	// Check if InPlacePodVerticalScaling is enabled in the feature gates
+	if featureGates.GitVersion >= "v1.24.0" {
+		log.Info("InPlacePodVerticalScaling feature gate is enabled")
+		return true, nil
+	}
+
+	log.Info("InPlacePodVerticalScaling feature gate is not enabled")
+	return false, nil
+}
+
+func (re *recommender) applyRecommendations(ctx context.Context, r *ResourceAdjustmentPolicyReconciler, status v1.ContainerStatus) error {
+	log := k8log.FromContext(ctx)
+
+	// Check if InPlacePodVerticalScaling feature gate is enabled
+	featureGate, err := re.checkFeatureGate(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to check feature gate: %v", err)
+	}
+	if !featureGate {
+		log.Info("InPlacePodVerticalScaling feature gate is not enabled, skipping resource update")
+		return nil
+	}
+
+	// Get the pod
+	pod := &corev1.Pod{}
+	if err := r.Get(ctx, types.NamespacedName{
+		Namespace: status.Namespace,
+		Name:      status.PodName,
+	}, pod); err != nil {
+		return fmt.Errorf("failed to get pod: %v", err)
+	}
+
+	// Prepare the patch for the /resize subresource
+	updatedContainers := make([]corev1.Container, len(pod.Spec.Containers))
+	copy(updatedContainers, pod.Spec.Containers)
+
+	for i, container := range updatedContainers {
+		if container.Name == status.ContainerName {
+			// Parse CPU recommendation
+			cpuRecommendation := status.CPURecommendation
+			if cpuRecommendation.NeedToApply {
+				cpuLimitQuantity, err := resource.ParseQuantity(cpuRecommendation.AdjustedRecommendation)
+				if err != nil {
+					return fmt.Errorf("failed to parse CPU recommendation (Limit): %v", err)
+				}
+				cpuRequestQuantity, err := resource.ParseQuantity(cpuRecommendation.BaseRecommendation)
+				if err != nil {
+					return fmt.Errorf("failed to parse CPU recommendation (Request): %v", err)
+				}
+				updatedContainers[i].Resources.Limits[corev1.ResourceCPU] = cpuLimitQuantity
+				updatedContainers[i].Resources.Requests[corev1.ResourceCPU] = cpuRequestQuantity
+			}
+
+			// Parse Memory recommendation
+			memoryRecommendation := status.MemoryRecommendation
+			if memoryRecommendation.NeedToApply {
+				memoryLimitMi, err := strconv.ParseFloat(memoryRecommendation.AdjustedRecommendation, 64)
+				if err != nil {
+					return fmt.Errorf("failed to parse memory recommendation (Limit): %v", err)
+				}
+				memoryRequestMi, err := strconv.ParseFloat(memoryRecommendation.BaseRecommendation, 64)
+				if err != nil {
+					return fmt.Errorf("failed to parse memory recommendation (Request): %v", err)
+				}
+				memoryLimitQuantity := resource.NewQuantity(int64(memoryLimitMi*1048576), resource.BinarySI)
+				memoryRequestQuantity := resource.NewQuantity(int64(memoryRequestMi*1048576), resource.BinarySI)
+				updatedContainers[i].Resources.Requests[corev1.ResourceMemory] = *memoryRequestQuantity
+				updatedContainers[i].Resources.Limits[corev1.ResourceMemory] = *memoryLimitQuantity
+			}
+		}
+	}
+
+	// Create a patch for the /resize subresource
+	patch := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      pod.Name,
+			Namespace: pod.Namespace,
+		},
+		Spec: corev1.PodSpec{
+			Containers: updatedContainers,
+		},
+	}
+
+	if err := r.Client.SubResource("resize").Update(ctx, patch); err != nil {
+		return fmt.Errorf("failed to update pod resources via /resize subresource: %v", err)
+	}
+
+	// Start watching the resize status
+	go re.watchResizeStatus(ctx, r, status)
+
+	return nil
+}
+
+// Function to watch resize status
+func (re *recommender) watchResizeStatus(ctx context.Context, r *ResourceAdjustmentPolicyReconciler, status v1.ContainerStatus) {
+	log := k8log.FromContext(ctx)
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			pod := &corev1.Pod{}
+			err := r.Get(ctx, types.NamespacedName{
+				Namespace: status.Namespace,
+				Name:      status.PodName,
+			}, pod)
+			if err != nil {
+				log.Error(err, "Failed to get pod while watching resize status")
+				return
+			}
+
+			// Check resize status
+			for _, containerStatus := range pod.Status.ContainerStatuses {
+				if containerStatus.Name == status.ContainerName {
+					resizeStatus := containerStatus.Resources.Requests
+					if resizeStatus != nil {
+						log.Info("Current resize status",
+							"podName", status.PodName,
+							"containerName", status.ContainerName,
+							"status", resizeStatus)
+
+						if _, deferred := resizeStatus["ResourceResizeStatusDeferred"]; deferred {
+							log.Info("Resource update is deferred",
+								"podName", status.PodName,
+								"containerName", status.ContainerName)
+							return
+						}
+						if _, infeasible := resizeStatus["ResourceResizeStatusInfeasible"]; infeasible {
+							log.Info("Resource update is infeasible",
+								"podName", status.PodName,
+								"containerName", status.ContainerName)
+							return
+						}
+						log.Info("Resource update completed successfully",
+							"podName", status.PodName,
+							"containerName", status.ContainerName)
+						return
 					}
 				}
 			}
