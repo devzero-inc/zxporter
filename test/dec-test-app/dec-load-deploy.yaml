@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dec-load
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dec-load
+  template:
+    metadata:
+      labels:
+        app: dec-load
+      annotations:
+        prometheus.io/scrape: "true"       # Enables Prometheus scraping
+        prometheus.io/path: "/metrics"    # Path to scrape metrics (default: /metrics)
+        prometheus.io/port: "8090"        # Port for scraping (container port)
+    spec:
+      containers:
+      - name: dec-load
+        image: docker.io/remontada007/dec-load:ci
+        ports:
+        - containerPort: 9002
+        resources:
+          requests:
+            memory: "450Mi"
+            cpu: "450m"
+          limits:
+            memory: "500Mi"
+            cpu: "500m"
