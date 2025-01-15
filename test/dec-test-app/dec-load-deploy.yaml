@@ -18,7 +18,7 @@ spec:
     spec:
       containers:
       - name: dec-load
-        image: docker.io/remontada007/dec-load:ci
+        image: localhost:5000/dec-load:ci
         ports:
         - containerPort: 9002
         resources:
