@@ -90,6 +90,8 @@ spec:
                     type: object
                   frequency:
                     type: string
+                  lookbackDuration:
+                    type: string
                   memoryRecommendation:
                     description: MemoryRecommendation specifies policies for memory
                       adjustments
@@ -136,6 +138,7 @@ spec:
                 - autoApply
                 - cpuRecommendation
                 - frequency
+                - lookbackDuration
                 - memoryRecommendation
                 - metricsSources
                 - normalization

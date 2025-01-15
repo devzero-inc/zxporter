@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inc-load
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: inc-load
+  template:
+    metadata:
+      labels:
+        app: inc-load
+      annotations:
+        prometheus.io/scrape: "true"       # Enables Prometheus scraping
+        prometheus.io/path: "/metrics"    # Path to scrape metrics (default: /metrics)
+        prometheus.io/port: "8090"        # Port for scraping (container port)
+    spec:
+      containers:
+      - name: inc-load
+        image: localhost:5000/inc-load:ci
+        ports:
+        - containerPort: 9001
+        resources:
+          requests:
+            memory: "40Mi"
+            cpu: "65m"
+          limits:
+            memory: "60Mi"
+            cpu: "70m"

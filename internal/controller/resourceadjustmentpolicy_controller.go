@@ -63,6 +63,7 @@ var (
 	cpuHistoryLength     = 24 * time.Hour
 	memorySampleInterval = 1 * time.Minute
 	memoryHistoryLength  = 24 * time.Hour
+	lookbackDuration     = 1 * time.Hour
 	autoApply            = false
 	oomProtection        = true
 	prometheusURL        = "http://prometheus-service.monitoring.svc.cluster.local:8080"
@@ -130,6 +131,15 @@ func (r *ResourceAdjustmentPolicyReconciler) Reconcile(ctx context.Context, req 
 	if policy.Spec.Policies.AutoApply != autoApply {
 		autoApply = policy.Spec.Policies.AutoApply
 		log.Info("Updated AutoApply", "value", autoApply)
+	}
+
+	if policy.Spec.Policies.LookbackDuration != "" {
+		if duration, err := time.ParseDuration(policy.Spec.Policies.LookbackDuration); err != nil {
+			log.Error(err, "Error parsing LookbackDuration")
+		} else if duration != lookbackDuration {
+			lookbackDuration = duration
+			log.Info("Updated LookbackDuration", "value", lookbackDuration)
+		}
 	}
 
 	// Update Frequency
@@ -727,7 +737,7 @@ func (re *recommender) runRecommender(r *ResourceAdjustmentPolicyReconciler) {
 							// Recalculate if current usage is higher than adjusted recommendation value with last hour history
 							if currentCPUValue > recommendedCPU {
 								log.Info("Current CPU usage exceeds adjusted recommendation, recalculating", "podName", pod.Name, "containerName", container.Name)
-								cpuValues, err = promClient.GetMetricsRange(ctx, cpuQuery, time.Now().Add(-1*time.Hour), time.Now(), 1*time.Hour)
+								cpuValues, err = promClient.GetMetricsRange(ctx, cpuQuery, time.Now().Add(-lookbackDuration), time.Now(), 1*time.Hour)
 								if err != nil {
 									log.Error(err, "Failed to fetch updated CPU metrics", "podName", pod.Name, "containerName", container.Name)
 									continue
@@ -738,7 +748,7 @@ func (re *recommender) runRecommender(r *ResourceAdjustmentPolicyReconciler) {
 
 							if float64(currentMemoryValue) > recommendedMemory {
 								log.Info("Current memory usage exceeds adjusted recommendation, recalculating", "podName", pod.Name, "containerName", container.Name)
-								memoryValues, err = promClient.GetMetricsRange(ctx, memoryQuery, time.Now().Add(-1*time.Hour), time.Now(), 1*time.Hour)
+								memoryValues, err = promClient.GetMetricsRange(ctx, memoryQuery, time.Now().Add(-lookbackDuration), time.Now(), 1*time.Hour)
 								if err != nil {
 									log.Error(err, "Failed to fetch updated memory metrics", "podName", pod.Name, "containerName", container.Name)
 									continue
@@ -749,9 +759,19 @@ func (re *recommender) runRecommender(r *ResourceAdjustmentPolicyReconciler) {
 
 							cpuNeedsAdjustment, memoryNeedsAdjustment := re.checkResourceAdjustment(
 								container,
-								recommendedCPU,
-								recommendedMemory,
+								baseCPU,
+								baseMemory,
 							)
+
+							if recommendedMemory < 12582912 {
+								baseMemory = 12582912
+								recommendedMemory = 15582912
+							}
+
+							if recommendedCPU < 0.01 {
+								baseCPU = 0.01
+								recommendedCPU = 0.015
+							}
 
 							// Update status with new recommendations
 							status := v1.ContainerStatus{

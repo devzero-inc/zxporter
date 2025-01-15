@@ -45,6 +45,7 @@ type Policies struct {
 	MetricsSources       []string             `json:"metricsSources"`
 	Frequency            string               `json:"frequency"`
 	AutoApply            bool                 `json:"autoApply"`
+	LookbackDuration     string               `json:"lookbackDuration"`
 	CPURecommendation    CPURecommendation    `json:"cpuRecommendation"`
 	MemoryRecommendation MemoryRecommendation `json:"memoryRecommendation"`
 	Normalization        Normalization        `json:"normalization"`

@@ -16,6 +16,7 @@ spec:
       - prometheus
     frequency: "1m"
     autoApply: true
+    lookbackDuration: "1m"
     cpuRecommendation:
       sampleInterval: "1m"
       requestPercentile: "0.95"

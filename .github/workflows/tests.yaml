@@ -109,12 +109,34 @@ jobs:
           push: true
           tags: localhost:5000/test-app:ci
 
+      - name: Build and push inc-test-app image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./test/inc-test-app
+          push: true
+          tags: localhost:5000/inc-load:ci
+
+      - name: Build and push dec-test-app image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./test/dec-test-app
+          push: true
+          tags: localhost:5000/dec-load:ci
+
       - name: Deploy test-app to Kubernetes
         run: |
           kubectl apply -f ./test/test-app/deployment.yaml
+          kubectl apply -f ./test/inc-test-app/inc-load-deploy.yaml
+          kubectl apply -f ./test/test-app/dec-load-deploy.yaml
 
-      - name: Wait for deployments to be ready
+      - name: Wait for test-app deployments to be ready
         run: ./test/wait_for_deployment.sh test-app default
+
+      - name: Wait for inc-test-app deployments to be ready
+        run: ./test/wait_for_deployment.sh inc-load default
+
+      - name: Wait for dec-test-app deployments to be ready
+        run: ./test/wait_for_deployment.sh dec-load default
 
       - name: Deploy operator to Kubernetes
         run: |
@@ -129,4 +151,7 @@ jobs:
         run: kubectl get all -n resource-adjustment-operator-system
         
       - name: Run tests
-        run: sudo -E bats -f "test_resource_adjustment_recommendations" test/tests.bats
+        run: |
+          sudo -E bats -f "test_resource_adjustment_recommendations" test/tests.bats
+          sudo -E bats -f "test_increasing_load_recommendations" test/tests.bats
+          sudo -E bats -f "test_decreasing_load_recommendations" test/tests.bats
