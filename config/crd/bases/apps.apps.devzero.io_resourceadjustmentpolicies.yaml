@@ -293,6 +293,18 @@ spec:
                       type: object
                     namespace:
                       type: string
+                    nodeSelectionResult:
+                      description: NodeSelectionResult contains the decision about
+                        pod placement
+                      properties:
+                        needsMigration:
+                          type: boolean
+                        targetNode:
+                          type: string
+                      required:
+                      - needsMigration
+                      - targetNode
+                      type: object
                     oomEvents:
                       items:
                         description: OOMEvent holds details of an Out-of-Memory event.
@@ -320,6 +332,7 @@ spec:
                   - lastUpdated
                   - memoryRecommendation
                   - namespace
+                  - nodeSelectionResult
                   - podName
                   type: object
                 type: array

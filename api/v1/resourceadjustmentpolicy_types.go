@@ -106,6 +106,7 @@ type ContainerStatus struct {
 	CurrentMemory        ResourceUsage         `json:"currentMemory"`        // Current memory details
 	CPURecommendation    RecommendationDetails `json:"cpuRecommendation"`    // CPU recommendation details
 	MemoryRecommendation RecommendationDetails `json:"memoryRecommendation"` // Memory recommendation details
+	NodeSelectionResult  NodeSelectionResult   `json:"nodeSelectionResult"`  // Node selection result
 	OOMEvents            []OOMEvent            `json:"oomEvents,omitempty"`  // List of OOM events for this container
 }
 
@@ -113,6 +114,12 @@ type ContainerStatus struct {
 type ResourceUsage struct {
 	Limit string `json:"limit,omitempty"` // Current resource limit (e.g., "1.0 cores", "512 Mi")
 	Usage string `json:"usage,omitempty"` // Current resource usage (e.g., "0.173 cores", "10548964 bytes")
+}
+
+// NodeSelectionResult contains the decision about pod placement
+type NodeSelectionResult struct {
+	NeedsMigration bool   `json:"needsMigration"` // Flag indicating if the pod needs to be migrated
+	TargetNode     string `json:"targetNode"`     // Name of the target node for migration
 }
 
 // RecommendationDetails holds the base and adjusted recommendations for a resource.

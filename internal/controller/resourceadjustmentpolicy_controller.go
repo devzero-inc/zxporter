@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"sort"
 	"strconv"
 	"sync"
 	"time"
@@ -612,7 +613,7 @@ func (re *recommender) processContainer(ctx context.Context, r *ResourceAdjustme
 
 	re.adjustRecommendations(&recommendedCPU, &baseCPU, &recommendedMemory, &baseMemory)
 
-	status := re.createContainerStatus(pod, container, currentCPUValue, currentMemoryValue, baseCPU, recommendedCPU, baseMemory, recommendedMemory)
+	status := re.createContainerStatus(ctx, r, log, pod, container, currentCPUValue, currentMemoryValue, baseCPU, recommendedCPU, baseMemory, recommendedMemory)
 	if autoApply && (status.CPURecommendation.NeedToApply || status.MemoryRecommendation.NeedToApply) {
 		if err := re.applyRecommendations(ctx, r, status); err != nil {
 			log.Error(err, "Failed to apply recommendations", "podName", pod.Name, "containerName", container.Name)
@@ -716,6 +717,9 @@ func (re *recommender) adjustRecommendations(
 }
 
 func (re *recommender) createContainerStatus(
+	ctx context.Context,
+	r *ResourceAdjustmentPolicyReconciler,
+	log logr.Logger,
 	pod *corev1.Pod,
 	container *corev1.Container,
 	currentCPUValue, currentMemoryValue, baseCPU, recommendedCPU, baseMemory, recommendedMemory float64,
@@ -727,11 +731,23 @@ func (re *recommender) createContainerStatus(
 		baseMemory,
 	)
 
+	var nodeSelectionResult v1.NodeSelectionResult
+	var err error
+	if !cpuNeedsAdjustment && !memoryNeedsAdjustment {
+		nodeSelectionResult = v1.NodeSelectionResult{NeedsMigration: false, TargetNode: pod.Spec.NodeName}
+	} else {
+		nodeSelectionResult, err = re.nodeSelection(ctx, r, pod, recommendedCPU, recommendedMemory)
+	}
+	if err != nil {
+		log.Error(err, "Failed to select target node for migration", "podName", pod.Name, "containerName", container.Name)
+	}
+
 	return v1.ContainerStatus{
-		Namespace:     pod.Namespace,
-		PodName:       pod.Name,
-		ContainerName: container.Name,
-		LastUpdated:   metav1.Now(),
+		Namespace:           pod.Namespace,
+		PodName:             pod.Name,
+		ContainerName:       container.Name,
+		LastUpdated:         metav1.Now(),
+		NodeSelectionResult: nodeSelectionResult,
 		CurrentCPU: v1.ResourceUsage{
 			Limit: container.Resources.Limits.Cpu().String(),
 			Usage: fmt.Sprintf("%.3f cores", currentCPUValue),
@@ -889,6 +905,152 @@ func (re *recommender) watchResizeStatus(ctx context.Context, r *ResourceAdjustm
 			}
 		}
 	}
+}
+
+// NodeInfo holds the current state and capacity of a node
+type NodeInfo struct {
+	Name               string
+	AllocatableCPU     float64
+	AllocatableMemory  float64
+	CurrentCPUUsage    float64
+	CurrentMemoryUsage float64
+	Score              float64
+}
+
+func (re *recommender) nodeSelection(
+	ctx context.Context,
+	r *ResourceAdjustmentPolicyReconciler,
+	pod *corev1.Pod,
+	recommendedCPU, recommendedMemory float64,
+) (v1.NodeSelectionResult, error) {
+	canStayOnCurrentNode, err := re.canNodeAccommodateResources(ctx, r, pod.Spec.NodeName,
+		recommendedCPU, recommendedMemory)
+	if err != nil {
+		return v1.NodeSelectionResult{}, err
+	}
+
+	if canStayOnCurrentNode {
+		return v1.NodeSelectionResult{NeedsMigration: false, TargetNode: pod.Spec.NodeName}, nil
+	}
+
+	targetNode, err := re.findSuitableNode(ctx, r, recommendedCPU, recommendedMemory, pod)
+	if err != nil {
+		return v1.NodeSelectionResult{}, err
+	}
+
+	return v1.NodeSelectionResult{
+		NeedsMigration: true,
+		TargetNode:     targetNode,
+	}, nil
+}
+
+func (re *recommender) canNodeAccommodateResources(ctx context.Context, r *ResourceAdjustmentPolicyReconciler, nodeName string, cpuRequest, memoryRequest float64) (bool, error) {
+	nodeMetrics, err := re.getNodeMetrics(ctx, r, nodeName)
+	if err != nil {
+		return false, fmt.Errorf("failed to get node metrics: %w", err)
+	}
+
+	projectedCPUUsage := nodeMetrics.CurrentCPUUsage + cpuRequest
+	projectedMemoryUsage := nodeMetrics.CurrentMemoryUsage + memoryRequest
+
+	cpuFits := projectedCPUUsage <= (nodeMetrics.AllocatableCPU * 0.85) // 85% threshold
+	memoryFits := projectedMemoryUsage <= (nodeMetrics.AllocatableMemory * 0.85)
+
+	return cpuFits && memoryFits, nil
+}
+
+func (re *recommender) getNodeMetrics(ctx context.Context, r *ResourceAdjustmentPolicyReconciler, nodeName string) (*NodeInfo, error) {
+	node := &corev1.Node{}
+	err := r.Get(ctx, types.NamespacedName{Name: nodeName}, node)
+	if err != nil {
+		return nil, err
+	}
+
+	promClient, err := NewPrometheusClient(prometheusURL)
+	if err != nil {
+		return nil, err
+	}
+
+	cpuQuery := fmt.Sprintf(`sum(node_cpu_seconds_total{node="%s"})`, nodeName)
+	memQuery := fmt.Sprintf(`node_memory_MemTotal_bytes{node="%s"}`, nodeName)
+
+	cpuUsage, err := promClient.QueryAtTime(cpuQuery, time.Now())
+	if err != nil {
+		return nil, err
+	}
+
+	memUsage, err := promClient.QueryAtTime(memQuery, time.Now())
+	if err != nil {
+		return nil, err
+	}
+
+	return &NodeInfo{
+		Name:               nodeName,
+		AllocatableCPU:     float64(node.Status.Allocatable.Cpu().MilliValue()) / 1000,
+		AllocatableMemory:  float64(node.Status.Allocatable.Memory().Value()),
+		CurrentCPUUsage:    cpuUsage,
+		CurrentMemoryUsage: memUsage,
+	}, nil
+}
+
+func (re *recommender) findSuitableNode(ctx context.Context, r *ResourceAdjustmentPolicyReconciler, cpuRequest, memoryRequest float64, pod *corev1.Pod) (string, error) {
+	nodes := &corev1.NodeList{}
+	err := r.List(ctx, nodes)
+	if err != nil {
+		return "", err
+	}
+
+	var candidateNodes []*NodeInfo
+
+	for _, node := range nodes.Items {
+		if node.Name == pod.Spec.NodeName {
+			continue
+		}
+
+		nodeMetrics, err := re.getNodeMetrics(ctx, r, node.Name)
+		if err != nil {
+			continue
+		}
+
+		if !re.canNodeAccommodatePod(nodeMetrics, cpuRequest, memoryRequest) {
+			continue
+		}
+
+		nodeMetrics.Score = re.scoreNode(nodeMetrics, cpuRequest, memoryRequest)
+		candidateNodes = append(candidateNodes, nodeMetrics)
+	}
+
+	if len(candidateNodes) == 0 {
+		return "", fmt.Errorf("no suitable nodes found")
+	}
+
+	sort.Slice(candidateNodes, func(i, j int) bool {
+		return candidateNodes[i].Score > candidateNodes[j].Score
+	})
+
+	return candidateNodes[0].Name, nil
+}
+
+func (re *recommender) canNodeAccommodatePod(node *NodeInfo, cpuRequest, memoryRequest float64) bool {
+	cpuAvailable := node.AllocatableCPU - node.CurrentCPUUsage
+	memoryAvailable := node.AllocatableMemory - node.CurrentMemoryUsage
+
+	// Include buffer (15% safety margin)
+	const safetyMargin = 0.85
+
+	return cpuRequest <= (cpuAvailable*safetyMargin) &&
+		memoryRequest <= (memoryAvailable*safetyMargin)
+}
+
+func (re *recommender) scoreNode(node *NodeInfo, cpuRequest, memoryRequest float64) float64 {
+	projectedCPUUtil := (node.CurrentCPUUsage + cpuRequest) / node.AllocatableCPU
+	projectedMemUtil := (node.CurrentMemoryUsage + memoryRequest) / node.AllocatableMemory
+
+	balanceFactor := 1 - math.Abs(projectedCPUUtil-projectedMemUtil)
+
+	utilizationScore := 1 - ((projectedCPUUtil + projectedMemUtil) / 2)
+
+	return (balanceFactor * 0.4) + (utilizationScore * 0.6)
 }
 
 // SetupWithManager sets up the controller with the Manager.
