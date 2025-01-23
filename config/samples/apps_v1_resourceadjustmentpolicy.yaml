@@ -19,13 +19,13 @@ spec:
     lookbackDuration: "1m"
     cpuRecommendation:
       sampleInterval: "1m"
-      requestPercentile: "0.95"
+      requestPercentile: "0.99"
       marginFraction: "0.15"
       targetUtilization: "0.75"
       historyLength: "124h"
     memoryRecommendation:
       sampleInterval: "1m"
-      requestPercentile: "0.95"
+      requestPercentile: "0.99"
       marginFraction: "0.15"
       targetUtilization: "0.75"
       historyLength: "124h"
