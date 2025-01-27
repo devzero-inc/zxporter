@@ -1,11 +1,20 @@
+# Use Ubuntu as base image
 FROM ubuntu:22.04
 
-RUN apt update && apt install -y build-essential libncurses-dev bison flex libssl-dev libelf-dev wget
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    flex \
+    bison \
+    libssl-dev \
+    libelf-dev \
+    bc \
+    wget \
+    python3 \
+    && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /linux
+WORKDIR /build
 
-COPY linux_build.sh /linux/linux_build.sh
+COPY ./build_kernel.sh /build/
+RUN chmod +x /build/build_kernel.sh
 
-RUN chmod +x /linux/linux_build.sh
-
-CMD ["./linux_build.sh"]
+ENTRYPOINT ["/build/build_kernel.sh"]

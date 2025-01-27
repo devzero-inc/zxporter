@@ -17,6 +17,10 @@ spec:
     frequency: "1m"
     autoApply: false
     lookbackDuration: "1m"
+    pidController:
+      propertionalGain: "10.0"
+      integralGain: "0.05"
+      derivativeGain: "1.0"
     cpuRecommendation:
       sampleInterval: "1m"
       requestPercentile: "99.0"

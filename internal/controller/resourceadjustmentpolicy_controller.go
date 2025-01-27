@@ -83,6 +83,9 @@ var (
 	autoApply            = false
 	oomProtection        = true
 	prometheusURL        = "http://prometheus-service.monitoring.svc.cluster.local:8080"
+	ProportionalGain     = 10.0
+	IntegralGain         = 0.08
+	DerivativeGain       = 1.0
 )
 
 type ContainerState struct {
@@ -125,6 +128,18 @@ type ResourceAdjustmentPolicyReconciler struct {
 	Scheme *runtime.Scheme
 }
 
+func equal(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i, v := range a {
+		if v != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
 // +kubebuilder:rbac:groups=apps.apps.devzero.io,resources=resourceadjustmentpolicies,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=apps.apps.devzero.io,resources=resourceadjustmentpolicies/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=apps.apps.devzero.io,resources=resourceadjustmentpolicies/finalizers,verbs=update
@@ -156,8 +171,10 @@ func (r *ResourceAdjustmentPolicyReconciler) Reconcile(ctx context.Context, req 
 
 	// Update namespaces
 	if len(policy.Spec.TargetSelector.Namespaces) > 0 && policy.Spec.TargetSelector.Namespaces[0] != "" {
-		namespaces = policy.Spec.TargetSelector.Namespaces
-		log.Info("Updated namespaces", "value", namespaces)
+		if !equal(policy.Spec.TargetSelector.Namespaces, namespaces) {
+			namespaces = policy.Spec.TargetSelector.Namespaces
+			log.Info("Updated namespaces", "value", namespaces)
+		}
 	}
 
 	if policy.Spec.Policies.AutoApply != autoApply {
@@ -181,7 +198,38 @@ func (r *ResourceAdjustmentPolicyReconciler) Reconcile(ctx context.Context, req 
 		} else if frequency != defaultFrequency {
 			defaultFrequency = frequency
 			log.Info("Updated Frequency", "value", defaultFrequency)
-			r.restartRecommender()
+			r.restartRecommender(ctx)
+		}
+	}
+
+	// Update PID Controller configurations
+	if policy.Spec.Policies.PidController.PropertionalGain != "" {
+		if gain, err := strconv.ParseFloat(policy.Spec.Policies.PidController.PropertionalGain, 64); err != nil {
+			log.Error(err, "Error parsing PID Controller PropertionalGain")
+		} else if gain != ProportionalGain {
+			ProportionalGain = gain
+			log.Info("Updated PID Controller PropertionalGain", "value", ProportionalGain)
+			r.restartRecommender(ctx)
+		}
+	}
+
+	if policy.Spec.Policies.PidController.IntegralGain != "" {
+		if gain, err := strconv.ParseFloat(policy.Spec.Policies.PidController.IntegralGain, 64); err != nil {
+			log.Error(err, "Error parsing PID Controller IntegralGain")
+		} else if gain != IntegralGain {
+			IntegralGain = gain
+			log.Info("Updated PID Controller IntegralGain", "value", IntegralGain)
+			r.restartRecommender(ctx)
+		}
+	}
+
+	if policy.Spec.Policies.PidController.DerivativeGain != "" {
+		if gain, err := strconv.ParseFloat(policy.Spec.Policies.PidController.DerivativeGain, 64); err != nil {
+			log.Error(err, "Error parsing PID Controller DerivativeGain")
+		} else if gain != DerivativeGain {
+			DerivativeGain = gain
+			log.Info("Updated PID Controller DerivativeGain", "value", DerivativeGain)
+			r.restartRecommender(ctx)
 		}
 	}
 
@@ -582,9 +630,9 @@ func NewContainerState(namespace, podName, containerName string) *ContainerState
 		ContainerName: containerName,
 		PIDController: &pid.Controller{
 			Config: pid.ControllerConfig{
-				ProportionalGain: 10.0, // Need to tune these values correctly
-				IntegralGain:     0.3,
-				DerivativeGain:   1.0,
+				ProportionalGain: ProportionalGain, // Need to tune these values correctly
+				IntegralGain:     IntegralGain,
+				DerivativeGain:   DerivativeGain,
 			},
 		},
 		Frequency:   defaultFrequency,
@@ -608,12 +656,32 @@ func (re *Recommender) calculateError(log logr.Logger, pod *corev1.Pod, containe
 	log.Info("calculate error", "cuurentMemory", currentMemory, "allocatedMemory", allocatedMemory, "memoryUtilization", memoryUtilization)
 
 	// Define target utilizations (e.g., 85% for CPU, 85% for memory)
-	targetCPUUtilization := 0.85
-	targetMemoryUtilization := 0.85
+	maxTargetCPUUtilization := 0.85
+	minTargetCPUUtilization := 0.80
+	maxTargetMemoryUtilization := 0.85
+	minTargetMemoryUtilization := 0.80
 
 	// Calculate errors
-	cpuError := targetCPUUtilization - cpuUtilization
-	memoryError := targetMemoryUtilization - memoryUtilization
+	var cpuError, memoryError float64
+	if minTargetCPUUtilization <= cpuUtilization && cpuUtilization <= maxTargetCPUUtilization {
+		cpuError = 0
+	} else {
+		if cpuUtilization < minTargetCPUUtilization {
+			cpuError = minTargetCPUUtilization - cpuUtilization
+		} else {
+			cpuError = maxTargetCPUUtilization - cpuUtilization
+		}
+	}
+
+	if minTargetMemoryUtilization <= memoryUtilization && memoryUtilization <= maxTargetMemoryUtilization {
+		memoryError = 0
+	} else {
+		if memoryUtilization < minTargetMemoryUtilization {
+			memoryError = minTargetMemoryUtilization - memoryUtilization
+		} else {
+			memoryError = maxTargetMemoryUtilization - memoryUtilization
+		}
+	}
 
 	return cpuError, memoryError, cpuUtilization, memoryUtilization, nil
 }
@@ -621,6 +689,7 @@ func (re *Recommender) calculateError(log logr.Logger, pod *corev1.Pod, containe
 func (re *Recommender) monitorFrequency(r *ResourceAdjustmentPolicyReconciler, state *ContainerState) {
 	log := k8log.FromContext(context.Background())
 	threshold := 0.2 // Threshold for immediate reconciliation (e.g., 20% change)
+	prvTime := time.Now()
 
 	for {
 		select {
@@ -680,8 +749,9 @@ func (re *Recommender) monitorFrequency(r *ResourceAdjustmentPolicyReconciler, s
 			state.PIDController.Update(pid.ControllerInput{
 				ReferenceSignal:  0,
 				ActualSignal:     error,
-				SamplingInterval: 1 * time.Second,
+				SamplingInterval: time.Since(prvTime),
 			})
+			prvTime = time.Now()
 
 			normalizedControlSignal := normalizeControlSignal(state.PIDController.State.ControlSignal)
 
@@ -762,8 +832,10 @@ func (re *Recommender) runContainerLoop(ctx context.Context, r *ResourceAdjustme
 	}
 }
 
-func (r *ResourceAdjustmentPolicyReconciler) restartRecommender() {
+func (r *ResourceAdjustmentPolicyReconciler) restartRecommender(ctx context.Context) {
 	quit <- true
+	log := k8log.FromContext(ctx)
+	log.Info("Restarting the resource recommender")
 	quit = make(chan bool)
 	recommender := NewRecommender()
 	go recommender.runRecommender(r)
@@ -798,6 +870,9 @@ func (re *Recommender) runRecommender(r *ResourceAdjustmentPolicyReconciler) {
 					}
 
 					for _, pod := range pods.Items {
+						if pod.Status.Phase != corev1.PodRunning {
+							continue
+						}
 						for _, container := range pod.Spec.Containers {
 							key := fmt.Sprintf("%s/%s/%s", namespace, pod.Name, container.Name)
 
@@ -821,52 +896,6 @@ func (re *Recommender) runRecommender(r *ResourceAdjustmentPolicyReconciler) {
 	}
 }
 
-// func (re *Recommender) processPolicies(ctx context.Context, r *ResourceAdjustmentPolicyReconciler, log logr.Logger) {
-// 	log.Info("Fetching ResourceAdjustmentPolicies")
-// 	policyList := &v1.ResourceAdjustmentPolicyList{}
-// 	if err := r.List(ctx, policyList); err != nil {
-// 		log.Error(err, "Failed to list ResourceAdjustmentPolicies")
-// 		return
-// 	}
-// 	log.Info("Found ResourceAdjustmentPolicies", "count", len(policyList.Items))
-
-// 	for _, policy := range policyList.Items {
-// 		for _, namespace := range namespaces {
-// 			re.processNamespace(ctx, r, log, &policy, namespace)
-// 		}
-// 	}
-// }
-
-// func (re *Recommender) processNamespace(ctx context.Context, r *ResourceAdjustmentPolicyReconciler, log logr.Logger, policy *v1.ResourceAdjustmentPolicy, namespace string) {
-// 	log.Info("Processing ResourceAdjustmentPolicy", "policyName", policy.Name, "namespace", namespace)
-
-// 	pods := &corev1.PodList{}
-// 	log.Info("Fetching pods for namespace", "namespace", namespace)
-// 	if err := r.Client.List(ctx, pods, client.InNamespace(namespace)); err != nil {
-// 		log.Error(err, "Failed to fetch pods", "namespace", namespace)
-// 		return
-// 	}
-// 	log.Info("Found pods in namespace", "namespace", namespace, "podCount", len(pods.Items))
-
-// 	for _, pod := range pods.Items {
-// 		re.processPod(ctx, r, log, policy, &pod)
-// 	}
-// }
-
-// func (re *Recommender) processPod(ctx context.Context, r *ResourceAdjustmentPolicyReconciler, log logr.Logger, policy *v1.ResourceAdjustmentPolicy, pod *corev1.Pod) {
-// 	log.Info("Processing pod", "podName", pod.Name)
-
-// 	for _, container := range pod.Spec.Containers {
-// 		re.processContainer(ctx, r, log, policy, pod, &container)
-// 	}
-
-// 	if err := r.Status().Update(ctx, policy); err != nil {
-// 		log.Error(err, "Failed to update status for policy", "policyName", policy.Name)
-// 	} else {
-// 		log.Info("Successfully updated status for policy", "policyName", policy.Name)
-// 	}
-// }
-
 func (re *Recommender) processContainer(ctx context.Context, r *ResourceAdjustmentPolicyReconciler, log logr.Logger, policy *v1.ResourceAdjustmentPolicy, pod *corev1.Pod, container *corev1.Container) {
 	log.Info("Processing container", "podName", pod.Name, "containerName", container.Name)
 
@@ -887,7 +916,6 @@ func (re *Recommender) processContainer(ctx context.Context, r *ResourceAdjustme
 	}
 
 	StatusUpdater.updateContainerStatus(ctx, log, r, policy, status)
-	// log.Info("Updated policy status for container", "policyName", policy.Name, "podName", pod.Name, "containerName", container.Name)
 }
 
 func (s *StatusUpdate) updateContainerStatus(ctx context.Context, log logr.Logger, r *ResourceAdjustmentPolicyReconciler, policy *v1.ResourceAdjustmentPolicy, status v1.ContainerStatus) {
@@ -933,7 +961,6 @@ func (re *Recommender) fetchCurrentMetrics(ctx context.Context, log logr.Logger,
 		log.Error(err, "Failed to fetch current CPU metrics", "podName", pod.Name, "containerName", container.Name)
 		return 0, 0, 0, err
 	}
-	// log.Info("Fetched current CPU metrics", "podName", pod.Name, "containerName", container.Name, "currentCPUValue", currentCPUValue)
 
 	currentMemoryQuery := fmt.Sprintf(`max(
         container_memory_working_set_bytes{namespace="%s", container="%s"}
@@ -943,12 +970,10 @@ func (re *Recommender) fetchCurrentMetrics(ctx context.Context, log logr.Logger,
 		log.Error(err, "Failed to fetch current memory metrics", "podName", pod.Name, "containerName", container.Name)
 		return 0, 0, 0, err
 	}
-	// log.Info("Fetched current memory metrics", "podName", pod.Name, "containerName", container.Name, "currentMemoryValue", currentMemoryValue)
 
 	oomMemory := 0.0
 	if oomProtection {
 		oomMemory = re.checkForOOMEvents(*pod, container.Name)
-		// log.Info("OOM memory", "podName", pod.Name, "containerName", container.Name, "oomMemory", oomMemory)
 	}
 
 	return currentCPUValue, currentMemoryValue, oomMemory, nil

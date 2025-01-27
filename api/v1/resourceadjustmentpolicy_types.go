@@ -46,9 +46,17 @@ type Policies struct {
 	Frequency            string               `json:"frequency"`
 	AutoApply            bool                 `json:"autoApply"`
 	LookbackDuration     string               `json:"lookbackDuration"`
+	PidController        PidController        `json:"pidController"`
 	CPURecommendation    CPURecommendation    `json:"cpuRecommendation"`
 	MemoryRecommendation MemoryRecommendation `json:"memoryRecommendation"`
 	Normalization        Normalization        `json:"normalization"`
+}
+
+// Pid controller configuration
+type PidController struct {
+	PropertionalGain string `json:"propertionalGain"`
+	IntegralGain     string `json:"integralGain"`
+	DerivativeGain   string `json:"derivativeGain"`
 }
 
 // CPURecommendation specifies policies for CPU adjustments

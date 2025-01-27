@@ -134,6 +134,20 @@ spec:
                     - config
                     - enabled
                     type: object
+                  pidController:
+                    description: Pid controller configuration
+                    properties:
+                      derivativeGain:
+                        type: string
+                      integralGain:
+                        type: string
+                      propertionalGain:
+                        type: string
+                    required:
+                    - derivativeGain
+                    - integralGain
+                    - propertionalGain
+                    type: object
                 required:
                 - autoApply
                 - cpuRecommendation
@@ -142,6 +156,7 @@ spec:
                 - memoryRecommendation
                 - metricsSources
                 - normalization
+                - pidController
                 type: object
               targetSelector:
                 description: TargetSelector specifies the labels and namespaces to
