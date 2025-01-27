@@ -15,19 +15,19 @@ spec:
     metricsSources:
       - prometheus
     frequency: "1m"
-    autoApply: true
+    autoApply: false
     lookbackDuration: "1m"
     cpuRecommendation:
       sampleInterval: "1m"
-      requestPercentile: "0.99"
+      requestPercentile: "99.0"
       marginFraction: "0.15"
-      targetUtilization: "0.75"
+      targetUtilization: "0.95"
       historyLength: "124h"
     memoryRecommendation:
       sampleInterval: "1m"
-      requestPercentile: "0.99"
+      requestPercentile: "99.0"
       marginFraction: "0.15"
-      targetUtilization: "0.75"
+      targetUtilization: "0.95"
       historyLength: "124h"
       oomProtection: true
       oomBumpRatio: "1.2"

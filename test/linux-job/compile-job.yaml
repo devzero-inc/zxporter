@@ -1,0 +1,17 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: linux-kernel-compile
+spec:
+  template:
+    spec:
+      containers:
+      - name: linux-kernel-builder
+        image: remontada007/linux-kernel-builder:v1
+        resources:
+          requests:
+            cpu: "1"
+          limits:
+            cpu: "4"
+      restartPolicy: Never
+  backoffLimit: 0
