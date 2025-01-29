@@ -9,12 +9,12 @@ data:
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: linux-kernel-build-job
+  name: compilation
 spec:
   template:
     spec:
       containers:
-      - name: linux-builder
+      - name: compilation
         image: docker.io/remontada007/linux-kernel-builder:v2
         resources:
           requests:

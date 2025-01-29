@@ -92,7 +92,7 @@ type ContainerState struct {
 	Namespace     string
 	PodName       string
 	ContainerName string
-	PIDController *pid.Controller // Use pid-go's Controller
+	PIDController *pid.Controller
 	Frequency     time.Duration
 	LastUpdated   time.Time
 	UpdateChan    chan struct{} // Channel to signal frequency updates
@@ -631,7 +631,7 @@ func NewContainerState(namespace, podName, containerName string) *ContainerState
 		PIDController: &pid.Controller{
 			Config: pid.ControllerConfig{
 				ProportionalGain: ProportionalGain, // Need to tune these values correctly
-				IntegralGain:     IntegralGain,
+				IntegralGain:     IntegralGain,     // Look at the base theroem
 				DerivativeGain:   DerivativeGain,
 			},
 		},
@@ -661,7 +661,6 @@ func (re *Recommender) calculateError(log logr.Logger, pod *corev1.Pod, containe
 	maxTargetMemoryUtilization := 0.85
 	minTargetMemoryUtilization := 0.80
 
-	// Calculate errors
 	var cpuError, memoryError float64
 	if minTargetCPUUtilization <= cpuUtilization && cpuUtilization <= maxTargetCPUUtilization {
 		cpuError = 0

@@ -19,7 +19,7 @@ spec:
     lookbackDuration: "1m"
     pidController:
       propertionalGain: "10.0"
-      integralGain: "0.05"
+      integralGain: "0.03"
       derivativeGain: "1.0"
     cpuRecommendation:
       sampleInterval: "1m"
