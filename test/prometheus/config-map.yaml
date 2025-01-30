@@ -31,7 +31,24 @@ data:
           - "alertmanager.monitoring.svc:9093"
 
     scrape_configs:
-      # Scrape metrics from Kubernetes nodes (cAdvisor)
+      - job_name: 'node-exporter'
+        kubernetes_sd_configs:
+          - role: endpoints
+            namespaces:
+              names:
+                - default
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_label_app_kubernetes_io_name]
+            regex: prometheus-node-exporter
+            action: keep
+          - source_labels: [__meta_kubernetes_endpoint_node_name]
+            target_label: node
+          - source_labels: [__meta_kubernetes_service_label_app_kubernetes_io_component]
+            target_label: component
+          - source_labels: [__meta_kubernetes_service_label_app_kubernetes_io_instance]
+            target_label: instance
+      
+      # Scrape metrics from Kubernetes nodes (cAdvisor)      
       - job_name: kubernetes-nodes-cadvisor
         scrape_interval: 10s
         scrape_timeout: 10s
