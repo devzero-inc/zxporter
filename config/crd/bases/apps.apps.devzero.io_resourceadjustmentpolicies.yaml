@@ -137,15 +137,30 @@ spec:
                   pidController:
                     description: Pid controller configuration
                     properties:
+                      antiWindUpGain:
+                        type: string
                       derivativeGain:
                         type: string
+                      integralDischargeTimeConstant:
+                        type: string
                       integralGain:
+                        type: string
+                      lowPassTimeConstant:
+                        type: string
+                      maxOutput:
+                        type: string
+                      minOutput:
                         type: string
                       propertionalGain:
                         type: string
                     required:
+                    - antiWindUpGain
                     - derivativeGain
+                    - integralDischargeTimeConstant
                     - integralGain
+                    - lowPassTimeConstant
+                    - maxOutput
+                    - minOutput
                     - propertionalGain
                     type: object
                 required:

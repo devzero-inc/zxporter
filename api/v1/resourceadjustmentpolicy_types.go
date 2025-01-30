@@ -54,9 +54,14 @@ type Policies struct {
 
 // Pid controller configuration
 type PidController struct {
-	PropertionalGain string `json:"propertionalGain"`
-	IntegralGain     string `json:"integralGain"`
-	DerivativeGain   string `json:"derivativeGain"`
+	PropertionalGain              string `json:"propertionalGain"`
+	IntegralGain                  string `json:"integralGain"`
+	DerivativeGain                string `json:"derivativeGain"`
+	AntiWindUpGain                string `json:"antiWindUpGain"`
+	IntegralDischargeTimeConstant string `json:"integralDischargeTimeConstant"`
+	LowPassTimeConstant           string `json:"lowPassTimeConstant"`
+	MaxOutput                     string `json:"maxOutput"`
+	MinOutput                     string `json:"minOutput"`
 }
 
 // CPURecommendation specifies policies for CPU adjustments

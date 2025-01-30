@@ -26,11 +26,11 @@ import (
 	"time"
 
 	v1 "github.com/devzero-inc/resource-adjustment-operator/api/v1"
+	"github.com/devzero-inc/resource-adjustment-operator/internal/controller/pid"
 	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/api"
 	pv1 "github.com/prometheus/client_golang/api/prometheus/v1"
 	"github.com/prometheus/common/model"
-	"go.einride.tech/pid"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -65,34 +65,39 @@ const (
 // Global configurations
 var (
 	// Recommender          recommender
-	StatusUpdater        StatusUpdate
-	defaultNamespaces    = []string{"default"}
-	quit                 chan bool
-	defaultCPUConfig     = ResourceConfig{RequestPercentile: 95.0, MarginFraction: 0.15, TargetUtilization: 1.0, BucketSize: 0.001}
-	defaultMemoryConfig  = ResourceConfig{RequestPercentile: 95.0, MarginFraction: 0.15, TargetUtilization: 1.0, BucketSize: 1048576}
-	namespaces           = defaultNamespaces
-	cpuConfig            = defaultCPUConfig
-	memoryConfig         = defaultMemoryConfig
-	oomBumpRatio         = 1.2
-	defaultFrequency     = 3 * time.Minute
-	cpuSampleInterval    = 1 * time.Minute
-	cpuHistoryLength     = 24 * time.Hour
-	memorySampleInterval = 1 * time.Minute
-	memoryHistoryLength  = 24 * time.Hour
-	lookbackDuration     = 1 * time.Hour
-	autoApply            = false
-	oomProtection        = true
-	prometheusURL        = "http://prometheus-service.monitoring.svc.cluster.local:8080"
-	ProportionalGain     = 10.0
-	IntegralGain         = 0.08
-	DerivativeGain       = 1.0
+	StatusUpdater                 StatusUpdate
+	defaultNamespaces             = []string{"default"}
+	quit                          chan bool
+	defaultCPUConfig              = ResourceConfig{RequestPercentile: 95.0, MarginFraction: 0.15, TargetUtilization: 1.0, BucketSize: 0.001}
+	defaultMemoryConfig           = ResourceConfig{RequestPercentile: 95.0, MarginFraction: 0.15, TargetUtilization: 1.0, BucketSize: 1048576}
+	namespaces                    = defaultNamespaces
+	cpuConfig                     = defaultCPUConfig
+	memoryConfig                  = defaultMemoryConfig
+	oomBumpRatio                  = 1.2
+	defaultFrequency              = 3 * time.Minute
+	cpuSampleInterval             = 1 * time.Minute
+	cpuHistoryLength              = 24 * time.Hour
+	memorySampleInterval          = 1 * time.Minute
+	memoryHistoryLength           = 24 * time.Hour
+	lookbackDuration              = 1 * time.Hour
+	autoApply                     = false
+	oomProtection                 = true
+	prometheusURL                 = "http://prometheus-service.monitoring.svc.cluster.local:8080"
+	ProportionalGain              = 8.0
+	IntegralGain                  = 0.3
+	DerivativeGain                = 1.0
+	AntiWindUpGain                = 1.0
+	IntegralDischargeTimeConstant = 1.0
+	LowPassTimeConstant           = 2 * time.Second
+	MaxOutput                     = 1.01
+	MinOutput                     = -2.15
 )
 
 type ContainerState struct {
 	Namespace     string
 	PodName       string
 	ContainerName string
-	PIDController *pid.Controller
+	PIDController *pid.AntiWindupController
 	Frequency     time.Duration
 	LastUpdated   time.Time
 	UpdateChan    chan struct{} // Channel to signal frequency updates
@@ -229,6 +234,56 @@ func (r *ResourceAdjustmentPolicyReconciler) Reconcile(ctx context.Context, req 
 		} else if gain != DerivativeGain {
 			DerivativeGain = gain
 			log.Info("Updated PID Controller DerivativeGain", "value", DerivativeGain)
+			r.restartRecommender(ctx)
+		}
+	}
+
+	if policy.Spec.Policies.PidController.AntiWindUpGain != "" {
+		if gain, err := strconv.ParseFloat(policy.Spec.Policies.PidController.AntiWindUpGain, 64); err != nil {
+			log.Error(err, "Error parsing PID Controller AntiWindUpGain")
+		} else if gain != AntiWindUpGain {
+			AntiWindUpGain = gain
+			log.Info("Updated PID Controller AntiWindUpGain", "value", AntiWindUpGain)
+			r.restartRecommender(ctx)
+		}
+	}
+
+	if policy.Spec.Policies.PidController.IntegralDischargeTimeConstant != "" {
+		if constant, err := strconv.ParseFloat(policy.Spec.Policies.PidController.IntegralDischargeTimeConstant, 64); err != nil {
+			log.Error(err, "Error parsing PID Controller IntegralDischargeTimeConstant")
+		} else if constant != IntegralDischargeTimeConstant {
+			IntegralDischargeTimeConstant = constant
+			log.Info("Updated PID Controller IntegralDischargeTimeConstant", "value", IntegralDischargeTimeConstant)
+			r.restartRecommender(ctx)
+		}
+	}
+
+	if policy.Spec.Policies.PidController.LowPassTimeConstant != "" {
+		if duration, err := time.ParseDuration(policy.Spec.Policies.PidController.LowPassTimeConstant); err != nil {
+			log.Error(err, "Error parsing PID Controller LowPassTimeConstant")
+		} else if duration != LowPassTimeConstant {
+			LowPassTimeConstant = duration
+			log.Info("Updated PID Controller LowPassTimeConstant", "value", LowPassTimeConstant)
+			r.restartRecommender(ctx)
+		}
+	}
+
+	if policy.Spec.Policies.PidController.MaxOutput != "" {
+		if output, err := strconv.ParseFloat(policy.Spec.Policies.PidController.MaxOutput, 64); err != nil {
+			log.Error(err, "Error parsing PID Controller MaxOutput")
+		} else if output != MaxOutput {
+			MaxOutput = output
+			log.Info("Updated PID Controller MaxOutput", "value", MaxOutput)
+			r.restartRecommender(ctx)
+		}
+	}
+
+	if policy.Spec.Policies.PidController.MinOutput != "" {
+		if output, err := strconv.ParseFloat(policy.Spec.Policies.PidController.MinOutput, 64); err != nil {
+			log.Error(err, "Error parsing PID Controller MinOutput")
+		} else if output != MinOutput {
+			MinOutput = output
+			log.Info("Updated PID Controller MinOutput", "value", MinOutput)
 			r.restartRecommender(ctx)
 		}
 	}
@@ -628,11 +683,16 @@ func NewContainerState(namespace, podName, containerName string) *ContainerState
 		Namespace:     namespace,
 		PodName:       podName,
 		ContainerName: containerName,
-		PIDController: &pid.Controller{
-			Config: pid.ControllerConfig{
-				ProportionalGain: ProportionalGain, // Need to tune these values correctly
-				IntegralGain:     IntegralGain,     // Look at the base theroem
-				DerivativeGain:   DerivativeGain,
+		PIDController: &pid.AntiWindupController{
+			Config: pid.AntiWindupControllerConfig{
+				ProportionalGain:              ProportionalGain, // Need to tune these values correctly
+				IntegralGain:                  IntegralGain,     // Look at the bayes theroem
+				DerivativeGain:                DerivativeGain,
+				AntiWindUpGain:                AntiWindUpGain,
+				IntegralDischargeTimeConstant: IntegralDischargeTimeConstant,
+				LowPassTimeConstant:           LowPassTimeConstant,
+				MaxOutput:                     MaxOutput,
+				MinOutput:                     MinOutput,
 			},
 		},
 		Frequency:   defaultFrequency,
@@ -745,10 +805,11 @@ func (re *Recommender) monitorFrequency(r *ResourceAdjustmentPolicyReconciler, s
 			}
 			log.Info("Final error calculated", "pod", state.PodName, "container", state.ContainerName, "error", error)
 
-			state.PIDController.Update(pid.ControllerInput{
-				ReferenceSignal:  0,
-				ActualSignal:     error,
-				SamplingInterval: time.Since(prvTime),
+			state.PIDController.Update(pid.AntiWindupControllerInput{
+				ReferenceSignal:   0,
+				ActualSignal:      error,
+				FeedForwardSignal: 0.0,
+				SamplingInterval:  time.Since(prvTime),
 			})
 			prvTime = time.Now()
 
@@ -771,7 +832,7 @@ func (re *Recommender) monitorFrequency(r *ResourceAdjustmentPolicyReconciler, s
 
 func normalizeControlSignal(controlSignal float64) float64 {
 	// Define maximum expected control signal magnitudes for each direction
-	maxControlSignalPositive := 1.13 // Observed max for negative errors (e.g., error=-0.10)
+	maxControlSignalPositive := 1.01 // Observed max for negative errors (e.g., error=-0.10)
 	maxControlSignalNegative := 2.15 // Observed max for positive errors (e.g., error=+0.20)
 
 	var normalized float64

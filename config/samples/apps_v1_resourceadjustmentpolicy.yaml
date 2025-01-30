@@ -21,6 +21,11 @@ spec:
       propertionalGain: "10.0"
       integralGain: "0.03"
       derivativeGain: "1.0"
+      antiWindUpGain: "1.0"
+      integralDischargeTimeConstant: "1.0"
+      lowPassTimeConstant: "2s"
+      maxOutput: "1.01"
+      minOutput: "-2.15"
     cpuRecommendation:
       sampleInterval: "1m"
       requestPercentile: "99.0"
