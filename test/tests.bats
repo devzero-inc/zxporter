@@ -45,11 +45,14 @@ function log_and_run() {
     return 1
   fi
   
-  # Extract CPU recommendation for test-app container
-  cpu_recommendation=$(echo "$output" | yq eval '.status.containers[] | select(.containerName == "test-app") | .cpuRecommendation.adjustedRecommendation' -)
+  # Extract the latest entry for test-app container based on lastUpdated timestamp
+  latest_entry=$(echo "$output" | yq eval '.status.containers | map(select(.containerName == "test-app")) | sort_by(.lastUpdated) | .[-1]' -)
   
-  # Extract memory recommendation for test-app container
-  memory_recommendation=$(echo "$output" | yq eval '.status.containers[] | select(.containerName == "test-app") | .memoryRecommendation.adjustedRecommendation' -)
+  # Extract CPU recommendation for the latest entry
+  cpu_recommendation=$(echo "$latest_entry" | yq eval '.cpuRecommendation.adjustedRecommendation' -)
+  
+  # Extract memory recommendation for the latest entry
+  memory_recommendation=$(echo "$latest_entry" | yq eval '.memoryRecommendation.adjustedRecommendation' -)
   
   # Check if recommendations are empty or null
   if [ -z "$cpu_recommendation" ] || [ "$cpu_recommendation" = "null" ]; then
