@@ -18,8 +18,8 @@ spec:
     spec:
       containers:
       - name: test-app
-        image: docker.io/remontada007/test-app:v1
-        # image: localhost:5000/test-app:ci
+        # image: docker.io/remontada007/test-app:v1
+        image: localhost:5000/test-app:ci
         ports:
         - containerPort: 9001
         resources:
