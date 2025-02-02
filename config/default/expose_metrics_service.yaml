@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: resource-adjustment-operator-metrics
+  namespace: resource-adjustment-operator-system
+  labels:
+    app.kubernetes.io/name: resource-adjustment-operator
+    app.kubernetes.io/instance: resource-adjustment-operator
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8080"
+    prometheus.io/path: "/metrics"
+spec:
+  ports:
+    - name: metrics
+      port: 8080
+      targetPort: 8080
+  selector:
+    control-plane: controller-manager

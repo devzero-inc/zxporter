@@ -26,10 +26,12 @@ import (
 	"time"
 
 	v1 "github.com/devzero-inc/resource-adjustment-operator/api/v1"
+	"github.com/devzero-inc/resource-adjustment-operator/internal/controller/metrics"
 	"github.com/devzero-inc/resource-adjustment-operator/internal/controller/pid"
 	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/api"
 	pv1 "github.com/prometheus/client_golang/api/prometheus/v1"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -83,6 +85,7 @@ var (
 	autoApply                     = false
 	oomProtection                 = true
 	prometheusURL                 = "http://prometheus-service.monitoring.svc.cluster.local:8080"
+	controllerMetrics             = metrics.NewMetrics("resource_adjustment_operator")
 	ProportionalGain              = 8.0
 	IntegralGain                  = 0.3
 	DerivativeGain                = 1.0
@@ -107,15 +110,17 @@ type ContainerState struct {
 type Recommender struct {
 	sync.Mutex
 	ContainerStates map[string]*ContainerState // Key: "namespace/pod/container"
+	Metrics         *metrics.Metrics
 }
 
 type StatusUpdate struct {
 	sync.Mutex
 }
 
-func NewRecommender() *Recommender {
+func NewRecommender(metrics *metrics.Metrics) *Recommender {
 	return &Recommender{
-		ContainerStates: make(map[string]*ContainerState), // Initialize the map
+		ContainerStates: make(map[string]*ContainerState),
+		Metrics:         metrics,
 	}
 }
 
@@ -897,7 +902,7 @@ func (r *ResourceAdjustmentPolicyReconciler) restartRecommender(ctx context.Cont
 	log := k8log.FromContext(ctx)
 	log.Info("Restarting the resource recommender")
 	quit = make(chan bool)
-	recommender := NewRecommender()
+	recommender := NewRecommender(controllerMetrics)
 	go recommender.runRecommender(r)
 }
 
@@ -967,6 +972,48 @@ func (re *Recommender) processContainer(ctx context.Context, r *ResourceAdjustme
 	recommendedCPU, baseCPU, recommendedMemory, baseMemory := re.calculateRecommendations(ctx, log, pod, container, oomMemory)
 
 	re.adjustRecommendations(&recommendedCPU, &baseCPU, &recommendedMemory, &baseMemory)
+
+	// Expose recommendations to Prometheus
+	re.Metrics.CpuRecommendation.With(prometheus.Labels{
+		"namespace": pod.Namespace,
+		"pod":       pod.Name,
+		"container": container.Name,
+	}).Set(recommendedCPU)
+
+	re.Metrics.MemoryRecommendation.With(prometheus.Labels{
+		"namespace": pod.Namespace,
+		"pod":       pod.Name,
+		"container": container.Name,
+	}).Set(recommendedMemory)
+
+	// Expose PID controller state
+	state := re.ContainerStates[fmt.Sprintf("%s/%s/%s", pod.Namespace, pod.Name, container.Name)]
+	if state != nil {
+		re.Metrics.ControlSignal.With(prometheus.Labels{
+			"namespace": pod.Namespace,
+			"pod":       pod.Name,
+			"container": container.Name,
+		}).Set(state.PIDController.State.ControlSignal)
+
+		re.Metrics.IntegralTerm.With(prometheus.Labels{
+			"namespace": pod.Namespace,
+			"pod":       pod.Name,
+			"container": container.Name,
+		}).Set(state.PIDController.State.ControlErrorIntegral)
+
+		re.Metrics.DerivativeTerm.With(prometheus.Labels{
+			"namespace": pod.Namespace,
+			"pod":       pod.Name,
+			"container": container.Name,
+		}).Set(state.PIDController.State.ControlErrorDerivative)
+
+		// Expose reconciliation frequency
+		re.Metrics.ReconciliationFrequency.With(prometheus.Labels{
+			"namespace": pod.Namespace,
+			"pod":       pod.Name,
+			"container": container.Name,
+		}).Set(state.Frequency.Seconds())
+	}
 
 	status := re.createContainerStatus(ctx, r, log, pod, container, currentCPUValue, currentMemoryValue, baseCPU, recommendedCPU, baseMemory, recommendedMemory)
 	if autoApply && (status.CPURecommendation.NeedToApply || status.MemoryRecommendation.NeedToApply) {
@@ -1477,8 +1524,9 @@ func (re *Recommender) scoreNode(node *NodeInfo, cpuRequest, memoryRequest float
 // SetupWithManager sets up the controller with the Manager.
 func (r *ResourceAdjustmentPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	quit = make(chan bool)
+
 	// Run the recommender as a background goroutine
-	recommender := NewRecommender()
+	recommender := NewRecommender(controllerMetrics)
 	go recommender.runRecommender(r)
 
 	return ctrl.NewControllerManagedBy(mgr).

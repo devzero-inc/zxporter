@@ -62,6 +62,8 @@ func (c *AntiWindupController) Update(input AntiWindupControllerInput) {
 	}
 
 	// Calculate derivative (low-pass filtered)
+	// derivative = (1 / τ) * (current_error - previous_error) + previous_derivative
+	// τ is the low-pass time constant (c.Config.LowPassTimeConstant)
 	derivative := ((1/c.Config.LowPassTimeConstant.Seconds())*(c.errorWindow[len(c.errorWindow)-1]-c.State.ControlError) +
 		c.State.ControlErrorDerivative) / (input.SamplingInterval.Seconds()/c.Config.LowPassTimeConstant.Seconds() + 1)
 

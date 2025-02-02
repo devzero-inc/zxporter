@@ -98,3 +98,26 @@ data:
           # Add container name as a label
           - source_labels: [__meta_kubernetes_pod_container_name]
             target_label: container
+      # Scrape metrics from the resource-adjustment-operator
+      - job_name: resource-adjustment-operator
+        static_configs:
+          - targets: ["resource-adjustment-operator-metrics.resource-adjustment-operator-system.svc.cluster.local:8080"]
+      # - job_name: 'resource-adjustment-operator'
+      #   kubernetes_sd_configs:
+      #     - role: endpoints
+      #       namespaces:
+      #         names:
+      #           - resource-adjustment-operator-system
+      #   relabel_configs:
+      #     - source_labels: [__meta_kubernetes_service_label_app_kubernetes_io_name]
+      #       regex: resource-adjustment-operator
+      #       action: keep
+      #     - source_labels: [__meta_kubernetes_endpoint_port_name]
+      #       regex: metrics
+      #       action: keep
+      #     - source_labels: [__meta_kubernetes_namespace]
+      #       target_label: namespace
+      #     - source_labels: [__meta_kubernetes_pod_name]
+      #       target_label: pod
+      #     - source_labels: [__meta_kubernetes_pod_container_name]
+      #       target_label: container
