@@ -150,8 +150,8 @@ jobs:
       - name: Check resources
         run: kubectl get all -n resource-adjustment-operator-system
 
-      - name: Sleep for 1 minute before running tests to get good recommendations
-        run: sleep 90
+      - name: Sleep for 2 minute before running tests to get good recommendations
+        run: sleep 120
         
       - name: Run tests
         run: |
