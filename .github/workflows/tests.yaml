@@ -129,6 +129,13 @@ jobs:
           context: ./test/frequency-test-app-1
           push: true
           tags: localhost:5000/frequency-test-app-1:ci
+      
+      - name: Build and push stress-test image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./test/burst-test
+          push: true
+          tags: localhost:5000/stress-test:ci
 
       - name: Deploy recommendation test apps to Kubernetes
         run: |
@@ -173,3 +180,14 @@ jobs:
       - name: Run frequency tests
         run: |
           sudo -E bats -f "test_frequency_changes" test/tests.bats
+
+      - name: Deploy burst test app to kubernetes
+        run: |
+          kubectl apply -f ./test/burst-test/deployment.yaml
+      
+      - name: sleep for 90s to start the application
+        run: sleep 90
+  
+      - name: Run frequency tests
+        run: |
+          sudo -E CONTAINER_NAME=stress-test bats -f "test_stress_container_recommendations" test/tests.bats

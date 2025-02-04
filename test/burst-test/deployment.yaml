@@ -1,0 +1,62 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: stress-config
+data:
+  config.yaml: |
+    test:
+      duration: 3000s
+      base:
+        cpu: 80mi
+        memory: 10mb
+      burst:
+        times:
+          100:
+            cpu: 415mi
+            memory: 415mb  # after 5 minutes the cpu and memory recommendation should be 400-500
+            duration: 720s
+          840:
+            cpu: 415mi
+            memory: 1024mb
+            duration: 720s
+          1580:
+            cpu: 415mi
+            memory: 415mb
+            duration: 720s
+          2320:
+            cpu: 1024mi
+            memory: 415mb
+            duration: 600s
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: stress-test
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: stress-test
+  template:
+    metadata:
+      labels:
+        app: stress-test
+    spec:
+      containers:
+      - name: stress-test
+        image: localhost:5000/stress-test:ci
+        resources:
+          requests:
+            cpu: 500m
+            memory: 500M
+          limits:
+            cpu: "2"
+            memory: "4Gi"
+        volumeMounts:
+        - name: config-volume
+          mountPath: /app/config.yaml
+          subPath: config.yaml
+      volumes:
+      - name: config-volume
+        configMap:
+          name: stress-config

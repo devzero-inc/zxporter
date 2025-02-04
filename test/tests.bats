@@ -378,3 +378,118 @@ function convert_to_seconds() {
   echo "Maximum frequency reached: ${max_freq_seen}s (${max_freq_seen/60}m${max_freq_seen%60}s)" >&2
   echo "All frequency transitions verified successfully!" >&2
 }
+
+@test "test_stress_container_recommendations" {
+  # Get container name from environment variable
+  container_name=${CONTAINER_NAME:-}
+  [ -n "$container_name" ] || { echo "ERROR: CONTAINER_NAME environment variable not set"; return 1; }
+
+  max_attempts=30
+  wait_between_checks=10
+
+  # Phase 1: Initial check
+  echo "=== Phase 1: Initial check for container '$container_name' ===" >&2
+  run kubectl get resourceadjustmentpolicy resourceadjustmentpolicy-sample -o yaml
+  [ "$status" -eq 0 ]
+  
+  # Get last entry for the container
+  container_entry=$(echo "$output" | yq eval ".status.containers | map(select(.containerName == \"$container_name\")) | .[-1]" -)
+  
+  cpu_rec=$(echo "$container_entry" | yq eval '.cpuRecommendation.adjustedRecommendation' - | awk '{print $1+0}')
+  memory_rec=$(echo "$container_entry" | yq eval '.memoryRecommendation.adjustedRecommendation' - | awk '{print $1+0}')
+  frequency=$(kubectl logs deployment.apps/resource-adjustment-operator-controller-manager -n resource-adjustment-operator-system | 
+              grep "$container_name" | grep "newFrequency" | tail -n1 | grep -o 'newFrequency": "[^"]*' | cut -d'"' -f3)
+  
+  echo "Initial recommendations - CPU: ${cpu_rec}, Memory: ${memory_rec}, Frequency: ${frequency}" >&2
+  [ $(echo "$cpu_rec >= 0.08 && $cpu_rec <= 0.10" | bc -l) -eq 1 ]
+  [ $(echo "$memory_rec >= 10 && $memory_rec <= 20" | bc -l) -eq 1 ]
+  [ "$frequency" = "30s" ]
+
+  # Phase 2: Wait 5 minutes and check
+  echo "=== Phase 2: After 5 minutes for '$container_name' ===" >&2
+  sleep 300  # 5 minutes
+  
+  run kubectl get resourceadjustmentpolicy resourceadjustmentpolicy-sample -o yaml
+  [ "$status" -eq 0 ]
+  
+  container_entry=$(echo "$output" | yq eval ".status.containers | map(select(.containerName == \"$container_name\")) | .[-1]" -)
+  cpu_rec=$(echo "$container_entry" | yq eval '.cpuRecommendation.adjustedRecommendation' - | awk '{print $1+0}')
+  memory_rec=$(echo "$container_entry" | yq eval '.memoryRecommendation.adjustedRecommendation' - | awk '{print $1+0}')
+  
+  echo "5-min recommendations - CPU: ${cpu_rec}, Memory: ${memory_rec}" >&2
+  [ $(echo "$cpu_rec >= 0.45 && $cpu_rec <= 0.55" | bc -l) -eq 1 ]  # Changed range
+  [ $(echo "$memory_rec >= 450 && $memory_rec <= 550" | bc -l) -eq 1 ]
+
+  # Phase 3: Check frequency increase
+  echo "=== Phase 3: Frequency increase check for '$container_name' ===" >&2
+  sleep 240  # 4 minutes
+  
+  frequency=$(kubectl logs deployment.apps/resource-adjustment-operator-controller-manager -n resource-adjustment-operator-system | 
+              grep "$container_name" | grep "newFrequency" | tail -n1 | grep -o 'newFrequency": "[^"]*' | cut -d'"' -f3)
+  freq_sec=$(convert_to_seconds "$frequency")
+  
+  echo "Current frequency: $frequency" >&2
+  [ "$freq_sec" -gt 30 ]
+
+  # Phase 4: Monitor frequency for 6 minutes
+  echo "=== Phase 4: Frequency monitoring (6 minutes) for '$container_name' ===" >&2
+  end_time=$(( $(date +%s) + 360 ))
+  max_freq=0
+  
+  while [ $(date +%s) -lt $end_time ]; do
+    current_freq=$(kubectl logs deployment.apps/resource-adjustment-operator-controller-manager -n resource-adjustment-operator-system | 
+                  grep "$container_name" | grep "newFrequency" | tail -n1 | grep -o 'newFrequency": "[^"]*' | cut -d'"' -f3)
+    current_freq_sec=$(convert_to_seconds "$current_freq")
+    
+    [ "$current_freq_sec" -gt "$max_freq" ] && max_freq=$current_freq_sec
+    sleep 30
+  done
+  
+  echo "Max frequency observed: ${max_freq}s" >&2
+  [ "$max_freq" -ge 900 ]  # 15 minutes
+
+  # Phase 5: Check memory spike
+  echo "=== Phase 5: Memory spike check for '$container_name' ===" >&2
+  sleep 360  # 6 minutes
+  
+  run kubectl get resourceadjustmentpolicy resourceadjustmentpolicy-sample -o yaml
+  [ "$status" -eq 0 ]
+  
+  container_entry=$(echo "$output" | yq eval ".status.containers | map(select(.containerName == \"$container_name\")) | .[-1]" -)
+  memory_rec=$(echo "$container_entry" | yq eval '.memoryRecommendation.adjustedRecommendation' - | awk '{print $1+0}')
+  cpu_rec=$(echo "$container_entry" | yq eval '.cpuRecommendation.adjustedRecommendation' - | awk '{print $1+0}')
+  
+  echo "Memory spike recommendations - CPU: ${cpu_rec}, Memory: ${memory_rec}" >&2
+  [ $(echo "$memory_rec >= 1024 && $memory_rec <= 1300" | bc -l) -eq 1 ]
+  [ $(echo "$cpu_rec >= 0.45 && $cpu_rec <= 0.55" | bc -l) -eq 1 ]  # Changed range
+
+  # Phase 6: Check frequency reset
+  echo "=== Phase 6: Frequency reset check for '$container_name' ===" >&2
+  sleep 120  # 2 minutes
+  
+  frequency=$(kubectl logs deployment.apps/resource-adjustment-operator-controller-manager -n resource-adjustment-operator-system | 
+              grep "$container_name" | grep "newFrequency" | tail -n1 | grep -o 'newFrequency": "[^"]*' | cut -d'"' -f3)
+  echo "Reset frequency: $frequency" >&2
+  [ "$frequency" = "30s" ]
+
+  # Phase 7: Final recommendations check
+  echo "=== Phase 7: Final recommendations for '$container_name' ===" >&2
+  sleep 600  # 10 minutes
+  
+  run kubectl get resourceadjustmentpolicy resourceadjustmentpolicy-sample -o yaml
+  [ "$status" -eq 0 ]
+  
+  container_entry=$(echo "$output" | yq eval ".status.containers | map(select(.containerName == \"$container_name\")) | .[-1]" -)
+  cpu_rec=$(echo "$container_entry" | yq eval '.cpuRecommendation.adjustedRecommendation' - | awk '{print $1+0}')
+  memory_rec=$(echo "$container_entry" | yq eval '.memoryRecommendation.adjustedRecommendation' - | awk '{print $1+0}')
+  
+  echo "Final recommendations - CPU: ${cpu_rec}, Memory: ${memory_rec}" >&2
+  [ $(echo "$cpu_rec >= 0.9 && $cpu_rec <= 1.3" | bc -l) -eq 1 ]
+  [ $(echo "$memory_rec >= 450 && $memory_rec <= 550" | bc -l) -eq 1 ]
+
+  # Final frequency check
+  frequency=$(kubectl logs deployment.apps/resource-adjustment-operator-controller-manager -n resource-adjustment-operator-system | 
+              grep "$container_name" | grep "newFrequency" | tail -n1 | grep -o 'newFrequency": "[^"]*' | cut -d'"' -f3)
+  echo "Final frequency: $frequency" >&2
+  [ "$frequency" = "30s" ]
+}

@@ -1,0 +1,14 @@
+test:
+  duration: 500s
+  base:
+    cpu: 80mi
+    memory: 10mb
+  burst:
+    times:
+      100:
+        cpu: 1024mi
+        memory: 5mb
+        duration: 100s
+      280:
+        memory: 1024mb
+        duration: 100s
