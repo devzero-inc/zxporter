@@ -17,6 +17,7 @@ spec:
     frequency: "1m"
     autoApply: true
     lookbackDuration: "1m"
+    promUrl: "http://prometheus-service.monitoring.svc.cluster.local:8080"
     pidController:
       propertionalGain: "10.0"
       integralGain: "0.03"
