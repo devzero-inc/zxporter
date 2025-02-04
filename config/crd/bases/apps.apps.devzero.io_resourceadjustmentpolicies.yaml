@@ -163,6 +163,8 @@ spec:
                     - minOutput
                     - propertionalGain
                     type: object
+                  promUrl:
+                    type: string
                 required:
                 - autoApply
                 - cpuRecommendation
@@ -172,6 +174,7 @@ spec:
                 - metricsSources
                 - normalization
                 - pidController
+                - promUrl
                 type: object
               targetSelector:
                 description: TargetSelector specifies the labels and namespaces to

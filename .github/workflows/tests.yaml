@@ -123,7 +123,14 @@ jobs:
           push: true
           tags: localhost:5000/dec-load:ci
 
-      - name: Deploy test-app to Kubernetes
+      - name: Build and push frequency-test-app-1 image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./test/frequency-test-app-1
+          push: true
+          tags: localhost:5000/frequency-test-app-1:ci
+
+      - name: Deploy recommendation test apps to Kubernetes
         run: |
           kubectl apply -f ./test/test-app/deployment.yaml
           kubectl apply -f ./test/inc-test-app/inc-load-deploy.yaml
@@ -153,8 +160,16 @@ jobs:
       - name: Sleep for 2 minute before running tests to get good recommendations
         run: sleep 120
         
-      - name: Run tests
+      - name: Run recommendation tests
         run: |
           sudo -E bats -f "test_resource_adjustment_recommendations" test/tests.bats
           sudo -E bats -f "test_increasing_load_recommendations" test/tests.bats
           sudo -E bats -f "test_decreasing_load_recommendations" test/tests.bats
+      
+      - name: Deploy frequency test app to kubernetes
+        run: |
+          kubectl apply -f ./test/frequency-test-app-1/deployment.yaml
+
+      - name: Run frequency tests
+        run: |
+          sudo -E bats -f "test_frequency_changes" test/tests.bats

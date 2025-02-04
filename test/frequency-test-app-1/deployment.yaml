@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frequency-test-app-1
+  labels:
+    app: frequency-test-app-1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frequency-test-app-1
+  template:
+    metadata:
+      labels:
+        app: frequency-test-app-1
+    spec:
+      containers:
+      - name: frequency-test-app-1
+        image: localhost:5000/frequency-test-app-1:ci
+        resources:
+          requests:
+            memory: "100Mi"
+            cpu: "100m"
+          limits:
+            memory: "200Mi"
+            cpu: "200m"

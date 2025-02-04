@@ -67,24 +67,25 @@ const (
 // Global configurations
 var (
 	// Recommender          recommender
-	StatusUpdater                 StatusUpdate
-	defaultNamespaces             = []string{"default"}
-	quit                          chan bool
-	defaultCPUConfig              = ResourceConfig{RequestPercentile: 95.0, MarginFraction: 0.15, TargetUtilization: 1.0, BucketSize: 0.001}
-	defaultMemoryConfig           = ResourceConfig{RequestPercentile: 95.0, MarginFraction: 0.15, TargetUtilization: 1.0, BucketSize: 1048576}
-	namespaces                    = defaultNamespaces
-	cpuConfig                     = defaultCPUConfig
-	memoryConfig                  = defaultMemoryConfig
-	oomBumpRatio                  = 1.2
-	defaultFrequency              = 3 * time.Minute
-	cpuSampleInterval             = 1 * time.Minute
-	cpuHistoryLength              = 24 * time.Hour
-	memorySampleInterval          = 1 * time.Minute
-	memoryHistoryLength           = 24 * time.Hour
-	lookbackDuration              = 1 * time.Hour
-	autoApply                     = false
-	oomProtection                 = true
-	prometheusURL                 = "http://prometheus-service.monitoring.svc.cluster.local:8080"
+	StatusUpdater        StatusUpdate
+	defaultNamespaces    = []string{"default"}
+	quit                 chan bool
+	defaultCPUConfig     = ResourceConfig{RequestPercentile: 95.0, MarginFraction: 0.15, TargetUtilization: 1.0, BucketSize: 0.001}
+	defaultMemoryConfig  = ResourceConfig{RequestPercentile: 95.0, MarginFraction: 0.15, TargetUtilization: 1.0, BucketSize: 1048576}
+	namespaces           = defaultNamespaces
+	cpuConfig            = defaultCPUConfig
+	memoryConfig         = defaultMemoryConfig
+	oomBumpRatio         = 1.2
+	defaultFrequency     = 3 * time.Minute
+	cpuSampleInterval    = 1 * time.Minute
+	cpuHistoryLength     = 24 * time.Hour
+	memorySampleInterval = 1 * time.Minute
+	memoryHistoryLength  = 24 * time.Hour
+	lookbackDuration     = 1 * time.Hour
+	autoApply            = false
+	oomProtection        = true
+	// prometheusURL                 = "http://prometheus-service.monitoring.svc.cluster.local:8080"
+	prometheusURL                 = "http://10.97.28.239:8080"
 	controllerMetrics             = metrics.NewMetrics("resource_adjustment_operator")
 	ProportionalGain              = 8.0
 	IntegralGain                  = 0.3
@@ -199,6 +200,12 @@ func (r *ResourceAdjustmentPolicyReconciler) Reconcile(ctx context.Context, req 
 			lookbackDuration = duration
 			log.Info("Updated LookbackDuration", "value", lookbackDuration)
 		}
+	}
+
+	if policy.Spec.Policies.PromURL != "" && policy.Spec.Policies.PromURL != prometheusURL {
+		prometheusURL = policy.Spec.Policies.PromURL
+		log.Info("Updated Prometheus URL", "value", prometheusURL)
+		r.restartRecommender(ctx)
 	}
 
 	// Update Frequency
@@ -1060,6 +1067,7 @@ func (re *Recommender) fetchCurrentMetrics(ctx context.Context, log logr.Logger,
 		return 0, 0, 0, err
 	}
 
+	// TODO: find a way to calculate the time frame here (e.g., 10m)
 	currentCPUQuery := fmt.Sprintf(`max(
         rate(container_cpu_usage_seconds_total{namespace="%s",container="%s"}[10m])
     ) by (container)`, pod.Namespace, container.Name)

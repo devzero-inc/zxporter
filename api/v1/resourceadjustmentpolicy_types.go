@@ -43,6 +43,7 @@ type TargetSelector struct {
 // Policies defines the resource adjustment policies
 type Policies struct {
 	MetricsSources       []string             `json:"metricsSources"`
+	PromURL              string               `json:"promUrl"`
 	Frequency            string               `json:"frequency"`
 	AutoApply            bool                 `json:"autoApply"`
 	LookbackDuration     string               `json:"lookbackDuration"`

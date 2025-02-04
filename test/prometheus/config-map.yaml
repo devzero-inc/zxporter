@@ -101,7 +101,8 @@ data:
       # Scrape metrics from the resource-adjustment-operator
       - job_name: resource-adjustment-operator
         static_configs:
-          - targets: ["resource-adjustment-operator-metrics.resource-adjustment-operator-system.svc.cluster.local:8080"]
+          - targets: ["10.104.112.90:8080"]
+          # - targets: ["resource-adjustment-operator-metrics.resource-adjustment-operator-system.svc.cluster.local:8080"]
       # - job_name: 'resource-adjustment-operator'
       #   kubernetes_sd_configs:
       #     - role: endpoints

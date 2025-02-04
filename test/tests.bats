@@ -278,3 +278,103 @@ function log_and_run() {
     echo "Total Memory decrease from start to finish: $total_memory_decrease%" >&2
   fi
 }
+
+function convert_to_seconds() {
+  local time_str=$1
+  if [[ $time_str =~ ([0-9]+)s$ ]]; then
+    echo "${BASH_REMATCH[1]}"
+  elif [[ $time_str =~ ([0-9]+)m([0-9.]+)s$ ]]; then
+    mins=${BASH_REMATCH[1]}
+    secs=${BASH_REMATCH[2]}
+    echo "$(echo "$mins * 60 + $secs" | bc)"
+  elif [[ $time_str =~ ([0-9]+)m$ ]]; then
+    echo "$((${BASH_REMATCH[1]} * 60))"
+  else
+    echo "Error: Invalid time format: $time_str" >&2
+    return 1
+  fi
+}
+
+@test "test_frequency_changes" {
+  max_attempts=90  # 15 minutes with 10-second intervals
+  attempt=1
+  
+  # Initial check for 30s frequency
+  echo "Checking initial frequency (should be 30s)..." >&2
+  
+  initial_frequency_found=false
+  for i in {1..12}; do  # Try for 2 minutes
+    run kubectl logs deployment.apps/resource-adjustment-operator-controller-manager -n resource-adjustment-operator-system
+    [ "$status" -eq 0 ]
+    
+    latest_freq=$(echo "$output" | grep "frequency-test-app-1" | grep "controlSignal" | grep "newFrequency" | tail -n 1 | grep -o 'newFrequency": "[^"]*' | cut -d'"' -f3)
+    
+    if [ "$latest_freq" = "30s" ]; then
+      initial_frequency_found=true
+      echo "Found initial frequency of 30s" >&2
+      break
+    fi
+    sleep 10
+  done
+  
+  if [ "$initial_frequency_found" = false ]; then
+    echo "ERROR: Initial frequency of 30s not found" >&2
+    return 1
+  fi
+  
+  # Monitor frequency changes
+  found_significant_increase=false
+  found_decrease_to_30s=false
+  last_freq="30s"
+  max_freq_seen=30  # in seconds
+  
+  while [ $attempt -le $max_attempts ]; do
+    echo "Attempt $attempt of $max_attempts checking frequency changes..." >&2
+    
+    run kubectl logs deployment.apps/resource-adjustment-operator-controller-manager -n resource-adjustment-operator-system
+    [ "$status" -eq 0 ]
+    
+    latest_freq=$(echo "$output" | grep "frequency-test-app-1" | grep "controlSignal" | grep "newFrequency" | tail -n 1 | grep -o 'newFrequency": "[^"]*' | cut -d'"' -f3)
+    
+    if [ -n "$latest_freq" ]; then
+      echo "Current frequency: $latest_freq (Previous: $last_freq)" >&2
+      
+      latest_seconds=$(convert_to_seconds "$latest_freq")
+      
+      if [ "$latest_seconds" -gt "$max_freq_seen" ]; then
+        max_freq_seen=$latest_seconds
+      fi
+      
+      # Check for significant increase (more than 10 minutes)
+      if [ "$latest_seconds" -gt 600 ]; then  # 10 minutes in seconds
+        echo "Detected significant frequency increase to $latest_freq" >&2
+        found_significant_increase=true
+      fi
+      
+      # Check for decrease back to 30s
+      if [ "$found_significant_increase" = true ] && [ "$latest_freq" = "30s" ]; then
+        echo "Detected frequency decrease back to 30s" >&2
+        found_decrease_to_30s=true
+        break
+      fi
+      
+      last_freq=$latest_freq
+    fi
+    
+    sleep 10
+    ((attempt++))
+  done
+  
+  if [ "$found_significant_increase" = false ]; then
+    echo "ERROR: Frequency never showed significant increase (max seen: ${max_freq_seen}s)" >&2
+    return 1
+  fi
+  
+  if [ "$found_decrease_to_30s" = false ]; then
+    echo "ERROR: Frequency never decreased back to 30s" >&2
+    return 1
+  fi
+  
+  echo "Maximum frequency reached: ${max_freq_seen}s (${max_freq_seen/60}m${max_freq_seen%60}s)" >&2
+  echo "All frequency transitions verified successfully!" >&2
+}
