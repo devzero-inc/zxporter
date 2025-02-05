@@ -1,10 +1,7 @@
 FROM python:3.9-slim
 
-# Install stress-ng and dependencies
-RUN apt-get update && apt-get install -y stress-ng && rm -rf /var/lib/apt/lists/*
-
 # Copy the application code
-COPY stress_app.py /app/stress_app.py
+COPY . /app/
 # COPY config.yaml /app/config.yaml
 # Copy the requirements file
 COPY requirements.txt .

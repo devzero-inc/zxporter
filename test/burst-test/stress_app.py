@@ -52,15 +52,30 @@ def run_stress_test(config):
     bursts = config['bursts']
 
     current_memory = base_memory
-    memory_holder = bytearray(current_memory)
+    try:
+        memory_holder = bytearray(current_memory)
+    except MemoryError:
+        print(f"Initial memory allocation failed for {current_memory} bytes.")
+        return
 
+    # --- PID controller parameters ---
+    kp = 0.1
+    ki = 0.01
+    kd = 0.0
+
+    error_integral = 0.0
+    last_error = 0.0
+
+    busy_duration = base_cpu  # in seconds (e.g., 0.08 for 80mi)
+
+    # Run the test for the specified number of seconds.
     for current_time in range(duration):
         current_cpu = base_cpu
         current_memory = base_memory
 
         active_bursts = [burst for burst in bursts
-                        if current_time >= burst['start'] and
-                        current_time < burst['start'] + burst['duration']]
+                         if current_time >= burst['start'] and
+                         current_time < burst['start'] + burst['duration']]
 
         for burst in active_bursts:
             if burst['cpu'] is not None:
@@ -74,17 +89,39 @@ def run_stress_test(config):
             except MemoryError:
                 print(f"Memory allocation failed for {current_memory} bytes.")
 
-        start = time.time()
-        while time.time() - start < min(current_cpu, 1.0):
+        cycle_start = time.time()
+        busy_duration = max(0.0, min(busy_duration, 1.0))
+
+        busy_loop_start = time.time()
+        while (time.time() - busy_loop_start) < busy_duration:
             pass
-        remaining = 1.0 - (time.time() - start)
+        measured_busy = time.time() - busy_loop_start
+
+        error = current_cpu - measured_busy
+        error_integral += error
+        error_derivative = error - last_error
+
+        busy_duration = busy_duration + kp * error + ki * error_integral + kd * error_derivative
+        busy_duration = max(0.0, min(busy_duration, 1.0))
+
+        last_error = error
+
+        elapsed = time.time() - cycle_start
+        remaining = 1.0 - elapsed
         if remaining > 0:
             time.sleep(remaining)
 
-        print(f"Time: {current_time + 1}s | CPU: {current_cpu * 1000:.0f}mi | Memory: {current_memory / 10**6:.0f}MB")
+        print(f"Time: {current_time + 1:3d}s | "
+              f"Target CPU: {current_cpu*1000:.0f}mi | "
+              f"Measured Busy: {measured_busy*1000:.0f}ms | "
+              f"Memory: {current_memory/10**6:.0f}MB | "
+              f"PID Busy Duration: {busy_duration*1000:.0f}ms")
 
     del memory_holder
 
 if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        print("Usage: python stress_test.py <config.yaml>")
+        sys.exit(1)
     config = load_config(sys.argv[1])
     run_stress_test(config)

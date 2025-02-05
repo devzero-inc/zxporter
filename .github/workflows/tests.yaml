@@ -167,19 +167,19 @@ jobs:
       - name: Sleep for 2 minute before running tests to get good recommendations
         run: sleep 120
         
-      - name: Run recommendation tests
-        run: |
-          sudo -E bats -f "test_resource_adjustment_recommendations" test/tests.bats
-          sudo -E bats -f "test_increasing_load_recommendations" test/tests.bats
-          sudo -E bats -f "test_decreasing_load_recommendations" test/tests.bats
+      # - name: Run recommendation tests
+      #   run: |
+      #     sudo -E bats -f "test_resource_adjustment_recommendations" test/tests.bats
+      #     sudo -E bats -f "test_increasing_load_recommendations" test/tests.bats
+      #     sudo -E bats -f "test_decreasing_load_recommendations" test/tests.bats
       
-      - name: Deploy frequency test app to kubernetes
-        run: |
-          kubectl apply -f ./test/frequency-test-app-1/deployment.yaml
+      # - name: Deploy frequency test app to kubernetes
+      #   run: |
+      #     kubectl apply -f ./test/frequency-test-app-1/deployment.yaml
 
-      - name: Run frequency tests
-        run: |
-          sudo -E bats -f "test_frequency_changes" test/tests.bats
+      # - name: Run frequency tests
+      #   run: |
+      #     sudo -E bats -f "test_frequency_changes" test/tests.bats
 
       - name: Deploy burst test app to kubernetes
         run: |

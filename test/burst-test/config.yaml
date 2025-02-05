@@ -5,10 +5,14 @@ test:
     memory: 10mb
   burst:
     times:
-      100:
+      60:
         cpu: 1024mi
         memory: 5mb
         duration: 100s
-      280:
+      200:
         memory: 1024mb
+        duration: 100s
+      340:
+        memory: 500mb
+        cpu: 500mi
         duration: 100s

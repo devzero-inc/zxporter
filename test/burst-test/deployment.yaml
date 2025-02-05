@@ -31,20 +31,21 @@ data:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: stress-test
+  name: stress-test-x
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: stress-test
+      app: stress-test-x
   template:
     metadata:
       labels:
-        app: stress-test
+        app: stress-test-x
     spec:
       containers:
-      - name: stress-test
+      - name: stress-test-x
         image: localhost:5000/stress-test:ci
+        # image: docker.io/remontada007/burst-app-x:v3
         resources:
           requests:
             cpu: 500m

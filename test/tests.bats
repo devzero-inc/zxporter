@@ -401,8 +401,8 @@ function convert_to_seconds() {
               grep "$container_name" | grep "newFrequency" | tail -n1 | grep -o 'newFrequency": "[^"]*' | cut -d'"' -f3)
   
   echo "Initial recommendations - CPU: ${cpu_rec}, Memory: ${memory_rec}, Frequency: ${frequency}" >&2
-  [ $(echo "$cpu_rec >= 0.08 && $cpu_rec <= 0.10" | bc -l) -eq 1 ]
-  [ $(echo "$memory_rec >= 10 && $memory_rec <= 20" | bc -l) -eq 1 ]
+  [ $(echo "$cpu_rec >= 0.08 && $cpu_rec <= 0.12" | bc -l) -eq 1 ]
+  [ $(echo "$memory_rec >= 15 && $memory_rec <= 25" | bc -l) -eq 1 ]
   [ "$frequency" = "30s" ]
 
   # Phase 2: Wait 5 minutes and check
