@@ -1,4 +1,2 @@
 pyyaml
-matplotlib
-psutil
-click
+prometheus-client
