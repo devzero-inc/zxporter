@@ -1,18 +1,23 @@
 test:
-  duration: 500s
+  duration: 400
   base:
-    cpu: 80mi
-    memory: 10mb
+    cpu: 80
+    memory: 10
   burst:
     times:
-      60:
-        cpu: 1024mi
-        memory: 5mb
-        duration: 100s
-      200:
-        memory: 1024mb
-        duration: 100s
-      340:
-        memory: 500mb
-        cpu: 500mi
-        duration: 100s
+      30:
+        cpu: 415
+        memory: 415  # after 5 minutes the cpu and memory recommendation should be 400-500
+        duration: 60
+      120:
+        cpu: 100
+        memory: 1024
+        duration: 60
+      210:
+        cpu: 415
+        memory: 415
+        duration: 60
+      300:
+        cpu: 1024
+        memory: 415
+        duration: 60

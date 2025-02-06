@@ -5,57 +5,58 @@ metadata:
 data:
   config.yaml: |
     test:
-      duration: 3000s
+      duration: 2800
       base:
-        cpu: 80mi
-        memory: 10mb
+        cpu: 80
+        memory: 10
       burst:
         times:
           100:
-            cpu: 415mi
-            memory: 415mb  # after 5 minutes the cpu and memory recommendation should be 400-500
-            duration: 720s
+            cpu: 415
+            memory: 415  # after 5 minutes the cpu and memory recommendation should be 400-500
+            duration: 720
           840:
-            cpu: 415mi
-            memory: 1024mb
-            duration: 720s
+            cpu: 100
+            memory: 1024
+            duration: 720
           1580:
-            cpu: 415mi
-            memory: 415mb
-            duration: 720s
+            cpu: 415
+            memory: 415
+            duration: 720
           2320:
-            cpu: 1024mi
-            memory: 415mb
-            duration: 600s
+            cpu: 1024
+            memory: 415
+            duration: 480
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: stress-test
+  name: feb-6-stress-6
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: stress-test
+      app: feb-6-stress-6
   template:
     metadata:
       labels:
-        app: stress-test
+        app: feb-6-stress-6
     spec:
       containers:
-      - name: stress-test
-        image: localhost:5000/stress-test:ci
-        # image: docker.io/remontada007/burst-app-x:v3
+      - name: feb-6-stress-6
+        # image: localhost:5000/stress-test:ci
+        image: docker.io/remontada007/feb-6-stress:v1
         resources:
           requests:
             cpu: 500m
-            memory: 500M
+            memory: 930M
           limits:
             cpu: "2"
             memory: "4Gi"
         volumeMounts:
         - name: config-volume
           mountPath: /app/config.yaml
+          # mountPath: /config.yaml
           subPath: config.yaml
       volumes:
       - name: config-volume

@@ -13,4 +13,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 WORKDIR /app
 
 # Run the application
-CMD ["python", "stress_app.py", "/app/config.yaml"]
+# CMD ["python", "stress_app.py", "/app/config.yaml", "stress-test-x2"]
+CMD ["python", "stress_app.py"]

@@ -83,7 +83,9 @@ def load_core(target_core, target_load,
 def __validate_cpu_load(ctx, param, value):
     for v in value:
         if not 0. <= v <= 1.:
-            raise click.BadOptionUsage(f'CPU load {v} out of range [0, 1]')
+            raise click.BadOptionUsage(
+                option_name=param,
+                message=f'CPU load {v} out of range [0, 1]')
     return value
 
 

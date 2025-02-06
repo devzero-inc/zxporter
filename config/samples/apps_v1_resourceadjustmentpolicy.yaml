@@ -32,13 +32,13 @@ spec:
       requestPercentile: "99.0"
       marginFraction: "0.15"
       targetUtilization: "0.95"
-      historyLength: "124h"
+      historyLength: "5m"
     memoryRecommendation:
       sampleInterval: "1m"
       requestPercentile: "99.0"
       marginFraction: "0.15"
       targetUtilization: "0.95"
-      historyLength: "124h"
+      historyLength: "5m"
       oomProtection: true
       oomBumpRatio: "1.2"
     normalization:

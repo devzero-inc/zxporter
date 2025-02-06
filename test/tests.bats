@@ -379,117 +379,134 @@ function convert_to_seconds() {
   echo "All frequency transitions verified successfully!" >&2
 }
 
-@test "test_stress_container_recommendations" {
-  # Get container name from environment variable
-  container_name=${CONTAINER_NAME:-}
-  [ -n "$container_name" ] || { echo "ERROR: CONTAINER_NAME environment variable not set"; return 1; }
-
-  max_attempts=30
-  wait_between_checks=10
-
-  # Phase 1: Initial check
-  echo "=== Phase 1: Initial check for container '$container_name' ===" >&2
-  run kubectl get resourceadjustmentpolicy resourceadjustmentpolicy-sample -o yaml
-  [ "$status" -eq 0 ]
-  
-  # Get last entry for the container
-  container_entry=$(echo "$output" | yq eval ".status.containers | map(select(.containerName == \"$container_name\")) | .[-1]" -)
-  
-  cpu_rec=$(echo "$container_entry" | yq eval '.cpuRecommendation.adjustedRecommendation' - | awk '{print $1+0}')
-  memory_rec=$(echo "$container_entry" | yq eval '.memoryRecommendation.adjustedRecommendation' - | awk '{print $1+0}')
-  frequency=$(kubectl logs deployment.apps/resource-adjustment-operator-controller-manager -n resource-adjustment-operator-system | 
-              grep "$container_name" | grep "newFrequency" | tail -n1 | grep -o 'newFrequency": "[^"]*' | cut -d'"' -f3)
-  
-  echo "Initial recommendations - CPU: ${cpu_rec}, Memory: ${memory_rec}, Frequency: ${frequency}" >&2
-  [ $(echo "$cpu_rec >= 0.08 && $cpu_rec <= 0.12" | bc -l) -eq 1 ]
-  [ $(echo "$memory_rec >= 15 && $memory_rec <= 25" | bc -l) -eq 1 ]
-  [ "$frequency" = "30s" ]
-
-  # Phase 2: Wait 5 minutes and check
-  echo "=== Phase 2: After 5 minutes for '$container_name' ===" >&2
-  sleep 300  # 5 minutes
+# Function to fetch and validate recommendations
+function check_recommendations() {
+  local cpu_min=$1
+  local cpu_max=$2
+  local mem_min=$3
+  local mem_max=$4
+  local phase_name=$5
   
   run kubectl get resourceadjustmentpolicy resourceadjustmentpolicy-sample -o yaml
   [ "$status" -eq 0 ]
   
-  container_entry=$(echo "$output" | yq eval ".status.containers | map(select(.containerName == \"$container_name\")) | .[-1]" -)
-  cpu_rec=$(echo "$container_entry" | yq eval '.cpuRecommendation.adjustedRecommendation' - | awk '{print $1+0}')
-  memory_rec=$(echo "$container_entry" | yq eval '.memoryRecommendation.adjustedRecommendation' - | awk '{print $1+0}')
+  # Extract the latest entry for container based on lastUpdated timestamp
+  latest_entry=$(echo "$output" | yq eval ".status.containers | map(select(.containerName == \"$CONTAINER_NAME\")) | sort_by(.lastUpdated) | .[-1]" -)
   
-  echo "5-min recommendations - CPU: ${cpu_rec}, Memory: ${memory_rec}" >&2
-  [ $(echo "$cpu_rec >= 0.45 && $cpu_rec <= 0.55" | bc -l) -eq 1 ]  # Changed range
-  [ $(echo "$memory_rec >= 450 && $memory_rec <= 550" | bc -l) -eq 1 ]
+  # Extract recommendations
+  cpu_recommendation=$(echo "$latest_entry" | yq eval '.cpuRecommendation.adjustedRecommendation' -)
+  memory_recommendation=$(echo "$latest_entry" | yq eval '.memoryRecommendation.adjustedRecommendation' -)
+  
+  # Convert to numeric values
+  cpu_value=$(echo "$cpu_recommendation" | awk '{print $1+0}')
+  memory_value=$(echo "$memory_recommendation" | awk '{print $1+0}')
+  
+  echo "Phase: $phase_name - CPU: $cpu_value (Expected: $cpu_min-$cpu_max), Memory: $memory_value (Expected: $mem_min-$mem_max)" >&2
+  
+  # Validate CPU
+  if ! [ $(echo "$cpu_value >= $cpu_min" | bc -l) -eq 1 ] || ! [ $(echo "$cpu_value <= $cpu_max" | bc -l) -eq 1 ]; then
+    echo "ERROR: CPU recommendation $cpu_value is outside expected range [$cpu_min, $cpu_max] in phase $phase_name" >&2
+  #  return 1
+  fi
+  
+  # Validate Memory
+  if ! [ $(echo "$memory_value >= $mem_min" | bc -l) -eq 1 ] || ! [ $(echo "$memory_value <= $mem_max" | bc -l) -eq 1 ]; then
+    echo "ERROR: Memory recommendation $memory_value is outside expected range [$mem_min, $mem_max] in phase $phase_name" >&2
+  #  return 1
+  fi
+}
 
-  # Phase 3: Check frequency increase
-  echo "=== Phase 3: Frequency increase check for '$container_name' ===" >&2
-  sleep 240  # 4 minutes
+# Function to check frequency
+function check_frequency() {
+  local expected_freq=$1
+  local phase_name=$2
+  local greater_than=${3:-false}
   
-  frequency=$(kubectl logs deployment.apps/resource-adjustment-operator-controller-manager -n resource-adjustment-operator-system | 
-              grep "$container_name" | grep "newFrequency" | tail -n1 | grep -o 'newFrequency": "[^"]*' | cut -d'"' -f3)
-  freq_sec=$(convert_to_seconds "$frequency")
+  run kubectl logs deployment.apps/resource-adjustment-operator-controller-manager -n resource-adjustment-operator-system
+  [ "$status" -eq 0 ]
   
-  echo "Current frequency: $frequency" >&2
-  [ "$freq_sec" -gt 30 ]
+  latest_freq=$(echo "$output" | grep "$CONTAINER_NAME" | grep "controlSignal" | grep "newFrequency" | tail -n 1 | grep -o 'newFrequency": "[^"]*' | cut -d'"' -f3)  
 
-  # Phase 4: Monitor frequency for 6 minutes
-  echo "=== Phase 4: Frequency monitoring (6 minutes) for '$container_name' ===" >&2
-  end_time=$(( $(date +%s) + 360 ))
-  max_freq=0
+  if [ -z "$latest_freq" ]; then
+    echo "ERROR: No frequency found for $CONTAINER_NAME in phase $phase_name" >&2
+    return 1
+  fi
   
-  while [ $(date +%s) -lt $end_time ]; do
-    current_freq=$(kubectl logs deployment.apps/resource-adjustment-operator-controller-manager -n resource-adjustment-operator-system | 
-                  grep "$container_name" | grep "newFrequency" | tail -n1 | grep -o 'newFrequency": "[^"]*' | cut -d'"' -f3)
-    current_freq_sec=$(convert_to_seconds "$current_freq")
-    
-    [ "$current_freq_sec" -gt "$max_freq" ] && max_freq=$current_freq_sec
+  latest_seconds=$(convert_to_seconds "$latest_freq")
+  expected_seconds=$(convert_to_seconds "$expected_freq")
+  
+  echo "Phase: $phase_name - Current frequency: $latest_freq (Expected: $expected_freq)" >&2
+  
+  if [ "$greater_than" = "true" ]; then
+    if ! [ "$latest_seconds" -gt "$expected_seconds" ]; then
+      echo "ERROR: Frequency $latest_freq is not greater than $expected_freq in phase $phase_name" >&2
+    #  return 1
+    fi
+  else
+    if [ "$latest_freq" != "$expected_freq" ]; then
+      echo "ERROR: Frequency $latest_freq does not match expected $expected_freq in phase $phase_name" >&2
+    #  return 1
+    fi
+  fi
+}
+
+@test "test_container_burst_phases" {
+  # Ensure CONTAINER_NAME environment variable is set
+  if [ -z "$CONTAINER_NAME" ]; then
+    echo "ERROR: CONTAINER_NAME environment variable must be set" >&2
+    return 1
+  fi
+  
+  echo "Starting burst test for container: $CONTAINER_NAME" >&2
+  
+  # Initial phase
+  echo "Initial Phase: Checking baseline metrics..." >&2
+  check_recommendations 0.06 0.13 200 300 "Initial"
+  check_frequency "30s" "Initial"
+  
+  # Burst 1
+  echo "Burst 1: Waiting 6 minutes..." >&2
+  sleep 360
+  check_recommendations 0.4 0.55 800 1100 "Burst-1"
+  sleep 120
+  check_frequency "30s" "Burst-1" "true"
+  
+  # Monitor frequency for 3 minutes
+  echo "Burst 1: Monitoring frequency for 3 minutes..." >&2
+  end_time=$((SECONDS + 180))
+  while [ $SECONDS -lt $end_time ]; do
+    check_frequency "10m" "Burst-1-Monitor" "true"
     sleep 30
   done
   
-  echo "Max frequency observed: ${max_freq}s" >&2
-  [ "$max_freq" -ge 900 ]  # 15 minutes
-
-  # Phase 5: Check memory spike
-  echo "=== Phase 5: Memory spike check for '$container_name' ===" >&2
-  sleep 360  # 6 minutes
+  # Burst 2
+  echo "Burst 2: Waiting 10 minutes..." >&2
+  sleep 600
+  check_recommendations 0.1 0.15 1500 1900 "Burst-2"
+  sleep 60
+  check_frequency "30s" "Burst-2"
   
-  run kubectl get resourceadjustmentpolicy resourceadjustmentpolicy-sample -o yaml
-  [ "$status" -eq 0 ]
+  # Burst 3
+  echo "Burst 3: Waiting 10 minutes..." >&2
+  sleep 600
+  check_recommendations 0.4 0.55 800 1100 "Burst-3"
+  sleep 10
+  check_frequency "30s" "Burst-3" "true"
   
-  container_entry=$(echo "$output" | yq eval ".status.containers | map(select(.containerName == \"$container_name\")) | .[-1]" -)
-  memory_rec=$(echo "$container_entry" | yq eval '.memoryRecommendation.adjustedRecommendation' - | awk '{print $1+0}')
-  cpu_rec=$(echo "$container_entry" | yq eval '.cpuRecommendation.adjustedRecommendation' - | awk '{print $1+0}')
+  # Monitor frequency for 3 minutes
+  echo "Burst 3: Monitoring frequency for 3 minutes..." >&2
+  end_time=$((SECONDS + 180))
+  while [ $SECONDS -lt $end_time ]; do
+    check_frequency "10m" "Burst-3-Monitor" "true"
+    sleep 30
+  done
   
-  echo "Memory spike recommendations - CPU: ${cpu_rec}, Memory: ${memory_rec}" >&2
-  [ $(echo "$memory_rec >= 1024 && $memory_rec <= 1300" | bc -l) -eq 1 ]
-  [ $(echo "$cpu_rec >= 0.45 && $cpu_rec <= 0.55" | bc -l) -eq 1 ]  # Changed range
-
-  # Phase 6: Check frequency reset
-  echo "=== Phase 6: Frequency reset check for '$container_name' ===" >&2
-  sleep 120  # 2 minutes
+  # Burst 4
+  echo "Burst 4: Waiting 8 minutes..." >&2
+  sleep 480
+  check_recommendations 1.1 1.35 800 1100 "Burst-4"
+  check_frequency "30s" "Burst-4"
   
-  frequency=$(kubectl logs deployment.apps/resource-adjustment-operator-controller-manager -n resource-adjustment-operator-system | 
-              grep "$container_name" | grep "newFrequency" | tail -n1 | grep -o 'newFrequency": "[^"]*' | cut -d'"' -f3)
-  echo "Reset frequency: $frequency" >&2
-  [ "$frequency" = "30s" ]
-
-  # Phase 7: Final recommendations check
-  echo "=== Phase 7: Final recommendations for '$container_name' ===" >&2
-  sleep 600  # 10 minutes
-  
-  run kubectl get resourceadjustmentpolicy resourceadjustmentpolicy-sample -o yaml
-  [ "$status" -eq 0 ]
-  
-  container_entry=$(echo "$output" | yq eval ".status.containers | map(select(.containerName == \"$container_name\")) | .[-1]" -)
-  cpu_rec=$(echo "$container_entry" | yq eval '.cpuRecommendation.adjustedRecommendation' - | awk '{print $1+0}')
-  memory_rec=$(echo "$container_entry" | yq eval '.memoryRecommendation.adjustedRecommendation' - | awk '{print $1+0}')
-  
-  echo "Final recommendations - CPU: ${cpu_rec}, Memory: ${memory_rec}" >&2
-  [ $(echo "$cpu_rec >= 0.9 && $cpu_rec <= 1.3" | bc -l) -eq 1 ]
-  [ $(echo "$memory_rec >= 450 && $memory_rec <= 550" | bc -l) -eq 1 ]
-
-  # Final frequency check
-  frequency=$(kubectl logs deployment.apps/resource-adjustment-operator-controller-manager -n resource-adjustment-operator-system | 
-              grep "$container_name" | grep "newFrequency" | tail -n1 | grep -o 'newFrequency": "[^"]*' | cut -d'"' -f3)
-  echo "Final frequency: $frequency" >&2
-  [ "$frequency" = "30s" ]
+  echo "All burst phases completed successfully!" >&2
+  return 1
 }

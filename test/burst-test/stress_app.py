@@ -1,172 +1,184 @@
+# import yaml
+# import subprocess
+# import time
+# import threading
+
+# # Load the YAML configuration file
+# def load_config(config_file):
+#     with open(config_file, 'r') as file:
+#         config = yaml.safe_load(file)
+#     return config
+
+# # Function to generate CPU load using CPULoadGenerator.py
+# def generate_cpu_load(cpu_load, cores, duration):
+#     command = ['./CPULoadGenerator/CPULoadGenerator.py', '-l', str(cpu_load), '-d', str(duration)]
+#     for core in cores:
+#         command.extend(['-c', str(core)])
+#     subprocess.run(command)
+
+# # Function to simulate memory consumption
+# def consume_memory(memory_mb, duration):
+#     # Allocate memory by creating a list of bytes
+#     memory_consumption = ' ' * (memory_mb * 1024 * 1024)
+#     time.sleep(duration)
+#     del memory_consumption  # Free the memory
+
+# # Function to handle burst scheduling
+# def schedule_bursts(config):
+#     base_cpu = config['test']['base']['cpu']
+#     base_memory = config['test']['base']['memory']
+#     total_duration = config['test']['duration']
+#     burst_times = config['test']['burst']['times']
+
+#     # Start base resource consumption
+#     print(f"Starting base consumption: CPU={base_cpu}mi, Memory={base_memory}mb")
+#     cpu_thread = threading.Thread(target=generate_cpu_load, args=(base_cpu / 1000, [0], total_duration))
+#     memory_thread = threading.Thread(target=consume_memory, args=(base_memory, total_duration))
+#     cpu_thread.start()
+#     memory_thread.start()
+    
+#     prv_burst_time = 0
+#     prv_duration = 0
+
+#     # Schedule bursts
+#     for burst_time, burst_config in burst_times.items():
+#         burst_cpu = burst_config.get('cpu', base_cpu)
+#         burst_memory = burst_config.get('memory', base_memory)
+#         burst_duration = burst_config['duration']
+
+#         # Calculate the start time for the burst
+#         time.sleep(burst_time - (prv_burst_time + prv_duration))
+#         print(f"Starting burst at {burst_time}s: CPU={burst_cpu}mi, Memory={burst_memory}mb for {burst_duration}s")
+#         cpu_thread = threading.Thread(target=generate_cpu_load, args=((burst_cpu - base_cpu) / 1000, [0], burst_duration))
+#         memory_thread = threading.Thread(target=consume_memory, args=((burst_memory - base_memory), burst_duration))
+#         cpu_thread.start()
+#         memory_thread.start()
+
+#         # Wait for the burst duration before scheduling the next burst
+#         time.sleep(burst_duration)
+#         prv_duration = burst_duration
+#         prv_burst_time = burst_time
+        
+
+#     # Wait for the base consumption to finish
+#     cpu_thread.join()
+#     memory_thread.join()
+
+# # Main function
+# def main():
+#     config_file = '/app/config.yaml'  # Path to your YAML config file
+#     config = load_config(config_file)
+#     schedule_bursts(config)
+
+# if __name__ == "__main__":
+#     main()
+
+
+
 import yaml
+import subprocess
 import time
-import sys
-import requests  # used to query Prometheus
+import threading
+import os
 
-# --- Helper functions to parse resource strings ---
-def parse_cpu(cpu_str):
-    if cpu_str.endswith('mi'):
-        return int(cpu_str[:-2]) / 1000
-    elif cpu_str.endswith('m'):
-        return int(cpu_str[:-1]) / 1000
-    else:
-        return float(cpu_str)
+# Load the YAML configuration file
+def load_config(config_file):
+    with open(config_file, 'r') as file:
+        config = yaml.safe_load(file)
+    return config
 
-def parse_memory(mem_str):
-    if mem_str.endswith('mb'):
-        return int(mem_str[:-2]) * 10**6
-    elif mem_str.endswith('Mi'):
-        return int(mem_str[:-2]) * 1024**2
-    elif mem_str.endswith('Gi'):
-        return int(mem_str[:-2]) * 1024**3
-    else:
-        return int(mem_str)
+# Function to detect available CPU cores
+def get_available_cores():
+    # Get the number of available CPU cores
+    return os.cpu_count()
 
-def load_config(config_path):
-    with open(config_path, 'r') as f:
-        config = yaml.safe_load(f)
-    test_config = config['test']
-    duration = int(test_config['duration'][:-1])
-    base = test_config['base']
-    base_cpu = parse_cpu(base['cpu'])
-    base_memory = parse_memory(base['memory'])
-    bursts = []
-    if 'burst' in test_config and 'times' in test_config['burst']:
-        for burst_time_str, burst_params in test_config['burst']['times'].items():
-            burst = {
-                'start': int(burst_time_str),
-                'duration': int(burst_params['duration'][:-1]),
-                'cpu': parse_cpu(burst_params['cpu']) if 'cpu' in burst_params else None,
-                'memory': parse_memory(burst_params['memory']) if 'memory' in burst_params else None
-            }
-            bursts.append(burst)
-    return {
-        'duration': duration,
-        'base_cpu': base_cpu,
-        'base_memory': base_memory,
-        'bursts': sorted(bursts, key=lambda x: x['start'])
-    }
+# Function to generate CPU load using CPULoadGenerator.py
+def generate_cpu_load(cpu_load, cores, duration):
+    command = ['./CPULoadGenerator/CPULoadGenerator.py', '-l', str(cpu_load), '-d', str(duration)]
+    for core in cores:
+        command.extend(['-c', str(core)])
+    subprocess.run(command)
 
-# --- Function to query Prometheus for CPU usage ---
-def get_current_cpu_usage(prometheus_url):
-    """
-    Query Prometheus for the current CPU usage of the container.
-    Returns the value as a float in seconds per second.
-    """
-    query = ('max(rate(container_cpu_usage_seconds_total'
-             '{namespace="default", container="stress-test"}[1m])) by (container)')
-    url = prometheus_url.rstrip("/") + "/api/v1/query"
-    try:
-        response = requests.get(url, params={'query': query}, timeout=5)
-        response.raise_for_status()
-        data = response.json()
-        if data.get('status') == 'success' and data.get('data', {}).get('result'):
-            # Assume the first result is our container.
-            value = data['data']['result'][0]['value'][1]
-            return float(value)
-    except Exception as e:
-        print(f"Error querying Prometheus: {e}")
-    return 0.0
+# Function to simulate memory consumption
+def consume_memory(memory_mb, duration):
+    # Allocate memory by creating a list of bytes
+    memory_consumption = ' ' * (memory_mb * 1024 * 1024)
+    time.sleep(duration)
+    del memory_consumption  # Free the memory
 
-def run_stress_test(config, prometheus_url):
-    duration = config['duration']
-    base_cpu = config['base_cpu']
-    base_memory = config['base_memory']
-    bursts = config['bursts']
+# Function to handle burst scheduling
+def schedule_bursts(config):
+    base_cpu = config['test']['base']['cpu']
+    base_memory = config['test']['base']['memory']
+    total_duration = config['test']['duration']
+    burst_times = config['test']['burst']['times']
 
-    # Allocate the initial memory
-    current_memory = base_memory
-    try:
-        memory_holder = bytearray(current_memory)
-    except MemoryError:
-        print(f"Initial memory allocation failed for {current_memory} bytes.")
-        return
+    # Get available cores and select the first 4
+    available_cores = get_available_cores()
+    selected_cores = list(range(min(4, available_cores)))  # Use first 4 cores
+    print(f"Selected cores: {selected_cores}")
 
-    # --- PID controller parameters ---
-    kp = 0.1
-    ki = 0.01
-    kd = 0.0
+    # Divide the CPU load equally among the selected cores
+    cpu_load_per_core = (base_cpu / 1000) / len(selected_cores)
+    print(f"Base CPU load per core: {cpu_load_per_core}")
 
-    error_integral = 0.0
-    last_error = 0.0
+    # Start base resource consumption
+    print(f"Starting base consumption: CPU={base_cpu}mi, Memory={base_memory}mb")
+    cpu_threads = []
+    for core in selected_cores:
+        thread = threading.Thread(target=generate_cpu_load, args=(cpu_load_per_core, [core], total_duration))
+        cpu_threads.append(thread)
+        thread.start()
 
-    # Start with the base busy duration (in seconds).
-    busy_duration = base_cpu  # e.g., 0.08 for 80mi
+    memory_thread = threading.Thread(target=consume_memory, args=(base_memory, total_duration))
+    memory_thread.start()
+    
+    prv_burst_time = 0
+    prv_duration = 0
 
-    # Additional adjustment factor from Prometheus results.
-    gamma = 0.05  # small step increase factor
+    # Schedule bursts
+    for burst_time, burst_config in burst_times.items():
+        burst_cpu = burst_config.get('cpu', base_cpu) - base_cpu
+        burst_memory = burst_config.get('memory', base_memory) - base_memory
+        burst_duration = burst_config['duration']
 
-    # Run the test for the specified number of seconds.
-    for current_time in range(duration):
-        current_cpu = base_cpu
-        current_memory = base_memory
+        # Divide the burst CPU load equally among the selected cores
+        burst_cpu_load_per_core = (burst_cpu / 1000) / len(selected_cores)
+        print(f"Starting burst at {burst_time}s: CPU={burst_cpu}mi, Memory={burst_memory}mb for {burst_duration}s")
 
-        # Check if a burst is active for this second.
-        active_bursts = [burst for burst in bursts
-                         if current_time >= burst['start'] and
-                         current_time < burst['start'] + burst['duration']]
-        for burst in active_bursts:
-            if burst['cpu'] is not None:
-                current_cpu = burst['cpu']
-            if burst['memory'] is not None:
-                current_memory = burst['memory']
+        # Wait until the burst time
+        time.sleep(burst_time - (prv_burst_time + prv_duration))
 
-        # Adjust memory allocation if needed.
-        if len(memory_holder) != current_memory:
-            try:
-                memory_holder = bytearray(current_memory)
-            except MemoryError:
-                print(f"Memory allocation failed for {current_memory} bytes.")
+        # Start burst threads
+        burst_cpu_threads = []
+        for core in selected_cores:
+            thread = threading.Thread(target=generate_cpu_load, args=(burst_cpu_load_per_core, [core], burst_duration))
+            burst_cpu_threads.append(thread)
+            thread.start()
 
-        cycle_start = time.time()
-        # Ensure busy_duration is within 0.0 to 1.0 seconds.
-        busy_duration = max(0.0, min(busy_duration, 1.0))
+        burst_memory_thread = threading.Thread(target=consume_memory, args=(burst_memory, burst_duration))
+        burst_memory_thread.start()
 
-        # Busy loop for CPU load.
-        busy_loop_start = time.time()
-        while (time.time() - busy_loop_start) < busy_duration:
-            pass
-        measured_busy = time.time() - busy_loop_start
+        # Wait for the burst duration
+        time.sleep(burst_duration)
 
-        # --- PID controller based on local busy time ---
-        error = current_cpu - measured_busy
-        error_integral += error
-        error_derivative = error - last_error
+        # Wait for burst threads to finish
+        for thread in burst_cpu_threads:
+            thread.join()
+        burst_memory_thread.join()
+        prv_duration = burst_duration
+        prv_burst_time = burst_time
 
-        busy_duration = busy_duration + kp * error + ki * error_integral + kd * error_derivative
+    # Wait for the base consumption to finish
+    for thread in cpu_threads:
+        thread.join()
+    memory_thread.join()
 
-        # --- Query Prometheus and adjust if actual usage is lower ---
-        prom_cpu_usage = get_current_cpu_usage(prometheus_url)
-        error_prom = current_cpu - prom_cpu_usage
-        if error_prom > 0:
-            # If Prometheus reports lower usage than desired, gently increase busy_duration.
-            busy_duration += gamma * error_prom
-
-        busy_duration = max(0.0, min(busy_duration, 1.0))
-        last_error = error
-
-        # Sleep until the 1-second cycle completes.
-        elapsed = time.time() - cycle_start
-        remaining = 1.0 - elapsed
-        if remaining > 0:
-            time.sleep(remaining)
-
-        # Print the cycle status.
-        print(f"Time: {current_time + 1:3d}s | "
-              f"Target CPU: {current_cpu*1000:.0f}mi | "
-              f"Measured Busy: {measured_busy*1000:.0f}ms | "
-              f"Prometheus CPU: {prom_cpu_usage*1000:.0f}mi | "
-              f"Memory: {current_memory/10**6:.0f}MB | "
-              f"PID Busy Duration: {busy_duration*1000:.0f}ms")
-
-    # Free the allocated memory
-    del memory_holder
+# Main function
+def main():
+    config_file = '/app/config.yaml'  # Path to your YAML config file
+    config = load_config(config_file)
+    schedule_bursts(config)
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Usage: python stress_test.py <config.yaml>")
-        sys.exit(1)
-    config = load_config(sys.argv[1])
-    # Set the Prometheus URL as provided.
-    prometheus_url = "http://prometheus-service.monitoring.svc.cluster.local:8080"
-    run_stress_test(config, prometheus_url)
+    main()
