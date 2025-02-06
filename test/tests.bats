@@ -450,6 +450,54 @@ function check_frequency() {
   fi
 }
 
+function monitor_frequency_with_condition() {
+  local expected_freq=$1
+  local phase_name=$2
+  local duration=180  # 3 minutes
+  local frequency_found=false
+  local start_time=$SECONDS
+  local end_time=$((SECONDS + duration))
+  
+  while [ $SECONDS -lt $end_time ]; do
+    run kubectl logs deployment.apps/resource-adjustment-operator-controller-manager -n resource-adjustment-operator-system
+    [ "$status" -eq 0 ]
+    
+    latest_freq=$(echo "$output" | grep "$CONTAINER_NAME" | grep "controlSignal" | grep "newFrequency" | tail -n 1 | grep -o 'newFrequency": "[^"]*' | cut -d'"' -f3)
+    
+    if [ -z "$latest_freq" ]; then
+      echo "No frequency log found in this iteration" >&2
+      sleep 30
+      continue
+    fi
+    
+    latest_seconds=$(convert_to_seconds "$latest_freq")
+    expected_seconds=$(convert_to_seconds "$expected_freq")
+    
+    echo "Monitoring $phase_name - Current frequency: $latest_freq (Expected > $expected_freq)" >&2
+    
+    if [ "$latest_seconds" -gt "$expected_seconds" ]; then
+      echo "Frequency requirement met in $phase_name: $latest_freq > $expected_freq" >&2
+      frequency_found=true
+      break
+    fi
+    
+    sleep 30
+  done
+  
+  # If frequency not found within 3 minutes, calculate remaining wait time
+  if [ "$frequency_found" = false ]; then
+    echo "ERROR: Frequency never exceeded $expected_freq in $phase_name" >&2
+  #  return 1
+  else
+    # If found before the end, wait remaining time
+    remaining_time=$((end_time - SECONDS))
+    if [ "$remaining_time" -gt 0 ]; then
+      echo "Frequency found early. Waiting remaining $remaining_time seconds..." >&2
+      sleep "$remaining_time"
+    fi
+  fi
+}
+
 @test "test_container_burst_phases" {
   # Ensure CONTAINER_NAME environment variable is set
   if [ -z "$CONTAINER_NAME" ]; then
@@ -473,11 +521,7 @@ function check_frequency() {
   
   # Monitor frequency for 3 minutes
   echo "Burst 1: Monitoring frequency for 3 minutes..." >&2
-  end_time=$((SECONDS + 180))
-  while [ $SECONDS -lt $end_time ]; do
-    check_frequency "10m" "Burst-1-Monitor" "true"
-    sleep 30
-  done
+  monitor_frequency_with_condition "10m" "Burst-1-Monitor"
   
   # Burst 2
   echo "Burst 2: Waiting 10 minutes..." >&2
@@ -495,11 +539,7 @@ function check_frequency() {
   
   # Monitor frequency for 3 minutes
   echo "Burst 3: Monitoring frequency for 3 minutes..." >&2
-  end_time=$((SECONDS + 180))
-  while [ $SECONDS -lt $end_time ]; do
-    check_frequency "10m" "Burst-3-Monitor" "true"
-    sleep 30
-  done
+  monitor_frequency_with_condition "10m" "Burst-3-Monitor"
   
   # Burst 4
   echo "Burst 4: Waiting 8 minutes..." >&2

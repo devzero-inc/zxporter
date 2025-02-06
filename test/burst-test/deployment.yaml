@@ -5,25 +5,25 @@ metadata:
 data:
   config.yaml: |
     test:
-      duration: 2800
+      duration: 3000
       base:
         cpu: 80
         memory: 10
       burst:
         times:
-          100:
+          140:
             cpu: 415
             memory: 415  # after 5 minutes the cpu and memory recommendation should be 400-500
             duration: 720
-          840:
+          880:
             cpu: 100
             memory: 1024
             duration: 720
-          1580:
+          1620:
             cpu: 415
             memory: 415
             duration: 720
-          2320:
+          2360:
             cpu: 1024
             memory: 415
             duration: 480
@@ -31,21 +31,21 @@ data:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: feb-6-stress-6
+  name: stress-test
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: feb-6-stress-6
+      app: stress-test
   template:
     metadata:
       labels:
-        app: feb-6-stress-6
+        app: stress-test
     spec:
       containers:
-      - name: feb-6-stress-6
-        # image: localhost:5000/stress-test:ci
-        image: docker.io/remontada007/feb-6-stress:v1
+      - name: stress-test
+        image: localhost:5000/stress-test:ci
+        # image: docker.io/remontada007/feb-6-stress:v1
         resources:
           requests:
             cpu: 500m
