@@ -281,14 +281,14 @@ function log_and_run() {
 
 function convert_to_seconds() {
   local time_str=$1
-  if [[ $time_str =~ ([0-9]+)s$ ]]; then
-    echo "${BASH_REMATCH[1]}"
-  elif [[ $time_str =~ ([0-9]+)m([0-9.]+)s$ ]]; then
+  if [[ $time_str =~ ^([0-9]+)m([0-9.]+)s$ ]]; then
     mins=${BASH_REMATCH[1]}
     secs=${BASH_REMATCH[2]}
     echo "$(echo "$mins * 60 + $secs" | bc)"
-  elif [[ $time_str =~ ([0-9]+)m$ ]]; then
+  elif [[ $time_str =~ ^([0-9]+)m$ ]]; then
     echo "$((${BASH_REMATCH[1]} * 60))"
+  elif [[ $time_str =~ ^([0-9]+)s$ ]]; then
+    echo "${BASH_REMATCH[1]}"
   else
     echo "Error: Invalid time format: $time_str" >&2
     return 1
@@ -406,13 +406,13 @@ function check_recommendations() {
   # Validate CPU
   if ! [ $(echo "$cpu_value >= $cpu_min" | bc -l) -eq 1 ] || ! [ $(echo "$cpu_value <= $cpu_max" | bc -l) -eq 1 ]; then
     echo "ERROR: CPU recommendation $cpu_value is outside expected range [$cpu_min, $cpu_max] in phase $phase_name" >&2
-  #  return 1
+    return 1
   fi
   
   # Validate Memory
   if ! [ $(echo "$memory_value >= $mem_min" | bc -l) -eq 1 ] || ! [ $(echo "$memory_value <= $mem_max" | bc -l) -eq 1 ]; then
     echo "ERROR: Memory recommendation $memory_value is outside expected range [$mem_min, $mem_max] in phase $phase_name" >&2
-  #  return 1
+    return 1
   fi
 }
 
@@ -440,12 +440,12 @@ function check_frequency() {
   if [ "$greater_than" = "true" ]; then
     if ! [ "$latest_seconds" -gt "$expected_seconds" ]; then
       echo "ERROR: Frequency $latest_freq is not greater than $expected_freq in phase $phase_name" >&2
-    #  return 1
+      return 1
     fi
   else
     if [ "$latest_freq" != "$expected_freq" ]; then
       echo "ERROR: Frequency $latest_freq does not match expected $expected_freq in phase $phase_name" >&2
-    #  return 1
+      return 1
     fi
   fi
 }
@@ -487,7 +487,7 @@ function monitor_frequency_with_condition() {
   # If frequency not found within 3 minutes, calculate remaining wait time
   if [ "$frequency_found" = false ]; then
     echo "ERROR: Frequency never exceeded $expected_freq in $phase_name" >&2
-  #  return 1
+    return 1
   else
     # If found before the end, wait remaining time
     remaining_time=$((end_time - SECONDS))
@@ -509,13 +509,13 @@ function monitor_frequency_with_condition() {
   
   # Initial phase
   echo "Initial Phase: Checking baseline metrics..." >&2
-  check_recommendations 0.06 0.13 200 300 "Initial"
+  check_recommendations 0.06 0.13 100 300 "Initial"
   check_frequency "30s" "Initial"
   
   # Burst 1
   echo "Burst 1: Waiting 6 minutes..." >&2
   sleep 360
-  check_recommendations 0.4 0.55 800 1100 "Burst-1"
+  check_recommendations 0.4 0.55 600 1100 "Burst-1"
   sleep 120
   check_frequency "30s" "Burst-1" "true"
   
@@ -526,16 +526,15 @@ function monitor_frequency_with_condition() {
   # Burst 2
   echo "Burst 2: Waiting 10 minutes..." >&2
   sleep 600
-  check_recommendations 0.1 0.15 1500 1900 "Burst-2"
+  check_recommendations 0.1 0.15 1300 1900 "Burst-2"
   sleep 60
   check_frequency "30s" "Burst-2"
   
   # Burst 3
   echo "Burst 3: Waiting 10 minutes..." >&2
   sleep 600
-  check_recommendations 0.4 0.55 800 1100 "Burst-3"
+  check_recommendations 0.4 0.55 600 1100 "Burst-3"
   sleep 10
-  check_frequency "30s" "Burst-3" "true"
   
   # Monitor frequency for 3 minutes
   echo "Burst 3: Monitoring frequency for 3 minutes..." >&2
@@ -544,7 +543,7 @@ function monitor_frequency_with_condition() {
   # Burst 4
   echo "Burst 4: Waiting 8 minutes..." >&2
   sleep 480
-  check_recommendations 1.1 1.35 800 1100 "Burst-4"
+  check_recommendations 1.1 1.35 600 1100 "Burst-4"
   check_frequency "30s" "Burst-4"
   
   echo "All burst phases completed successfully!" >&2

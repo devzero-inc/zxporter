@@ -102,33 +102,33 @@ jobs:
           push: true
           tags: localhost:5000/resource-adj-operator:ci
   
-      # - name: Build and push test-app image
-      #   uses: docker/build-push-action@v6
-      #   with:
-      #     context: ./test/test-app
-      #     push: true
-      #     tags: localhost:5000/test-app:ci
+      - name: Build and push test-app image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./test/test-app
+          push: true
+          tags: localhost:5000/test-app:ci
 
-      # - name: Build and push inc-test-app image
-      #   uses: docker/build-push-action@v6
-      #   with:
-      #     context: ./test/inc-test-app
-      #     push: true
-      #     tags: localhost:5000/inc-load:ci
+      - name: Build and push inc-test-app image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./test/inc-test-app
+          push: true
+          tags: localhost:5000/inc-load:ci
 
-      # - name: Build and push dec-test-app image
-      #   uses: docker/build-push-action@v6
-      #   with:
-      #     context: ./test/dec-test-app
-      #     push: true
-      #     tags: localhost:5000/dec-load:ci
+      - name: Build and push dec-test-app image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./test/dec-test-app
+          push: true
+          tags: localhost:5000/dec-load:ci
 
-      # - name: Build and push frequency-test-app-1 image
-      #   uses: docker/build-push-action@v6
-      #   with:
-      #     context: ./test/frequency-test-app-1
-      #     push: true
-      #     tags: localhost:5000/frequency-test-app-1:ci
+      - name: Build and push frequency-test-app-1 image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./test/frequency-test-app-1
+          push: true
+          tags: localhost:5000/frequency-test-app-1:ci
       
       - name: Build and push stress-test image
         uses: docker/build-push-action@v6
@@ -137,20 +137,20 @@ jobs:
           push: true
           tags: localhost:5000/stress-test:ci
 
-      # - name: Deploy recommendation test apps to Kubernetes
-      #   run: |
-      #     kubectl apply -f ./test/test-app/deployment.yaml
-      #     kubectl apply -f ./test/inc-test-app/inc-load-deploy.yaml
-      #     kubectl apply -f ./test/dec-test-app/dec-load-deploy.yaml
+      - name: Deploy recommendation test apps to Kubernetes
+        run: |
+          kubectl apply -f ./test/test-app/deployment.yaml
+          kubectl apply -f ./test/inc-test-app/inc-load-deploy.yaml
+          kubectl apply -f ./test/dec-test-app/dec-load-deploy.yaml
 
-      # - name: Wait for test-app deployments to be ready
-      #   run: ./test/wait_for_deployment.sh test-app default
+      - name: Wait for test-app deployments to be ready
+        run: ./test/wait_for_deployment.sh test-app default
 
-      # - name: Wait for inc-test-app deployments to be ready
-      #   run: ./test/wait_for_deployment.sh inc-load default
+      - name: Wait for inc-test-app deployments to be ready
+        run: ./test/wait_for_deployment.sh inc-load default
 
-      # - name: Wait for dec-test-app deployments to be ready
-      #   run: ./test/wait_for_deployment.sh dec-load default
+      - name: Wait for dec-test-app deployments to be ready
+        run: ./test/wait_for_deployment.sh dec-load default
 
       - name: Deploy operator to Kubernetes
         run: |
@@ -167,19 +167,19 @@ jobs:
       - name: Sleep for 2 minute before running tests to get good recommendations
         run: sleep 120
         
-      # - name: Run recommendation tests
-      #   run: |
-      #     sudo -E bats -f "test_resource_adjustment_recommendations" test/tests.bats
-      #     sudo -E bats -f "test_increasing_load_recommendations" test/tests.bats
-      #     sudo -E bats -f "test_decreasing_load_recommendations" test/tests.bats
+      - name: Run recommendation tests
+        run: |
+          sudo -E bats -f "test_resource_adjustment_recommendations" test/tests.bats
+          sudo -E bats -f "test_increasing_load_recommendations" test/tests.bats
+          sudo -E bats -f "test_decreasing_load_recommendations" test/tests.bats
       
-      # - name: Deploy frequency test app to kubernetes
-      #   run: |
-      #     kubectl apply -f ./test/frequency-test-app-1/deployment.yaml
+      - name: Deploy frequency test app to kubernetes
+        run: |
+          kubectl apply -f ./test/frequency-test-app-1/deployment.yaml
 
-      # - name: Run frequency tests
-      #   run: |
-      #     sudo -E bats -f "test_frequency_changes" test/tests.bats
+      - name: Run frequency tests
+        run: |
+          sudo -E bats -f "test_frequency_changes" test/tests.bats
 
       - name: Deploy burst test app to kubernetes
         run: |
