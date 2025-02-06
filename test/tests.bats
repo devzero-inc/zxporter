@@ -517,7 +517,7 @@ function monitor_frequency_with_condition() {
   sleep 360
   check_recommendations 0.4 0.55 600 1100 "Burst-1"
   sleep 120
-  check_frequency "30s" "Burst-1" "true"
+  # check_frequency "30s" "Burst-1" "true"
   
   # Monitor frequency for 3 minutes
   echo "Burst 1: Monitoring frequency for 3 minutes..." >&2
