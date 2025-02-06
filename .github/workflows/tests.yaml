@@ -193,4 +193,4 @@ jobs:
   
       - name: Run burst tests
         run: |
-          sudo -E CONTAINER_NAME=stress-test bats -f "test_stress_container_recommendations" test/tests.bats
+          sudo -E CONTAINER_NAME=stress-test bats -f "test_container_burst_phases" test/tests.bats
