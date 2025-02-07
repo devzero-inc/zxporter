@@ -192,5 +192,10 @@ jobs:
         run: sleep 110
   
       - name: Run burst tests
+        id: run-burst-tests
         run: |
           sudo -E CONTAINER_NAME=stress-test bats -f "test_container_burst_phases" test/tests.bats
+
+      - name: Collect operator logs
+        if: ${{ always() }}
+        run: kubectl logs deployment.apps/resource-adjustment-operator-controller-manager -n resource-adjustment-operator-system
