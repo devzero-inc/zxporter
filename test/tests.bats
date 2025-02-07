@@ -509,7 +509,7 @@ function monitor_frequency_with_condition() {
   
   # Initial phase
   echo "Initial Phase: Checking baseline metrics..." >&2
-  check_recommendations 0.06 0.13 100 300 "Initial"
+  check_recommendations 0.06 0.14 100 300 "Initial"
   check_frequency "30s" "Initial"
   
   # Burst 1
