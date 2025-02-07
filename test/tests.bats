@@ -547,5 +547,4 @@ function monitor_frequency_with_condition() {
   check_frequency "30s" "Burst-4"
   
   echo "All burst phases completed successfully!" >&2
-  return 1
 }
