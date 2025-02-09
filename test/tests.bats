@@ -22,7 +22,7 @@ function log_and_run() {
     echo "Attempt $attempt of $max_attempts to find test-app container..." >&2
     
     # Get the ResourceAdjustmentPolicy YAML
-    run kubectl get resourceadjustmentpolicy resourceadjustmentpolicy-sample -o yaml
+    run kubectl get resourceadjustmentpolicy devzero-balance-recommender-default -o yaml
     [ "$status" -eq 0 ]
     
     # Check if test-app container exists in status
@@ -104,7 +104,7 @@ function log_and_run() {
     echo "Iteration $i of $iterations" >&2
     
     # Get the ResourceAdjustmentPolicy YAML
-    run kubectl get resourceadjustmentpolicy resourceadjustmentpolicy-sample -o yaml
+    run kubectl get resourceadjustmentpolicy devzero-balance-recommender-default -o yaml
     [ "$status" -eq 0 ]
     
     # Check if inc-load container exists in status
@@ -189,7 +189,7 @@ function log_and_run() {
     echo "Iteration $i of $iterations" >&2
     
     # Get the ResourceAdjustmentPolicy YAML
-    run kubectl get resourceadjustmentpolicy resourceadjustmentpolicy-sample -o yaml
+    run kubectl get resourceadjustmentpolicy devzero-balance-recommender-default -o yaml
     [ "$status" -eq 0 ]
     
     # Check if dec-load container exists in status
@@ -387,7 +387,7 @@ function check_recommendations() {
   local mem_max=$4
   local phase_name=$5
   
-  run kubectl get resourceadjustmentpolicy resourceadjustmentpolicy-sample -o yaml
+  run kubectl get resourceadjustmentpolicy devzero-balance-recommender-default -o yaml
   [ "$status" -eq 0 ]
   
   # Extract the latest entry for container based on lastUpdated timestamp

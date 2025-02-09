@@ -105,7 +105,8 @@ type ContainerState struct {
 	Frequency     time.Duration
 	LastUpdated   time.Time
 	UpdateChan    chan struct{} // Channel to signal frequency updates
-	Reconciling   bool          // Flag to indicate if reconciliation is in progress
+	ContainerQuit chan bool
+	Reconciling   bool // Flag to indicate if reconciliation is in progress
 }
 
 type Recommender struct {
@@ -707,9 +708,10 @@ func NewContainerState(namespace, podName, containerName string) *ContainerState
 				MinOutput:                     MinOutput,
 			},
 		},
-		Frequency:   defaultFrequency,
-		UpdateChan:  make(chan struct{}, 1),
-		Reconciling: false,
+		Frequency:     defaultFrequency,
+		UpdateChan:    make(chan struct{}, 1),
+		ContainerQuit: make(chan bool),
+		Reconciling:   false,
 	}
 }
 
@@ -765,6 +767,8 @@ func (re *Recommender) monitorFrequency(r *ResourceAdjustmentPolicyReconciler, s
 	for {
 		select {
 		case <-quit:
+			return
+		case <-state.ContainerQuit:
 			return
 		case <-time.After(5 * time.Second):
 			pod := &corev1.Pod{}
@@ -886,6 +890,8 @@ func (re *Recommender) runContainerLoop(ctx context.Context, r *ResourceAdjustme
 		select {
 		case <-quit:
 			return
+		case <-state.ContainerQuit:
+			return
 		case <-state.UpdateChan:
 			// Immediate reconciliation triggered
 			log.Info("Immediate reconciliation triggered for container",
@@ -934,7 +940,44 @@ func (re *Recommender) runRecommender(r *ResourceAdjustmentPolicyReconciler) {
 			log.Info("Found ResourceAdjustmentPolicies", "count", len(policyList.Items))
 			// Fetch all pods and containers in the target namespaces
 			for _, policy := range policyList.Items {
+
+				// Skip policies that are only for status updates
+				if policy.Labels["purpose"] == "status-update" {
+					log.Info("Skipping policy as it is only for status updates", "policyName", policy.Name)
+					continue
+				}
+
 				for _, namespace := range namespaces {
+
+					// Fetch the ResourceAdjustmentPolicy instance for the given namespace
+					var namespacePolicy v1.ResourceAdjustmentPolicy
+					policyName := fmt.Sprintf("devzero-balance-recommender-%s", namespace) // Unique per namespace
+					policyKey := types.NamespacedName{Name: policyName, Namespace: namespace}
+
+					if err := r.Get(ctx, policyKey, &namespacePolicy); err != nil {
+						if errors.IsNotFound(err) {
+							// If the policy does not exist, create a new one
+							namespacePolicy = v1.ResourceAdjustmentPolicy{
+								ObjectMeta: metav1.ObjectMeta{
+									Name:      policyName,
+									Namespace: namespace,
+									Labels: map[string]string{
+										"purpose": "status-update",
+									},
+								},
+								Spec:   policy.Spec,
+								Status: policy.Status,
+							}
+							if err := r.Create(ctx, &namespacePolicy); err != nil {
+								log.Error(err, "Failed to create ResourceAdjustmentPolicy")
+							}
+							log.Info("Created new ResourceAdjustmentPolicy", "namespace", namespace)
+						} else {
+							log.Error(err, "Failed to fetch ResourceAdjustmentPolicy")
+
+						}
+					}
+
 					pods := &corev1.PodList{}
 					if err := r.Client.List(context.Background(), pods, client.InNamespace(namespace)); err != nil {
 						log.Error(err, "Failed to fetch pods", "namespace", namespace)
@@ -945,11 +988,20 @@ func (re *Recommender) runRecommender(r *ResourceAdjustmentPolicyReconciler) {
 						if pod.Status.Phase != corev1.PodRunning {
 							continue
 						}
+
 						for _, container := range pod.Spec.Containers {
 							key := fmt.Sprintf("%s/%s/%s", namespace, pod.Name, container.Name)
 
+							if r.isPodExcluded(&policy, pod.Namespace, pod.Name) {
+								log.Info("Pod excluded", "podName", pod.Name, "namespace", pod.Namespace)
+
+							} else {
+								log.Info("Pod not excluded", "podName", pod.Name, "exclusion", policy.Spec.Exclusions.ExcludedPods)
+							}
+
 							re.Lock()
-							if _, exists := re.ContainerStates[key]; !exists {
+							_, exists := re.ContainerStates[key]
+							if !exists && !r.isPodExcluded(&policy, pod.Namespace, pod.Name) {
 								// Initialize state for new container
 								state := NewContainerState(namespace, pod.Name, container.Name)
 								re.ContainerStates[key] = state
@@ -957,7 +1009,14 @@ func (re *Recommender) runRecommender(r *ResourceAdjustmentPolicyReconciler) {
 								// Start the frequency monitor goroutine
 								go re.monitorFrequency(r, state)
 								// Start the container control loop
-								go re.runContainerLoop(ctx, r, state, &policy, &pod, &container)
+								go re.runContainerLoop(ctx, r, state, &namespacePolicy, &pod, &container)
+							} else if exists && r.isPodExcluded(&policy, pod.Namespace, pod.Name) {
+								log.Info("Stopping monitoring for newly excluded pod", "podName", pod.Name, "namespace", namespace)
+
+								close(re.ContainerStates[key].ContainerQuit)
+								close(re.ContainerStates[key].UpdateChan)
+
+								delete(re.ContainerStates, key)
 							}
 							re.Unlock()
 						}
@@ -966,6 +1025,15 @@ func (re *Recommender) runRecommender(r *ResourceAdjustmentPolicyReconciler) {
 			}
 		}
 	}
+}
+
+func (r *ResourceAdjustmentPolicyReconciler) isPodExcluded(policy *v1.ResourceAdjustmentPolicy, namespace, podName string) bool {
+	for _, excludedPod := range policy.Spec.Exclusions.ExcludedPods {
+		if excludedPod.Namespace == namespace && excludedPod.PodName == podName {
+			return true
+		}
+	}
+	return false
 }
 
 func (re *Recommender) processContainer(ctx context.Context, r *ResourceAdjustmentPolicyReconciler, log logr.Logger, policy *v1.ResourceAdjustmentPolicy, pod *corev1.Pod, container *corev1.Container) {

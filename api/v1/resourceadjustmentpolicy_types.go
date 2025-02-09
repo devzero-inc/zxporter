@@ -40,6 +40,17 @@ type TargetSelector struct {
 	Namespaces  []string          `json:"namespaces"`
 }
 
+// Exclusions specifies resources to exclude from adjustments
+type Exclusions struct {
+	ExcludedPods []PodReference `json:"excludedPods,omitempty"` // List of pods to exclude
+}
+
+// PodReference specifies a pod's name and namespace to be excluded
+type PodReference struct {
+	Namespace string `json:"namespace"`
+	PodName   string `json:"podName"`
+}
+
 // Policies defines the resource adjustment policies
 type Policies struct {
 	MetricsSources       []string             `json:"metricsSources"`
@@ -95,11 +106,6 @@ type Normalization struct {
 type Logging struct {
 	Level           string `json:"level"`
 	EnableAuditLogs bool   `json:"enableAuditLogs"`
-}
-
-// Exclusions specifies resources or namespaces to exclude from adjustments
-type Exclusions struct {
-	Namespaces []string `json:"namespaces"`
 }
 
 // ResourceAdjustmentPolicyStatus defines the observed state of ResourceAdjustmentPolicy

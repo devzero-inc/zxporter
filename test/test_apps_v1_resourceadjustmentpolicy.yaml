@@ -11,6 +11,8 @@ spec:
       app: sample-app
     namespaces:
       - default
+  exclusions:
+    excludedPods:
   policies:
     metricsSources:
       - prometheus
@@ -47,7 +49,3 @@ spec:
   logging:
     level: INFO
     enableAuditLogs: true
-  exclusions:
-    namespaces:
-      - kube-system
-      - monitoring

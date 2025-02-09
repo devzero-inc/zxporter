@@ -42,15 +42,22 @@ spec:
               ResourceAdjustmentPolicy
             properties:
               exclusions:
-                description: Exclusions specifies resources or namespaces to exclude
-                  from adjustments
+                description: Exclusions specifies resources to exclude from adjustments
                 properties:
-                  namespaces:
+                  excludedPods:
                     items:
-                      type: string
+                      description: PodReference specifies a pod's name and namespace
+                        to be excluded
+                      properties:
+                        namespace:
+                          type: string
+                        podName:
+                          type: string
+                      required:
+                      - namespace
+                      - podName
+                      type: object
                     type: array
-                required:
-                - namespaces
                 type: object
               logging:
                 description: Logging defines logging configurations
