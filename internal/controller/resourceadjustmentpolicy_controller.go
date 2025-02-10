@@ -64,6 +64,13 @@ const (
 	memoryRecommendation
 )
 
+type purpose int
+
+const (
+	frequencyCalculation purpose = iota
+	currentUsage
+)
+
 // Global configurations
 var (
 	// Recommender          recommender
@@ -717,7 +724,7 @@ func NewContainerState(namespace, podName, containerName string) *ContainerState
 
 func (re *Recommender) calculateError(log logr.Logger, pod *corev1.Pod, container *corev1.Container) (float64, float64, float64, float64, error) {
 
-	currentCPU, currentMemory, _, err := re.fetchCurrentMetrics(context.Background(), log, pod, container)
+	currentCPU, currentMemory, _, err := re.fetchCurrentMetrics(context.Background(), log, pod, container, frequencyCalculation)
 	if err != nil {
 		return 0, 0, 0, 0, err
 	}
@@ -1039,7 +1046,7 @@ func (r *ResourceAdjustmentPolicyReconciler) isPodExcluded(policy *v1.ResourceAd
 func (re *Recommender) processContainer(ctx context.Context, r *ResourceAdjustmentPolicyReconciler, log logr.Logger, policy *v1.ResourceAdjustmentPolicy, pod *corev1.Pod, container *corev1.Container) {
 	log.Info("Processing container", "podName", pod.Name, "containerName", container.Name)
 
-	currentCPUValue, currentMemoryValue, oomMemory, err := re.fetchCurrentMetrics(ctx, log, pod, container)
+	currentCPUValue, currentMemoryValue, oomMemory, err := re.fetchCurrentMetrics(ctx, log, pod, container, currentUsage)
 	if err != nil {
 		return
 	}
@@ -1128,17 +1135,25 @@ func (s *StatusUpdate) updateContainerStatus(ctx context.Context, log logr.Logge
 	}
 }
 
-func (re *Recommender) fetchCurrentMetrics(ctx context.Context, log logr.Logger, pod *corev1.Pod, container *corev1.Container) (float64, float64, float64, error) {
+func (re *Recommender) fetchCurrentMetrics(ctx context.Context, log logr.Logger, pod *corev1.Pod, container *corev1.Container, purpose purpose) (float64, float64, float64, error) {
 	promClient, err := NewPrometheusClient(prometheusURL)
 	if err != nil {
 		log.Error(err, "Failed to create Prometheus client")
 		return 0, 0, 0, err
 	}
 
-	// TODO: find a way to calculate the time frame here (e.g., 10m)
-	currentCPUQuery := fmt.Sprintf(`max(
+	var currentCPUQuery string
+	if purpose == currentUsage {
+		currentCPUQuery = fmt.Sprintf(`max(
+			rate(container_cpu_usage_seconds_total{namespace="%s",container="%s"}[1m])
+		) by (container)`, pod.Namespace, container.Name)
+	} else if purpose == frequencyCalculation {
+		// TODO: find a way to calculate the time frame here (e.g., 10m)
+		currentCPUQuery = fmt.Sprintf(`max(
         rate(container_cpu_usage_seconds_total{namespace="%s",container="%s"}[10m])
     ) by (container)`, pod.Namespace, container.Name)
+	}
+
 	currentCPUValue, err := promClient.QueryAtTime(currentCPUQuery, time.Now())
 	if err != nil {
 		log.Error(err, "Failed to fetch current CPU metrics", "podName", pod.Name, "containerName", container.Name)
@@ -1253,13 +1268,15 @@ func (re *Recommender) createContainerStatus(
 		LastUpdated:         metav1.Now(),
 		NodeSelectionResult: nodeSelectionResult,
 		CurrentCPU: v1.ResourceUsage{
-			// Limit: container.Resources.Limits.Cpu().String(),
-			Limit: strconv.FormatInt(container.Resources.Limits.Cpu().MilliValue(), 10),
+			Request: container.Resources.Requests.Cpu().String(),
+			Limit:   container.Resources.Limits.Cpu().String(),
+			// Limit: strconv.FormatInt(container.Resources.Limits.Cpu().MilliValue(), 10),
 			Usage: fmt.Sprintf("%.3f cores", currentCPUValue),
 		},
 		CurrentMemory: v1.ResourceUsage{
-			Limit: container.Resources.Limits.Memory().String(),
-			Usage: fmt.Sprintf("%d bytes (%.0f Mi)", int64(currentMemoryValue), float64(int64(currentMemoryValue))/1048576),
+			Request: container.Resources.Requests.Memory().String(),
+			Limit:   container.Resources.Limits.Memory().String(),
+			Usage:   fmt.Sprintf("%d bytes (%.0f Mi)", int64(currentMemoryValue), float64(int64(currentMemoryValue))/1048576),
 		},
 		CPURecommendation: v1.RecommendationDetails{
 			BaseRecommendation:     fmt.Sprintf("%.3f", baseCPU),

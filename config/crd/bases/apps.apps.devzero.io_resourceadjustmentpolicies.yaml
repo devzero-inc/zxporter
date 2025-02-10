@@ -305,6 +305,8 @@ spec:
                       properties:
                         limit:
                           type: string
+                        request:
+                          type: string
                         usage:
                           type: string
                       type: object
@@ -313,6 +315,8 @@ spec:
                         usage and limits.
                       properties:
                         limit:
+                          type: string
+                        request:
                           type: string
                         usage:
                           type: string

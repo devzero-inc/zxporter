@@ -132,8 +132,9 @@ type ContainerStatus struct {
 
 // ResourceUsage holds details about current resource usage and limits.
 type ResourceUsage struct {
-	Limit string `json:"limit,omitempty"` // Current resource limit (e.g., "1.0 cores", "512 Mi")
-	Usage string `json:"usage,omitempty"` // Current resource usage (e.g., "0.173 cores", "10548964 bytes")
+	Request string `json:"request,omitempty"`
+	Limit   string `json:"limit,omitempty"` // Current resource limit (e.g., "1.0 cores", "512 Mi")
+	Usage   string `json:"usage,omitempty"` // Current resource usage (e.g., "0.173 cores", "10548964 bytes")
 }
 
 // NodeSelectionResult contains the decision about pod placement
