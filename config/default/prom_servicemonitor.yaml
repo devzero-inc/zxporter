@@ -1,0 +1,15 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: resource-adjustment-operator-metrics
+  namespace: resource-adjustment-operator-system
+  labels:
+    release: kube-prometheus-stack  # Ensure this matches your Prometheus release name
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: resource-adjustment-operator
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 30s

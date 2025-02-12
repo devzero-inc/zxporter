@@ -188,6 +188,12 @@ func (r *ResourceAdjustmentPolicyReconciler) Reconcile(ctx context.Context, req 
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
+	// Check if the CRD has the "purpose=status-update" label
+	if value, exists := policy.Labels["purpose"]; exists && value == "status-update" {
+		log.Info("Skipping reconsile since this is a status update CRD", "policy", policy.Name)
+		return ctrl.Result{}, nil // Skip reconciliation
+	}
+
 	// Update namespaces
 	if len(policy.Spec.TargetSelector.Namespaces) > 0 && policy.Spec.TargetSelector.Namespaces[0] != "" {
 		if !equal(policy.Spec.TargetSelector.Namespaces, namespaces) {
@@ -1048,6 +1054,7 @@ func (re *Recommender) processContainer(ctx context.Context, r *ResourceAdjustme
 
 	currentCPUValue, currentMemoryValue, oomMemory, err := re.fetchCurrentMetrics(ctx, log, pod, container, currentUsage)
 	if err != nil {
+		log.Error(err, "Failed to get current metrics", "container", container.Name, "defaultCPUValue", currentCPUValue, "defaultMemoryValue", currentMemoryValue)
 		return
 	}
 

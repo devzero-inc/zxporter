@@ -11,17 +11,19 @@ spec:
       app: sample-app
     namespaces:
       - default
+      - devzero
   exclusions:
     excludedPods:
-      - namespace: "default"
-        podName: "prometheus-node-exporter-hdv6t"
+      # - namespace: "default"
+      #   podName: "prometheus-node-exporter-hdv6t"
   policies:
     metricsSources:
       - prometheus
     frequency: "1m"
     autoApply: false
     lookbackDuration: "1m"
-    promUrl: "http://10.97.28.239:8080"
+    # promUrl: "http://10.97.28.239:8080"
+    promUrl: http://kube-prometheus-stack-prometheus.kube-prometheus-stack.svc.cluster.local:9090
     pidController:
       propertionalGain: "10.0"
       integralGain: "0.04"
@@ -36,13 +38,13 @@ spec:
       requestPercentile: "99.0"
       marginFraction: "0.15"
       targetUtilization: "0.95"
-      historyLength: "5m"
+      historyLength: "124h"
     memoryRecommendation:
       sampleInterval: "1m"
       requestPercentile: "99.0"
       marginFraction: "0.15"
       targetUtilization: "0.95"
-      historyLength: "5m"
+      historyLength: "124h"
       oomProtection: true
       oomBumpRatio: "1.2"
     normalization:
