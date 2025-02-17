@@ -22,6 +22,7 @@ import (
 	"math"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -167,6 +168,7 @@ func equal(a, b []string) bool {
 // +kubebuilder:rbac:groups=core,resources=pods/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=core,resources=events,verbs=create;patch
 // +kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=namespaces,verbs=get;list;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -945,99 +947,195 @@ func (re *Recommender) runRecommender(r *ResourceAdjustmentPolicyReconciler) {
 			return
 		case <-ticker.C:
 			log.Info("Fetching ResourceAdjustmentPolicies")
+
+			// Fetch all namespaces dynamically
+			namespaceList := &corev1.NamespaceList{}
+			if err := r.Client.List(ctx, namespaceList); err != nil {
+				log.Error(err, "Failed to fetch namespaces")
+				continue
+			}
+
+			// Convert fetched namespaces into a set (map for fast lookups)
+			clusterNamespaces := make(map[string]struct{})
+			for _, ns := range namespaceList.Items {
+				clusterNamespaces[ns.Name] = struct{}{}
+			}
+
+			// Fetch the ResourceAdjustmentPolicy list
 			policyList := &v1.ResourceAdjustmentPolicyList{}
 			if err := r.List(ctx, policyList); err != nil {
 				log.Error(err, "Failed to list ResourceAdjustmentPolicies")
 				return
 			}
-			log.Info("Found ResourceAdjustmentPolicies", "count", len(policyList.Items))
-			// Fetch all pods and containers in the target namespaces
-			for _, policy := range policyList.Items {
 
-				// Skip policies that are only for status updates
-				if policy.Labels["purpose"] == "status-update" {
-					log.Info("Skipping policy as it is only for status updates", "policyName", policy.Name)
+			log.Info("Found ResourceAdjustmentPolicies", "count", len(policyList.Items))
+
+			activeNamespaces := make(map[string]struct{})
+
+			for namespace := range clusterNamespaces {
+				if !isNamespaceAllowed(namespace) {
+					re.cleanupNamespace(namespace, log)
 					continue
 				}
 
-				for _, namespace := range namespaces {
+				activeNamespaces[namespace] = struct{}{} // Mark as active
 
-					// Fetch the ResourceAdjustmentPolicy instance for the given namespace
-					var namespacePolicy v1.ResourceAdjustmentPolicy
-					policyName := fmt.Sprintf("devzero-balance-recommender-%s", namespace) // Unique per namespace
-					policyKey := types.NamespacedName{Name: policyName, Namespace: namespace}
+				// Fetch the ResourceAdjustmentPolicy for this namespace
+				var namespacePolicy v1.ResourceAdjustmentPolicy
+				policyName := fmt.Sprintf("devzero-balance-recommender-%s", namespace)
+				policyKey := types.NamespacedName{Name: policyName, Namespace: namespace}
 
-					if err := r.Get(ctx, policyKey, &namespacePolicy); err != nil {
-						if errors.IsNotFound(err) {
-							// If the policy does not exist, create a new one
-							namespacePolicy = v1.ResourceAdjustmentPolicy{
-								ObjectMeta: metav1.ObjectMeta{
-									Name:      policyName,
-									Namespace: namespace,
-									Labels: map[string]string{
-										"purpose": "status-update",
-									},
+				if err := r.Get(ctx, policyKey, &namespacePolicy); err != nil {
+					if errors.IsNotFound(err) {
+						// Create a new policy if it doesn’t exist
+						namespacePolicy = v1.ResourceAdjustmentPolicy{
+							ObjectMeta: metav1.ObjectMeta{
+								Name:      policyName,
+								Namespace: namespace,
+								Labels: map[string]string{
+									"purpose": "status-update",
 								},
-								Spec:   policy.Spec,
-								Status: policy.Status,
-							}
-							if err := r.Create(ctx, &namespacePolicy); err != nil {
-								log.Error(err, "Failed to create ResourceAdjustmentPolicy")
-							}
-							log.Info("Created new ResourceAdjustmentPolicy", "namespace", namespace)
-						} else {
-							log.Error(err, "Failed to fetch ResourceAdjustmentPolicy")
-
+							},
+							Spec:   policyList.Items[0].Spec, // Assuming a global policy
+							Status: policyList.Items[0].Status,
 						}
+						if err := r.Create(ctx, &namespacePolicy); err != nil {
+							log.Error(err, "Failed to create ResourceAdjustmentPolicy")
+						}
+						log.Info("Created new ResourceAdjustmentPolicy", "namespace", namespace)
+					} else {
+						log.Error(err, "Failed to fetch ResourceAdjustmentPolicy")
 					}
+				}
 
-					pods := &corev1.PodList{}
-					if err := r.Client.List(context.Background(), pods, client.InNamespace(namespace)); err != nil {
-						log.Error(err, "Failed to fetch pods", "namespace", namespace)
+				// Fetch pods in this namespace
+				pods := &corev1.PodList{}
+				if err := r.Client.List(ctx, pods, client.InNamespace(namespace)); err != nil {
+					log.Error(err, "Failed to fetch pods", "namespace", namespace)
+					continue
+				}
+
+				// Process pods
+				for _, pod := range pods.Items {
+					if pod.Status.Phase != corev1.PodRunning {
 						continue
 					}
 
-					for _, pod := range pods.Items {
-						if pod.Status.Phase != corev1.PodRunning {
-							continue
+					for _, container := range pod.Spec.Containers {
+						key := fmt.Sprintf("%s/%s/%s", namespace, pod.Name, container.Name)
+
+						if r.isPodExcluded(&namespacePolicy, pod.Namespace, pod.Name) {
+							log.Info("Pod excluded", "podName", pod.Name, "namespace", pod.Namespace)
+						} else {
+							log.Info("Pod not excluded", "podName", pod.Name, "exclusion", namespacePolicy.Spec.Exclusions.ExcludedPods)
 						}
 
-						for _, container := range pod.Spec.Containers {
-							key := fmt.Sprintf("%s/%s/%s", namespace, pod.Name, container.Name)
+						re.Lock()
+						_, exists := re.ContainerStates[key]
+						if !exists && !r.isPodExcluded(&namespacePolicy, pod.Namespace, pod.Name) {
+							// Initialize state for new container
+							state := NewContainerState(namespace, pod.Name, container.Name)
+							re.ContainerStates[key] = state
 
-							if r.isPodExcluded(&policy, pod.Namespace, pod.Name) {
-								log.Info("Pod excluded", "podName", pod.Name, "namespace", pod.Namespace)
+							// Start the frequency monitor goroutine
+							go re.monitorFrequency(r, state)
 
-							} else {
-								log.Info("Pod not excluded", "podName", pod.Name, "exclusion", policy.Spec.Exclusions.ExcludedPods)
-							}
+							// Start the container control loop
+							go re.runContainerLoop(ctx, r, state, &namespacePolicy, &pod, &container)
+						} else if exists && r.isPodExcluded(&namespacePolicy, pod.Namespace, pod.Name) {
+							// Stop monitoring if the pod is now excluded
+							log.Info("Stopping monitoring for newly excluded pod", "podName", pod.Name, "namespace", namespace)
 
-							re.Lock()
-							_, exists := re.ContainerStates[key]
-							if !exists && !r.isPodExcluded(&policy, pod.Namespace, pod.Name) {
-								// Initialize state for new container
-								state := NewContainerState(namespace, pod.Name, container.Name)
-								re.ContainerStates[key] = state
+							close(re.ContainerStates[key].ContainerQuit)
+							close(re.ContainerStates[key].UpdateChan)
 
-								// Start the frequency monitor goroutine
-								go re.monitorFrequency(r, state)
-								// Start the container control loop
-								go re.runContainerLoop(ctx, r, state, &namespacePolicy, &pod, &container)
-							} else if exists && r.isPodExcluded(&policy, pod.Namespace, pod.Name) {
-								log.Info("Stopping monitoring for newly excluded pod", "podName", pod.Name, "namespace", namespace)
-
-								close(re.ContainerStates[key].ContainerQuit)
-								close(re.ContainerStates[key].UpdateChan)
-
-								delete(re.ContainerStates, key)
-							}
-							re.Unlock()
+							delete(re.ContainerStates, key)
 						}
+						re.Unlock()
 					}
 				}
 			}
+
+			// Stop monitoring namespaces that are no longer active
+			for namespace := range re.ContainerStates {
+				ns := getNamespaceFromKey(namespace)
+				if _, exists := activeNamespaces[ns]; !exists {
+					re.cleanupNamespace(ns, log)
+				}
+			}
+			re.cleanupDeletedContainers(r, log)
 		}
 	}
+}
+
+func (re *Recommender) cleanupDeletedContainers(r *ResourceAdjustmentPolicyReconciler, log logr.Logger) {
+	re.Lock()
+	defer re.Unlock()
+
+	ctx := context.TODO()
+
+	pods := &corev1.PodList{}
+	if err := r.Client.List(ctx, pods); err != nil {
+		log.Error(err, "Failed to fetch all pods for cleanup")
+		return
+	}
+
+	// Create a set of all active containers in the cluster
+	activeContainers := make(map[string]struct{})
+	for _, pod := range pods.Items {
+		if pod.Status.Phase != corev1.PodRunning {
+			continue
+		}
+		for _, container := range pod.Spec.Containers {
+			key := fmt.Sprintf("%s/%s/%s", pod.Namespace, pod.Name, container.Name)
+			activeContainers[key] = struct{}{}
+		}
+	}
+
+	// Stop monitoring for containers that no longer exist
+	for key, state := range re.ContainerStates {
+		if _, exists := activeContainers[key]; !exists {
+			log.Info("Stopping monitoring for deleted container", "containerKey", key)
+
+			close(state.ContainerQuit)
+			close(state.UpdateChan)
+
+			delete(re.ContainerStates, key)
+		}
+	}
+}
+
+func isNamespaceAllowed(namespace string) bool {
+	for _, ns := range namespaces {
+		if ns == namespace {
+			return true
+		}
+	}
+	return false
+}
+
+func (re *Recommender) cleanupNamespace(namespace string, log logr.Logger) {
+	re.Lock()
+	defer re.Unlock()
+
+	log.Info("Stopping monitoring for namespace", "namespace", namespace)
+
+	for key, state := range re.ContainerStates {
+		ns := getNamespaceFromKey(key)
+		if ns == namespace {
+			close(state.ContainerQuit)
+			close(state.UpdateChan)
+			delete(re.ContainerStates, key)
+		}
+	}
+}
+
+func getNamespaceFromKey(key string) string {
+	parts := strings.Split(key, "/")
+	if len(parts) > 0 {
+		return parts[0]
+	}
+	return ""
 }
 
 func (r *ResourceAdjustmentPolicyReconciler) isPodExcluded(policy *v1.ResourceAdjustmentPolicy, namespace, podName string) bool {
@@ -1130,6 +1228,11 @@ func (s *StatusUpdate) updateContainerStatus(ctx context.Context, log logr.Logge
 
 			patch := client.MergeFrom(policy.DeepCopy())
 			policy.Status.Containers = append(policy.Status.Containers, status)
+
+			// Trim the list to keep only the last 500 records
+			if len(policy.Status.Containers) > 500 {
+				policy.Status.Containers = policy.Status.Containers[len(policy.Status.Containers)-500:]
+			}
 
 			return r.Status().Patch(ctx, policy, patch)
 		},

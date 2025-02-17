@@ -1,0 +1,71 @@
+apiVersion: apps.apps.devzero.io/v1
+kind: ResourceAdjustmentPolicy
+metadata:
+  labels:
+    app.kubernetes.io/name: resource-adjustment-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: resourceadjustmentpolicy-sample
+spec:
+  targetSelector:
+    matchLabels:
+      app: sample-app
+    namespaces:
+      - buildkitd
+      - cert-manager
+      - cloudflared
+      # - datadog
+      - default
+      - devzero
+      # - external-dns
+      # - external-secrets
+      # - github-actions
+      # - ingress-nginx
+      # - kube-node-lease
+      # - kube-prometheus-stack
+      # - kube-public
+      # - kube-system
+      # - kyverno
+      # - lda
+      # - logdna
+      # - signoz
+      # - tailscale
+      # - vault
+      # - vault-internal-customers
+  exclusions:
+    excludedPods:
+  policies:
+    metricsSources:
+      - prometheus
+    frequency: "1m"
+    autoApply: false
+    lookbackDuration: "1m"
+    promUrl: http://kube-prometheus-stack-prometheus.kube-prometheus-stack.svc.cluster.local:9090
+    pidController:
+      propertionalGain: "10.0"
+      integralGain: "0.04"
+      derivativeGain: "1.0"
+      antiWindUpGain: "1.0"
+      integralDischargeTimeConstant: "1.0"
+      lowPassTimeConstant: "2s"
+      maxOutput: "1.01"
+      minOutput: "-2.15"
+    cpuRecommendation:
+      sampleInterval: "1m"
+      requestPercentile: "99.0"
+      marginFraction: "0.15"
+      targetUtilization: "0.95"
+      historyLength: "124h"
+    memoryRecommendation:
+      sampleInterval: "1m"
+      requestPercentile: "99.0"
+      marginFraction: "0.15"
+      targetUtilization: "0.95"
+      historyLength: "124h"
+      oomProtection: true
+      oomBumpRatio: "1.2"
+    normalization:
+      enabled: true
+      config: default
+  logging:
+    level: INFO
+    enableAuditLogs: true
