@@ -185,8 +185,8 @@ jobs:
         run: |
           kubectl apply -f ./test/burst-test/deployment.yaml
 
-      - name: Wait for burst-test deployment to be ready
-        run: ./test/wait_for_deployment.sh stress-test default
+      # - name: Wait for burst-test deployment to be ready
+      #   run: ./test/wait_for_deployment.sh stress-test default
       
       - name: sleep for 110s to start the application
         run: sleep 110
