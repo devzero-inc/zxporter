@@ -17,7 +17,7 @@ spec:
     metricsSources:
       - prometheus
     frequency: "1m"
-    autoApply: true
+    autoApply: false
     lookbackDuration: "1m"
     promUrl: "http://prometheus-service.monitoring.svc.cluster.local:8080"
     pidController:

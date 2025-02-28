@@ -26,21 +26,30 @@ import (
 	"sync"
 	"time"
 
+	"net/http"
+
+	"connectrpc.com/connect"
 	v1 "github.com/devzero-inc/resource-adjustment-operator/api/v1"
 	"github.com/devzero-inc/resource-adjustment-operator/internal/controller/metrics"
 	"github.com/devzero-inc/resource-adjustment-operator/internal/controller/pid"
+
+	gen "github.com/devzero-inc/services/pulse/gen/api/v1"
+	genconnect "github.com/devzero-inc/services/pulse/gen/api/v1/apiv1connect"
 	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/api"
 	pv1 "github.com/prometheus/client_golang/api/prometheus/v1"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/retry"
+	metricsv1 "k8s.io/metrics/pkg/client/clientset/versioned"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	k8log "sigs.k8s.io/controller-runtime/pkg/log"
@@ -92,8 +101,8 @@ var (
 	lookbackDuration     = 1 * time.Hour
 	autoApply            = false
 	oomProtection        = true
-	// prometheusURL                 = "http://prometheus-service.monitoring.svc.cluster.local:8080"
-	prometheusURL                 = "http://10.97.28.239:8080"
+	prometheusURL        = "http://prometheus-service.monitoring.svc.cluster.local:8080"
+	// prometheusURL                 = "http://10.97.28.239:8080"
 	controllerMetrics             = metrics.NewMetrics("resource_adjustment_operator")
 	ProportionalGain              = 8.0
 	IntegralGain                  = 0.3
@@ -105,16 +114,69 @@ var (
 	MinOutput                     = -2.15
 )
 
+// PulseClient struct for handling gRPC requests
+type PulseClient struct {
+	// recommendationClient genconnect.ResourceRecommendationServiceClient
+	// pidControllerClient  genconnect.PIDControllerStateServiceClient
+	usageClient genconnect.ResourceUsageServiceClient
+}
+
+// NewPulseClient initializes Pulse gRPC clients
+func NewPulseClient(pulseBaseURL string) *PulseClient {
+	return &PulseClient{
+		// recommendationClient: genconnect.NewResourceRecommendationServiceClient(
+		// 	http.DefaultClient, pulseBaseURL),
+		// pidControllerClient: genconnect.NewPIDControllerStateServiceClient(
+		// 	http.DefaultClient, pulseBaseURL),
+		usageClient: genconnect.NewResourceUsageServiceClient(
+			http.DefaultClient, pulseBaseURL),
+	}
+}
+
+// Initialize Kubernetes Metrics API client
+func getMetricsClient() (*metricsv1.Clientset, error) {
+	config, err := rest.InClusterConfig()
+	if err != nil {
+		return nil, err
+	}
+	metricsClient, err := metricsv1.NewForConfig(config)
+	if err != nil {
+		return nil, err
+	}
+	return metricsClient, nil
+}
+
+// Fetch real-time CPU & Memory usage
+func fetchContainerUsage(metricsClient *metricsv1.Clientset, podNamespace, podName, containerName string) (int64, int64, error) {
+	podMetrics, err := metricsClient.MetricsV1beta1().PodMetricses(podNamespace).Get(context.TODO(), podName, metav1.GetOptions{})
+	if err != nil {
+		return 0, 0, fmt.Errorf("failed to fetch pod metrics: %v", err)
+	}
+
+	for _, container := range podMetrics.Containers {
+		if container.Name == containerName {
+			cpuUsage := container.Usage.Cpu().MilliValue()
+			memUsage := container.Usage.Memory().Value()
+			return cpuUsage, memUsage, nil
+		}
+	}
+	return 0, 0, fmt.Errorf("metrics not found for container %s", containerName)
+}
+
+// Initialize the Pulse client (update with your Pulse service URL)
+var pulseClient = NewPulseClient("http://host.docker.internal:9990")
+
 type ContainerState struct {
-	Namespace     string
-	PodName       string
-	ContainerName string
-	PIDController *pid.AntiWindupController
-	Frequency     time.Duration
-	LastUpdated   time.Time
-	UpdateChan    chan struct{} // Channel to signal frequency updates
-	ContainerQuit chan bool
-	Reconciling   bool // Flag to indicate if reconciliation is in progress
+	Namespace        string
+	PodName          string
+	ContainerName    string
+	PIDController    *pid.AntiWindupController
+	Frequency        time.Duration
+	LastUpdated      time.Time
+	UpdateChan       chan struct{} // Channel to signal frequency updates
+	ContainerQuit    chan bool
+	UsageMonitorQuit chan bool // Channel to stop usage monitoring loop
+	Reconciling      bool      // Flag to indicate if reconciliation is in progress
 }
 
 type Recommender struct {
@@ -169,6 +231,7 @@ func equal(a, b []string) bool {
 // +kubebuilder:rbac:groups=core,resources=events,verbs=create;patch
 // +kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=namespaces,verbs=get;list;watch
+// +kubebuilder:rbac:groups=metrics.k8s.io,resources=pods,verbs=get;list;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -925,6 +988,63 @@ func (re *Recommender) runContainerLoop(ctx context.Context, r *ResourceAdjustme
 	}
 }
 
+func (re *Recommender) runUsageMonitorLoop(ctx context.Context, r *ResourceAdjustmentPolicyReconciler, state *ContainerState, pod *corev1.Pod, container *corev1.Container) {
+	log := k8log.FromContext(ctx)
+	ticker := time.NewTicker(20 * time.Second)
+	defer ticker.Stop()
+
+	metricsClient, err := getMetricsClient()
+	if err != nil {
+		log.Error(err, "Failed to create Kubernetes Metrics client")
+		return
+	}
+
+	for {
+		select {
+		case <-state.UsageMonitorQuit:
+			log.Info("Stopping usage monitor for container", "pod", pod.Name, "container", container.Name)
+			return
+		case <-ticker.C:
+			log.Info("Fetching real-time resource usage for container", "pod", pod.Name, "container", container.Name)
+			currentCPUUsage, currentMemoryUsage, err := fetchContainerUsage(metricsClient, pod.Namespace, pod.Name, container.Name)
+			if err != nil {
+				log.Error(err, "Failed to fetch real-time resource usage", "pod", pod.Name, "container", container.Name)
+				continue
+			}
+
+			// Send usage data to Pulse
+			go re.sendResourceUsageToPulse(log, pod, container, currentCPUUsage, currentMemoryUsage)
+		}
+	}
+}
+
+func (re *Recommender) sendResourceUsageToPulse(log logr.Logger, pod *corev1.Pod, container *corev1.Container, cpuUsage, memoryUsage int64) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	usage := &gen.ResourceUsage{
+		ContainerId:        fmt.Sprintf("%s-%s", pod.Name, container.Name),
+		ContainerName:      container.Name,
+		PodName:            pod.Name,
+		Namespace:          pod.Namespace,
+		NodeName:           pod.Spec.NodeName,
+		CpuUsageMillicores: cpuUsage,
+		MemoryUsageBytes:   memoryUsage,
+		Timestamp:          timestamppb.Now(),
+	}
+
+	req := connect.NewRequest(&gen.SendResourceUsageRequest{
+		Usages: []*gen.ResourceUsage{usage},
+	})
+
+	_, err := pulseClient.usageClient.SendResourceUsage(ctx, req)
+	if err != nil {
+		log.Error(err, "Failed to send resource usage to Pulse", "podName", pod.Name, "containerName", container.Name)
+	} else {
+		log.Info("Successfully sent resource usage to Pulse", "podName", pod.Name, "containerName", container.Name)
+	}
+}
+
 func (r *ResourceAdjustmentPolicyReconciler) restartRecommender(ctx context.Context) {
 	quit <- true
 	log := k8log.FromContext(ctx)
@@ -1040,8 +1160,12 @@ func (re *Recommender) runRecommender(r *ResourceAdjustmentPolicyReconciler) {
 							// Start the frequency monitor goroutine
 							go re.monitorFrequency(r, state)
 
+							// Start usage monitoring
+							go re.runUsageMonitorLoop(ctx, r, state, &pod, &container)
+
 							// Start the container control loop
 							go re.runContainerLoop(ctx, r, state, &namespacePolicy, &pod, &container)
+
 						} else if exists && r.isPodExcluded(&namespacePolicy, pod.Namespace, pod.Name) {
 							// Stop monitoring if the pod is now excluded
 							log.Info("Stopping monitoring for newly excluded pod", "podName", pod.Name, "namespace", namespace)
@@ -1098,6 +1222,7 @@ func (re *Recommender) cleanupDeletedContainers(r *ResourceAdjustmentPolicyRecon
 			log.Info("Stopping monitoring for deleted container", "containerKey", key)
 
 			close(state.ContainerQuit)
+			close(state.UsageMonitorQuit)
 			close(state.UpdateChan)
 
 			delete(re.ContainerStates, key)
@@ -1202,6 +1327,12 @@ func (re *Recommender) processContainer(ctx context.Context, r *ResourceAdjustme
 		}).Set(state.Frequency.Seconds())
 	}
 
+	// Send Resource Recommendation to Pulse
+	// go re.sendResourceRecommendationToPulse(log, pod, container, recommendedCPU, recommendedMemory, baseCPU, baseMemory)
+
+	// Send PID Controller State to Pulse
+	// go re.sendPIDStateToPulse(log, pod, container)
+
 	status := re.createContainerStatus(ctx, r, log, pod, container, currentCPUValue, currentMemoryValue, baseCPU, recommendedCPU, baseMemory, recommendedMemory)
 	if autoApply && (status.CPURecommendation.NeedToApply || status.MemoryRecommendation.NeedToApply) {
 		if err := re.applyRecommendations(ctx, r, pod, status); err != nil {
@@ -1211,6 +1342,69 @@ func (re *Recommender) processContainer(ctx context.Context, r *ResourceAdjustme
 
 	StatusUpdater.updateContainerStatus(ctx, log, r, policy, status)
 }
+
+// func (re *Recommender) sendResourceRecommendationToPulse(log logr.Logger, pod *corev1.Pod, container *corev1.Container, cpuRecommended, memRecommended, cpuBase, memBase float64) {
+// 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+// 	defer cancel()
+
+// 	recommendation := &gen.ResourceRecommendation{
+// 		ContainerId:       fmt.Sprintf("%s-%s", pod.Name, container.Name),
+// 		ContainerName:     container.Name,
+// 		Namespace:         pod.Namespace,
+// 		CpuRequest:        float64(container.Resources.Requests.Cpu().MilliValue()) / 1000,
+// 		CpuLimit:          float64(container.Resources.Limits.Cpu().MilliValue()) / 1000,
+// 		MemoryRequest:     float64(container.Resources.Requests.Memory().Value()) / 1048576,
+// 		MemoryLimit:       float64(container.Resources.Limits.Memory().Value()) / 1048576,
+// 		CpuRecommended:    cpuRecommended,
+// 		MemoryRecommended: memRecommended,
+// 		Timestamp:         time.Now().Unix(),
+// 	}
+
+// 	req := connect.NewRequest(&gen.SendResourceRecommendationsRequest{
+// 		Recommendations: []*gen.ResourceRecommendation{recommendation},
+// 	})
+
+// 	_, err := pulseClient.recommendationClient.SendResourceRecommendations(ctx, req)
+// 	if err != nil {
+// 		log.Error(err, "Failed to send resource recommendation to Pulse", "podName", pod.Name, "containerName", container.Name)
+// 	} else {
+// 		log.Info("Successfully sent resource recommendation to Pulse", "podName", pod.Name, "containerName", container.Name)
+// 	}
+// }
+
+// func (re *Recommender) sendPIDStateToPulse(log logr.Logger, pod *corev1.Pod, container *corev1.Container) {
+// 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+// 	defer cancel()
+
+// 	// Fetch PID Controller State
+// 	state := re.ContainerStates[fmt.Sprintf("%s/%s/%s", pod.Namespace, pod.Name, container.Name)]
+// 	if state == nil {
+// 		log.Info("Skipping PID state send: state not found", "podName", pod.Name, "containerName", container.Name)
+// 		return
+// 	}
+
+// 	pidState := &gen.PIDControllerState{
+// 		ContainerId:    fmt.Sprintf("%s-%s", pod.Name, container.Name),
+// 		ContainerName:  container.Name,
+// 		Namespace:      pod.Namespace,
+// 		ControlSignal:  state.PIDController.State.ControlSignal,
+// 		IntegralTerm:   state.PIDController.State.ControlErrorIntegral,
+// 		DerivativeTerm: state.PIDController.State.ControlErrorDerivative,
+// 		Frequency:      int32(state.Frequency.Seconds()),
+// 		Timestamp:      time.Now().Unix(),
+// 	}
+
+// 	req := connect.NewRequest(&gen.SendPIDControllerStateRequest{
+// 		States: []*gen.PIDControllerState{pidState},
+// 	})
+
+// 	_, err := pulseClient.pidControllerClient.SendPIDControllerStates(ctx, req)
+// 	if err != nil {
+// 		log.Error(err, "Failed to send PID controller state to Pulse", "podName", pod.Name, "containerName", container.Name)
+// 	} else {
+// 		log.Info("Successfully sent PID controller state to Pulse", "podName", pod.Name, "containerName", container.Name)
+// 	}
+// }
 
 func (s *StatusUpdate) updateContainerStatus(ctx context.Context, log logr.Logger, r *ResourceAdjustmentPolicyReconciler, policy *v1.ResourceAdjustmentPolicy, status v1.ContainerStatus) {
 	s.Lock()
