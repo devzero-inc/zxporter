@@ -55,6 +55,7 @@ type PodReference struct {
 type Policies struct {
 	MetricsSources       []string             `json:"metricsSources"`
 	PromURL              string               `json:"promUrl"`
+	PulseURL             string               `json:"pulseUrl"`
 	Frequency            string               `json:"frequency"`
 	AutoApply            bool                 `json:"autoApply"`
 	LookbackDuration     string               `json:"lookbackDuration"`

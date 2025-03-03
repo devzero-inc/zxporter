@@ -24,6 +24,7 @@ spec:
     lookbackDuration: "1m"
     # promUrl: "http://10.97.28.239:8080"
     promUrl: http://kube-prometheus-stack-prometheus.kube-prometheus-stack.svc.cluster.local:9090
+    pulseUrl: http://host.docker.internal:9990
     pidController:
       propertionalGain: "10.0"
       integralGain: "0.04"

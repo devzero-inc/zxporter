@@ -172,6 +172,8 @@ spec:
                     type: object
                   promUrl:
                     type: string
+                  pulseUrl:
+                    type: string
                 required:
                 - autoApply
                 - cpuRecommendation
@@ -182,6 +184,7 @@ spec:
                 - normalization
                 - pidController
                 - promUrl
+                - pulseUrl
                 type: object
               targetSelector:
                 description: TargetSelector specifies the labels and namespaces to

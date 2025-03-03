@@ -20,6 +20,7 @@ spec:
     autoApply: false
     lookbackDuration: "1m"
     promUrl: "http://prometheus-service.monitoring.svc.cluster.local:8080"
+    pulseUrl: "http://host.docker.internal:9990"
     pidController:
       propertionalGain: "10.0"
       integralGain: "0.04"
