@@ -29,7 +29,6 @@ import (
 
 	"connectrpc.com/connect"
 	v1 "github.com/devzero-inc/zxporter/api/v1"
-	"github.com/devzero-inc/zxporter/internal/controller/metrics"
 	"github.com/devzero-inc/zxporter/internal/controller/pid"
 
 	gen "github.com/devzero-inc/services/pulse/gen/api/v1"
@@ -61,6 +60,8 @@ import (
 const (
 	minFrequency = 30 * time.Second
 	maxFrequency = 20 * time.Minute
+	policyCRName = "zxporter-resourceadjustmentpolicy-cr"
+	crNamespace  = "zxporter-system"
 )
 
 // type recommendationType int
@@ -79,29 +80,25 @@ const (
 
 // Global configurations
 var (
-	// Recommender          recommender
-	StatusUpdater        StatusUpdate
-	defaultNamespaces    = []string{"default"}
-	quit                 chan bool
-	defaultCPUConfig     = ResourceConfig{RequestPercentile: 95.0, MarginFraction: 0.15, TargetUtilization: 1.0, BucketSize: 0.001}
-	defaultMemoryConfig  = ResourceConfig{RequestPercentile: 95.0, MarginFraction: 0.15, TargetUtilization: 1.0, BucketSize: 1048576}
-	namespaces           = defaultNamespaces
-	cpuConfig            = defaultCPUConfig
-	memoryConfig         = defaultMemoryConfig
-	oomBumpRatio         = 1.2
-	defaultFrequency     = 3 * time.Minute
-	cpuSampleInterval    = 1 * time.Minute
-	cpuHistoryLength     = 24 * time.Hour
-	memorySampleInterval = 1 * time.Minute
-	memoryHistoryLength  = 24 * time.Hour
-	lookbackDuration     = 1 * time.Hour
-	autoApply            = false
-	oomProtection        = true
-	// prometheusURL        = "http://prometheus-service.monitoring.svc.cluster.local:8080"
-	// prometheusURL                 = "http://10.97.28.239:8080"
+	StatusUpdater                 StatusUpdate
+	defaultNamespaces             = []string{"default"}
+	quit                          chan bool
+	defaultCPUConfig              = ResourceConfig{RequestPercentile: 95.0, MarginFraction: 0.15, TargetUtilization: 1.0, BucketSize: 0.001}
+	defaultMemoryConfig           = ResourceConfig{RequestPercentile: 95.0, MarginFraction: 0.15, TargetUtilization: 1.0, BucketSize: 1048576}
+	namespaces                    = defaultNamespaces
+	cpuConfig                     = defaultCPUConfig
+	memoryConfig                  = defaultMemoryConfig
+	oomBumpRatio                  = 1.2
+	defaultFrequency              = 3 * time.Minute
+	cpuSampleInterval             = 1 * time.Minute
+	cpuHistoryLength              = 24 * time.Hour
+	memorySampleInterval          = 1 * time.Minute
+	memoryHistoryLength           = 24 * time.Hour
+	lookbackDuration              = 1 * time.Hour
+	autoApply                     = false
+	oomProtection                 = true
 	pulseUrl                      = "http://host.docker.internal:9990"
 	pulseClient                   = NewPulseClient(pulseUrl)
-	controllerMetrics             = metrics.NewMetrics("resource_adjustment_operator")
 	ProportionalGain              = 8.0
 	IntegralGain                  = 0.3
 	DerivativeGain                = 1.0
@@ -180,17 +177,15 @@ type ContainerState struct {
 type Recommender struct {
 	sync.Mutex
 	ContainerStates map[string]*ContainerState // Key: "namespace/pod/container"
-	Metrics         *metrics.Metrics
 }
 
 type StatusUpdate struct {
 	sync.Mutex
 }
 
-func NewRecommender(metrics *metrics.Metrics) *Recommender {
+func NewRecommender() *Recommender {
 	return &Recommender{
 		ContainerStates: make(map[string]*ContainerState),
-		Metrics:         metrics,
 	}
 }
 
@@ -251,9 +246,9 @@ func (r *ResourceAdjustmentPolicyReconciler) Reconcile(ctx context.Context, req 
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	// Check if the CRD has the "purpose=status-update" label
-	if value, exists := policy.Labels["purpose"]; exists && value == "status-update" {
-		log.Info("Skipping reconsile since this is a status update CRD", "policy", policy.Name)
+	// We only use zxporter-resourceadjustmentpolicy-cr in zxporter-system
+	if policy.Name != policyCRName && policy.Namespace != crNamespace {
+		log.Info("Skipping reconsile for CR", "policy", policy.Name, "namespace", policy.Namespace)
 		return ctrl.Result{}, nil // Skip reconciliation
 	}
 
@@ -856,7 +851,7 @@ func (r *ResourceAdjustmentPolicyReconciler) restartRecommender(ctx context.Cont
 	log := k8log.FromContext(ctx)
 	log.Info("Restarting the resource recommender")
 	quit = make(chan bool)
-	recommender := NewRecommender(controllerMetrics)
+	recommender := NewRecommender()
 	go recommender.runRecommender(r)
 }
 
@@ -906,29 +901,13 @@ func (re *Recommender) runRecommender(r *ResourceAdjustmentPolicyReconciler) {
 
 				activeNamespaces[namespace] = struct{}{} // Mark as active
 
-				// Fetch the ResourceAdjustmentPolicy for this namespace
-				var namespacePolicy v1.ResourceAdjustmentPolicy
-				policyName := fmt.Sprintf("devzero-balance-recommender-%s", namespace)
-				policyKey := types.NamespacedName{Name: policyName, Namespace: namespace}
+				// Fetch the ResourceAdjustmentPolicy from the zxporter-system namespace
+				var policy v1.ResourceAdjustmentPolicy
+				policyKey := types.NamespacedName{Name: policyCRName, Namespace: crNamespace}
 
-				if err := r.Get(ctx, policyKey, &namespacePolicy); err != nil {
+				if err := r.Get(ctx, policyKey, &policy); err != nil {
 					if errors.IsNotFound(err) {
-						// Create a new policy if it doesn’t exist
-						namespacePolicy = v1.ResourceAdjustmentPolicy{
-							ObjectMeta: metav1.ObjectMeta{
-								Name:      policyName,
-								Namespace: namespace,
-								Labels: map[string]string{
-									"purpose": "status-update",
-								},
-							},
-							Spec:   policyList.Items[0].Spec, // Assuming a global policy
-							Status: policyList.Items[0].Status,
-						}
-						if err := r.Create(ctx, &namespacePolicy); err != nil {
-							log.Error(err, "Failed to create ResourceAdjustmentPolicy")
-						}
-						log.Info("Created new ResourceAdjustmentPolicy", "namespace", namespace)
+						log.Error(err, "ResourceAdjustmentPolicy not found in zxporter-system namespace")
 					} else {
 						log.Error(err, "Failed to fetch ResourceAdjustmentPolicy")
 					}
@@ -950,15 +929,15 @@ func (re *Recommender) runRecommender(r *ResourceAdjustmentPolicyReconciler) {
 					for _, container := range pod.Spec.Containers {
 						key := fmt.Sprintf("%s/%s/%s", namespace, pod.Name, container.Name)
 
-						if r.isPodExcluded(&namespacePolicy, pod.Namespace, pod.Name) {
+						if r.isPodExcluded(&policy, pod.Namespace, pod.Name) {
 							log.Info("Pod excluded", "podName", pod.Name, "namespace", pod.Namespace)
 						} else {
-							log.Info("Pod not excluded", "podName", pod.Name, "exclusion", namespacePolicy.Spec.Exclusions.ExcludedPods)
+							log.Info("Pod not excluded", "podName", pod.Name, "exclusion", policy.Spec.Exclusions.ExcludedPods)
 						}
 
 						re.Lock()
 						_, exists := re.ContainerStates[key]
-						if !exists && !r.isPodExcluded(&namespacePolicy, pod.Namespace, pod.Name) {
+						if !exists && !r.isPodExcluded(&policy, pod.Namespace, pod.Name) {
 							// Initialize state for new container
 							state := NewContainerState(namespace, pod.Name, container.Name)
 							re.ContainerStates[key] = state
@@ -970,9 +949,9 @@ func (re *Recommender) runRecommender(r *ResourceAdjustmentPolicyReconciler) {
 							go re.runUsageMonitorLoop(ctx, r, state, &pod, &container)
 
 							// Start the container control loop
-							go re.runContainerLoop(ctx, r, state, &namespacePolicy, &pod, &container)
+							go re.runContainerLoop(ctx, r, state, &policy, &pod, &container)
 
-						} else if exists && r.isPodExcluded(&namespacePolicy, pod.Namespace, pod.Name) {
+						} else if exists && r.isPodExcluded(&policy, pod.Namespace, pod.Name) {
 							// Stop monitoring if the pod is now excluded
 							log.Info("Stopping monitoring for newly excluded pod", "podName", pod.Name, "namespace", namespace)
 
@@ -1180,7 +1159,7 @@ func (r *ResourceAdjustmentPolicyReconciler) SetupWithManager(mgr ctrl.Manager) 
 	quit = make(chan bool)
 
 	// Run the recommender as a background goroutine
-	recommender := NewRecommender(controllerMetrics)
+	recommender := NewRecommender()
 	go recommender.runRecommender(r)
 
 	return ctrl.NewControllerManagedBy(mgr).
