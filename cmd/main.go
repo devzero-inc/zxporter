@@ -35,8 +35,8 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	appsv1 "github.com/devzero-inc/resource-adjustment-operator/api/v1"
-	"github.com/devzero-inc/resource-adjustment-operator/internal/controller"
+	appsv1 "github.com/devzero-inc/zxporter/api/v1"
+	"github.com/devzero-inc/zxporter/internal/controller"
 	// +kubebuilder:scaffold:imports
 )
 

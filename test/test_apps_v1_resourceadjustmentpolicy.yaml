@@ -2,7 +2,7 @@ apiVersion: apps.apps.devzero.io/v1
 kind: ResourceAdjustmentPolicy
 metadata:
   labels:
-    app.kubernetes.io/name: resource-adjustment-operator
+    app.kubernetes.io/name: zxporter
     app.kubernetes.io/managed-by: kustomize
   name: resourceadjustmentpolicy-sample
 spec:

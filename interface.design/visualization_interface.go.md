@@ -6,7 +6,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/devzero-inc/resource-adjustment-operator/pkg/recommender"
+	"github.com/devzero-inc/zxporter/pkg/recommender"
 )
 
 // TimeSeriesData represents time-series metric data

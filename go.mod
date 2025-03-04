@@ -1,4 +1,4 @@
-module github.com/devzero-inc/resource-adjustment-operator
+module github.com/devzero-inc/zxporter
 
 go 1.23.5
 

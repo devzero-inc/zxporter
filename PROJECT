@@ -8,8 +8,8 @@ layout:
 plugins:
   manifests.sdk.operatorframework.io/v2: {}
   scorecard.sdk.operatorframework.io/v2: {}
-projectName: resource-adjustment-operator
-repo: github.com/devzero-inc/resource-adjustment-operator
+projectName: zxporter
+repo: github.com/devzero-inc/zxporter
 resources:
 - api:
     crdVersion: v1
@@ -18,6 +18,6 @@ resources:
   domain: apps.devzero.io
   group: apps
   kind: ResourceAdjustmentPolicy
-  path: github.com/devzero-inc/resource-adjustment-operator/api/v1
+  path: github.com/devzero-inc/zxporter/api/v1
   version: v1
 version: "3"

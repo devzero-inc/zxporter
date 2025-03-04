@@ -28,9 +28,9 @@ import (
 	"net/http"
 
 	"connectrpc.com/connect"
-	v1 "github.com/devzero-inc/resource-adjustment-operator/api/v1"
-	"github.com/devzero-inc/resource-adjustment-operator/internal/controller/metrics"
-	"github.com/devzero-inc/resource-adjustment-operator/internal/controller/pid"
+	v1 "github.com/devzero-inc/zxporter/api/v1"
+	"github.com/devzero-inc/zxporter/internal/controller/metrics"
+	"github.com/devzero-inc/zxporter/internal/controller/pid"
 
 	gen "github.com/devzero-inc/services/pulse/gen/api/v1"
 	genconnect "github.com/devzero-inc/services/pulse/gen/api/v1/apiv1connect"
