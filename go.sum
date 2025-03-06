@@ -19,6 +19,8 @@ github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/devzero-inc/services v0.39.1-0.20250303100540-57bb10c4d038 h1:weGVMNDEXwSzxe9+JsPOeVKk+G/t3+kfuKA2Ce2ndyA=
 github.com/devzero-inc/services v0.39.1-0.20250303100540-57bb10c4d038/go.mod h1:03j+cRqYiuHo+sF14qvJMNs0bKs16b7W9nvZuX/IO0I=
+github.com/devzero-inc/services v0.39.1-0.20250306173846-489a6877c972 h1:NlJIZhxDiXMkr2bvnWpH0mEEc5MKg4I6lLr8bcZ8Yr0=
+github.com/devzero-inc/services v0.39.1-0.20250306173846-489a6877c972/go.mod h1:03j+cRqYiuHo+sF14qvJMNs0bKs16b7W9nvZuX/IO0I=
 github.com/emicklei/go-restful/v3 v3.11.2 h1:1onLa9DcsMYO9P+CXaL0dStDqQ2EHHXLiz+BtnqkLAU=
 github.com/emicklei/go-restful/v3 v3.11.2/go.mod h1:6n3XBCmQQb25CM2LCACGz8ukIrRry+4bhvbpWn3mrbc=
 github.com/evanphx/json-patch v0.5.2 h1:xVCHIVMUu1wtM/VkR9jVZ45N3FhZfYMMYGorLCR8P3k=

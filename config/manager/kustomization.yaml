@@ -5,4 +5,4 @@ kind: Kustomization
 images:
 - name: controller
   newName: remontada007/zxporter
-  newTag: v2
+  newTag: v3

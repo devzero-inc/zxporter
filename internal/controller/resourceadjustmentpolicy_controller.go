@@ -20,12 +20,11 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"net/http"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
-
-	"net/http"
 
 	"connectrpc.com/connect"
 	v1 "github.com/devzero-inc/zxporter/api/v1"
@@ -590,7 +589,6 @@ func NewContainerState(namespace, podName, containerName string) *ContainerState
 }
 
 func (re *Recommender) calculateError(log logr.Logger, pod *corev1.Pod, container *corev1.Container) (float64, float64, float64, float64, error) {
-
 	metricsClient, err := getMetricsClient()
 	if err != nil {
 		log.Error(err, "Failed to create Kubernetes Metrics client")
@@ -823,6 +821,14 @@ func (re *Recommender) sendResourceUsageToPulse(log logr.Logger, pod *corev1.Pod
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	// Fetch labels from the Pod
+	createdByUser := pod.Labels["meta.devzero.io/created-by-user"]       // Will be "" if missing
+	organizationID := pod.Labels["meta.devzero.io/organization-id"]      // Will be "" if missing
+	virtualClusterID := pod.Labels["meta.devzero.io/virtual-cluster-id"] // Will be "" if missing
+	workloadID := pod.Labels["meta.devzero.io/workload-id"]              // Will be "" if missing
+	workloadName := pod.Labels["meta.devzero.io/workload-name"]          // Will be "" if missing
+
+	// Create the ResourceUsage message
 	usage := &gen.ResourceUsage{
 		ContainerId:        fmt.Sprintf("%s-%s", pod.Name, container.Name),
 		ContainerName:      container.Name,
@@ -832,12 +838,19 @@ func (re *Recommender) sendResourceUsageToPulse(log logr.Logger, pod *corev1.Pod
 		CpuUsageMillicores: cpuUsage,
 		MemoryUsageBytes:   memoryUsage,
 		Timestamp:          timestamppb.Now(),
+		CreatedByUser:      createdByUser,
+		OrganizationId:     organizationID,
+		VirtualClusterId:   virtualClusterID,
+		WorkloadId:         workloadID,
+		WorkloadName:       workloadName,
 	}
 
+	// Create the request
 	req := connect.NewRequest(&gen.SendResourceUsageRequest{
 		Usages: []*gen.ResourceUsage{usage},
 	})
 
+	// Send the request
 	_, err := pulseClient.usageClient.SendResourceUsage(ctx, req)
 	if err != nil {
 		log.Error(err, "Failed to send resource usage to Pulse", "podName", pod.Name, "containerName", container.Name)
@@ -1060,8 +1073,17 @@ func (r *ResourceAdjustmentPolicyReconciler) isPodExcluded(policy *v1.ResourceAd
 func (re *Recommender) processContainer(ctx context.Context, r *ResourceAdjustmentPolicyReconciler, log logr.Logger, policy *v1.ResourceAdjustmentPolicy, pod *corev1.Pod, container *corev1.Container) {
 	log.Info("Processing container", "podName", pod.Name, "containerName", container.Name)
 
+	// Check for OOM events
 	oomTime := re.checkForOOMEvents(*pod, container.Name)
 
+	// Fetch labels from the Pod
+	createdByUser := pod.Labels["meta.devzero.io/created-by-user"]
+	organizationID := pod.Labels["meta.devzero.io/organization-id"]
+	virtualClusterID := pod.Labels["meta.devzero.io/virtual-cluster-id"]
+	workloadID := pod.Labels["meta.devzero.io/workload-id"]
+	workloadName := pod.Labels["meta.devzero.io/workload-name"]
+
+	// Create the recommendation request
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -1085,11 +1107,17 @@ func (re *Recommender) processContainer(ctx context.Context, r *ResourceAdjustme
 		OomBumpRatio:               oomBumpRatio,
 		OomProtection:              oomProtection,
 		OomTime:                    oomTime,
+		CreatedByUser:              createdByUser,
+		OrganizationId:             organizationID,
+		VirtualClusterId:           virtualClusterID,
+		WorkloadId:                 workloadID,
+		WorkloadName:               workloadName,
 	})
 
+	// Send the recommendation request
 	_, err := pulseClient.recommendationClient.GetRecommendation(ctx, req)
 	if err != nil {
-		log.Error(err, "❌ Failed to send recommendation geration request")
+		log.Error(err, "❌ Failed to send recommendation generation request")
 	}
 
 	// recommendedCPU, baseCPU, recommendedMemory, baseMemory := re.calculateRecommendations(ctx, log, pod, container, oomMemory)
