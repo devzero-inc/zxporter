@@ -1,0 +1,26 @@
+# permissions for end users to edit resourceadjustmentpolicies.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: {{ include "zxporter.fullname" . }}
+  name: resourceadjustmentpolicy-editor-role
+rules:
+- apiGroups:
+  - apps.apps.devzero.io
+  resources:
+  - resourceadjustmentpolicies
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - apps.apps.devzero.io
+  resources:
+  - resourceadjustmentpolicies/status
+  verbs:
+  - get
