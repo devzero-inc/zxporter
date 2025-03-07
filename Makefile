@@ -408,8 +408,8 @@ else
 	@$(error Failed to push helm chart, the '$$NEXT_AUTOTAG' environment variable doesn't exist.)
 endif
 
-#.PHONY: _base.deploy.chart_reset
-#_base.deploy.chart_reset:
-#	git checkout \
-#		$(HELM_PATH)/Chart.yaml \
-#        $(HELM_PATH)/values.yaml
+.PHONY: _base.deploy.chart_reset
+_base.deploy.chart_reset:
+	git checkout \
+		$(HELM_PATH)/Chart.yaml \
+        $(HELM_PATH)/values.yaml
