@@ -362,11 +362,10 @@ autotag.next_alpha: autotag.next_internal_alpha
 	@echo "Version $(shell cat .autotag) created in .autotag file"
 
 
-.PHONY: aws.ecr_helm_login
 ## login to ecr to push images
+.PHONY: aws.ecr_helm_login
 aws.ecr_helm_login:
 	aws ecr get-login-password --region "us-west-2" | helm registry login --username AWS --password-stdin $(ECR_REPO)
-	aws ecr-public get-login-password --region "us-east-1" | helm registry login --username AWS --password-stdin $(PUBLIC_ECR_REPO)
 
 
 ECR_REPO=056855531191.dkr.ecr.us-west-2.amazonaws.com
