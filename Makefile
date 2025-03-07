@@ -422,7 +422,7 @@ _base.deploy.chart_reset:
 
 .PHONY: zxporter.deploy.upgrade
 zxporter.deploy.upgrade:
-	$(MAKE) --no-print-directory _base.deploy.upgrade PKG_NAME=zxporter NAMESPACE=zxporter;
+	$(MAKE) --no-print-directory _base.deploy.upgrade PKG_NAME=zxporter NAMESPACE=devzero;
 
 .PHONY: _base.deploy.upgrade
 _base.deploy.upgrade:
