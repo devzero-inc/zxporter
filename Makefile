@@ -322,3 +322,41 @@ catalog-build: opm ## Build a catalog image.
 .PHONY: catalog-push
 catalog-push: ## Push a catalog image.
 	$(MAKE) docker-push IMG=$(CATALOG_IMG)
+
+
+################################################################################
+# DEVZERO config
+################################################################################
+
+.PHONY: autotag.install
+autotag.install:
+	@# Pin master branch to avoid security issues
+	@curl -sL https://raw.githubusercontent.com/pantheon-systems/autotag/c34dc257525b30dc913108e7aad2035df315b833/installer | sudo sh -s -- -b /usr/bin
+
+.PHONY: autotag.main
+autotag.main:
+	git checkout main
+	git fetch --all --tags
+	git checkout -
+
+# This is required due to how MAKE parses commands.
+# We need to create the file before the $(shell ....) prints the file
+.PHONY: autotag.next_internal
+autotag.next_internal:
+	@rm -f .autotag || true
+	@echo "v$(shell autotag -n)" > .autotag
+
+.PHONY: autotag.next
+autotag.next: autotag.next_internal
+	@echo "Version $(shell cat .autotag) created in .autotag file"
+
+# This is required due to how MAKE parses commands.
+# We need to create the file before the $(shell ....) prints the file
+.PHONY: autotag.next_internal_alpha
+autotag.next_internal_alpha:
+	@rm -f .autotag || true
+	@echo "v$(shell autotag -n --pre-release-name=\"rc-$(BRANCH_NAME).build-$(shell git rev-parse --short HEAD)\")" > .autotag
+
+.PHONY: autotag.next_alpha
+autotag.next_alpha: autotag.next_internal_alpha
+	@echo "Version $(shell cat .autotag) created in .autotag file"
