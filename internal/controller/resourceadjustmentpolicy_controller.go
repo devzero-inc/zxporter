@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -79,12 +80,12 @@ const (
 
 // Global configurations
 var (
-	StatusUpdater                 StatusUpdate
-	defaultNamespaces             = []string{"default"}
-	quit                          chan bool
-	defaultCPUConfig              = ResourceConfig{RequestPercentile: 95.0, MarginFraction: 0.15, TargetUtilization: 1.0, BucketSize: 0.001}
-	defaultMemoryConfig           = ResourceConfig{RequestPercentile: 95.0, MarginFraction: 0.15, TargetUtilization: 1.0, BucketSize: 1048576}
-	namespaces                    = defaultNamespaces
+	StatusUpdater StatusUpdate
+	// defaultNamespaces             = []string{"default"}
+	quit                chan bool
+	defaultCPUConfig    = ResourceConfig{RequestPercentile: 95.0, MarginFraction: 0.15, TargetUtilization: 1.0, BucketSize: 0.001}
+	defaultMemoryConfig = ResourceConfig{RequestPercentile: 95.0, MarginFraction: 0.15, TargetUtilization: 1.0, BucketSize: 1048576}
+	// namespaces                    = defaultNamespaces
 	cpuConfig                     = defaultCPUConfig
 	memoryConfig                  = defaultMemoryConfig
 	oomBumpRatio                  = 1.2
@@ -251,13 +252,13 @@ func (r *ResourceAdjustmentPolicyReconciler) Reconcile(ctx context.Context, req 
 		return ctrl.Result{}, nil // Skip reconciliation
 	}
 
-	// Update namespaces
-	if len(policy.Spec.TargetSelector.Namespaces) > 0 && policy.Spec.TargetSelector.Namespaces[0] != "" {
-		if !equal(policy.Spec.TargetSelector.Namespaces, namespaces) {
-			namespaces = policy.Spec.TargetSelector.Namespaces
-			log.Info("Updated namespaces", "value", namespaces)
-		}
-	}
+	// // Update namespaces
+	// if len(policy.Spec.TargetSelector.Namespaces) > 0 && policy.Spec.TargetSelector.Namespaces[0] != "" {
+	// 	if !equal(policy.Spec.TargetSelector.Namespaces, namespaces) {
+	// 		namespaces = policy.Spec.TargetSelector.Namespaces
+	// 		log.Info("Updated namespaces", "value", namespaces)
+	// 	}
+	// }
 
 	if policy.Spec.Policies.AutoApply != autoApply {
 		autoApply = policy.Spec.Policies.AutoApply
@@ -1028,13 +1029,10 @@ func (re *Recommender) cleanupDeletedContainers(r *ResourceAdjustmentPolicyRecon
 	}
 }
 
+var namespaceRegex = regexp.MustCompile(`^dz--([a-z0-9]{20})--(cluster-[a-z0-9]{12})--([a-z0-9]{15})$`)
+
 func isNamespaceAllowed(namespace string) bool {
-	for _, ns := range namespaces {
-		if ns == namespace {
-			return true
-		}
-	}
-	return false
+	return namespaceRegex.MatchString(namespace)
 }
 
 func (re *Recommender) cleanupNamespace(namespace string, log logr.Logger) {
