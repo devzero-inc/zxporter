@@ -280,7 +280,7 @@ func (r *ResourceAdjustmentPolicyReconciler) Reconcile(ctx context.Context, req 
 	// }
 
 	if policy.Spec.Policies.PulseURL != "" && policy.Spec.Policies.PulseURL != pulseUrl {
-		pulseUrl = policy.Spec.Policies.PromURL
+		pulseUrl = policy.Spec.Policies.PulseURL
 		pulseClient = NewPulseClient(pulseUrl)
 		log.Info("Updated Pulse URL", "value", pulseUrl)
 		r.restartRecommender(ctx)
