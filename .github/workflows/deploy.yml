@@ -1,0 +1,53 @@
+name: '[Zxporter] Deploy To Environment'
+run-name: "[Zxporter] Deploy To ${{ github.event.inputs.environment || 'engineering' }}"
+
+on:
+  push:
+    branches:
+      - 'main'
+    paths:
+      - '/**'
+
+
+  workflow_dispatch:
+    inputs:
+      tag:
+        type: string
+        required: false
+        description: The tag to re-deploy (using vX.Y.Z[-rc-...] format). If specified we'll not build the app again, just deploy this tag.
+      commit:
+        type: string
+        required: false
+        description: 'the commit to deploy, blank defaults latest on selected branch'
+      environment:
+        type: choice
+        required: true
+        description: 'the environment to deploy to'
+        options:
+          - engineering
+          - free
+          - engineering-usw1
+        default: engineering
+      dry_run:
+        description: 'Whether to deploy or perform a dry-run (no real deployment)'
+        required: true
+        default: "''"
+        type: choice
+        options:
+          - "''"
+          - '--dry-run'
+
+concurrency: zxporter_production_environment
+
+jobs:
+  deploy_to_prod:
+    uses: devzero-inc/services/.github/workflows/_deploy_service_to_prod.yml@main
+    secrets: inherit
+    with:
+      docker_image_name: 056855531191.dkr.ecr.us-west-2.amazonaws.com/zxporter
+      dockerfile_path: ./Dockerfile
+      service_name: zxporter
+      docker_context: .
+      dockerfile_target: ""
+      docker_build_args: BUILD_ENVIRONMENT=production
+      environment: ${{ inputs.environment || 'engineering-usw1' }}
