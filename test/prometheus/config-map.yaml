@@ -31,7 +31,24 @@ data:
           - "alertmanager.monitoring.svc:9093"
 
     scrape_configs:
-      # Scrape metrics from Kubernetes nodes (cAdvisor)
+      - job_name: 'node-exporter'
+        kubernetes_sd_configs:
+          - role: endpoints
+            namespaces:
+              names:
+                - default
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_label_app_kubernetes_io_name]
+            regex: prometheus-node-exporter
+            action: keep
+          - source_labels: [__meta_kubernetes_endpoint_node_name]
+            target_label: node
+          - source_labels: [__meta_kubernetes_service_label_app_kubernetes_io_component]
+            target_label: component
+          - source_labels: [__meta_kubernetes_service_label_app_kubernetes_io_instance]
+            target_label: instance
+      
+      # Scrape metrics from Kubernetes nodes (cAdvisor)      
       - job_name: kubernetes-nodes-cadvisor
         scrape_interval: 10s
         scrape_timeout: 10s
@@ -81,3 +98,27 @@ data:
           # Add container name as a label
           - source_labels: [__meta_kubernetes_pod_container_name]
             target_label: container
+      # Scrape metrics from the zxporter
+      - job_name: zxporter
+        static_configs:
+          - targets: ["10.104.112.90:8080"]
+          # - targets: ["zxporter-metrics.zxporter-system.svc.cluster.local:8080"]
+      # - job_name: 'zxporter'
+      #   kubernetes_sd_configs:
+      #     - role: endpoints
+      #       namespaces:
+      #         names:
+      #           - zxporter-system
+      #   relabel_configs:
+      #     - source_labels: [__meta_kubernetes_service_label_app_kubernetes_io_name]
+      #       regex: zxporter
+      #       action: keep
+      #     - source_labels: [__meta_kubernetes_endpoint_port_name]
+      #       regex: metrics
+      #       action: keep
+      #     - source_labels: [__meta_kubernetes_namespace]
+      #       target_label: namespace
+      #     - source_labels: [__meta_kubernetes_pod_name]
+      #       target_label: pod
+      #     - source_labels: [__meta_kubernetes_pod_container_name]
+      #       target_label: container

@@ -1,0 +1,15 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: zxporter-metrics
+  namespace: zxporter-system
+  labels:
+    release: kube-prometheus-stack  # Ensure this matches your Prometheus release name
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: zxporter
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 30s

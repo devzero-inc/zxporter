@@ -1,0 +1,65 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: stress-config
+data:
+  config.yaml: |
+    test:
+      duration: 3000
+      base:
+        cpu: 80
+        memory: 10
+      burst:
+        times:
+          140:
+            cpu: 415
+            memory: 415  # after 5 minutes the cpu and memory recommendation should be 400-500
+            duration: 720
+          880:
+            cpu: 100
+            memory: 1024
+            duration: 720
+          1620:
+            cpu: 415
+            memory: 415
+            duration: 720
+          2360:
+            cpu: 1024
+            memory: 415
+            duration: 480
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: stress-test
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: stress-test
+  template:
+    metadata:
+      labels:
+        app: stress-test
+    spec:
+      containers:
+      - name: stress-test
+        image: localhost:5000/stress-test:ci
+        # image: docker.io/remontada007/feb-6-stress:v1
+        resources:
+          requests:
+            cpu: 500m
+            # memory: 930M
+            memory: 750M
+          limits:
+            cpu: "2"
+            memory: "4Gi"
+        volumeMounts:
+        - name: config-volume
+          mountPath: /app/config.yaml
+          # mountPath: /config.yaml
+          subPath: config.yaml
+      volumes:
+      - name: config-volume
+        configMap:
+          name: stress-config

@@ -40,13 +40,41 @@ type TargetSelector struct {
 	Namespaces  []string          `json:"namespaces"`
 }
 
+// Exclusions specifies resources to exclude from adjustments
+type Exclusions struct {
+	ExcludedPods []PodReference `json:"excludedPods,omitempty"` // List of pods to exclude
+}
+
+// PodReference specifies a pod's name and namespace to be excluded
+type PodReference struct {
+	Namespace string `json:"namespace"`
+	PodName   string `json:"podName"`
+}
+
 // Policies defines the resource adjustment policies
 type Policies struct {
 	MetricsSources       []string             `json:"metricsSources"`
+	PromURL              string               `json:"promUrl"`
+	PulseURL             string               `json:"pulseUrl"`
 	Frequency            string               `json:"frequency"`
+	AutoApply            bool                 `json:"autoApply"`
+	LookbackDuration     string               `json:"lookbackDuration"`
+	PidController        PidController        `json:"pidController"`
 	CPURecommendation    CPURecommendation    `json:"cpuRecommendation"`
 	MemoryRecommendation MemoryRecommendation `json:"memoryRecommendation"`
 	Normalization        Normalization        `json:"normalization"`
+}
+
+// Pid controller configuration
+type PidController struct {
+	PropertionalGain              string `json:"propertionalGain"`
+	IntegralGain                  string `json:"integralGain"`
+	DerivativeGain                string `json:"derivativeGain"`
+	AntiWindUpGain                string `json:"antiWindUpGain"`
+	IntegralDischargeTimeConstant string `json:"integralDischargeTimeConstant"`
+	LowPassTimeConstant           string `json:"lowPassTimeConstant"`
+	MaxOutput                     string `json:"maxOutput"`
+	MinOutput                     string `json:"minOutput"`
 }
 
 // CPURecommendation specifies policies for CPU adjustments
@@ -66,6 +94,7 @@ type MemoryRecommendation struct {
 	TargetUtilization string `json:"targetUtilization"`
 	HistoryLength     string `json:"historyLength"`
 	OOMProtection     bool   `json:"oomProtection"`
+	OOMBumpRatio      string `json:"oomBumpRatio"`
 }
 
 // Normalization specifies normalization policies
@@ -78,11 +107,6 @@ type Normalization struct {
 type Logging struct {
 	Level           string `json:"level"`
 	EnableAuditLogs bool   `json:"enableAuditLogs"`
-}
-
-// Exclusions specifies resources or namespaces to exclude from adjustments
-type Exclusions struct {
-	Namespaces []string `json:"namespaces"`
 }
 
 // ResourceAdjustmentPolicyStatus defines the observed state of ResourceAdjustmentPolicy
@@ -103,13 +127,21 @@ type ContainerStatus struct {
 	CurrentMemory        ResourceUsage         `json:"currentMemory"`        // Current memory details
 	CPURecommendation    RecommendationDetails `json:"cpuRecommendation"`    // CPU recommendation details
 	MemoryRecommendation RecommendationDetails `json:"memoryRecommendation"` // Memory recommendation details
+	NodeSelectionResult  NodeSelectionResult   `json:"nodeSelectionResult"`  // Node selection result
 	OOMEvents            []OOMEvent            `json:"oomEvents,omitempty"`  // List of OOM events for this container
 }
 
 // ResourceUsage holds details about current resource usage and limits.
 type ResourceUsage struct {
-	Limit string `json:"limit,omitempty"` // Current resource limit (e.g., "1.0 cores", "512 Mi")
-	Usage string `json:"usage,omitempty"` // Current resource usage (e.g., "0.173 cores", "10548964 bytes")
+	Request string `json:"request,omitempty"`
+	Limit   string `json:"limit,omitempty"` // Current resource limit (e.g., "1.0 cores", "512 Mi")
+	Usage   string `json:"usage,omitempty"` // Current resource usage (e.g., "0.173 cores", "10548964 bytes")
+}
+
+// NodeSelectionResult contains the decision about pod placement
+type NodeSelectionResult struct {
+	NeedsMigration bool   `json:"needsMigration"` // Flag indicating if the pod needs to be migrated
+	TargetNode     string `json:"targetNode"`     // Name of the target node for migration
 }
 
 // RecommendationDetails holds the base and adjusted recommendations for a resource.

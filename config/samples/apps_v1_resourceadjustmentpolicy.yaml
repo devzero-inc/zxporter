@@ -2,39 +2,55 @@ apiVersion: apps.apps.devzero.io/v1
 kind: ResourceAdjustmentPolicy
 metadata:
   labels:
-    app.kubernetes.io/name: resource-adjustment-operator
+    app.kubernetes.io/name: zxporter
     app.kubernetes.io/managed-by: kustomize
-  name: resourceadjustmentpolicy-sample
+  name: zxporter-resourceadjustmentpolicy-cr
 spec:
   targetSelector:
     matchLabels:
       app: sample-app
     namespaces:
       - default
+      - devzero
+  exclusions:
+    excludedPods:
+      # - namespace: "default"
+      #   podName: "prometheus-node-exporter-hdv6t"
   policies:
     metricsSources:
       - prometheus
     frequency: "1m"
+    autoApply: false
+    lookbackDuration: "1m"
+    # promUrl: "http://10.97.28.239:8080"
+    promUrl: http://kube-prometheus-stack-prometheus.kube-prometheus-stack.svc.cluster.local:9090
+    pulseUrl: http://host.docker.internal:9990
+    pidController:
+      propertionalGain: "10.0"
+      integralGain: "0.04"
+      derivativeGain: "1.0"
+      antiWindUpGain: "1.0"
+      integralDischargeTimeConstant: "1.0"
+      lowPassTimeConstant: "2s"
+      maxOutput: "1.01"
+      minOutput: "-2.15"
     cpuRecommendation:
       sampleInterval: "1m"
-      requestPercentile: "0.95"
+      requestPercentile: "99.0"
       marginFraction: "0.15"
-      targetUtilization: "1"
-      historyLength: "24h"
+      targetUtilization: "0.95"
+      historyLength: "124h"
     memoryRecommendation:
       sampleInterval: "1m"
-      requestPercentile: "0.95"
+      requestPercentile: "99.0"
       marginFraction: "0.15"
-      targetUtilization: "1"
-      historyLength: "24h"
+      targetUtilization: "0.95"
+      historyLength: "124h"
       oomProtection: true
+      oomBumpRatio: "1.2"
     normalization:
       enabled: true
       config: default
   logging:
     level: INFO
     enableAuditLogs: true
-  exclusions:
-    namespaces:
-      - kube-system
-      - monitoring

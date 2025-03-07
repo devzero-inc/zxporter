@@ -1,0 +1,98 @@
+apiVersion: apps.apps.devzero.io/v1
+kind: ResourceAdjustmentPolicy
+metadata:
+  labels:
+    app.kubernetes.io/name: zxporter
+    app.kubernetes.io/managed-by: kustomize
+  name: resourceadjustmentpolicy-sample
+spec:
+  targetSelector:
+    matchLabels:
+      app: sample-app
+    namespaces:
+      - default
+      - devzero
+      - cedana
+      - datadog
+      - dz--christiandec4bdevzer--cluster-88b9a10dd612--b62579045ff4d26
+      - dz--christiandev20devzer--cluster-d7b788bba6e9--68be643471f519a
+      - dz--christianjan14devzer--cluster-2ec3e5981e00--afd08b944413838
+      - dz--laurenjan17devzeroio--cluster-3d94425318c1--3941c50b60af014
+      - dz--laurenlogin3devzeroi--cluster-264b1835e547--93215b47de0acc2
+      - dz--laurenob16devzeroios--cluster-66fc51f1874a--9162f28cbe7d118
+      - dz--laurenob20devzeroios--cluster-7636c651450f--925545a8829e8d7
+      - dz--laurenob21devzeroios--cluster-25f20624cf41--e5f1044d48a06ec
+      - dz--laurenob22devzeroios--cluster-55ca400fb541--96a73d802ec195b
+      - dz--laurenob23devzeroios--cluster-687233d13aaa--b02b2ca16f6dd74
+      - dz--laurenob25devzeroios--cluster-cb780cb24161--40c04c36e343f72
+      - dz--laurenob25devzeroios--cluster-dfb730907eb4--83905e2b6f71be4
+      - dz--laurenob26devzeroios--cluster-ca36cbf30a71--ebd576f46ed32bc
+      - dz--laurenob2devzeroiost--cluster-c33ce18b7ffc--c37bf098863e48d
+      - dz--laurenob4devzeroiost--cluster-21b656dcc99e--14d8206dc9bb6ff
+      - dz--laurenob4devzeroiost--cluster-55a044412300--93a165484d795d3
+      - dz--laurenob4devzeroiost--cluster-fd01e6a39236--1abd20fc0f5d480
+      - dz--laurenob9devzeroiost--cluster-df7e56db1f8b--d240711efd53549
+      - dz--laurenob9devzeroiost--cluster-e33060c07695--88d9d31e00ce3bb
+      - dz--renato0189243devzero--cluster-5d5fec987d2a--ce9033e21e893b4
+      - dz--renato1111devzeroios--cluster-04132fc5ab10--704625d565cd18c
+      - dz--renatodevdevzeroiost--cluster-1e355f0fe178--e6ca5aedd88288a
+      - dz--renatodevdevzeroiost--cluster-76be2a1f1a36--7d141a8e4b12e14
+      - dz--team-ellie
+      - dz--testorg0000000000000--v2100000000000000000--b078be37eb12143
+      - dz--timsteam000000000000--cluster-41d57d9f9d1c--aa79902829c0d85
+      - dz--timsteam000000000000--cluster-4c7c4307dcd4--724f304e472fb4d
+      - dz--timsteam000000000000--cluster-64fa2ab589ed--6b8ca62f6a6f733
+      - dz--timsteam000000000000--cluster-83aa0ee8aeef--9b959c43f50ce0b
+      - dz--timsteam000000000000--cluster-9f44c775f9d3--68f2bedbce5d69c
+      - dz--timsteam000000000000--cluster-cc2eaf2e1faf--720d5635c695083
+      - dz--timsteam000000000000--cluster-cdd035372a89--9b1830e957db7be
+      - dz--timsteam000000000000--cluster-d9941c023470--e8f725010501ef5
+      - dz--timsteam000000000000--cluster-dc95ef095758--3b75c2967c54520
+      - ingress-nginx
+      - marko-debo
+      - metacontroller
+      - prometheus
+      - zxporter-system
+      - rook-ceph
+      - shared-storage
+      - snorlax
+      - sysbox
+      - test-ceph-csi
+  exclusions:
+    excludedPods:
+  policies:
+    metricsSources:
+      - prometheus
+    frequency: "1m"
+    autoApply: false
+    lookbackDuration: "1m"
+    promUrl: http://kube-prometheus-stack-prometheus.kube-prometheus-stack.svc.cluster.local:9090
+    pidController:
+      propertionalGain: "10.0"
+      integralGain: "0.04"
+      derivativeGain: "1.0"
+      antiWindUpGain: "1.0"
+      integralDischargeTimeConstant: "1.0"
+      lowPassTimeConstant: "2s"
+      maxOutput: "1.01"
+      minOutput: "-2.15"
+    cpuRecommendation:
+      sampleInterval: "1m"
+      requestPercentile: "99.0"
+      marginFraction: "0.15"
+      targetUtilization: "0.95"
+      historyLength: "124h"
+    memoryRecommendation:
+      sampleInterval: "1m"
+      requestPercentile: "99.0"
+      marginFraction: "0.15"
+      targetUtilization: "0.95"
+      historyLength: "124h"
+      oomProtection: true
+      oomBumpRatio: "1.2"
+    normalization:
+      enabled: true
+      config: default
+  logging:
+    level: INFO
+    enableAuditLogs: true

@@ -42,15 +42,22 @@ spec:
               ResourceAdjustmentPolicy
             properties:
               exclusions:
-                description: Exclusions specifies resources or namespaces to exclude
-                  from adjustments
+                description: Exclusions specifies resources to exclude from adjustments
                 properties:
-                  namespaces:
+                  excludedPods:
                     items:
-                      type: string
+                      description: PodReference specifies a pod's name and namespace
+                        to be excluded
+                      properties:
+                        namespace:
+                          type: string
+                        podName:
+                          type: string
+                      required:
+                      - namespace
+                      - podName
+                      type: object
                     type: array
-                required:
-                - namespaces
                 type: object
               logging:
                 description: Logging defines logging configurations
@@ -66,6 +73,8 @@ spec:
               policies:
                 description: Policies defines the resource adjustment policies
                 properties:
+                  autoApply:
+                    type: boolean
                   cpuRecommendation:
                     description: CPURecommendation specifies policies for CPU adjustments
                     properties:
@@ -88,6 +97,8 @@ spec:
                     type: object
                   frequency:
                     type: string
+                  lookbackDuration:
+                    type: string
                   memoryRecommendation:
                     description: MemoryRecommendation specifies policies for memory
                       adjustments
@@ -95,6 +106,8 @@ spec:
                       historyLength:
                         type: string
                       marginFraction:
+                        type: string
+                      oomBumpRatio:
                         type: string
                       oomProtection:
                         type: boolean
@@ -107,6 +120,7 @@ spec:
                     required:
                     - historyLength
                     - marginFraction
+                    - oomBumpRatio
                     - oomProtection
                     - requestPercentile
                     - sampleInterval
@@ -127,12 +141,50 @@ spec:
                     - config
                     - enabled
                     type: object
+                  pidController:
+                    description: Pid controller configuration
+                    properties:
+                      antiWindUpGain:
+                        type: string
+                      derivativeGain:
+                        type: string
+                      integralDischargeTimeConstant:
+                        type: string
+                      integralGain:
+                        type: string
+                      lowPassTimeConstant:
+                        type: string
+                      maxOutput:
+                        type: string
+                      minOutput:
+                        type: string
+                      propertionalGain:
+                        type: string
+                    required:
+                    - antiWindUpGain
+                    - derivativeGain
+                    - integralDischargeTimeConstant
+                    - integralGain
+                    - lowPassTimeConstant
+                    - maxOutput
+                    - minOutput
+                    - propertionalGain
+                    type: object
+                  promUrl:
+                    type: string
+                  pulseUrl:
+                    type: string
                 required:
+                - autoApply
                 - cpuRecommendation
                 - frequency
+                - lookbackDuration
                 - memoryRecommendation
                 - metricsSources
                 - normalization
+                - pidController
+                - promUrl
+                - pulseUrl
                 type: object
               targetSelector:
                 description: TargetSelector specifies the labels and namespaces to
@@ -256,6 +308,8 @@ spec:
                       properties:
                         limit:
                           type: string
+                        request:
+                          type: string
                         usage:
                           type: string
                       type: object
@@ -264,6 +318,8 @@ spec:
                         usage and limits.
                       properties:
                         limit:
+                          type: string
+                        request:
                           type: string
                         usage:
                           type: string
@@ -284,6 +340,18 @@ spec:
                       type: object
                     namespace:
                       type: string
+                    nodeSelectionResult:
+                      description: NodeSelectionResult contains the decision about
+                        pod placement
+                      properties:
+                        needsMigration:
+                          type: boolean
+                        targetNode:
+                          type: string
+                      required:
+                      - needsMigration
+                      - targetNode
+                      type: object
                     oomEvents:
                       items:
                         description: OOMEvent holds details of an Out-of-Memory event.
@@ -311,6 +379,7 @@ spec:
                   - lastUpdated
                   - memoryRecommendation
                   - namespace
+                  - nodeSelectionResult
                   - podName
                   type: object
                 type: array

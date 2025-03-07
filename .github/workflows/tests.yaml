@@ -109,24 +109,93 @@ jobs:
           push: true
           tags: localhost:5000/test-app:ci
 
-      - name: Deploy test-app to Kubernetes
+      - name: Build and push inc-test-app image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./test/inc-test-app
+          push: true
+          tags: localhost:5000/inc-load:ci
+
+      - name: Build and push dec-test-app image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./test/dec-test-app
+          push: true
+          tags: localhost:5000/dec-load:ci
+
+      - name: Build and push frequency-test-app-1 image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./test/frequency-test-app-1
+          push: true
+          tags: localhost:5000/frequency-test-app-1:ci
+      
+      - name: Build and push stress-test image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./test/burst-test
+          push: true
+          tags: localhost:5000/stress-test:ci
+
+      - name: Deploy recommendation test apps to Kubernetes
         run: |
           kubectl apply -f ./test/test-app/deployment.yaml
+          kubectl apply -f ./test/inc-test-app/inc-load-deploy.yaml
+          kubectl apply -f ./test/dec-test-app/dec-load-deploy.yaml
 
-      - name: Wait for deployments to be ready
+      - name: Wait for test-app deployments to be ready
         run: ./test/wait_for_deployment.sh test-app default
+
+      - name: Wait for inc-test-app deployments to be ready
+        run: ./test/wait_for_deployment.sh inc-load default
+
+      - name: Wait for dec-test-app deployments to be ready
+        run: ./test/wait_for_deployment.sh dec-load default
 
       - name: Deploy operator to Kubernetes
         run: |
           make install
           make deploy IMG=localhost:5000/resource-adj-operator:ci
-          kubectl apply -f ./config/samples/apps_v1_resourceadjustmentpolicy.yaml
+          kubectl apply -f ./test/test_apps_v1_resourceadjustmentpolicy.yaml
 
       - name: Wait for deployments to be ready
         run: ./test/wait_for_deployment.sh resource-adjustment-operator-controller-manager resource-adjustment-operator-system
 
       - name: Check resources
         run: kubectl get all -n resource-adjustment-operator-system
+
+      - name: Sleep for 2 minute before running tests to get good recommendations
+        run: sleep 120
         
-      - name: Run tests
-        run: sudo -E bats -f "test_resource_adjustment_recommendations" test/tests.bats
+      - name: Run recommendation tests
+        run: |
+          sudo -E bats -f "test_resource_adjustment_recommendations" test/tests.bats
+          sudo -E bats -f "test_increasing_load_recommendations" test/tests.bats
+          sudo -E bats -f "test_decreasing_load_recommendations" test/tests.bats
+      
+      - name: Deploy frequency test app to kubernetes
+        run: |
+          kubectl apply -f ./test/frequency-test-app-1/deployment.yaml
+
+      - name: Run frequency tests
+        run: |
+          sudo -E bats -f "test_frequency_changes" test/tests.bats
+
+      - name: Deploy burst test app to kubernetes
+        run: |
+          kubectl apply -f ./test/burst-test/deployment.yaml
+
+      # - name: Wait for burst-test deployment to be ready
+      #   run: ./test/wait_for_deployment.sh stress-test default
+      
+      - name: sleep for 110s to start the application
+        run: sleep 110
+  
+      - name: Run burst tests
+        id: run-burst-tests
+        run: |
+          sudo -E CONTAINER_NAME=stress-test bats -f "test_container_burst_phases" test/tests.bats
+
+      - name: Collect operator logs
+        if: ${{ always() }}
+        run: kubectl logs deployment.apps/resource-adjustment-operator-controller-manager -n resource-adjustment-operator-system

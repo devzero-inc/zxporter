@@ -4,5 +4,5 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 images:
 - name: controller
-  newName: remontada007/resource-adj-operator
-  newTag: v24
+  newName: remontada007/zxporter
+  newTag: v3

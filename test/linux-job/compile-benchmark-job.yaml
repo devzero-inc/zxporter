@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: build-config
+data:
+  start.txt: "WAIT"  # Initial value that tells the script to wait
+
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: compilation-1
+spec:
+  template:
+    spec:
+      containers:
+      - name: compilation-1
+        image: docker.io/remontada007/linux-kernel-builder:v2
+        resources:
+          requests:
+            cpu: "2"
+            memory: "4Gi"
+          limits:
+            cpu: "16"
+            memory: "8Gi"
+        volumeMounts:
+        - name: build-config-volume
+          mountPath: /build/config
+      volumes:
+      - name: build-config-volume
+        configMap:
+          name: build-config
+      restartPolicy: Never

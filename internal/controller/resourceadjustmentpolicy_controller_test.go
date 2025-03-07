@@ -27,7 +27,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	appsv1 "github.com/devzero-inc/resource-adjustment-operator/api/v1"
+	appsv1 "github.com/devzero-inc/zxporter/api/v1"
 )
 
 var _ = Describe("ResourceAdjustmentPolicy Controller", func() {
