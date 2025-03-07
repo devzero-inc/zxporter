@@ -419,3 +419,20 @@ _base.deploy.chart_reset:
 	git checkout \
 		$(HELM_PATH)/Chart.yaml \
         $(HELM_PATH)/values.yaml
+
+.PHONY: zxporter.deploy.upgrade
+zxporter.deploy.upgrade:
+	$(MAKE) --no-print-directory _base.deploy.upgrade PKG_NAME=zxporter NAMESPACE=zxporter;
+
+.PHONY: _base.deploy.upgrade
+_base.deploy.upgrade:
+ifeq ($(NEXT_AUTOTAG),)
+	@$(error Failed to push helm chart, the '$$NEXT_AUTOTAG' environment variable doesn't exist.)
+else ifeq ($(ENVIRONMENT),)
+	@$(error Failed to push helm chart, the '$$ENVIRONMENT' environment variable doesn't exist.)
+else
+	helm upgrade --install --atomic --reset-values --namespace $(NAMESPACE) \
+		--version $(shell echo $(NEXT_AUTOTAG) | cut -c 2-) $(ARGS) $(PKG_NAME) \
+		--set envReader=$(ENVIRONMENT) \
+		oci://$(ECR_REPO)/charts/$(PKG_NAME)
+endif
