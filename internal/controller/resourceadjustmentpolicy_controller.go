@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -1029,9 +1030,15 @@ func (re *Recommender) cleanupDeletedContainers(r *ResourceAdjustmentPolicyRecon
 	}
 }
 
-var namespaceRegex = regexp.MustCompile(`^dz--([a-z0-9]{20})--(cluster-[a-z0-9]{12})--([a-z0-9]{15})$`)
+// var namespaceRegex = regexp.MustCompile(`^dz--([a-z0-9]{20})--(cluster-[a-z0-9]{12})--([a-z0-9]{15})$`)
 
 func isNamespaceAllowed(namespace string) bool {
+	regexPattern := os.Getenv("NAMESPACE_REGEX")
+	if regexPattern == "" {
+		// Default regex pattern
+		regexPattern = `^dz--([a-z0-9]{20})--(cluster-[a-z0-9]{12})--([a-z0-9]{15})$`
+	}
+	namespaceRegex := regexp.MustCompile(regexPattern)
 	return namespaceRegex.MatchString(namespace)
 }
 
