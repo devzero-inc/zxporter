@@ -2,16 +2,15 @@ apiVersion: apps.apps.devzero.io/v1
 kind: ResourceAdjustmentPolicy
 metadata:
   labels:
-    app.kubernetes.io/name: zxporter
-    app.kubernetes.io/managed-by: kustomize
-  name: zxporter-resourceadjustmentpolicy-cr
-  namespace: zxporter-system
+    {{- include "zxporter.labels" . | nindent 4 }}
+  name: {{ include "zxporter.fullname" . }}
+  namespace: {{ .Release.Namespace }}
 spec:
   targetSelector:
     matchLabels:
-      app: sample-app
+      {{- include "zxporter.selectorLabels" . | nindent 6 }}
     namespaces:
-      - default
+      - {{ .Release.Namespace }}
   exclusions:
     excludedPods:
   policies:
