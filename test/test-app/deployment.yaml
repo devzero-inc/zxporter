@@ -11,6 +11,11 @@ spec:
     metadata:
       labels:
         app: test-app
+        meta.devzero.io/created-by-user: "us-716dcb5f2e7f5576a568f0f3cbadb2c2"
+        meta.devzero.io/organization-id: "team-03f3f9b48aa3465ca63de2787eb40106"
+        meta.devzero.io/virtual-cluster-id: "cluster-4246b1e251d84f3082513827a5d8eea1"
+        meta.devzero.io/workload-id: "workspace-7ab57eabff8f499a9cb2f53ab784d65e"
+        meta.devzero.io/workload-name: "informed-polliwog-ybwu"
       annotations:
         prometheus.io/scrape: "true"       # Enables Prometheus scraping
         prometheus.io/path: "/metrics"    # Path to scrape metrics (default: /metrics)
@@ -18,8 +23,8 @@ spec:
     spec:
       containers:
       - name: test-app
-        # image: docker.io/remontada007/test-app:v1
-        image: localhost:5000/test-app:ci
+        image: docker.io/remontada007/test-app:v1
+        # image: localhost:5000/test-app:ci
         ports:
         - containerPort: 9001
         resources:
