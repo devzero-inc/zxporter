@@ -61,8 +61,8 @@ import (
 const (
 	minFrequency = 30 * time.Second
 	maxFrequency = 20 * time.Minute
-	policyCRName = "zxporter-resourceadjustmentpolicy-cr"
-	crNamespace  = "zxporter-system"
+	// policyCRName = "zxporter-resourceadjustmentpolicy-cr"
+	crNamespace  = "devzero"
 )
 
 // type recommendationType int
@@ -248,7 +248,7 @@ func (r *ResourceAdjustmentPolicyReconciler) Reconcile(ctx context.Context, req 
 	}
 
 	// We only use zxporter-resourceadjustmentpolicy-cr in zxporter-system
-	if policy.Name != policyCRName && policy.Namespace != crNamespace {
+	if policy.Namespace != crNamespace {
 		log.Info("Skipping reconsile for CR", "policy", policy.Name, "namespace", policy.Namespace)
 		return ctrl.Result{}, nil // Skip reconciliation
 	}
@@ -918,7 +918,7 @@ func (re *Recommender) runRecommender(r *ResourceAdjustmentPolicyReconciler) {
 
 				// Fetch the ResourceAdjustmentPolicy from the zxporter-system namespace
 				var policy v1.ResourceAdjustmentPolicy
-				policyKey := types.NamespacedName{Name: policyCRName, Namespace: crNamespace}
+				policyKey := types.NamespacedName{Namespace: crNamespace}
 
 				if err := r.Get(ctx, policyKey, &policy); err != nil {
 					if errors.IsNotFound(err) {
