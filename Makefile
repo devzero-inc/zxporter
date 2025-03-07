@@ -363,37 +363,16 @@ autotag.next_alpha: autotag.next_internal_alpha
 
 
 
-APPLICATIONS  := zxporter
-
-APPLICATIONS_DEPLOY_DOCKER  := $(patsubst %,%.deploy.docker,$(APPLICATIONS))
-APPLICATIONS_DEPLOY_UPGRADE  := $(patsubst %,%.deploy.upgrade,$(APPLICATIONS))
-APPLICATIONS_DEPLOY_CHART  := $(patsubst %,%.deploy.chart,$(APPLICATIONS))
+ZXPORTER_CHART_PATH=./helm/zxporter
 
 
+.PHONY: zxporter.deploy.chart
+zxporter.deploy.chart:
+	@$(MAKE) --no-print-directory _base.deploy.chart_tag HELM_PATH=$(ZXPORTER_CHART_PATH)
+	@$(MAKE) --no-print-directory _base.deploy.chart_package HELM_PATH=$(ZXPORTER_CHART_PATH)
+	@$(MAKE) --no-print-directory _base.deploy.chart_push PKG_NAME=zxporter
+	@$(MAKE) --no-print-directory _base.deploy.chart_reset HELM_PATH=$(ZXPORTER_CHART_PATH)
 
-.PHONY: $(APPLICATIONS_DEPLOY_CHART)
-$(APPLICATIONS_DEPLOY_CHART):
-	$(eval TARGET=$(shell echo $@ | sed 's/.deploy.chart//'))
-	$(eval UPPER_TARGET=$(shell echo $(TARGET) | tr a-z A-Z | sed 's/-/_/g'))
-	$(eval CHART_PATH=$(shell echo $(UPPER_TARGET)_CHART_PATH))
-
-	@if [ -z "$($(CHART_PATH))" ]; then \
-		echo "Error: Variable $(CHART_PATH) is not defined! This could be because the variable is not set or a typo on make command."; \
-		exit 1; \
-	fi;
-
-	@$(MAKE) --no-print-directory _base.deploy.chart_tag HELM_PATH=$($(CHART_PATH))
-	@$(MAKE) --no-print-directory _base.deploy.chart_package HELM_PATH=$($(CHART_PATH))
-	@$(MAKE) --no-print-directory _base.deploy.chart_push PKG_NAME=$(TARGET)
-	@$(MAKE) --no-print-directory _base.deploy.chart_reset HELM_PATH=$($(CHART_PATH))
-
-.PHONY: devzero-devbox.deploy.chart
-## deploy devzero-devbox chart
-devzero-devbox.deploy.chart:
-	@$(MAKE) --no-print-directory _base.deploy.chart_tag HELM_PATH=$(DEVZERO_DEVBOX_CHART_PATH)
-	@$(MAKE) --no-print-directory _base.deploy.chart_package HELM_PATH=$(DEVZERO_DEVBOX_CHART_PATH)
-	@$(MAKE) --no-print-directory _base.deploy.chart_push_public PKG_NAME=devzero-devbox
-	@$(MAKE) --no-print-directory _base.deploy.chart_reset HELM_PATH=$(DEVZERO_DEVBOX_CHART_PATH)
 
 
 .PHONY: _base.deploy.chart_tag
