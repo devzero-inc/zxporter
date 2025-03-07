@@ -363,6 +363,7 @@ autotag.next_alpha: autotag.next_internal_alpha
 
 
 
+ECR_REPO=056855531191.dkr.ecr.us-west-2.amazonaws.com
 ZXPORTER_CHART_PATH=./helm/zxporter
 
 
