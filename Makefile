@@ -360,3 +360,77 @@ autotag.next_internal_alpha:
 .PHONY: autotag.next_alpha
 autotag.next_alpha: autotag.next_internal_alpha
 	@echo "Version $(shell cat .autotag) created in .autotag file"
+
+
+
+APPLICATIONS  := zxporter
+
+APPLICATIONS_DEPLOY_DOCKER  := $(patsubst %,%.deploy.docker,$(APPLICATIONS))
+APPLICATIONS_DEPLOY_UPGRADE  := $(patsubst %,%.deploy.upgrade,$(APPLICATIONS))
+APPLICATIONS_DEPLOY_CHART  := $(patsubst %,%.deploy.chart,$(APPLICATIONS))
+
+
+
+.PHONY: $(APPLICATIONS_DEPLOY_CHART)
+$(APPLICATIONS_DEPLOY_CHART):
+	$(eval TARGET=$(shell echo $@ | sed 's/.deploy.chart//'))
+	$(eval UPPER_TARGET=$(shell echo $(TARGET) | tr a-z A-Z | sed 's/-/_/g'))
+	$(eval CHART_PATH=$(shell echo $(UPPER_TARGET)_CHART_PATH))
+
+	@if [ -z "$($(CHART_PATH))" ]; then \
+		echo "Error: Variable $(CHART_PATH) is not defined! This could be because the variable is not set or a typo on make command."; \
+		exit 1; \
+	fi;
+
+	@$(MAKE) --no-print-directory _base.deploy.chart_tag HELM_PATH=$($(CHART_PATH))
+	@$(MAKE) --no-print-directory _base.deploy.chart_package HELM_PATH=$($(CHART_PATH))
+	@$(MAKE) --no-print-directory _base.deploy.chart_push PKG_NAME=$(TARGET)
+	@$(MAKE) --no-print-directory _base.deploy.chart_reset HELM_PATH=$($(CHART_PATH))
+
+.PHONY: devzero-devbox.deploy.chart
+## deploy devzero-devbox chart
+devzero-devbox.deploy.chart:
+	@$(MAKE) --no-print-directory _base.deploy.chart_tag HELM_PATH=$(DEVZERO_DEVBOX_CHART_PATH)
+	@$(MAKE) --no-print-directory _base.deploy.chart_package HELM_PATH=$(DEVZERO_DEVBOX_CHART_PATH)
+	@$(MAKE) --no-print-directory _base.deploy.chart_push_public PKG_NAME=devzero-devbox
+	@$(MAKE) --no-print-directory _base.deploy.chart_reset HELM_PATH=$(DEVZERO_DEVBOX_CHART_PATH)
+
+
+.PHONY: _base.deploy.chart_tag
+_base.deploy.chart_tag:
+ifneq ($(NEXT_AUTOTAG),)
+	@$(eval VERSION?=$(shell echo $(NEXT_AUTOTAG) | cut -c 2-))
+
+	@# Helm does not play well with the v prefix of tags
+	@# https://github.com/helm/helm/issues/11107
+	@sed -i s/0.0.0-version/$(shell echo $(NEXT_AUTOTAG) | cut -c 2-)/g $(HELM_PATH)/Chart.yaml
+	@sed -i s/0.0.0-appVersion/$(VERSION)/g $(HELM_PATH)/Chart.yaml
+
+	@# Docker images tag are prefixed with v (e.g: v1.2.3)
+	@sed -i s/0.0.0-appVersion/$(VERSION)/g $(HELM_PATH)/values.yaml
+else
+	@$(error Failed to tag helm chart, the '$$NEXT_AUTOTAG' environment variable doesn't exist.)
+endif
+
+.PHONY: _base.deploy.chart_package
+_base.deploy.chart_package:
+ifneq ($(NEXT_AUTOTAG),)
+	@helm package $(HELM_PATH)
+	helm lint $(HELM_PATH)
+else
+	@$(error Failed to package helm chart, the '$$NEXT_AUTOTAG' environment variable doesn't exist.)
+endif
+
+.PHONY: _base.deploy.chart_push
+_base.deploy.chart_push:
+ifneq ($(NEXT_AUTOTAG),)
+	helm push $(PKG_NAME)-$(shell echo $(NEXT_AUTOTAG) | cut -c 2-).tgz oci://$(ECR_REPO)/charts/
+else
+	@$(error Failed to push helm chart, the '$$NEXT_AUTOTAG' environment variable doesn't exist.)
+endif
+
+#.PHONY: _base.deploy.chart_reset
+#_base.deploy.chart_reset:
+#	git checkout \
+#		$(HELM_PATH)/Chart.yaml \
+#        $(HELM_PATH)/values.yaml
