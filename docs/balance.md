@@ -1,7 +1,7 @@
 
-# Resource Adjustment Operator (Balance)
+# Resource Utilization Reporting Operator (Zxporter)
 
-The  **Resource Adjustment Operator**  (codename:  **Balance**) is a Kubernetes operator designed to provide resource request recommendations for running containers in a Kubernetes cluster. It leverages a custom  **Anti-Windup PID Controller**  with a sliding window mechanism to dynamically adjust resource recommendations based on historical usage patterns.
+The  **Resource Utilization Reporting Operator**  (codename:  **Zxporter**) is a Kubernetes operator designed to provide resource request recommendations for running containers in a Kubernetes cluster. It leverages a custom  **Anti-Windup PID Controller**  with a sliding window mechanism to dynamically adjust resource recommendations based on historical usage patterns.
 
 ----------
 

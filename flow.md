@@ -1,4 +1,4 @@
-# Resource Adjustment Operator Architecture
+# Resource Utilization Reporting Operator Architecture
 ```mermaid
 graph TD
     A[Deploy Operator] --> B[Apply ResourceAdjustmentPolicy CRD]

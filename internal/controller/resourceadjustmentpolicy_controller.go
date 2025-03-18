@@ -35,12 +35,13 @@ import (
 	gen "github.com/devzero-inc/services/pulse/gen/api/v1"
 	genconnect "github.com/devzero-inc/services/pulse/gen/api/v1/apiv1connect"
 	"github.com/go-logr/logr"
+	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/api"
 	pv1 "github.com/prometheus/client_golang/api/prometheus/v1"
 	"github.com/prometheus/common/model"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	k8s_errors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -51,55 +52,43 @@ import (
 	k8log "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-// const (
-// 	minMemoryRecommendation = 12582912 // 12 MiB
-// 	adjustedMemoryBuffer    = 3000000  // 3 MiB buffer
-// 	minCPURecommendation    = 0.01     // 10 mCPU
-// 	adjustedCPUBuffer       = 0.005    // 5 mCPU buffer
-// )
-
 const (
 	minFrequency = 30 * time.Second
 	maxFrequency = 20 * time.Minute
-	// policyCRName = "zxporter-resourceadjustmentpolicy-cr"
 	crNamespace  = "devzero"
 )
 
-// type recommendationType int
+const (
+	// _ENV_PULSE_URL is the URL that this controller will use to export data to pulse.
+	_ENV_PULSE_URL = "PULSE_URL"
 
-// const (
-// 	cpuRecommendation recommendationType = iota
-// 	memoryRecommendation
-// )
-
-// type purpose int
-
-// const (
-// 	frequencyCalculation purpose = iota
-// 	currentUsage
-// )
+	// _ENV_PULSE_API_TOKEN is the token Pulse will use to identify which controller is sending it data.
+	_ENV_PULSE_API_TOKEN = "PULSE_API_TOKEN"
+)
 
 // Global configurations
 var (
-	StatusUpdater StatusUpdate
-	// defaultNamespaces             = []string{"default"}
+	StatusUpdater       StatusUpdate
 	quit                chan bool
 	defaultCPUConfig    = ResourceConfig{RequestPercentile: 95.0, MarginFraction: 0.15, TargetUtilization: 1.0, BucketSize: 0.001}
 	defaultMemoryConfig = ResourceConfig{RequestPercentile: 95.0, MarginFraction: 0.15, TargetUtilization: 1.0, BucketSize: 1048576}
-	// namespaces                    = defaultNamespaces
-	cpuConfig                     = defaultCPUConfig
-	memoryConfig                  = defaultMemoryConfig
-	oomBumpRatio                  = 1.2
-	defaultFrequency              = 3 * time.Minute
-	cpuSampleInterval             = 1 * time.Minute
-	cpuHistoryLength              = 24 * time.Hour
-	memorySampleInterval          = 1 * time.Minute
-	memoryHistoryLength           = 24 * time.Hour
-	lookbackDuration              = 1 * time.Hour
-	autoApply                     = false
-	oomProtection                 = true
-	pulseUrl                      = "http://host.docker.internal:9990"
-	pulseClient                   = NewPulseClient(pulseUrl)
+	cpuConfig           = defaultCPUConfig
+	memoryConfig        = defaultMemoryConfig
+	oomBumpRatio        = 1.2
+	defaultFrequency    = 3 * time.Minute
+
+	// seems to be unused?
+	cpuSampleInterval    = 1 * time.Minute
+	cpuHistoryLength     = 24 * time.Hour
+	memorySampleInterval = 1 * time.Minute
+	memoryHistoryLength  = 24 * time.Hour
+	lookbackDuration     = 1 * time.Hour
+
+	autoApply     = false
+	oomProtection = true
+	pulseUrl      = "http://host.docker.internal:9990"
+	pulseClient   = NewPulseClient(pulseUrl)
+
 	ProportionalGain              = 8.0
 	IntegralGain                  = 0.3
 	DerivativeGain                = 1.0
@@ -119,7 +108,6 @@ type ResourceConfig struct {
 
 // PulseClient struct for handling gRPC requests
 type PulseClient struct {
-	// pidControllerClient  genconnect.PIDControllerStateServiceClient
 	recommendationClient genconnect.RecommendationServiceClient
 	usageClient          genconnect.ResourceUsageServiceClient
 }
@@ -565,13 +553,13 @@ func (re *Recommender) getAllocatedResources(container *corev1.Container) (float
 	return allocatedCPU, allocatedMemory
 }
 
-// TODO: Find the perfect values for the PID controller
 func NewContainerState(namespace, podName, containerName string) *ContainerState {
 	return &ContainerState{
 		Namespace:     namespace,
 		PodName:       podName,
 		ContainerName: containerName,
 		PIDController: &pid.AntiWindupController{
+			// TODO: consider finding an optimal tuning path for these values
 			Config: pid.AntiWindupControllerConfig{
 				ProportionalGain:              ProportionalGain, // Need to tune these values correctly
 				IntegralGain:                  IntegralGain,     // Look at the bayes theroem
@@ -590,15 +578,21 @@ func NewContainerState(namespace, podName, containerName string) *ContainerState
 	}
 }
 
-func (re *Recommender) calculateError(log logr.Logger, pod *corev1.Pod, container *corev1.Container) (float64, float64, float64, float64, error) {
+type errorStates struct {
+	cpuError, cpuUtilization       float64
+	memoryError, memoryUtilization float64
+}
+
+func (re *Recommender) calculateError(log logr.Logger, pod *corev1.Pod, container *corev1.Container) (*errorStates, error) {
 	metricsClient, err := getMetricsClient()
 	if err != nil {
 		log.Error(err, "Failed to create Kubernetes Metrics client")
+		return nil, errors.New("this should really not be an error")
 	}
 
 	currentCPU, currentMemory, err := fetchContainerUsage(metricsClient, pod.Namespace, pod.Name, container.Name)
 	if err != nil {
-		return 0, 0, 0, 0, err
+		return nil, err
 	}
 
 	allocatedCPU, allocatedMemory := re.getAllocatedResources(container)
@@ -635,11 +629,17 @@ func (re *Recommender) calculateError(log logr.Logger, pod *corev1.Pod, containe
 		}
 	}
 
-	return cpuError, memoryError, cpuUtilization, memoryUtilization, nil
+	return &errorStates{
+		cpuError:          cpuError,
+		cpuUtilization:    cpuUtilization,
+		memoryError:       memoryError,
+		memoryUtilization: memoryUtilization,
+	}, nil
 }
 
 func (re *Recommender) monitorFrequency(r *ResourceAdjustmentPolicyReconciler, state *ContainerState) {
-	log := k8log.FromContext(context.Background())
+	ctx := context.Background()
+	log := k8log.FromContext(ctx)
 	threshold := 0.2 // Threshold for immediate reconciliation (e.g., 20% change)
 	prvTime := time.Now()
 
@@ -650,8 +650,9 @@ func (re *Recommender) monitorFrequency(r *ResourceAdjustmentPolicyReconciler, s
 		case <-state.ContainerQuit:
 			return
 		case <-time.After(5 * time.Second):
-			pod := &corev1.Pod{}
-			if err := r.Client.Get(context.Background(), types.NamespacedName{Namespace: state.Namespace, Name: state.PodName}, pod); err != nil {
+			key := types.NamespacedName{Namespace: state.Namespace, Name: state.PodName}
+			pod := corev1.Pod{}
+			if err := r.Client.Get(ctx, key, &pod); err != nil {
 				log.Error(err, "Failed to fetch pod", "pod", state.PodName)
 				continue
 			}
@@ -669,40 +670,52 @@ func (re *Recommender) monitorFrequency(r *ResourceAdjustmentPolicyReconciler, s
 			}
 
 			// Calculate CPU and memory errors and utilizations
-			cpuError, memoryError, cpuUtilization, memoryUtilization, err := re.calculateError(log, pod, container)
+			errStates, err := re.calculateError(log, &pod, container)
 			if err != nil {
 				continue
 			}
-			log.Info("Calculated errors and utilizations", "pod", state.PodName, "container", state.ContainerName, "cpuError", cpuError, "memoryError", memoryError, "cpuUtilization", cpuUtilization, "memoryUtilization", memoryUtilization)
+			log.Info("Calculated errors and utilizations",
+				"pod", state.PodName,
+				"container", state.ContainerName,
+				"cpuError", errStates.cpuError,
+				"memoryError", errStates.memoryError,
+				"cpuUtilization", errStates.cpuUtilization,
+				"memoryUtilization", errStates.memoryUtilization,
+			)
 
 			// Use the larger error (CPU or memory) to determine the frequency
-			var error float64
-			if (cpuError < 0 && memoryError < 0) || (cpuError > 0 && memoryError > 0) {
-				if math.Abs(cpuError) > math.Abs(memoryError) {
-					error = cpuError
+			var errVal float64
+			if (errStates.cpuError < 0 && errStates.memoryError < 0) || (errStates.cpuError > 0 && errStates.memoryError > 0) {
+				if math.Abs(errStates.cpuError) > math.Abs(errStates.memoryError) {
+					errVal = errStates.cpuError
 				} else {
-					error = memoryError
+					errVal = errStates.memoryError
 				}
 			} else {
-				if cpuError < 0 {
-					if math.Abs(cpuError)*2 > memoryError {
-						error = cpuError
+				if errStates.cpuError < 0 {
+					if math.Abs(errStates.cpuError)*2 > errStates.memoryError {
+						errVal = errStates.cpuError
 					} else {
-						error = memoryError
+						errVal = errStates.memoryError
 					}
 				} else {
-					if math.Abs(memoryError)*2 > cpuError {
-						error = memoryError
+					if math.Abs(errStates.memoryError)*2 > errStates.cpuError {
+						errVal = errStates.memoryError
 					} else {
-						error = cpuError
+						errVal = errStates.cpuError
 					}
 				}
 			}
-			log.Info("Final error calculated", "pod", state.PodName, "container", state.ContainerName, "error", error)
+			log.Info(
+				"Final error calculated",
+				"pod", state.PodName,
+				"container", state.ContainerName,
+				"error", errVal,
+			)
 
 			state.PIDController.Update(pid.AntiWindupControllerInput{
 				ReferenceSignal:   0,
-				ActualSignal:      error,
+				ActualSignal:      errVal,
 				FeedForwardSignal: 0.0,
 				SamplingInterval:  time.Since(prvTime),
 			})
@@ -712,7 +725,13 @@ func (re *Recommender) monitorFrequency(r *ResourceAdjustmentPolicyReconciler, s
 
 			newFrequency := calculateFrequency(normalizedControlSignal)
 
-			log.Info("Control signal calculated", "pod", state.PodName, "container", state.ContainerName, "controlSignal", state.PIDController.State.ControlSignal, "newFrequency", newFrequency)
+			log.Info(
+				"Control signal calculated",
+				"pod", state.PodName,
+				"container", state.ContainerName,
+				"controlSignal", state.PIDController.State.ControlSignal,
+				"newFrequency", newFrequency,
+			)
 
 			frequencyChange := math.Abs(float64(newFrequency-state.Frequency)) / float64(state.Frequency)
 			if frequencyChange > threshold {
@@ -762,32 +781,32 @@ func calculateFrequency(normalizedControlSignal float64) time.Duration {
 	return newFrequency
 }
 
-func (re *Recommender) runContainerLoop(ctx context.Context, r *ResourceAdjustmentPolicyReconciler, state *ContainerState, policy *v1.ResourceAdjustmentPolicy, pod *corev1.Pod, container *corev1.Container) {
-	log := k8log.FromContext(ctx)
+// func (re *Recommender) runContainerLoop(ctx context.Context, r *ResourceAdjustmentPolicyReconciler, state *ContainerState, policy *v1.ResourceAdjustmentPolicy, pod *corev1.Pod, container *corev1.Container) {
+// 	log := k8log.FromContext(ctx)
 
-	for {
-		select {
-		case <-quit:
-			return
-		case <-state.ContainerQuit:
-			return
-		case <-state.UpdateChan:
-			// Immediate reconciliation triggered
-			log.Info("Immediate reconciliation triggered for container",
-				"pod", state.PodName,
-				"container", state.ContainerName,
-				"newFrequency", state.Frequency)
-			re.processContainer(ctx, r, log, policy, pod, container)
-		case <-time.After(state.Frequency):
-			// Regular reconciliation based on current frequency
-			log.Info("Regular reconciliation for container",
-				"pod", state.PodName,
-				"container", state.ContainerName,
-				"frequency", state.Frequency)
-			re.processContainer(ctx, r, log, policy, pod, container)
-		}
-	}
-}
+// 	for {
+// 		select {
+// 		case <-quit:
+// 			return
+// 		case <-state.ContainerQuit:
+// 			return
+// 		case <-state.UpdateChan:
+// 			// Immediate reconciliation triggered
+// 			log.Info("Immediate reconciliation triggered for container",
+// 				"pod", state.PodName,
+// 				"container", state.ContainerName,
+// 				"newFrequency", state.Frequency)
+// 			re.processContainer(ctx, r, log, policy, pod, container)
+// 		case <-time.After(state.Frequency):
+// 			// Regular reconciliation based on current frequency
+// 			log.Info("Regular reconciliation for container",
+// 				"pod", state.PodName,
+// 				"container", state.ContainerName,
+// 				"frequency", state.Frequency)
+// 			re.processContainer(ctx, r, log, policy, pod, container)
+// 		}
+// 	}
+// }
 
 func (re *Recommender) runUsageMonitorLoop(ctx context.Context, r *ResourceAdjustmentPolicyReconciler, state *ContainerState, pod *corev1.Pod, container *corev1.Container) {
 	log := k8log.FromContext(ctx)
@@ -921,7 +940,7 @@ func (re *Recommender) runRecommender(r *ResourceAdjustmentPolicyReconciler) {
 				policyKey := types.NamespacedName{Namespace: crNamespace}
 
 				if err := r.Get(ctx, policyKey, &policy); err != nil {
-					if errors.IsNotFound(err) {
+					if k8s_errors.IsNotFound(err) {
 						log.Error(err, "ResourceAdjustmentPolicy not found in zxporter-system namespace")
 					} else {
 						log.Error(err, "Failed to fetch ResourceAdjustmentPolicy")
@@ -963,8 +982,8 @@ func (re *Recommender) runRecommender(r *ResourceAdjustmentPolicyReconciler) {
 							// Start usage monitoring
 							go re.runUsageMonitorLoop(ctx, r, state, &pod, &container)
 
-							// Start the container control loop
-							go re.runContainerLoop(ctx, r, state, &policy, &pod, &container)
+							// // Start the container control loop
+							// go re.runContainerLoop(ctx, r, state, &policy, &pod, &container)
 
 						} else if exists && r.isPodExcluded(&policy, pod.Namespace, pod.Name) {
 							// Stop monitoring if the pod is now excluded
@@ -1075,117 +1094,56 @@ func (r *ResourceAdjustmentPolicyReconciler) isPodExcluded(policy *v1.ResourceAd
 	return false
 }
 
-func (re *Recommender) processContainer(ctx context.Context, r *ResourceAdjustmentPolicyReconciler, log logr.Logger, policy *v1.ResourceAdjustmentPolicy, pod *corev1.Pod, container *corev1.Container) {
-	log.Info("Processing container", "podName", pod.Name, "containerName", container.Name)
+// func (re *Recommender) processContainer(ctx context.Context, r *ResourceAdjustmentPolicyReconciler, log logr.Logger, policy *v1.ResourceAdjustmentPolicy, pod *corev1.Pod, container *corev1.Container) {
+// 	log.Info("Processing container", "podName", pod.Name, "containerName", container.Name)
 
-	// Check for OOM events
-	oomTime := re.checkForOOMEvents(*pod, container.Name)
+// 	// Check for OOM events
+// 	oomTime := re.checkForOOMEvents(*pod, container.Name)
 
-	// Fetch labels from the Pod
-	createdByUser := pod.Labels["meta.devzero.io/created-by-user"]
-	organizationID := pod.Labels["meta.devzero.io/organization-id"]
-	virtualClusterID := pod.Labels["meta.devzero.io/virtual-cluster-id"]
-	workloadID := pod.Labels["meta.devzero.io/workload-id"]
-	workloadName := pod.Labels["meta.devzero.io/workload-name"]
+// 	// Fetch labels from the Pod
+// 	createdByUser := pod.Labels["meta.devzero.io/created-by-user"]
+// 	organizationID := pod.Labels["meta.devzero.io/organization-id"]
+// 	virtualClusterID := pod.Labels["meta.devzero.io/virtual-cluster-id"]
+// 	workloadID := pod.Labels["meta.devzero.io/workload-id"]
+// 	workloadName := pod.Labels["meta.devzero.io/workload-name"]
 
-	// Create the recommendation request
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+// 	// Create the recommendation request
+// 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+// 	defer cancel()
 
-	req := connect.NewRequest(&gen.GetRecommendationRequest{
-		ContainerId:                fmt.Sprintf("%s-%s", pod.Name, container.Name),
-		ContainerName:              container.Name,
-		PodName:                    pod.Name,
-		NodeName:                   pod.Spec.NodeName,
-		CpuRequest:                 container.Resources.Requests.Cpu().MilliValue(),
-		MemoryRequest:              container.Resources.Requests.Memory().Value(),
-		CpuLimit:                   container.Resources.Limits.Cpu().MilliValue(),
-		MemoryLimit:                container.Resources.Limits.Memory().Value(),
-		CpuRequestPercentile:       cpuConfig.RequestPercentile,
-		CpuMarginFraction:          cpuConfig.MarginFraction,
-		CpuTargetUtilization:       cpuConfig.TargetUtilization,
-		MemoryRequestPercentile:    memoryConfig.RequestPercentile,
-		MemoryMarginFraction:       memoryConfig.MarginFraction,
-		MemoryTargetUtilization:    memoryConfig.TargetUtilization,
-		CpuHistoryLengthSeconds:    86400,
-		MemoryHistoryLengthSeconds: 86400,
-		OomBumpRatio:               oomBumpRatio,
-		OomProtection:              oomProtection,
-		OomTime:                    oomTime,
-		CreatedByUser:              createdByUser,
-		OrganizationId:             organizationID,
-		VirtualClusterId:           virtualClusterID,
-		WorkloadId:                 workloadID,
-		WorkloadName:               workloadName,
-	})
+// 	req := connect.NewRequest(&gen.GetRecommendationRequest{
+// 		ContainerId:                fmt.Sprintf("%s-%s", pod.Name, container.Name),
+// 		ContainerName:              container.Name,
+// 		PodName:                    pod.Name,
+// 		NodeName:                   pod.Spec.NodeName,
+// 		CpuRequest:                 container.Resources.Requests.Cpu().MilliValue(),
+// 		MemoryRequest:              container.Resources.Requests.Memory().Value(),
+// 		CpuLimit:                   container.Resources.Limits.Cpu().MilliValue(),
+// 		MemoryLimit:                container.Resources.Limits.Memory().Value(),
+// 		CpuRequestPercentile:       cpuConfig.RequestPercentile,
+// 		CpuMarginFraction:          cpuConfig.MarginFraction,
+// 		CpuTargetUtilization:       cpuConfig.TargetUtilization,
+// 		MemoryRequestPercentile:    memoryConfig.RequestPercentile,
+// 		MemoryMarginFraction:       memoryConfig.MarginFraction,
+// 		MemoryTargetUtilization:    memoryConfig.TargetUtilization,
+// 		CpuHistoryLengthSeconds:    86400,
+// 		MemoryHistoryLengthSeconds: 86400,
+// 		OomBumpRatio:               oomBumpRatio,
+// 		OomProtection:              oomProtection,
+// 		OomTime:                    oomTime,
+// 		CreatedByUser:              createdByUser,
+// 		OrganizationId:             organizationID,
+// 		VirtualClusterId:           virtualClusterID,
+// 		WorkloadId:                 workloadID,
+// 		WorkloadName:               workloadName,
+// 	})
 
-	// Send the recommendation request
-	_, err := pulseClient.recommendationClient.GetRecommendation(ctx, req)
-	if err != nil {
-		log.Error(err, "❌ Failed to send recommendation generation request")
-	}
-
-	// recommendedCPU, baseCPU, recommendedMemory, baseMemory := re.calculateRecommendations(ctx, log, pod, container, oomMemory)
-
-	// re.adjustRecommendations(&recommendedCPU, &baseCPU, &recommendedMemory, &baseMemory)
-
-	// // Expose recommendations to Prometheus
-	// re.Metrics.CpuRecommendation.With(prometheus.Labels{
-	// 	"namespace": pod.Namespace,
-	// 	"pod":       pod.Name,
-	// 	"container": container.Name,
-	// }).Set(recommendedCPU)
-
-	// re.Metrics.MemoryRecommendation.With(prometheus.Labels{
-	// 	"namespace": pod.Namespace,
-	// 	"pod":       pod.Name,
-	// 	"container": container.Name,
-	// }).Set(recommendedMemory)
-
-	// // Expose PID controller state
-	// state := re.ContainerStates[fmt.Sprintf("%s/%s/%s", pod.Namespace, pod.Name, container.Name)]
-	// if state != nil {
-	// 	re.Metrics.ControlSignal.With(prometheus.Labels{
-	// 		"namespace": pod.Namespace,
-	// 		"pod":       pod.Name,
-	// 		"container": container.Name,
-	// 	}).Set(state.PIDController.State.ControlSignal)
-
-	// 	re.Metrics.IntegralTerm.With(prometheus.Labels{
-	// 		"namespace": pod.Namespace,
-	// 		"pod":       pod.Name,
-	// 		"container": container.Name,
-	// 	}).Set(state.PIDController.State.ControlErrorIntegral)
-
-	// 	re.Metrics.DerivativeTerm.With(prometheus.Labels{
-	// 		"namespace": pod.Namespace,
-	// 		"pod":       pod.Name,
-	// 		"container": container.Name,
-	// 	}).Set(state.PIDController.State.ControlErrorDerivative)
-
-	// 	// Expose reconciliation frequency
-	// 	re.Metrics.ReconciliationFrequency.With(prometheus.Labels{
-	// 		"namespace": pod.Namespace,
-	// 		"pod":       pod.Name,
-	// 		"container": container.Name,
-	// 	}).Set(state.Frequency.Seconds())
-	// }
-
-	// // Send Resource Recommendation to Pulse
-	// // go re.sendResourceRecommendationToPulse(log, pod, container, recommendedCPU, recommendedMemory, baseCPU, baseMemory)
-
-	// // Send PID Controller State to Pulse
-	// // go re.sendPIDStateToPulse(log, pod, container)
-
-	// status := re.createContainerStatus(ctx, r, log, pod, container, currentCPUValue, currentMemoryValue, baseCPU, recommendedCPU, baseMemory, recommendedMemory)
-	// if autoApply && (status.CPURecommendation.NeedToApply || status.MemoryRecommendation.NeedToApply) {
-	// 	if err := re.applyRecommendations(ctx, r, pod, status); err != nil {
-	// 		log.Error(err, "Failed to apply recommendations", "podName", pod.Name, "containerName", container.Name)
-	// 	}
-	// }
-
-	// StatusUpdater.updateContainerStatus(ctx, log, r, policy, status)
-}
+// 	// Send the recommendation request
+// 	_, err := pulseClient.recommendationClient.GetRecommendation(ctx, req)
+// 	if err != nil {
+// 		log.Error(err, "❌ Failed to send recommendation generation request")
+// 	}
+// }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *ResourceAdjustmentPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
@@ -1199,771 +1157,3 @@ func (r *ResourceAdjustmentPolicyReconciler) SetupWithManager(mgr ctrl.Manager) 
 		For(&v1.ResourceAdjustmentPolicy{}).
 		Complete(r)
 }
-
-// func (re *Recommender) fetchCurrentMetrics(ctx context.Context, log logr.Logger, pod *corev1.Pod, container *corev1.Container, purpose purpose) (float64, float64, float64, error) {
-// 	promClient, err := NewPrometheusClient(prometheusURL)
-// 	if err != nil {
-// 		log.Error(err, "Failed to create Prometheus client")
-// 		return 0, 0, 0, err
-// 	}
-
-// 	var currentCPUQuery string
-// 	if purpose == currentUsage {
-// 		currentCPUQuery = fmt.Sprintf(`max(
-// 			rate(container_cpu_usage_seconds_total{namespace="%s",container="%s"}[1m])
-// 		) by (container)`, pod.Namespace, container.Name)
-// 	} else if purpose == frequencyCalculation {
-// 		// TODO: find a way to calculate the time frame here (e.g., 10m)
-// 		currentCPUQuery = fmt.Sprintf(`max(
-//         rate(container_cpu_usage_seconds_total{namespace="%s",container="%s"}[10m])
-//     ) by (container)`, pod.Namespace, container.Name)
-// 	}
-
-// 	currentCPUValue, err := promClient.QueryAtTime(currentCPUQuery, time.Now())
-// 	if err != nil {
-// 		log.Error(err, "Failed to fetch current CPU metrics", "podName", pod.Name, "containerName", container.Name)
-// 		return 0, 0, 0, err
-// 	}
-
-// 	currentMemoryQuery := fmt.Sprintf(`max(
-//         container_memory_working_set_bytes{namespace="%s", container="%s"}
-//     ) by (container)`, pod.Namespace, container.Name)
-// 	currentMemoryValue, err := promClient.QueryAtTime(currentMemoryQuery, time.Now())
-// 	if err != nil {
-// 		log.Error(err, "Failed to fetch current memory metrics", "podName", pod.Name, "containerName", container.Name)
-// 		return 0, 0, 0, err
-// 	}
-
-// 	oomMemory := 0.0
-
-// 	return currentCPUValue, currentMemoryValue, oomMemory, nil
-// }
-
-// type Bucket struct {
-// 	MinBoundary float64
-// 	Weight      float64
-// 	Count       int
-// 	Values      []float64
-// }
-
-// type ResourceRecommender struct {
-// 	config      ResourceConfig
-// 	Buckets     []Bucket
-// 	TotalWeight float64
-// }
-
-// func NewResourceRecommender(config ResourceConfig) *ResourceRecommender {
-// 	return &ResourceRecommender{
-// 		config:  config,
-// 		Buckets: make([]Bucket, 0),
-// 	}
-// }
-
-// func (r *ResourceRecommender) addValue(value float64) {
-// 	bucketIndex := int(value / r.config.BucketSize)
-
-// 	// Ensure we have enough buckets
-// 	for len(r.Buckets) <= bucketIndex {
-// 		r.Buckets = append(r.Buckets, Bucket{
-// 			MinBoundary: float64(len(r.Buckets)) * r.config.BucketSize,
-// 			Weight:      0,
-// 			Count:       0,
-// 			Values:      make([]float64, 0),
-// 		})
-// 	}
-
-// 	// Update bucket
-// 	r.Buckets[bucketIndex].Weight += value
-// 	r.Buckets[bucketIndex].Count++
-// 	r.Buckets[bucketIndex].Values = append(r.Buckets[bucketIndex].Values, value)
-// 	r.TotalWeight += value
-// }
-
-// func (r *ResourceRecommender) ProcessValues(values []float64) {
-// 	// Reset state
-// 	r.Buckets = make([]Bucket, 0)
-// 	r.TotalWeight = 0
-
-// 	// Process each value
-// 	for _, value := range values {
-// 		r.addValue(value)
-// 	}
-// }
-
-// func (r *ResourceRecommender) getPercentile(percentile float64) float64 {
-// 	if len(r.Buckets) == 0 {
-// 		return 0
-// 	}
-
-// 	targetWeight := (percentile / 100.0) * r.TotalWeight
-// 	accumulatedWeight := 0.0
-
-// 	for i, bucket := range r.Buckets {
-// 		accumulatedWeight += bucket.Weight
-// 		if accumulatedWeight >= targetWeight {
-// 			// Return the minimum boundary of the next bucket if available
-// 			if i+1 < len(r.Buckets) {
-// 				return r.Buckets[i+1].MinBoundary
-// 			}
-// 			return bucket.MinBoundary
-// 		}
-// 	}
-
-// 	// If we haven't reached the target weight, return the last bucket's boundary
-// 	if len(r.Buckets) > 0 {
-// 		return r.Buckets[len(r.Buckets)-1].MinBoundary
-// 	}
-// 	return 0
-// }
-
-// func (r *ResourceRecommender) GetRecommendation(valueType recommendationType, values []float64, oomMemory float64) (float64, float64) {
-// 	if len(values) == 0 {
-// 		return 0, 0
-// 	}
-
-// 	r.ProcessValues(values)
-
-// 	baseRecommendation := r.getPercentile(r.config.RequestPercentile)
-
-// 	if oomMemory > 0 && valueType == memoryRecommendation {
-// 		baseRecommendation = math.Max(
-// 			math.Max(oomMemory+100*1024*1024, oomMemory*oomBumpRatio),
-// 			baseRecommendation,
-// 		)
-// 	}
-
-// 	var adjustedRecommendation float64
-// 	marginAdjusted := baseRecommendation * (1 + r.config.MarginFraction)
-// 	adjustedRecommendation = marginAdjusted / r.config.TargetUtilization
-
-// 	// Round to one decimal place
-// 	adjustedRecommendation = math.Round(adjustedRecommendation*10000) / 10000
-
-// 	return adjustedRecommendation, baseRecommendation
-// }
-
-// func (re *Recommender) checkResourceAdjustment(container corev1.Container, recommendedCPU, recommendedMemory float64) (bool, bool) {
-// 	log := k8log.FromContext(context.Background())
-
-// 	log.Info("Starting resource adjustment check",
-// 		"container", container.Name,
-// 		"recommendedCPU", recommendedCPU,
-// 		"recommendedMemory", recommendedMemory)
-
-// 	cpuRequest := float64(container.Resources.Requests.Cpu().MilliValue()) / 1000
-// 	log.Info("Current CPU request",
-// 		"container", container.Name,
-// 		"cpuRequest", cpuRequest)
-
-// 	memoryRequest := float64(container.Resources.Requests.Memory().Value()) / 1048576
-// 	log.Info("Current Memory request",
-// 		"container", container.Name,
-// 		"memoryRequestMi", memoryRequest)
-
-// 	cpuNeedsAdjustment := false
-// 	memoryNeedsAdjustment := false
-
-// 	if cpuRequest > 0 {
-// 		cpuDiff := math.Abs((recommendedCPU-cpuRequest)/cpuRequest) * 100
-// 		log.Info("CPU difference calculated",
-// 			"container", container.Name,
-// 			"cpuDiff", cpuDiff,
-// 			"currentRequest", cpuRequest,
-// 			"recommendation", recommendedCPU)
-
-// 		if cpuDiff >= 5 {
-// 			cpuNeedsAdjustment = true
-// 			log.Info("CPU adjustment needed: recommendation is ≥5% greater than request",
-// 				"container", container.Name,
-// 				"cpuDiff", cpuDiff)
-// 		}
-
-// 		if recommendedCPU <= (cpuRequest * 0.1) {
-// 			cpuNeedsAdjustment = true
-// 			log.Info("CPU adjustment needed: recommendation is ≤10% of request",
-// 				"container", container.Name,
-// 				"recommendedCPU", recommendedCPU,
-// 				"tenPercentOfRequest", cpuRequest*0.1)
-// 		}
-// 	}
-
-// 	if memoryRequest > 0 {
-// 		memoryDiff := math.Abs((recommendedMemory-memoryRequest)/memoryRequest) * 100
-// 		log.Info("Memory difference calculated",
-// 			"container", container.Name,
-// 			"memoryDiff", memoryDiff,
-// 			"currentRequest", memoryRequest,
-// 			"recommendation", recommendedMemory)
-
-// 		if memoryDiff >= 5 {
-// 			memoryNeedsAdjustment = true
-// 			log.Info("Memory adjustment needed: recommendation is ≥5% greater than request",
-// 				"container", container.Name,
-// 				"memoryDiff", memoryDiff)
-// 		}
-
-// 		if recommendedMemory <= (memoryRequest * 0.1) {
-// 			memoryNeedsAdjustment = true
-// 			log.Info("Memory adjustment needed: recommendation is ≤10% of request",
-// 				"container", container.Name,
-// 				"recommendedMemory", recommendedMemory,
-// 				"tenPercentOfRequest", memoryRequest*0.1)
-// 		}
-// 	}
-
-// 	log.Info("Resource adjustment check completed",
-// 		"container", container.Name,
-// 		"cpuNeedsAdjustment", cpuNeedsAdjustment,
-// 		"memoryNeedsAdjustment", memoryNeedsAdjustment)
-
-// 	return cpuNeedsAdjustment, memoryNeedsAdjustment
-// }
-
-// func (re *Recommender) getMemoryUsageAtTermination(namespace, containerName string, terminationTime time.Time) float64 {
-// 	ctx := context.TODO()
-// 	log := k8log.FromContext(ctx)
-// 	query := fmt.Sprintf(`container_memory_working_set_bytes{namespace="%s", container="%s"}`, namespace, containerName)
-// 	promClient, err := NewPrometheusClient(prometheusURL)
-// 	if err != nil {
-// 		log.Error(err, "Failed to create Prometheus client")
-// 	}
-// 	memoryUsage, err := promClient.QueryAtTime(query, terminationTime)
-// 	if err != nil {
-// 		log.Error(err, "Error fetching memory usage at termination", "namespace", namespace, "containerName", containerName, "terminationTime", terminationTime)
-// 		return 0
-// 	}
-// 	return memoryUsage
-// }
-
-// func (re *Recommender) sendResourceRecommendationToPulse(log logr.Logger, pod *corev1.Pod, container *corev1.Container, cpuRecommended, memRecommended, cpuBase, memBase float64) {
-// 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-// 	defer cancel()
-
-// 	recommendation := &gen.ResourceRecommendation{
-// 		ContainerId:       fmt.Sprintf("%s-%s", pod.Name, container.Name),
-// 		ContainerName:     container.Name,
-// 		Namespace:         pod.Namespace,
-// 		CpuRequest:        float64(container.Resources.Requests.Cpu().MilliValue()) / 1000,
-// 		CpuLimit:          float64(container.Resources.Limits.Cpu().MilliValue()) / 1000,
-// 		MemoryRequest:     float64(container.Resources.Requests.Memory().Value()) / 1048576,
-// 		MemoryLimit:       float64(container.Resources.Limits.Memory().Value()) / 1048576,
-// 		CpuRecommended:    cpuRecommended,
-// 		MemoryRecommended: memRecommended,
-// 		Timestamp:         time.Now().Unix(),
-// 	}
-
-// 	req := connect.NewRequest(&gen.SendResourceRecommendationsRequest{
-// 		Recommendations: []*gen.ResourceRecommendation{recommendation},
-// 	})
-
-// 	_, err := pulseClient.recommendationClient.SendResourceRecommendations(ctx, req)
-// 	if err != nil {
-// 		log.Error(err, "Failed to send resource recommendation to Pulse", "podName", pod.Name, "containerName", container.Name)
-// 	} else {
-// 		log.Info("Successfully sent resource recommendation to Pulse", "podName", pod.Name, "containerName", container.Name)
-// 	}
-// }
-
-// func (re *Recommender) sendPIDStateToPulse(log logr.Logger, pod *corev1.Pod, container *corev1.Container) {
-// 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-// 	defer cancel()
-
-// 	// Fetch PID Controller State
-// 	state := re.ContainerStates[fmt.Sprintf("%s/%s/%s", pod.Namespace, pod.Name, container.Name)]
-// 	if state == nil {
-// 		log.Info("Skipping PID state send: state not found", "podName", pod.Name, "containerName", container.Name)
-// 		return
-// 	}
-
-// 	pidState := &gen.PIDControllerState{
-// 		ContainerId:    fmt.Sprintf("%s-%s", pod.Name, container.Name),
-// 		ContainerName:  container.Name,
-// 		Namespace:      pod.Namespace,
-// 		ControlSignal:  state.PIDController.State.ControlSignal,
-// 		IntegralTerm:   state.PIDController.State.ControlErrorIntegral,
-// 		DerivativeTerm: state.PIDController.State.ControlErrorDerivative,
-// 		Frequency:      int32(state.Frequency.Seconds()),
-// 		Timestamp:      time.Now().Unix(),
-// 	}
-
-// 	req := connect.NewRequest(&gen.SendPIDControllerStateRequest{
-// 		States: []*gen.PIDControllerState{pidState},
-// 	})
-
-// 	_, err := pulseClient.pidControllerClient.SendPIDControllerStates(ctx, req)
-// 	if err != nil {
-// 		log.Error(err, "Failed to send PID controller state to Pulse", "podName", pod.Name, "containerName", container.Name)
-// 	} else {
-// 		log.Info("Successfully sent PID controller state to Pulse", "podName", pod.Name, "containerName", container.Name)
-// 	}
-// }
-
-// func (s *StatusUpdate) updateContainerStatus(ctx context.Context, log logr.Logger, r *ResourceAdjustmentPolicyReconciler, policy *v1.ResourceAdjustmentPolicy, status v1.ContainerStatus) {
-// 	s.Lock()
-// 	defer s.Unlock()
-
-// 	err := retry.OnError(
-// 		retry.DefaultRetry,
-// 		func(err error) bool {
-// 			return errors.IsConflict(err)
-// 		},
-// 		func() error {
-// 			if err := r.Get(ctx, types.NamespacedName{Namespace: policy.Namespace, Name: policy.Name}, policy); err != nil {
-// 				return err
-// 			}
-
-// 			patch := client.MergeFrom(policy.DeepCopy())
-// 			policy.Status.Containers = append(policy.Status.Containers, status)
-
-// 			// Trim the list to keep only the last 500 records
-// 			if len(policy.Status.Containers) > 500 {
-// 				policy.Status.Containers = policy.Status.Containers[len(policy.Status.Containers)-500:]
-// 			}
-
-// 			return r.Status().Patch(ctx, policy, patch)
-// 		},
-// 	)
-
-// 	if err != nil {
-// 		log.Error(err, "Failed to update status for policy", "policyName", policy.Name)
-// 	} else {
-// 		log.Info("Successfully updated status for policy", "policyName", policy.Name)
-// 	}
-// }
-
-// func (re *Recommender) calculateRecommendations(
-// 	ctx context.Context,
-// 	log logr.Logger,
-// 	pod *corev1.Pod,
-// 	container *corev1.Container,
-// 	oomMemory float64,
-// ) (float64, float64, float64, float64) {
-// 	promClient, err := NewPrometheusClient(prometheusURL)
-// 	if err != nil {
-// 		log.Error(err, "Failed to create Prometheus client")
-// 		return 0, 0, 0, 0
-// 	}
-
-// 	cpuQuery := fmt.Sprintf(`max(
-//         rate(container_cpu_usage_seconds_total{namespace="%s", container="%s"}[%s])
-//     ) by (container)`, pod.Namespace, container.Name, cpuSampleInterval.String())
-// 	cpuValues, err := promClient.GetMetricsRange(ctx, cpuQuery, time.Now().Add(-cpuHistoryLength), time.Now(), cpuSampleInterval)
-// 	if err != nil {
-// 		log.Error(err, "Failed to fetch CPU metrics range", "podName", pod.Name, "containerName", container.Name)
-// 		return 0, 0, 0, 0
-// 	}
-
-// 	cpuRecommender := NewResourceRecommender(cpuConfig)
-// 	recommendedCPU, baseCPU := cpuRecommender.GetRecommendation(cpuRecommendation, cpuValues, oomMemory)
-// 	log.Info("Computed CPU recommendations", "podName", pod.Name, "containerName", container.Name, "baseCPU", baseCPU, "recommendedCPU", recommendedCPU)
-
-// 	memoryQuery := fmt.Sprintf(`max(
-//         container_memory_working_set_bytes{namespace="%s", container="%s"}
-//     ) by (container)`, pod.Namespace, container.Name)
-// 	memoryValues, err := promClient.GetMetricsRange(ctx, memoryQuery, time.Now().Add(-memoryHistoryLength), time.Now(), memorySampleInterval)
-// 	if err != nil {
-// 		log.Error(err, "Failed to fetch memory metrics range", "podName", pod.Name, "containerName", container.Name)
-// 		return 0, 0, 0, 0
-// 	}
-
-// 	memoryRecommender := NewResourceRecommender(memoryConfig)
-// 	recommendedMemory, baseMemory := memoryRecommender.GetRecommendation(memoryRecommendation, memoryValues, oomMemory)
-// 	log.Info("Computed memory recommendations", "podName", pod.Name, "containerName", container.Name, "baseMemory", baseMemory, "recommendedMemory", recommendedMemory)
-
-// 	return recommendedCPU, baseCPU, recommendedMemory, baseMemory
-// }
-
-// func (re *Recommender) adjustRecommendations(
-// 	recommendedCPU, baseCPU, recommendedMemory, baseMemory *float64,
-// ) {
-// 	if *recommendedCPU < minCPURecommendation {
-// 		*baseCPU = minCPURecommendation
-// 		*recommendedCPU = minCPURecommendation + adjustedCPUBuffer
-// 	}
-
-// 	if *recommendedMemory < minMemoryRecommendation {
-// 		*baseMemory = minMemoryRecommendation
-// 		*recommendedMemory = minMemoryRecommendation + adjustedMemoryBuffer
-// 	}
-// }
-
-// func (re *Recommender) createContainerStatus(
-// 	ctx context.Context,
-// 	r *ResourceAdjustmentPolicyReconciler,
-// 	log logr.Logger,
-// 	pod *corev1.Pod,
-// 	container *corev1.Container,
-// 	currentCPUValue, currentMemoryValue, baseCPU, recommendedCPU, baseMemory, recommendedMemory float64,
-// ) v1.ContainerStatus {
-
-// 	cpuNeedsAdjustment, memoryNeedsAdjustment := re.checkResourceAdjustment(
-// 		*container,
-// 		recommendedCPU,
-// 		recommendedMemory,
-// 	)
-
-// 	var nodeSelectionResult v1.NodeSelectionResult
-// 	var err error
-// 	if !cpuNeedsAdjustment && !memoryNeedsAdjustment {
-// 		nodeSelectionResult = v1.NodeSelectionResult{NeedsMigration: false, TargetNode: pod.Spec.NodeName}
-// 	} else {
-// 		nodeSelectionResult, err = re.nodeSelection(ctx, log, r, pod, recommendedCPU, recommendedMemory)
-// 	}
-// 	if err != nil {
-// 		log.Error(err, "Failed to select target node for migration", "podName", pod.Name, "containerName", container.Name)
-// 	}
-
-// 	log.Info("Current cpu request", "container", container.Name, "cpuRequest", float64(container.Resources.Requests.Cpu().MilliValue())/1000.0)
-
-// 	return v1.ContainerStatus{
-// 		Namespace:           pod.Namespace,
-// 		PodName:             pod.Name,
-// 		ContainerName:       container.Name,
-// 		LastUpdated:         metav1.Now(),
-// 		NodeSelectionResult: nodeSelectionResult,
-// 		CurrentCPU: v1.ResourceUsage{
-// 			Request: container.Resources.Requests.Cpu().String(),
-// 			Limit:   container.Resources.Limits.Cpu().String(),
-// 			// Limit: strconv.FormatInt(container.Resources.Limits.Cpu().MilliValue(), 10),
-// 			Usage: fmt.Sprintf("%.3f cores", currentCPUValue),
-// 		},
-// 		CurrentMemory: v1.ResourceUsage{
-// 			Request: container.Resources.Requests.Memory().String(),
-// 			Limit:   container.Resources.Limits.Memory().String(),
-// 			Usage:   fmt.Sprintf("%d bytes (%.0f Mi)", int64(currentMemoryValue), float64(int64(currentMemoryValue))/1048576),
-// 		},
-// 		CPURecommendation: v1.RecommendationDetails{
-// 			BaseRecommendation:     fmt.Sprintf("%.3f", baseCPU),
-// 			AdjustedRecommendation: fmt.Sprintf("%.3f", recommendedCPU),
-// 			NeedToApply:            cpuNeedsAdjustment,
-// 		},
-// 		MemoryRecommendation: v1.RecommendationDetails{
-// 			BaseRecommendation:     fmt.Sprintf("%.2f", baseMemory/1048576),
-// 			AdjustedRecommendation: fmt.Sprintf("%.2f", recommendedMemory/1048576),
-// 			NeedToApply:            memoryNeedsAdjustment,
-// 		},
-// 	}
-// }
-
-// // TODO: Find a way to check the feature gate
-// func (re *Recommender) checkFeatureGate(ctx context.Context) (bool, error) {
-// // Create a Kubernetes client
-// config, err := rest.InClusterConfig()
-// if err != nil {
-// 	return false, fmt.Errorf("failed to create in-cluster config: %v", err)
-// }
-
-// clientset, err := kubernetes.NewForConfig(config)
-// if err != nil {
-// 	return false, fmt.Errorf("failed to create clientset: %v", err)
-// }
-
-// // Fetch the kube-apiserver pod to check its feature gates
-// pods, err := clientset.CoreV1().Pods("kube-system").List(ctx, metav1.ListOptions{
-// 	LabelSelector: "component=kube-apiserver",
-// })
-// if err != nil {
-// 	return false, fmt.Errorf("failed to list kube-apiserver pods: %v", err)
-// }
-
-// if len(pods.Items) == 0 {
-// 	return false, fmt.Errorf("no kube-apiserver pods found")
-// }
-
-// for _, pod := range pods.Items {
-// 	for _, container := range pod.Spec.Containers {
-// 		for _, arg := range container.Args {
-// 			if arg == "--feature-gates=InPlacePodVerticalScaling=true" {
-// 				return true, nil
-// 			}
-// 		}
-// 	}
-// }
-
-// return false, nil
-// return true, nil
-// }
-
-// func (re *Recommender) applyRecommendations(ctx context.Context, r *ResourceAdjustmentPolicyReconciler, pod *corev1.Pod, status v1.ContainerStatus) error {
-// 	log := k8log.FromContext(ctx)
-
-// 	enabled, err := re.checkFeatureGate(ctx)
-// 	if err != nil {
-// 		return fmt.Errorf("failed to check feature gate: %v", err)
-// 	}
-// 	if !enabled {
-// 		return fmt.Errorf("InPlacePodVerticalScaling feature gate is not enabled")
-// 	}
-
-// 	qosClass := pod.Status.QOSClass
-// 	log.Info("Current QoS class", "podName", pod.Name, "qosClass", qosClass)
-
-// 	updatedContainers := make([]corev1.Container, len(pod.Spec.Containers))
-// 	copy(updatedContainers, pod.Spec.Containers)
-
-// 	for i, container := range updatedContainers {
-// 		if container.Name == status.ContainerName {
-// 			if status.CPURecommendation.NeedToApply {
-// 				cpuRequest, err := resource.ParseQuantity(status.CPURecommendation.AdjustedRecommendation)
-// 				if err != nil {
-// 					return fmt.Errorf("failed to parse CPU recommendation (Request): %v", err)
-// 				}
-
-// 				updatedContainers[i].Resources.Requests[corev1.ResourceCPU] = cpuRequest
-
-// 				if qosClass == corev1.PodQOSGuaranteed {
-// 					updatedContainers[i].Resources.Limits[corev1.ResourceCPU] = cpuRequest
-// 				} else if qosClass == corev1.PodQOSBurstable {
-// 					// For Burstable QoS, set a higher limit (e.g., 1.5x request)
-// 					cpuLimit := cpuRequest.DeepCopy()
-// 					cpuLimit.SetMilli(cpuRequest.MilliValue() * 3 / 2) // 1.5x request
-// 					updatedContainers[i].Resources.Limits[corev1.ResourceCPU] = cpuLimit
-// 				}
-// 			}
-
-// 			if status.MemoryRecommendation.NeedToApply {
-// 				memoryRequestMi, err := strconv.ParseFloat(status.MemoryRecommendation.AdjustedRecommendation, 64)
-// 				if err != nil {
-// 					return fmt.Errorf("failed to parse memory recommendation (Request): %v", err)
-// 				}
-// 				memoryRequest := resource.NewQuantity(int64(memoryRequestMi*1048576), resource.BinarySI)
-
-// 				updatedContainers[i].Resources.Requests[corev1.ResourceMemory] = *memoryRequest
-
-// 				if qosClass == corev1.PodQOSGuaranteed {
-// 					updatedContainers[i].Resources.Limits[corev1.ResourceMemory] = *memoryRequest
-// 				} else if qosClass == corev1.PodQOSBurstable {
-// 					// For Burstable QoS, set a higher limit (e.g., 1.5x request)
-// 					memoryLimit := memoryRequest.DeepCopy()
-// 					memoryLimit.Set(memoryRequest.Value() * 3 / 2) // 1.5x request
-// 					updatedContainers[i].Resources.Limits[corev1.ResourceMemory] = memoryLimit
-// 				}
-// 			}
-// 		}
-// 	}
-
-// 	patch := &corev1.Pod{
-// 		ObjectMeta: metav1.ObjectMeta{
-// 			Name:      pod.Name,
-// 			Namespace: pod.Namespace,
-// 		},
-// 		Spec: corev1.PodSpec{
-// 			Containers: updatedContainers,
-// 		},
-// 	}
-
-// 	if err := r.Client.SubResource("resize").Update(ctx, patch); err != nil {
-// 		return fmt.Errorf("failed to update pod resources via /resize subresource: %v", err)
-// 	}
-
-// 	// Start watching the resize status
-// 	go re.watchResizeStatus(ctx, r, status)
-
-// 	return nil
-// }
-
-// func (re *Recommender) watchResizeStatus(ctx context.Context, r *ResourceAdjustmentPolicyReconciler, status v1.ContainerStatus) {
-// 	log := k8log.FromContext(ctx)
-// 	ticker := time.NewTicker(10 * time.Second)
-// 	defer ticker.Stop()
-
-// 	for {
-// 		select {
-// 		case <-ctx.Done():
-// 			return
-// 		case <-ticker.C:
-// 			pod := &corev1.Pod{}
-// 			err := r.Get(ctx, types.NamespacedName{
-// 				Namespace: status.Namespace,
-// 				Name:      status.PodName,
-// 			}, pod)
-// 			if err != nil {
-// 				log.Error(err, "Failed to get pod while watching resize status")
-// 				return
-// 			}
-
-// 			for _, containerStatus := range pod.Status.ContainerStatuses {
-// 				if containerStatus.Name == status.ContainerName {
-// 					resizeStatus := containerStatus.Resources.Requests
-// 					if resizeStatus != nil {
-// 						log.Info("Current resize status",
-// 							"podName", status.PodName,
-// 							"containerName", status.ContainerName,
-// 							"status", resizeStatus)
-
-// 						if _, deferred := resizeStatus["ResourceResizeStatusDeferred"]; deferred {
-// 							log.Info("Resource update is deferred",
-// 								"podName", status.PodName,
-// 								"containerName", status.ContainerName)
-// 							return
-// 						}
-// 						if _, infeasible := resizeStatus["ResourceResizeStatusInfeasible"]; infeasible {
-// 							log.Info("Resource update is infeasible",
-// 								"podName", status.PodName,
-// 								"containerName", status.ContainerName)
-// 							return
-// 						}
-// 						log.Info("Resource update completed successfully",
-// 							"podName", status.PodName,
-// 							"containerName", status.ContainerName)
-// 						return
-// 					}
-// 				}
-// 			}
-// 		}
-// 	}
-// }
-
-// // NodeInfo holds the current state and capacity of a node
-// type NodeInfo struct {
-// 	Name               string
-// 	AllocatableCPU     float64
-// 	AllocatableMemory  float64
-// 	CurrentCPUUsage    float64
-// 	CurrentMemoryUsage float64
-// 	Score              float64
-// }
-
-// func (re *Recommender) nodeSelection(
-// 	ctx context.Context,
-// 	log logr.Logger,
-// 	r *ResourceAdjustmentPolicyReconciler,
-// 	pod *corev1.Pod,
-// 	recommendedCPU, recommendedMemory float64,
-// ) (v1.NodeSelectionResult, error) {
-// 	canStayOnCurrentNode, err := re.canNodeAccommodateResources(ctx, log, r, pod.Spec.NodeName,
-// 		recommendedCPU, recommendedMemory)
-// 	if err != nil {
-// 		return v1.NodeSelectionResult{}, err
-// 	}
-
-// 	if canStayOnCurrentNode {
-// 		return v1.NodeSelectionResult{NeedsMigration: false, TargetNode: pod.Spec.NodeName}, nil
-// 	}
-
-// 	targetNode, err := re.findSuitableNode(ctx, log, r, recommendedCPU, recommendedMemory, pod)
-// 	if err != nil {
-// 		return v1.NodeSelectionResult{}, err
-// 	}
-
-// 	return v1.NodeSelectionResult{
-// 		NeedsMigration: true,
-// 		TargetNode:     targetNode,
-// 	}, nil
-// }
-
-// func (re *Recommender) canNodeAccommodateResources(ctx context.Context, log logr.Logger, r *ResourceAdjustmentPolicyReconciler, nodeName string, cpuRequest, memoryRequest float64) (bool, error) {
-// 	nodeMetrics, err := re.getNodeMetrics(ctx, log, r, nodeName)
-// 	if err != nil {
-// 		return false, fmt.Errorf("failed to get node metrics: %w", err)
-// 	}
-// 	log.Info("Node metrics", "nodeName", nodeName, "nodeMetrics", nodeMetrics)
-
-// 	projectedCPUUsage := nodeMetrics.CurrentCPUUsage + cpuRequest
-// 	log.Info("Projected CPU usage", "nodeName", nodeName, "projectedCPUUsage", projectedCPUUsage)
-// 	projectedMemoryUsage := nodeMetrics.CurrentMemoryUsage + memoryRequest
-// 	log.Info("Projected memory usage", "nodeName", nodeName, "projectedMemoryUsage", projectedMemoryUsage)
-
-// 	cpuFits := projectedCPUUsage <= (nodeMetrics.AllocatableCPU * 0.85) // 85% threshold
-// 	memoryFits := projectedMemoryUsage <= (nodeMetrics.AllocatableMemory * 0.85)
-
-// 	return cpuFits && memoryFits, nil
-// }
-
-// func (re *Recommender) getNodeMetrics(ctx context.Context, log logr.Logger, r *ResourceAdjustmentPolicyReconciler, nodeName string) (*NodeInfo, error) {
-// 	node := &corev1.Node{}
-// 	err := r.Get(ctx, types.NamespacedName{Name: nodeName}, node)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	promClient, err := NewPrometheusClient(prometheusURL)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	cpuQuery := fmt.Sprintf(`avg(rate(node_cpu_seconds_total{mode="idle", node="%s"}[5m])) by (instance)`, nodeName)
-// 	memQuery := fmt.Sprintf(`avg(node_memory_MemTotal_bytes{node="%s"} - node_memory_MemAvailable_bytes{node="%s"}) by (instance)`, nodeName, nodeName)
-
-// 	cpuUsage, err := promClient.QueryAtTime(cpuQuery, time.Now())
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	log.Info("CPU usage", "nodeName", nodeName, "cpuUsage", cpuUsage)
-
-// 	memUsage, err := promClient.QueryAtTime(memQuery, time.Now())
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	log.Info("Memory usage", "nodeName", nodeName, "memUsage", memUsage)
-
-// 	return &NodeInfo{
-// 		Name:               nodeName,
-// 		AllocatableCPU:     float64(node.Status.Allocatable.Cpu().Value()),
-// 		AllocatableMemory:  float64(node.Status.Allocatable.Memory().Value()),
-// 		CurrentCPUUsage:    cpuUsage,
-// 		CurrentMemoryUsage: memUsage,
-// 	}, nil
-// }
-
-// func (re *Recommender) findSuitableNode(ctx context.Context, log logr.Logger, r *ResourceAdjustmentPolicyReconciler, cpuRequest, memoryRequest float64, pod *corev1.Pod) (string, error) {
-// 	nodes := &corev1.NodeList{}
-// 	err := r.List(ctx, nodes)
-// 	if err != nil {
-// 		return "", err
-// 	}
-
-// 	var candidateNodes []*NodeInfo
-
-// 	for _, node := range nodes.Items {
-// 		if node.Name == pod.Spec.NodeName {
-// 			continue
-// 		}
-
-// 		nodeMetrics, err := re.getNodeMetrics(ctx, log, r, node.Name)
-// 		if err != nil {
-// 			continue
-// 		}
-
-// 		if !re.canNodeAccommodatePod(nodeMetrics, cpuRequest, memoryRequest) {
-// 			continue
-// 		}
-
-// 		nodeMetrics.Score = re.scoreNode(nodeMetrics, cpuRequest, memoryRequest)
-// 		candidateNodes = append(candidateNodes, nodeMetrics)
-// 	}
-
-// 	if len(candidateNodes) == 0 {
-// 		log.Info("No suitable nodes found", "podName", pod.Name)
-// 		return pod.Spec.NodeName, nil
-// 		// return "", fmt.Errorf("no suitable nodes found")
-// 	}
-
-// 	sort.Slice(candidateNodes, func(i, j int) bool {
-// 		return candidateNodes[i].Score > candidateNodes[j].Score
-// 	})
-
-// 	return candidateNodes[0].Name, nil
-// }
-
-// func (re *Recommender) canNodeAccommodatePod(node *NodeInfo, cpuRequest, memoryRequest float64) bool {
-// 	cpuAvailable := node.AllocatableCPU - node.CurrentCPUUsage
-// 	memoryAvailable := node.AllocatableMemory - node.CurrentMemoryUsage
-
-// 	// Include buffer (15% safety margin)
-// 	const safetyMargin = 0.85
-
-// 	return cpuRequest <= (cpuAvailable*safetyMargin) &&
-// 		memoryRequest <= (memoryAvailable*safetyMargin)
-// }
-
-// func (re *Recommender) scoreNode(node *NodeInfo, cpuRequest, memoryRequest float64) float64 {
-// 	projectedCPUUtil := (node.CurrentCPUUsage + cpuRequest) / node.AllocatableCPU
-// 	projectedMemUtil := (node.CurrentMemoryUsage + memoryRequest) / node.AllocatableMemory
-
-// 	balanceFactor := 1 - math.Abs(projectedCPUUtil-projectedMemUtil)
-
-// 	utilizationScore := 1 - ((projectedCPUUtil + projectedMemUtil) / 2)
-
-// 	return (balanceFactor * 0.4) + (utilizationScore * 0.6)
-// }
