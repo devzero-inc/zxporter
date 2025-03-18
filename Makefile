@@ -436,3 +436,7 @@ else
 		--set envReader=$(ENVIRONMENT) \
 		oci://$(ECR_REPO)/charts/$(PKG_NAME)
 endif
+
+.PHONY: _proto
+proto:
+	curl 'https://schemas.devzero.io/pulse/descriptor.bin' --output ./descriptor.bin && buf generate --include-imports descriptor.bin && rm ./descriptor.bin
