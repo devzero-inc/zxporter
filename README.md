@@ -1,5 +1,11 @@
 # zxporter
-// TODO(user): Add simple overview of use/purpose
+
+## development
+
+1. install `kind` cluster or something like that
+2. `kubectl` -- set the context to the kind cluster
+3. build the thing: `make docker-buildx IMG=ttl.sh/zxporter:dev-build`
+4. deploy the thing: `make deploy IMG=ttl.sh/zxporter:dev-build`
 
 ## Description
 // TODO(user): An in-depth paragraph about your project and overview of use
