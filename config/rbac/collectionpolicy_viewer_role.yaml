@@ -1,0 +1,23 @@
+# permissions for end users to view collectionpolicies.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: zxporter
+    app.kubernetes.io/managed-by: kustomize
+  name: collectionpolicy-viewer-role
+rules:
+- apiGroups:
+  - monitoring.devzero.io
+  resources:
+  - collectionpolicies
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - monitoring.devzero.io
+  resources:
+  - collectionpolicies/status
+  verbs:
+  - get

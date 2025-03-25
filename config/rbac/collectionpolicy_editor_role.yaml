@@ -1,0 +1,27 @@
+# permissions for end users to edit collectionpolicies.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: zxporter
+    app.kubernetes.io/managed-by: kustomize
+  name: collectionpolicy-editor-role
+rules:
+- apiGroups:
+  - monitoring.devzero.io
+  resources:
+  - collectionpolicies
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - monitoring.devzero.io
+  resources:
+  - collectionpolicies/status
+  verbs:
+  - get
