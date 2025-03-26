@@ -4,11 +4,8 @@ package transport
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"time"
 
-	"connectrpc.com/connect"
-	genConnect "github.com/devzero-inc/zxporter/gen/api/v1/apiv1connect"
 	"github.com/devzero-inc/zxporter/internal/collector"
 	"github.com/go-logr/logr"
 )
@@ -18,14 +15,6 @@ type DirectPulseSender struct {
 	pulseClient PulseClient
 	logger      logr.Logger
 }
-
-// // NewDirectPulseSender creates a new direct sender for Pulse
-// func NewDirectPulseSender(pulseClient PulseClient, logger logr.Logger) Sender {
-// 	return &DirectPulseSender{
-// 		pulseClient: pulseClient,
-// 		logger:      logger.WithName("direct-pulse-sender"),
-// 	}
-// }
 
 func NewDirectPulseSender(pulseClient PulseClient, logger logr.Logger) Sender {
 	if pulseClient == nil {
@@ -89,19 +78,4 @@ func (c *SimplePulseClient) SendResource(ctx context.Context, resource collector
 		"dataType", fmt.Sprintf("%T", resource.Object),
 		"data", resource.Object)
 	return nil
-}
-
-// Helper function to get client and context
-func getClientAndContext() (genConnect.K8SServiceClient, context.Context, context.CancelFunc) {
-	client := genConnect.NewK8SServiceClient(
-		http.DefaultClient,
-		"http://localhost:9990", // TODO: this needs to come from config
-		connect.WithGRPC(),
-	)
-
-	// Create timeout context
-	timeout := time.Duration(10) * time.Second // TODO: some reasonable timeout
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-
-	return client, ctx, cancel
 }
