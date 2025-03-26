@@ -6,7 +6,6 @@ toolchain go1.24.0
 
 require (
 	connectrpc.com/connect v1.18.1
-	github.com/devzero-inc/services v0.39.1-0.20250326101249-3d445f87f28e
 	github.com/onsi/ginkgo/v2 v2.21.0
 	github.com/onsi/gomega v1.35.1
 	k8s.io/apimachinery v0.32.3
