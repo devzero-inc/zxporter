@@ -323,11 +323,12 @@ catalog-build: opm ## Build a catalog image.
 catalog-push: ## Push a catalog image.
 	$(MAKE) docker-push IMG=$(CATALOG_IMG)
 
-# PULSE_DIR, PULSE_BUF_GEN, PULSE_K8S_PROTO are related to generating a gRPC client to communicate with Pulse.
+# PULSE_* files are related to generating a gRPC client to send resource metadata to Pulse.
 PULSE_DIR ?= /home/devzero/services/pulse
 PULSE_BUF_GEN_FILE ?= buf.gen.yaml
 PULSE_BUF_GEN ?= $(PULSE_DIR)/$(PULSE_BUF_GEN_FILE)
-PULSE_K8S_PROTO ?= $(PULSE_DIR)/proto/api/v1/k8s.proto
+PULSE_METRICS_COLLECTOR_PROTO_FILE ?= metrics_collector.proto
+PULSE_METRICS_COLLECTOR_PROTO ?= $(PULSE_DIR)/proto/api/v1/$(PULSE_METRICS_COLLECTOR_PROTO_FILE)
 
 # BUF_VERSION and BUF_BINARY_NAME are to generate a Pulse protobuf/gRPC client.
 BUF_VERSION := 1.31.0
@@ -355,10 +356,10 @@ generate-proto: install-buf ## Fetch latest Pulse protobuf
 	# copy metadata files over \
 	mkdir -p "$$PROTO_DIR"; \
 	cp "$(PULSE_BUF_GEN)" "$$PROTO_DIR/"; \
-	cp "$(PULSE_K8S_PROTO)" "$$PROTO_DIR/"; \
+	cp "$(PULSE_METRICS_COLLECTOR_PROTO)" "$$PROTO_DIR/"; \
 	# change package name to make it point to zxporter \
 	find "$$PROTO_DIR" -type f -name "*.yaml" -exec perl -pi -e 's|github.com/devzero-inc/services/pulse/gen|github.com/devzero-inc/zxporter/gen|g' {} +; \
-	# only include k8s.proto file while generating descriptor \
-	buf build "$(PULSE_DIR)" --path "$(PULSE_K8S_PROTO)" -o "$$PROTO_DIR"/pulse_proto_descriptor.bin; \
+	# only include metrics_collector.proto file while generating descriptor \
+	buf build "$(PULSE_DIR)" --path "$(PULSE_METRICS_COLLECTOR_PROTO)" -o "$$PROTO_DIR"/pulse_proto_descriptor.bin; \
 	# generate client code from all context in this repo \
 	buf generate --template "$$PROTO_DIR"/"$(PULSE_BUF_GEN_FILE)" --include-imports "$$PROTO_DIR"/pulse_proto_descriptor.bin;
