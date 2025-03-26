@@ -322,3 +322,43 @@ catalog-build: opm ## Build a catalog image.
 .PHONY: catalog-push
 catalog-push: ## Push a catalog image.
 	$(MAKE) docker-push IMG=$(CATALOG_IMG)
+
+# PULSE_DIR, PULSE_BUF_GEN, PULSE_K8S_PROTO are related to generating a gRPC client to communicate with Pulse.
+PULSE_DIR ?= /home/devzero/services/pulse
+PULSE_BUF_GEN_FILE ?= buf.gen.yaml
+PULSE_BUF_GEN ?= $(PULSE_DIR)/$(PULSE_BUF_GEN_FILE)
+PULSE_K8S_PROTO ?= $(PULSE_DIR)/proto/api/v1/k8s.proto
+
+# BUF_VERSION and BUF_BINARY_NAME are to generate a Pulse protobuf/gRPC client.
+BUF_VERSION := 1.31.0
+BUF_BINARY_NAME := buf
+
+# Install buf
+.PHONY: install-buf
+install-buf: ## Install buf if not already installed
+	@if ! command -v $(BUF_BINARY_NAME) >/dev/null 2>&1; then \
+		echo "Installing $(BUF_BINARY_NAME)..."; \
+		curl -sSL "https://github.com/bufbuild/buf/releases/download/v${BUF_VERSION}/${BUF_BINARY_NAME}-$(shell uname -s)-$(shell uname -m)" -o "/usr/local/bin/${BUF_BINARY_NAME}"; \
+		chmod +x "/usr/local/bin/${BUF_BINARY_NAME}"; \
+	else \
+		echo "$(BUF_BINARY_NAME) is already installed."; \
+	fi
+
+# (for local dev) Get metadata to generate a Pulse client. 
+.PHONY: generate-proto
+generate-proto: install-buf ## Fetch latest Pulse protobuf
+	@PROTO_DIR="$(PWD)/proto"; \
+	echo "Cleaning $$PROTO_DIR..."; \
+	# clean ups \
+	rm -rf "$$PROTO_DIR"/*; \
+	rm -rf "$(PWD)/gen"; \
+	# copy metadata files over \
+	mkdir -p "$$PROTO_DIR"; \
+	cp "$(PULSE_BUF_GEN)" "$$PROTO_DIR/"; \
+	cp "$(PULSE_K8S_PROTO)" "$$PROTO_DIR/"; \
+	# change package name to make it point to zxporter \
+	find "$$PROTO_DIR" -type f -name "*.yaml" -exec perl -pi -e 's|github.com/devzero-inc/services/pulse/gen|github.com/devzero-inc/zxporter/gen|g' {} +; \
+	# only include k8s.proto file while generating descriptor \
+	buf build "$(PULSE_DIR)" --path "$(PULSE_K8S_PROTO)" -o "$$PROTO_DIR"/pulse_proto_descriptor.bin; \
+	# generate client code from all context in this repo \
+	buf generate --template "$$PROTO_DIR"/"$(PULSE_BUF_GEN_FILE)" --include-imports "$$PROTO_DIR"/pulse_proto_descriptor.bin;

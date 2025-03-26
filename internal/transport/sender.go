@@ -16,14 +16,6 @@ type DirectPulseSender struct {
 	logger      logr.Logger
 }
 
-// // NewDirectPulseSender creates a new direct sender for Pulse
-// func NewDirectPulseSender(pulseClient PulseClient, logger logr.Logger) Sender {
-// 	return &DirectPulseSender{
-// 		pulseClient: pulseClient,
-// 		logger:      logger.WithName("direct-pulse-sender"),
-// 	}
-// }
-
 func NewDirectPulseSender(pulseClient PulseClient, logger logr.Logger) Sender {
 	if pulseClient == nil {
 		// Create a simple pulse client if none is provided
