@@ -1,0 +1,15 @@
+apiVersion: monitoring.devzero.io/v1
+kind: CollectionPolicy
+metadata:
+  name: default-policy
+  namespace: zxporter-system
+spec:
+  targetSelector:
+    namespaces: [] # Empty means all namespaces
+  exclusions:
+    excludedNamespaces:
+      - kube-system
+      - kube-public
+  policies:
+    frequency: "30s"
+    bufferSize: 1000

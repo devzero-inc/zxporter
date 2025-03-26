@@ -73,6 +73,8 @@ type PolicyConfig struct {
 //+kubebuilder:rbac:groups=core,resources=pods/status,verbs=get
 //+kubebuilder:rbac:groups=core,resources=nodes,verbs=get;list;watch
 //+kubebuilder:rbac:groups=core,resources=nodes/status,verbs=get
+//+kubebuilder:rbac:groups=metrics.k8s.io,resources=pods,verbs=get;list;watch
+//+kubebuilder:rbac:groups=metrics.k8s.io,resources=nodes,verbs=get;list;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -80,6 +82,7 @@ func (r *CollectionPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	logger := log.FromContext(ctx)
 	logger.Info("Reconciling CollectionPolicy", "request", req)
 
+	// TODO: call pulse to get the update the configs, dont collect config from ENV in reconcile
 	// Check if we should reload env config (every 5 minutes)
 	if time.Since(r.LastEnvCheckTime) > r.EnvCheckInterval {
 		r.EnvConfig = util.LoadEnvPolicyConfig(logger)
@@ -297,12 +300,15 @@ func (r *CollectionPolicyReconciler) initializeCollectors(ctx context.Context, c
 
 	// Create Pulse client with configured URL if provided
 	var pulseClient transport.PulseClient
-	if config.PulseURL != "" {
-		// 	pulseClient = transport.NewPulseClient(config.PulseURL, logger)
-		// } else {
-		// Use simple client for testing if no URL provided
-		pulseClient = transport.NewSimplePulseClient(logger)
-	}
+	// if config.PulseURL != "" {
+	// 	// 	pulseClient = transport.NewPulseClient(config.PulseURL, logger)
+	// 	// } else {
+	// 	// Use simple client for testing if no URL provided
+	// 	pulseClient = transport.NewSimplePulseClient(logger)
+	// }
+
+	pulseUrl := "http://host.docker.internal:9990"
+	pulseClient = transport.NewPulseClient(pulseUrl, logger)
 
 	// Create and configure sender
 	r.Sender = transport.NewDirectPulseSender(pulseClient, logger)
@@ -344,7 +350,7 @@ func (r *CollectionPolicyReconciler) processCollectedResources(ctx context.Conte
 			}
 
 			// Send the raw resource directly to Pulse
-			if err := r.Sender.Send(ctx, resource.ResourceType, resource.Object); err != nil {
+			if err := r.Sender.Send(ctx, resource); err != nil {
 				logger.Error(err, "Failed to send resource to Pulse",
 					"resourceType", resource.ResourceType,
 					"eventType", resource.EventType,

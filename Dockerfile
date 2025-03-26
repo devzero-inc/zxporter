@@ -1,20 +1,22 @@
 # Build the manager binary
-FROM golang:1.22 AS builder
+FROM golang:1.24.1 AS builder
 ARG TARGETOS
 ARG TARGETARCH
 
 WORKDIR /workspace
 # Copy the Go Modules manifests
-COPY go.mod go.mod
-COPY go.sum go.sum
-# cache deps before building and copying source so that we don't need to re-download as much
-# and so that source changes don't invalidate our downloaded layer
+COPY . .
+# COPY go.sum go.sum
+# # cache deps before building and copying source so that we don't need to re-download as much
+# # and so that source changes don't invalidate our downloaded layer
+ARG GITHUB_TOKEN
+RUN git config --global url."https://${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
 RUN go mod download
 
-# Copy the go source
-COPY cmd/main.go cmd/main.go
-COPY api/ api/
-COPY internal/controller/ internal/controller/
+# # Copy the go source
+# COPY cmd/main.go cmd/main.go
+# COPY api/ api/
+# COPY internal/controller/ internal/controller/
 
 # Build
 # the GOARCH has not a default value to allow the binary be built according to the host where the command

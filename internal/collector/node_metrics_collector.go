@@ -638,6 +638,8 @@ func (c *NodeMetricsCollector) collectNodeExporterMetrics(resp *http.Response) (
 	return metrics, nil
 }
 
+// TODO: I take a lot help from AI to get these data correctly, we have to know how vm works on this level
+
 // Check if network interface is loopback or virtual
 func (c *NodeMetricsCollector) isLoopbackOrVirtual(device string) bool {
 	return device == "lo" ||
@@ -760,6 +762,8 @@ func (c *NodeMetricsCollector) logNodeMetrics(metrics *NodeMetrics) {
 		)
 	}
 }
+
+// TODO: This is not important we ccan drop off it later
 
 // fallbackMetrics provides basic metrics when node-exporter is unavailable
 func (c *NodeMetricsCollector) fallbackMetrics(node *corev1.Node) (*NodeMetrics, error) {

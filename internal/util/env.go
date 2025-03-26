@@ -4,9 +4,40 @@ package util
 import (
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
+)
+
+// Configuration environment variables
+const (
+	// PULSE_URL is the URL of the Pulse service.
+	// Default value: ""
+	_ENV_PULSE_URL = "PULSE_URL"
+
+	// COLLECTION_FREQUENCY is how often to collect resource usage metrics.
+	// Default value: 10s
+	_ENV_COLLECTION_FREQUENCY = "COLLECTION_FREQUENCY"
+
+	// BUFFER_SIZE is the size of the sender buffer.
+	// Default value: 1000
+	_ENV_BUFFER_SIZE = "BUFFER_SIZE"
+
+	// EXCLUDED_NAMESPACES are namespaces to exclude from collection.
+	// This is a comma-separated list.
+	// Default value: []
+	_ENV_EXCLUDED_NAMESPACES = "EXCLUDED_NAMESPACES"
+
+	// EXCLUDED_NODES are nodes to exclude from collection.
+	// This is a comma-separated list.
+	// Default value: []
+	_ENV_EXCLUDED_NODES = "EXCLUDED_NODES"
+
+	// TARGET_NAMESPACES are namespaces to include in collection (empty means all).
+	// This is a comma-separated list.
+	// Default value: [] (all namespaces)
+	_ENV_TARGET_NAMESPACES = "TARGET_NAMESPACES"
 )
 
 // EnvPolicyConfig holds configuration that can be set via environment variables
@@ -35,13 +66,13 @@ func LoadEnvPolicyConfig(logger logr.Logger) *EnvPolicyConfig {
 	config := &EnvPolicyConfig{}
 
 	// Load pulse URL
-	if url := os.Getenv("PULSE_URL"); url != "" {
+	if url := os.Getenv(_ENV_PULSE_URL); url != "" {
 		config.PulseURL = url
 		logger.Info("Loaded PulseURL from environment", "url", url)
 	}
 
 	// Load collection frequency
-	if freqStr := os.Getenv("COLLECTION_FREQUENCY"); freqStr != "" {
+	if freqStr := os.Getenv(_ENV_COLLECTION_FREQUENCY); freqStr != "" {
 		if freq, err := time.ParseDuration(freqStr); err == nil {
 			config.Frequency = freq
 			logger.Info("Loaded collection frequency from environment", "frequency", freq)
@@ -51,7 +82,7 @@ func LoadEnvPolicyConfig(logger logr.Logger) *EnvPolicyConfig {
 	}
 
 	// Load buffer size
-	if sizeStr := os.Getenv("BUFFER_SIZE"); sizeStr != "" {
+	if sizeStr := os.Getenv(_ENV_BUFFER_SIZE); sizeStr != "" {
 		if size, err := strconv.Atoi(sizeStr); err == nil {
 			config.BufferSize = size
 			logger.Info("Loaded buffer size from environment", "size", size)
@@ -61,19 +92,19 @@ func LoadEnvPolicyConfig(logger logr.Logger) *EnvPolicyConfig {
 	}
 
 	// Load excluded namespaces
-	if nsStr := os.Getenv("EXCLUDED_NAMESPACES"); nsStr != "" {
+	if nsStr := os.Getenv(_ENV_EXCLUDED_NAMESPACES); nsStr != "" {
 		config.ExcludedNamespaces = parseCommaList(nsStr)
 		logger.Info("Loaded excluded namespaces from environment", "namespaces", config.ExcludedNamespaces)
 	}
 
 	// Load excluded nodes
-	if nodesStr := os.Getenv("EXCLUDED_NODES"); nodesStr != "" {
+	if nodesStr := os.Getenv(_ENV_EXCLUDED_NODES); nodesStr != "" {
 		config.ExcludedNodes = parseCommaList(nodesStr)
 		logger.Info("Loaded excluded nodes from environment", "nodes", config.ExcludedNodes)
 	}
 
 	// Load target namespaces
-	if nsStr := os.Getenv("TARGET_NAMESPACES"); nsStr != "" {
+	if nsStr := os.Getenv(_ENV_TARGET_NAMESPACES); nsStr != "" {
 		config.TargetNamespaces = parseCommaList(nsStr)
 		logger.Info("Loaded target namespaces from environment", "namespaces", config.TargetNamespaces)
 	}
@@ -87,25 +118,17 @@ func parseCommaList(input string) []string {
 		return nil
 	}
 
-	items := []string{}
-	current := ""
+	items := strings.Split(input, ",")
+	result := make([]string, 0, len(items))
 
-	for i := 0; i < len(input); i++ {
-		if input[i] == ',' {
-			if current != "" {
-				items = append(items, current)
-				current = ""
-			}
-		} else {
-			current += string(input[i])
+	for _, item := range items {
+		trimmed := strings.TrimSpace(item)
+		if trimmed != "" {
+			result = append(result, trimmed)
 		}
 	}
 
-	if current != "" {
-		items = append(items, current)
-	}
-
-	return items
+	return result
 }
 
 // MergeWithCRPolicy merges environment config with CR policy, with environment taking precedence

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/devzero-inc/zxporter/internal/collector"
 	"github.com/go-logr/logr"
 )
 
@@ -15,8 +16,22 @@ type DirectPulseSender struct {
 	logger      logr.Logger
 }
 
-// NewDirectPulseSender creates a new direct sender for Pulse
+// // NewDirectPulseSender creates a new direct sender for Pulse
+// func NewDirectPulseSender(pulseClient PulseClient, logger logr.Logger) Sender {
+// 	return &DirectPulseSender{
+// 		pulseClient: pulseClient,
+// 		logger:      logger.WithName("direct-pulse-sender"),
+// 	}
+// }
+
 func NewDirectPulseSender(pulseClient PulseClient, logger logr.Logger) Sender {
+	if pulseClient == nil {
+		// Create a simple pulse client if none is provided
+		pulseClient = &SimplePulseClient{
+			logger: logger.WithName("default-pulse-client"),
+		}
+	}
+
 	return &DirectPulseSender{
 		pulseClient: pulseClient,
 		logger:      logger.WithName("direct-pulse-sender"),
@@ -24,8 +39,11 @@ func NewDirectPulseSender(pulseClient PulseClient, logger logr.Logger) Sender {
 }
 
 // Send transmits a resource directly to Pulse
-func (s *DirectPulseSender) Send(ctx context.Context, resourceType string, data interface{}) error {
-	return s.pulseClient.SendResource(ctx, resourceType, data)
+func (s *DirectPulseSender) Send(ctx context.Context, resource collector.CollectedResource) error {
+	if s.pulseClient == nil {
+		return fmt.Errorf("pulse client is nil, cannot send resource")
+	}
+	return s.pulseClient.SendResource(ctx, resource)
 }
 
 // Start initializes the sender (no-op for direct sender)
@@ -61,10 +79,11 @@ func NewSimplePulseClient(logger logr.Logger) PulseClient {
 }
 
 // SendResource logs the resource data (for development/testing)
-func (c *SimplePulseClient) SendResource(ctx context.Context, resourceType string, data interface{}) error {
+func (c *SimplePulseClient) SendResource(ctx context.Context, resource collector.CollectedResource) error {
 	// For now, just log that we would send something
 	c.logger.Info("Would send resource to Pulse",
-		"resourceType", resourceType,
-		"dataType", fmt.Sprintf("%T", data))
+		"resourceType", resource.ResourceType,
+		"dataType", fmt.Sprintf("%T", resource.Object),
+		"data", resource.Object)
 	return nil
 }

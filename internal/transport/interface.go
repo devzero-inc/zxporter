@@ -3,18 +3,20 @@ package transport
 
 import (
 	"context"
+
+	"github.com/devzero-inc/zxporter/internal/collector"
 )
 
 // PulseClient defines methods for sending data to Pulse
 type PulseClient interface {
 	// SendResource sends any resource data to Pulse
-	SendResource(ctx context.Context, resourceType string, data interface{}) error
+	SendResource(ctx context.Context, resource collector.CollectedResource) error
 }
 
 // Sender defines methods for sending data to external systems
 type Sender interface {
 	// Send transmits a resource to the target system
-	Send(ctx context.Context, resourceType string, data interface{}) error
+	Send(ctx context.Context, resource collector.CollectedResource) error
 
 	// Start initializes the sender (establishing connections, etc.)
 	Start(ctx context.Context) error
