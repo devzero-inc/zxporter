@@ -5,6 +5,7 @@ go 1.23.5
 toolchain go1.24.0
 
 require (
+	connectrpc.com/connect v1.18.1
 	github.com/devzero-inc/services v0.39.1-0.20250326101249-3d445f87f28e
 	github.com/onsi/ginkgo/v2 v2.21.0
 	github.com/onsi/gomega v1.35.1
@@ -14,7 +15,6 @@ require (
 )
 
 require (
-	connectrpc.com/connect v1.17.0 // indirect
 	github.com/klauspost/compress v1.17.9 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
@@ -87,7 +87,7 @@ require (
 	gomodules.xyz/jsonpatch/v2 v2.4.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20241223144023-3abc09e42ca8 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20241219192143-6b3ec007d9bb // indirect
-	google.golang.org/grpc v1.67.1 // indirect
+	google.golang.org/grpc v1.67.1
 	google.golang.org/protobuf v1.36.5
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
