@@ -45,7 +45,7 @@ func NewPulseClient(pulseBaseURL string, logger logr.Logger) PulseClient {
 
 // SendResource sends the resource to Pulse through gRPC
 func (c *RealPulseClient) SendResource(ctx context.Context, resource collector.CollectedResource) error {
-	c.logger.V(4).Info("Sending resource to Pulse",
+	c.logger.Info("Sending resource to Pulse",
 		"type", resource.ResourceType,
 		"key", resource.Key,
 		"event", resource.EventType)
