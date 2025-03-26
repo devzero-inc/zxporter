@@ -1,0 +1,42 @@
+syntax = "proto3";
+
+package api.v1;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/struct.proto";
+
+option go_package = "github.com/devzero-inc/services/pulse/gen/api/v1;gen";
+option java_multiple_files = true;
+option java_package = "gen.api.v1";
+
+// Requests
+// SendRequest is used to push metrics for a single resource.
+message SendResourceRequest {
+  // Type of resource (pod, container, node_resources, etc.)
+  string resource_type = 1;
+
+  // Unique identifier for the resource
+  string key = 2;
+
+  // Timestamp when the resource was collected
+  google.protobuf.Timestamp timestamp = 3;
+
+  // Event type (add, update, delete, metrics, etc.)
+  string event_type = 4;
+
+  // The actual resource data as a flexible structure
+  google.protobuf.Struct data = 5;
+}
+
+// Responses
+// Common response for all send operations
+message SendResourceResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// Defines the service that provides RPC methods for Kubernetes cluster monitoring metrics collector.
+service MetricsCollectorService {
+  // SendResource pushes a single metric for a resource.
+  rpc SendResource(SendResourceRequest) returns (SendResourceResponse);
+}
