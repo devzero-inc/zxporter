@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	apiextensionsclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -35,6 +36,8 @@ import (
 	"github.com/devzero-inc/zxporter/internal/collector/provider"
 	"github.com/devzero-inc/zxporter/internal/transport"
 	"github.com/devzero-inc/zxporter/internal/util"
+	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 )
 
@@ -44,6 +47,9 @@ type CollectionPolicyReconciler struct {
 	Scheme            *runtime.Scheme
 	Log               logr.Logger
 	K8sClient         *kubernetes.Clientset
+	DynamicClient     *dynamic.DynamicClient
+	DiscoveryClient   *discovery.DiscoveryClient
+	ApiExtensions     *apiextensionsclientset.Clientset
 	CollectionManager *collector.CollectionManager
 	Sender            transport.Sender
 	IsRunning         bool
@@ -57,23 +63,48 @@ type CollectionPolicyReconciler struct {
 
 // PolicyConfig holds the current configuration
 type PolicyConfig struct {
-	TargetNamespaces     []string
-	ExcludedNamespaces   []string
-	ExcludedPods         []collector.ExcludedPod
-	ExcludedDeployments  []collector.ExcludedDeployment
-	ExcludedStatefulSets []collector.ExcludedStatefulSet
-	ExcludedDaemonSets   []collector.ExcludedDaemonSet
-	ExcludedServices     []collector.ExcludedService
-	ExcludedConfigMaps   []collector.ExcludedConfigMap
-	ExcludedPVCs         []collector.ExcludedPVC
-	ExcludedEvents       []collector.ExcludedEvent
-	ExcludedJobs         []collector.ExcludedJob
-	ExcludedCronJobs     []collector.ExcludedCronJob
-	ExcludedNodes        []string
-	PulseURL             string
-	UpdateInterval       time.Duration
-	NodeMetricsInterval  time.Duration
-	BufferSize           int
+	TargetNamespaces               []string
+	ExcludedNamespaces             []string
+	ExcludedPods                   []collector.ExcludedPod
+	ExcludedDeployments            []collector.ExcludedDeployment
+	ExcludedStatefulSets           []collector.ExcludedStatefulSet
+	ExcludedDaemonSets             []collector.ExcludedDaemonSet
+	ExcludedServices               []collector.ExcludedService
+	ExcludedConfigMaps             []collector.ExcludedConfigMap
+	ExcludedPVCs                   []collector.ExcludedPVC
+	ExcludedEvents                 []collector.ExcludedEvent
+	ExcludedJobs                   []collector.ExcludedJob
+	ExcludedCronJobs               []collector.ExcludedCronJob
+	ExcludedReplicationControllers []collector.ExcludedReplicationController
+	ExcludedIngresses              []collector.ExcludedIngress
+	ExcludedNetworkPolicies        []collector.ExcludedNetworkPolicy
+	ExcludedEndpoints              []collector.ExcludedEndpoint
+	ExcludedServiceAccounts        []collector.ExcludedServiceAccount
+	ExcludedLimitRanges            []collector.ExcludedLimitRange
+	ExcludedResourceQuotas         []collector.ExcludedResourceQuota
+	ExcludedHPAs                   []collector.ExcludedHPA
+	ExcludedVPAs                   []collector.ExcludedVPA
+	ExcludedRoles                  []collector.ExcludedRole
+	ExcludedRoleBindings           []collector.ExcludedRoleBinding
+	ExcludedClusterRoles           []string
+	ExcludedClusterRoleBindings    []string
+	ExcludedPDBs                   []collector.ExcludedPDB
+	ExcludedPSPs                   []string
+	ExcludedCRDs                   []string
+	ExcludedCustomResources        []collector.ExcludedCustomResource
+	ExcludedSecrets                []collector.ExcludedSecret
+	ExcludedStorageClasses         []string
+	ExcludedPVs                    []string
+	ExcludedIngressClasses         []string
+	ExcludedNodes                  []string
+	ExcludedCRDGroups              []string
+	WatchedCRDs                    []string
+
+	PulseURL            string
+	UpdateInterval      time.Duration
+	NodeMetricsInterval time.Duration
+	BufferSize          int
+	MaskSecretData      bool
 }
 
 //+kubebuilder:rbac:groups=monitoring.devzero.io,resources=collectionpolicies,verbs=get;list;watch;create;update;patch;delete
@@ -90,6 +121,12 @@ type PolicyConfig struct {
 //+kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch
 //+kubebuilder:rbac:groups=core,resources=persistentvolumeclaims,verbs=get;list;watch
 //+kubebuilder:rbac:groups=core,resources=events,verbs=get;list;watch
+//+kubebuilder:rbac:groups=core,resources=serviceaccounts,verbs=get;list;watch
+//+kubebuilder:rbac:groups=core,resources=limitranges,verbs=get;list;watch
+//+kubebuilder:rbac:groups=core,resources=resourcequotas,verbs=get;list;watch
+//+kubebuilder:rbac:groups=core,resources=replicationcontrollers,verbs=get;list;watch
+//+kubebuilder:rbac:groups=core,resources=secrets,verbs=get;list;watch
+//+kubebuilder:rbac:groups=core,resources=persistentvolumes,verbs=get;list;watch
 
 // Apps API Group resources
 //+kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch
@@ -104,6 +141,31 @@ type PolicyConfig struct {
 // Metrics API Group resources
 //+kubebuilder:rbac:groups=metrics.k8s.io,resources=pods,verbs=get;list;watch
 //+kubebuilder:rbac:groups=metrics.k8s.io,resources=nodes,verbs=get;list;watch
+
+// Networking API Group resources
+//+kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses,verbs=get;list;watch
+//+kubebuilder:rbac:groups=networking.k8s.io,resources=networkpolicies,verbs=get;list;watch
+//+kubebuilder:rbac:groups=networking.k8s.io,resources=ingressclasses,verbs=get;list;watch
+
+// RBAC API Group resources
+//+kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=roles,verbs=get;list;watch
+//+kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=rolebindings,verbs=get;list;watch
+//+kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=clusterroles,verbs=get;list;watch
+//+kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=clusterrolebindings,verbs=get;list;watch
+//+kubebuilder:rbac:groups=core,resources=endpoints,verbs=get;list;watch
+
+// Autoscaling API Group resources
+//+kubebuilder:rbac:groups=autoscaling,resources=horizontalpodautoscalers,verbs=get;list;watch
+//+kubebuilder:rbac:groups=autoscaling.k8s.io,resources=verticalpodautoscalers,verbs=get;list;watch
+
+// Policy API Group resources
+//+kubebuilder:rbac:groups=policy,resources=poddisruptionbudgets,verbs=get;list;watch
+
+// Storage API Group resources
+//+kubebuilder:rbac:groups=storage.k8s.io,resources=storageclasses,verbs=get;list;watch
+
+// API Extensions resources
+//+kubebuilder:rbac:groups=apiextensions.k8s.io,resources=customresourcedefinitions,verbs=get;list;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -520,103 +582,323 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 	config *PolicyConfig,
 	metricsClient *metricsv1.Clientset,
 ) error {
-	// Register all other collectors
+
+	// List of collectors to register
 	collectors := []struct {
-		name      string
 		collector collector.ResourceCollector
+		name      collector.ResourceType
 	}{
-		{"pod", collector.NewPodCollector(
-			r.K8sClient,
-			config.TargetNamespaces,
-			config.ExcludedPods,
-			logger,
-		)},
-		{"deployment", collector.NewDeploymentCollector(
-			r.K8sClient,
-			config.TargetNamespaces,
-			config.ExcludedDeployments,
-			logger,
-		)},
-		{"statefulset", collector.NewStatefulSetCollector(
-			r.K8sClient,
-			config.TargetNamespaces,
-			config.ExcludedStatefulSets,
-			logger,
-		)},
-		{"daemonset", collector.NewDaemonSetCollector(
-			r.K8sClient,
-			config.TargetNamespaces,
-			config.ExcludedDaemonSets,
-			logger,
-		)},
-		{"namespace", collector.NewNamespaceCollector(
-			r.K8sClient,
-			config.ExcludedNamespaces,
-			logger,
-		)},
-		{"configmap", collector.NewConfigMapCollector(
-			r.K8sClient,
-			config.TargetNamespaces,
-			config.ExcludedConfigMaps,
-			logger,
-		)},
-		{"pvc", collector.NewPersistentVolumeClaimCollector(
-			r.K8sClient,
-			config.TargetNamespaces,
-			config.ExcludedPVCs,
-			logger,
-		)},
-		{"event", collector.NewEventCollector(
-			r.K8sClient,
-			config.TargetNamespaces,
-			config.ExcludedEvents,
-			10,
-			10*time.Minute,
-			logger,
-		)},
-		{"service", collector.NewServiceCollector(
-			r.K8sClient,
-			config.TargetNamespaces,
-			config.ExcludedServices,
-			logger,
-		)},
-		{"job", collector.NewJobCollector(
-			r.K8sClient,
-			config.TargetNamespaces,
-			config.ExcludedJobs,
-			logger,
-		)},
-		{"cronjob", collector.NewCronJobCollector(
-			r.K8sClient,
-			config.TargetNamespaces,
-			config.ExcludedCronJobs,
-			logger,
-		)},
-		{"container_resource", collector.NewContainerResourceCollector(
-			r.K8sClient,
-			metricsClient,
-			config.TargetNamespaces,
-			config.ExcludedPods,
-			config.UpdateInterval,
-			logger,
-		)},
-		{"node", collector.NewNodeCollector(
-			r.K8sClient,
-			metricsClient,
-			config.ExcludedNodes,
-			config.UpdateInterval,
-			logger,
-		)},
-		{"node_metrics", collector.NewNodeMetricsCollector(
-			r.K8sClient,
-			config.ExcludedNodes,
-			config.NodeMetricsInterval,
-			logger,
-		)},
+		{
+			collector: collector.NewEndpointsCollector(
+				r.K8sClient,
+				config.TargetNamespaces,
+				config.ExcludedEndpoints,
+				logger,
+			),
+			name: collector.Endpoints,
+		},
+		{
+			collector: collector.NewServiceAccountCollector(
+				r.K8sClient,
+				config.TargetNamespaces,
+				config.ExcludedServiceAccounts,
+				logger,
+			),
+			name: collector.ServiceAccount,
+		},
+		{
+			collector: collector.NewLimitRangeCollector(
+				r.K8sClient,
+				config.TargetNamespaces,
+				config.ExcludedLimitRanges,
+				logger,
+			),
+			name: collector.LimitRange,
+		},
+		{
+			collector: collector.NewResourceQuotaCollector(
+				r.K8sClient,
+				config.TargetNamespaces,
+				config.ExcludedResourceQuotas,
+				logger,
+			),
+			name: collector.ResourceQuota,
+		},
+		{
+			collector: collector.NewPersistentVolumeCollector(
+				r.K8sClient,
+				config.ExcludedPVs,
+				logger,
+			),
+			name: collector.PersistentVolume,
+		},
+		{
+			collector: collector.NewPodCollector(
+				r.K8sClient,
+				config.TargetNamespaces,
+				config.ExcludedPods,
+				logger,
+			),
+			name: collector.Pod,
+		},
+		{
+			collector: collector.NewDeploymentCollector(
+				r.K8sClient,
+				config.TargetNamespaces,
+				config.ExcludedDeployments,
+				logger,
+			),
+			name: collector.Deployment,
+		},
+		{
+			collector: collector.NewStatefulSetCollector(
+				r.K8sClient,
+				config.TargetNamespaces,
+				config.ExcludedStatefulSets,
+				logger,
+			),
+			name: collector.StatefulSet,
+		},
+		{
+			collector: collector.NewDaemonSetCollector(
+				r.K8sClient,
+				config.TargetNamespaces,
+				config.ExcludedDaemonSets,
+				logger,
+			),
+			name: collector.DaemonSet,
+		},
+		{
+			collector: collector.NewNamespaceCollector(
+				r.K8sClient,
+				config.ExcludedNamespaces,
+				logger,
+			),
+			name: collector.Namespace,
+		},
+		{
+			collector: collector.NewConfigMapCollector(
+				r.K8sClient,
+				config.TargetNamespaces,
+				config.ExcludedConfigMaps,
+				logger,
+			),
+			name: collector.ConfigMap,
+		},
+		{
+			collector: collector.NewReplicationControllerCollector(
+				r.K8sClient,
+				config.TargetNamespaces,
+				config.ExcludedReplicationControllers,
+				logger,
+			),
+			name: collector.ReplicationController,
+		},
+		{
+			collector: collector.NewIngressCollector(
+				r.K8sClient,
+				config.TargetNamespaces,
+				config.ExcludedIngresses,
+				logger,
+			),
+			name: collector.Ingress,
+		},
+		{
+			collector: collector.NewIngressClassCollector(
+				r.K8sClient,
+				config.ExcludedIngressClasses,
+				logger,
+			),
+			name: collector.IngressClass,
+		},
+		{
+			collector: collector.NewPersistentVolumeClaimCollector(
+				r.K8sClient,
+				config.TargetNamespaces,
+				config.ExcludedPVCs,
+				logger,
+			),
+			name: collector.PersistentVolumeClaim,
+		},
+		{
+			collector: collector.NewEventCollector(
+				r.K8sClient,
+				config.TargetNamespaces,
+				config.ExcludedEvents,
+				10,
+				10*time.Minute,
+				logger,
+			),
+			name: collector.Event,
+		},
+		{
+			collector: collector.NewServiceCollector(
+				r.K8sClient,
+				config.TargetNamespaces,
+				config.ExcludedServices,
+				logger,
+			),
+			name: collector.Service,
+		},
+		{
+			collector: collector.NewJobCollector(
+				r.K8sClient,
+				config.TargetNamespaces,
+				config.ExcludedJobs,
+				logger,
+			),
+			name: collector.Job,
+		},
+		{
+			collector: collector.NewNetworkPolicyCollector(
+				r.K8sClient,
+				config.TargetNamespaces,
+				config.ExcludedNetworkPolicies,
+				logger,
+			),
+			name: collector.NetworkPolicy,
+		},
+		{
+			collector: collector.NewCronJobCollector(
+				r.K8sClient,
+				config.TargetNamespaces,
+				config.ExcludedCronJobs,
+				logger,
+			),
+			name: collector.CronJob,
+		},
+		{
+			collector: collector.NewContainerResourceCollector(
+				r.K8sClient,
+				metricsClient,
+				config.TargetNamespaces,
+				config.ExcludedPods,
+				config.UpdateInterval,
+				logger,
+			),
+			name: collector.ContainerResource,
+		},
+		{
+			collector: collector.NewNodeCollector(
+				r.K8sClient,
+				metricsClient,
+				config.ExcludedNodes,
+				config.UpdateInterval,
+				logger,
+			),
+			name: collector.Node,
+		},
+		{
+			collector: collector.NewNodeMetricsCollector(
+				r.K8sClient,
+				config.ExcludedNodes,
+				config.NodeMetricsInterval,
+				logger,
+			),
+			name: collector.NodeResource,
+		},
+		{
+			collector: collector.NewRoleCollector(
+				r.K8sClient,
+				config.TargetNamespaces,
+				config.ExcludedRoles,
+				logger,
+			),
+			name: collector.Role,
+		},
+		{
+			collector: collector.NewRoleBindingCollector(
+				r.K8sClient,
+				config.TargetNamespaces,
+				config.ExcludedRoleBindings,
+				logger,
+			),
+			name: collector.RoleBinding,
+		},
+		{
+			collector: collector.NewClusterRoleCollector(
+				r.K8sClient,
+				config.ExcludedClusterRoles,
+				logger,
+			),
+			name: collector.ClusterRole,
+		},
+		{
+			collector: collector.NewClusterRoleBindingCollector(
+				r.K8sClient,
+				config.ExcludedClusterRoleBindings,
+				logger,
+			),
+			name: collector.ClusterRoleBinding,
+		},
+		{
+			collector: collector.NewHorizontalPodAutoscalerCollector(
+				r.K8sClient,
+				config.TargetNamespaces,
+				config.ExcludedHPAs,
+				logger,
+			),
+			name: collector.HorizontalPodAutoscaler,
+		},
+		{
+			collector: collector.NewVerticalPodAutoscalerCollector(
+				r.DynamicClient,
+				config.TargetNamespaces,
+				config.ExcludedVPAs,
+				logger,
+			),
+			name: collector.VerticalPodAutoscaler,
+		},
+		{
+			collector: collector.NewPodDisruptionBudgetCollector(
+				r.K8sClient,
+				config.TargetNamespaces,
+				config.ExcludedPDBs,
+				logger,
+			),
+			name: collector.PodDisruptionBudget,
+		},
+		{
+			collector: collector.NewCRDCollector(
+				r.ApiExtensions,
+				config.ExcludedCRDs,
+				logger,
+			),
+			name: collector.CustomResourceDefinition,
+		},
+		{
+			collector: collector.NewCustomResourceCollector(
+				r.ApiExtensions,
+				r.DiscoveryClient,
+				r.DynamicClient,
+				collector.CustomResourceCollectorConfig{},
+				logger,
+			),
+			name: collector.CustomResource,
+		},
+		{
+			collector: collector.NewSecretCollector(
+				r.K8sClient,
+				config.TargetNamespaces,
+				config.ExcludedSecrets,
+				config.MaskSecretData,
+				logger,
+			),
+			name: collector.Secret,
+		},
+		{
+			collector: collector.NewStorageClassCollector(
+				r.K8sClient,
+				config.ExcludedStorageClasses,
+				logger,
+			),
+			name: collector.StorageClass,
+		},
 	}
 
 	// Register all collectors
 	for _, c := range collectors {
+		logger.Info("Registering collector", "name", c.name.String())
 		if err := r.CollectionManager.RegisterCollector(c.collector); err != nil {
 			logger.Error(err, "Failed to register collector", "collector", c.name)
 		} else {

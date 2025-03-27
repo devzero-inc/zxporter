@@ -1,0 +1,256 @@
+// internal/collector/serviceaccount_collector.go
+package collector
+
+import (
+	"context"
+	"fmt"
+	"sync"
+	"time"
+
+	"github.com/go-logr/logr"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/informers"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/cache"
+)
+
+// ServiceAccountCollector watches for serviceaccount events and collects serviceaccount data
+type ServiceAccountCollector struct {
+	client                  kubernetes.Interface
+	informerFactory         informers.SharedInformerFactory
+	serviceAccountInformer  cache.SharedIndexInformer
+	resourceChan            chan CollectedResource
+	stopCh                  chan struct{}
+	namespaces              []string
+	excludedServiceAccounts map[types.NamespacedName]bool
+	logger                  logr.Logger
+	mu                      sync.RWMutex
+}
+
+// ExcludedServiceAccount defines a serviceaccount to exclude from collection
+type ExcludedServiceAccount struct {
+	Namespace string
+	Name      string
+}
+
+// NewServiceAccountCollector creates a new collector for serviceaccount resources
+func NewServiceAccountCollector(
+	client kubernetes.Interface,
+	namespaces []string,
+	excludedServiceAccounts []ExcludedServiceAccount,
+	logger logr.Logger,
+) *ServiceAccountCollector {
+	// Convert excluded serviceaccounts to a map for quicker lookups
+	excludedServiceAccountsMap := make(map[types.NamespacedName]bool)
+	for _, sa := range excludedServiceAccounts {
+		excludedServiceAccountsMap[types.NamespacedName{
+			Namespace: sa.Namespace,
+			Name:      sa.Name,
+		}] = true
+	}
+
+	return &ServiceAccountCollector{
+		client:                  client,
+		resourceChan:            make(chan CollectedResource, 100),
+		stopCh:                  make(chan struct{}),
+		namespaces:              namespaces,
+		excludedServiceAccounts: excludedServiceAccountsMap,
+		logger:                  logger.WithName("serviceaccount-collector"),
+	}
+}
+
+// Start begins the serviceaccount collection process
+func (c *ServiceAccountCollector) Start(ctx context.Context) error {
+	c.logger.Info("Starting serviceaccount collector", "namespaces", c.namespaces)
+
+	// Create informer factory based on namespace configuration
+	if len(c.namespaces) == 1 && c.namespaces[0] != "" {
+		// Watch a specific namespace
+		c.informerFactory = informers.NewSharedInformerFactoryWithOptions(
+			c.client,
+			0, // No resync period, rely on events
+			informers.WithNamespace(c.namespaces[0]),
+		)
+	} else {
+		// Watch all namespaces
+		c.informerFactory = informers.NewSharedInformerFactory(c.client, 0)
+	}
+
+	// Create serviceaccount informer
+	c.serviceAccountInformer = c.informerFactory.Core().V1().ServiceAccounts().Informer()
+
+	// Add event handlers
+	_, err := c.serviceAccountInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			sa := obj.(*corev1.ServiceAccount)
+			c.handleServiceAccountEvent(sa, "add")
+		},
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			oldSA := oldObj.(*corev1.ServiceAccount)
+			newSA := newObj.(*corev1.ServiceAccount)
+
+			// Only handle meaningful updates
+			if c.serviceAccountChanged(oldSA, newSA) {
+				c.handleServiceAccountEvent(newSA, "update")
+			}
+		},
+		DeleteFunc: func(obj interface{}) {
+			sa := obj.(*corev1.ServiceAccount)
+			c.handleServiceAccountEvent(sa, "delete")
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to add event handler: %w", err)
+	}
+
+	// Start the informer factories
+	c.informerFactory.Start(c.stopCh)
+
+	// Wait for cache sync
+	c.logger.Info("Waiting for informer caches to sync")
+	if !cache.WaitForCacheSync(c.stopCh, c.serviceAccountInformer.HasSynced) {
+		return fmt.Errorf("timed out waiting for caches to sync")
+	}
+	c.logger.Info("Informer caches synced successfully")
+
+	// Keep this goroutine alive until context cancellation or stop
+	go func() {
+		<-ctx.Done()
+		close(c.stopCh)
+	}()
+
+	return nil
+}
+
+// handleServiceAccountEvent processes serviceaccount events
+func (c *ServiceAccountCollector) handleServiceAccountEvent(sa *corev1.ServiceAccount, eventType string) {
+	if c.isExcluded(sa) {
+		return
+	}
+
+	c.logger.V(4).Info("Processing serviceaccount event",
+		"namespace", sa.Namespace,
+		"name", sa.Name,
+		"eventType", eventType)
+
+	// Send the raw serviceaccount object directly to the resource channel
+	c.resourceChan <- CollectedResource{
+		ResourceType: ServiceAccount,
+		Object:       sa, // Send the entire serviceaccount object as-is
+		Timestamp:    time.Now(),
+		EventType:    eventType,
+		Key:          fmt.Sprintf("%s/%s", sa.Namespace, sa.Name),
+	}
+}
+
+// serviceAccountChanged detects meaningful changes in a serviceaccount
+func (c *ServiceAccountCollector) serviceAccountChanged(oldSA, newSA *corev1.ServiceAccount) bool {
+	// Ignore changes to ResourceVersion, which always changes even for irrelevant updates
+	if oldSA.ResourceVersion == newSA.ResourceVersion {
+		return false
+	}
+
+	// Check for secret reference changes
+	if !objectReferencesEqual(oldSA.Secrets, newSA.Secrets) {
+		return true
+	}
+
+	// Check for automount service account token changes
+	if !boolPointerEqual(oldSA.AutomountServiceAccountToken, newSA.AutomountServiceAccountToken) {
+		return true
+	}
+
+	// Check for label changes
+	if !mapsEqual(oldSA.Labels, newSA.Labels) {
+		return true
+	}
+
+	// Check for annotation changes
+	if !mapsEqual(oldSA.Annotations, newSA.Annotations) {
+		return true
+	}
+
+	// No significant changes detected
+	return false
+}
+
+// objectReferencesEqual compares two slices of object references for equality
+func objectReferencesEqual(refs1, refs2 []corev1.ObjectReference) bool {
+	if len(refs1) != len(refs2) {
+		return false
+	}
+
+	// Create maps for efficient lookup
+	refsMap1 := make(map[string]bool)
+	refsMap2 := make(map[string]bool)
+
+	for _, ref := range refs1 {
+		key := fmt.Sprintf("%s/%s", ref.Namespace, ref.Name)
+		refsMap1[key] = true
+	}
+
+	for _, ref := range refs2 {
+		key := fmt.Sprintf("%s/%s", ref.Namespace, ref.Name)
+		refsMap2[key] = true
+	}
+
+	// Compare maps
+	for key := range refsMap1 {
+		if !refsMap2[key] {
+			return false
+		}
+	}
+
+	for key := range refsMap2 {
+		if !refsMap1[key] {
+			return false
+		}
+	}
+
+	return true
+}
+
+// isExcluded checks if a serviceaccount should be excluded from collection
+func (c *ServiceAccountCollector) isExcluded(sa *corev1.ServiceAccount) bool {
+	// Check if monitoring specific namespaces and this serviceaccount isn't in them
+	if len(c.namespaces) > 0 && c.namespaces[0] != "" {
+		found := false
+		for _, ns := range c.namespaces {
+			if ns == sa.Namespace {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return true
+		}
+	}
+
+	// Check if serviceaccount is specifically excluded
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	key := types.NamespacedName{
+		Namespace: sa.Namespace,
+		Name:      sa.Name,
+	}
+	return c.excludedServiceAccounts[key]
+}
+
+// Stop gracefully shuts down the serviceaccount collector
+func (c *ServiceAccountCollector) Stop() error {
+	c.logger.Info("Stopping serviceaccount collector")
+	close(c.stopCh)
+	return nil
+}
+
+// GetResourceChannel returns the channel for collected resources
+func (c *ServiceAccountCollector) GetResourceChannel() <-chan CollectedResource {
+	return c.resourceChan
+}
+
+// GetType returns the type of resource this collector handles
+func (c *ServiceAccountCollector) GetType() string {
+	return "serviceaccount"
+}

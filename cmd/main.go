@@ -23,6 +23,9 @@ import (
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
+
+	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/dynamic"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
 	"k8s.io/apimachinery/pkg/runtime"
@@ -37,6 +40,7 @@ import (
 
 	monitoringv1 "github.com/devzero-inc/zxporter/api/v1"
 	"github.com/devzero-inc/zxporter/internal/controller"
+	apiextensionsclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -144,9 +148,30 @@ func main() {
 		os.Exit(1)
 	}
 
+	dynamicClient, err := dynamic.NewForConfig(ctrl.GetConfigOrDie())
+	if err != nil {
+		setupLog.Error(err, "unable to create dynamic client")
+		os.Exit(1)
+	}
+
+	apiExtensionClient, err := apiextensionsclientset.NewForConfig(ctrl.GetConfigOrDie())
+	if err != nil {
+		setupLog.Error(err, "unable to create apiextensions client")
+		os.Exit(1)
+	}
+
+	discoveryClient, err := discovery.NewDiscoveryClientForConfig(ctrl.GetConfigOrDie())
+	if err != nil {
+		setupLog.Error(err, "unable to create discovery client")
+		os.Exit(1)
+	}
+
 	if err = (&controller.CollectionPolicyReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:          mgr.GetClient(),
+		Scheme:          mgr.GetScheme(),
+		ApiExtensions:   apiExtensionClient,
+		DynamicClient:   dynamicClient,
+		DiscoveryClient: discoveryClient,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "CollectionPolicy")
 		os.Exit(1)

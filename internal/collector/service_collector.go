@@ -219,21 +219,6 @@ func mapsEqual(m1, m2 map[string]string) bool {
 	return true
 }
 
-// stringSlicesEqual compares two string slices for equality
-func stringSlicesEqual(s1, s2 []string) bool {
-	if len(s1) != len(s2) {
-		return false
-	}
-
-	for i := range s1 {
-		if s1[i] != s2[i] {
-			return false
-		}
-	}
-
-	return true
-}
-
 // isExcluded checks if a service should be excluded from collection
 func (c *ServiceCollector) isExcluded(service *corev1.Service) bool {
 	// Check if monitoring specific namespaces and this service isn't in them
