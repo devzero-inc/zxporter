@@ -31,6 +31,12 @@ type NodeCollector struct {
 	mu              sync.RWMutex
 }
 
+// ExcludedDeployment defines a deployment to exclude from collection
+type ExcludedDeployment struct {
+	Namespace string
+	Name      string
+}
+
 // NewNodeCollector creates a new collector for node resources
 func NewNodeCollector(
 	k8sClient kubernetes.Interface,
@@ -133,7 +139,7 @@ func (c *NodeCollector) handleNodeEvent(node *corev1.Node, eventType string) {
 
 	// Send the raw node object to the resource channel
 	c.resourceChan <- CollectedResource{
-		ResourceType: "node",
+		ResourceType: Node,
 		Object:       node,
 		Timestamp:    time.Now(),
 		EventType:    eventType,
@@ -290,7 +296,7 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 
 		// Send the resource usage data to the channel
 		c.resourceChan <- CollectedResource{
-			ResourceType: "node_resources",
+			ResourceType: NodeResource,
 			Object:       resourceData,
 			Timestamp:    time.Now(),
 			EventType:    "metrics",

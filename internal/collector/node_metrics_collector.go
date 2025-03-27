@@ -294,7 +294,7 @@ func (c *NodeMetricsCollector) sendNodeMetrics(metrics *NodeMetrics, node *corev
 
 	// Send the resource data to the channel
 	c.resourceChan <- CollectedResource{
-		ResourceType: "node_resources",
+		ResourceType: NodeResource,
 		Object:       resourceData,
 		Timestamp:    metrics.Timestamp,
 		EventType:    "metrics",

@@ -56,14 +56,23 @@ type CollectionPolicyReconciler struct {
 
 // PolicyConfig holds the current configuration
 type PolicyConfig struct {
-	TargetNamespaces    []string
-	ExcludedNamespaces  []string
-	ExcludedPods        []collector.ExcludedPod
-	ExcludedNodes       []string
-	PulseURL            string
-	UpdateInterval      time.Duration
-	NodeMetricsInterval time.Duration
-	BufferSize          int
+	TargetNamespaces     []string
+	ExcludedNamespaces   []string
+	ExcludedPods         []collector.ExcludedPod
+	ExcludedDeployments  []collector.ExcludedDeployment
+	ExcludedStatefulSets []collector.ExcludedStatefulSet
+	ExcludedDaemonSets   []collector.ExcludedDaemonSet
+	ExcludedServices     []collector.ExcludedService
+	ExcludedConfigMaps   []collector.ExcludedConfigMap
+	ExcludedPVCs         []collector.ExcludedPVC
+	ExcludedEvents       []collector.ExcludedEvent
+	ExcludedJobs         []collector.ExcludedJob
+	ExcludedCronJobs     []collector.ExcludedCronJob
+	ExcludedNodes        []string
+	PulseURL             string
+	UpdateInterval       time.Duration
+	NodeMetricsInterval  time.Duration
+	BufferSize           int
 }
 
 //+kubebuilder:rbac:groups=monitoring.devzero.io,resources=collectionpolicies,verbs=get;list;watch;create;update;patch;delete
@@ -253,6 +262,137 @@ func (r *CollectionPolicyReconciler) initializeCollectors(ctx context.Context, c
 
 	if err := r.CollectionManager.RegisterCollector(podCollector); err != nil {
 		logger.Error(err, "Failed to register pod collector")
+		return ctrl.Result{}, err
+	}
+
+	// Create and register deployment collector
+	deploymentCollector := collector.NewDeploymentCollector(
+		r.K8sClient,
+		config.TargetNamespaces,
+		config.ExcludedDeployments,
+		logger,
+	)
+
+	if err := r.CollectionManager.RegisterCollector(deploymentCollector); err != nil {
+		logger.Error(err, "Failed to register deployment collector")
+		return ctrl.Result{}, err
+	}
+
+	// Create and register statefulset collector
+	statefulSetCollector := collector.NewStatefulSetCollector(
+		r.K8sClient,
+		config.TargetNamespaces,
+		config.ExcludedStatefulSets,
+		logger,
+	)
+
+	if err := r.CollectionManager.RegisterCollector(statefulSetCollector); err != nil {
+		logger.Error(err, "Failed to register stateful set collector")
+		return ctrl.Result{}, err
+	}
+
+	// Create and register daemonset collector
+	daemonSetCollector := collector.NewDaemonSetCollector(
+		r.K8sClient,
+		config.TargetNamespaces,
+		config.ExcludedDaemonSets,
+		logger,
+	)
+
+	if err := r.CollectionManager.RegisterCollector(daemonSetCollector); err != nil {
+		logger.Error(err, "Failed to register daemon set collector")
+		return ctrl.Result{}, err
+	}
+
+	// Create and register namespace collector
+	namespaceCollector := collector.NewNamespaceCollector(
+		r.K8sClient,
+		config.ExcludedNamespaces,
+		logger,
+	)
+
+	if err := r.CollectionManager.RegisterCollector(namespaceCollector); err != nil {
+		logger.Error(err, "Failed to register namespace collector")
+		return ctrl.Result{}, err
+	}
+
+	// Create and register configmap collector
+	configMapCollector := collector.NewConfigMapCollector(
+		r.K8sClient,
+		config.TargetNamespaces,
+		config.ExcludedConfigMaps,
+		logger,
+	)
+
+	if err := r.CollectionManager.RegisterCollector(configMapCollector); err != nil {
+		logger.Error(err, "Failed to register configmap collector")
+		return ctrl.Result{}, err
+	}
+
+	// Create and register persistent volume claim collector
+	pvcCollector := collector.NewPersistentVolumeClaimCollector(
+		r.K8sClient,
+		config.TargetNamespaces,
+		config.ExcludedPVCs,
+		logger,
+	)
+
+	if err := r.CollectionManager.RegisterCollector(pvcCollector); err != nil {
+		logger.Error(err, "Failed to register PVC collector")
+		return ctrl.Result{}, err
+	}
+
+	// Create and register event collector
+	eventCollector := collector.NewEventCollector(
+		r.K8sClient,
+		config.TargetNamespaces,
+		config.ExcludedEvents,
+		10,
+		10*time.Minute,
+		logger,
+	)
+
+	if err := r.CollectionManager.RegisterCollector(eventCollector); err != nil {
+		logger.Error(err, "Failed to register event collector")
+		return ctrl.Result{}, err
+	}
+
+	// Create and register service collector
+	serviceCollector := collector.NewServiceCollector(
+		r.K8sClient,
+		config.TargetNamespaces,
+		config.ExcludedServices,
+		logger,
+	)
+
+	if err := r.CollectionManager.RegisterCollector(serviceCollector); err != nil {
+		logger.Error(err, "Failed to register service collector")
+		return ctrl.Result{}, err
+	}
+
+	// Create and register job collector
+	jobCollector := collector.NewJobCollector(
+		r.K8sClient,
+		config.TargetNamespaces,
+		config.ExcludedJobs,
+		logger,
+	)
+
+	if err := r.CollectionManager.RegisterCollector(jobCollector); err != nil {
+		logger.Error(err, "Failed to register job collector")
+		return ctrl.Result{}, err
+	}
+
+	// Create and register cronjob collector
+	cronJobCollector := collector.NewCronJobCollector(
+		r.K8sClient,
+		config.TargetNamespaces,
+		config.ExcludedCronJobs,
+		logger,
+	)
+
+	if err := r.CollectionManager.RegisterCollector(cronJobCollector); err != nil {
+		logger.Error(err, "Failed to register cronjob collector")
 		return ctrl.Result{}, err
 	}
 
