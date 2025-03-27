@@ -15,10 +15,10 @@
 [x] NodeCollector
 [x] NamespaceCollector
 [x] EventCollector
-[ ] EndpointsCollector
-[ ] ServiceAccountCollector
-[ ] LimitRangeCollector
-[ ] ResourceQuotaCollector
+[x] EndpointsCollector
+[x] ServiceAccountCollector
+[x] LimitRangeCollector
+[x] ResourceQuotaCollector
 
 ### Workload Resources
 
@@ -26,49 +26,48 @@
 [x] StatefulSetCollector
 [x] DaemonSetCollector
 [x] ReplicaSetCollector
-[ ] ReplicationControllerCollector
+[x] ReplicationControllerCollector
 [x] JobCollector
 [x] CronJobCollector
 
 ### Storage Resources
 
 [x] PersistentVolumeClaimCollector
-[ ] PersistentVolumeCollector
-[ ] StorageClassCollector
+[x] PersistentVolumeCollector
+[x] StorageClassCollector
 
 ### Networking Resources
 
 [x] ServiceCollector
-[ ] IngressCollector
-[ ] IngressClassCollector
-[ ] NetworkPolicyCollector
+[x] IngressCollector
+[x] IngressClassCollector
+[x] NetworkPolicyCollector
 
 ### RBAC Resources
 
-[ ] RoleCollector
-[ ] RoleBindingCollector
-[ ] ClusterRoleCollector
-[ ] ClusterRoleBindingCollector
+[x] RoleCollector
+[x] RoleBindingCollector
+[x] ClusterRoleCollector
+[x] ClusterRoleBindingCollector
 
 ### Autoscaling Resources
 
-[ ] HorizontalPodAutoscalerCollector
-[ ] VerticalPodAutoscalerCollector
+[x] HorizontalPodAutoscalerCollector
+[x] VerticalPodAutoscalerCollector
 
 ### Policy Resources
 
-[ ] PodDisruptionBudgetCollector
-[ ] PodSecurityPolicyCollector
+[x] PodDisruptionBudgetCollector
 
 ### Custom Resources
 
-[ ] CRDCollector (Custom Resource Definitions)
-[ ] CustomResourceCollector (Instances of custom resources)
+[x] CRDCollector (Custom Resource Definitions)
+[x] CustomResourceCollector (Instances of custom resources)
 
 ### Configuration Resources
 
 [x] ConfigMapCollector
-[ ] SecretCollector
+[x] SecretCollector
 
 ## Local test flow:
 

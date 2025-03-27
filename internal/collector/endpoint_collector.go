@@ -1,0 +1,221 @@
+// internal/collector/endpoints_collector.go
+package collector
+
+import (
+	"context"
+	"fmt"
+	"reflect"
+	"sync"
+	"time"
+
+	"github.com/go-logr/logr"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/informers"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/cache"
+)
+
+// EndpointCollector watches for endpoints events and collects endpoints data
+type EndpointCollector struct {
+	client            kubernetes.Interface
+	informerFactory   informers.SharedInformerFactory
+	endpointsInformer cache.SharedIndexInformer
+	resourceChan      chan CollectedResource
+	stopCh            chan struct{}
+	namespaces        []string
+	excludedEndpoints map[types.NamespacedName]bool
+	logger            logr.Logger
+	mu                sync.RWMutex
+}
+
+// ExcludedEndpoint defines an endpoints resource to exclude from collection
+type ExcludedEndpoint struct {
+	Namespace string
+	Name      string
+}
+
+// NewEndpointCollector creates a new collector for endpoints resources
+func NewEndpointCollector(
+	client kubernetes.Interface,
+	namespaces []string,
+	excludedEndpoints []ExcludedEndpoint,
+	logger logr.Logger,
+) *EndpointCollector {
+	// Convert excluded endpoints to a map for quicker lookups
+	excludedEndpointsMap := make(map[types.NamespacedName]bool)
+	for _, endpoints := range excludedEndpoints {
+		excludedEndpointsMap[types.NamespacedName{
+			Namespace: endpoints.Namespace,
+			Name:      endpoints.Name,
+		}] = true
+	}
+
+	return &EndpointCollector{
+		client:            client,
+		resourceChan:      make(chan CollectedResource, 100),
+		stopCh:            make(chan struct{}),
+		namespaces:        namespaces,
+		excludedEndpoints: excludedEndpointsMap,
+		logger:            logger.WithName("endpoints-collector"),
+	}
+}
+
+// Start begins the endpoints collection process
+func (c *EndpointCollector) Start(ctx context.Context) error {
+	c.logger.Info("Starting endpoints collector", "namespaces", c.namespaces)
+
+	// Create informer factory based on namespace configuration
+	if len(c.namespaces) == 1 && c.namespaces[0] != "" {
+		// Watch a specific namespace
+		c.informerFactory = informers.NewSharedInformerFactoryWithOptions(
+			c.client,
+			0, // No resync period, rely on events
+			informers.WithNamespace(c.namespaces[0]),
+		)
+	} else {
+		// Watch all namespaces
+		c.informerFactory = informers.NewSharedInformerFactory(c.client, 0)
+	}
+
+	// Create endpoints informer
+	c.endpointsInformer = c.informerFactory.Core().V1().Endpoints().Informer()
+
+	// Add event handlers
+	_, err := c.endpointsInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			endpoints := obj.(*corev1.Endpoints)
+			c.handleEndpointsEvent(endpoints, "add")
+		},
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			oldEndpoints := oldObj.(*corev1.Endpoints)
+			newEndpoints := newObj.(*corev1.Endpoints)
+
+			// Only handle meaningful updates
+			if c.endpointsChanged(oldEndpoints, newEndpoints) {
+				c.handleEndpointsEvent(newEndpoints, "update")
+			}
+		},
+		DeleteFunc: func(obj interface{}) {
+			endpoints := obj.(*corev1.Endpoints)
+			c.handleEndpointsEvent(endpoints, "delete")
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to add event handler: %w", err)
+	}
+
+	// Start the informer factories
+	c.informerFactory.Start(c.stopCh)
+
+	// Wait for cache sync
+	c.logger.Info("Waiting for informer caches to sync")
+	if !cache.WaitForCacheSync(c.stopCh, c.endpointsInformer.HasSynced) {
+		return fmt.Errorf("timed out waiting for caches to sync")
+	}
+	c.logger.Info("Informer caches synced successfully")
+
+	// Keep this goroutine alive until context cancellation or stop
+	go func() {
+		<-ctx.Done()
+		close(c.stopCh)
+	}()
+
+	return nil
+}
+
+// handleEndpointsEvent processes endpoints events
+func (c *EndpointCollector) handleEndpointsEvent(endpoints *corev1.Endpoints, eventType string) {
+	if c.isExcluded(endpoints) {
+		return
+	}
+
+	c.logger.V(4).Info("Processing endpoints event",
+		"namespace", endpoints.Namespace,
+		"name", endpoints.Name,
+		"eventType", eventType)
+
+	// Send the raw endpoints object directly to the resource channel
+	c.resourceChan <- CollectedResource{
+		ResourceType: Endpoints,
+		Object:       endpoints, // Send the entire endpoints object as-is
+		Timestamp:    time.Now(),
+		EventType:    eventType,
+		Key:          fmt.Sprintf("%s/%s", endpoints.Namespace, endpoints.Name),
+	}
+}
+
+// endpointsChanged detects meaningful changes in an endpoints object
+func (c *EndpointCollector) endpointsChanged(oldEndpoints, newEndpoints *corev1.Endpoints) bool {
+	// Ignore changes to ResourceVersion, which always changes even for irrelevant updates
+	if oldEndpoints.ResourceVersion == newEndpoints.ResourceVersion {
+		return false
+	}
+
+	// Check for changes in subsets
+	if !reflect.DeepEqual(oldEndpoints.Subsets, newEndpoints.Subsets) {
+		return true
+	}
+
+	// Check for label changes
+	if !mapsEqual(oldEndpoints.Labels, newEndpoints.Labels) {
+		return true
+	}
+
+	// Check for annotation changes
+	if !mapsEqual(oldEndpoints.Annotations, newEndpoints.Annotations) {
+		return true
+	}
+
+	// No significant changes detected
+	return false
+}
+
+// isExcluded checks if an endpoints object should be excluded from collection
+func (c *EndpointCollector) isExcluded(endpoints *corev1.Endpoints) bool {
+	// Check if monitoring specific namespaces and this endpoints isn't in them
+	if len(c.namespaces) > 0 && c.namespaces[0] != "" {
+		found := false
+		for _, ns := range c.namespaces {
+			if ns == endpoints.Namespace {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return true
+		}
+	}
+
+	// Check if endpoints is specifically excluded
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	key := types.NamespacedName{
+		Namespace: endpoints.Namespace,
+		Name:      endpoints.Name,
+	}
+	return c.excludedEndpoints[key]
+}
+
+// Stop gracefully shuts down the endpoints collector
+func (c *EndpointCollector) Stop() error {
+	c.logger.Info("Stopping endpoints collector")
+	close(c.stopCh)
+	return nil
+}
+
+// GetResourceChannel returns the channel for collected resources
+func (c *EndpointCollector) GetResourceChannel() <-chan CollectedResource {
+	return c.resourceChan
+}
+
+// GetType returns the type of resource this collector handles
+func (c *EndpointCollector) GetType() string {
+	return "endpoints"
+}
+
+// IsAvailable checks if Endpoints resources can be accessed in the cluster
+func (c *EndpointCollector) IsAvailable(ctx context.Context) bool {
+	return true
+}

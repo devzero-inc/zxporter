@@ -220,4 +220,7 @@ type ResourceCollector interface {
 
 	// GetType returns the type of resource this collector handles
 	GetType() string
+
+	// Returns true if the resource is available
+	IsAvailable(ctx context.Context) bool
 }

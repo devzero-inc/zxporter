@@ -261,3 +261,8 @@ func (c *JobCollector) GetResourceChannel() <-chan CollectedResource {
 func (c *JobCollector) GetType() string {
 	return "job"
 }
+
+// IsAvailable checks if Job resources can be accessed in the cluster
+func (c *JobCollector) IsAvailable(ctx context.Context) bool {
+	return true
+}

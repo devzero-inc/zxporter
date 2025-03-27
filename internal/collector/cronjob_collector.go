@@ -4,6 +4,7 @@ package collector
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -287,4 +288,26 @@ func (c *CronJobCollector) GetResourceChannel() <-chan CollectedResource {
 // GetType returns the type of resource this collector handles
 func (c *CronJobCollector) GetType() string {
 	return "cronjob"
+}
+
+// IsAvailable checks if CronJob resources can be accessed in the cluster
+func (c *CronJobCollector) IsAvailable(ctx context.Context) bool {
+	// Try to list CronJobs with limit=1 to check availability with minimal overhead
+	_, err := c.client.BatchV1().CronJobs("").List(ctx, metav1.ListOptions{
+		Limit: 1,
+	})
+
+	if err != nil {
+		// Check if this is a "resource not found" type error
+		if strings.Contains(err.Error(), "the server could not find the requested resource") {
+			c.logger.Info("CronJob v1 API not available in cluster")
+			return false
+		}
+
+		// For other errors (permissions, etc), log the error
+		c.logger.Error(err, "Error checking CronJob availability")
+		return false
+	}
+
+	return true
 }

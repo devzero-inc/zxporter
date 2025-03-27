@@ -208,40 +208,6 @@ func (c *PersistentVolumeClaimCollector) pvcChanged(oldPVC, newPVC *corev1.Persi
 	return false
 }
 
-// accessModesEqual compares two access mode slices for equality
-func accessModesEqual(modes1, modes2 []corev1.PersistentVolumeAccessMode) bool {
-	if len(modes1) != len(modes2) {
-		return false
-	}
-
-	// Create maps for efficient lookup
-	modesMap1 := make(map[corev1.PersistentVolumeAccessMode]bool)
-	modesMap2 := make(map[corev1.PersistentVolumeAccessMode]bool)
-
-	for _, mode := range modes1 {
-		modesMap1[mode] = true
-	}
-
-	for _, mode := range modes2 {
-		modesMap2[mode] = true
-	}
-
-	// Compare the maps
-	for mode := range modesMap1 {
-		if !modesMap2[mode] {
-			return false
-		}
-	}
-
-	for mode := range modesMap2 {
-		if !modesMap1[mode] {
-			return false
-		}
-	}
-
-	return true
-}
-
 // isExcluded checks if a PVC should be excluded from collection
 func (c *PersistentVolumeClaimCollector) isExcluded(pvc *corev1.PersistentVolumeClaim) bool {
 	// Check if monitoring specific namespaces and this PVC isn't in them
@@ -284,4 +250,9 @@ func (c *PersistentVolumeClaimCollector) GetResourceChannel() <-chan CollectedRe
 // GetType returns the type of resource this collector handles
 func (c *PersistentVolumeClaimCollector) GetType() string {
 	return "persistentvolumeclaim"
+}
+
+// IsAvailable checks if PersistentVolumeClaim resources can be accessed in the cluster
+func (c *PersistentVolumeClaimCollector) IsAvailable(ctx context.Context) bool {
+	return true
 }
