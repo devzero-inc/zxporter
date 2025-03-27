@@ -472,7 +472,7 @@ func (r *CollectionPolicyReconciler) initializeCollectors(ctx context.Context, c
 		r.K8sClient,
 		metricsClient,
 		detectedProvider, // This could be nil if detection failed
-		30*time.Minute,   // Run every 30 minutes
+		30*time.Second,   // Run every 30 minutes
 		logger,
 	)
 
@@ -481,17 +481,9 @@ func (r *CollectionPolicyReconciler) initializeCollectors(ctx context.Context, c
 		return ctrl.Result{}, err
 	}
 
-	// Create Pulse client with configured URL if provided
-	var pulseClient transport.PulseClient
-	// if config.PulseURL != "" {
-	// 	// 	pulseClient = transport.NewPulseClient(config.PulseURL, logger)
-	// 	// } else {
-	// 	// Use simple client for testing if no URL provided
-	// 	pulseClient = transport.NewSimplePulseClient(logger)
-	// }
-
-	pulseUrl := "http://host.docker.internal:9990"
-	pulseClient = transport.NewPulseClient(pulseUrl, logger)
+	// pulseUrl := "http://host.docker.internal:9990"
+	// pulseClient := transport.NewPulseClient(pulseUrl, logger)
+	pulseClient := transport.NewSimplePulseClient(logger)
 
 	// Create and configure sender
 	r.Sender = transport.NewDirectPulseSender(pulseClient, logger)

@@ -16,6 +16,10 @@ import (
 	"github.com/devzero-inc/zxporter/internal/collector/provider"
 )
 
+const (
+	KUBE_SYSTEM_NS = "kube-system"
+)
+
 // ClusterCollector collects comprehensive cluster information
 type ClusterCollector struct {
 	k8sClient      kubernetes.Interface
@@ -175,7 +179,8 @@ func (c *ClusterCollector) collectClusterData(ctx context.Context) error {
 		"provider", providerData["provider"],
 		"region", providerData["region"],
 		"nodes", len(nodes.Items),
-		"namespaces", len(namespaces.Items))
+		"namespaces", len(namespaces.Items),
+		"all_data", clusterData)
 
 	return nil
 }
@@ -375,7 +380,7 @@ func (c *ClusterCollector) detectCNIPlugins(ctx context.Context) []string {
 	}
 
 	// Check for pods in kube-system namespace that match CNI patterns
-	pods, err := c.k8sClient.CoreV1().Pods("kube-system").List(ctx, metav1.ListOptions{})
+	pods, err := c.k8sClient.CoreV1().Pods(KUBE_SYSTEM_NS).List(ctx, metav1.ListOptions{})
 	if err != nil {
 		c.logger.Error(err, "Failed to list kube-system pods for CNI detection")
 		return []string{"unknown"}
