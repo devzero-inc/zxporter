@@ -4,7 +4,6 @@ package transport
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/devzero-inc/zxporter/internal/collector"
 	"github.com/go-logr/logr"
@@ -48,14 +47,6 @@ func (s *DirectPulseSender) Start(ctx context.Context) error {
 func (s *DirectPulseSender) Stop() error {
 	s.logger.Info("Direct pulse sender stopped")
 	return nil
-}
-
-// BufferedItem represents an item in the buffer
-type BufferedItem struct {
-	ResourceType string
-	Data         interface{}
-	Attempts     int
-	NextTry      time.Time
 }
 
 // SimplePulseClient is a placeholder implementation of PulseClient

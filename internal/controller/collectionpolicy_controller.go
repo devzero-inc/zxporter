@@ -245,11 +245,48 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, conf
 	return result, err
 }
 
-// initializeCollectors sets up and starts the collectors based on policy
+// initializeCollectors coordinates the setup and startup of all collectors
 func (r *CollectionPolicyReconciler) initializeCollectors(ctx context.Context, config *PolicyConfig) (ctrl.Result, error) {
 	logger := r.Log.WithName("initialize")
 	logger.Info("Initializing collectors", "config", fmt.Sprintf("%+v", config))
 
+	// Setup collection manager and basic services
+	if err := r.setupCollectionManager(ctx, config, logger); err != nil {
+		return ctrl.Result{}, err
+	}
+
+	// First register and start only the cluster collector
+	clusterCollector, err := r.setupClusterCollector(ctx, logger, config)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
+	// Wait for cluster data to be sent to Pulse
+	registrationResult := r.waitForClusterRegistration(ctx, logger)
+	if registrationResult != nil {
+		// Clean up and return the error result
+		r.cleanupOnFailure(logger)
+		return *registrationResult, fmt.Errorf("failed to register cluster with Pulse")
+	}
+
+	// Register and start all other collectors
+	if err := r.setupAllCollectors(ctx, logger, config, clusterCollector); err != nil {
+		return ctrl.Result{}, err
+	}
+
+	// Start processing collected resources
+	go r.processCollectedResources(ctx)
+
+	// Update current config
+	r.CurrentConfig = config
+	r.IsRunning = true
+
+	logger.Info("Successfully started all collectors")
+	return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
+}
+
+// setupCollectionManager initializes the collection manager and sender
+func (r *CollectionPolicyReconciler) setupCollectionManager(ctx context.Context, config *PolicyConfig, logger logr.Logger) error {
 	// Create collection config
 	collectionConfig := &collector.CollectionConfig{
 		Namespaces:         config.TargetNamespaces,
@@ -265,245 +302,329 @@ func (r *CollectionPolicyReconciler) initializeCollectors(ctx context.Context, c
 		logger.WithName("collection-manager"),
 	)
 
-	// Create metrics client for container resource usage
+	// Create pulse client and sender
+	var pulseClient transport.PulseClient
+	if config.PulseURL != "" {
+		pulseClient = transport.NewPulseClient(config.PulseURL, logger)
+		logger.Info("Created Pulse client with configured URL", "url", config.PulseURL)
+	} else {
+		pulseClient = transport.NewSimplePulseClient(logger)
+		logger.Info("Created simple (logging) Pulse client because no URL was configured")
+	}
+
+	// Create buffered sender with default options
+	senderOptions := transport.DefaultBufferedSenderOptions()
+	if config.BufferSize > 0 {
+		senderOptions.MaxBufferSize = config.BufferSize
+	}
+
+	r.Sender = transport.NewBufferedSender(pulseClient, logger, senderOptions)
+
+	// Start the sender
+	if err := r.Sender.Start(ctx); err != nil {
+		logger.Error(err, "Failed to start sender")
+		return err
+	}
+
+	return nil
+}
+
+// setupClusterCollector creates and starts just the cluster collector
+func (r *CollectionPolicyReconciler) setupClusterCollector(ctx context.Context, logger logr.Logger, config *PolicyConfig) (collector.ResourceCollector, error) {
+	logger.Info("First registering and starting cluster collector")
+
+	// Create metrics client
 	clientConfig := ctrl.GetConfigOrDie()
 	metricsClient, err := metricsv1.NewForConfig(clientConfig)
 	if err != nil {
-		logger.Error(err, "Failed to create metrics client, container resource collection will be disabled")
-	}
-
-	// Create and register pod collector
-	podCollector := collector.NewPodCollector(
-		r.K8sClient,
-		config.TargetNamespaces,
-		config.ExcludedPods,
-		logger,
-	)
-
-	if err := r.CollectionManager.RegisterCollector(podCollector); err != nil {
-		logger.Error(err, "Failed to register pod collector")
-		return ctrl.Result{}, err
-	}
-
-	// Create and register deployment collector
-	deploymentCollector := collector.NewDeploymentCollector(
-		r.K8sClient,
-		config.TargetNamespaces,
-		config.ExcludedDeployments,
-		logger,
-	)
-
-	if err := r.CollectionManager.RegisterCollector(deploymentCollector); err != nil {
-		logger.Error(err, "Failed to register deployment collector")
-		return ctrl.Result{}, err
-	}
-
-	// Create and register statefulset collector
-	statefulSetCollector := collector.NewStatefulSetCollector(
-		r.K8sClient,
-		config.TargetNamespaces,
-		config.ExcludedStatefulSets,
-		logger,
-	)
-
-	if err := r.CollectionManager.RegisterCollector(statefulSetCollector); err != nil {
-		logger.Error(err, "Failed to register stateful set collector")
-		return ctrl.Result{}, err
-	}
-
-	// Create and register daemonset collector
-	daemonSetCollector := collector.NewDaemonSetCollector(
-		r.K8sClient,
-		config.TargetNamespaces,
-		config.ExcludedDaemonSets,
-		logger,
-	)
-
-	if err := r.CollectionManager.RegisterCollector(daemonSetCollector); err != nil {
-		logger.Error(err, "Failed to register daemon set collector")
-		return ctrl.Result{}, err
-	}
-
-	// Create and register namespace collector
-	namespaceCollector := collector.NewNamespaceCollector(
-		r.K8sClient,
-		config.ExcludedNamespaces,
-		logger,
-	)
-
-	if err := r.CollectionManager.RegisterCollector(namespaceCollector); err != nil {
-		logger.Error(err, "Failed to register namespace collector")
-		return ctrl.Result{}, err
-	}
-
-	// Create and register configmap collector
-	configMapCollector := collector.NewConfigMapCollector(
-		r.K8sClient,
-		config.TargetNamespaces,
-		config.ExcludedConfigMaps,
-		logger,
-	)
-
-	if err := r.CollectionManager.RegisterCollector(configMapCollector); err != nil {
-		logger.Error(err, "Failed to register configmap collector")
-		return ctrl.Result{}, err
-	}
-
-	// Create and register persistent volume claim collector
-	pvcCollector := collector.NewPersistentVolumeClaimCollector(
-		r.K8sClient,
-		config.TargetNamespaces,
-		config.ExcludedPVCs,
-		logger,
-	)
-
-	if err := r.CollectionManager.RegisterCollector(pvcCollector); err != nil {
-		logger.Error(err, "Failed to register PVC collector")
-		return ctrl.Result{}, err
-	}
-
-	// Create and register event collector
-	eventCollector := collector.NewEventCollector(
-		r.K8sClient,
-		config.TargetNamespaces,
-		config.ExcludedEvents,
-		10,
-		10*time.Minute,
-		logger,
-	)
-
-	if err := r.CollectionManager.RegisterCollector(eventCollector); err != nil {
-		logger.Error(err, "Failed to register event collector")
-		return ctrl.Result{}, err
-	}
-
-	// Create and register service collector
-	serviceCollector := collector.NewServiceCollector(
-		r.K8sClient,
-		config.TargetNamespaces,
-		config.ExcludedServices,
-		logger,
-	)
-
-	if err := r.CollectionManager.RegisterCollector(serviceCollector); err != nil {
-		logger.Error(err, "Failed to register service collector")
-		return ctrl.Result{}, err
-	}
-
-	// Create and register job collector
-	jobCollector := collector.NewJobCollector(
-		r.K8sClient,
-		config.TargetNamespaces,
-		config.ExcludedJobs,
-		logger,
-	)
-
-	if err := r.CollectionManager.RegisterCollector(jobCollector); err != nil {
-		logger.Error(err, "Failed to register job collector")
-		return ctrl.Result{}, err
-	}
-
-	// Create and register cronjob collector
-	cronJobCollector := collector.NewCronJobCollector(
-		r.K8sClient,
-		config.TargetNamespaces,
-		config.ExcludedCronJobs,
-		logger,
-	)
-
-	if err := r.CollectionManager.RegisterCollector(cronJobCollector); err != nil {
-		logger.Error(err, "Failed to register cronjob collector")
-		return ctrl.Result{}, err
-	}
-
-	// Create and register container resource collector if metrics client is available
-	containerResourceCollector := collector.NewContainerResourceCollector(
-		r.K8sClient,
-		metricsClient,
-		config.TargetNamespaces,
-		config.ExcludedPods,
-		config.UpdateInterval,
-		logger,
-	)
-
-	if err := r.CollectionManager.RegisterCollector(containerResourceCollector); err != nil {
-		logger.Error(err, "Failed to register container resource collector")
-		return ctrl.Result{}, err
-	}
-
-	// Create and register node collector
-	nodeCollector := collector.NewNodeCollector(
-		r.K8sClient,
-		metricsClient,
-		config.ExcludedNodes,
-		config.UpdateInterval,
-		logger,
-	)
-
-	if err := r.CollectionManager.RegisterCollector(nodeCollector); err != nil {
-		logger.Error(err, "Failed to register node collector")
-		return ctrl.Result{}, err
-	}
-
-	// Create and register node metrics collector
-	nodeMetricsCollector := collector.NewNodeMetricsCollector(
-		r.K8sClient,
-		config.ExcludedNodes,
-		config.NodeMetricsInterval,
-		logger,
-	)
-
-	if err := r.CollectionManager.RegisterCollector(nodeMetricsCollector); err != nil {
-		logger.Error(err, "Failed to register node metrics collector")
-		return ctrl.Result{}, err
+		logger.Error(err, "Failed to create metrics client")
 	}
 
 	// Create and register cluster collector with provider detection
-	// First try to detect the provider
 	providerDetector := provider.NewDetector(logger, r.K8sClient)
 	detectedProvider, err := providerDetector.DetectProvider(ctx)
 	if err != nil {
 		logger.Error(err, "Failed to detect cloud provider, collector will have limited functionality")
-		// Even without provider detection, we can still collect K8s-level metrics
 	}
 
-	// Create the cluster collector that runs every 30 minutes
+	// Create the cluster collector
 	clusterCollector := collector.NewClusterCollector(
 		r.K8sClient,
 		metricsClient,
-		detectedProvider, // This could be nil if detection failed
-		30*time.Second,   // Run every 30 minutes
+		detectedProvider,
+		30*time.Second, // Regular interval is 30 minutes
 		logger,
 	)
 
+	// Register only the cluster collector initially
 	if err := r.CollectionManager.RegisterCollector(clusterCollector); err != nil {
 		logger.Error(err, "Failed to register cluster collector")
-		return ctrl.Result{}, err
+		return nil, err
 	}
 
-	// pulseUrl := "http://host.docker.internal:9990"
-	// pulseClient := transport.NewPulseClient(pulseUrl, logger)
-	pulseClient := transport.NewSimplePulseClient(logger)
-
-	// Create and configure sender
-	r.Sender = transport.NewDirectPulseSender(pulseClient, logger)
-
-	// Start the collection manager
+	// Start the collection manager with just the cluster collector
 	if err := r.CollectionManager.StartAll(ctx); err != nil {
 		logger.Error(err, "Failed to start collection manager")
-		return ctrl.Result{}, err
+		return nil, err
 	}
 
-	// Start processing collected resources
-	go r.processCollectedResources(ctx)
+	return clusterCollector, nil
+}
 
-	// Update current config
-	r.CurrentConfig = config
-	r.IsRunning = true
+// waitForClusterRegistration waits for cluster data to be sent to Pulse
+func (r *CollectionPolicyReconciler) waitForClusterRegistration(ctx context.Context, logger logr.Logger) *ctrl.Result {
+	clusterRegisteredCh := make(chan struct{})
+	clusterFailedCh := make(chan struct{})
 
-	logger.Info("Successfully started collectors with new configuration")
+	// TODO: make it as config
+	clusterTimeoutCh := time.After(2 * time.Minute) // Timeout after 2 minutes
 
-	return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
+	go r.monitorClusterRegistration(ctx, logger, clusterRegisteredCh, clusterFailedCh)
+
+	// Wait for registration to complete, fail, or timeout
+	select {
+	case <-clusterRegisteredCh:
+		logger.Info("Cluster registration completed, proceeding with other collectors")
+		return nil
+	case <-clusterFailedCh:
+		logger.Error(nil, "Cluster data registration failed after maximum attempts, operator entering error state")
+		return &ctrl.Result{Requeue: true, RequeueAfter: 1 * time.Minute}
+	case <-clusterTimeoutCh:
+		logger.Info("Timeout waiting for cluster data")
+		return &ctrl.Result{Requeue: true, RequeueAfter: 1 * time.Minute}
+	case <-ctx.Done():
+		logger.Info("Context cancelled while waiting for cluster data")
+		return &ctrl.Result{Requeue: true, RequeueAfter: 1 * time.Minute}
+	}
+}
+
+// monitorClusterRegistration watches for cluster data and sends it to Pulse
+func (r *CollectionPolicyReconciler) monitorClusterRegistration(
+	ctx context.Context,
+	logger logr.Logger,
+	clusterRegisteredCh chan<- struct{},
+	clusterFailedCh chan<- struct{},
+) {
+	logger.Info("Waiting for cluster data to be sent to Pulse")
+	resourceChan := r.CollectionManager.GetCombinedChannel()
+
+	attemptCount := 0
+	maxAttempts := 5 // Max attempts before failing
+
+	for {
+		select {
+		case resource, ok := <-resourceChan:
+			if !ok {
+				// Channel closed unexpectedly
+				logger.Error(nil, "Resource channel closed while waiting for cluster data")
+				close(clusterFailedCh)
+				return
+			}
+
+			// Only process cluster resources at this stage
+			if resource.ResourceType == collector.Cluster {
+				attemptCount++
+				logger.Info("Received cluster data, sending to Pulse",
+					"key", resource.Key,
+					"attempt", attemptCount)
+
+				// Send the cluster data to Pulse
+				err := r.Sender.Send(ctx, resource)
+				if err != nil {
+					logger.Error(err, "Failed to send cluster data to Pulse",
+						"attempt", attemptCount)
+
+					if attemptCount >= maxAttempts {
+						logger.Error(nil, "Failed to send cluster data after maximum attempts",
+							"maxAttempts", maxAttempts)
+						close(clusterFailedCh)
+						return
+					}
+					// Continue waiting for next attempt
+				} else {
+					logger.Info("Successfully sent cluster data to Pulse")
+					// Signal that cluster registration is complete
+					close(clusterRegisteredCh)
+					return
+				}
+			}
+
+		case <-ctx.Done():
+			logger.Info("Context cancelled while monitoring cluster registration")
+			close(clusterFailedCh)
+			return
+		}
+	}
+}
+
+// cleanupOnFailure stops all components and resets state on failure
+func (r *CollectionPolicyReconciler) cleanupOnFailure(logger logr.Logger) {
+	// Clean up resources
+	if r.CollectionManager != nil {
+		if err := r.CollectionManager.StopAll(); err != nil {
+			logger.Error(err, "Error stopping collection manager during failure")
+		}
+	}
+	if r.Sender != nil {
+		if err := r.Sender.Stop(); err != nil {
+			logger.Error(err, "Error stopping sender during failure")
+		}
+	}
+
+	// Reset state
+	r.IsRunning = false
+	r.CollectionManager = nil
+	r.CurrentConfig = nil
+
+	logger.Info("Cleaned up resources after failure")
+}
+
+// setupAllCollectors registers and starts all collectors
+func (r *CollectionPolicyReconciler) setupAllCollectors(
+	ctx context.Context,
+	logger logr.Logger,
+	config *PolicyConfig,
+	clusterCollector collector.ResourceCollector,
+) error {
+	logger.Info("Now registering and starting all collectors")
+
+	// Stop the collection manager to reconfigure with all collectors
+	if err := r.CollectionManager.StopAll(); err != nil {
+		logger.Error(err, "Error stopping collection manager")
+	}
+
+	// Create metrics client if needed for resource collectors
+	clientConfig := ctrl.GetConfigOrDie()
+	metricsClient, err := metricsv1.NewForConfig(clientConfig)
+	if err != nil {
+		logger.Error(err, "Failed to create metrics client, some collectors may be limited")
+	}
+
+	// Register all other collectors
+	if err := r.registerResourceCollectors(logger, config, metricsClient); err != nil {
+		return err
+	}
+
+	// Start the collection manager with all collectors
+	if err := r.CollectionManager.StartAll(ctx); err != nil {
+		logger.Error(err, "Failed to start collection manager with all collectors")
+		return err
+	}
+
+	return nil
+}
+
+// registerResourceCollectors creates and registers all resource collectors
+func (r *CollectionPolicyReconciler) registerResourceCollectors(
+	logger logr.Logger,
+	config *PolicyConfig,
+	metricsClient *metricsv1.Clientset,
+) error {
+	// Register all other collectors
+	collectors := []struct {
+		name      string
+		collector collector.ResourceCollector
+	}{
+		{"pod", collector.NewPodCollector(
+			r.K8sClient,
+			config.TargetNamespaces,
+			config.ExcludedPods,
+			logger,
+		)},
+		{"deployment", collector.NewDeploymentCollector(
+			r.K8sClient,
+			config.TargetNamespaces,
+			config.ExcludedDeployments,
+			logger,
+		)},
+		{"statefulset", collector.NewStatefulSetCollector(
+			r.K8sClient,
+			config.TargetNamespaces,
+			config.ExcludedStatefulSets,
+			logger,
+		)},
+		{"daemonset", collector.NewDaemonSetCollector(
+			r.K8sClient,
+			config.TargetNamespaces,
+			config.ExcludedDaemonSets,
+			logger,
+		)},
+		{"namespace", collector.NewNamespaceCollector(
+			r.K8sClient,
+			config.ExcludedNamespaces,
+			logger,
+		)},
+		{"configmap", collector.NewConfigMapCollector(
+			r.K8sClient,
+			config.TargetNamespaces,
+			config.ExcludedConfigMaps,
+			logger,
+		)},
+		{"pvc", collector.NewPersistentVolumeClaimCollector(
+			r.K8sClient,
+			config.TargetNamespaces,
+			config.ExcludedPVCs,
+			logger,
+		)},
+		{"event", collector.NewEventCollector(
+			r.K8sClient,
+			config.TargetNamespaces,
+			config.ExcludedEvents,
+			10,
+			10*time.Minute,
+			logger,
+		)},
+		{"service", collector.NewServiceCollector(
+			r.K8sClient,
+			config.TargetNamespaces,
+			config.ExcludedServices,
+			logger,
+		)},
+		{"job", collector.NewJobCollector(
+			r.K8sClient,
+			config.TargetNamespaces,
+			config.ExcludedJobs,
+			logger,
+		)},
+		{"cronjob", collector.NewCronJobCollector(
+			r.K8sClient,
+			config.TargetNamespaces,
+			config.ExcludedCronJobs,
+			logger,
+		)},
+		{"container_resource", collector.NewContainerResourceCollector(
+			r.K8sClient,
+			metricsClient,
+			config.TargetNamespaces,
+			config.ExcludedPods,
+			config.UpdateInterval,
+			logger,
+		)},
+		{"node", collector.NewNodeCollector(
+			r.K8sClient,
+			metricsClient,
+			config.ExcludedNodes,
+			config.UpdateInterval,
+			logger,
+		)},
+		{"node_metrics", collector.NewNodeMetricsCollector(
+			r.K8sClient,
+			config.ExcludedNodes,
+			config.NodeMetricsInterval,
+			logger,
+		)},
+	}
+
+	// Register all collectors
+	for _, c := range collectors {
+		if err := r.CollectionManager.RegisterCollector(c.collector); err != nil {
+			logger.Error(err, "Failed to register collector", "collector", c.name)
+		} else {
+			logger.Info("Registered collector", "collector", c.name)
+		}
+	}
+
+	return nil
 }
 
 // processCollectedResources reads from collection channel and forwards to sender

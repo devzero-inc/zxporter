@@ -11,6 +11,8 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
+// TODO: for generic provider we can process node level data to pulse
+
 // GenericProvider implements a fallback provider for when cloud detection fails
 type GenericProvider struct {
 	logger    logr.Logger

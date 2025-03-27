@@ -11,6 +11,9 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
+// Default buffer size if not specified
+var bufferSize int = 1000
+
 // CollectionConfig contains configuration for collection
 type CollectionConfig struct {
 	// Namespaces to include (empty means all)
@@ -40,7 +43,6 @@ type CollectionManager struct {
 	mu              sync.RWMutex
 	bufferSize      int
 	started         bool
-	stopped         bool
 	client          kubernetes.Interface
 	config          *CollectionConfig
 	logger          logr.Logger
@@ -48,8 +50,6 @@ type CollectionManager struct {
 
 // NewCollectionManager creates a new collection manager
 func NewCollectionManager(config *CollectionConfig, client kubernetes.Interface, logger logr.Logger) *CollectionManager {
-	// Default buffer size if not specified
-	bufferSize := 1000
 	if config != nil && config.BufferSize > 0 {
 		bufferSize = config.BufferSize
 	}
@@ -88,10 +88,6 @@ func (m *CollectionManager) StartAll(ctx context.Context) error {
 		return fmt.Errorf("collection manager already started")
 	}
 
-	if m.stopped {
-		return fmt.Errorf("collection manager was stopped and cannot be restarted")
-	}
-
 	m.logger.Info("Starting all collectors", "count", len(m.collectors))
 
 	// Start each collector in its own goroutine
@@ -122,10 +118,6 @@ func (m *CollectionManager) StopAll() error {
 		return nil // Nothing to stop
 	}
 
-	if m.stopped {
-		return nil // Already stopped
-	}
-
 	m.logger.Info("Stopping all collectors", "count", len(m.collectors))
 
 	// Stop each collector
@@ -134,11 +126,15 @@ func (m *CollectionManager) StopAll() error {
 		if err := collector.Stop(); err != nil {
 			m.logger.Error(err, "Error stopping collector", "type", collectorType)
 			// Continue stopping others even if one fails
+		} else {
+			m.wg.Done()
 		}
 	}
 
 	// Close the combined channel
+	originalBufferSize := cap(m.combinedChannel)
 	close(m.combinedChannel)
+	m.combinedChannel = make(chan CollectedResource, originalBufferSize)
 
 	// Wait for all goroutines to finish (with timeout)
 	done := make(chan struct{})
@@ -154,7 +150,7 @@ func (m *CollectionManager) StopAll() error {
 		m.logger.Info("Timeout waiting for collector goroutines to finish")
 	}
 
-	m.stopped = true
+	m.started = false
 	return nil
 }
 

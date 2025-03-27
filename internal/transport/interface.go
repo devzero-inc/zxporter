@@ -25,13 +25,13 @@ type Sender interface {
 	Stop() error
 }
 
-// BufferedSender adds buffering capabilities to handle connection issues
-type BufferedSender interface {
-	Sender
+// // BufferedSender adds buffering capabilities to handle connection issues
+// type BufferedSender interface {
+// 	Sender
 
-	// GetBufferSize returns the current number of items in the buffer
-	GetBufferSize() int
+// 	// GetBufferSize returns the current number of items in the buffer
+// 	GetBufferSize() int
 
-	// Flush attempts to send all buffered items
-	Flush(ctx context.Context) error
-}
+// 	// Flush attempts to send all buffered items
+// 	Flush(ctx context.Context) error
+// }
