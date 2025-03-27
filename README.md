@@ -9,8 +9,6 @@
 
 ## Implementation 
 
-* Policies are missing now for a lot of collectors
-
 ### Core Resources
 
 [x] PodCollector

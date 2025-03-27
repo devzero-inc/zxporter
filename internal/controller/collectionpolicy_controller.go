@@ -78,10 +78,29 @@ type PolicyConfig struct {
 //+kubebuilder:rbac:groups=monitoring.devzero.io,resources=collectionpolicies,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=monitoring.devzero.io,resources=collectionpolicies/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=monitoring.devzero.io,resources=collectionpolicies/finalizers,verbs=update
+
+// Core API Group resources
 //+kubebuilder:rbac:groups=core,resources=pods,verbs=get;list;watch
 //+kubebuilder:rbac:groups=core,resources=pods/status,verbs=get
 //+kubebuilder:rbac:groups=core,resources=nodes,verbs=get;list;watch
 //+kubebuilder:rbac:groups=core,resources=nodes/status,verbs=get
+//+kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch
+//+kubebuilder:rbac:groups=core,resources=namespaces,verbs=get;list;watch
+//+kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch
+//+kubebuilder:rbac:groups=core,resources=persistentvolumeclaims,verbs=get;list;watch
+//+kubebuilder:rbac:groups=core,resources=events,verbs=get;list;watch
+
+// Apps API Group resources
+//+kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch
+//+kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch
+//+kubebuilder:rbac:groups=apps,resources=daemonsets,verbs=get;list;watch
+//+kubebuilder:rbac:groups=apps,resources=replicasets,verbs=get;list;watch
+
+// Batch API Group resources
+//+kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch
+//+kubebuilder:rbac:groups=batch,resources=cronjobs,verbs=get;list;watch
+
+// Metrics API Group resources
 //+kubebuilder:rbac:groups=metrics.k8s.io,resources=pods,verbs=get;list;watch
 //+kubebuilder:rbac:groups=metrics.k8s.io,resources=nodes,verbs=get;list;watch
 

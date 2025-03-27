@@ -5,6 +5,40 @@ metadata:
   name: manager-role
 rules:
 - apiGroups:
+  - apps
+  resources:
+  - daemonsets
+  - deployments
+  - replicasets
+  - statefulsets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - batch
+  resources:
+  - cronjobs
+  - jobs
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - events
+  - namespaces
+  - nodes
+  - persistentvolumeclaims
+  - pods
+  - services
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - ""
   resources:
   - nodes/status
@@ -12,7 +46,6 @@ rules:
   verbs:
   - get
 - apiGroups:
-  - ""
   - metrics.k8s.io
   resources:
   - nodes
