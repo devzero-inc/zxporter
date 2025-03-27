@@ -1,0 +1,290 @@
+// internal/collector/cronjob_collector.go
+package collector
+
+import (
+	"context"
+	"fmt"
+	"sync"
+	"time"
+
+	"github.com/go-logr/logr"
+	batchv1 "k8s.io/api/batch/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/informers"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/cache"
+)
+
+// CronJobCollector watches for cronjob events and collects cronjob data
+type CronJobCollector struct {
+	client           kubernetes.Interface
+	informerFactory  informers.SharedInformerFactory
+	cronJobInformer  cache.SharedIndexInformer
+	resourceChan     chan CollectedResource
+	stopCh           chan struct{}
+	namespaces       []string
+	excludedCronJobs map[types.NamespacedName]bool
+	logger           logr.Logger
+	mu               sync.RWMutex
+}
+
+// ExcludedCronJob defines a cronjob to exclude from collection
+type ExcludedCronJob struct {
+	Namespace string
+	Name      string
+}
+
+// NewCronJobCollector creates a new collector for cronjob resources
+func NewCronJobCollector(
+	client kubernetes.Interface,
+	namespaces []string,
+	excludedCronJobs []ExcludedCronJob,
+	logger logr.Logger,
+) *CronJobCollector {
+	// Convert excluded cronjobs to a map for quicker lookups
+	excludedCronJobsMap := make(map[types.NamespacedName]bool)
+	for _, cronJob := range excludedCronJobs {
+		excludedCronJobsMap[types.NamespacedName{
+			Namespace: cronJob.Namespace,
+			Name:      cronJob.Name,
+		}] = true
+	}
+
+	return &CronJobCollector{
+		client:           client,
+		resourceChan:     make(chan CollectedResource, 50), // CronJobs are usually less frequent
+		stopCh:           make(chan struct{}),
+		namespaces:       namespaces,
+		excludedCronJobs: excludedCronJobsMap,
+		logger:           logger.WithName("cronjob-collector"),
+	}
+}
+
+// Start begins the cronjob collection process
+func (c *CronJobCollector) Start(ctx context.Context) error {
+	c.logger.Info("Starting cronjob collector", "namespaces", c.namespaces)
+
+	// Create informer factory based on namespace configuration
+	if len(c.namespaces) == 1 && c.namespaces[0] != "" {
+		// Watch a specific namespace
+		c.informerFactory = informers.NewSharedInformerFactoryWithOptions(
+			c.client,
+			0, // No resync period, rely on events
+			informers.WithNamespace(c.namespaces[0]),
+		)
+	} else {
+		// Watch all namespaces
+		c.informerFactory = informers.NewSharedInformerFactory(c.client, 0)
+	}
+
+	// Create cronjob informer
+	c.cronJobInformer = c.informerFactory.Batch().V1().CronJobs().Informer()
+
+	// Add event handlers
+	_, err := c.cronJobInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			cronJob := obj.(*batchv1.CronJob)
+			c.handleCronJobEvent(cronJob, "add")
+		},
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			oldCronJob := oldObj.(*batchv1.CronJob)
+			newCronJob := newObj.(*batchv1.CronJob)
+
+			// Only handle meaningful updates
+			if c.cronJobChanged(oldCronJob, newCronJob) {
+				c.handleCronJobEvent(newCronJob, "update")
+			}
+		},
+		DeleteFunc: func(obj interface{}) {
+			cronJob := obj.(*batchv1.CronJob)
+			c.handleCronJobEvent(cronJob, "delete")
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to add event handler: %w", err)
+	}
+
+	// Start the informer factories
+	c.informerFactory.Start(c.stopCh)
+
+	// Wait for cache sync
+	c.logger.Info("Waiting for informer caches to sync")
+	if !cache.WaitForCacheSync(c.stopCh, c.cronJobInformer.HasSynced) {
+		return fmt.Errorf("timed out waiting for caches to sync")
+	}
+	c.logger.Info("Informer caches synced successfully")
+
+	// Keep this goroutine alive until context cancellation or stop
+	go func() {
+		<-ctx.Done()
+		close(c.stopCh)
+	}()
+
+	return nil
+}
+
+// handleCronJobEvent processes cronjob events
+func (c *CronJobCollector) handleCronJobEvent(cronJob *batchv1.CronJob, eventType string) {
+	if c.isExcluded(cronJob) {
+		return
+	}
+
+	c.logger.V(4).Info("Processing cronjob event",
+		"namespace", cronJob.Namespace,
+		"name", cronJob.Name,
+		"eventType", eventType,
+		"schedule", cronJob.Spec.Schedule)
+
+	// Send the raw cronjob object directly to the resource channel
+	c.resourceChan <- CollectedResource{
+		ResourceType: CronJob,
+		Object:       cronJob, // Send the entire cronjob object as-is
+		Timestamp:    time.Now(),
+		EventType:    eventType,
+		Key:          fmt.Sprintf("%s/%s", cronJob.Namespace, cronJob.Name),
+	}
+}
+
+// cronJobChanged detects meaningful changes in a cronjob
+func (c *CronJobCollector) cronJobChanged(oldCronJob, newCronJob *batchv1.CronJob) bool {
+	// Ignore changes to ResourceVersion, which always changes even for irrelevant updates
+	if oldCronJob.ResourceVersion == newCronJob.ResourceVersion {
+		return false
+	}
+
+	// Check for schedule changes
+	if oldCronJob.Spec.Schedule != newCronJob.Spec.Schedule {
+		return true
+	}
+
+	// Check for last successful execution time changes
+	if !timePointerEqual(oldCronJob.Status.LastSuccessfulTime, newCronJob.Status.LastSuccessfulTime) {
+		return true
+	}
+
+	// Check for last schedule time changes
+	if !timePointerEqual(oldCronJob.Status.LastScheduleTime, newCronJob.Status.LastScheduleTime) {
+		return true
+	}
+
+	// Check for suspend changes
+	if getBoolValue(oldCronJob.Spec.Suspend) != getBoolValue(newCronJob.Spec.Suspend) {
+		return true
+	}
+
+	// Check for concurrency policy changes
+	if oldCronJob.Spec.ConcurrencyPolicy != newCronJob.Spec.ConcurrencyPolicy {
+		return true
+	}
+
+	// Check for starting deadline seconds changes
+	if !int64PointerEqual(oldCronJob.Spec.StartingDeadlineSeconds, newCronJob.Spec.StartingDeadlineSeconds) {
+		return true
+	}
+
+	// Check for history limit changes
+	if !int32PointerEqual(oldCronJob.Spec.SuccessfulJobsHistoryLimit, newCronJob.Spec.SuccessfulJobsHistoryLimit) ||
+		!int32PointerEqual(oldCronJob.Spec.FailedJobsHistoryLimit, newCronJob.Spec.FailedJobsHistoryLimit) {
+		return true
+	}
+
+	// Check for active jobs changes
+	if len(oldCronJob.Status.Active) != len(newCronJob.Status.Active) {
+		return true
+	}
+
+	// No significant changes detected
+	return false
+}
+
+// timePointerEqual safely compares two time.Time pointers
+func timePointerEqual(t1, t2 *metav1.Time) bool {
+	if t1 == nil && t2 == nil {
+		return true
+	}
+
+	if t1 == nil || t2 == nil {
+		return false
+	}
+
+	return t1.Equal(t2)
+}
+
+// int64PointerEqual safely compares two int64 pointers
+func int64PointerEqual(i1, i2 *int64) bool {
+	if i1 == nil && i2 == nil {
+		return true
+	}
+
+	if i1 == nil || i2 == nil {
+		return false
+	}
+
+	return *i1 == *i2
+}
+
+// int32PointerEqual safely compares two int32 pointers
+func int32PointerEqual(i1, i2 *int32) bool {
+	if i1 == nil && i2 == nil {
+		return true
+	}
+
+	if i1 == nil || i2 == nil {
+		return false
+	}
+
+	return *i1 == *i2
+}
+
+// getBoolValue safely gets the value of a bool pointer
+func getBoolValue(b *bool) bool {
+	if b == nil {
+		return false
+	}
+	return *b
+}
+
+// isExcluded checks if a cronjob should be excluded from collection
+func (c *CronJobCollector) isExcluded(cronJob *batchv1.CronJob) bool {
+	// Check if monitoring specific namespaces and this cronjob isn't in them
+	if len(c.namespaces) > 0 && c.namespaces[0] != "" {
+		found := false
+		for _, ns := range c.namespaces {
+			if ns == cronJob.Namespace {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return true
+		}
+	}
+
+	// Check if cronjob is specifically excluded
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	key := types.NamespacedName{
+		Namespace: cronJob.Namespace,
+		Name:      cronJob.Name,
+	}
+	return c.excludedCronJobs[key]
+}
+
+// Stop gracefully shuts down the cronjob collector
+func (c *CronJobCollector) Stop() error {
+	c.logger.Info("Stopping cronjob collector")
+	close(c.stopCh)
+	return nil
+}
+
+// GetResourceChannel returns the channel for collected resources
+func (c *CronJobCollector) GetResourceChannel() <-chan CollectedResource {
+	return c.resourceChan
+}
+
+// GetType returns the type of resource this collector handles
+func (c *CronJobCollector) GetType() string {
+	return "cronjob"
+}

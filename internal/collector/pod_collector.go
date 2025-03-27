@@ -28,6 +28,12 @@ type PodCollector struct {
 	mu              sync.RWMutex
 }
 
+// ExcludedPod identifies a pod to exclude from collection
+type ExcludedPod struct {
+	Namespace string
+	Name      string
+}
+
 // NewPodCollector creates a new collector for pod resources
 func NewPodCollector(
 	client kubernetes.Interface,
@@ -126,7 +132,7 @@ func (c *PodCollector) handlePodEvent(pod *corev1.Pod, eventType string) {
 
 	// Send the raw pod object directly to the resource channel
 	c.resourceChan <- CollectedResource{
-		ResourceType: "pod",
+		ResourceType: Pod,
 		Object:       pod, // Send the entire pod object as-is
 		Timestamp:    time.Now(),
 		EventType:    eventType,
@@ -200,7 +206,7 @@ func (c *PodCollector) sendContainerEvent(pod *corev1.Pod, containerName, eventT
 
 	// We're still sending the entire pod, but with additional context about which container and event
 	c.resourceChan <- CollectedResource{
-		ResourceType: "container",
+		ResourceType: Container,
 		Object: map[string]interface{}{
 			"pod":           pod,           // The entire pod object
 			"containerName": containerName, // The specific container name

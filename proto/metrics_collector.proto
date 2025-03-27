@@ -30,10 +30,7 @@ message SendResourceRequest {
 
 // Responses
 // Common response for all send operations
-message SendResourceResponse {
-  bool success = 1;
-  string message = 2;
-}
+message SendResourceResponse {}
 
 // Defines the service that provides RPC methods for Kubernetes cluster monitoring metrics collector.
 service MetricsCollectorService {

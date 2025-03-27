@@ -22,14 +22,14 @@ type CollectionConfig struct {
 	// ExcludedPods are pods to exclude from collection
 	ExcludedPods []ExcludedPod
 
+	// ExcludedDaemonSets are daemonsets to exclude from Collection
+	ExcludedDaemonSets []ExcludedDaemonSet
+
+	// ExcludedStatefulSets are statefulsets to exclude from Collection
+	ExcludedStatefulSets []ExcludedStatefulSet
+
 	// BufferSize is the size of the combined channel buffer
 	BufferSize int
-}
-
-// ExcludedPod identifies a pod to exclude from collection
-type ExcludedPod struct {
-	Namespace string
-	Name      string
 }
 
 // CollectionManager orchestrates multiple collectors
@@ -167,7 +167,7 @@ func (m *CollectionManager) processCollectorChannel(collectorType string, collec
 
 	for resource := range resourceChan {
 		// Skip if channel is closed
-		if resource.ResourceType == "" {
+		if resource.ResourceType == Unknown {
 			continue
 		}
 

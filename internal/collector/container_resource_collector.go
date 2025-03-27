@@ -276,7 +276,7 @@ func (c *ContainerResourceCollector) processContainerMetrics(pod *corev1.Pod, co
 
 	// Send the resource usage data to the channel
 	c.resourceChan <- CollectedResource{
-		ResourceType: "container_resources",
+		ResourceType: ContainerResource,
 		Object:       resourceData,
 		Timestamp:    time.Now(),
 		EventType:    "metrics",

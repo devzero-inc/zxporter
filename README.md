@@ -7,6 +7,121 @@
 3. build the thing: `make docker-buildx IMG=ttl.sh/zxporter:dev-build`
 4. deploy the thing: `make deploy IMG=ttl.sh/zxporter:dev-build`
 
+## Implementation 
+
+### Core Resources
+
+[x] PodCollector
+[x] NodeCollector
+[x] NamespaceCollector
+[x] EventCollector
+[ ] EndpointsCollector
+[ ] ServiceAccountCollector
+[ ] LimitRangeCollector
+[ ] ResourceQuotaCollector
+
+### Workload Resources
+
+[x] DeploymentCollector
+[x] StatefulSetCollector
+[x] DaemonSetCollector
+[x] ReplicaSetCollector
+[ ] ReplicationControllerCollector
+[x] JobCollector
+[x] CronJobCollector
+
+### Storage Resources
+
+[x] PersistentVolumeClaimCollector
+[ ] PersistentVolumeCollector
+[ ] StorageClassCollector
+
+### Networking Resources
+
+[x] ServiceCollector
+[ ] IngressCollector
+[ ] IngressClassCollector
+[ ] NetworkPolicyCollector
+
+### RBAC Resources
+
+[ ] RoleCollector
+[ ] RoleBindingCollector
+[ ] ClusterRoleCollector
+[ ] ClusterRoleBindingCollector
+
+### Autoscaling Resources
+
+[ ] HorizontalPodAutoscalerCollector
+[ ] VerticalPodAutoscalerCollector
+
+### Policy Resources
+
+[ ] PodDisruptionBudgetCollector
+[ ] PodSecurityPolicyCollector
+
+### Custom Resources
+
+[ ] CRDCollector (Custom Resource Definitions)
+[ ] CustomResourceCollector (Instances of custom resources)
+
+### Configuration Resources
+
+[x] ConfigMapCollector
+[ ] SecretCollector
+
+## Local test flow:
+
+* build kind cluster
+  `kind create cluster`
+
+* update kubeconfig of kind cluster
+  `kubectl cluster-info --context kind-kind`
+
+* install metrics service in kind cluster
+  ```
+    helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
+    helm repo update
+    helm upgrade --install --set args={--kubelet-insecure-tls} metrics-server metrics-server/metrics-server --namespace kube-system
+  ``` 
+
+* install node exporter
+  ```
+    helm repo add prometheus-community https://prometheus-community.github.io/helm-charts 
+    helm repo update
+    helm install node-exporter prometheus-community/prometheus-node-exporter
+  ```
+
+* build docker image to push into cluster
+  ```
+    make docker-build docker-push IMG=<some-registry>/zxporter:tag or docker build --build-arg GITHUB_TOKEN=<token> -t <some-registry>/zxporter:tag --push .
+    make deploy IMG=<some-registry>/zxporter:tag
+  ```
+
+* uninstall things from cluster
+  ```
+    make undeploy
+  ```
+
+* cluster needs collection policy to understand what to collect, so install this there
+  ```
+    apiVersion: monitoring.devzero.io/v1
+    kind: CollectionPolicy
+    metadata:
+      name: default-policy
+      namespace: zxporter-system
+    spec:
+      targetSelector:
+        namespaces: [] # Empty means all namespaces
+      exclusions:
+        excludedNamespaces:
+          - kube-system
+          - kube-public
+      policies:
+        frequency: "30s"
+        bufferSize: 1000
+  ```
+
 ## Description
 // TODO(user): An in-depth paragraph about your project and overview of use
 

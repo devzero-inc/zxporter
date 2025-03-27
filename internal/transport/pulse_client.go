@@ -71,7 +71,7 @@ func (c *RealPulseClient) SendResource(ctx context.Context, resource collector.C
 
 	// Create the request
 	res := &gen.SendResourceRequest{
-		ResourceType: resource.ResourceType,
+		ResourceType: resource.ResourceType.ProtoType(),
 		Key:          resource.Key,
 		Timestamp:    timestamppb.New(resource.Timestamp),
 		EventType:    resource.EventType,
@@ -81,15 +81,10 @@ func (c *RealPulseClient) SendResource(ctx context.Context, resource collector.C
 	req := connect.NewRequest(res)
 
 	// Send to Pulse
-	resp, err := c.client.SendResource(ctx, req)
+	_, err = c.client.SendResource(ctx, req)
 	if err != nil {
 		c.logger.Error(err, "Failed to send resource to Pulse")
 		return fmt.Errorf("failed to send resource to Pulse: %w", err)
-	}
-
-	if !resp.Msg.Success {
-		c.logger.Error(fmt.Errorf(resp.Msg.GetMessage()), "Pulse rejected resource")
-		return fmt.Errorf("Pulse server rejected resource: %s", resp.Msg)
 	}
 
 	return nil
