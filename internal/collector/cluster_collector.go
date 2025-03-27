@@ -129,7 +129,10 @@ func (c *ClusterCollector) collectClusterData(ctx context.Context) error {
 	}
 
 	// 6. Get resource capacity and usage
-	totalCPUCapacity, totalMemoryCapacity, cpuUsage, memoryUsage := c.getResourceMetrics(ctx, nodes.Items)
+	totalCPUCapacity, totalMemoryCapacity, cpuUsage, memoryUsage := int64(0), int64(0), int64(0), int64(0)
+	if c.metricsClient == nil {
+		totalCPUCapacity, totalMemoryCapacity, cpuUsage, memoryUsage = c.getResourceMetrics(ctx, nodes.Items)
+	}
 
 	// 7. Get workload counts across all namespaces
 	workloadCount := c.getWorkloadCount(ctx)
@@ -490,6 +493,11 @@ func (c *ClusterCollector) GetResourceChannel() <-chan CollectedResource {
 // GetType returns the type of resource this collector handles
 func (c *ClusterCollector) GetType() string {
 	return "cluster"
+}
+
+// IsAvailable returns true if the collector is available
+func (c *ClusterCollector) IsAvailable(ctx context.Context) bool {
+	return true
 }
 
 // Helper functions
