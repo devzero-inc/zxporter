@@ -262,3 +262,8 @@ func (c *ServiceCollector) GetResourceChannel() <-chan CollectedResource {
 func (c *ServiceCollector) GetType() string {
 	return "service"
 }
+
+// IsAvailable checks if Service resources can be accessed in the cluster
+func (c *ServiceCollector) IsAvailable(ctx context.Context) bool {
+	return true
+}

@@ -227,3 +227,8 @@ func (c *PodDisruptionBudgetCollector) GetResourceChannel() <-chan CollectedReso
 func (c *PodDisruptionBudgetCollector) GetType() string {
 	return "poddisruptionbudget"
 }
+
+// IsAvailable checks if PodDisruptionBudget resources can be accessed in the cluster
+func (c *PodDisruptionBudgetCollector) IsAvailable(ctx context.Context) bool {
+	return true
+}

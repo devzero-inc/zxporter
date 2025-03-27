@@ -4,11 +4,13 @@ package collector
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/go-logr/logr"
 	networkingv1 "k8s.io/api/networking/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
@@ -191,4 +193,27 @@ func (c *IngressClassCollector) GetResourceChannel() <-chan CollectedResource {
 // GetType returns the type of resource this collector handles
 func (c *IngressClassCollector) GetType() string {
 	return "ingressclass"
+}
+
+// IsAvailable checks if IngressClass resources can be accessed in the cluster
+func (c *IngressClassCollector) IsAvailable(ctx context.Context) bool {
+	// Try to list IngressClasses with a limit of 1 to check availability with minimal overhead
+	_, err := c.client.NetworkingV1().IngressClasses().List(ctx, metav1.ListOptions{
+		Limit: 1,
+	})
+
+	if err != nil {
+		// Check if this is a "resource not found" type error
+		if strings.Contains(err.Error(),
+			"the server could not find the requested resource") {
+			c.logger.Info("IngressClass API not available in cluster (requires Kubernetes 1.19+)")
+			return false
+		}
+
+		// For other errors (permissions, etc), log the error
+		c.logger.Error(err, "Error checking IngressClass availability")
+		return false
+	}
+
+	return true
 }

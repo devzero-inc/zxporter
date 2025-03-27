@@ -4,11 +4,13 @@ package collector
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/go-logr/logr"
 	networkingv1 "k8s.io/api/networking/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
@@ -406,4 +408,27 @@ func (c *IngressCollector) GetResourceChannel() <-chan CollectedResource {
 // GetType returns the type of resource this collector handles
 func (c *IngressCollector) GetType() string {
 	return "ingress"
+}
+
+// IsAvailable checks if Ingress resources can be accessed in the cluster
+func (c *IngressCollector) IsAvailable(ctx context.Context) bool {
+	// Try to list Ingresses with a limit of 1 to check availability with minimal overhead
+	_, err := c.client.NetworkingV1().Ingresses("").List(ctx, metav1.ListOptions{
+		Limit: 1,
+	})
+
+	if err != nil {
+		// Check if this is a "resource not found" type error
+		if strings.Contains(err.Error(),
+			"the server could not find the requested resource") {
+			c.logger.Info("Ingress API not available in cluster")
+			return false
+		}
+
+		// For other errors (permissions, etc), log the error
+		c.logger.Error(err, "Error checking Ingress availability")
+		return false
+	}
+
+	return true
 }

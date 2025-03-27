@@ -254,3 +254,8 @@ func (c *ServiceAccountCollector) GetResourceChannel() <-chan CollectedResource 
 func (c *ServiceAccountCollector) GetType() string {
 	return "serviceaccount"
 }
+
+// IsAvailable checks if ServiceAccount resources can be accessed in the cluster
+func (c *ServiceAccountCollector) IsAvailable(ctx context.Context) bool {
+	return true
+}

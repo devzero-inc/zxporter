@@ -270,3 +270,8 @@ func (c *StorageClassCollector) GetResourceChannel() <-chan CollectedResource {
 func (c *StorageClassCollector) GetType() string {
 	return "storageclass"
 }
+
+// IsAvailable checks if StorageClass resources can be accessed in the cluster
+func (c *StorageClassCollector) IsAvailable(ctx context.Context) bool {
+	return true
+}

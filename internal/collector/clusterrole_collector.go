@@ -175,3 +175,8 @@ func (c *ClusterRoleCollector) GetResourceChannel() <-chan CollectedResource {
 func (c *ClusterRoleCollector) GetType() string {
 	return "clusterrole"
 }
+
+// IsAvailable checks if ClusterRole resources are available in the cluster
+func (c *ClusterRoleCollector) IsAvailable(ctx context.Context) bool {
+	return true
+}

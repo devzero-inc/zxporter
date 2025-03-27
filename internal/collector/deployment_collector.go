@@ -236,3 +236,8 @@ func (c *DeploymentCollector) GetResourceChannel() <-chan CollectedResource {
 func (c *DeploymentCollector) GetType() string {
 	return "deployment"
 }
+
+// IsAvailable checks if Deployment resources can be accessed in the cluster
+func (c *DeploymentCollector) IsAvailable(ctx context.Context) bool {
+	return true
+}

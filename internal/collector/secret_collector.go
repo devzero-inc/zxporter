@@ -276,3 +276,8 @@ func (c *SecretCollector) GetResourceChannel() <-chan CollectedResource {
 func (c *SecretCollector) GetType() string {
 	return "secret"
 }
+
+// IsAvailable checks if Secret resources can be accessed in the cluster
+func (c *SecretCollector) IsAvailable(ctx context.Context) bool {
+	return true
+}

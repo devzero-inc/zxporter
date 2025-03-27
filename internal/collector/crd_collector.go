@@ -12,6 +12,7 @@ import (
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiextensionsclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	apiextensionsinformers "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
 )
 
@@ -200,4 +201,19 @@ func (c *CRDCollector) GetResourceChannel() <-chan CollectedResource {
 // GetType returns the type of resource this collector handles
 func (c *CRDCollector) GetType() string {
 	return "customresourcedefinition"
+}
+
+// IsAvailable checks if CRD resources can be accessed in the cluster
+func (c *CRDCollector) IsAvailable(ctx context.Context) bool {
+	// Try to list CRDs with limit=1 to check availability with minimal overhead
+	_, err := c.client.ApiextensionsV1().CustomResourceDefinitions().List(ctx, metav1.ListOptions{
+		Limit: 1,
+	})
+
+	if err != nil {
+		c.logger.Info("CustomResourceDefinition API not available", "error", err.Error())
+		return false
+	}
+
+	return true
 }

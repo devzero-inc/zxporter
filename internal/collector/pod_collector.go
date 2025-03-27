@@ -262,3 +262,8 @@ func (c *PodCollector) GetResourceChannel() <-chan CollectedResource {
 func (c *PodCollector) GetType() string {
 	return "pod"
 }
+
+// IsAvailable checks if Pod resources can be accessed in the cluster
+func (c *PodCollector) IsAvailable(ctx context.Context) bool {
+	return true
+}

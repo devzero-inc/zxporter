@@ -812,3 +812,66 @@ func (c *NodeMetricsCollector) fallbackMetrics(node *corev1.Node) (*NodeMetrics,
 
 	return metrics, nil
 }
+
+// IsAvailable checks if node metrics collection is possible by checking node-exporter accessibility
+func (c *NodeMetricsCollector) IsAvailable(ctx context.Context) bool {
+	// Get a sample node to check node-exporter
+	nodeList, err := c.k8sClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{
+		Limit: 1, // Just get one node to check
+	})
+
+	if err != nil {
+		c.logger.Error(err, "Error accessing nodes, cannot check node-exporter availability")
+		return false
+	}
+
+	// If no nodes found, node-exporter check isn't possible
+	if len(nodeList.Items) == 0 {
+		c.logger.Info("No nodes found in cluster, assuming node-exporter is not available")
+		return false
+	}
+
+	// Try to connect to node-exporter on the sample node
+	node := nodeList.Items[0]
+	var nodeIP string
+	for _, addr := range node.Status.Addresses {
+		if addr.Type == corev1.NodeInternalIP {
+			nodeIP = addr.Address
+			break
+		}
+	}
+
+	if nodeIP == "" {
+		c.logger.Info("Could not find internal IP for node, assuming node-exporter is not available")
+		return false
+	}
+
+	// Try to connect to node-exporter endpoint
+	url := fmt.Sprintf("http://%s:%d/metrics", nodeIP, c.nodePort)
+	httpClient := &http.Client{
+		Timeout: 3 * time.Second,
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		c.logger.Error(err, "Failed to create request to node-exporter")
+		return false
+	}
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		c.logger.Info("Failed to connect to node-exporter, metrics collection not available",
+			"node", node.Name, "url", url, "error", err.Error())
+		return false
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		c.logger.Info("Node-exporter returned non-OK status code",
+			"node", node.Name, "url", url, "statusCode", resp.StatusCode)
+		return false
+	}
+
+	c.logger.Info("Node-exporter is accessible, metrics collection is available")
+	return true
+}

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -257,4 +258,25 @@ func (c *VerticalPodAutoscalerCollector) GetResourceChannel() <-chan CollectedRe
 // GetType returns the type of resource this collector handles
 func (c *VerticalPodAutoscalerCollector) GetType() string {
 	return "verticalpodautoscaler"
+}
+
+// IsAvailable checks if VPA resources are available in the cluster
+func (c *VerticalPodAutoscalerCollector) IsAvailable(ctx context.Context) bool {
+	// Try to list VPA resources with limit=1 to see if the resource type exists
+	_, err := c.client.Resource(vpaGVR).List(ctx, metav1.ListOptions{Limit: 1})
+
+	if err == nil {
+		return true
+	}
+
+	// For "no matching resource" or other similar errors
+	if isResourceTypeUnavailableError(err) {
+		c.logger.Info("VerticalPodAutoscaler CRD not installed in cluster",
+			"error", err.Error())
+		return false
+	}
+
+	// For other errors (permissions, etc.), log but assume resource might exist
+	c.logger.Error(err, "Error checking VPA resource availability")
+	return false
 }

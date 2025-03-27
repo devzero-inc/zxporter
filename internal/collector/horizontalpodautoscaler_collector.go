@@ -5,11 +5,13 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/go-logr/logr"
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
@@ -247,4 +249,27 @@ func (c *HorizontalPodAutoscalerCollector) GetResourceChannel() <-chan Collected
 // GetType returns the type of resource this collector handles
 func (c *HorizontalPodAutoscalerCollector) GetType() string {
 	return "horizontalpodautoscaler"
+}
+
+// IsAvailable checks if HPA v2 resources can be accessed in the cluster
+func (c *HorizontalPodAutoscalerCollector) IsAvailable(ctx context.Context) bool {
+	// Try to list HPAs with a limit of 1 to check availability with minimal overhead
+	_, err := c.client.AutoscalingV2().HorizontalPodAutoscalers("").List(ctx, metav1.ListOptions{
+		Limit: 1,
+	})
+
+	if err != nil {
+		// Check if this is a "resource not found" type error
+		if strings.Contains(err.Error(),
+			"the server could not find the requested resource") {
+			c.logger.Info("HorizontalPodAutoscaler v2 API not available in cluster")
+			return false
+		}
+
+		// For other errors (permissions, etc), log the error
+		c.logger.Error(err, "Error checking HorizontalPodAutoscaler availability")
+		return false
+	}
+
+	return true
 }

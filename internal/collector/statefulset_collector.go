@@ -249,3 +249,8 @@ func (c *StatefulSetCollector) GetResourceChannel() <-chan CollectedResource {
 func (c *StatefulSetCollector) GetType() string {
 	return "statefulset"
 }
+
+// IsAvailable checks if StatefulSet resources can be accessed in the cluster
+func (c *StatefulSetCollector) IsAvailable(ctx context.Context) bool {
+	return true
+}

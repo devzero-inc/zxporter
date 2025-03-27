@@ -230,3 +230,8 @@ func (c *ResourceQuotaCollector) GetResourceChannel() <-chan CollectedResource {
 func (c *ResourceQuotaCollector) GetType() string {
 	return "resourcequota"
 }
+
+// IsAvailable checks if ResourceQuota resources can be accessed in the cluster
+func (c *ResourceQuotaCollector) IsAvailable(ctx context.Context) bool {
+	return true
+}

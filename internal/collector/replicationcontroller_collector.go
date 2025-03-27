@@ -230,3 +230,8 @@ func (c *ReplicationControllerCollector) GetResourceChannel() <-chan CollectedRe
 func (c *ReplicationControllerCollector) GetType() string {
 	return "replicationcontroller"
 }
+
+// IsAvailable checks if ReplicationController resources can be accessed in the cluster
+func (c *ReplicationControllerCollector) IsAvailable(ctx context.Context) bool {
+	return true
+}

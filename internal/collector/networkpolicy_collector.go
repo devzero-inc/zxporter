@@ -5,11 +5,13 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/go-logr/logr"
 	networkingv1 "k8s.io/api/networking/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
@@ -262,4 +264,27 @@ func (c *NetworkPolicyCollector) GetResourceChannel() <-chan CollectedResource {
 // GetType returns the type of resource this collector handles
 func (c *NetworkPolicyCollector) GetType() string {
 	return "networkpolicy"
+}
+
+// IsAvailable checks if NetworkPolicy resources can be accessed in the cluster
+func (c *NetworkPolicyCollector) IsAvailable(ctx context.Context) bool {
+	// Try to list NetworkPolicies with a limit of 1 to check availability with minimal overhead
+	_, err := c.client.NetworkingV1().NetworkPolicies("").List(ctx, metav1.ListOptions{
+		Limit: 1,
+	})
+
+	if err != nil {
+		// Check if this is a "resource not found" type error
+		if strings.Contains(err.Error(),
+			"the server could not find the requested resource") {
+			c.logger.Info("NetworkPolicy API not available in cluster")
+			return false
+		}
+
+		// For other errors (permissions, etc), log the error
+		c.logger.Error(err, "Error checking NetworkPolicy availability")
+		return false
+	}
+
+	return true
 }

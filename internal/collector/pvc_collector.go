@@ -251,3 +251,8 @@ func (c *PersistentVolumeClaimCollector) GetResourceChannel() <-chan CollectedRe
 func (c *PersistentVolumeClaimCollector) GetType() string {
 	return "persistentvolumeclaim"
 }
+
+// IsAvailable checks if PersistentVolumeClaim resources can be accessed in the cluster
+func (c *PersistentVolumeClaimCollector) IsAvailable(ctx context.Context) bool {
+	return true
+}

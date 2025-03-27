@@ -276,3 +276,8 @@ func (c *EventCollector) GetResourceChannel() <-chan CollectedResource {
 func (c *EventCollector) GetType() string {
 	return "event"
 }
+
+// IsAvailable checks if Event resources can be accessed in the cluster
+func (c *EventCollector) IsAvailable(ctx context.Context) bool {
+	return true
+}

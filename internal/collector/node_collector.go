@@ -333,3 +333,8 @@ func (c *NodeCollector) GetResourceChannel() <-chan CollectedResource {
 func (c *NodeCollector) GetType() string {
 	return "node"
 }
+
+// IsAvailable checks if Node resources can be accessed in the cluster
+func (c *NodeCollector) IsAvailable(ctx context.Context) bool {
+	return true
+}

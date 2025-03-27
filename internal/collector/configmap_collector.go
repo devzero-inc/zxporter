@@ -245,3 +245,8 @@ func (c *ConfigMapCollector) GetResourceChannel() <-chan CollectedResource {
 func (c *ConfigMapCollector) GetType() string {
 	return "configmap"
 }
+
+// IsAvailable checks if ConfigMap resources are available in the cluster
+func (c *ConfigMapCollector) IsAvailable(ctx context.Context) bool {
+	return true
+}

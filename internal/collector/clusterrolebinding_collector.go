@@ -177,3 +177,8 @@ func (c *ClusterRoleBindingCollector) GetResourceChannel() <-chan CollectedResou
 func (c *ClusterRoleBindingCollector) GetType() string {
 	return "clusterrolebinding"
 }
+
+// IsAvailable checks if ClusterRoleBinding resources are available in the cluster
+func (c *ClusterRoleBindingCollector) IsAvailable(ctx context.Context) bool {
+	return true
+}

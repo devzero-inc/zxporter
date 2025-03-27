@@ -337,3 +337,24 @@ func (c *ContainerResourceCollector) GetResourceChannel() <-chan CollectedResour
 func (c *ContainerResourceCollector) GetType() string {
 	return "container_resources"
 }
+
+// IsAvailable checks if container resource metrics are available in the cluster
+func (c *ContainerResourceCollector) IsAvailable(ctx context.Context) bool {
+	// First verify the metrics client is initialized
+	if c.metricsClient == nil {
+		c.logger.Info("Metrics client is not available, cannot collect container resources")
+		return false
+	}
+
+	// Try to list pod metrics to check metrics API availability
+	_, err := c.metricsClient.MetricsV1beta1().PodMetricses("").List(ctx, metav1.ListOptions{
+		Limit: 1, // Only request a single item to minimize load
+	})
+
+	if err != nil {
+		c.logger.Info("Metrics server API not available", "error", err.Error())
+		return false
+	}
+
+	return true
+}

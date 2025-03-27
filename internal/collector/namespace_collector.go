@@ -209,3 +209,8 @@ func finalizerSlicesEqual(s1, s2 []corev1.FinalizerName) bool {
 
 	return true
 }
+
+// IsAvailable checks if Namespace resources can be accessed in the cluster
+func (c *NamespaceCollector) IsAvailable(ctx context.Context) bool {
+	return true
+}

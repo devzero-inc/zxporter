@@ -402,3 +402,25 @@ func (c *CustomResourceCollector) GetResourceChannel() <-chan CollectedResource 
 func (c *CustomResourceCollector) GetType() string {
 	return "customresource"
 }
+
+// IsAvailable checks if CustomResource collection is available in the cluster
+func (c *CustomResourceCollector) IsAvailable(ctx context.Context) bool {
+	// First check if the apiextensions API is available
+	_, err := c.apiExtensionsClient.ApiextensionsV1().CustomResourceDefinitions().List(ctx, metav1.ListOptions{
+		Limit: 1, // Only request a single item to minimize load
+	})
+
+	if err != nil {
+		c.logger.Info("CustomResourceDefinition API not available", "error", err.Error())
+		return false
+	}
+
+	// The dynamic client should always be available if the apiextensions API is,
+	// but we need both for this collector to function properly
+	if c.dynamicClient == nil {
+		c.logger.Info("Dynamic client not available")
+		return false
+	}
+
+	return true
+}

@@ -242,3 +242,8 @@ func (c *DaemonSetCollector) GetResourceChannel() <-chan CollectedResource {
 func (c *DaemonSetCollector) GetType() string {
 	return "daemonset"
 }
+
+// IsAvailable checks if DaemonSet resources can be accessed in the cluster
+func (c *DaemonSetCollector) IsAvailable(ctx context.Context) bool {
+	return true
+}

@@ -214,3 +214,8 @@ func (c *LimitRangeCollector) GetResourceChannel() <-chan CollectedResource {
 func (c *LimitRangeCollector) GetType() string {
 	return "limitrange"
 }
+
+// IsAvailable checks if LimitRange resources can be accessed in the cluster
+func (c *LimitRangeCollector) IsAvailable(ctx context.Context) bool {
+	return true
+}

@@ -300,3 +300,8 @@ func (c *ReplicaSetCollector) GetResourceChannel() <-chan CollectedResource {
 func (c *ReplicaSetCollector) GetType() string {
 	return "replicaset"
 }
+
+// IsAvailable checks if ReplicaSet resources can be accessed in the cluster
+func (c *ReplicaSetCollector) IsAvailable(ctx context.Context) bool {
+	return true
+}

@@ -5,4 +5,4 @@ kind: Kustomization
 images:
 - name: controller
   newName: zvonimirtomesic/zxporter
-  newTag: v7
+  newTag: v9

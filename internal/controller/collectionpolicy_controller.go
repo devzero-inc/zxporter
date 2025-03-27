@@ -589,7 +589,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 		name      collector.ResourceType
 	}{
 		{
-			collector: collector.NewEndpointsCollector(
+			collector: collector.NewEndpointCollector(
 				r.K8sClient,
 				config.TargetNamespaces,
 				config.ExcludedEndpoints,
@@ -898,11 +898,13 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 
 	// Register all collectors
 	for _, c := range collectors {
-		logger.Info("Registering collector", "name", c.name.String())
-		if err := r.CollectionManager.RegisterCollector(c.collector); err != nil {
-			logger.Error(err, "Failed to register collector", "collector", c.name)
-		} else {
-			logger.Info("Registered collector", "collector", c.name)
+		if c.collector.IsAvailable(context.Background()) {
+			logger.Info("Registering collector", "name", c.name.String())
+			if err := r.CollectionManager.RegisterCollector(c.collector); err != nil {
+				logger.Error(err, "Failed to register collector", "collector", c.name)
+			} else {
+				logger.Info("Registered collector", "collector", c.name)
+			}
 		}
 	}
 
