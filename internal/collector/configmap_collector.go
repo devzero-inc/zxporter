@@ -129,7 +129,7 @@ func (c *ConfigMapCollector) handleConfigMapEvent(configmap *corev1.ConfigMap, e
 		return
 	}
 
-	c.logger.V(4).Info("Processing configmap event",
+	c.logger.Info("Processing configmap event",
 		"namespace", configmap.Namespace,
 		"name", configmap.Name,
 		"eventType", eventType)

@@ -106,7 +106,7 @@ func (c *NamespaceCollector) handleNamespaceEvent(namespace *corev1.Namespace, e
 		return
 	}
 
-	c.logger.V(4).Info("Processing namespace event",
+	c.logger.Info("Processing namespace event",
 		"name", namespace.Name,
 		"eventType", eventType)
 

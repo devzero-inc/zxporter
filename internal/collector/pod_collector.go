@@ -125,7 +125,7 @@ func (c *PodCollector) handlePodEvent(pod *corev1.Pod, eventType string) {
 		return
 	}
 
-	c.logger.V(4).Info("Processing pod event",
+	c.logger.Info("Processing pod event",
 		"namespace", pod.Namespace,
 		"name", pod.Name,
 		"eventType", eventType)

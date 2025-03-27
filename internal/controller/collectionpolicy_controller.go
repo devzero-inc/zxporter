@@ -32,6 +32,7 @@ import (
 	metricsv1 "k8s.io/metrics/pkg/client/clientset/versioned"
 
 	"github.com/devzero-inc/zxporter/internal/collector"
+	"github.com/devzero-inc/zxporter/internal/collector/provider"
 	"github.com/devzero-inc/zxporter/internal/transport"
 	"github.com/devzero-inc/zxporter/internal/util"
 	"k8s.io/client-go/kubernetes"
@@ -457,6 +458,29 @@ func (r *CollectionPolicyReconciler) initializeCollectors(ctx context.Context, c
 		return ctrl.Result{}, err
 	}
 
+	// Create and register cluster collector with provider detection
+	// First try to detect the provider
+	providerDetector := provider.NewDetector(logger, r.K8sClient)
+	detectedProvider, err := providerDetector.DetectProvider(ctx)
+	if err != nil {
+		logger.Error(err, "Failed to detect cloud provider, collector will have limited functionality")
+		// Even without provider detection, we can still collect K8s-level metrics
+	}
+
+	// Create the cluster collector that runs every 30 minutes
+	clusterCollector := collector.NewClusterCollector(
+		r.K8sClient,
+		metricsClient,
+		detectedProvider, // This could be nil if detection failed
+		30*time.Minute,   // Run every 30 minutes
+		logger,
+	)
+
+	if err := r.CollectionManager.RegisterCollector(clusterCollector); err != nil {
+		logger.Error(err, "Failed to register cluster collector")
+		return ctrl.Result{}, err
+	}
+
 	// Create Pulse client with configured URL if provided
 	var pulseClient transport.PulseClient
 	// if config.PulseURL != "" {
@@ -515,7 +539,7 @@ func (r *CollectionPolicyReconciler) processCollectedResources(ctx context.Conte
 					"eventType", resource.EventType,
 					"key", resource.Key)
 			} else {
-				logger.V(4).Info("Sent resource to Pulse",
+				logger.Info("Sent resource to Pulse",
 					"resourceType", resource.ResourceType,
 					"eventType", resource.EventType,
 					"key", resource.Key)

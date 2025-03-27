@@ -171,7 +171,7 @@ func (c *EventCollector) handleEvent(event *corev1.Event, eventType string) {
 	c.eventCounts[typeKey]++
 	c.mu.Unlock()
 
-	c.logger.V(4).Info("Processing event",
+	c.logger.Info("Processing event",
 		"namespace", event.Namespace,
 		"name", event.Name,
 		"reason", event.Reason,
@@ -255,7 +255,7 @@ func (c *EventCollector) periodicCleanup(ctx context.Context) {
 			c.eventCounts = make(map[string]int)
 			c.mu.Unlock()
 
-			c.logger.V(4).Info("Reset event rate limiting counters")
+			c.logger.Info("Reset event rate limiting counters")
 		}
 	}
 }

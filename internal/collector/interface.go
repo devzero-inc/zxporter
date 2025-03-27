@@ -15,6 +15,7 @@ type ResourceType int
 func (r ResourceType) String() string {
 	names := map[ResourceType]string{
 		Unknown:                  "unknown",
+		Cluster:                  "cluster",
 		Node:                     "node",
 		Pod:                      "pod",
 		Namespace:                "namespace",
@@ -146,44 +147,45 @@ func (r ResourceType) ProtoType() gen.ResourceType {
 
 // enum for resource type
 const (
-	Unknown                  ResourceType = 0
-	Node                     ResourceType = 1
-	Pod                      ResourceType = 2
-	Namespace                ResourceType = 3
-	Event                    ResourceType = 4
-	Endpoints                ResourceType = 5
-	ServiceAccount           ResourceType = 6
-	LimitRange               ResourceType = 7
-	ResourceQuota            ResourceType = 8
-	Deployment               ResourceType = 9
-	StatefulSet              ResourceType = 10
-	DaemonSet                ResourceType = 11
-	ReplicaSet               ResourceType = 12
-	ReplicationController    ResourceType = 13
-	Job                      ResourceType = 14
-	CronJob                  ResourceType = 15
-	PersistentVolumeClaim    ResourceType = 16
-	PersistentVolume         ResourceType = 17
-	StorageClass             ResourceType = 18
-	Service                  ResourceType = 19
-	Ingress                  ResourceType = 20
-	IngressClass             ResourceType = 21
-	NetworkPolicy            ResourceType = 22
-	Role                     ResourceType = 23
-	RoleBinding              ResourceType = 24
-	ClusterRole              ResourceType = 25
-	ClusterRoleBinding       ResourceType = 26
-	HorizontalPodAutoscaler  ResourceType = 27
-	VerticalPodAutoscaler    ResourceType = 28
-	PodDisruptionBudget      ResourceType = 29
-	PodSecurityPolicy        ResourceType = 30
-	CustomResourceDefinition ResourceType = 31
-	CustomResource           ResourceType = 32
-	ConfigMap                ResourceType = 33
-	Secret                   ResourceType = 34
-	Container                ResourceType = 35
-	NodeResource             ResourceType = 36
-	ContainerResource        ResourceType = 37
+	Unknown ResourceType = iota
+	Cluster
+	Node
+	Pod
+	Namespace
+	Event
+	Endpoints
+	ServiceAccount
+	LimitRange
+	ResourceQuota
+	Deployment
+	StatefulSet
+	DaemonSet
+	ReplicaSet
+	ReplicationController
+	Job
+	CronJob
+	PersistentVolumeClaim
+	PersistentVolume
+	StorageClass
+	Service
+	Ingress
+	IngressClass
+	NetworkPolicy
+	Role
+	RoleBinding
+	ClusterRole
+	ClusterRoleBinding
+	HorizontalPodAutoscaler
+	VerticalPodAutoscaler
+	PodDisruptionBudget
+	PodSecurityPolicy
+	CustomResourceDefinition
+	CustomResource
+	ConfigMap
+	Secret
+	Container
+	NodeResource
+	ContainerResource
 )
 
 // CollectedResource represents a resource collected from the Kubernetes API

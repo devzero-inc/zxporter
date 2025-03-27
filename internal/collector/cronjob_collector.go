@@ -130,7 +130,7 @@ func (c *CronJobCollector) handleCronJobEvent(cronJob *batchv1.CronJob, eventTyp
 		return
 	}
 
-	c.logger.V(4).Info("Processing cronjob event",
+	c.logger.Info("Processing cronjob event",
 		"namespace", cronJob.Namespace,
 		"name", cronJob.Name,
 		"eventType", eventType,

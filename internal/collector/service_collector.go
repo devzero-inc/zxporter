@@ -129,7 +129,7 @@ func (c *ServiceCollector) handleServiceEvent(service *corev1.Service, eventType
 		return
 	}
 
-	c.logger.V(4).Info("Processing service event",
+	c.logger.Info("Processing service event",
 		"namespace", service.Namespace,
 		"name", service.Name,
 		"eventType", eventType)

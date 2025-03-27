@@ -240,7 +240,7 @@ func (r *CollectionPolicyReconciler) processCollectedResources(ctx context.Conte
 					"eventType", resource.EventType,
 					"key", resource.Key)
 			} else {
-				logger.V(4).Info("Sent resource to Pulse",
+				logger..Info("Sent resource to Pulse",
 					"resourceType", resource.ResourceType,
 					"eventType", resource.EventType,
 					"key", resource.Key)

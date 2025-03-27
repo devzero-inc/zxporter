@@ -129,7 +129,7 @@ func (c *DaemonSetCollector) handleDaemonSetEvent(daemonset *appsv1.DaemonSet, e
 		return
 	}
 
-	c.logger.V(4).Info("Processing daemonset event",
+	c.logger.Info("Processing daemonset event",
 		"namespace", daemonset.Namespace,
 		"name", daemonset.Name,
 		"eventType", eventType)

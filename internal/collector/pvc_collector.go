@@ -129,7 +129,7 @@ func (c *PersistentVolumeClaimCollector) handlePVCEvent(pvc *corev1.PersistentVo
 		return
 	}
 
-	c.logger.V(4).Info("Processing PVC event",
+	c.logger.Info("Processing PVC event",
 		"namespace", pvc.Namespace,
 		"name", pvc.Name,
 		"eventType", eventType)

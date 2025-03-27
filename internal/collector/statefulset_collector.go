@@ -129,7 +129,7 @@ func (c *StatefulSetCollector) handleStatefulSetEvent(statefulset *appsv1.Statef
 		return
 	}
 
-	c.logger.V(4).Info("Processing statefulset event",
+	c.logger.Info("Processing statefulset event",
 		"namespace", statefulset.Namespace,
 		"name", statefulset.Name,
 		"eventType", eventType)

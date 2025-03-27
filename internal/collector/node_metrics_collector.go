@@ -130,7 +130,7 @@ func (c *NodeMetricsCollector) collectMetricsLoop(ctx context.Context) {
 
 // collectAllNodeMetrics collects metrics for all nodes
 func (c *NodeMetricsCollector) collectAllNodeMetrics(ctx context.Context) error {
-	c.logger.V(4).Info("Collecting metrics for all nodes")
+	c.logger.Info("Collecting metrics for all nodes")
 
 	// List all nodes in the cluster
 	nodeList, err := c.k8sClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
@@ -146,12 +146,12 @@ func (c *NodeMetricsCollector) collectAllNodeMetrics(ctx context.Context) error 
 
 		// Skip excluded nodes
 		if c.excludedNodes[nodeName] {
-			c.logger.V(4).Info("Skipping excluded node", "node", nodeName)
+			c.logger.Info("Skipping excluded node", "node", nodeName)
 			continue
 		}
 
 		// Collect metrics for this node
-		c.logger.V(4).Info("Collecting metrics for node", "node", nodeName)
+		c.logger.Info("Collecting metrics for node", "node", nodeName)
 		metrics, err := c.collectNodeMetrics(ctx, &node)
 		if err != nil {
 			c.logger.Error(err, "Failed to collect metrics for node", "node", nodeName)

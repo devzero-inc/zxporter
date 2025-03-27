@@ -141,7 +141,7 @@ func (c *ContainerResourceCollector) collectResourcesLoop(ctx context.Context) {
 
 // collectAllContainerResources collects resource metrics for all containers
 func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Context) {
-	c.logger.V(4).Info("Collecting container resource metrics")
+	c.logger.Info("Collecting container resource metrics")
 
 	// Fetch pod metrics from the metrics server
 	var podMetricsList *metricsv1beta1.PodMetricsList

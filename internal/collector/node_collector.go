@@ -133,7 +133,7 @@ func (c *NodeCollector) handleNodeEvent(node *corev1.Node, eventType string) {
 		return
 	}
 
-	c.logger.V(4).Info("Processing node event",
+	c.logger.Info("Processing node event",
 		"name", node.Name,
 		"eventType", eventType)
 
@@ -204,11 +204,11 @@ func (c *NodeCollector) collectNodeResourcesLoop(ctx context.Context) {
 
 // collectAllNodeResources collects resource metrics for all nodes
 func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
-	c.logger.V(4).Info("Collecting node resource metrics")
+	c.logger.Info("Collecting node resource metrics")
 
 	// Skip if metrics client is unavailable
 	if c.metricsClient == nil {
-		c.logger.V(4).Info("Metrics client not available, skipping node metrics collection")
+		c.logger.Info("Metrics client not available, skipping node metrics collection")
 		return
 	}
 
@@ -234,7 +234,7 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 		}
 
 		if !exists {
-			c.logger.V(4).Info("Node not found in cache", "name", nodeMetrics.Name)
+			c.logger.Info("Node not found in cache", "name", nodeMetrics.Name)
 			continue
 		}
 

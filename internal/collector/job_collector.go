@@ -129,7 +129,7 @@ func (c *JobCollector) handleJobEvent(job *batchv1.Job, eventType string) {
 		return
 	}
 
-	c.logger.V(4).Info("Processing job event",
+	c.logger.Info("Processing job event",
 		"namespace", job.Namespace,
 		"name", job.Name,
 		"eventType", eventType)

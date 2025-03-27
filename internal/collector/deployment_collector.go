@@ -123,7 +123,7 @@ func (c *DeploymentCollector) handleDeploymentEvent(deployment *appsv1.Deploymen
 		return
 	}
 
-	c.logger.V(4).Info("Processing deployment event",
+	c.logger.Info("Processing deployment event",
 		"namespace", deployment.Namespace,
 		"name", deployment.Name,
 		"eventType", eventType)

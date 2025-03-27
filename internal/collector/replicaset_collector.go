@@ -131,7 +131,7 @@ func (c *ReplicaSetCollector) handleReplicaSetEvent(replicaset *appsv1.ReplicaSe
 		return
 	}
 
-	c.logger.V(4).Info("Processing replicaset event",
+	c.logger.Info("Processing replicaset event",
 		"namespace", replicaset.Namespace,
 		"name", replicaset.Name,
 		"eventType", eventType)
