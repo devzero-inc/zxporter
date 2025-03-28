@@ -174,7 +174,6 @@ func (r *CollectionPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	logger := log.FromContext(ctx)
 	logger.Info("Reconciling CollectionPolicy", "request", req)
 
-	// TODO: call pulse to get the update the configs, dont collect config from ENV in reconcile
 	// Check if we should reload env config (every 5 minutes)
 	if time.Since(r.LastEnvCheckTime) > r.EnvCheckInterval {
 		r.EnvConfig = util.LoadEnvPolicyConfig(logger)
@@ -214,7 +213,7 @@ func (r *CollectionPolicyReconciler) createNewConfig(policy *monitoringv1.Collec
 	for _, pod := range policy.Spec.Exclusions.ExcludedPods {
 		excludedPods = append(excludedPods, collector.ExcludedPod{
 			Namespace: pod.Namespace,
-			Name:      pod.PodName,
+			Name:      pod.Name,
 		})
 	}
 
@@ -280,8 +279,162 @@ func (r *CollectionPolicyReconciler) createNewConfig(policy *monitoringv1.Collec
 	return newConfig, configChanged
 }
 
+// identifyAffectedCollectors determines which collectors are affected by configuration changes
+func (r *CollectionPolicyReconciler) identifyAffectedCollectors(oldConfig, newConfig *PolicyConfig) map[string]bool {
+	affectedCollectors := make(map[string]bool)
+
+	// Check namespaces and general settings that affect all collectors
+	if !reflect.DeepEqual(oldConfig.TargetNamespaces, newConfig.TargetNamespaces) ||
+		!reflect.DeepEqual(oldConfig.ExcludedNamespaces, newConfig.ExcludedNamespaces) ||
+		oldConfig.BufferSize != newConfig.BufferSize {
+		// These changes affect all collectors, return empty map to signal full restart
+		return nil
+	}
+
+	// Check exclusion lists that affect specific collectors
+	if !reflect.DeepEqual(oldConfig.ExcludedPods, newConfig.ExcludedPods) {
+		affectedCollectors["pod"] = true
+		affectedCollectors["container_resources"] = true
+	}
+
+	if !reflect.DeepEqual(oldConfig.ExcludedDeployments, newConfig.ExcludedDeployments) {
+		affectedCollectors["deployment"] = true
+	}
+
+	if !reflect.DeepEqual(oldConfig.ExcludedStatefulSets, newConfig.ExcludedStatefulSets) {
+		affectedCollectors["statefulset"] = true
+	}
+
+	if !reflect.DeepEqual(oldConfig.ExcludedDaemonSets, newConfig.ExcludedDaemonSets) {
+		affectedCollectors["daemonset"] = true
+	}
+
+	if !reflect.DeepEqual(oldConfig.ExcludedServices, newConfig.ExcludedServices) {
+		affectedCollectors["service"] = true
+	}
+
+	if !reflect.DeepEqual(oldConfig.ExcludedConfigMaps, newConfig.ExcludedConfigMaps) {
+		affectedCollectors["configmap"] = true
+	}
+
+	if !reflect.DeepEqual(oldConfig.ExcludedPVCs, newConfig.ExcludedPVCs) {
+		affectedCollectors["persistentvolumeclaim"] = true
+	}
+
+	if !reflect.DeepEqual(oldConfig.ExcludedEvents, newConfig.ExcludedEvents) {
+		affectedCollectors["event"] = true
+	}
+
+	if !reflect.DeepEqual(oldConfig.ExcludedJobs, newConfig.ExcludedJobs) {
+		affectedCollectors["job"] = true
+	}
+
+	if !reflect.DeepEqual(oldConfig.ExcludedCronJobs, newConfig.ExcludedCronJobs) {
+		affectedCollectors["cronjob"] = true
+	}
+
+	if !reflect.DeepEqual(oldConfig.ExcludedReplicationControllers, newConfig.ExcludedReplicationControllers) {
+		affectedCollectors["replicationcontroller"] = true
+	}
+
+	if !reflect.DeepEqual(oldConfig.ExcludedIngresses, newConfig.ExcludedIngresses) {
+		affectedCollectors["ingress"] = true
+	}
+
+	if !reflect.DeepEqual(oldConfig.ExcludedNetworkPolicies, newConfig.ExcludedNetworkPolicies) {
+		affectedCollectors["networkpolicy"] = true
+	}
+
+	if !reflect.DeepEqual(oldConfig.ExcludedEndpoints, newConfig.ExcludedEndpoints) {
+		affectedCollectors["endpoints"] = true
+	}
+
+	if !reflect.DeepEqual(oldConfig.ExcludedServiceAccounts, newConfig.ExcludedServiceAccounts) {
+		affectedCollectors["serviceaccount"] = true
+	}
+
+	if !reflect.DeepEqual(oldConfig.ExcludedLimitRanges, newConfig.ExcludedLimitRanges) {
+		affectedCollectors["limitrange"] = true
+	}
+
+	if !reflect.DeepEqual(oldConfig.ExcludedResourceQuotas, newConfig.ExcludedResourceQuotas) {
+		affectedCollectors["resourcequota"] = true
+	}
+
+	if !reflect.DeepEqual(oldConfig.ExcludedHPAs, newConfig.ExcludedHPAs) {
+		affectedCollectors["horizontalpodautoscaler"] = true
+	}
+
+	if !reflect.DeepEqual(oldConfig.ExcludedVPAs, newConfig.ExcludedVPAs) {
+		affectedCollectors["verticalpodautoscaler"] = true
+	}
+
+	if !reflect.DeepEqual(oldConfig.ExcludedRoles, newConfig.ExcludedRoles) {
+		affectedCollectors["role"] = true
+	}
+
+	if !reflect.DeepEqual(oldConfig.ExcludedRoleBindings, newConfig.ExcludedRoleBindings) {
+		affectedCollectors["rolebinding"] = true
+	}
+
+	if !reflect.DeepEqual(oldConfig.ExcludedClusterRoles, newConfig.ExcludedClusterRoles) {
+		affectedCollectors["clusterrole"] = true
+	}
+
+	if !reflect.DeepEqual(oldConfig.ExcludedClusterRoleBindings, newConfig.ExcludedClusterRoleBindings) {
+		affectedCollectors["clusterrolebinding"] = true
+	}
+
+	if !reflect.DeepEqual(oldConfig.ExcludedPDBs, newConfig.ExcludedPDBs) {
+		affectedCollectors["poddisruptionbudget"] = true
+	}
+
+	if !reflect.DeepEqual(oldConfig.ExcludedSecrets, newConfig.ExcludedSecrets) ||
+		oldConfig.MaskSecretData != newConfig.MaskSecretData {
+		affectedCollectors["secret"] = true
+	}
+
+	if !reflect.DeepEqual(oldConfig.ExcludedStorageClasses, newConfig.ExcludedStorageClasses) {
+		affectedCollectors["storageclass"] = true
+	}
+
+	if !reflect.DeepEqual(oldConfig.ExcludedPVs, newConfig.ExcludedPVs) {
+		affectedCollectors["persistentvolume"] = true
+	}
+
+	if !reflect.DeepEqual(oldConfig.ExcludedIngressClasses, newConfig.ExcludedIngressClasses) {
+		affectedCollectors["ingressclass"] = true
+	}
+
+	if !reflect.DeepEqual(oldConfig.ExcludedNodes, newConfig.ExcludedNodes) {
+		affectedCollectors["node"] = true
+		affectedCollectors["noderesource"] = true
+	}
+
+	if !reflect.DeepEqual(oldConfig.ExcludedCRDs, newConfig.ExcludedCRDs) ||
+		!reflect.DeepEqual(oldConfig.ExcludedCRDGroups, newConfig.ExcludedCRDGroups) {
+		affectedCollectors["customresourcedefinition"] = true
+	}
+
+	if !reflect.DeepEqual(oldConfig.ExcludedCustomResources, newConfig.ExcludedCustomResources) {
+		affectedCollectors["customresource"] = true
+	}
+
+	if oldConfig.NodeMetricsInterval != newConfig.NodeMetricsInterval {
+		affectedCollectors["noderesource"] = true
+	}
+
+	// Check if the special node collectors are affected by the update interval change
+	if oldConfig.UpdateInterval != newConfig.UpdateInterval {
+		affectedCollectors["node"] = true
+		affectedCollectors["container_resources"] = true
+	}
+
+	return affectedCollectors
+}
+
 // restartCollectors stops existing collectors and starts new ones with updated config
-func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, config *PolicyConfig) (ctrl.Result, error) {
+func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newConfig *PolicyConfig) (ctrl.Result, error) {
 	if r.RestartInProgress {
 		// Avoid concurrent restarts
 		return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
@@ -289,26 +442,342 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, conf
 
 	r.RestartInProgress = true
 	logger := r.Log.WithName("restart")
-	logger.Info("Restarting collectors with new configuration")
 
-	// Stop existing collectors
-	if r.CollectionManager != nil {
-		logger.Info("Stopping existing collectors")
-		if err := r.CollectionManager.StopAll(); err != nil {
-			logger.Error(err, "Error stopping collection manager")
+	defer func() {
+		r.RestartInProgress = false
+	}()
+
+	// Identify which collectors need to be restarted
+	affectedCollectors := r.identifyAffectedCollectors(r.CurrentConfig, newConfig)
+
+	// If affectedCollectors is nil, it signals a full restart is needed
+	if affectedCollectors == nil {
+		logger.Info("Major configuration change detected, performing full restart")
+
+		// Stop all existing collectors
+		if r.CollectionManager != nil {
+			logger.Info("Stopping all collectors")
+			if err := r.CollectionManager.StopAll(); err != nil {
+				logger.Error(err, "Error stopping collection manager")
+			}
+		}
+
+		// Reset state
+		r.IsRunning = false
+		r.CollectionManager = nil
+		r.CurrentConfig = nil
+
+		// Initialize with new config
+		return r.initializeCollectors(ctx, newConfig)
+	}
+
+	// If no collectors need to be restarted, just update the config
+	if len(affectedCollectors) == 0 {
+		logger.Info("No collectors affected by this configuration change")
+		r.CurrentConfig = newConfig
+		return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
+	}
+
+	logger.Info("Performing selective restart of affected collectors", "affectedCount", len(affectedCollectors))
+
+	// Get collector registry from CollectionManager
+	collectorTypes := r.CollectionManager.GetCollectorTypes()
+
+	// Create a mapping of collector type string to ResourceType
+	collectorTypeMap := make(map[string]collector.ResourceType)
+	for _, resType := range collector.AllResourceTypes() {
+		collectorTypeMap[resType.String()] = resType
+	}
+
+	// Stop only the affected collectors
+	for _, collectorType := range collectorTypes {
+		if affected := affectedCollectors[collectorType]; affected {
+			logger.Info("Stopping collector due to configuration change", "type", collectorType)
+			if err := r.CollectionManager.StopCollector(collectorType); err != nil {
+				logger.Error(err, "Error stopping collector", "type", collectorType)
+				// Continue with other collectors even if there's an error
+			}
 		}
 	}
 
-	// Reset state
-	r.IsRunning = false
-	r.CollectionManager = nil
-	r.CurrentConfig = nil
+	// Update the current config
+	r.CurrentConfig = newConfig
 
-	// Initialize with new config
-	result, err := r.initializeCollectors(ctx, config)
-	r.RestartInProgress = false
+	// Now recreate and restart the affected collectors
+	clientConfig := ctrl.GetConfigOrDie()
+	metricsClient, err := metricsv1.NewForConfig(clientConfig)
+	if err != nil {
+		logger.Error(err, "Failed to create metrics client, some collectors may be limited")
+	}
 
-	return result, err
+	// This is a simplified version of registerResourceCollectors but only for affected collectors
+	for collectorType := range affectedCollectors {
+		var relacedCollector collector.ResourceCollector
+
+		// Recreate the collector with new configuration based on type
+		switch collectorType {
+		case "pod":
+			relacedCollector = collector.NewPodCollector(
+				r.K8sClient,
+				newConfig.TargetNamespaces,
+				newConfig.ExcludedPods,
+				logger,
+			)
+		case "deployment":
+			relacedCollector = collector.NewDeploymentCollector(
+				r.K8sClient,
+				newConfig.TargetNamespaces,
+				newConfig.ExcludedDeployments,
+				logger,
+			)
+		case "statefulset":
+			relacedCollector = collector.NewStatefulSetCollector(
+				r.K8sClient,
+				newConfig.TargetNamespaces,
+				newConfig.ExcludedStatefulSets,
+				logger,
+			)
+		case "daemonset":
+			relacedCollector = collector.NewDaemonSetCollector(
+				r.K8sClient,
+				newConfig.TargetNamespaces,
+				newConfig.ExcludedDaemonSets,
+				logger,
+			)
+		case "service":
+			relacedCollector = collector.NewServiceCollector(
+				r.K8sClient,
+				newConfig.TargetNamespaces,
+				newConfig.ExcludedServices,
+				logger,
+			)
+		case "container_resources":
+			relacedCollector = collector.NewContainerResourceCollector(
+				r.K8sClient,
+				metricsClient,
+				newConfig.TargetNamespaces,
+				newConfig.ExcludedPods,
+				newConfig.UpdateInterval,
+				logger,
+			)
+		case "node":
+			relacedCollector = collector.NewNodeCollector(
+				r.K8sClient,
+				metricsClient,
+				newConfig.ExcludedNodes,
+				newConfig.UpdateInterval,
+				logger,
+			)
+		case "noderesource":
+			relacedCollector = collector.NewNodeMetricsCollector(
+				r.K8sClient,
+				newConfig.ExcludedNodes,
+				newConfig.NodeMetricsInterval,
+				logger,
+			)
+		case "configmap":
+			relacedCollector = collector.NewConfigMapCollector(
+				r.K8sClient,
+				newConfig.TargetNamespaces,
+				newConfig.ExcludedConfigMaps,
+				logger,
+			)
+		case "persistentvolumeclaim":
+			relacedCollector = collector.NewPersistentVolumeClaimCollector(
+				r.K8sClient,
+				newConfig.TargetNamespaces,
+				newConfig.ExcludedPVCs,
+				logger,
+			)
+		case "persistentvolume":
+			relacedCollector = collector.NewPersistentVolumeCollector(
+				r.K8sClient,
+				newConfig.ExcludedPVs,
+				logger,
+			)
+		case "event":
+			relacedCollector = collector.NewEventCollector(
+				r.K8sClient,
+				newConfig.TargetNamespaces,
+				newConfig.ExcludedEvents,
+				10,
+				10*time.Minute,
+				logger,
+			)
+		case "job":
+			relacedCollector = collector.NewJobCollector(
+				r.K8sClient,
+				newConfig.TargetNamespaces,
+				newConfig.ExcludedJobs,
+				logger,
+			)
+		case "cronjob":
+			relacedCollector = collector.NewCronJobCollector(
+				r.K8sClient,
+				newConfig.TargetNamespaces,
+				newConfig.ExcludedCronJobs,
+				logger,
+			)
+		case "replicationcontroller":
+			relacedCollector = collector.NewReplicationControllerCollector(
+				r.K8sClient,
+				newConfig.TargetNamespaces,
+				newConfig.ExcludedReplicationControllers,
+				logger,
+			)
+		case "ingress":
+			relacedCollector = collector.NewIngressCollector(
+				r.K8sClient,
+				newConfig.TargetNamespaces,
+				newConfig.ExcludedIngresses,
+				logger,
+			)
+		case "ingressclass":
+			relacedCollector = collector.NewIngressClassCollector(
+				r.K8sClient,
+				newConfig.ExcludedIngressClasses,
+				logger,
+			)
+		case "networkpolicy":
+			relacedCollector = collector.NewNetworkPolicyCollector(
+				r.K8sClient,
+				newConfig.TargetNamespaces,
+				newConfig.ExcludedNetworkPolicies,
+				logger,
+			)
+		case "endpoints":
+			relacedCollector = collector.NewEndpointCollector(
+				r.K8sClient,
+				newConfig.TargetNamespaces,
+				newConfig.ExcludedEndpoints,
+				logger,
+			)
+		case "serviceaccount":
+			relacedCollector = collector.NewServiceAccountCollector(
+				r.K8sClient,
+				newConfig.TargetNamespaces,
+				newConfig.ExcludedServiceAccounts,
+				logger,
+			)
+		case "limitrange":
+			relacedCollector = collector.NewLimitRangeCollector(
+				r.K8sClient,
+				newConfig.TargetNamespaces,
+				newConfig.ExcludedLimitRanges,
+				logger,
+			)
+		case "resourcequota":
+			relacedCollector = collector.NewResourceQuotaCollector(
+				r.K8sClient,
+				newConfig.TargetNamespaces,
+				newConfig.ExcludedResourceQuotas,
+				logger,
+			)
+		case "horizontalpodautoscaler":
+			relacedCollector = collector.NewHorizontalPodAutoscalerCollector(
+				r.K8sClient,
+				newConfig.TargetNamespaces,
+				newConfig.ExcludedHPAs,
+				logger,
+			)
+		case "verticalpodautoscaler":
+			relacedCollector = collector.NewVerticalPodAutoscalerCollector(
+				r.DynamicClient,
+				newConfig.TargetNamespaces,
+				newConfig.ExcludedVPAs,
+				logger,
+			)
+		case "role":
+			relacedCollector = collector.NewRoleCollector(
+				r.K8sClient,
+				newConfig.TargetNamespaces,
+				newConfig.ExcludedRoles,
+				logger,
+			)
+		case "rolebinding":
+			relacedCollector = collector.NewRoleBindingCollector(
+				r.K8sClient,
+				newConfig.TargetNamespaces,
+				newConfig.ExcludedRoleBindings,
+				logger,
+			)
+		case "clusterrole":
+			relacedCollector = collector.NewClusterRoleCollector(
+				r.K8sClient,
+				newConfig.ExcludedClusterRoles,
+				logger,
+			)
+		case "clusterrolebinding":
+			relacedCollector = collector.NewClusterRoleBindingCollector(
+				r.K8sClient,
+				newConfig.ExcludedClusterRoleBindings,
+				logger,
+			)
+		case "poddisruptionbudget":
+			relacedCollector = collector.NewPodDisruptionBudgetCollector(
+				r.K8sClient,
+				newConfig.TargetNamespaces,
+				newConfig.ExcludedPDBs,
+				logger,
+			)
+		case "secret":
+			relacedCollector = collector.NewSecretCollector(
+				r.K8sClient,
+				newConfig.TargetNamespaces,
+				newConfig.ExcludedSecrets,
+				newConfig.MaskSecretData,
+				logger,
+			)
+		case "storageclass":
+			relacedCollector = collector.NewStorageClassCollector(
+				r.K8sClient,
+				newConfig.ExcludedStorageClasses,
+				logger,
+			)
+		case "customresourcedefinition":
+			relacedCollector = collector.NewCRDCollector(
+				r.ApiExtensions,
+				newConfig.ExcludedCRDs,
+				logger,
+			)
+		case "customresource":
+			relacedCollector = collector.NewCustomResourceCollector(
+				r.ApiExtensions,
+				r.DiscoveryClient,
+				r.DynamicClient,
+				collector.CustomResourceCollectorConfig{
+					ExcludedCRDGroups: newConfig.ExcludedCRDGroups,
+					ExcludedResources: newConfig.ExcludedCustomResources,
+				},
+				logger,
+			)
+		default:
+			logger.Info("Collector type not handled in selective restart", "type", collectorType)
+			continue
+		}
+
+		// Check if collector is available
+		if !relacedCollector.IsAvailable(ctx) {
+			logger.Info("Collector not available, skipping restart", "type", collectorType)
+			continue
+		}
+
+		// Register the new collector
+		if err := r.CollectionManager.RegisterCollector(relacedCollector); err != nil {
+			logger.Error(err, "Failed to register collector", "type", collectorType)
+			continue
+		}
+
+		// Start the collector
+		if err := r.CollectionManager.StartCollector(ctx, collectorType); err != nil {
+			logger.Error(err, "Failed to start collector", "type", collectorType)
+		} else {
+			logger.Info("Successfully restarted collector", "type", collectorType)
+		}
+	}
+
+	logger.Info("Completed selective restart of collectors")
+	return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
 }
 
 // initializeCollectors coordinates the setup and startup of all collectors

@@ -94,9 +94,14 @@ func (c *IngressClassCollector) Start(ctx context.Context) error {
 	c.logger.Info("Informer caches synced successfully")
 
 	// Keep this goroutine alive until context cancellation or stop
+	stopCh := c.stopCh
 	go func() {
-		<-ctx.Done()
-		close(c.stopCh)
+		select {
+		case <-ctx.Done():
+			c.Stop()
+		case <-stopCh:
+			// Channel was closed by Stop() method
+		}
 	}()
 
 	return nil
@@ -181,7 +186,13 @@ func (c *IngressClassCollector) isExcluded(ingressClass *networkingv1.IngressCla
 // Stop gracefully shuts down the IngressClass collector
 func (c *IngressClassCollector) Stop() error {
 	c.logger.Info("Stopping IngressClass collector")
-	close(c.stopCh)
+	if c.stopCh != nil {
+		if c.stopCh != nil {
+			close(c.stopCh)
+			c.stopCh = nil
+		}
+		c.stopCh = nil
+	}
 	return nil
 }
 

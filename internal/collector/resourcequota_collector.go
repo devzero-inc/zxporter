@@ -116,9 +116,14 @@ func (c *ResourceQuotaCollector) Start(ctx context.Context) error {
 	c.logger.Info("Informer caches synced successfully")
 
 	// Keep this goroutine alive until context cancellation or stop
+	stopCh := c.stopCh
 	go func() {
-		<-ctx.Done()
-		close(c.stopCh)
+		select {
+		case <-ctx.Done():
+			c.Stop()
+		case <-stopCh:
+			// Channel was closed by Stop() method
+		}
 	}()
 
 	return nil
@@ -217,7 +222,10 @@ func (c *ResourceQuotaCollector) isExcluded(rq *corev1.ResourceQuota) bool {
 // Stop gracefully shuts down the resourcequota collector
 func (c *ResourceQuotaCollector) Stop() error {
 	c.logger.Info("Stopping resourcequota collector")
-	close(c.stopCh)
+	if c.stopCh != nil {
+		close(c.stopCh)
+		c.stopCh = nil
+	}
 	return nil
 }
 

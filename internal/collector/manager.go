@@ -38,6 +38,8 @@ type CollectionConfig struct {
 // CollectionManager orchestrates multiple collectors
 type CollectionManager struct {
 	collectors      map[string]ResourceCollector
+	collectorCtxs   map[string]context.CancelFunc // Track context cancellation functions for each collector
+	processorWg     map[string]*sync.WaitGroup    // Track processor goroutines for each collector
 	combinedChannel chan CollectedResource
 	wg              sync.WaitGroup
 	mu              sync.RWMutex
@@ -56,6 +58,8 @@ func NewCollectionManager(config *CollectionConfig, client kubernetes.Interface,
 
 	return &CollectionManager{
 		collectors:      make(map[string]ResourceCollector),
+		collectorCtxs:   make(map[string]context.CancelFunc),
+		processorWg:     make(map[string]*sync.WaitGroup),
 		combinedChannel: make(chan CollectedResource, bufferSize),
 		bufferSize:      bufferSize,
 		client:          client,
@@ -76,6 +80,62 @@ func (m *CollectionManager) RegisterCollector(collector ResourceCollector) error
 
 	m.logger.Info("Registering collector", "type", collectorType)
 	m.collectors[collectorType] = collector
+
+	// Initialize wait group for this collector type if it doesn't exist
+	if _, exists := m.processorWg[collectorType]; !exists {
+		m.processorWg[collectorType] = &sync.WaitGroup{}
+	}
+
+	return nil
+}
+
+// StopCollector stops a specific collector
+func (m *CollectionManager) StopCollector(collectorType string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	_, exists := m.collectors[collectorType]
+	if !exists {
+		return fmt.Errorf("collector for type %s not registered", collectorType)
+	}
+
+	cancel, ctxExists := m.collectorCtxs[collectorType]
+	if !ctxExists {
+		return fmt.Errorf("collector %s is not running", collectorType)
+	}
+
+	m.logger.Info("Stopping collector", "type", collectorType)
+
+	// Cancel the context for this collector
+	cancel()
+	delete(m.collectorCtxs, collectorType)
+
+	// // Stop the collector
+	// if err := collector.Stop(); err != nil {
+	// 	m.logger.Error(err, "Error stopping collector", "type", collectorType)
+	// 	return err
+	// }
+
+	// Wait for the processor goroutine to finish
+	wg, wgExists := m.processorWg[collectorType]
+	if wgExists && wg != nil {
+		done := make(chan struct{})
+		go func() {
+			wg.Wait()
+			close(done)
+		}()
+
+		select {
+		case <-done:
+			m.logger.Info("Processor goroutine finished cleanly", "type", collectorType)
+		case <-time.After(5 * time.Second):
+			m.logger.Info("Timeout waiting for processor goroutine to finish", "type", collectorType)
+		}
+	}
+
+	// Remove the collector from the map
+	delete(m.collectors, collectorType)
+
 	return nil
 }
 
@@ -92,20 +152,59 @@ func (m *CollectionManager) StartAll(ctx context.Context) error {
 
 	// Start each collector in its own goroutine
 	for collectorType, collector := range m.collectors {
-		m.logger.Info("Starting collector", "type", collectorType)
-
-		// Start this collector
-		if err := collector.Start(ctx); err != nil {
+		if err := m.startCollectorInternal(ctx, collectorType, collector); err != nil {
 			m.logger.Error(err, "Failed to start collector", "type", collectorType)
 			return fmt.Errorf("failed to start collector %s: %w", collectorType, err)
 		}
-
-		// Start a goroutine to read from this collector's channel
-		m.wg.Add(1)
-		go m.processCollectorChannel(collectorType, collector)
 	}
 
 	m.started = true
+	return nil
+}
+
+// StartCollector starts a specific collector
+func (m *CollectionManager) StartCollector(ctx context.Context, collectorType string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	collector, exists := m.collectors[collectorType]
+	if !exists {
+		return fmt.Errorf("collector for type %s not registered", collectorType)
+	}
+
+	if _, ctxExists := m.collectorCtxs[collectorType]; ctxExists {
+		return fmt.Errorf("collector %s is already running", collectorType)
+	}
+
+	return m.startCollectorInternal(ctx, collectorType, collector)
+}
+
+// startCollectorInternal is a helper function to start a collector with appropriate context management
+func (m *CollectionManager) startCollectorInternal(ctx context.Context, collectorType string, collector ResourceCollector) error {
+	m.logger.Info("Starting collector", "type", collectorType)
+
+	// Create a new context for this collector that can be cancelled individually
+	collectorCtx, cancel := context.WithCancel(ctx)
+	m.collectorCtxs[collectorType] = cancel
+
+	// Make sure the processor wait group exists for this collector
+	if _, exists := m.processorWg[collectorType]; !exists {
+		m.processorWg[collectorType] = &sync.WaitGroup{}
+	}
+
+	// Start this collector
+	if err := collector.Start(collectorCtx); err != nil {
+		cancel() // Clean up the context
+		delete(m.collectorCtxs, collectorType)
+		return fmt.Errorf("failed to start collector %s: %w", collectorType, err)
+	}
+
+	// Start a goroutine to read from this collector's channel
+	m.wg.Add(1)
+	wg := m.processorWg[collectorType]
+	wg.Add(1)
+	go m.processCollectorChannel(collectorType, collector, wg)
+
 	return nil
 }
 
@@ -120,14 +219,35 @@ func (m *CollectionManager) StopAll() error {
 
 	m.logger.Info("Stopping all collectors", "count", len(m.collectors))
 
+	// Cancel the contexts for all collectors
+	for collectorType, cancel := range m.collectorCtxs {
+		m.logger.Info("Cancelling context for collector", "type", collectorType)
+		cancel()
+	}
+
 	// Stop each collector
 	for collectorType, collector := range m.collectors {
 		m.logger.Info("Stopping collector", "type", collectorType)
 		if err := collector.Stop(); err != nil {
 			m.logger.Error(err, "Error stopping collector", "type", collectorType)
 			// Continue stopping others even if one fails
-		} else {
-			m.wg.Done()
+		}
+	}
+
+	// Wait for all processor goroutines to finish for each collector
+	for collectorType, wg := range m.processorWg {
+		m.logger.Info("Waiting for processor to finish", "type", collectorType)
+		done := make(chan struct{})
+		go func(wg *sync.WaitGroup) {
+			wg.Wait()
+			close(done)
+		}(wg)
+
+		select {
+		case <-done:
+			m.logger.Info("Processor goroutine finished cleanly", "type", collectorType)
+		case <-time.After(5 * time.Second):
+			m.logger.Info("Timeout waiting for processor goroutine to finish", "type", collectorType)
 		}
 	}
 
@@ -135,6 +255,10 @@ func (m *CollectionManager) StopAll() error {
 	originalBufferSize := cap(m.combinedChannel)
 	close(m.combinedChannel)
 	m.combinedChannel = make(chan CollectedResource, originalBufferSize)
+
+	// Clear all tracking maps
+	m.collectorCtxs = make(map[string]context.CancelFunc)
+	m.processorWg = make(map[string]*sync.WaitGroup)
 
 	// Wait for all goroutines to finish (with timeout)
 	done := make(chan struct{})
@@ -155,8 +279,9 @@ func (m *CollectionManager) StopAll() error {
 }
 
 // processCollectorChannel reads from a collector's channel and forwards to the combined channel
-func (m *CollectionManager) processCollectorChannel(collectorType string, collector ResourceCollector) {
+func (m *CollectionManager) processCollectorChannel(collectorType string, collector ResourceCollector, wg *sync.WaitGroup) {
 	defer m.wg.Done()
+	defer wg.Done()
 
 	m.logger.Info("Starting to process collector channel", "type", collectorType)
 	resourceChan := collector.GetResourceChannel()
@@ -194,4 +319,25 @@ func (m *CollectionManager) shouldCollectResource(resource CollectedResource) bo
 // GetCombinedChannel returns the combined channel for all collectors
 func (m *CollectionManager) GetCombinedChannel() <-chan CollectedResource {
 	return m.combinedChannel
+}
+
+// GetCollectorTypes returns a list of all registered collector types
+func (m *CollectionManager) GetCollectorTypes() []string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	types := make([]string, 0, len(m.collectors))
+	for collectorType := range m.collectors {
+		types = append(types, collectorType)
+	}
+	return types
+}
+
+// IsCollectorRunning checks if a specific collector is currently running
+func (m *CollectionManager) IsCollectorRunning(collectorType string) bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	_, exists := m.collectorCtxs[collectorType]
+	return exists
 }

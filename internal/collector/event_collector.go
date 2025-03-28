@@ -138,9 +138,14 @@ func (c *EventCollector) Start(ctx context.Context) error {
 	go c.periodicCleanup(ctx)
 
 	// Keep this goroutine alive until context cancellation or stop
+	stopCh := c.stopCh
 	go func() {
-		<-ctx.Done()
-		close(c.stopCh)
+		select {
+		case <-ctx.Done():
+			c.Stop()
+		case <-stopCh:
+			// Channel was closed by Stop() method
+		}
 	}()
 
 	return nil
@@ -263,7 +268,13 @@ func (c *EventCollector) periodicCleanup(ctx context.Context) {
 // Stop gracefully shuts down the event collector
 func (c *EventCollector) Stop() error {
 	c.logger.Info("Stopping event collector")
-	close(c.stopCh)
+	if c.stopCh != nil {
+		if c.stopCh != nil {
+			close(c.stopCh)
+			c.stopCh = nil
+		}
+		c.stopCh = nil
+	}
 	return nil
 }
 

@@ -114,10 +114,14 @@ func (c *ContainerResourceCollector) Start(ctx context.Context) error {
 	go c.collectResourcesLoop(ctx)
 
 	// Monitor for context cancellation
+	stopCh := c.stopCh
 	go func() {
-		<-ctx.Done()
-		c.logger.Info("Context cancelled, stopping container resource collector")
-		c.Stop()
+		select {
+		case <-ctx.Done():
+			c.Stop()
+		case <-stopCh:
+			// Channel was closed by Stop() method
+		}
 	}()
 
 	return nil
@@ -324,7 +328,13 @@ func (c *ContainerResourceCollector) Stop() error {
 		c.ticker.Stop()
 	}
 
-	close(c.stopCh)
+	if c.stopCh != nil {
+		if c.stopCh != nil {
+			close(c.stopCh)
+			c.stopCh = nil
+		}
+		c.stopCh = nil
+	}
 	return nil
 }
 

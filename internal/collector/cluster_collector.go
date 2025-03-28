@@ -481,7 +481,13 @@ func (c *ClusterCollector) Stop() error {
 		c.ticker.Stop()
 	}
 
-	close(c.stopCh)
+	if c.stopCh != nil {
+		if c.stopCh != nil {
+			close(c.stopCh)
+			c.stopCh = nil
+		}
+		c.stopCh = nil
+	}
 	return nil
 }
 

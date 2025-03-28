@@ -101,6 +101,16 @@ func (c *NodeMetricsCollector) Start(ctx context.Context) error {
 	// Start the collection loop
 	go c.collectMetricsLoop(ctx)
 
+	stopCh := c.stopCh
+	go func() {
+		select {
+		case <-ctx.Done():
+			c.Stop()
+		case <-stopCh:
+			// Channel was closed by Stop() method
+		}
+	}()
+
 	return nil
 }
 
@@ -310,7 +320,10 @@ func (c *NodeMetricsCollector) Stop() error {
 		c.ticker.Stop()
 	}
 
-	close(c.stopCh)
+	if c.stopCh != nil {
+		close(c.stopCh)
+		c.stopCh = nil
+	}
 	return nil
 }
 

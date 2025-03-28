@@ -115,9 +115,14 @@ func (c *ServiceCollector) Start(ctx context.Context) error {
 	c.logger.Info("Informer caches synced successfully")
 
 	// Keep this goroutine alive until context cancellation or stop
+	stopCh := c.stopCh
 	go func() {
-		<-ctx.Done()
-		close(c.stopCh)
+		select {
+		case <-ctx.Done():
+			c.Stop()
+		case <-stopCh:
+			// Channel was closed by Stop() method
+		}
 	}()
 
 	return nil
@@ -249,7 +254,10 @@ func (c *ServiceCollector) isExcluded(service *corev1.Service) bool {
 // Stop gracefully shuts down the service collector
 func (c *ServiceCollector) Stop() error {
 	c.logger.Info("Stopping service collector")
-	close(c.stopCh)
+	if c.stopCh != nil {
+		close(c.stopCh)
+		c.stopCh = nil
+	}
 	return nil
 }
 
