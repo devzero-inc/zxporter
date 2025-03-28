@@ -369,6 +369,11 @@ type Policies struct {
 
 	// WatchedCRDs is a list of custom resource definitions to explicitly watch
 	WatchedCRDs []string `json:"watchedCRDs,omitempty"`
+
+	// DisabledCollectors is a list of collector types to completely disable
+	// Valid values include: "pod", "deployment", "statefulset", "daemonset", "service",
+	// "configmap", "secret", "node", "event", etc.
+	DisabledCollectors []string `json:"disabledCollectors,omitempty"`
 }
 
 // CollectionPolicyStatus defines the observed state of CollectionPolicy

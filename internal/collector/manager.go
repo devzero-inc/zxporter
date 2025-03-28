@@ -89,6 +89,54 @@ func (m *CollectionManager) RegisterCollector(collector ResourceCollector) error
 	return nil
 }
 
+// DeregisterCollector stops and removes a specific collector
+func (m *CollectionManager) DeregisterCollector(collectorType string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	collector, exists := m.collectors[collectorType]
+	if !exists {
+		return fmt.Errorf("collector for type %s not registered", collectorType)
+	}
+
+	// First stop the collector if it's running
+	cancel, ctxExists := m.collectorCtxs[collectorType]
+	if ctxExists {
+		// Cancel the context for this collector
+		cancel()
+		delete(m.collectorCtxs, collectorType)
+
+		// Stop the collector
+		if err := collector.Stop(); err != nil {
+			m.logger.Error(err, "Error stopping collector during deregistration", "type", collectorType)
+		}
+
+		// Wait for the processor goroutine to finish
+		wg, wgExists := m.processorWg[collectorType]
+		if wgExists && wg != nil {
+			done := make(chan struct{})
+			go func() {
+				wg.Wait()
+				close(done)
+			}()
+
+			select {
+			case <-done:
+				m.logger.Info("Processor goroutine finished cleanly during deregistration", "type", collectorType)
+			case <-time.After(5 * time.Second):
+				m.logger.Info("Timeout waiting for processor goroutine to finish during deregistration", "type", collectorType)
+			}
+		}
+	}
+
+	// Now remove the collector from our maps
+	delete(m.collectors, collectorType)
+	delete(m.processorWg, collectorType)
+
+	m.logger.Info("Successfully deregistered collector", "type", collectorType)
+	return nil
+}
+
 // StopCollector stops a specific collector
 func (m *CollectionManager) StopCollector(collectorType string) error {
 	m.mu.Lock()

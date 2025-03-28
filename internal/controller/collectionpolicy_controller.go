@@ -100,6 +100,8 @@ type PolicyConfig struct {
 	ExcludedCRDGroups              []string
 	WatchedCRDs                    []string
 
+	DisabledCollectors []string
+
 	PulseURL            string
 	ClusterToken        string
 	UpdateInterval      time.Duration
@@ -225,18 +227,28 @@ func (r *CollectionPolicyReconciler) createNewConfig(policy *monitoringv1.Collec
 	clusterToken := policy.Spec.Policies.ClusterToken
 	frequencyStr := policy.Spec.Policies.Frequency
 	bufferSize := policy.Spec.Policies.BufferSize
+	disabledCollectors := policy.Spec.Policies.DisabledCollectors
 
 	// Merge with environment config
-	targetNamespaces, excludedNamespaces, excludedNodes, pulseURL, frequency, bufferSize, clusterToken :=
-		r.EnvConfig.MergeWithCRPolicy(
-			targetNamespaces,
-			excludedNamespaces,
-			excludedNodes,
-			pulseURL,
-			frequencyStr,
-			bufferSize,
-			clusterToken,
-		)
+	// targetNamespaces, excludedNamespaces, excludedNodes, pulseURL, frequency, bufferSize :=
+	// 	r.EnvConfig.MergeWithCRPolicy(
+	// 		targetNamespaces,
+	// 		excludedNamespaces,
+	// 		excludedNodes,
+	// 		pulseURL,
+	// 		frequencyStr,
+	// 		bufferSize,
+	// 	)
+
+	var frequency time.Duration
+	if frequencyStr != "" {
+		if freq, err := time.ParseDuration(frequencyStr); err == nil {
+			frequency = freq
+		} else {
+			logger.Error(err, "Error parsing frequency string")
+		}
+
+	}
 
 	// Use default if frequency is not set
 	if frequency <= 0 {
@@ -260,6 +272,7 @@ func (r *CollectionPolicyReconciler) createNewConfig(policy *monitoringv1.Collec
 		UpdateInterval:      frequency,
 		NodeMetricsInterval: nodeMetricsInterval,
 		BufferSize:          bufferSize,
+		DisabledCollectors:  disabledCollectors,
 	}
 
 	// Check if config has changed
@@ -447,6 +460,15 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 		r.RestartInProgress = false
 	}()
 
+	// Check if the DisabledCollectors list has changed
+	if !reflect.DeepEqual(r.CurrentConfig.DisabledCollectors, newConfig.DisabledCollectors) {
+		logger.Info("Disabled collectors configuration changed, updating affected collectors")
+		if err := r.handleDisabledCollectorsChange(ctx, logger, r.CurrentConfig, newConfig); err != nil {
+			logger.Error(err, "Error handling disabled collectors change")
+			// Continue with other updates despite error
+		}
+	}
+
 	// Identify which collectors need to be restarted
 	affectedCollectors := r.identifyAffectedCollectors(r.CurrentConfig, newConfig)
 
@@ -512,47 +534,47 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 
 	// This is a simplified version of registerResourceCollectors but only for affected collectors
 	for collectorType := range affectedCollectors {
-		var relacedCollector collector.ResourceCollector
+		var replacedCollector collector.ResourceCollector
 
 		// Recreate the collector with new configuration based on type
 		switch collectorType {
 		case "pod":
-			relacedCollector = collector.NewPodCollector(
+			replacedCollector = collector.NewPodCollector(
 				r.K8sClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedPods,
 				logger,
 			)
 		case "deployment":
-			relacedCollector = collector.NewDeploymentCollector(
+			replacedCollector = collector.NewDeploymentCollector(
 				r.K8sClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedDeployments,
 				logger,
 			)
 		case "statefulset":
-			relacedCollector = collector.NewStatefulSetCollector(
+			replacedCollector = collector.NewStatefulSetCollector(
 				r.K8sClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedStatefulSets,
 				logger,
 			)
 		case "daemonset":
-			relacedCollector = collector.NewDaemonSetCollector(
+			replacedCollector = collector.NewDaemonSetCollector(
 				r.K8sClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedDaemonSets,
 				logger,
 			)
 		case "service":
-			relacedCollector = collector.NewServiceCollector(
+			replacedCollector = collector.NewServiceCollector(
 				r.K8sClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedServices,
 				logger,
 			)
 		case "container_resources":
-			relacedCollector = collector.NewContainerResourceCollector(
+			replacedCollector = collector.NewContainerResourceCollector(
 				r.K8sClient,
 				metricsClient,
 				newConfig.TargetNamespaces,
@@ -561,7 +583,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				logger,
 			)
 		case "node":
-			relacedCollector = collector.NewNodeCollector(
+			replacedCollector = collector.NewNodeCollector(
 				r.K8sClient,
 				metricsClient,
 				newConfig.ExcludedNodes,
@@ -569,34 +591,34 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				logger,
 			)
 		case "noderesource":
-			relacedCollector = collector.NewNodeMetricsCollector(
+			replacedCollector = collector.NewNodeMetricsCollector(
 				r.K8sClient,
 				newConfig.ExcludedNodes,
 				newConfig.NodeMetricsInterval,
 				logger,
 			)
 		case "configmap":
-			relacedCollector = collector.NewConfigMapCollector(
+			replacedCollector = collector.NewConfigMapCollector(
 				r.K8sClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedConfigMaps,
 				logger,
 			)
 		case "persistentvolumeclaim":
-			relacedCollector = collector.NewPersistentVolumeClaimCollector(
+			replacedCollector = collector.NewPersistentVolumeClaimCollector(
 				r.K8sClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedPVCs,
 				logger,
 			)
 		case "persistentvolume":
-			relacedCollector = collector.NewPersistentVolumeCollector(
+			replacedCollector = collector.NewPersistentVolumeCollector(
 				r.K8sClient,
 				newConfig.ExcludedPVs,
 				logger,
 			)
 		case "event":
-			relacedCollector = collector.NewEventCollector(
+			replacedCollector = collector.NewEventCollector(
 				r.K8sClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedEvents,
@@ -605,123 +627,123 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				logger,
 			)
 		case "job":
-			relacedCollector = collector.NewJobCollector(
+			replacedCollector = collector.NewJobCollector(
 				r.K8sClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedJobs,
 				logger,
 			)
 		case "cronjob":
-			relacedCollector = collector.NewCronJobCollector(
+			replacedCollector = collector.NewCronJobCollector(
 				r.K8sClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedCronJobs,
 				logger,
 			)
 		case "replicationcontroller":
-			relacedCollector = collector.NewReplicationControllerCollector(
+			replacedCollector = collector.NewReplicationControllerCollector(
 				r.K8sClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedReplicationControllers,
 				logger,
 			)
 		case "ingress":
-			relacedCollector = collector.NewIngressCollector(
+			replacedCollector = collector.NewIngressCollector(
 				r.K8sClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedIngresses,
 				logger,
 			)
 		case "ingressclass":
-			relacedCollector = collector.NewIngressClassCollector(
+			replacedCollector = collector.NewIngressClassCollector(
 				r.K8sClient,
 				newConfig.ExcludedIngressClasses,
 				logger,
 			)
 		case "networkpolicy":
-			relacedCollector = collector.NewNetworkPolicyCollector(
+			replacedCollector = collector.NewNetworkPolicyCollector(
 				r.K8sClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedNetworkPolicies,
 				logger,
 			)
 		case "endpoints":
-			relacedCollector = collector.NewEndpointCollector(
+			replacedCollector = collector.NewEndpointCollector(
 				r.K8sClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedEndpoints,
 				logger,
 			)
 		case "serviceaccount":
-			relacedCollector = collector.NewServiceAccountCollector(
+			replacedCollector = collector.NewServiceAccountCollector(
 				r.K8sClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedServiceAccounts,
 				logger,
 			)
 		case "limitrange":
-			relacedCollector = collector.NewLimitRangeCollector(
+			replacedCollector = collector.NewLimitRangeCollector(
 				r.K8sClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedLimitRanges,
 				logger,
 			)
 		case "resourcequota":
-			relacedCollector = collector.NewResourceQuotaCollector(
+			replacedCollector = collector.NewResourceQuotaCollector(
 				r.K8sClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedResourceQuotas,
 				logger,
 			)
 		case "horizontalpodautoscaler":
-			relacedCollector = collector.NewHorizontalPodAutoscalerCollector(
+			replacedCollector = collector.NewHorizontalPodAutoscalerCollector(
 				r.K8sClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedHPAs,
 				logger,
 			)
 		case "verticalpodautoscaler":
-			relacedCollector = collector.NewVerticalPodAutoscalerCollector(
+			replacedCollector = collector.NewVerticalPodAutoscalerCollector(
 				r.DynamicClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedVPAs,
 				logger,
 			)
 		case "role":
-			relacedCollector = collector.NewRoleCollector(
+			replacedCollector = collector.NewRoleCollector(
 				r.K8sClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedRoles,
 				logger,
 			)
 		case "rolebinding":
-			relacedCollector = collector.NewRoleBindingCollector(
+			replacedCollector = collector.NewRoleBindingCollector(
 				r.K8sClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedRoleBindings,
 				logger,
 			)
 		case "clusterrole":
-			relacedCollector = collector.NewClusterRoleCollector(
+			replacedCollector = collector.NewClusterRoleCollector(
 				r.K8sClient,
 				newConfig.ExcludedClusterRoles,
 				logger,
 			)
 		case "clusterrolebinding":
-			relacedCollector = collector.NewClusterRoleBindingCollector(
+			replacedCollector = collector.NewClusterRoleBindingCollector(
 				r.K8sClient,
 				newConfig.ExcludedClusterRoleBindings,
 				logger,
 			)
 		case "poddisruptionbudget":
-			relacedCollector = collector.NewPodDisruptionBudgetCollector(
+			replacedCollector = collector.NewPodDisruptionBudgetCollector(
 				r.K8sClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedPDBs,
 				logger,
 			)
 		case "secret":
-			relacedCollector = collector.NewSecretCollector(
+			replacedCollector = collector.NewSecretCollector(
 				r.K8sClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedSecrets,
@@ -729,19 +751,19 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				logger,
 			)
 		case "storageclass":
-			relacedCollector = collector.NewStorageClassCollector(
+			replacedCollector = collector.NewStorageClassCollector(
 				r.K8sClient,
 				newConfig.ExcludedStorageClasses,
 				logger,
 			)
 		case "customresourcedefinition":
-			relacedCollector = collector.NewCRDCollector(
+			replacedCollector = collector.NewCRDCollector(
 				r.ApiExtensions,
 				newConfig.ExcludedCRDs,
 				logger,
 			)
 		case "customresource":
-			relacedCollector = collector.NewCustomResourceCollector(
+			replacedCollector = collector.NewCustomResourceCollector(
 				r.ApiExtensions,
 				r.DiscoveryClient,
 				r.DynamicClient,
@@ -757,13 +779,13 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 		}
 
 		// Check if collector is available
-		if !relacedCollector.IsAvailable(ctx) {
+		if !replacedCollector.IsAvailable(ctx) {
 			logger.Info("Collector not available, skipping restart", "type", collectorType)
 			continue
 		}
 
 		// Register the new collector
-		if err := r.CollectionManager.RegisterCollector(relacedCollector); err != nil {
+		if err := r.CollectionManager.RegisterCollector(replacedCollector); err != nil {
 			logger.Error(err, "Failed to register collector", "type", collectorType)
 			continue
 		}
@@ -1055,6 +1077,11 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 	config *PolicyConfig,
 	metricsClient *metricsv1.Clientset,
 ) error {
+
+	disabledCollectorsMap := make(map[string]bool)
+	for _, collectorType := range config.DisabledCollectors {
+		disabledCollectorsMap[collectorType] = true
+	}
 
 	// List of collectors to register
 	collectors := []struct {
@@ -1371,6 +1398,10 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 
 	// Register all collectors
 	for _, c := range collectors {
+		if disabledCollectorsMap[c.name.String()] {
+			logger.Info("Skipping disabled collector", "type", c.name.String())
+			continue
+		}
 		if c.collector.IsAvailable(context.Background()) {
 			logger.Info("Registering collector", "name", c.name.String())
 			if err := r.CollectionManager.RegisterCollector(c.collector); err != nil {
@@ -1416,6 +1447,315 @@ func (r *CollectionPolicyReconciler) processCollectedResources(ctx context.Conte
 			}
 		}
 	}
+}
+
+// Add this method to the CollectionPolicyReconciler to handle disabled collectors changes
+func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
+	ctx context.Context,
+	logger logr.Logger,
+	oldConfig, newConfig *PolicyConfig,
+) error {
+	// Create maps for quick lookups
+	oldDisabled := make(map[string]bool)
+	newDisabled := make(map[string]bool)
+
+	for _, collector := range oldConfig.DisabledCollectors {
+		oldDisabled[collector] = true
+	}
+
+	for _, collector := range newConfig.DisabledCollectors {
+		newDisabled[collector] = true
+	}
+
+	// Get all collector types currently registered
+	currentCollectors := r.CollectionManager.GetCollectorTypes()
+
+	// Find collectors that need to be deregistered (they were enabled before but now are disabled)
+	for _, collectorType := range currentCollectors {
+		if newDisabled[collectorType] && !oldDisabled[collectorType] {
+			logger.Info("Deregistering newly disabled collector", "type", collectorType)
+			if err := r.CollectionManager.DeregisterCollector(collectorType); err != nil {
+				logger.Error(err, "Failed to deregister collector", "type", collectorType)
+				// Continue with other collectors even if one fails
+			}
+		}
+	}
+
+	// Find collectors that need to be registered (they were disabled before but now are enabled)
+	clientConfig := ctrl.GetConfigOrDie()
+	metricsClient, err := metricsv1.NewForConfig(clientConfig)
+	if err != nil {
+		logger.Error(err, "Failed to create metrics client for newly enabled collectors")
+	}
+
+	for _, collectorType := range oldConfig.DisabledCollectors {
+		// If it was disabled before but not now
+		if !newDisabled[collectorType] {
+			logger.Info("Registering newly enabled collector", "type", collectorType)
+
+			// Create the collector based on type
+			var replacedCollector collector.ResourceCollector
+
+			switch collectorType {
+			case "pod":
+				replacedCollector = collector.NewPodCollector(
+					r.K8sClient,
+					newConfig.TargetNamespaces,
+					newConfig.ExcludedPods,
+					logger,
+				)
+			case "deployment":
+				replacedCollector = collector.NewDeploymentCollector(
+					r.K8sClient,
+					newConfig.TargetNamespaces,
+					newConfig.ExcludedDeployments,
+					logger,
+				)
+			case "statefulset":
+				replacedCollector = collector.NewStatefulSetCollector(
+					r.K8sClient,
+					newConfig.TargetNamespaces,
+					newConfig.ExcludedStatefulSets,
+					logger,
+				)
+			case "daemonset":
+				replacedCollector = collector.NewDaemonSetCollector(
+					r.K8sClient,
+					newConfig.TargetNamespaces,
+					newConfig.ExcludedDaemonSets,
+					logger,
+				)
+			case "service":
+				replacedCollector = collector.NewServiceCollector(
+					r.K8sClient,
+					newConfig.TargetNamespaces,
+					newConfig.ExcludedServices,
+					logger,
+				)
+			case "container_resources":
+				replacedCollector = collector.NewContainerResourceCollector(
+					r.K8sClient,
+					metricsClient,
+					newConfig.TargetNamespaces,
+					newConfig.ExcludedPods,
+					newConfig.UpdateInterval,
+					logger,
+				)
+			case "node":
+				replacedCollector = collector.NewNodeCollector(
+					r.K8sClient,
+					metricsClient,
+					newConfig.ExcludedNodes,
+					newConfig.UpdateInterval,
+					logger,
+				)
+			case "noderesource":
+				replacedCollector = collector.NewNodeMetricsCollector(
+					r.K8sClient,
+					newConfig.ExcludedNodes,
+					newConfig.NodeMetricsInterval,
+					logger,
+				)
+			case "configmap":
+				replacedCollector = collector.NewConfigMapCollector(
+					r.K8sClient,
+					newConfig.TargetNamespaces,
+					newConfig.ExcludedConfigMaps,
+					logger,
+				)
+			case "persistentvolumeclaim":
+				replacedCollector = collector.NewPersistentVolumeClaimCollector(
+					r.K8sClient,
+					newConfig.TargetNamespaces,
+					newConfig.ExcludedPVCs,
+					logger,
+				)
+			case "persistentvolume":
+				replacedCollector = collector.NewPersistentVolumeCollector(
+					r.K8sClient,
+					newConfig.ExcludedPVs,
+					logger,
+				)
+			case "event":
+				replacedCollector = collector.NewEventCollector(
+					r.K8sClient,
+					newConfig.TargetNamespaces,
+					newConfig.ExcludedEvents,
+					10,
+					10*time.Minute,
+					logger,
+				)
+			case "job":
+				replacedCollector = collector.NewJobCollector(
+					r.K8sClient,
+					newConfig.TargetNamespaces,
+					newConfig.ExcludedJobs,
+					logger,
+				)
+			case "cronjob":
+				replacedCollector = collector.NewCronJobCollector(
+					r.K8sClient,
+					newConfig.TargetNamespaces,
+					newConfig.ExcludedCronJobs,
+					logger,
+				)
+			case "replicationcontroller":
+				replacedCollector = collector.NewReplicationControllerCollector(
+					r.K8sClient,
+					newConfig.TargetNamespaces,
+					newConfig.ExcludedReplicationControllers,
+					logger,
+				)
+			case "ingress":
+				replacedCollector = collector.NewIngressCollector(
+					r.K8sClient,
+					newConfig.TargetNamespaces,
+					newConfig.ExcludedIngresses,
+					logger,
+				)
+			case "ingressclass":
+				replacedCollector = collector.NewIngressClassCollector(
+					r.K8sClient,
+					newConfig.ExcludedIngressClasses,
+					logger,
+				)
+			case "networkpolicy":
+				replacedCollector = collector.NewNetworkPolicyCollector(
+					r.K8sClient,
+					newConfig.TargetNamespaces,
+					newConfig.ExcludedNetworkPolicies,
+					logger,
+				)
+			case "endpoints":
+				replacedCollector = collector.NewEndpointCollector(
+					r.K8sClient,
+					newConfig.TargetNamespaces,
+					newConfig.ExcludedEndpoints,
+					logger,
+				)
+			case "serviceaccount":
+				replacedCollector = collector.NewServiceAccountCollector(
+					r.K8sClient,
+					newConfig.TargetNamespaces,
+					newConfig.ExcludedServiceAccounts,
+					logger,
+				)
+			case "limitrange":
+				replacedCollector = collector.NewLimitRangeCollector(
+					r.K8sClient,
+					newConfig.TargetNamespaces,
+					newConfig.ExcludedLimitRanges,
+					logger,
+				)
+			case "resourcequota":
+				replacedCollector = collector.NewResourceQuotaCollector(
+					r.K8sClient,
+					newConfig.TargetNamespaces,
+					newConfig.ExcludedResourceQuotas,
+					logger,
+				)
+			case "horizontalpodautoscaler":
+				replacedCollector = collector.NewHorizontalPodAutoscalerCollector(
+					r.K8sClient,
+					newConfig.TargetNamespaces,
+					newConfig.ExcludedHPAs,
+					logger,
+				)
+			case "verticalpodautoscaler":
+				replacedCollector = collector.NewVerticalPodAutoscalerCollector(
+					r.DynamicClient,
+					newConfig.TargetNamespaces,
+					newConfig.ExcludedVPAs,
+					logger,
+				)
+			case "role":
+				replacedCollector = collector.NewRoleCollector(
+					r.K8sClient,
+					newConfig.TargetNamespaces,
+					newConfig.ExcludedRoles,
+					logger,
+				)
+			case "rolebinding":
+				replacedCollector = collector.NewRoleBindingCollector(
+					r.K8sClient,
+					newConfig.TargetNamespaces,
+					newConfig.ExcludedRoleBindings,
+					logger,
+				)
+			case "clusterrole":
+				replacedCollector = collector.NewClusterRoleCollector(
+					r.K8sClient,
+					newConfig.ExcludedClusterRoles,
+					logger,
+				)
+			case "clusterrolebinding":
+				replacedCollector = collector.NewClusterRoleBindingCollector(
+					r.K8sClient,
+					newConfig.ExcludedClusterRoleBindings,
+					logger,
+				)
+			case "poddisruptionbudget":
+				replacedCollector = collector.NewPodDisruptionBudgetCollector(
+					r.K8sClient,
+					newConfig.TargetNamespaces,
+					newConfig.ExcludedPDBs,
+					logger,
+				)
+			case "secret":
+				replacedCollector = collector.NewSecretCollector(
+					r.K8sClient,
+					newConfig.TargetNamespaces,
+					newConfig.ExcludedSecrets,
+					newConfig.MaskSecretData,
+					logger,
+				)
+			case "storageclass":
+				replacedCollector = collector.NewStorageClassCollector(
+					r.K8sClient,
+					newConfig.ExcludedStorageClasses,
+					logger,
+				)
+			case "customresourcedefinition":
+				replacedCollector = collector.NewCRDCollector(
+					r.ApiExtensions,
+					newConfig.ExcludedCRDs,
+					logger,
+				)
+			case "customresource":
+				replacedCollector = collector.NewCustomResourceCollector(
+					r.ApiExtensions,
+					r.DiscoveryClient,
+					r.DynamicClient,
+					collector.CustomResourceCollectorConfig{
+						ExcludedCRDGroups: newConfig.ExcludedCRDGroups,
+						ExcludedResources: newConfig.ExcludedCustomResources,
+					},
+					logger,
+				)
+			case "namespace":
+				replacedCollector = collector.NewNamespaceCollector(
+					r.K8sClient,
+					newConfig.ExcludedNamespaces,
+					logger,
+				)
+			default:
+				logger.Info("Unknown collector type, skipping", "type", collectorType)
+				continue
+			}
+
+			// Register and start the collector
+			if err := r.CollectionManager.RegisterCollector(replacedCollector); err != nil {
+				logger.Error(err, "Failed to register collector", "type", collectorType)
+				continue
+			}
+
+			if err := r.CollectionManager.StartCollector(ctx, collectorType); err != nil {
+				logger.Error(err, "Failed to start collector", "type", collectorType)
+			}
+		}
+	}
+
+	return nil
 }
 
 // SetupWithManager sets up the controller with the Manager.

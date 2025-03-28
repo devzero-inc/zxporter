@@ -515,6 +515,14 @@ spec:
                   clusterToken:
                     description: ClusterToken is the token used to authenticate as a cluster
                     type: string
+                  disabledCollectors:
+                    description: |-
+                      DisabledCollectors is a list of collector types to completely disable
+                      Valid values include: "pod", "deployment", "statefulset", "daemonset", "service",
+                      "configmap", "secret", "node", "event", etc.
+                    items:
+                      type: string
+                    type: array
                   frequency:
                     description: Frequency is how often to collect resource usage
                       metrics

@@ -69,3 +69,7 @@ spec:
     bufferSize: 1000
     maskSecretData: true
     watchedCRDs: []
+    disabledCollectors:
+      # - "secret"        # Don't collect any secrets
+      # - "configmap"     # Don't collect any configmaps
+      # - "event"  
