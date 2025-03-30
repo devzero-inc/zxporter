@@ -41,7 +41,7 @@ func NewPulseClient(pulseBaseURL string, clusterToken string, logger logr.Logger
 }
 
 // SendResource sends the resource to Pulse through gRPC
-func (c *RealPulseClient) SendResource(ctx context.Context, resource collector.CollectedResource) error {
+func (c *RealPulseClient) SendResource(ctx context.Context, resource collector.CollectedResource) (string, error) {
 	c.logger.Info("Sending resource to Pulse",
 		"type", resource.ResourceType,
 		"key", resource.Key,
@@ -55,20 +55,20 @@ func (c *RealPulseClient) SendResource(ctx context.Context, resource collector.C
 	dataStruct, err = structpb.NewStruct(map[string]interface{}{})
 	if err != nil {
 		c.logger.Error(err, "Failed to create empty struct")
-		return err
+		return "", err
 	}
 
 	// Marshal the object to JSON then unmarshal to the struct
 	jsonBytes, err := json.Marshal(resource.Object)
 	if err != nil {
 		c.logger.Error(err, "Failed to marshal resource data to JSON")
-		return fmt.Errorf("failed to marshal resource data: %w", err)
+		return "", fmt.Errorf("failed to marshal resource data: %w", err)
 	}
 
 	err = dataStruct.UnmarshalJSON(jsonBytes)
 	if err != nil {
 		c.logger.Error(err, "Failed to unmarshal JSON to protobuf struct")
-		return fmt.Errorf("failed to convert resource data to protobuf struct: %w", err)
+		return "", fmt.Errorf("failed to convert resource data to protobuf struct: %w", err)
 	}
 
 	// Create the request
@@ -84,13 +84,13 @@ func (c *RealPulseClient) SendResource(ctx context.Context, resource collector.C
 	attachClusterToken(req, c.clusterToken)
 
 	// Send to Pulse
-	_, err = c.client.SendResource(ctx, req)
+	resp, err := c.client.SendResource(ctx, req)
 	if err != nil {
 		c.logger.Error(err, "Failed to send resource to Pulse")
-		return fmt.Errorf("failed to send resource to Pulse: %w", err)
+		return "", fmt.Errorf("failed to send resource to Pulse: %w", err)
 	}
 
-	return nil
+	return resp.Msg.ClusterIdentifier, nil
 }
 
 func attachClusterToken[T any](req *connect.Request[T], clusterToken string) {

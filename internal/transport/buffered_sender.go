@@ -120,7 +120,7 @@ func (s *BufferedSender) Stop() error {
 // Send attempts to send a resource, buffering it if the send fails
 func (s *BufferedSender) Send(ctx context.Context, resource collector.CollectedResource) error {
 	// First try to send directly
-	err := s.pulseClient.SendResource(ctx, resource)
+	_, err := s.pulseClient.SendResource(ctx, resource)
 	if err == nil {
 		return nil
 	}
@@ -183,7 +183,7 @@ func (s *BufferedSender) Flush(ctx context.Context) error {
 
 	// Try to send each item
 	for _, item := range itemsToFlush {
-		if err := s.pulseClient.SendResource(ctx, item.Resource); err != nil {
+		if _, err := s.pulseClient.SendResource(ctx, item.Resource); err != nil {
 			lastError = err
 			s.logger.V(4).Info("Failed to flush item",
 				"resourceType", item.Resource.ResourceType,
@@ -298,7 +298,7 @@ func (s *BufferedSender) processBufferedItems(ctx context.Context) {
 		}
 
 		// Try to send
-		err := s.pulseClient.SendResource(ctx, item.Resource)
+		_, err := s.pulseClient.SendResource(ctx, item.Resource)
 		if err != nil {
 			// Failed, increment attempts and calculate next retry time
 			item.Attempts++

@@ -10,7 +10,7 @@ import (
 // PulseClient defines methods for sending data to Pulse
 type PulseClient interface {
 	// SendResource sends any resource data to Pulse
-	SendResource(ctx context.Context, resource collector.CollectedResource) error
+	SendResource(ctx context.Context, resource collector.CollectedResource) (string, error)
 }
 
 // Sender defines methods for sending data to external systems
