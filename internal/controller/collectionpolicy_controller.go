@@ -93,6 +93,7 @@ type PolicyConfig struct {
 	ExcludedCRDs                   []string
 	ExcludedCustomResources        []collector.ExcludedCustomResource
 	ExcludedSecrets                []collector.ExcludedSecret
+	ExcludedReplicaSet             []collector.ExcludedReplicaSet
 	ExcludedStorageClasses         []string
 	ExcludedPVs                    []string
 	ExcludedIngressClasses         []string
@@ -987,7 +988,7 @@ func (r *CollectionPolicyReconciler) monitorClusterRegistration(
 					"attempt", attemptCount)
 
 				// Send the cluster data to Pulse
-				err := r.Sender.Send(ctx, resource)
+				_, err := r.Sender.Send(ctx, resource)
 				if err != nil {
 					logger.Error(err, "Failed to send cluster data to Pulse",
 						"attempt", attemptCount)
@@ -1395,6 +1396,15 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 			),
 			name: collector.StorageClass,
 		},
+		{
+			collector: collector.NewReplicaSetCollector(
+				r.K8sClient,
+				config.TargetNamespaces,
+				config.ExcludedReplicaSet,
+				logger,
+			),
+			name: collector.StorageClass,
+		},
 	}
 
 	// Register all collectors
@@ -1435,7 +1445,7 @@ func (r *CollectionPolicyReconciler) processCollectedResources(ctx context.Conte
 			}
 
 			// Send the raw resource directly to Pulse
-			if err := r.Sender.Send(ctx, resource); err != nil {
+			if _, err := r.Sender.Send(ctx, resource); err != nil {
 				logger.Error(err, "Failed to send resource to Pulse",
 					"resourceType", resource.ResourceType,
 					"eventType", resource.EventType,

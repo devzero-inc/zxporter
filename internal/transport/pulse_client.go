@@ -83,6 +83,11 @@ func (c *RealPulseClient) SendResource(ctx context.Context, resource collector.C
 	req := connect.NewRequest(res)
 	attachClusterToken(req, c.clusterToken)
 
+	if ctx.Value("cluster_id") != nil {
+		clusterString, _ := ctx.Value("cluster_id").(string)
+		req.Header().Set("cluster_id", clusterString)
+	}
+
 	// Send to Pulse
 	resp, err := c.client.SendResource(ctx, req)
 	if err != nil {

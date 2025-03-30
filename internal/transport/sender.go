@@ -35,16 +35,18 @@ func NewDirectPulseSender(pulseClient PulseClient, logger logr.Logger) Sender {
 }
 
 // Send transmits a resource directly to Pulse
-func (s *DirectPulseSender) Send(ctx context.Context, resource collector.CollectedResource) error {
+func (s *DirectPulseSender) Send(ctx context.Context, resource collector.CollectedResource) (string, error) {
 	if s.pulseClient == nil {
-		return fmt.Errorf("pulse client is nil, cannot send resource")
+		return "", fmt.Errorf("pulse client is nil, cannot send resource")
 	}
 
-	// TODO: Fix this to collect cluster info on cluster registration only
-	clusterID, err := s.pulseClient.SendResource(ctx, resource)
-	s.SetClusterID(clusterID)
+	ctxWithCluster := context.WithValue(ctx, "cluster_id", s.clusterID)
+	clusterID, err := s.pulseClient.SendResource(ctxWithCluster, resource)
+	if clusterID != "" {
+		s.SetClusterID(clusterID)
+	}
 
-	return err
+	return clusterID, err
 }
 
 // Start initializes the sender (no-op for direct sender)
