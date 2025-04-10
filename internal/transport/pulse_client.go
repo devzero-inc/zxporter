@@ -19,12 +19,13 @@ import (
 
 // RealPulseClient implements communication with Pulse service
 type RealPulseClient struct {
-	logger logr.Logger
-	client genconnect.MetricsCollectorServiceClient
+	logger       logr.Logger
+	client       genconnect.MetricsCollectorServiceClient
+	clusterToken string
 }
 
 // NewPulseClient creates a new client for Pulse service
-func NewPulseClient(pulseBaseURL string, logger logr.Logger) PulseClient {
+func NewPulseClient(pulseBaseURL string, clusterToken string, logger logr.Logger) PulseClient {
 	// We're using the connect client for the Pulse service
 	client := genconnect.NewMetricsCollectorServiceClient(
 		http.DefaultClient,
@@ -33,8 +34,9 @@ func NewPulseClient(pulseBaseURL string, logger logr.Logger) PulseClient {
 	)
 
 	return &RealPulseClient{
-		logger: logger.WithName("pulse-client"),
-		client: client,
+		logger:       logger.WithName("pulse-client"),
+		client:       client,
+		clusterToken: clusterToken,
 	}
 }
 
@@ -79,6 +81,7 @@ func (c *RealPulseClient) SendResource(ctx context.Context, resource collector.C
 	}
 
 	req := connect.NewRequest(res)
+	attachClusterToken(req, c.clusterToken)
 
 	// Send to Pulse
 	_, err = c.client.SendResource(ctx, req)
@@ -88,4 +91,8 @@ func (c *RealPulseClient) SendResource(ctx context.Context, resource collector.C
 	}
 
 	return nil
+}
+
+func attachClusterToken[T any](req *connect.Request[T], clusterToken string) {
+	req.Header().Set("Authorization", fmt.Sprintf("Bearer %s", clusterToken))
 }

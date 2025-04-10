@@ -12,6 +12,10 @@ import (
 
 // Configuration environment variables
 const (
+	// CLUSTER_TOKEN is the cluster token used to authenticate as a cluster
+	// Default value: ""
+	_ENV_CLUSTER_TOKEN = "CLUSTER_TOKEN"
+
 	// PULSE_URL is the URL of the Pulse service.
 	// Default value: ""
 	_ENV_PULSE_URL = "PULSE_URL"
@@ -42,6 +46,9 @@ const (
 
 // EnvPolicyConfig holds configuration that can be set via environment variables
 type EnvPolicyConfig struct {
+	// ClusterToken is the token used to authenticate as a cluster
+	ClusterToken string
+
 	// PulseURL is the URL of the Pulse service
 	PulseURL string
 
@@ -64,6 +71,12 @@ type EnvPolicyConfig struct {
 // LoadEnvPolicyConfig loads configuration from environment variables
 func LoadEnvPolicyConfig(logger logr.Logger) *EnvPolicyConfig {
 	config := &EnvPolicyConfig{}
+
+	// Load cluster token
+	if token := os.Getenv(_ENV_CLUSTER_TOKEN); token != "" {
+		config.ClusterToken = token
+		logger.Info("Loaded ClusterToken from environment")
+	}
 
 	// Load pulse URL
 	if url := os.Getenv(_ENV_PULSE_URL); url != "" {
@@ -139,13 +152,15 @@ func (e *EnvPolicyConfig) MergeWithCRPolicy(
 	pulseURL string,
 	frequencyStr string,
 	bufferSize int,
-) ([]string, []string, []string, string, time.Duration, int) {
+	clusterToken string,
+) ([]string, []string, []string, string, time.Duration, int, string) {
 
 	// Initialize default values from CR
 	mergedTargetNamespaces := targetNamespaces
 	mergedExcludedNamespaces := excludedNamespaces
 	mergedExcludedNodes := excludedNodes
 	mergedPulseURL := pulseURL
+	mergedClusterToken := clusterToken
 
 	// Parse frequency
 	var mergedFrequency time.Duration
@@ -174,6 +189,10 @@ func (e *EnvPolicyConfig) MergeWithCRPolicy(
 		mergedPulseURL = e.PulseURL
 	}
 
+	if e.ClusterToken != "" {
+		mergedClusterToken = e.ClusterToken
+	}
+
 	if e.Frequency > 0 {
 		mergedFrequency = e.Frequency
 	}
@@ -182,5 +201,5 @@ func (e *EnvPolicyConfig) MergeWithCRPolicy(
 		mergedBufferSize = e.BufferSize
 	}
 
-	return mergedTargetNamespaces, mergedExcludedNamespaces, mergedExcludedNodes, mergedPulseURL, mergedFrequency, mergedBufferSize
+	return mergedTargetNamespaces, mergedExcludedNamespaces, mergedExcludedNodes, mergedPulseURL, mergedFrequency, mergedBufferSize, mergedClusterToken
 }
