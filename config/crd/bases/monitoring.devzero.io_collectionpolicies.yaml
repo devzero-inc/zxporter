@@ -81,6 +81,9 @@ spec:
                   bufferSize:
                     description: BufferSize is the size of the sender buffer
                     type: integer
+                  clusterToken:
+                    description: ClusterToken is the token used to authenticate as a cluster
+                    type: string
                   frequency:
                     description: Frequency is how often to collect resource usage
                       metrics

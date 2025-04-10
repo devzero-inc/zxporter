@@ -91,10 +91,11 @@
     helm install node-exporter prometheus-community/prometheus-node-exporter
   ```
 
-* build docker image to push into cluster
+* build docker image, add to kind, deploy to cluster
   ```
-    make docker-build docker-push IMG=<some-registry>/zxporter:tag or docker build --build-arg GITHUB_TOKEN=<token> -t <some-registry>/zxporter:tag --push .
-    make deploy IMG=<some-registry>/zxporter:tag
+    make docker-build IMG=zxporter:tag
+    kind load docker-image zxporter:tag
+    make deploy IMG=zxporter:tag
   ```
 
 * uninstall things from cluster

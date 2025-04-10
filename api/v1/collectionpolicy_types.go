@@ -55,6 +55,9 @@ type Policies struct {
 	// PulseURL is the URL of the Pulse service
 	PulseURL string `json:"pulseURL,omitempty"`
 
+	// ClusterToken is the token used to authenticate as a cluster
+	ClusterToken string `json:"clusterToken,omitempty"`
+
 	// Frequency is how often to collect resource usage metrics
 	Frequency string `json:"frequency,omitempty"`
 

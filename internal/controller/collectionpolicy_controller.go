@@ -101,6 +101,7 @@ type PolicyConfig struct {
 	WatchedCRDs                    []string
 
 	PulseURL            string
+	ClusterToken        string
 	UpdateInterval      time.Duration
 	NodeMetricsInterval time.Duration
 	BufferSize          int
@@ -222,11 +223,12 @@ func (r *CollectionPolicyReconciler) createNewConfig(policy *monitoringv1.Collec
 	excludedNamespaces := policy.Spec.Exclusions.ExcludedNamespaces
 	excludedNodes := policy.Spec.Exclusions.ExcludedNodes
 	pulseURL := policy.Spec.Policies.PulseURL
+	clusterToken := policy.Spec.Policies.ClusterToken
 	frequencyStr := policy.Spec.Policies.Frequency
 	bufferSize := policy.Spec.Policies.BufferSize
 
 	// Merge with environment config
-	targetNamespaces, excludedNamespaces, excludedNodes, pulseURL, frequency, bufferSize :=
+	targetNamespaces, excludedNamespaces, excludedNodes, pulseURL, frequency, bufferSize, clusterToken :=
 		r.EnvConfig.MergeWithCRPolicy(
 			targetNamespaces,
 			excludedNamespaces,
@@ -234,6 +236,7 @@ func (r *CollectionPolicyReconciler) createNewConfig(policy *monitoringv1.Collec
 			pulseURL,
 			frequencyStr,
 			bufferSize,
+			clusterToken,
 		)
 
 	// Use default if frequency is not set
@@ -254,6 +257,7 @@ func (r *CollectionPolicyReconciler) createNewConfig(policy *monitoringv1.Collec
 		ExcludedPods:        excludedPods,
 		ExcludedNodes:       excludedNodes,
 		PulseURL:            pulseURL,
+		ClusterToken:        clusterToken,
 		UpdateInterval:      frequency,
 		NodeMetricsInterval: nodeMetricsInterval,
 		BufferSize:          bufferSize,
@@ -367,7 +371,7 @@ func (r *CollectionPolicyReconciler) setupCollectionManager(ctx context.Context,
 	// Create pulse client and sender
 	var pulseClient transport.PulseClient
 	if config.PulseURL != "" {
-		pulseClient = transport.NewPulseClient(config.PulseURL, logger)
+		pulseClient = transport.NewPulseClient(config.PulseURL, config.ClusterToken, logger)
 		logger.Info("Created Pulse client with configured URL", "url", config.PulseURL)
 	} else {
 		pulseClient = transport.NewSimplePulseClient(logger)
