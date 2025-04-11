@@ -228,19 +228,20 @@ func (r *CollectionPolicyReconciler) createNewConfig(policy *monitoringv1.Collec
 	frequencyStr := policy.Spec.Policies.Frequency
 	bufferSize := policy.Spec.Policies.BufferSize
 	disabledCollectors := policy.Spec.Policies.DisabledCollectors
+	var frequency time.Duration
 
 	// Merge with environment config
-	// targetNamespaces, excludedNamespaces, excludedNodes, pulseURL, frequency, bufferSize :=
-	// 	r.EnvConfig.MergeWithCRPolicy(
-	// 		targetNamespaces,
-	// 		excludedNamespaces,
-	// 		excludedNodes,
-	// 		pulseURL,
-	// 		frequencyStr,
-	// 		bufferSize,
-	// 	)
+	targetNamespaces, excludedNamespaces, excludedNodes, pulseURL, frequency, bufferSize, clusterToken =
+		r.EnvConfig.MergeWithCRPolicy(
+			targetNamespaces,
+			excludedNamespaces,
+			excludedNodes,
+			pulseURL,
+			frequencyStr,
+			bufferSize,
+			clusterToken,
+		)
 
-	var frequency time.Duration
 	if frequencyStr != "" {
 		if freq, err := time.ParseDuration(frequencyStr); err == nil {
 			frequency = freq
