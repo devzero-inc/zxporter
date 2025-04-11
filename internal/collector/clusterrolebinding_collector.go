@@ -93,9 +93,14 @@ func (c *ClusterRoleBindingCollector) Start(ctx context.Context) error {
 	c.logger.Info("Informer caches synced successfully")
 
 	// Keep this goroutine alive until context cancellation or stop
+	stopCh := c.stopCh
 	go func() {
-		<-ctx.Done()
-		close(c.stopCh)
+		select {
+		case <-ctx.Done():
+			c.Stop()
+		case <-stopCh:
+			// Channel was closed by Stop() method
+		}
 	}()
 
 	return nil
@@ -164,7 +169,13 @@ func (c *ClusterRoleBindingCollector) isExcluded(crb *rbacv1.ClusterRoleBinding)
 // Stop gracefully shuts down the ClusterRoleBinding collector
 func (c *ClusterRoleBindingCollector) Stop() error {
 	c.logger.Info("Stopping ClusterRoleBinding collector")
-	close(c.stopCh)
+	if c.stopCh != nil {
+		if c.stopCh != nil {
+			close(c.stopCh)
+			c.stopCh = nil
+		}
+		c.stopCh = nil
+	}
 	return nil
 }
 

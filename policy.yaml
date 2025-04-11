@@ -7,9 +7,69 @@ spec:
   targetSelector:
     namespaces: [] # Empty means all namespaces
   exclusions:
+    # Namespace and node level exclusions
     excludedNamespaces:
       - kube-system
       - kube-public
+    excludedNodes: []
+    excludedLabels: {}
+    
+    # Workload exclusions
+    excludedPods:
+      - namespace: default
+        name: inc-load-5777cbd67f-2lbjp
+    excludedDeployments: []
+    excludedStatefulSets: []
+    excludedDaemonSets: []
+    excludedReplicationControllers: []
+    excludedJobs: []
+    excludedCronJobs: []
+    
+    # Service-related exclusions
+    excludedServices: []
+    excludedEndpoints: []
+    excludedIngresses: []
+    excludedIngressClasses: []
+    excludedNetworkPolicies: []
+    
+    # Configuration exclusions
+    excludedConfigMaps: []
+    excludedSecrets: []
+    excludedServiceAccounts: []
+    
+    # Storage exclusions
+    excludedPVCs: []
+    excludedPVs: []
+    excludedStorageClasses: []
+    
+    # RBAC exclusions
+    excludedRoles: []
+    excludedRoleBindings: []
+    excludedClusterRoles: []
+    excludedClusterRoleBindings: []
+    
+    # Resource management exclusions
+    excludedResourceQuotas: []
+    excludedLimitRanges: []
+    excludedHPAs: []
+    excludedVPAs: []
+    excludedPDBs: []
+    excludedPSPs: []
+    
+    # Custom resource exclusions
+    excludedCRDs: []
+    excludedCustomResources: []
+    excludedCRDGroups: []
+    
+    # Event exclusions
+    excludedEvents: []
+    
   policies:
     frequency: "30s"
     bufferSize: 1000
+    maskSecretData: true
+    watchedCRDs: []
+    disabledCollectors:
+      # - "secret"        # Don't collect any secrets
+      # - "configmap"     # Don't collect any configmaps
+      # - "event"  

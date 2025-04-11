@@ -115,9 +115,14 @@ func (c *ConfigMapCollector) Start(ctx context.Context) error {
 	c.logger.Info("Informer caches synced successfully")
 
 	// Keep this goroutine alive until context cancellation or stop
+	stopCh := c.stopCh
 	go func() {
-		<-ctx.Done()
-		close(c.stopCh)
+		select {
+		case <-ctx.Done():
+			c.Stop()
+		case <-stopCh:
+			// Channel was closed by Stop() method
+		}
 	}()
 
 	return nil
@@ -232,7 +237,13 @@ func (c *ConfigMapCollector) isExcluded(configmap *corev1.ConfigMap) bool {
 // Stop gracefully shuts down the configmap collector
 func (c *ConfigMapCollector) Stop() error {
 	c.logger.Info("Stopping configmap collector")
-	close(c.stopCh)
+	if c.stopCh != nil {
+		if c.stopCh != nil {
+			close(c.stopCh)
+			c.stopCh = nil
+		}
+		c.stopCh = nil
+	}
 	return nil
 }
 

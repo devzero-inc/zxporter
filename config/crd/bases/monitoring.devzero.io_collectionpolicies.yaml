@@ -14,7 +14,17 @@ spec:
     singular: collectionpolicy
   scope: Namespaced
   versions:
-  - name: v1
+  - additionalPrinterColumns:
+    - jsonPath: .status.activeCollectors
+      name: Active Collectors
+      type: integer
+    - jsonPath: .status.bufferUsage
+      name: Buffer Usage
+      type: integer
+    - jsonPath: .status.lastUpdated
+      name: Last Updated
+      type: date
+    name: v1
     schema:
       openAPIV3Schema:
         description: CollectionPolicy is the Schema for the collectionpolicies API
@@ -42,36 +52,457 @@ spec:
               exclusions:
                 description: Exclusions specifies resources to exclude from collection
                 properties:
+                  excludedCRDGroups:
+                    items:
+                      type: string
+                    type: array
+                  excludedCRDs:
+                    description: Custom Resource Exclusions
+                    items:
+                      type: string
+                    type: array
+                  excludedClusterRoleBindings:
+                    items:
+                      type: string
+                    type: array
+                  excludedClusterRoles:
+                    items:
+                      type: string
+                    type: array
+                  excludedConfigMaps:
+                    description: Configuration Exclusions
+                    items:
+                      description: ExcludedConfigMap identifies a configmap to exclude
+                      properties:
+                        name:
+                          description: Name is the configmap's name
+                          type: string
+                        namespace:
+                          description: Namespace is the configmap's namespace
+                          type: string
+                      required:
+                      - name
+                      - namespace
+                      type: object
+                    type: array
+                  excludedCronJobs:
+                    items:
+                      description: ExcludedCronJob identifies a cronjob to exclude
+                      properties:
+                        name:
+                          description: Name is the cronjob's name
+                          type: string
+                        namespace:
+                          description: Namespace is the cronjob's namespace
+                          type: string
+                      required:
+                      - name
+                      - namespace
+                      type: object
+                    type: array
+                  excludedCustomResources:
+                    items:
+                      description: ExcludedCustomResource identifies a custom resource
+                        to exclude
+                      properties:
+                        group:
+                          description: Group is the API group of the custom resource
+                          type: string
+                        kind:
+                          description: Kind is the kind of the custom resource
+                          type: string
+                        name:
+                          description: Name is the custom resource's name
+                          type: string
+                        namespace:
+                          description: Namespace is the custom resource's namespace
+                          type: string
+                        version:
+                          description: Version is the API version of the custom resource
+                          type: string
+                      required:
+                      - group
+                      - kind
+                      - name
+                      - namespace
+                      - version
+                      type: object
+                    type: array
+                  excludedDaemonSets:
+                    items:
+                      description: ExcludedDaemonSet identifies a daemonset to exclude
+                      properties:
+                        name:
+                          description: Name is the daemonset's name
+                          type: string
+                        namespace:
+                          description: Namespace is the daemonset's namespace
+                          type: string
+                      required:
+                      - name
+                      - namespace
+                      type: object
+                    type: array
+                  excludedDeployments:
+                    items:
+                      description: ExcludedDeployment identifies a deployment to exclude
+                      properties:
+                        name:
+                          description: Name is the deployment's name
+                          type: string
+                        namespace:
+                          description: Namespace is the deployment's namespace
+                          type: string
+                      required:
+                      - name
+                      - namespace
+                      type: object
+                    type: array
+                  excludedEndpoints:
+                    items:
+                      description: ExcludedEndpoint identifies an endpoint to exclude
+                      properties:
+                        name:
+                          description: Name is the endpoint's name
+                          type: string
+                        namespace:
+                          description: Namespace is the endpoint's namespace
+                          type: string
+                      required:
+                      - name
+                      - namespace
+                      type: object
+                    type: array
+                  excludedEvents:
+                    description: Event Exclusions
+                    items:
+                      description: ExcludedEvent identifies an event to exclude
+                      properties:
+                        involvedObjectKind:
+                          description: InvolvedObjectKind is the kind of object involved
+                            in the event
+                          type: string
+                        involvedObjectName:
+                          description: InvolvedObjectName is the name of the object
+                            involved in the event
+                          type: string
+                        namespace:
+                          description: Namespace is the event's namespace
+                          type: string
+                        reason:
+                          description: Reason is the event's reason
+                          type: string
+                        source:
+                          description: Source is the event's source component
+                          type: string
+                      required:
+                      - namespace
+                      type: object
+                    type: array
+                  excludedHPAs:
+                    items:
+                      description: ExcludedHPA identifies a horizontal pod autoscaler
+                        to exclude
+                      properties:
+                        name:
+                          description: Name is the horizontal pod autoscaler's name
+                          type: string
+                        namespace:
+                          description: Namespace is the horizontal pod autoscaler's
+                            namespace
+                          type: string
+                      required:
+                      - name
+                      - namespace
+                      type: object
+                    type: array
+                  excludedIngressClasses:
+                    items:
+                      type: string
+                    type: array
+                  excludedIngresses:
+                    items:
+                      description: ExcludedIngress identifies an ingress to exclude
+                      properties:
+                        name:
+                          description: Name is the ingress's name
+                          type: string
+                        namespace:
+                          description: Namespace is the ingress's namespace
+                          type: string
+                      required:
+                      - name
+                      - namespace
+                      type: object
+                    type: array
+                  excludedJobs:
+                    items:
+                      description: ExcludedJob identifies a job to exclude
+                      properties:
+                        name:
+                          description: Name is the job's name
+                          type: string
+                        namespace:
+                          description: Namespace is the job's namespace
+                          type: string
+                      required:
+                      - name
+                      - namespace
+                      type: object
+                    type: array
                   excludedLabels:
                     additionalProperties:
                       type: string
                     description: ExcludedLabels are label selectors to exclude
                     type: object
+                  excludedLimitRanges:
+                    items:
+                      description: ExcludedLimitRange identifies a limit range to
+                        exclude
+                      properties:
+                        name:
+                          description: Name is the limit range's name
+                          type: string
+                        namespace:
+                          description: Namespace is the limit range's namespace
+                          type: string
+                      required:
+                      - name
+                      - namespace
+                      type: object
+                    type: array
                   excludedNamespaces:
                     description: ExcludedNamespaces are namespaces to exclude from
                       collection
                     items:
                       type: string
                     type: array
+                  excludedNetworkPolicies:
+                    items:
+                      description: ExcludedNetworkPolicy identifies a network policy
+                        to exclude
+                      properties:
+                        name:
+                          description: Name is the network policy's name
+                          type: string
+                        namespace:
+                          description: Namespace is the network policy's namespace
+                          type: string
+                      required:
+                      - name
+                      - namespace
+                      type: object
+                    type: array
                   excludedNodes:
                     description: ExcludedNodes are nodes to exclude from collection
                     items:
                       type: string
                     type: array
+                  excludedPDBs:
+                    items:
+                      description: ExcludedPDB identifies a pod disruption budget
+                        to exclude
+                      properties:
+                        name:
+                          description: Name is the pod disruption budget's name
+                          type: string
+                        namespace:
+                          description: Namespace is the pod disruption budget's namespace
+                          type: string
+                      required:
+                      - name
+                      - namespace
+                      type: object
+                    type: array
+                  excludedPSPs:
+                    items:
+                      type: string
+                    type: array
+                  excludedPVCs:
+                    description: Storage Exclusions
+                    items:
+                      description: ExcludedPVC identifies a persistent volume claim
+                        to exclude
+                      properties:
+                        name:
+                          description: Name is the persistent volume claim's name
+                          type: string
+                        namespace:
+                          description: Namespace is the persistent volume claim's
+                            namespace
+                          type: string
+                      required:
+                      - name
+                      - namespace
+                      type: object
+                    type: array
+                  excludedPVs:
+                    items:
+                      type: string
+                    type: array
                   excludedPods:
-                    description: ExcludedPods are pods to exclude from collection
+                    description: Workload Exclusions
                     items:
                       description: ExcludedPod identifies a pod to exclude
                       properties:
+                        name:
+                          description: Name is the pod's name
+                          type: string
                         namespace:
                           description: Namespace is the pod's namespace
                           type: string
-                        podName:
-                          description: PodName is the pod's name
+                      required:
+                      - name
+                      - namespace
+                      type: object
+                    type: array
+                  excludedReplicationControllers:
+                    items:
+                      description: ExcludedReplicationController identifies a replication
+                        controller to exclude
+                      properties:
+                        name:
+                          description: Name is the replication controller's name
+                          type: string
+                        namespace:
+                          description: Namespace is the replication controller's namespace
                           type: string
                       required:
+                      - name
                       - namespace
-                      - podName
+                      type: object
+                    type: array
+                  excludedResourceQuotas:
+                    description: Resource Management Exclusions
+                    items:
+                      description: ExcludedResourceQuota identifies a resource quota
+                        to exclude
+                      properties:
+                        name:
+                          description: Name is the resource quota's name
+                          type: string
+                        namespace:
+                          description: Namespace is the resource quota's namespace
+                          type: string
+                      required:
+                      - name
+                      - namespace
+                      type: object
+                    type: array
+                  excludedRoleBindings:
+                    items:
+                      description: ExcludedRoleBinding identifies a role binding to
+                        exclude
+                      properties:
+                        name:
+                          description: Name is the role binding's name
+                          type: string
+                        namespace:
+                          description: Namespace is the role binding's namespace
+                          type: string
+                      required:
+                      - name
+                      - namespace
+                      type: object
+                    type: array
+                  excludedRoles:
+                    description: RBAC Exclusions
+                    items:
+                      description: ExcludedRole identifies a role to exclude
+                      properties:
+                        name:
+                          description: Name is the role's name
+                          type: string
+                        namespace:
+                          description: Namespace is the role's namespace
+                          type: string
+                      required:
+                      - name
+                      - namespace
+                      type: object
+                    type: array
+                  excludedSecrets:
+                    items:
+                      description: ExcludedSecret identifies a secret to exclude
+                      properties:
+                        name:
+                          description: Name is the secret's name
+                          type: string
+                        namespace:
+                          description: Namespace is the secret's namespace
+                          type: string
+                      required:
+                      - name
+                      - namespace
+                      type: object
+                    type: array
+                  excludedServiceAccounts:
+                    items:
+                      description: ExcludedServiceAccount identifies a service account
+                        to exclude
+                      properties:
+                        name:
+                          description: Name is the service account's name
+                          type: string
+                        namespace:
+                          description: Namespace is the service account's namespace
+                          type: string
+                      required:
+                      - name
+                      - namespace
+                      type: object
+                    type: array
+                  excludedServices:
+                    description: Service-Related Exclusions
+                    items:
+                      description: ExcludedService identifies a service to exclude
+                      properties:
+                        name:
+                          description: Name is the service's name
+                          type: string
+                        namespace:
+                          description: Namespace is the service's namespace
+                          type: string
+                      required:
+                      - name
+                      - namespace
+                      type: object
+                    type: array
+                  excludedStatefulSets:
+                    items:
+                      description: ExcludedStatefulSet identifies a statefulset to
+                        exclude
+                      properties:
+                        name:
+                          description: Name is the statefulset's name
+                          type: string
+                        namespace:
+                          description: Namespace is the statefulset's namespace
+                          type: string
+                      required:
+                      - name
+                      - namespace
+                      type: object
+                    type: array
+                  excludedStorageClasses:
+                    items:
+                      type: string
+                    type: array
+                  excludedVPAs:
+                    items:
+                      description: ExcludedVPA identifies a vertical pod autoscaler
+                        to exclude
+                      properties:
+                        name:
+                          description: Name is the vertical pod autoscaler's name
+                          type: string
+                        namespace:
+                          description: Namespace is the vertical pod autoscaler's
+                            namespace
+                          type: string
+                      required:
+                      - name
+                      - namespace
                       type: object
                     type: array
                 type: object
@@ -84,13 +515,35 @@ spec:
                   clusterToken:
                     description: ClusterToken is the token used to authenticate as a cluster
                     type: string
+                  disabledCollectors:
+                    description: |-
+                      DisabledCollectors is a list of collector types to completely disable
+                      Valid values include: "pod", "deployment", "statefulset", "daemonset", "service",
+                      "configmap", "secret", "node", "event", etc.
+                    items:
+                      type: string
+                    type: array
                   frequency:
                     description: Frequency is how often to collect resource usage
                       metrics
                     type: string
+                  maskSecretData:
+                    description: MaskSecretData determines whether to redact secret
+                      values
+                    type: boolean
+                  nodeMetricsInterval:
+                    description: NodeMetricsInterval is how often to collect node
+                      metrics (defaults to 6x regular frequency)
+                    type: string
                   pulseURL:
                     description: PulseURL is the URL of the Pulse service
                     type: string
+                  watchedCRDs:
+                    description: WatchedCRDs is a list of custom resource definitions
+                      to explicitly watch
+                    items:
+                      type: string
+                    type: array
                 type: object
               targetSelector:
                 description: TargetSelector specifies which resources to collect
@@ -110,6 +563,15 @@ spec:
           status:
             description: CollectionPolicyStatus defines the observed state of CollectionPolicy
             properties:
+              activeCollectors:
+                description: ActiveCollectors is a list of currently active collectors
+                items:
+                  type: string
+                type: array
+              bufferUsage:
+                description: BufferUsage is the percentage of buffer currently in
+                  use
+                type: integer
               collectedResources:
                 description: CollectedResources is the count of resources being collected
                 type: integer
@@ -171,6 +633,14 @@ spec:
                   - type
                   type: object
                 type: array
+              currentBufferSize:
+                description: BufferSize is the current buffer size in use
+                type: integer
+              lastSuccessfulPulseConnection:
+                description: LastSuccessfulPulseConnection is when the last successful
+                  connection to Pulse occurred
+                format: date-time
+                type: string
               lastUpdated:
                 description: LastUpdated is when the policy was last updated
                 format: date-time
