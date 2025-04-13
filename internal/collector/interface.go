@@ -140,6 +140,8 @@ func (r ResourceType) ProtoType() gen.ResourceType {
 		return gen.ResourceType_RESOURCE_TYPE_NODE_RESOURCE
 	case ContainerResource:
 		return gen.ResourceType_RESOURCE_TYPE_CONTAINER_RESOURCE
+	case Cluster:
+		return gen.ResourceType_RESOURCE_TYPE_CLUSTER
 	default:
 		return gen.ResourceType_RESOURCE_TYPE_UNSPECIFIED
 	}

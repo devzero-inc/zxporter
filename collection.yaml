@@ -13,3 +13,4 @@ spec:
   policies:
     frequency: "30s"
     bufferSize: 1000
+    pulseURL: "http://host.docker.internal:9990"

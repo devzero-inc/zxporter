@@ -13,6 +13,11 @@ import (
 type DirectPulseSender struct {
 	pulseClient PulseClient
 	logger      logr.Logger
+	clusterID   string
+}
+
+func (s *DirectPulseSender) SetClusterID(clusterID string) {
+	s.clusterID = clusterID
 }
 
 func NewDirectPulseSender(pulseClient PulseClient, logger logr.Logger) Sender {
@@ -30,11 +35,18 @@ func NewDirectPulseSender(pulseClient PulseClient, logger logr.Logger) Sender {
 }
 
 // Send transmits a resource directly to Pulse
-func (s *DirectPulseSender) Send(ctx context.Context, resource collector.CollectedResource) error {
+func (s *DirectPulseSender) Send(ctx context.Context, resource collector.CollectedResource) (string, error) {
 	if s.pulseClient == nil {
-		return fmt.Errorf("pulse client is nil, cannot send resource")
+		return "", fmt.Errorf("pulse client is nil, cannot send resource")
 	}
-	return s.pulseClient.SendResource(ctx, resource)
+
+	ctxWithCluster := context.WithValue(ctx, "cluster_id", s.clusterID)
+	clusterID, err := s.pulseClient.SendResource(ctxWithCluster, resource)
+	if clusterID != "" {
+		s.SetClusterID(clusterID)
+	}
+
+	return clusterID, err
 }
 
 // Start initializes the sender (no-op for direct sender)
@@ -62,11 +74,11 @@ func NewSimplePulseClient(logger logr.Logger) PulseClient {
 }
 
 // SendResource logs the resource data (for development/testing)
-func (c *SimplePulseClient) SendResource(ctx context.Context, resource collector.CollectedResource) error {
+func (c *SimplePulseClient) SendResource(ctx context.Context, resource collector.CollectedResource) (string, error) {
 	// For now, just log that we would send something
 	c.logger.Info("Would send resource to Pulse",
 		"resourceType", resource.ResourceType,
 		"dataType", fmt.Sprintf("%T", resource.Object),
 		"data", resource.Object)
-	return nil
+	return "", nil
 }

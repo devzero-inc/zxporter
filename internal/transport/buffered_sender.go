@@ -25,6 +25,7 @@ type BufferedSender struct {
 	maxRetryDelay     time.Duration
 	processWorkerDone chan struct{}
 	started           bool
+	clusterID         string
 }
 
 // BufferedItem represents an item in the buffer
@@ -70,6 +71,10 @@ func NewBufferedSender(pulseClient PulseClient, logger logr.Logger, options Buff
 		baseRetryDelay:    options.BaseRetryDelay,
 		maxRetryDelay:     options.MaxRetryDelay,
 	}
+}
+
+func (s *BufferedSender) SetClusterID(clusterID string) {
+	s.clusterID = clusterID
 }
 
 // Start initializes the sender and starts the background processing
@@ -118,11 +123,15 @@ func (s *BufferedSender) Stop() error {
 }
 
 // Send attempts to send a resource, buffering it if the send fails
-func (s *BufferedSender) Send(ctx context.Context, resource collector.CollectedResource) error {
+func (s *BufferedSender) Send(ctx context.Context, resource collector.CollectedResource) (string, error) {
 	// First try to send directly
-	err := s.pulseClient.SendResource(ctx, resource)
+	ctxWithCluster := context.WithValue(ctx, "cluster_id", s.clusterID)
+	clusterID, err := s.pulseClient.SendResource(ctxWithCluster, resource)
+	if clusterID != "" {
+		s.SetClusterID(clusterID)
+	}
 	if err == nil {
-		return nil
+		return "", nil
 	}
 
 	// If sending failed, add to buffer
@@ -153,7 +162,7 @@ func (s *BufferedSender) Send(ctx context.Context, resource collector.CollectedR
 		"key", resource.Key,
 		"bufferSize", len(s.buffer))
 
-	return fmt.Errorf("failed to send immediately, added to retry buffer: %w", err)
+	return "", fmt.Errorf("failed to send immediately, added to retry buffer: %w", err)
 }
 
 // GetBufferSize returns the current number of items in the buffer
@@ -183,7 +192,12 @@ func (s *BufferedSender) Flush(ctx context.Context) error {
 
 	// Try to send each item
 	for _, item := range itemsToFlush {
-		if err := s.pulseClient.SendResource(ctx, item.Resource); err != nil {
+		ctxWithCluster := context.WithValue(ctx, "cluster_id", s.clusterID)
+		clusterID, err := s.pulseClient.SendResource(ctxWithCluster, item.Resource)
+		if clusterID != "" {
+			s.SetClusterID(clusterID)
+		}
+		if err != nil {
 			lastError = err
 			s.logger.V(4).Info("Failed to flush item",
 				"resourceType", item.Resource.ResourceType,
@@ -298,7 +312,11 @@ func (s *BufferedSender) processBufferedItems(ctx context.Context) {
 		}
 
 		// Try to send
-		err := s.pulseClient.SendResource(ctx, item.Resource)
+		ctxWithCluster := context.WithValue(ctx, "cluster_id", s.clusterID)
+		clusterID, err := s.pulseClient.SendResource(ctxWithCluster, item.Resource)
+		if clusterID != "" {
+			s.SetClusterID(clusterID)
+		}
 		if err != nil {
 			// Failed, increment attempts and calculate next retry time
 			item.Attempts++
