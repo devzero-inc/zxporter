@@ -66,6 +66,7 @@ type PolicyConfig struct {
 	TargetNamespaces               []string
 	ExcludedNamespaces             []string
 	ExcludedPods                   []collector.ExcludedPod
+	ExcludedContainers             []collector.ExcludedContainer
 	ExcludedDeployments            []collector.ExcludedDeployment
 	ExcludedStatefulSets           []collector.ExcludedStatefulSet
 	ExcludedDaemonSets             []collector.ExcludedDaemonSet
@@ -1142,6 +1143,15 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				logger,
 			),
 			name: collector.Pod,
+		},
+		{
+			collector: collector.NewContainerCollector(
+				r.K8sClient,
+				config.TargetNamespaces,
+				config.ExcludedContainers,
+				logger,
+			),
+			name: collector.Container,
 		},
 		{
 			collector: collector.NewDeploymentCollector(
