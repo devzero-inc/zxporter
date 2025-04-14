@@ -513,7 +513,11 @@ spec:
                     description: BufferSize is the size of the sender buffer
                     type: integer
                   clusterToken:
-                    description: ClusterToken is the token used to authenticate as a cluster
+                    description: ClusterToken is the token used to authenticate as
+                      a cluster
+                    type: string
+                  dakrURL:
+                    description: DakrURL is the URL of the Dakr service
                     type: string
                   disabledCollectors:
                     description: |-
@@ -534,9 +538,6 @@ spec:
                   nodeMetricsInterval:
                     description: NodeMetricsInterval is how often to collect node
                       metrics (defaults to 6x regular frequency)
-                    type: string
-                  pulseURL:
-                    description: PulseURL is the URL of the Pulse service
                     type: string
                   watchedCRDs:
                     description: WatchedCRDs is a list of custom resource definitions
@@ -636,9 +637,9 @@ spec:
               currentBufferSize:
                 description: BufferSize is the current buffer size in use
                 type: integer
-              lastSuccessfulPulseConnection:
-                description: LastSuccessfulPulseConnection is when the last successful
-                  connection to Pulse occurred
+              lastSuccessfulDakrConnection:
+                description: LastSuccessfulDakrConnection is when the last successful
+                  connection to Dakr occurred
                 format: date-time
                 type: string
               lastUpdated:

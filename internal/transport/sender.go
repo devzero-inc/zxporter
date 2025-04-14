@@ -9,39 +9,39 @@ import (
 	"github.com/go-logr/logr"
 )
 
-// DirectPulseSender sends resources directly to Pulse without buffering
-type DirectPulseSender struct {
-	pulseClient PulseClient
-	logger      logr.Logger
-	clusterID   string
+// DirectDakrSender sends resources directly to Dakr without buffering
+type DirectDakrSender struct {
+	dakrClient DakrClient
+	logger     logr.Logger
+	clusterID  string
 }
 
-func (s *DirectPulseSender) SetClusterID(clusterID string) {
+func (s *DirectDakrSender) SetClusterID(clusterID string) {
 	s.clusterID = clusterID
 }
 
-func NewDirectPulseSender(pulseClient PulseClient, logger logr.Logger) Sender {
-	if pulseClient == nil {
-		// Create a simple pulse client if none is provided
-		pulseClient = &SimplePulseClient{
-			logger: logger.WithName("default-pulse-client"),
+func NewDirectDakrSender(dakrClient DakrClient, logger logr.Logger) Sender {
+	if dakrClient == nil {
+		// Create a simple dakr client if none is provided
+		dakrClient = &SimpleDakrClient{
+			logger: logger.WithName("default-dakr-client"),
 		}
 	}
 
-	return &DirectPulseSender{
-		pulseClient: pulseClient,
-		logger:      logger.WithName("direct-pulse-sender"),
+	return &DirectDakrSender{
+		dakrClient: dakrClient,
+		logger:     logger.WithName("direct-dakr-sender"),
 	}
 }
 
-// Send transmits a resource directly to Pulse
-func (s *DirectPulseSender) Send(ctx context.Context, resource collector.CollectedResource) (string, error) {
-	if s.pulseClient == nil {
-		return "", fmt.Errorf("pulse client is nil, cannot send resource")
+// Send transmits a resource directly to Dakr
+func (s *DirectDakrSender) Send(ctx context.Context, resource collector.CollectedResource) (string, error) {
+	if s.dakrClient == nil {
+		return "", fmt.Errorf("dakr client is nil, cannot send resource")
 	}
 
 	ctxWithCluster := context.WithValue(ctx, "cluster_id", s.clusterID)
-	clusterID, err := s.pulseClient.SendResource(ctxWithCluster, resource)
+	clusterID, err := s.dakrClient.SendResource(ctxWithCluster, resource)
 	if clusterID != "" {
 		s.SetClusterID(clusterID)
 	}
@@ -50,33 +50,33 @@ func (s *DirectPulseSender) Send(ctx context.Context, resource collector.Collect
 }
 
 // Start initializes the sender (no-op for direct sender)
-func (s *DirectPulseSender) Start(ctx context.Context) error {
-	s.logger.Info("Direct pulse sender started")
+func (s *DirectDakrSender) Start(ctx context.Context) error {
+	s.logger.Info("Direct dakr sender started")
 	return nil
 }
 
 // Stop cleans up resources (no-op for direct sender)
-func (s *DirectPulseSender) Stop() error {
-	s.logger.Info("Direct pulse sender stopped")
+func (s *DirectDakrSender) Stop() error {
+	s.logger.Info("Direct dakr sender stopped")
 	return nil
 }
 
-// SimplePulseClient is a placeholder implementation of PulseClient
-type SimplePulseClient struct {
+// SimpleDakrClient is a placeholder implementation of DakrClient
+type SimpleDakrClient struct {
 	logger logr.Logger
 }
 
-// NewSimplePulseClient creates a new simple Pulse client for development/testing
-func NewSimplePulseClient(logger logr.Logger) PulseClient {
-	return &SimplePulseClient{
-		logger: logger.WithName("simple-pulse-client"),
+// NewSimpleDakrClient creates a new simple Dakr client for development/testing
+func NewSimpleDakrClient(logger logr.Logger) DakrClient {
+	return &SimpleDakrClient{
+		logger: logger.WithName("simple-dakr-client"),
 	}
 }
 
 // SendResource logs the resource data (for development/testing)
-func (c *SimplePulseClient) SendResource(ctx context.Context, resource collector.CollectedResource) (string, error) {
+func (c *SimpleDakrClient) SendResource(ctx context.Context, resource collector.CollectedResource) (string, error) {
 	// For now, just log that we would send something
-	c.logger.Info("Would send resource to Pulse",
+	c.logger.Info("Would send resource to Dakr",
 		"resourceType", resource.ResourceType,
 		"dataType", fmt.Sprintf("%T", resource.Object),
 		"data", resource.Object)

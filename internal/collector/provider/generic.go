@@ -11,7 +11,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
-// TODO: for generic provider we can process node level data to pulse
+// TODO: for generic provider we can process node level data to dakr
 
 // GenericProvider implements a fallback provider for when cloud detection fails
 type GenericProvider struct {

@@ -233,14 +233,14 @@ func (r *CollectionPolicyReconciler) processCollectedResources(ctx context.Conte
 				return
 			}
 
-			// Send the raw resource directly to Pulse
+			// Send the raw resource directly to Dakr
 			if err := r.Sender.Send(ctx, resource.ResourceType, resource.Object); err != nil {
-				logger.Error(err, "Failed to send resource to Pulse",
+				logger.Error(err, "Failed to send resource to Dakr",
 					"resourceType", resource.ResourceType,
 					"eventType", resource.EventType,
 					"key", resource.Key)
 			} else {
-				logger..Info("Sent resource to Pulse",
+				logger..Info("Sent resource to Dakr",
 					"resourceType", resource.ResourceType,
 					"eventType", resource.EventType,
 					"key", resource.Key)
@@ -262,9 +262,9 @@ func (r *CollectionPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 	r.K8sClient = clientset
 
-	// Create a simple Pulse client (replace with actual implementation later)
-	pulseClient := transport.NewSimplePulseClient(r.Log)
-	r.Sender = transport.NewDirectPulseSender(pulseClient, r.Log)
+	// Create a simple Dakr client (replace with actual implementation later)
+	dakrClient := transport.NewSimpleDakrClient(r.Log)
+	r.Sender = transport.NewDirectDakrSender(dakrClient, r.Log)
 
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&monitoringv1.CollectionPolicy{}).

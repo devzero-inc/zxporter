@@ -9,8 +9,8 @@ spec:
       containers:
       - name: manager
         env:
-        - name: PULSE_URL
-          value: "https://api.devzero.dev/pulse"
+        - name: DAKR_URL
+          value: "https://api.devzero.dev/dakr"
         - name: CLUSTER_TOKEN
           value: ""
         - name: LOG_LEVEL

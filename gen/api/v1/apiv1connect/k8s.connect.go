@@ -37,28 +37,27 @@ const (
 	K8SServiceGetClustersProcedure = "/api.v1.K8SService/GetClusters"
 	// K8SServiceGetClusterProcedure is the fully-qualified name of the K8SService's GetCluster RPC.
 	K8SServiceGetClusterProcedure = "/api.v1.K8SService/GetCluster"
-	// K8SServiceGetClusterAnalyticsProcedure is the fully-qualified name of the K8SService's
-	// GetClusterAnalytics RPC.
-	K8SServiceGetClusterAnalyticsProcedure = "/api.v1.K8SService/GetClusterAnalytics"
-	// K8SServiceGetClusterCostAnalysisProcedure is the fully-qualified name of the K8SService's
-	// GetClusterCostAnalysis RPC.
-	K8SServiceGetClusterCostAnalysisProcedure = "/api.v1.K8SService/GetClusterCostAnalysis"
 	// K8SServiceGetNodesProcedure is the fully-qualified name of the K8SService's GetNodes RPC.
 	K8SServiceGetNodesProcedure = "/api.v1.K8SService/GetNodes"
 	// K8SServiceGetNodeGroupsProcedure is the fully-qualified name of the K8SService's GetNodeGroups
 	// RPC.
 	K8SServiceGetNodeGroupsProcedure = "/api.v1.K8SService/GetNodeGroups"
-	// K8SServiceGetNamespacesProcedure is the fully-qualified name of the K8SService's GetNamespaces
+	// K8SServiceGetNodeUtilizationProcedure is the fully-qualified name of the K8SService's
+	// GetNodeUtilization RPC.
+	K8SServiceGetNodeUtilizationProcedure = "/api.v1.K8SService/GetNodeUtilization"
+	// K8SServiceGetNodeCostProcedure is the fully-qualified name of the K8SService's GetNodeCost RPC.
+	K8SServiceGetNodeCostProcedure = "/api.v1.K8SService/GetNodeCost"
+	// K8SServiceGetClusterCostProcedure is the fully-qualified name of the K8SService's GetClusterCost
 	// RPC.
-	K8SServiceGetNamespacesProcedure = "/api.v1.K8SService/GetNamespaces"
+	K8SServiceGetClusterCostProcedure = "/api.v1.K8SService/GetClusterCost"
+	// K8SServiceGetClusterCostAnalysisProcedure is the fully-qualified name of the K8SService's
+	// GetClusterCostAnalysis RPC.
+	K8SServiceGetClusterCostAnalysisProcedure = "/api.v1.K8SService/GetClusterCostAnalysis"
+	// K8SServiceGetWorkloadAnalysisProcedure is the fully-qualified name of the K8SService's
+	// GetWorkloadAnalysis RPC.
+	K8SServiceGetWorkloadAnalysisProcedure = "/api.v1.K8SService/GetWorkloadAnalysis"
 	// K8SServiceGetResourcesProcedure is the fully-qualified name of the K8SService's GetResources RPC.
 	K8SServiceGetResourcesProcedure = "/api.v1.K8SService/GetResources"
-	// K8SServiceGetNodeMetricsProcedure is the fully-qualified name of the K8SService's GetNodeMetrics
-	// RPC.
-	K8SServiceGetNodeMetricsProcedure = "/api.v1.K8SService/GetNodeMetrics"
-	// K8SServiceGetPodMetricsProcedure is the fully-qualified name of the K8SService's GetPodMetrics
-	// RPC.
-	K8SServiceGetPodMetricsProcedure = "/api.v1.K8SService/GetPodMetrics"
 )
 
 // K8SServiceClient is a client for the api.v1.K8SService service.
@@ -67,22 +66,22 @@ type K8SServiceClient interface {
 	GetClusters(context.Context, *connect.Request[v1.GetClustersRequest]) (*connect.Response[v1.GetClustersResponse], error)
 	// GetCluster retrieves cluster details for a team.
 	GetCluster(context.Context, *connect.Request[v1.GetClusterRequest]) (*connect.Response[v1.GetClusterResponse], error)
-	// GetClusterAnalytics get cluster analytics
-	GetClusterAnalytics(context.Context, *connect.Request[v1.GetClusterAnalyticsRequest]) (*connect.Response[v1.GetClusterAnalyticsResponse], error)
-	// GetClusterCostAnalysis returns cost analysis
-	GetClusterCostAnalysis(context.Context, *connect.Request[v1.GetClusterCostAnalysisRequest]) (*connect.Response[v1.GetClusterCostAnalysisResponse], error)
 	// GetNodes retrieves all nodes for a specific cluster.
 	GetNodes(context.Context, *connect.Request[v1.GetNodesRequest]) (*connect.Response[v1.GetNodesResponse], error)
 	// GetNodes retrieves all nodes for a specific cluster.
 	GetNodeGroups(context.Context, *connect.Request[v1.GetNodeGroupsRequest]) (*connect.Response[v1.GetNodeGroupsResponse], error)
-	// GetNamespaces retrieves all namespaces for a specific cluster.
-	GetNamespaces(context.Context, *connect.Request[v1.GetNamespacesRequest]) (*connect.Response[v1.GetNamespacesResponse], error)
+	// GetNodeUtilization returns node utilization over time for specific cluster.
+	GetNodeUtilization(context.Context, *connect.Request[v1.GetNodeUtilizationRequest]) (*connect.Response[v1.GetNodeUtilizationResponse], error)
+	// GetNodeCost returns node cost over time for specific cluster.
+	GetNodeCost(context.Context, *connect.Request[v1.GetNodeCostRequest]) (*connect.Response[v1.GetNodeCostResponse], error)
+	// GetClusterCost returns cluster cost over time for specific cluster.
+	GetClusterCost(context.Context, *connect.Request[v1.GetClusterCostRequest]) (*connect.Response[v1.GetClusterCostResponse], error)
+	// GetClusterCostAnalysis returns detailed cost analysis for a cluster
+	GetClusterCostAnalysis(context.Context, *connect.Request[v1.GetClusterCostAnalysisRequest]) (*connect.Response[v1.GetClusterCostAnalysisResponse], error)
+	// GetWorkloadAnalysis returns detailed workload analysis for a cluster
+	GetWorkloadAnalysis(context.Context, *connect.Request[v1.GetWorkloadAnalysisRequest]) (*connect.Response[v1.GetWorkloadAnalysisResponse], error)
 	// GetResources retrieves resources for a specific namespace, optionally filtered by kind.
 	GetResources(context.Context, *connect.Request[v1.GetResourcesRequest]) (*connect.Response[v1.GetResourcesResponse], error)
-	// GetNodeMetrics retrieves time-series metrics for a specific node.
-	GetNodeMetrics(context.Context, *connect.Request[v1.GetNodeMetricsRequest]) (*connect.Response[v1.GetNodeMetricsResponse], error)
-	// GetPodMetrics retrieves time-series metrics for a specific pod.
-	GetPodMetrics(context.Context, *connect.Request[v1.GetPodMetricsRequest]) (*connect.Response[v1.GetPodMetricsResponse], error)
 }
 
 // NewK8SServiceClient constructs a client for the api.v1.K8SService service. By default, it uses
@@ -105,16 +104,6 @@ func NewK8SServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...
 			baseURL+K8SServiceGetClusterProcedure,
 			opts...,
 		),
-		getClusterAnalytics: connect.NewClient[v1.GetClusterAnalyticsRequest, v1.GetClusterAnalyticsResponse](
-			httpClient,
-			baseURL+K8SServiceGetClusterAnalyticsProcedure,
-			opts...,
-		),
-		getClusterCostAnalysis: connect.NewClient[v1.GetClusterCostAnalysisRequest, v1.GetClusterCostAnalysisResponse](
-			httpClient,
-			baseURL+K8SServiceGetClusterCostAnalysisProcedure,
-			opts...,
-		),
 		getNodes: connect.NewClient[v1.GetNodesRequest, v1.GetNodesResponse](
 			httpClient,
 			baseURL+K8SServiceGetNodesProcedure,
@@ -125,24 +114,34 @@ func NewK8SServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...
 			baseURL+K8SServiceGetNodeGroupsProcedure,
 			opts...,
 		),
-		getNamespaces: connect.NewClient[v1.GetNamespacesRequest, v1.GetNamespacesResponse](
+		getNodeUtilization: connect.NewClient[v1.GetNodeUtilizationRequest, v1.GetNodeUtilizationResponse](
 			httpClient,
-			baseURL+K8SServiceGetNamespacesProcedure,
+			baseURL+K8SServiceGetNodeUtilizationProcedure,
+			opts...,
+		),
+		getNodeCost: connect.NewClient[v1.GetNodeCostRequest, v1.GetNodeCostResponse](
+			httpClient,
+			baseURL+K8SServiceGetNodeCostProcedure,
+			opts...,
+		),
+		getClusterCost: connect.NewClient[v1.GetClusterCostRequest, v1.GetClusterCostResponse](
+			httpClient,
+			baseURL+K8SServiceGetClusterCostProcedure,
+			opts...,
+		),
+		getClusterCostAnalysis: connect.NewClient[v1.GetClusterCostAnalysisRequest, v1.GetClusterCostAnalysisResponse](
+			httpClient,
+			baseURL+K8SServiceGetClusterCostAnalysisProcedure,
+			opts...,
+		),
+		getWorkloadAnalysis: connect.NewClient[v1.GetWorkloadAnalysisRequest, v1.GetWorkloadAnalysisResponse](
+			httpClient,
+			baseURL+K8SServiceGetWorkloadAnalysisProcedure,
 			opts...,
 		),
 		getResources: connect.NewClient[v1.GetResourcesRequest, v1.GetResourcesResponse](
 			httpClient,
 			baseURL+K8SServiceGetResourcesProcedure,
-			opts...,
-		),
-		getNodeMetrics: connect.NewClient[v1.GetNodeMetricsRequest, v1.GetNodeMetricsResponse](
-			httpClient,
-			baseURL+K8SServiceGetNodeMetricsProcedure,
-			opts...,
-		),
-		getPodMetrics: connect.NewClient[v1.GetPodMetricsRequest, v1.GetPodMetricsResponse](
-			httpClient,
-			baseURL+K8SServiceGetPodMetricsProcedure,
 			opts...,
 		),
 	}
@@ -152,14 +151,14 @@ func NewK8SServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...
 type k8SServiceClient struct {
 	getClusters            *connect.Client[v1.GetClustersRequest, v1.GetClustersResponse]
 	getCluster             *connect.Client[v1.GetClusterRequest, v1.GetClusterResponse]
-	getClusterAnalytics    *connect.Client[v1.GetClusterAnalyticsRequest, v1.GetClusterAnalyticsResponse]
-	getClusterCostAnalysis *connect.Client[v1.GetClusterCostAnalysisRequest, v1.GetClusterCostAnalysisResponse]
 	getNodes               *connect.Client[v1.GetNodesRequest, v1.GetNodesResponse]
 	getNodeGroups          *connect.Client[v1.GetNodeGroupsRequest, v1.GetNodeGroupsResponse]
-	getNamespaces          *connect.Client[v1.GetNamespacesRequest, v1.GetNamespacesResponse]
+	getNodeUtilization     *connect.Client[v1.GetNodeUtilizationRequest, v1.GetNodeUtilizationResponse]
+	getNodeCost            *connect.Client[v1.GetNodeCostRequest, v1.GetNodeCostResponse]
+	getClusterCost         *connect.Client[v1.GetClusterCostRequest, v1.GetClusterCostResponse]
+	getClusterCostAnalysis *connect.Client[v1.GetClusterCostAnalysisRequest, v1.GetClusterCostAnalysisResponse]
+	getWorkloadAnalysis    *connect.Client[v1.GetWorkloadAnalysisRequest, v1.GetWorkloadAnalysisResponse]
 	getResources           *connect.Client[v1.GetResourcesRequest, v1.GetResourcesResponse]
-	getNodeMetrics         *connect.Client[v1.GetNodeMetricsRequest, v1.GetNodeMetricsResponse]
-	getPodMetrics          *connect.Client[v1.GetPodMetricsRequest, v1.GetPodMetricsResponse]
 }
 
 // GetClusters calls api.v1.K8SService.GetClusters.
@@ -172,16 +171,6 @@ func (c *k8SServiceClient) GetCluster(ctx context.Context, req *connect.Request[
 	return c.getCluster.CallUnary(ctx, req)
 }
 
-// GetClusterAnalytics calls api.v1.K8SService.GetClusterAnalytics.
-func (c *k8SServiceClient) GetClusterAnalytics(ctx context.Context, req *connect.Request[v1.GetClusterAnalyticsRequest]) (*connect.Response[v1.GetClusterAnalyticsResponse], error) {
-	return c.getClusterAnalytics.CallUnary(ctx, req)
-}
-
-// GetClusterCostAnalysis calls api.v1.K8SService.GetClusterCostAnalysis.
-func (c *k8SServiceClient) GetClusterCostAnalysis(ctx context.Context, req *connect.Request[v1.GetClusterCostAnalysisRequest]) (*connect.Response[v1.GetClusterCostAnalysisResponse], error) {
-	return c.getClusterCostAnalysis.CallUnary(ctx, req)
-}
-
 // GetNodes calls api.v1.K8SService.GetNodes.
 func (c *k8SServiceClient) GetNodes(ctx context.Context, req *connect.Request[v1.GetNodesRequest]) (*connect.Response[v1.GetNodesResponse], error) {
 	return c.getNodes.CallUnary(ctx, req)
@@ -192,24 +181,34 @@ func (c *k8SServiceClient) GetNodeGroups(ctx context.Context, req *connect.Reque
 	return c.getNodeGroups.CallUnary(ctx, req)
 }
 
-// GetNamespaces calls api.v1.K8SService.GetNamespaces.
-func (c *k8SServiceClient) GetNamespaces(ctx context.Context, req *connect.Request[v1.GetNamespacesRequest]) (*connect.Response[v1.GetNamespacesResponse], error) {
-	return c.getNamespaces.CallUnary(ctx, req)
+// GetNodeUtilization calls api.v1.K8SService.GetNodeUtilization.
+func (c *k8SServiceClient) GetNodeUtilization(ctx context.Context, req *connect.Request[v1.GetNodeUtilizationRequest]) (*connect.Response[v1.GetNodeUtilizationResponse], error) {
+	return c.getNodeUtilization.CallUnary(ctx, req)
+}
+
+// GetNodeCost calls api.v1.K8SService.GetNodeCost.
+func (c *k8SServiceClient) GetNodeCost(ctx context.Context, req *connect.Request[v1.GetNodeCostRequest]) (*connect.Response[v1.GetNodeCostResponse], error) {
+	return c.getNodeCost.CallUnary(ctx, req)
+}
+
+// GetClusterCost calls api.v1.K8SService.GetClusterCost.
+func (c *k8SServiceClient) GetClusterCost(ctx context.Context, req *connect.Request[v1.GetClusterCostRequest]) (*connect.Response[v1.GetClusterCostResponse], error) {
+	return c.getClusterCost.CallUnary(ctx, req)
+}
+
+// GetClusterCostAnalysis calls api.v1.K8SService.GetClusterCostAnalysis.
+func (c *k8SServiceClient) GetClusterCostAnalysis(ctx context.Context, req *connect.Request[v1.GetClusterCostAnalysisRequest]) (*connect.Response[v1.GetClusterCostAnalysisResponse], error) {
+	return c.getClusterCostAnalysis.CallUnary(ctx, req)
+}
+
+// GetWorkloadAnalysis calls api.v1.K8SService.GetWorkloadAnalysis.
+func (c *k8SServiceClient) GetWorkloadAnalysis(ctx context.Context, req *connect.Request[v1.GetWorkloadAnalysisRequest]) (*connect.Response[v1.GetWorkloadAnalysisResponse], error) {
+	return c.getWorkloadAnalysis.CallUnary(ctx, req)
 }
 
 // GetResources calls api.v1.K8SService.GetResources.
 func (c *k8SServiceClient) GetResources(ctx context.Context, req *connect.Request[v1.GetResourcesRequest]) (*connect.Response[v1.GetResourcesResponse], error) {
 	return c.getResources.CallUnary(ctx, req)
-}
-
-// GetNodeMetrics calls api.v1.K8SService.GetNodeMetrics.
-func (c *k8SServiceClient) GetNodeMetrics(ctx context.Context, req *connect.Request[v1.GetNodeMetricsRequest]) (*connect.Response[v1.GetNodeMetricsResponse], error) {
-	return c.getNodeMetrics.CallUnary(ctx, req)
-}
-
-// GetPodMetrics calls api.v1.K8SService.GetPodMetrics.
-func (c *k8SServiceClient) GetPodMetrics(ctx context.Context, req *connect.Request[v1.GetPodMetricsRequest]) (*connect.Response[v1.GetPodMetricsResponse], error) {
-	return c.getPodMetrics.CallUnary(ctx, req)
 }
 
 // K8SServiceHandler is an implementation of the api.v1.K8SService service.
@@ -218,22 +217,22 @@ type K8SServiceHandler interface {
 	GetClusters(context.Context, *connect.Request[v1.GetClustersRequest]) (*connect.Response[v1.GetClustersResponse], error)
 	// GetCluster retrieves cluster details for a team.
 	GetCluster(context.Context, *connect.Request[v1.GetClusterRequest]) (*connect.Response[v1.GetClusterResponse], error)
-	// GetClusterAnalytics get cluster analytics
-	GetClusterAnalytics(context.Context, *connect.Request[v1.GetClusterAnalyticsRequest]) (*connect.Response[v1.GetClusterAnalyticsResponse], error)
-	// GetClusterCostAnalysis returns cost analysis
-	GetClusterCostAnalysis(context.Context, *connect.Request[v1.GetClusterCostAnalysisRequest]) (*connect.Response[v1.GetClusterCostAnalysisResponse], error)
 	// GetNodes retrieves all nodes for a specific cluster.
 	GetNodes(context.Context, *connect.Request[v1.GetNodesRequest]) (*connect.Response[v1.GetNodesResponse], error)
 	// GetNodes retrieves all nodes for a specific cluster.
 	GetNodeGroups(context.Context, *connect.Request[v1.GetNodeGroupsRequest]) (*connect.Response[v1.GetNodeGroupsResponse], error)
-	// GetNamespaces retrieves all namespaces for a specific cluster.
-	GetNamespaces(context.Context, *connect.Request[v1.GetNamespacesRequest]) (*connect.Response[v1.GetNamespacesResponse], error)
+	// GetNodeUtilization returns node utilization over time for specific cluster.
+	GetNodeUtilization(context.Context, *connect.Request[v1.GetNodeUtilizationRequest]) (*connect.Response[v1.GetNodeUtilizationResponse], error)
+	// GetNodeCost returns node cost over time for specific cluster.
+	GetNodeCost(context.Context, *connect.Request[v1.GetNodeCostRequest]) (*connect.Response[v1.GetNodeCostResponse], error)
+	// GetClusterCost returns cluster cost over time for specific cluster.
+	GetClusterCost(context.Context, *connect.Request[v1.GetClusterCostRequest]) (*connect.Response[v1.GetClusterCostResponse], error)
+	// GetClusterCostAnalysis returns detailed cost analysis for a cluster
+	GetClusterCostAnalysis(context.Context, *connect.Request[v1.GetClusterCostAnalysisRequest]) (*connect.Response[v1.GetClusterCostAnalysisResponse], error)
+	// GetWorkloadAnalysis returns detailed workload analysis for a cluster
+	GetWorkloadAnalysis(context.Context, *connect.Request[v1.GetWorkloadAnalysisRequest]) (*connect.Response[v1.GetWorkloadAnalysisResponse], error)
 	// GetResources retrieves resources for a specific namespace, optionally filtered by kind.
 	GetResources(context.Context, *connect.Request[v1.GetResourcesRequest]) (*connect.Response[v1.GetResourcesResponse], error)
-	// GetNodeMetrics retrieves time-series metrics for a specific node.
-	GetNodeMetrics(context.Context, *connect.Request[v1.GetNodeMetricsRequest]) (*connect.Response[v1.GetNodeMetricsResponse], error)
-	// GetPodMetrics retrieves time-series metrics for a specific pod.
-	GetPodMetrics(context.Context, *connect.Request[v1.GetPodMetricsRequest]) (*connect.Response[v1.GetPodMetricsResponse], error)
 }
 
 // NewK8SServiceHandler builds an HTTP handler from the service implementation. It returns the path
@@ -252,16 +251,6 @@ func NewK8SServiceHandler(svc K8SServiceHandler, opts ...connect.HandlerOption) 
 		svc.GetCluster,
 		opts...,
 	)
-	k8SServiceGetClusterAnalyticsHandler := connect.NewUnaryHandler(
-		K8SServiceGetClusterAnalyticsProcedure,
-		svc.GetClusterAnalytics,
-		opts...,
-	)
-	k8SServiceGetClusterCostAnalysisHandler := connect.NewUnaryHandler(
-		K8SServiceGetClusterCostAnalysisProcedure,
-		svc.GetClusterCostAnalysis,
-		opts...,
-	)
 	k8SServiceGetNodesHandler := connect.NewUnaryHandler(
 		K8SServiceGetNodesProcedure,
 		svc.GetNodes,
@@ -272,24 +261,34 @@ func NewK8SServiceHandler(svc K8SServiceHandler, opts ...connect.HandlerOption) 
 		svc.GetNodeGroups,
 		opts...,
 	)
-	k8SServiceGetNamespacesHandler := connect.NewUnaryHandler(
-		K8SServiceGetNamespacesProcedure,
-		svc.GetNamespaces,
+	k8SServiceGetNodeUtilizationHandler := connect.NewUnaryHandler(
+		K8SServiceGetNodeUtilizationProcedure,
+		svc.GetNodeUtilization,
+		opts...,
+	)
+	k8SServiceGetNodeCostHandler := connect.NewUnaryHandler(
+		K8SServiceGetNodeCostProcedure,
+		svc.GetNodeCost,
+		opts...,
+	)
+	k8SServiceGetClusterCostHandler := connect.NewUnaryHandler(
+		K8SServiceGetClusterCostProcedure,
+		svc.GetClusterCost,
+		opts...,
+	)
+	k8SServiceGetClusterCostAnalysisHandler := connect.NewUnaryHandler(
+		K8SServiceGetClusterCostAnalysisProcedure,
+		svc.GetClusterCostAnalysis,
+		opts...,
+	)
+	k8SServiceGetWorkloadAnalysisHandler := connect.NewUnaryHandler(
+		K8SServiceGetWorkloadAnalysisProcedure,
+		svc.GetWorkloadAnalysis,
 		opts...,
 	)
 	k8SServiceGetResourcesHandler := connect.NewUnaryHandler(
 		K8SServiceGetResourcesProcedure,
 		svc.GetResources,
-		opts...,
-	)
-	k8SServiceGetNodeMetricsHandler := connect.NewUnaryHandler(
-		K8SServiceGetNodeMetricsProcedure,
-		svc.GetNodeMetrics,
-		opts...,
-	)
-	k8SServiceGetPodMetricsHandler := connect.NewUnaryHandler(
-		K8SServiceGetPodMetricsProcedure,
-		svc.GetPodMetrics,
 		opts...,
 	)
 	return "/api.v1.K8SService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -298,22 +297,22 @@ func NewK8SServiceHandler(svc K8SServiceHandler, opts ...connect.HandlerOption) 
 			k8SServiceGetClustersHandler.ServeHTTP(w, r)
 		case K8SServiceGetClusterProcedure:
 			k8SServiceGetClusterHandler.ServeHTTP(w, r)
-		case K8SServiceGetClusterAnalyticsProcedure:
-			k8SServiceGetClusterAnalyticsHandler.ServeHTTP(w, r)
-		case K8SServiceGetClusterCostAnalysisProcedure:
-			k8SServiceGetClusterCostAnalysisHandler.ServeHTTP(w, r)
 		case K8SServiceGetNodesProcedure:
 			k8SServiceGetNodesHandler.ServeHTTP(w, r)
 		case K8SServiceGetNodeGroupsProcedure:
 			k8SServiceGetNodeGroupsHandler.ServeHTTP(w, r)
-		case K8SServiceGetNamespacesProcedure:
-			k8SServiceGetNamespacesHandler.ServeHTTP(w, r)
+		case K8SServiceGetNodeUtilizationProcedure:
+			k8SServiceGetNodeUtilizationHandler.ServeHTTP(w, r)
+		case K8SServiceGetNodeCostProcedure:
+			k8SServiceGetNodeCostHandler.ServeHTTP(w, r)
+		case K8SServiceGetClusterCostProcedure:
+			k8SServiceGetClusterCostHandler.ServeHTTP(w, r)
+		case K8SServiceGetClusterCostAnalysisProcedure:
+			k8SServiceGetClusterCostAnalysisHandler.ServeHTTP(w, r)
+		case K8SServiceGetWorkloadAnalysisProcedure:
+			k8SServiceGetWorkloadAnalysisHandler.ServeHTTP(w, r)
 		case K8SServiceGetResourcesProcedure:
 			k8SServiceGetResourcesHandler.ServeHTTP(w, r)
-		case K8SServiceGetNodeMetricsProcedure:
-			k8SServiceGetNodeMetricsHandler.ServeHTTP(w, r)
-		case K8SServiceGetPodMetricsProcedure:
-			k8SServiceGetPodMetricsHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -331,14 +330,6 @@ func (UnimplementedK8SServiceHandler) GetCluster(context.Context, *connect.Reque
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.K8SService.GetCluster is not implemented"))
 }
 
-func (UnimplementedK8SServiceHandler) GetClusterAnalytics(context.Context, *connect.Request[v1.GetClusterAnalyticsRequest]) (*connect.Response[v1.GetClusterAnalyticsResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.K8SService.GetClusterAnalytics is not implemented"))
-}
-
-func (UnimplementedK8SServiceHandler) GetClusterCostAnalysis(context.Context, *connect.Request[v1.GetClusterCostAnalysisRequest]) (*connect.Response[v1.GetClusterCostAnalysisResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.K8SService.GetClusterCostAnalysis is not implemented"))
-}
-
 func (UnimplementedK8SServiceHandler) GetNodes(context.Context, *connect.Request[v1.GetNodesRequest]) (*connect.Response[v1.GetNodesResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.K8SService.GetNodes is not implemented"))
 }
@@ -347,18 +338,26 @@ func (UnimplementedK8SServiceHandler) GetNodeGroups(context.Context, *connect.Re
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.K8SService.GetNodeGroups is not implemented"))
 }
 
-func (UnimplementedK8SServiceHandler) GetNamespaces(context.Context, *connect.Request[v1.GetNamespacesRequest]) (*connect.Response[v1.GetNamespacesResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.K8SService.GetNamespaces is not implemented"))
+func (UnimplementedK8SServiceHandler) GetNodeUtilization(context.Context, *connect.Request[v1.GetNodeUtilizationRequest]) (*connect.Response[v1.GetNodeUtilizationResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.K8SService.GetNodeUtilization is not implemented"))
+}
+
+func (UnimplementedK8SServiceHandler) GetNodeCost(context.Context, *connect.Request[v1.GetNodeCostRequest]) (*connect.Response[v1.GetNodeCostResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.K8SService.GetNodeCost is not implemented"))
+}
+
+func (UnimplementedK8SServiceHandler) GetClusterCost(context.Context, *connect.Request[v1.GetClusterCostRequest]) (*connect.Response[v1.GetClusterCostResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.K8SService.GetClusterCost is not implemented"))
+}
+
+func (UnimplementedK8SServiceHandler) GetClusterCostAnalysis(context.Context, *connect.Request[v1.GetClusterCostAnalysisRequest]) (*connect.Response[v1.GetClusterCostAnalysisResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.K8SService.GetClusterCostAnalysis is not implemented"))
+}
+
+func (UnimplementedK8SServiceHandler) GetWorkloadAnalysis(context.Context, *connect.Request[v1.GetWorkloadAnalysisRequest]) (*connect.Response[v1.GetWorkloadAnalysisResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.K8SService.GetWorkloadAnalysis is not implemented"))
 }
 
 func (UnimplementedK8SServiceHandler) GetResources(context.Context, *connect.Request[v1.GetResourcesRequest]) (*connect.Response[v1.GetResourcesResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.K8SService.GetResources is not implemented"))
-}
-
-func (UnimplementedK8SServiceHandler) GetNodeMetrics(context.Context, *connect.Request[v1.GetNodeMetricsRequest]) (*connect.Response[v1.GetNodeMetricsResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.K8SService.GetNodeMetrics is not implemented"))
-}
-
-func (UnimplementedK8SServiceHandler) GetPodMetrics(context.Context, *connect.Request[v1.GetPodMetricsRequest]) (*connect.Response[v1.GetPodMetricsResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.K8SService.GetPodMetrics is not implemented"))
 }

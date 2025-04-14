@@ -7,9 +7,9 @@ import (
 	"github.com/devzero-inc/zxporter/internal/collector"
 )
 
-// PulseClient defines methods for sending data to Pulse
-type PulseClient interface {
-	// SendResource sends any resource data to Pulse
+// DakrClient defines methods for sending data to Dakr
+type DakrClient interface {
+	// SendResource sends any resource data to Dakr
 	SendResource(ctx context.Context, resource collector.CollectedResource) (string, error)
 }
 
