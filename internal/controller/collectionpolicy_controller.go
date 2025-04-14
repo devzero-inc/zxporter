@@ -106,6 +106,7 @@ type PolicyConfig struct {
 
 	DakrURL             string
 	ClusterToken        string
+	PrometheusURL       string
 	UpdateInterval      time.Duration
 	NodeMetricsInterval time.Duration
 	BufferSize          int
@@ -227,6 +228,7 @@ func (r *CollectionPolicyReconciler) createNewConfig(policy *monitoringv1.Collec
 	excludedNodes := policy.Spec.Exclusions.ExcludedNodes
 	dakrURL := policy.Spec.Policies.DakrURL
 	clusterToken := policy.Spec.Policies.ClusterToken
+	prometheusURL := policy.Spec.Policies.PrometheusURL
 	frequencyStr := policy.Spec.Policies.Frequency
 	bufferSize := policy.Spec.Policies.BufferSize
 	disabledCollectors := policy.Spec.Policies.DisabledCollectors
@@ -272,6 +274,7 @@ func (r *CollectionPolicyReconciler) createNewConfig(policy *monitoringv1.Collec
 		ExcludedNodes:       excludedNodes,
 		DakrURL:             dakrURL,
 		ClusterToken:        clusterToken,
+		PrometheusURL:       prometheusURL,
 		UpdateInterval:      frequency,
 		NodeMetricsInterval: nodeMetricsInterval,
 		BufferSize:          bufferSize,
@@ -432,7 +435,8 @@ func (r *CollectionPolicyReconciler) identifyAffectedCollectors(oldConfig, newCo
 	}
 
 	// Check if the special node collectors are affected by the update interval change
-	if oldConfig.UpdateInterval != newConfig.UpdateInterval {
+	if oldConfig.UpdateInterval != newConfig.UpdateInterval ||
+		oldConfig.PrometheusURL != newConfig.PrometheusURL {
 		affectedCollectors["node"] = true
 		affectedCollectors["container_resources"] = true
 	}
@@ -571,9 +575,13 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 			replacedCollector = collector.NewContainerResourceCollector(
 				r.K8sClient,
 				metricsClient,
+				collector.ContainerResourceCollectorConfig{
+					PrometheusURL:  newConfig.PrometheusURL,
+					UpdateInterval: newConfig.UpdateInterval,
+					QueryTimeout:   10 * time.Second,
+				},
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedPods,
-				newConfig.UpdateInterval,
 				logger,
 			)
 		case "node":
@@ -1257,9 +1265,13 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 			collector: collector.NewContainerResourceCollector(
 				r.K8sClient,
 				metricsClient,
+				collector.ContainerResourceCollectorConfig{
+					PrometheusURL:  config.PrometheusURL,
+					UpdateInterval: config.UpdateInterval,
+					QueryTimeout:   10 * time.Second,
+				},
 				config.TargetNamespaces,
 				config.ExcludedPods,
-				config.UpdateInterval,
 				logger,
 			),
 			name: collector.ContainerResource,
@@ -1513,9 +1525,13 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 				replacedCollector = collector.NewContainerResourceCollector(
 					r.K8sClient,
 					metricsClient,
+					collector.ContainerResourceCollectorConfig{
+						PrometheusURL:  newConfig.PrometheusURL,
+						UpdateInterval: newConfig.UpdateInterval,
+						QueryTimeout:   10 * time.Second,
+					},
 					newConfig.TargetNamespaces,
 					newConfig.ExcludedPods,
-					newConfig.UpdateInterval,
 					logger,
 				)
 			case "node":

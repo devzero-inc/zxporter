@@ -8,6 +8,9 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	"github.com/prometheus/client_golang/api"
+	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
+	"github.com/prometheus/common/model"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -18,16 +21,30 @@ import (
 	metricsv1 "k8s.io/metrics/pkg/client/clientset/versioned"
 )
 
+// ContainerResourceCollectorConfig holds configuration for the resource collector
+type ContainerResourceCollectorConfig struct {
+	// UpdateInterval specifies how often to collect metrics
+	UpdateInterval time.Duration
+
+	// PrometheusURL specifies the URL of the Prometheus instance to query
+	// If empty, defaults to in-cluster Prometheus at http://prometheus.monitoring:9090
+	PrometheusURL string
+
+	// QueryTimeout specifies the timeout for Prometheus queries
+	QueryTimeout time.Duration
+}
+
 // ContainerResourceCollector collects container resource usage metrics
 type ContainerResourceCollector struct {
 	k8sClient       kubernetes.Interface
 	metricsClient   *metricsv1.Clientset
+	prometheusAPI   v1.API
 	informerFactory informers.SharedInformerFactory
 	podInformer     cache.SharedIndexInformer
 	resourceChan    chan CollectedResource
 	stopCh          chan struct{}
 	ticker          *time.Ticker
-	updateInterval  time.Duration
+	config          ContainerResourceCollectorConfig
 	namespaces      []string
 	excludedPods    map[types.NamespacedName]bool
 	logger          logr.Logger
@@ -38,9 +55,9 @@ type ContainerResourceCollector struct {
 func NewContainerResourceCollector(
 	k8sClient kubernetes.Interface,
 	metricsClient *metricsv1.Clientset,
+	config ContainerResourceCollectorConfig,
 	namespaces []string,
 	excludedPods []ExcludedPod,
-	updateInterval time.Duration,
 	logger logr.Logger,
 ) *ContainerResourceCollector {
 	// Convert excluded pods to a map for quicker lookups
@@ -53,19 +70,29 @@ func NewContainerResourceCollector(
 	}
 
 	// Default update interval if not specified
-	if updateInterval <= 0 {
-		updateInterval = 10 * time.Second
+	if config.UpdateInterval <= 0 {
+		config.UpdateInterval = 10 * time.Second
+	}
+
+	// Default Prometheus URL if not specified
+	if config.PrometheusURL == "" {
+		config.PrometheusURL = "http://prometheus-service.monitoring.svc.cluster.local:8080"
+	}
+
+	// Default query timeout if not specified
+	if config.QueryTimeout <= 0 {
+		config.QueryTimeout = 10 * time.Second
 	}
 
 	return &ContainerResourceCollector{
-		k8sClient:      k8sClient,
-		metricsClient:  metricsClient,
-		resourceChan:   make(chan CollectedResource, 500),
-		stopCh:         make(chan struct{}),
-		updateInterval: updateInterval,
-		namespaces:     namespaces,
-		excludedPods:   excludedPodsMap,
-		logger:         logger.WithName("container-resource-collector"),
+		k8sClient:     k8sClient,
+		metricsClient: metricsClient,
+		resourceChan:  make(chan CollectedResource, 500),
+		stopCh:        make(chan struct{}),
+		config:        config,
+		namespaces:    namespaces,
+		excludedPods:  excludedPodsMap,
+		logger:        logger.WithName("container-resource-collector"),
 	}
 }
 
@@ -73,11 +100,24 @@ func NewContainerResourceCollector(
 func (c *ContainerResourceCollector) Start(ctx context.Context) error {
 	c.logger.Info("Starting container resource collector",
 		"namespaces", c.namespaces,
-		"updateInterval", c.updateInterval)
+		"updateInterval", c.config.UpdateInterval)
 
 	// Check if metrics client is available
 	if c.metricsClient == nil {
 		return fmt.Errorf("metrics client is not available, cannot collect container resources")
+	}
+
+	// Initialize Prometheus client
+
+	c.logger.Info("Initializing Prometheus client for network and I/O metrics",
+		"prometheusURL", c.config.PrometheusURL)
+	client, err := api.NewClient(api.Config{
+		Address: c.config.PrometheusURL,
+	})
+	if err != nil {
+		c.logger.Error(err, "Failed to create Prometheus client, network and I/O metrics will be disabled")
+	} else {
+		c.prometheusAPI = v1.NewAPI(client)
 	}
 
 	// Create informer factory based on namespace configuration
@@ -95,7 +135,6 @@ func (c *ContainerResourceCollector) Start(ctx context.Context) error {
 
 	// Create pod informer to maintain a cache of pod information
 	c.podInformer = c.informerFactory.Core().V1().Pods().Informer()
-	// c.podLister = c.informerFactory.Core().V1().Pods().Lister()
 
 	// Start the informer factories
 	c.informerFactory.Start(c.stopCh)
@@ -108,7 +147,7 @@ func (c *ContainerResourceCollector) Start(ctx context.Context) error {
 	c.logger.Info("Informer caches synced successfully")
 
 	// Start a ticker to collect resource metrics at regular intervals
-	c.ticker = time.NewTicker(c.updateInterval)
+	c.ticker = time.NewTicker(c.config.UpdateInterval)
 
 	// Start the collection loop
 	go c.collectResourcesLoop(ctx)
@@ -164,6 +203,14 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 		return
 	}
 
+	// Create a context with timeout for Prometheus queries if needed
+	var queryCtx context.Context
+	var cancel context.CancelFunc
+	if c.prometheusAPI != nil {
+		queryCtx, cancel = context.WithTimeout(ctx, c.config.QueryTimeout)
+		defer cancel()
+	}
+
 	// Process each pod's metrics
 	for _, podMetrics := range podMetricsList.Items {
 		// Skip excluded pods
@@ -180,15 +227,48 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 			continue
 		}
 
+		// Fetch network metrics
+		var networkMetrics map[string]float64
+		if c.prometheusAPI != nil && queryCtx != nil {
+			networkMetrics, err = c.collectPodNetworkMetrics(queryCtx, pod)
+			if err != nil {
+				c.logger.Error(err, "Failed to collect network metrics",
+					"namespace", podMetrics.Namespace,
+					"name", podMetrics.Name)
+				// Continue with CPU/memory metrics
+				networkMetrics = make(map[string]float64)
+			}
+		}
+
 		// Process each container's metrics
 		for _, containerMetrics := range podMetrics.Containers {
-			c.processContainerMetrics(pod, containerMetrics)
+			// Fetch I/O metrics for this container
+			var ioMetrics map[string]float64
+			if c.prometheusAPI != nil && queryCtx != nil {
+				ioMetrics, err = c.collectContainerIOMetrics(queryCtx, pod, containerMetrics.Name)
+				if err != nil {
+					c.logger.Error(err, "Failed to collect I/O metrics",
+						"namespace", podMetrics.Namespace,
+						"pod", podMetrics.Name,
+						"container", containerMetrics.Name)
+					// Continue with CPU/memory metrics
+					ioMetrics = make(map[string]float64)
+				}
+			}
+
+			// Process the container metrics with optional network/IO data
+			c.processContainerMetrics(pod, containerMetrics, networkMetrics, ioMetrics)
 		}
 	}
 }
 
 // processContainerMetrics processes metrics for a single container
-func (c *ContainerResourceCollector) processContainerMetrics(pod *corev1.Pod, containerMetrics metricsv1beta1.ContainerMetrics) {
+func (c *ContainerResourceCollector) processContainerMetrics(
+	pod *corev1.Pod,
+	containerMetrics metricsv1beta1.ContainerMetrics,
+	networkMetrics map[string]float64,
+	ioMetrics map[string]float64,
+) {
 	// Find the container spec in the pod
 	var containerSpec *corev1.Container
 	for i := range pod.Spec.Containers {
@@ -256,26 +336,56 @@ func (c *ContainerResourceCollector) processContainerMetrics(pod *corev1.Pod, co
 		"namespace":     pod.Namespace,
 		"nodeName":      pod.Spec.NodeName,
 
-		// Resource usage
+		// CPU/Memory resource usage
 		"cpuUsageMillis":   cpuUsage,
 		"memoryUsageBytes": memoryUsage,
 
-		// All this can be retrieved from the pod object so we can exclude this fields but
-		// keeping for now to understand what we can get and why we sending this data.
+		// Resource requests and limits
 		"cpuRequestMillis":   cpuRequestMillis,
 		"cpuLimitMillis":     cpuLimitMillis,
 		"memoryRequestBytes": memoryRequestBytes,
 		"memoryLimitBytes":   memoryLimitBytes,
+
 		// Labels from the pod for correlation
 		"podLabels": pod.Labels,
+
 		// Container metadata for reference
 		"containerImage": containerSpec.Image,
+
 		// Status info
 		"containerRunning":  containerStatus != nil && containerStatus.State.Running != nil,
 		"containerRestarts": containerStatus != nil && containerStatus.RestartCount != 0,
 
 		// Include the full pod object for any other needed details
 		"pod": pod,
+	}
+
+	// Add network metrics if available
+	if networkMetrics != nil {
+		resourceData["networkReceiveBytes"] = networkMetrics["NetworkReceiveBytes"]
+		resourceData["networkTransmitBytes"] = networkMetrics["NetworkTransmitBytes"]
+		resourceData["networkReceivePackets"] = networkMetrics["NetworkReceivePackets"]
+		resourceData["networkTransmitPackets"] = networkMetrics["NetworkTransmitPackets"]
+		resourceData["networkReceiveErrors"] = networkMetrics["NetworkReceiveErrors"]
+		resourceData["networkTransmitErrors"] = networkMetrics["NetworkTransmitErrors"]
+		resourceData["networkReceiveDropped"] = networkMetrics["NetworkReceiveDropped"]
+		resourceData["networkTransmitDropped"] = networkMetrics["NetworkTransmitDropped"]
+
+		// Add human-readable network throughput
+		resourceData["networkReceiveBytesHR"] = networkMetrics["NetworkReceiveBytes"]
+		resourceData["networkTransmitBytesHR"] = networkMetrics["NetworkTransmitBytes"]
+	}
+
+	// Add I/O metrics if available
+	if ioMetrics != nil {
+		resourceData["fsReadBytes"] = ioMetrics["FSReadBytes"]
+		resourceData["fsWriteBytes"] = ioMetrics["FSWriteBytes"]
+		resourceData["fsReads"] = ioMetrics["FSReads"]
+		resourceData["fsWrites"] = ioMetrics["FSWrites"]
+
+		// Add human-readable I/O throughput
+		resourceData["fsReadBytesHR"] = ioMetrics["FSReadBytes"]
+		resourceData["fsWriteBytesHR"] = ioMetrics["FSWriteBytes"]
 	}
 
 	// Send the resource usage data to the channel
@@ -286,6 +396,97 @@ func (c *ContainerResourceCollector) processContainerMetrics(pod *corev1.Pod, co
 		EventType:    "metrics",
 		Key:          containerKey,
 	}
+}
+
+// collectPodNetworkMetrics collects network metrics for a pod using Prometheus queries
+func (c *ContainerResourceCollector) collectPodNetworkMetrics(ctx context.Context, pod *corev1.Pod) (map[string]float64, error) {
+	metrics := make(map[string]float64)
+
+	// Define queries for network metrics
+	queries := map[string]string{
+		"NetworkReceiveBytes":    fmt.Sprintf(`sum(rate(container_network_receive_bytes_total{namespace="%s", pod="%s"}[5m]))`, pod.Namespace, pod.Name),
+		"NetworkTransmitBytes":   fmt.Sprintf(`sum(rate(container_network_transmit_bytes_total{namespace="%s", pod="%s"}[5m]))`, pod.Namespace, pod.Name),
+		"NetworkReceivePackets":  fmt.Sprintf(`sum(rate(container_network_receive_packets_total{namespace="%s", pod="%s"}[5m]))`, pod.Namespace, pod.Name),
+		"NetworkTransmitPackets": fmt.Sprintf(`sum(rate(container_network_transmit_packets_total{namespace="%s", pod="%s"}[5m]))`, pod.Namespace, pod.Name),
+		"NetworkReceiveErrors":   fmt.Sprintf(`sum(rate(container_network_receive_errors_total{namespace="%s", pod="%s"}[5m]))`, pod.Namespace, pod.Name),
+		"NetworkTransmitErrors":  fmt.Sprintf(`sum(rate(container_network_transmit_errors_total{namespace="%s", pod="%s"}[5m]))`, pod.Namespace, pod.Name),
+		"NetworkReceiveDropped":  fmt.Sprintf(`sum(rate(container_network_receive_packets_dropped_total{namespace="%s", pod="%s"}[5m]))`, pod.Namespace, pod.Name),
+		"NetworkTransmitDropped": fmt.Sprintf(`sum(rate(container_network_transmit_packets_dropped_total{namespace="%s", pod="%s"}[5m]))`, pod.Namespace, pod.Name),
+	}
+
+	// Execute each query and store the result
+	for metricName, query := range queries {
+		metrics[metricName] = 0 // Default to 0 for all metrics
+
+		result, _, err := c.prometheusAPI.Query(ctx, query, time.Now())
+		if err != nil {
+			c.logger.Error(err, "Error querying Prometheus",
+				"metric", metricName,
+				"query", query)
+			continue
+		}
+
+		// Extract value from result (if any)
+		if result.Type() == model.ValVector {
+			vector := result.(model.Vector)
+			if len(vector) > 0 {
+				metrics[metricName] = float64(vector[0].Value)
+			}
+		}
+	}
+
+	return metrics, nil
+}
+
+// collectContainerIOMetrics collects I/O metrics for a container using Prometheus queries
+func (c *ContainerResourceCollector) collectContainerIOMetrics(ctx context.Context, pod *corev1.Pod, containerName string) (map[string]float64, error) {
+	metrics := make(map[string]float64)
+
+	// Define queries for I/O metrics
+	queries := map[string]string{
+		"FSReadBytes":  fmt.Sprintf(`sum(rate(container_fs_reads_bytes_total{namespace="%s", pod="%s", container="%s"}[5m]))`, pod.Namespace, pod.Name, containerName),
+		"FSWriteBytes": fmt.Sprintf(`sum(rate(container_fs_writes_bytes_total{namespace="%s", pod="%s", container="%s"}[5m]))`, pod.Namespace, pod.Name, containerName),
+		"FSReads":      fmt.Sprintf(`sum(rate(container_fs_reads_total{namespace="%s", pod="%s", container="%s"}[5m]))`, pod.Namespace, pod.Name, containerName),
+		"FSWrites":     fmt.Sprintf(`sum(rate(container_fs_writes_total{namespace="%s", pod="%s", container="%s"}[5m]))`, pod.Namespace, pod.Name, containerName),
+	}
+
+	// Execute each query and store the result
+	for metricName, query := range queries {
+		metrics[metricName] = 0 // Default to 0 for all metrics
+
+		result, _, err := c.prometheusAPI.Query(ctx, query, time.Now())
+		if err != nil {
+			c.logger.Error(err, "Error querying Prometheus",
+				"metric", metricName,
+				"query", query,
+				"container", containerName)
+			continue
+		}
+
+		// Extract value from result (if any)
+		if result.Type() == model.ValVector {
+			vector := result.(model.Vector)
+			if len(vector) > 0 {
+				metrics[metricName] = float64(vector[0].Value)
+			}
+		}
+	}
+
+	return metrics, nil
+}
+
+// humanizeBytes converts bytes to a human-readable format (KB, MB, GB, etc.)
+func humanizeBytes(bytes float64) string {
+	const unit = 1024.0
+	if bytes < unit {
+		return fmt.Sprintf("%.2f B", bytes)
+	}
+	div, exp := unit, 0
+	for n := bytes / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.2f %ciB", bytes/div, "KMGTPE"[exp])
 }
 
 // getPodFromCache retrieves a pod from the informer cache
@@ -329,10 +530,7 @@ func (c *ContainerResourceCollector) Stop() error {
 	}
 
 	if c.stopCh != nil {
-		if c.stopCh != nil {
-			close(c.stopCh)
-			c.stopCh = nil
-		}
+		close(c.stopCh)
 		c.stopCh = nil
 	}
 	return nil
@@ -364,6 +562,23 @@ func (c *ContainerResourceCollector) IsAvailable(ctx context.Context) bool {
 	if err != nil {
 		c.logger.Info("Metrics server API not available", "error", err.Error())
 		return false
+	}
+
+	// check Prometheus availability
+	if c.prometheusAPI == nil {
+		c.logger.Info("Prometheus client is not available")
+		// Still return true since the main metrics are available
+		return true
+	}
+
+	// Try a simple query to check if Prometheus is available
+	queryCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	_, _, err = c.prometheusAPI.Query(queryCtx, "up", time.Now())
+	if err != nil {
+		c.logger.Info("Prometheus API not available for network and I/O metrics", "error", err.Error())
+		// Still return true since the main metrics are available
 	}
 
 	return true

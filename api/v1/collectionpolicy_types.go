@@ -355,6 +355,11 @@ type Policies struct {
 	// ClusterToken is the token used to authenticate as a cluster
 	ClusterToken string `json:"clusterToken,omitempty"`
 
+	// PrometheusURL is the URL of the Prometheus server to query for metrics
+	// If not provided, defaults to in-cluster Prometheus at "http://prometheus-service.monitoring.svc.cluster.local:8080"
+	// +optional
+	PrometheusURL string `json:"prometheusURL,omitempty"`
+
 	// Frequency is how often to collect resource usage metrics
 	Frequency string `json:"frequency,omitempty"`
 
