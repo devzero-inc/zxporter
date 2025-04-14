@@ -370,10 +370,6 @@ func (c *ContainerResourceCollector) processContainerMetrics(
 		resourceData["networkTransmitErrors"] = networkMetrics["NetworkTransmitErrors"]
 		resourceData["networkReceiveDropped"] = networkMetrics["NetworkReceiveDropped"]
 		resourceData["networkTransmitDropped"] = networkMetrics["NetworkTransmitDropped"]
-
-		// Add human-readable network throughput
-		resourceData["networkReceiveBytesHR"] = networkMetrics["NetworkReceiveBytes"]
-		resourceData["networkTransmitBytesHR"] = networkMetrics["NetworkTransmitBytes"]
 	}
 
 	// Add I/O metrics if available
@@ -382,10 +378,6 @@ func (c *ContainerResourceCollector) processContainerMetrics(
 		resourceData["fsWriteBytes"] = ioMetrics["FSWriteBytes"]
 		resourceData["fsReads"] = ioMetrics["FSReads"]
 		resourceData["fsWrites"] = ioMetrics["FSWrites"]
-
-		// Add human-readable I/O throughput
-		resourceData["fsReadBytesHR"] = ioMetrics["FSReadBytes"]
-		resourceData["fsWriteBytesHR"] = ioMetrics["FSWriteBytes"]
 	}
 
 	// Send the resource usage data to the channel
