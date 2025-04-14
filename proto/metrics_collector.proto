@@ -9,11 +9,76 @@ option go_package = "github.com/devzero-inc/services/dakr/gen/api/v1;gen";
 option java_multiple_files = true;
 option java_package = "gen.api.v1";
 
+// ResourceType is a type of resource that can enter the system
+enum ResourceType {
+  RESOURCE_TYPE_UNSPECIFIED = 0;
+  
+  // Core Resources
+  RESOURCE_TYPE_NODE = 1;
+  RESOURCE_TYPE_POD = 2;
+  RESOURCE_TYPE_NAMESPACE = 3;
+  RESOURCE_TYPE_EVENT = 4;
+  RESOURCE_TYPE_ENDPOINTS = 5;
+  RESOURCE_TYPE_SERVICE_ACCOUNT = 6;
+  RESOURCE_TYPE_LIMIT_RANGE = 7;
+  RESOURCE_TYPE_RESOURCE_QUOTA = 8;
+  
+  // Workload Resources
+  RESOURCE_TYPE_DEPLOYMENT = 9;
+  RESOURCE_TYPE_STATEFUL_SET = 10;
+  RESOURCE_TYPE_DAEMON_SET = 11;
+  RESOURCE_TYPE_REPLICA_SET = 12;
+  RESOURCE_TYPE_REPLICATION_CONTROLLER = 13;
+  RESOURCE_TYPE_JOB = 14;
+  RESOURCE_TYPE_CRON_JOB = 15;
+  
+  // Storage Resources
+  RESOURCE_TYPE_PERSISTENT_VOLUME_CLAIM = 16;
+  RESOURCE_TYPE_PERSISTENT_VOLUME = 17;
+  RESOURCE_TYPE_STORAGE_CLASS = 18;
+  
+  // Networking Resources
+  RESOURCE_TYPE_SERVICE = 19;
+  RESOURCE_TYPE_INGRESS = 20;
+  RESOURCE_TYPE_INGRESS_CLASS = 21;
+  RESOURCE_TYPE_NETWORK_POLICY = 22;
+  
+  // RBAC Resources
+  RESOURCE_TYPE_ROLE = 23;
+  RESOURCE_TYPE_ROLE_BINDING = 24;
+  RESOURCE_TYPE_CLUSTER_ROLE = 25;
+  RESOURCE_TYPE_CLUSTER_ROLE_BINDING = 26;
+  
+  // Autoscaling Resources
+  RESOURCE_TYPE_HORIZONTAL_POD_AUTOSCALER = 27;
+  RESOURCE_TYPE_VERTICAL_POD_AUTOSCALER = 28;
+  
+  // Policy Resources
+  RESOURCE_TYPE_POD_DISRUPTION_BUDGET = 29;
+  RESOURCE_TYPE_POD_SECURITY_POLICY = 30;
+  
+  // Custom Resources
+  RESOURCE_TYPE_CUSTOM_RESOURCE_DEFINITION = 31;
+  RESOURCE_TYPE_CUSTOM_RESOURCE = 32;
+  
+  // Configuration Resources
+  RESOURCE_TYPE_CONFIG_MAP = 33;
+  RESOURCE_TYPE_SECRET = 34;
+  
+  // Container and Resource specific types
+  RESOURCE_TYPE_CONTAINER = 35;
+  RESOURCE_TYPE_NODE_RESOURCE = 36;
+  RESOURCE_TYPE_CONTAINER_RESOURCE = 37;
+
+  // Cluster resource - registration type
+  RESOURCE_TYPE_CLUSTER = 38;
+}
+
 // Requests
 // SendRequest is used to push metrics for a single resource.
 message SendResourceRequest {
   // Type of resource (pod, container, node_resources, etc.)
-  string resource_type = 1;
+  ResourceType resource_type = 1;
 
   // Unique identifier for the resource
   string key = 2;
@@ -26,11 +91,23 @@ message SendResourceRequest {
 
   // The actual resource data as a flexible structure
   google.protobuf.Struct data = 5;
+
+  // cluster_id of resource
+  string cluster_id = 6;
+
+  // team_id of resource
+  string team_id = 7;
 }
 
 // Responses
 // Common response for all send operations
-message SendResourceResponse {}
+message SendResourceResponse {
+  // Type of resource (pod, container, node_resources, etc.)
+  ResourceType resource_type = 1;
+
+  // Unique identifier for the cluster
+  string cluster_identifier = 2;
+}
 
 // Defines the service that provides RPC methods for Kubernetes cluster monitoring metrics collector.
 service MetricsCollectorService {

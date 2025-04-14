@@ -1,0 +1,3298 @@
+
+Çˆ
+api/v1/k8s.protoapi.v1"-
+GetClustersRequest
+team_id (	RteamId"K
+GetClusterRequest
+team_id (	RteamId
+
+cluster_id (	R	clusterId"T
+GetWorkloadAnalysisRequest
+team_id (	RteamId
+
+cluster_id (	R	clusterId"N
+GetNodeGroupsRequest
+team_id (	RteamId
+
+cluster_id (	R	clusterId"n
+GetClusterCostRequest
+team_id (	RteamId
+
+cluster_id (	R	clusterId
+
+time_range (R	timeRange"W
+GetClusterCostAnalysisRequest
+team_id (	RteamId
+
+cluster_id (	R	clusterId"I
+GetNodesRequest
+team_id (	RteamId
+
+cluster_id (	R	clusterId"k
+GetNodeCostRequest
+team_id (	RteamId
+
+cluster_id (	R	clusterId
+
+time_range (R	timeRange"
+GetResourcesRequest
+team_id (	RteamId
+
+cluster_id (	R	clusterId
+	namespace (	R	namespace
+kind (	Rkind"r
+GetNodeUtilizationRequest
+team_id (	RteamId
+
+cluster_id (	R	clusterId
+
+time_range (R	timeRange"‘
+GetClustersResponse+
+clusters (2.api.v1.ClusterRclustersB
+resource_metrics (2.api.v1.ResourceMetricsRresourceMetrics-
+	cost_info (2.api.v1.CostInfoRcostInfo3
+savings_info (2.api.v1.CostInfoRsavingsInfo-
+	node_info (2.api.v1.NodeInfoRnodeInfo9
+resource_info (2.api.v1.ResourceInfoRresourceInfo"›
+GetNodeGroupsResponse2
+node_groups (2.api.v1.NodeGroupR
+nodeGroupsB
+resource_metrics (2.api.v1.ResourceMetricsRresourceMetrics-
+	cost_info (2.api.v1.CostInfoRcostInfo3
+savings_info (2.api.v1.CostInfoRsavingsInfo-
+	node_info (2.api.v1.NodeInfoRnodeInfo9
+resource_info (2.api.v1.ResourceInfoRresourceInfo"?
+GetClusterResponse)
+cluster (2.api.v1.ClusterRcluster"`
+GetClusterCostResponseF
+cost_data_points (2.api.v1.ClusterCostDataPointRcostDataPoints"í
+ClusterCostDataPoint
+	timestamp (R	timestamp*
+actual_cost_cents (RactualCostCents0
+optimized_cost_cents (RoptimizedCostCents"»
+GetNodesResponse"
+nodes (2.api.v1.NodeRnodesB
+resource_metrics (2.api.v1.ResourceMetricsRresourceMetrics-
+	cost_info (2.api.v1.CostInfoRcostInfo3
+savings_info (2.api.v1.CostInfoRsavingsInfo-
+	node_info (2.api.v1.NodeInfoRnodeInfo9
+resource_info (2.api.v1.ResourceInfoRresourceInfo"r
+GetNodeUtilizationResponseT
+utilization_data_points (2.api.v1.UtilizationDataPointRutilizationDataPoints"Z
+GetNodeCostResponseC
+cost_data_points (2.api.v1.NodeCostDataPointRcostDataPoints"Æ
+GetClusterCostAnalysisResponse
+
+cluster_id (	R	clusterId!
+cluster_name (	RclusterName$
+cost (2.api.v1.CostInfoRcost@
+most_expensive_node (2.api.v1.CostInfoRmostExpensiveNodeB
+least_expensive_node (2.api.v1.CostInfoRleastExpensiveNodeB
+resource_metrics (2.api.v1.ResourceMetricsRresourceMetricsO
+most_underutilized_node (2.api.v1.ResourceMetricsRmostUnderutilizedNode]
+most_underutilized_application (2.api.v1.ResourceMetricsRmostUnderutilizedApplication*
+savings (2.api.v1.CostInfoRsavings"Ì
+WorkloadItem
+kind (	Rkind
+name (	Rname
+uid (	Ruid0
+children (2.api.v1.WorkloadItemRchildren-
+	cost_info (2.api.v1.CostInfoRcostInfoB
+resource_metrics (2.api.v1.ResourceMetricsRresourceMetrics"è
+GetWorkloadAnalysisResponse
+
+cluster_id (	R	clusterId!
+cluster_name (	RclusterName;
+workload_items (2.api.v1.WorkloadItemRworkloadItems-
+	cost_info (2.api.v1.CostInfoRcostInfoB
+resource_metrics (2.api.v1.ResourceMetricsRresourceMetrics"m
+NodeCostDataPoint
+	timestamp (R	timestamp
+	node_name (	RnodeName
+
+cost_cents (R	costCents"å
+UtilizationDataPoint
+	timestamp (R	timestamp'
+cpu_utilization (RcpuUtilization-
+memory_utilization (RmemoryUtilization"æ
+GetResourcesResponse.
+	resources (2.api.v1.ResourceR	resources/
+total_cost_per_hours (RtotalCostPerHours/
+total_cost_per_month (RtotalCostPerMonth.
+total_cpu_requested (RtotalCpuRequested4
+total_memory_requested (RtotalMemoryRequested(
+total_cpu_limits (RtotalCpuLimits.
+total_memory_limits (RtotalMemoryLimits&
+total_cpu_usage (RtotalCpuUsage,
+total_memory_usage	 (RtotalMemoryUsage"â
+ResourceMetrics!
+cpu_capacity (RcpuCapacity'
+memory_capacity (RmemoryCapacity
+	cpu_usage (RcpuUsage!
+memory_usage (RmemoryUsage'
+cpu_utilization (RcpuUtilization-
+memory_utilization (RmemoryUtilization#
+cpu_requested (RcpuRequested)
+memory_requested (RmemoryRequested
+
+cpu_limits	 (R	cpuLimits#
+memory_limits
+ (RmemoryLimits"È
+CostInfo)
+cpu_cost_per_hour (RcpuCostPerHour/
+memory_cost_per_hour (RmemoryCostPerHour-
+total_cost_per_hour (RtotalCostPerHour/
+total_cost_per_month (RtotalCostPerMonth!
+is_estimated (RisEstimated"º
+NodeInfo
+
+node_count (R	nodeCount&
+on_demand_count (RonDemandCount%
+reserved_count (RreservedCount
+
+spot_count (R	spotCount#
+unknown_count (RunknownCount"Â
+ResourceInfo'
+resources_count (RresourcesCount8
+scheduled_resource_count (RscheduledResourceCount<
+unscheduled_resource_count (RunscheduledResourceCount4
+unknown_resource_count (RunknownResourceCount"Ï
+Cluster
+id (	Rid
+name (	Rname
+cluster_api (	R
+clusterApi
+version (	Rversion
+provider (	Rprovider
+region (	RregionB
+resource_metrics (2.api.v1.ResourceMetricsRresourceMetrics-
+	cost_info (2.api.v1.CostInfoRcostInfo3
+savings_info	 (2.api.v1.CostInfoRsavingsInfo-
+	node_info
+ (2.api.v1.NodeInfoRnodeInfo9
+resource_info (2.api.v1.ResourceInfoRresourceInfo
+
+created_at (R	createdAt
+
+updated_at (R	updatedAt"Ù
+	NodeGroup
+name (	Rname
+
+node_count (R	nodeCount"
+nodes (2.api.v1.NodeRnodesB
+resource_metrics (2.api.v1.ResourceMetricsRresourceMetrics-
+	cost_info (2.api.v1.CostInfoRcostInfo3
+savings_info (2.api.v1.CostInfoRsavingsInfo-
+	node_info (2.api.v1.NodeInfoRnodeInfo9
+resource_info (2.api.v1.ResourceInfoRresourceInfo"£
+Node
+id (	Rid
+name (	Rname#
+instance_type (	RinstanceType
+region (	Rregion
+zone (	RzoneB
+resource_metrics (2.api.v1.ResourceMetricsRresourceMetrics-
+	cost_info (2.api.v1.CostInfoRcostInfo3
+savings_info (2.api.v1.CostInfoRsavingsInfo"À
+	Namespace
+name (	Rname
+status (	Rstatus+
+deployments_count (RdeploymentsCount.
+stateful_sets_count (RstatefulSetsCount*
+daemon_sets_count (RdaemonSetsCount
+
+jobs_count (R	jobsCount&
+cron_jobs_count (RcronJobsCount
+
+pods_count (R	podsCount%
+services_count	 (RservicesCount'
+ingresses_count
+ (RingressesCount 
+environment (	Renvironment
+team (	Rteam
+
+created_at (R	createdAt"™
+Pod
+id (	Rid
+name (	Rname
+status (	Rstatus
+
+created_at (R	createdAt
+cpu_request (R
+cpuRequest%
+memory_request (RmemoryRequest
+	cpu_usage (RcpuUsage!
+memory_usage (RmemoryUsage
+	cpu_limit	 (RcpuLimit!
+memory_limit
+ (RmemoryLimit<
+cpu_utilization_percentage (RcpuUtilizationPercentageB
+memory_utilization_percentage (RmemoryUtilizationPercentage"å
+
+Resource
+id (	Rid
+kind (	Rkind
+name (	Rname
+	namespace (	R	namespace
+app (	Rapp
+version (	Rversion
+status (	Rstatus 
+environment (	Renvironment
+
+created_at	 (R	createdAt
+
+updated_at
+ (R	updatedAt#
+replica_count (RreplicaCount
+pods (2.api.v1.PodRpods%
+ready_replicas (RreadyReplicas
+cpu_request (R
+cpuRequest
+	cpu_limit (RcpuLimit%
+memory_request (RmemoryRequest!
+memory_limit (RmemoryLimit
+	cpu_usage (RcpuUsage!
+memory_usage (RmemoryUsage<
+cpu_utilization_percentage (RcpuUtilizationPercentageB
+memory_utilization_percentage (RmemoryUtilizationPercentage-
+has_recommendation (RhasRecommendation6
+recommended_cpu_request (RrecommendedCpuRequest2
+recommended_cpu_limit  (RrecommendedCpuLimit<
+recommended_memory_request! (RrecommendedMemoryRequest8
+recommended_memory_limit" (RrecommendedMemoryLimit4
+cpu_savings_percentage# (RcpuSavingsPercentage:
+memory_savings_percentage$ (RmemorySavingsPercentage3
+total_cpu_saving_cores% (RtotalCpuSavingCores3
+total_memory_saving_gb& (RtotalMemorySavingGb/
+total_cost_per_hours' (RtotalCostPerHours/
+total_cost_per_month( (RtotalCostPerMonth2∞
+
+K8SServiceF
+GetClusters.api.v1.GetClustersRequest.api.v1.GetClustersResponseC
+
+GetCluster.api.v1.GetClusterRequest.api.v1.GetClusterResponse=
+GetNodes.api.v1.GetNodesRequest.api.v1.GetNodesResponseL
+GetNodeGroups.api.v1.GetNodeGroupsRequest.api.v1.GetNodeGroupsResponse[
+GetNodeUtilization!.api.v1.GetNodeUtilizationRequest".api.v1.GetNodeUtilizationResponseF
+GetNodeCost.api.v1.GetNodeCostRequest.api.v1.GetNodeCostResponseO
+GetClusterCost.api.v1.GetClusterCostRequest.api.v1.GetClusterCostResponseg
+GetClusterCostAnalysis%.api.v1.GetClusterCostAnalysisRequest&.api.v1.GetClusterCostAnalysisResponse^
+GetWorkloadAnalysis".api.v1.GetWorkloadAnalysisRequest#.api.v1.GetWorkloadAnalysisResponseI
+GetResources.api.v1.GetResourcesRequest.api.v1.GetResourcesResponseBC
+
+gen.api.v1PZ3github.com/devzero-inc/services/dakr/gen/api/v1;genJÎ™
+  √
+
+  
+
+ 
+
+ J
+	
+ J
+
+ "
+	
+
+ "
+
+ #
+	
+ #
+O
+ 	 C GetClustersRequest is used to fetch clusters for a specific team.
+
+
+
+ 	
+.
+  
+"! Unique identifier for the team.
+
+
+  
+
+
+  
+	
+
+  
+
+W
+ K GetClusterRequest is used to fetch a cluster details for a specific team.
+
+
+
+
+.
+ "! Unique identifier for the team.
+
+
+ 
+
+ 	
+
+ 
+1
+"$ Unique identifier for the cluster.
+
+
+
+
+	
+
+
+i
+ ] GetWorkloadAnalysisRequest is used to fetch a cluster workload details for a specific team.
+
+
+
+"
+.
+ "! Unique identifier for the team.
+
+
+ 
+
+ 	
+
+ 
+1
+"$ Unique identifier for the cluster.
+
+
+
+
+	
+
+
+X
+ L GetNodesGroupsRequest is used to fetch node groups for a specific cluster.
+
+
+
+
+.
+ "! Unique identifier for the team.
+
+
+ 
+
+ 	
+
+ 
+1
+"$ Unique identifier for the cluster.
+
+
+
+
+	
+
+
+0
+  $$ Request message for GetClusterCost
+
+
+
+ 
+
+ !" ID of the team
+
+
+ !
+
+ !	
+
+ !
+ 
+"" ID of the cluster
+
+
+"
+
+"	
+
+"
+:
+#"- Time range in hours, optional (default: 24)
+
+
+#
+
+#
+
+#
+8
+' *, Request message for GetClusterCostAnalysis
+
+
+
+'%
+
+ (" ID of the team
+
+
+ (
+
+ (	
+
+ (
+ 
+)" ID of the cluster
+
+
+)
+
+)	
+
+)
+L
+- 0@ GetNodesRequest is used to fetch nodes for a specific cluster.
+
+
+
+-
+.
+ ."! Unique identifier for the team.
+
+
+ .
+
+ .	
+
+ .
+1
+/"$ Unique identifier for the cluster.
+
+
+/
+
+/	
+
+/
+-
+3 7! Request message for GetNodeCost
+
+
+
+3
+
+ 4" ID of the team
+
+
+ 4
+
+ 4	
+
+ 4
+ 
+5" ID of the cluster
+
+
+5
+
+5	
+
+5
+:
+6"- Time range in hours, optional (default: 24)
+
+
+6
+
+6
+
+6
+U
+: ?I GetResourcesRequest is used to fetch resources in a specific namespace.
+
+
+
+:
+.
+ ;"! Unique identifier for the team.
+
+
+ ;
+
+ ;	
+
+ ;
+1
+<"$ Unique identifier for the cluster.
+
+
+<
+
+<	
+
+<
+1
+="$ Namespace to query resources from.
+
+
+=
+
+=	
+
+=
+0
+>"# Optional filter by resource kind.
+
+
+>
+
+>	
+
+>
+4
+	B F( Request message for GetNodeUtilization
+
+
+
+	B!
+
+	 C" ID of the team
+
+
+	 C
+
+	 C	
+
+	 C
+ 
+	D" ID of the cluster
+
+
+	D
+
+	D	
+
+	D
+:
+	E"- Time range in hours, optional (default: 24)
+
+
+	E
+
+	E
+
+	E
+X
+
+K ]? GetClustersResponse contains the list of clusters for a team.
+2 Responses
+
+
+
+
+K
+ 
+
+ L " List of clusters.
+
+
+
+ L
+
+
+
+ L
+
+
+ L
+
+
+ L
+
+
+O' Resource usage
+
+
+
+O
+
+
+O"
+
+
+O%&
+
+
+R Cost info
+
+
+
+R
+
+
+
+R
+
+
+R
+
+
+U Savings info
+
+
+
+U
+
+
+
+U
+
+
+U
+
+
+X Node info
+
+
+
+X
+
+
+
+X
+
+
+X
+2
+
+[! Resource info
+" TODO: add GPU bits
+
+
+
+[
+
+
+[
+
+
+[ 
+V
+` rJ GetNodeGroupsResponse contains the list of node groups with their nodes.
+
+
+
+`
+#
+ a%" List of node groups.
+
+
+ a
+
+
+ a
+
+ a 
+
+ a#$
+
+d' Resource usage
+
+
+d
+
+d"
+
+d%&
+
+g Cost info
+
+
+g
+
+
+g
+
+g
+
+j Savings info
+
+
+j
+
+
+j
+
+j
+
+m Node info
+
+
+m
+
+
+m
+
+m
+2
+p! Resource info
+" TODO: add GPU bits
+
+
+p
+
+p
+
+p 
+I
+u w= GetClusterResponse contains the cluster details for a team.
+
+
+
+u
+
+ v" Cluster details
+
+
+ v	
+
+ v
+
+
+ v
+1
+z |% Response message for GetClusterCost
+
+
+
+z
+
+ {5" Cost data points
+
+
+ {
+
+
+ {
+
+ { 0
+
+ {34
+T
+ ÉG ClusterCostDataPoint represents cost for a cluster at a specific time
+
+
+
+
+4
+ Ä"& Unix timestamp (seconds since epoch)
+
+
+ Ä
+
+ Ä
+
+ Ä
+-
+Å" Actual cost in cents per hour
+
+
+Å
+
+Å
+
+Å
+0
+Ç!"" Optimized cost in cents per hour
+
+
+Ç
+
+Ç
+
+Ç 
+I
+Ü ó; GetNodesResponse contains the list of nodes in a cluster.
+
+
+Ü
+
+ á" List of nodes.
+
+
+ á
+
+
+ á
+
+ á
+
+ á
+
+ä' Resource usage
+
+
+ä
+
+ä"
+
+ä%&
+
+ç Cost info
+
+
+ç
+
+
+ç
+
+ç
+
+ê Savings info
+
+
+ê
+
+
+ê
+
+ê
+
+ì Node info
+
+
+ì
+
+
+ì
+
+ì
+
+ñ! Resource info
+
+
+ñ
+
+ñ
+
+ñ 
+7
+ö ú) Response message for GetNodeUtilization
+
+
+ö"
+
+ õ<
+
+ õ
+
+
+ õ
+
+ õ 7
+
+ õ:;
+0
+ü °" Response message for GetNodeCost
+
+
+ü
+ 
+ †2" Cost data points
+
+
+ †
+
+
+ †
+
+ †-
+
+ †01
+;
+§ ∏- Response message for GetClusterCostAnalysis
+
+
+§&
+
+ •" Cluster ID
+
+
+ •
+
+ •	
+
+ •
+
+¶" Cluster name
+
+
+¶
+
+¶	
+
+¶
+8
+© Cost metrics
+" Cluster cost information
+
+
+©
+
+
+©
+
+©
+9
+¨# Node cost insights
+" Most expensive node
+
+
+¨
+
+
+¨
+
+¨!"
+$
+≠$" Least expensive node
+
+
+≠
+
+
+≠
+
+≠"#
+
+∞' Resource usage
+
+
+∞
+
+∞"
+
+∞%&
+B
+≥. Underutilized resources
+" Most underutilized node
+
+
+≥
+
+≥)
+
+≥,-
+.
+¥5"  Most underutilized application
+
+
+¥
+
+¥0
+
+¥34
+G
+∑ Savings potential
+"$ Potential monthly savings in cents
+
+
+∑
+
+
+∑
+
+∑
+L
+ª ¬> WorkloadItem represents a Kubernetes resource in a hierarchy
+
+
+ª
+C
+ º"5 Kind of resource (Pod, Container, Deployment, etc.)
+
+
+ º
+
+ º	
+
+ º
+$
+Ω" Name of the resource
+
+
+Ω
+
+Ω	
+
+Ω
+!
+æ" Unique identifier
+
+
+æ
+
+æ	
+
+æ
+
+ø%" Child resources
+
+
+ø
+
+
+ø
+
+ø 
+
+ø#$
+ 
+¿" Cost information
+
+
+¿
+
+
+¿
+
+¿
+ 
+¡'" Resource metrics
+
+
+¡
+
+¡"
+
+¡%&
+T
+≈ —F Then update the GetWorkloadAnalysisResponse to include these fields:
+
+
+≈#
+
+ ∆" Cluster ID
+
+
+ ∆
+
+ ∆	
+
+ ∆
+
+«" Cluster name
+
+
+«
+
+«	
+
+«
+"
+ + Workload hierarchy
+
+
+ 
+
+
+ 
+
+ &
+
+ )*
+
+Õ Aggregated cost
+
+
+Õ
+
+
+Õ
+
+Õ
+"
+–' Aggregated metrics
+
+
+–
+
+–"
+
+–%&
+O
+‘ ÿA NodeCostDataPoint represents cost for a node at a specific time
+
+
+‘
+4
+ ’"& Unix timestamp (seconds since epoch)
+
+
+ ’
+
+ ’
+
+ ’
+ 
+÷" Name of the node
+
+
+÷
+
+÷	
+
+÷
+&
+◊" Cost in cents per hour
+
+
+◊
+
+◊
+
+◊
+S
+€ ﬂE UtilizationDataPoint represents a single measurement of utilization
+
+
+€
+4
+ ‹"& Unix timestamp (seconds since epoch)
+
+
+ ‹
+
+ ‹
+
+ ‹
+2
+›"$ CPU utilization percentage (0-100)
+
+
+›
+
+›	
+
+›
+5
+ﬁ "' Memory utilization percentage (0-100)
+
+
+ﬁ
+
+ﬁ	
+
+ﬁ
+S
+‚ ÏE GetResourcesResponse contains the list of resources in a namespace.
+
+
+‚
+"
+ „"" List of resources.
+
+
+ „
+
+
+ „
+
+ „
+
+ „ !
+$
+‰"" Total cost per hour 
+
+
+‰
+
+‰	
+
+‰ !
+%
+Â"" Total cost per month 
+
+
+Â
+
+Â	
+
+Â !
+H
+Ê!": Total number of cpu cores requested across all workload.
+
+
+Ê
+
+Ê	
+
+Ê 
+K
+Á$"= Total amount of memory (GiB) requested across all workload.
+
+
+Á
+
+Á	
+
+Á"#
+D
+Ë"6 Total number of cpu core limits across all workload.
+
+
+Ë
+
+Ë	
+
+Ë
+H
+È!": Total amount of memory (GiB) limits across all workload.
+
+
+È
+
+È	
+
+È 
+)
+Í" Total amount of cpu usage
+
+
+Í
+
+Í	
+
+Í
+,
+Î " Total amount of memory usage
+
+
+Î
+
+Î	
+
+Î
+
+Ô ˙ Resource Types
+
+
+Ô
++
+ " Total CPU capacity in cores
+
+
+ 
+
+ 	
+
+ 
++
+Ò" Total memory capacity in GB
+
+
+Ò
+
+Ò	
+
+Ò
+*
+Ú" Current CPU usage in cores
+
+
+Ú
+
+Ú	
+
+Ú
+*
+Û" Current memory usage in GB
+
+
+Û
+
+Û	
+
+Û
+*
+Ù" CPU utilization percentage
+
+
+Ù
+
+Ù	
+
+Ù
+-
+ı " Memory utilization percentage
+
+
+ı
+
+ı	
+
+ı
+4
+ˆ"& Total number of cpu cores requested 
+
+
+ˆ
+
+ˆ	
+
+ˆ
+7
+˜") Total amount of memory (GiB) requested 
+
+
+˜
+
+˜	
+
+˜
+0
+¯"" Total number of cpu core limits 
+
+
+¯
+
+¯	
+
+¯
+3
+	˘"% Total amount of memory (GiB) limits
+
+
+	˘
+
+	˘	
+
+	˘
+.
+˝ É  Cost information for resources
+
+
+˝
++
+ ˛" Estimated CPU cost per hour
+
+
+ ˛
+
+ ˛
+
+ ˛
+.
+ˇ!"  Estimated memory cost per hour
+
+
+ˇ
+
+ˇ
+
+ˇ 
+-
+Ä " Total estimated cost per hour
+
+
+Ä
+
+Ä
+
+Ä
+"
+Å!" Total monthly cost
+
+
+Å
+
+Å
+
+Å 
+4
+Ç"& Based on real instance or estimation
+
+
+Ç
+
+Ç
+
+Ç
+ 
+Ü å Node information
+
+
+Ü
+/
+ á"! Number of nodes in the cluster.
+
+
+ á
+
+ á
+
+ á
+)
+à" Number of on demand nodes
+
+
+à
+
+à
+
+à
+(
+â" Number of reserved nodes
+
+
+â
+
+â
+
+â
+$
+ä" Number of spot nodes
+
+
+ä
+
+ä
+
+ä
+'
+ã" Number of unknown nodes
+
+
+ã
+
+ã
+
+ã
+
+è î Resource info
+
+
+è
+)
+ ê" Number of total resources
+
+
+ ê
+
+ ê
+
+ ê
+3
+ë%"% Number of total resurces scheduled 
+
+
+ë
+
+ë 
+
+ë#$
+6
+í'"( Number of total resources unscheduled 
+
+
+í
+
+í"
+
+í%&
+;
+ì#"- Number of total resources in unknown state 
+
+
+ì
+
+ì
+
+ì!"
+8
+ó ±* Cluster represents a Kubernetes cluster.
+
+
+ó
+B
+ ô General info
+"$ Unique identifier for the cluster.
+
+
+ ô
+
+ ô	
+
+ ô
+$
+ö" Name of the cluster.
+
+
+ö
+
+ö	
+
+ö
+-
+õ" API endpoint for the cluster.
+
+
+õ
+
+õ	
+
+õ
+2
+ú"$ Kubernetes version of the cluster.
+
+
+ú
+
+ú	
+
+ú
+0
+ù"" Cloud provider (AWS, GCP, Azure)
+
+
+ù
+
+ù	
+
+ù
+-
+û" Primary region of the cluster
+
+
+û
+
+û	
+
+û
+
+°' Resource usage
+
+
+°
+
+°"
+
+°%&
+
+§ Cost info
+
+
+§
+
+
+§
+
+§
+
+ß Savings info
+
+
+ß
+
+
+ß
+
+ß
+
+	™ Node info
+
+
+	™
+
+
+	™
+
+	™
+
+
+≠" Resource info
+
+
+
+≠
+
+
+≠
+
+
+≠!
+7
+Ø") Timestamp when the cluster was created.
+
+
+Ø
+
+Ø
+
+Ø
+<
+∞". Timestamp when the cluster was last updated.
+
+
+∞
+
+∞
+
+∞
+@
+¥ «2 NodeGroup represents a group of Kubernetes nodes
+
+
+¥
+&
+ µ" Name of the node group
+
+
+ µ
+
+ µ	
+
+ µ
+,
+∂" Number of nodes in the group
+
+
+∂
+
+∂
+
+∂
+#
+∑" Nodes in node group
+
+
+∑
+
+
+∑
+
+∑
+
+∑
+
+∫' Resource usage
+
+
+∫
+
+∫"
+
+∫%&
+
+Ω Cost info
+
+
+Ω
+
+
+Ω
+
+Ω
+
+¿ Savings info
+
+
+¿
+
+
+¿
+
+¿
+
+√ Node info
+
+
+√
+
+
+√
+
+√
+
+∆! Resource info
+
+
+∆
+
+∆
+
+∆ 
+2
+  ”$ Node represents a Kubernetes node.
+
+
+ 
+/
+ À"! Unique identifier for the node.
+
+
+ À
+
+ À	
+
+ À
+!
+Ã" Name of the node.
+
+
+Ã
+
+Ã	
+
+Ã
+*
+Õ" Instance type of the node.
+
+
+Õ
+
+Õ	
+
+Õ
+2
+Œ"$ Region where the node is deployed.
+
+
+Œ
+
+Œ	
+
+Œ
+0
+œ"" Zone where the node is deployed.
+
+
+œ
+
+œ	
+
+œ
+3
+–'"% Resource metrics for the node group
+
+
+–
+
+–"
+
+–%&
+ 
+—" Cost information
+
+
+—
+
+
+—
+
+—
+#
+“" Savings information
+
+
+“
+
+
+“
+
+“
+<
+÷ ‰. Namespace represents a Kubernetes namespace.
+
+
+÷
+&
+ ◊" Name of the namespace.
+
+
+ ◊
+
+ ◊	
+
+ ◊
+(
+ÿ" Status of the namespace.
+
+
+ÿ
+
+ÿ	
+
+ÿ
+7
+Ÿ") Number of deployments in the namespace.
+
+
+Ÿ
+
+Ÿ
+
+Ÿ
+9
+⁄ "+ Number of stateful sets in the namespace.
+
+
+⁄
+
+⁄
+
+⁄
+7
+€") Number of daemon sets in the namespace.
+
+
+€
+
+€
+
+€
+0
+‹"" Number of jobs in the namespace.
+
+
+‹
+
+‹
+
+‹
+5
+›"' Number of cron jobs in the namespace.
+
+
+›
+
+›
+
+›
+0
+ﬁ"" Number of pods in the namespace.
+
+
+ﬁ
+
+ﬁ
+
+ﬁ
+4
+ﬂ"& Number of services in the namespace.
+
+
+ﬂ
+
+ﬂ
+
+ﬂ
+5
+	‡"' Number of ingresses in the namespace.
+
+
+	‡
+
+	‡
+
+	‡
+3
+
+·"% Environment label of the namespace.
+
+
+
+·
+
+
+·	
+
+
+·
+,
+‚" Team label of the namespace.
+
+
+‚
+
+‚	
+
+‚
+9
+„"+ Timestamp when the namespace was created.
+
+
+„
+
+„
+
+„
+0
+ Á Ù" Pod represents a Kubernetes pod.
+
+
+ Á
+.
+  Ë"  Unique identifier for the pod.
+
+
+  Ë
+
+  Ë	
+
+  Ë
+ 
+ È" Name of the pod.
+
+
+ È
+
+ È	
+
+ È
+"
+ Í" Status of the pod.
+
+
+ Í
+
+ Í	
+
+ Í
+3
+ Î"% Timestamp when the pod was created.
+
+
+ Î
+
+ Î
+
+ Î
+'
+ Ï" CPU request of the pod.
+
+
+ Ï
+
+ Ï	
+
+ Ï
+*
+ Ì" Memory request of the pod.
+
+
+ Ì
+
+ Ì	
+
+ Ì
+-
+ Ó" Current CPU usage of the pod.
+
+
+ Ó
+
+ Ó	
+
+ Ó
+0
+ Ô"" Current memory usage of the pod.
+
+
+ Ô
+
+ Ô	
+
+ Ô
+%
+ " CPU limit of the pod.
+
+
+ 
+
+ 	
+
+ 
+(
+ 	Ò" Memory limit of the pod.
+
+
+ 	Ò
+
+ 	Ò	
+
+ 	Ò
+;
+ 
+Ú("- CPU usage as a percentage of request/limit.
+
+
+ 
+Ú
+
+ 
+Ú"
+
+ 
+Ú%'
+>
+ Û+"0 Memory usage as a percentage of request/limit.
+
+
+ Û
+
+ Û%
+
+ Û(*
+:
+!˜ ¢, Resource represents a Kubernetes resource.
+
+
+!˜
+3
+! ¯"% Unique identifier for the resource.
+
+
+! ¯
+
+! ¯	
+
+! ¯
+%
+!˘" Kind of the resource.
+
+
+!˘
+
+!˘	
+
+!˘
+%
+!˙" Name of the resource.
+
+
+!˙
+
+!˙	
+
+!˙
+2
+!˚"$ Namespace containing the resource.
+
+
+!˚
+
+!˚	
+
+!˚
+2
+!¸"$ Application label of the resource.
+
+
+!¸
+
+!¸	
+
+!¸
+.
+!˝"  Version label of the resource.
+
+
+!˝
+
+!˝	
+
+!˝
+'
+!˛" Status of the resource.
+
+
+!˛
+
+!˛	
+
+!˛
+2
+!ˇ"$ Environment label of the resource.
+
+
+!ˇ
+
+!ˇ	
+
+!ˇ
+8
+!Ä"* Timestamp when the resource was created.
+
+
+!Ä
+
+!Ä
+
+!Ä
+=
+!	Å"/ Timestamp when the resource was last updated.
+
+
+!	Å
+
+!	Å
+
+!	Å
+V
+!
+Ñ Workload-specific fields
+", Number of replicas for workload resources.
+
+
+!
+Ñ
+
+!
+Ñ
+
+!
+Ñ
+,
+!Ö" Pods for workload resources.
+
+
+!Ö
+
+
+!Ö
+
+!Ö
+
+!Ö
+@
+!Ü"2 Number of ready replicas for workload resources.
+
+
+!Ü
+
+!Ü
+
+!Ü
+K
+!â Resource usage fields
+"$ Current CPU request in millicores.
+
+
+!â
+
+!â	
+
+!â
+0
+!ä"" Current CPU limit in millicores.
+
+
+!ä
+
+!ä	
+
+!ä
+0
+!ã"" Current memory request in bytes.
+
+
+!ã
+
+!ã	
+
+!ã
+.
+!å"  Current memory limit in bytes.
+
+
+!å
+
+!å	
+
+!å
+I
+!è Current usage metrics
+"" Current CPU usage in millicores.
+
+
+!è
+
+!è	
+
+!è
+.
+!ê"  Current memory usage in bytes.
+
+
+!ê
+
+!ê	
+
+!ê
+;
+!ë("- CPU usage as a percentage of request/limit.
+
+
+!ë
+
+!ë"
+
+!ë%'
+>
+!í+"0 Memory usage as a percentage of request/limit.
+
+
+!í
+
+!í%
+
+!í(*
+O
+!ï Recommendation fields
+"( Whether a recommendation is available.
+
+
+!ï
+
+!ï
+
+!ï
+6
+!ñ&"( Recommended CPU request in millicores.
+
+
+!ñ
+
+!ñ	 
+
+!ñ#%
+4
+!ó$"& Recommended CPU limit in millicores.
+
+
+!ó
+
+!ó	
+
+!ó!#
+4
+!ò)"& Recommended memory request in bytes.
+
+
+!ò
+
+!ò	#
+
+!ò&(
+2
+!ô'"$ Recommended memory limit in bytes.
+
+
+!ô
+
+!ô	!
+
+!ô$&
+1
+!ö$"# Potential CPU savings percentage.
+
+
+!ö
+
+!ö
+
+!ö!#
+4
+!õ'"& Potential memory savings percentage.
+
+
+!õ
+
+!õ!
+
+!õ$&
+?
+!ú%"1 Total CPU savings in cores across all replicas.
+
+
+!ú
+
+!ú	
+
+!ú"$
+?
+!ù%"1 Total memory savings in GB across all replicas.
+
+
+!ù
+
+!ù	
+
+!ù"$
+/
+!†#	 Pricing
+" Total cost per hour 
+
+
+!†
+
+!†	
+
+!† "
+%
+!°#" Total cost per month 
+
+
+!°
+
+!°	
+
+!° "
+o
+ • √a Defines the service that provides RPC methods for Kubernetes cluster management and monitoring.
+
+
+ •
+>
+  ßD0 GetClusters retrieves all clusters for a team.
+
+
+  ß
+
+  ß$
+
+  ß/B
+@
+ ™A2 GetCluster retrieves cluster details for a team.
+
+
+ ™
+
+ ™"
+
+ ™-?
+D
+ ≠;6 GetNodes retrieves all nodes for a specific cluster.
+
+
+ ≠
+
+ ≠
+
+ ≠)9
+D
+ ∞J6 GetNodes retrieves all nodes for a specific cluster.
+
+
+ ∞
+
+ ∞(
+
+ ∞3H
+[
+ ≥YM GetNodeUtilization returns node utilization over time for specific cluster.
+
+
+ ≥
+
+ ≥2
+
+ ≥=W
+M
+ ∂D? GetNodeCost returns node cost over time for specific cluster.
+
+
+ ∂
+
+ ∂$
+
+ ∂/B
+S
+ πME GetClusterCost returns cluster cost over time for specific cluster.
+
+
+ π
+
+ π*
+
+ π5K
+S
+ ºeE GetClusterCostAnalysis returns detailed cost analysis for a cluster
+
+
+ º
+
+ º:
+
+ ºEc
+T
+ ø\F GetWorkloadAnalysis returns detailed workload analysis for a cluster
+
+
+ ø
+
+ ø4
+
+ ø?Z
+g
+ 	¬GY GetResources retrieves resources for a specific namespace, optionally filtered by kind.
+
+
+ 	¬
+
+ 	¬&
+
+ 	¬1Ebproto3“ˆ, &
+$
+	buf.buildcodilasapi-service-go 
+À1
+google/protobuf/timestamp.protogoogle.protobuf";
+	Timestamp
+seconds (Rseconds
+nanos (RnanosBÖ
+com.google.protobufBTimestampProtoPZ2google.golang.org/protobuf/types/known/timestamppb¯¢GPB™Google.Protobuf.WellKnownTypesJ¡/
+ è
+Ã
+ 2¡ Protocol Buffers - Google's data interchange format
+ Copyright 2008 Google Inc.  All rights reserved.
+ https://developers.google.com/protocol-buffers/
+
+ Redistribution and use in source and binary forms, with or without
+ modification, are permitted provided that the following conditions are
+ met:
+
+     * Redistributions of source code must retain the above copyright
+ notice, this list of conditions and the following disclaimer.
+     * Redistributions in binary form must reproduce the above
+ copyright notice, this list of conditions and the following disclaimer
+ in the documentation and/or other materials provided with the
+ distribution.
+     * Neither the name of Google Inc. nor the names of its
+ contributors may be used to endorse or promote products derived from
+ this software without specific prior written permission.
+
+ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+
+  
+
+" 
+	
+" 
+
+# I
+	
+# I
+
+$ ,
+	
+$ ,
+
+% /
+	
+% /
+
+& "
+	
+
+& "
+
+' !
+	
+$' !
+
+( ;
+	
+%( ;
+⁄
+ Ñ èÀ A Timestamp represents a point in time independent of any time zone or local
+ calendar, encoded as a count of seconds and fractions of seconds at
+ nanosecond resolution. The count is relative to an epoch at UTC midnight on
+ January 1, 1970, in the proleptic Gregorian calendar which extends the
+ Gregorian calendar backwards to year one.
+
+ All minutes are 60 seconds long. Leap seconds are "smeared" so that no leap
+ second table is needed for interpretation, using a [24-hour linear
+ smear](https://developers.google.com/time/smear).
+
+ The range is from 0001-01-01T00:00:00Z to 9999-12-31T23:59:59.999999999Z. By
+ restricting to that range, we ensure that we can convert to and from [RFC
+ 3339](https://www.ietf.org/rfc/rfc3339.txt) date strings.
+
+ # Examples
+
+ Example 1: Compute Timestamp from POSIX `time()`.
+
+     Timestamp timestamp;
+     timestamp.set_seconds(time(NULL));
+     timestamp.set_nanos(0);
+
+ Example 2: Compute Timestamp from POSIX `gettimeofday()`.
+
+     struct timeval tv;
+     gettimeofday(&tv, NULL);
+
+     Timestamp timestamp;
+     timestamp.set_seconds(tv.tv_sec);
+     timestamp.set_nanos(tv.tv_usec * 1000);
+
+ Example 3: Compute Timestamp from Win32 `GetSystemTimeAsFileTime()`.
+
+     FILETIME ft;
+     GetSystemTimeAsFileTime(&ft);
+     UINT64 ticks = (((UINT64)ft.dwHighDateTime) << 32) | ft.dwLowDateTime;
+
+     // A Windows tick is 100 nanoseconds. Windows epoch 1601-01-01T00:00:00Z
+     // is 11644473600 seconds before Unix epoch 1970-01-01T00:00:00Z.
+     Timestamp timestamp;
+     timestamp.set_seconds((INT64) ((ticks / 10000000) - 11644473600LL));
+     timestamp.set_nanos((INT32) ((ticks % 10000000) * 100));
+
+ Example 4: Compute Timestamp from Java `System.currentTimeMillis()`.
+
+     long millis = System.currentTimeMillis();
+
+     Timestamp timestamp = Timestamp.newBuilder().setSeconds(millis / 1000)
+         .setNanos((int) ((millis % 1000) * 1000000)).build();
+
+ Example 5: Compute Timestamp from Java `Instant.now()`.
+
+     Instant now = Instant.now();
+
+     Timestamp timestamp =
+         Timestamp.newBuilder().setSeconds(now.getEpochSecond())
+             .setNanos(now.getNano()).build();
+
+ Example 6: Compute Timestamp from current time in Python.
+
+     timestamp = Timestamp()
+     timestamp.GetCurrentTime()
+
+ # JSON Mapping
+
+ In JSON format, the Timestamp type is encoded as a string in the
+ [RFC 3339](https://www.ietf.org/rfc/rfc3339.txt) format. That is, the
+ format is "{year}-{month}-{day}T{hour}:{min}:{sec}[.{frac_sec}]Z"
+ where {year} is always expressed using four digits while {month}, {day},
+ {hour}, {min}, and {sec} are zero-padded to two digits each. The fractional
+ seconds, which can go up to 9 digits (i.e. up to 1 nanosecond resolution),
+ are optional. The "Z" suffix indicates the timezone ("UTC"); the timezone
+ is required. A proto3 JSON serializer should always use UTC (as indicated by
+ "Z") when printing the Timestamp type and a proto3 JSON parser should be
+ able to accept both UTC and other timezones (as indicated by an offset).
+
+ For example, "2017-01-15T01:30:15.01Z" encodes 15.01 seconds past
+ 01:30 UTC on January 15, 2017.
+
+ In JavaScript, one can convert a Date object to this format using the
+ standard
+ [toISOString()](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date/toISOString)
+ method. In Python, a standard `datetime.datetime` object can be converted
+ to this format using
+ [`strftime`](https://docs.python.org/2/library/time.html#time.strftime) with
+ the time format spec '%Y-%m-%dT%H:%M:%S.%fZ'. Likewise, in Java, one can use
+ the Joda Time's [`ISODateTimeFormat.dateTime()`](
+ http://joda-time.sourceforge.net/apidocs/org/joda/time/format/ISODateTimeFormat.html#dateTime()
+ ) to obtain a formatter capable of generating timestamps in this format.
+
+
+
+ Ñ
+ù
+  àé Represents seconds of UTC time since Unix epoch
+ 1970-01-01T00:00:00Z. Must be from 0001-01-01T00:00:00Z to
+ 9999-12-31T23:59:59Z inclusive.
+
+
+  à
+
+  à
+
+  à
+Â
+ é÷ Non-negative fractions of a second at nanosecond resolution. Negative
+ second values with fractions must still have non-negative nanos values
+ that count forward in time. Must be from 0 to 999,999,999
+ inclusive.
+
+
+ é
+
+ é
+
+ ébproto3“ˆ 
+Ü#
+google/protobuf/struct.protogoogle.protobuf"ò
+Struct;
+fields (2#.google.protobuf.Struct.FieldsEntryRfieldsQ
+FieldsEntry
+key (	Rkey,
+value (2.google.protobuf.ValueRvalue:8"≤
+Value;
+
+null_value (2.google.protobuf.NullValueH R	nullValue#
+number_value (H RnumberValue#
+string_value (	H RstringValue
+
+bool_value (H R	boolValue<
+struct_value (2.google.protobuf.StructH RstructValue;
+
+list_value (2.google.protobuf.ListValueH R	listValueB
+kind";
+	ListValue.
+values (2.google.protobuf.ValueRvalues*
+	NullValue
+
+NULL_VALUE B
+com.google.protobufBStructProtoPZ/google.golang.org/protobuf/types/known/structpb¯¢GPB™Google.Protobuf.WellKnownTypesJô
+ ^
+Ã
+ 2¡ Protocol Buffers - Google's data interchange format
+ Copyright 2008 Google Inc.  All rights reserved.
+ https://developers.google.com/protocol-buffers/
+
+ Redistribution and use in source and binary forms, with or without
+ modification, are permitted provided that the following conditions are
+ met:
+
+     * Redistributions of source code must retain the above copyright
+ notice, this list of conditions and the following disclaimer.
+     * Redistributions in binary form must reproduce the above
+ copyright notice, this list of conditions and the following disclaimer
+ in the documentation and/or other materials provided with the
+ distribution.
+     * Neither the name of Google Inc. nor the names of its
+ contributors may be used to endorse or promote products derived from
+ this software without specific prior written permission.
+
+ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+
+  
+
+" 
+	
+" 
+
+# F
+	
+# F
+
+$ ,
+	
+$ ,
+
+% ,
+	
+% ,
+
+& "
+	
+
+& "
+
+' !
+	
+$' !
+
+( ;
+	
+%( ;
+≥
+ 2 5¶ `Struct` represents a structured data value, consisting of fields
+ which map to dynamically typed values. In some languages, `Struct`
+ might be supported by a native representation. For example, in
+ scripting languages like JS a struct is represented as an
+ object. The details of that representation are described together
+ with the proto support for the language.
+
+ The JSON representation for `Struct` is JSON object.
+
+
+
+ 2
+9
+  4 , Unordered map of dynamically typed values.
+
+
+  4
+
+  4
+
+  4
+ƒ
+= M∑ `Value` represents a dynamically typed value which can be either
+ null, a number, a string, a boolean, a recursive struct value, or a
+ list of values. A producer of value is expected to set one of these
+ variants. Absence of any variant indicates an error.
+
+ The JSON representation for `Value` is JSON value.
+
+
+
+=
+"
+ ?L The kind of value.
+
+
+ ?
+'
+ A Represents a null value.
+
+
+ A
+
+ A
+
+ A
+)
+C Represents a double value.
+
+
+C
+
+
+C
+
+C
+)
+E Represents a string value.
+
+
+E
+
+
+E
+
+E
+*
+G Represents a boolean value.
+
+
+G
+
+G	
+
+G
+-
+I  Represents a structured value.
+
+
+I
+
+
+I
+
+I
+-
+K  Represents a repeated `Value`.
+
+
+K
+
+K
+
+K
+®
+ S Võ `NullValue` is a singleton enumeration to represent the null value for the
+ `Value` type union.
+
+ The JSON representation for `NullValue` is JSON `null`.
+
+
+
+ S
+
+  U Null value.
+
+
+  U
+
+  U
+Ç
+[ ^v `ListValue` is a wrapper around a repeated field of values.
+
+ The JSON representation for `ListValue` is JSON array.
+
+
+
+[
+:
+ ]- Repeated field of dynamically typed values.
+
+
+ ]
+
+
+ ]
+
+ ]
+
+ ]bproto3“ˆ 
+¶*
+api/v1/metrics_collector.protoapi.v1google/protobuf/timestamp.protogoogle/protobuf/struct.proto"†
+SendResourceRequest9
+resource_type (2.api.v1.ResourceTypeRresourceType
+key (	Rkey8
+	timestamp (2.google.protobuf.TimestampR	timestamp
+
+event_type (	R	eventType+
+data (2.google.protobuf.StructRdata
+
+cluster_id (	R	clusterId
+team_id (	RteamId"Ä
+SendResourceResponse9
+resource_type (2.api.v1.ResourceTypeRresourceType-
+cluster_identifier (	RclusterIdentifier*Ö
+
+ResourceType
+RESOURCE_TYPE_UNSPECIFIED 
+RESOURCE_TYPE_NODE
+RESOURCE_TYPE_POD
+RESOURCE_TYPE_NAMESPACE
+RESOURCE_TYPE_EVENT
+RESOURCE_TYPE_ENDPOINTS!
+RESOURCE_TYPE_SERVICE_ACCOUNT
+RESOURCE_TYPE_LIMIT_RANGE 
+RESOURCE_TYPE_RESOURCE_QUOTA
+RESOURCE_TYPE_DEPLOYMENT	
+RESOURCE_TYPE_STATEFUL_SET
+
+RESOURCE_TYPE_DAEMON_SET
+RESOURCE_TYPE_REPLICA_SET(
+$RESOURCE_TYPE_REPLICATION_CONTROLLER
+RESOURCE_TYPE_JOB
+RESOURCE_TYPE_CRON_JOB)
+%RESOURCE_TYPE_PERSISTENT_VOLUME_CLAIM#
+RESOURCE_TYPE_PERSISTENT_VOLUME
+RESOURCE_TYPE_STORAGE_CLASS
+RESOURCE_TYPE_SERVICE
+RESOURCE_TYPE_INGRESS
+RESOURCE_TYPE_INGRESS_CLASS 
+RESOURCE_TYPE_NETWORK_POLICY
+RESOURCE_TYPE_ROLE
+RESOURCE_TYPE_ROLE_BINDING
+RESOURCE_TYPE_CLUSTER_ROLE&
+"RESOURCE_TYPE_CLUSTER_ROLE_BINDING+
+'RESOURCE_TYPE_HORIZONTAL_POD_AUTOSCALER)
+%RESOURCE_TYPE_VERTICAL_POD_AUTOSCALER'
+#RESOURCE_TYPE_POD_DISRUPTION_BUDGET%
+!RESOURCE_TYPE_POD_SECURITY_POLICY,
+(RESOURCE_TYPE_CUSTOM_RESOURCE_DEFINITION!
+RESOURCE_TYPE_CUSTOM_RESOURCE 
+RESOURCE_TYPE_CONFIG_MAP!
+RESOURCE_TYPE_SECRET"
+RESOURCE_TYPE_CONTAINER#
+RESOURCE_TYPE_NODE_RESOURCE$$
+ RESOURCE_TYPE_CONTAINER_RESOURCE%
+RESOURCE_TYPE_CLUSTER&2d
+MetricsCollectorServiceI
+SendResource.api.v1.SendResourceRequest.api.v1.SendResourceResponseBC
+
+gen.api.v1PZ3github.com/devzero-inc/services/dakr/gen/api/v1;genJ´
+  s
+
+  
+
+ 
+	
+  )
+	
+ &
+
+ J
+	
+ J
+
+ "
+	
+
+ "
+
+	 #
+	
+	 #
+J
+  J> ResourceType is a type of resource that can enter the system
+
+
+
+ 
+
+   
+
+  
+
+  
+
+  Core Resources
+
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ $
+
+ 
+
+ "#
+
+  
+
+ 
+
+ 
+
+ #
+
+ 
+
+ !"
+!
+ 	 Workload Resources
+
+
+ 	
+
+ 	
+
+ 
+"
+
+ 
+
+
+ 
+!
+
+  
+
+ 
+
+ 
+
+ !
+
+ 
+
+  
+
+ ,
+
+ &
+
+ )+
+
+ 
+
+ 
+
+ 
+
+  
+
+  
+
+  
+ 
+ #- Storage Resources
+
+
+ #'
+
+ #*,
+
+ $'
+
+ $!
+
+ $$&
+
+ %#
+
+ %
+
+ % "
+#
+ ( Networking Resources
+
+
+ (
+
+ (
+
+ )
+
+ )
+
+ )
+
+ *#
+
+ *
+
+ * "
+
+ +$
+
+ +
+
+ +!#
+
+ . RBAC Resources
+
+
+ .
+
+ .
+
+ /"
+
+ /
+
+ /!
+
+ 0"
+
+ 0
+
+ 0!
+
+ 1*
+
+ 1$
+
+ 1')
+$
+ 4/ Autoscaling Resources
+
+
+ 4)
+
+ 4,.
+
+ 5-
+
+ 5'
+
+ 5*,
+
+ 8+ Policy Resources
+
+
+ 8%
+
+ 8(*
+
+ 9)
+
+ 9#
+
+ 9&(
+
+ <0 Custom Resources
+
+
+ <*
+
+ <-/
+
+  =%
+
+  =
+
+  ="$
+&
+ !@  Configuration Resources
+
+
+ !@
+
+ !@
+
+ "A
+
+ "A
+
+ "A
+4
+ #D' Container and Resource specific types
+
+
+ #D
+
+ #D
+
+ $E#
+
+ $E
+
+ $E "
+
+ %F(
+
+ %F"
+
+ %F%'
+3
+ &I& Cluster resource - registration type
+
+
+ &I
+
+ &I
+R
+ N cF Requests
+ SendRequest is used to push metrics for a single resource.
+
+
+
+ N
+F
+  P!9 Type of resource (pod, container, node_resources, etc.)
+
+
+  P
+
+  P
+
+  P 
+1
+ S$ Unique identifier for the resource
+
+
+ S
+
+ S	
+
+ S
+8
+ V*+ Timestamp when the resource was collected
+
+
+ V
+
+ V%
+
+ V()
+>
+ Y1 Event type (add, update, delete, metrics, etc.)
+
+
+ Y
+
+ Y	
+
+ Y
+?
+ \"2 The actual resource data as a flexible structure
+
+
+ \
+
+ \
+
+ \ !
+%
+ _ cluster_id of resource
+
+
+ _
+
+ _	
+
+ _
+"
+ b team_id of resource
+
+
+ b
+
+ b	
+
+ b
+@
+g m4 Responses
+ Common response for all send operations
+
+
+
+g
+F
+ i!9 Type of resource (pod, container, node_resources, etc.)
+
+
+ i
+
+ i
+
+ i 
+0
+l # Unique identifier for the cluster
+
+
+l
+
+l	
+
+l
+p
+ p sd Defines the service that provides RPC methods for Kubernetes cluster monitoring metrics collector.
+
+
+
+ p
+B
+  rG5 SendResource pushes a single metric for a resource.
+
+
+  r
+
+  r&
+
+  r1Ebproto3“ˆ, &
+$
+	buf.buildcodilasapi-service-go 
