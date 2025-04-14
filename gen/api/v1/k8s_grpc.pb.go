@@ -21,14 +21,14 @@ const _ = grpc.SupportPackageIsVersion7
 const (
 	K8SService_GetClusters_FullMethodName            = "/api.v1.K8SService/GetClusters"
 	K8SService_GetCluster_FullMethodName             = "/api.v1.K8SService/GetCluster"
-	K8SService_GetClusterAnalytics_FullMethodName    = "/api.v1.K8SService/GetClusterAnalytics"
-	K8SService_GetClusterCostAnalysis_FullMethodName = "/api.v1.K8SService/GetClusterCostAnalysis"
 	K8SService_GetNodes_FullMethodName               = "/api.v1.K8SService/GetNodes"
 	K8SService_GetNodeGroups_FullMethodName          = "/api.v1.K8SService/GetNodeGroups"
-	K8SService_GetNamespaces_FullMethodName          = "/api.v1.K8SService/GetNamespaces"
+	K8SService_GetNodeUtilization_FullMethodName     = "/api.v1.K8SService/GetNodeUtilization"
+	K8SService_GetNodeCost_FullMethodName            = "/api.v1.K8SService/GetNodeCost"
+	K8SService_GetClusterCost_FullMethodName         = "/api.v1.K8SService/GetClusterCost"
+	K8SService_GetClusterCostAnalysis_FullMethodName = "/api.v1.K8SService/GetClusterCostAnalysis"
+	K8SService_GetWorkloadAnalysis_FullMethodName    = "/api.v1.K8SService/GetWorkloadAnalysis"
 	K8SService_GetResources_FullMethodName           = "/api.v1.K8SService/GetResources"
-	K8SService_GetNodeMetrics_FullMethodName         = "/api.v1.K8SService/GetNodeMetrics"
-	K8SService_GetPodMetrics_FullMethodName          = "/api.v1.K8SService/GetPodMetrics"
 )
 
 // K8SServiceClient is the client API for K8SService service.
@@ -39,22 +39,22 @@ type K8SServiceClient interface {
 	GetClusters(ctx context.Context, in *GetClustersRequest, opts ...grpc.CallOption) (*GetClustersResponse, error)
 	// GetCluster retrieves cluster details for a team.
 	GetCluster(ctx context.Context, in *GetClusterRequest, opts ...grpc.CallOption) (*GetClusterResponse, error)
-	// GetClusterAnalytics get cluster analytics
-	GetClusterAnalytics(ctx context.Context, in *GetClusterAnalyticsRequest, opts ...grpc.CallOption) (*GetClusterAnalyticsResponse, error)
-	// GetClusterCostAnalysis returns cost analysis
-	GetClusterCostAnalysis(ctx context.Context, in *GetClusterCostAnalysisRequest, opts ...grpc.CallOption) (*GetClusterCostAnalysisResponse, error)
 	// GetNodes retrieves all nodes for a specific cluster.
 	GetNodes(ctx context.Context, in *GetNodesRequest, opts ...grpc.CallOption) (*GetNodesResponse, error)
 	// GetNodes retrieves all nodes for a specific cluster.
 	GetNodeGroups(ctx context.Context, in *GetNodeGroupsRequest, opts ...grpc.CallOption) (*GetNodeGroupsResponse, error)
-	// GetNamespaces retrieves all namespaces for a specific cluster.
-	GetNamespaces(ctx context.Context, in *GetNamespacesRequest, opts ...grpc.CallOption) (*GetNamespacesResponse, error)
+	// GetNodeUtilization returns node utilization over time for specific cluster.
+	GetNodeUtilization(ctx context.Context, in *GetNodeUtilizationRequest, opts ...grpc.CallOption) (*GetNodeUtilizationResponse, error)
+	// GetNodeCost returns node cost over time for specific cluster.
+	GetNodeCost(ctx context.Context, in *GetNodeCostRequest, opts ...grpc.CallOption) (*GetNodeCostResponse, error)
+	// GetClusterCost returns cluster cost over time for specific cluster.
+	GetClusterCost(ctx context.Context, in *GetClusterCostRequest, opts ...grpc.CallOption) (*GetClusterCostResponse, error)
+	// GetClusterCostAnalysis returns detailed cost analysis for a cluster
+	GetClusterCostAnalysis(ctx context.Context, in *GetClusterCostAnalysisRequest, opts ...grpc.CallOption) (*GetClusterCostAnalysisResponse, error)
+	// GetWorkloadAnalysis returns detailed workload analysis for a cluster
+	GetWorkloadAnalysis(ctx context.Context, in *GetWorkloadAnalysisRequest, opts ...grpc.CallOption) (*GetWorkloadAnalysisResponse, error)
 	// GetResources retrieves resources for a specific namespace, optionally filtered by kind.
 	GetResources(ctx context.Context, in *GetResourcesRequest, opts ...grpc.CallOption) (*GetResourcesResponse, error)
-	// GetNodeMetrics retrieves time-series metrics for a specific node.
-	GetNodeMetrics(ctx context.Context, in *GetNodeMetricsRequest, opts ...grpc.CallOption) (*GetNodeMetricsResponse, error)
-	// GetPodMetrics retrieves time-series metrics for a specific pod.
-	GetPodMetrics(ctx context.Context, in *GetPodMetricsRequest, opts ...grpc.CallOption) (*GetPodMetricsResponse, error)
 }
 
 type k8SServiceClient struct {
@@ -83,24 +83,6 @@ func (c *k8SServiceClient) GetCluster(ctx context.Context, in *GetClusterRequest
 	return out, nil
 }
 
-func (c *k8SServiceClient) GetClusterAnalytics(ctx context.Context, in *GetClusterAnalyticsRequest, opts ...grpc.CallOption) (*GetClusterAnalyticsResponse, error) {
-	out := new(GetClusterAnalyticsResponse)
-	err := c.cc.Invoke(ctx, K8SService_GetClusterAnalytics_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *k8SServiceClient) GetClusterCostAnalysis(ctx context.Context, in *GetClusterCostAnalysisRequest, opts ...grpc.CallOption) (*GetClusterCostAnalysisResponse, error) {
-	out := new(GetClusterCostAnalysisResponse)
-	err := c.cc.Invoke(ctx, K8SService_GetClusterCostAnalysis_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func (c *k8SServiceClient) GetNodes(ctx context.Context, in *GetNodesRequest, opts ...grpc.CallOption) (*GetNodesResponse, error) {
 	out := new(GetNodesResponse)
 	err := c.cc.Invoke(ctx, K8SService_GetNodes_FullMethodName, in, out, opts...)
@@ -119,9 +101,45 @@ func (c *k8SServiceClient) GetNodeGroups(ctx context.Context, in *GetNodeGroupsR
 	return out, nil
 }
 
-func (c *k8SServiceClient) GetNamespaces(ctx context.Context, in *GetNamespacesRequest, opts ...grpc.CallOption) (*GetNamespacesResponse, error) {
-	out := new(GetNamespacesResponse)
-	err := c.cc.Invoke(ctx, K8SService_GetNamespaces_FullMethodName, in, out, opts...)
+func (c *k8SServiceClient) GetNodeUtilization(ctx context.Context, in *GetNodeUtilizationRequest, opts ...grpc.CallOption) (*GetNodeUtilizationResponse, error) {
+	out := new(GetNodeUtilizationResponse)
+	err := c.cc.Invoke(ctx, K8SService_GetNodeUtilization_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *k8SServiceClient) GetNodeCost(ctx context.Context, in *GetNodeCostRequest, opts ...grpc.CallOption) (*GetNodeCostResponse, error) {
+	out := new(GetNodeCostResponse)
+	err := c.cc.Invoke(ctx, K8SService_GetNodeCost_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *k8SServiceClient) GetClusterCost(ctx context.Context, in *GetClusterCostRequest, opts ...grpc.CallOption) (*GetClusterCostResponse, error) {
+	out := new(GetClusterCostResponse)
+	err := c.cc.Invoke(ctx, K8SService_GetClusterCost_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *k8SServiceClient) GetClusterCostAnalysis(ctx context.Context, in *GetClusterCostAnalysisRequest, opts ...grpc.CallOption) (*GetClusterCostAnalysisResponse, error) {
+	out := new(GetClusterCostAnalysisResponse)
+	err := c.cc.Invoke(ctx, K8SService_GetClusterCostAnalysis_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *k8SServiceClient) GetWorkloadAnalysis(ctx context.Context, in *GetWorkloadAnalysisRequest, opts ...grpc.CallOption) (*GetWorkloadAnalysisResponse, error) {
+	out := new(GetWorkloadAnalysisResponse)
+	err := c.cc.Invoke(ctx, K8SService_GetWorkloadAnalysis_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -137,24 +155,6 @@ func (c *k8SServiceClient) GetResources(ctx context.Context, in *GetResourcesReq
 	return out, nil
 }
 
-func (c *k8SServiceClient) GetNodeMetrics(ctx context.Context, in *GetNodeMetricsRequest, opts ...grpc.CallOption) (*GetNodeMetricsResponse, error) {
-	out := new(GetNodeMetricsResponse)
-	err := c.cc.Invoke(ctx, K8SService_GetNodeMetrics_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *k8SServiceClient) GetPodMetrics(ctx context.Context, in *GetPodMetricsRequest, opts ...grpc.CallOption) (*GetPodMetricsResponse, error) {
-	out := new(GetPodMetricsResponse)
-	err := c.cc.Invoke(ctx, K8SService_GetPodMetrics_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // K8SServiceServer is the server API for K8SService service.
 // All implementations must embed UnimplementedK8SServiceServer
 // for forward compatibility
@@ -163,22 +163,22 @@ type K8SServiceServer interface {
 	GetClusters(context.Context, *GetClustersRequest) (*GetClustersResponse, error)
 	// GetCluster retrieves cluster details for a team.
 	GetCluster(context.Context, *GetClusterRequest) (*GetClusterResponse, error)
-	// GetClusterAnalytics get cluster analytics
-	GetClusterAnalytics(context.Context, *GetClusterAnalyticsRequest) (*GetClusterAnalyticsResponse, error)
-	// GetClusterCostAnalysis returns cost analysis
-	GetClusterCostAnalysis(context.Context, *GetClusterCostAnalysisRequest) (*GetClusterCostAnalysisResponse, error)
 	// GetNodes retrieves all nodes for a specific cluster.
 	GetNodes(context.Context, *GetNodesRequest) (*GetNodesResponse, error)
 	// GetNodes retrieves all nodes for a specific cluster.
 	GetNodeGroups(context.Context, *GetNodeGroupsRequest) (*GetNodeGroupsResponse, error)
-	// GetNamespaces retrieves all namespaces for a specific cluster.
-	GetNamespaces(context.Context, *GetNamespacesRequest) (*GetNamespacesResponse, error)
+	// GetNodeUtilization returns node utilization over time for specific cluster.
+	GetNodeUtilization(context.Context, *GetNodeUtilizationRequest) (*GetNodeUtilizationResponse, error)
+	// GetNodeCost returns node cost over time for specific cluster.
+	GetNodeCost(context.Context, *GetNodeCostRequest) (*GetNodeCostResponse, error)
+	// GetClusterCost returns cluster cost over time for specific cluster.
+	GetClusterCost(context.Context, *GetClusterCostRequest) (*GetClusterCostResponse, error)
+	// GetClusterCostAnalysis returns detailed cost analysis for a cluster
+	GetClusterCostAnalysis(context.Context, *GetClusterCostAnalysisRequest) (*GetClusterCostAnalysisResponse, error)
+	// GetWorkloadAnalysis returns detailed workload analysis for a cluster
+	GetWorkloadAnalysis(context.Context, *GetWorkloadAnalysisRequest) (*GetWorkloadAnalysisResponse, error)
 	// GetResources retrieves resources for a specific namespace, optionally filtered by kind.
 	GetResources(context.Context, *GetResourcesRequest) (*GetResourcesResponse, error)
-	// GetNodeMetrics retrieves time-series metrics for a specific node.
-	GetNodeMetrics(context.Context, *GetNodeMetricsRequest) (*GetNodeMetricsResponse, error)
-	// GetPodMetrics retrieves time-series metrics for a specific pod.
-	GetPodMetrics(context.Context, *GetPodMetricsRequest) (*GetPodMetricsResponse, error)
 	mustEmbedUnimplementedK8SServiceServer()
 }
 
@@ -192,29 +192,29 @@ func (UnimplementedK8SServiceServer) GetClusters(context.Context, *GetClustersRe
 func (UnimplementedK8SServiceServer) GetCluster(context.Context, *GetClusterRequest) (*GetClusterResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetCluster not implemented")
 }
-func (UnimplementedK8SServiceServer) GetClusterAnalytics(context.Context, *GetClusterAnalyticsRequest) (*GetClusterAnalyticsResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetClusterAnalytics not implemented")
-}
-func (UnimplementedK8SServiceServer) GetClusterCostAnalysis(context.Context, *GetClusterCostAnalysisRequest) (*GetClusterCostAnalysisResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetClusterCostAnalysis not implemented")
-}
 func (UnimplementedK8SServiceServer) GetNodes(context.Context, *GetNodesRequest) (*GetNodesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetNodes not implemented")
 }
 func (UnimplementedK8SServiceServer) GetNodeGroups(context.Context, *GetNodeGroupsRequest) (*GetNodeGroupsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetNodeGroups not implemented")
 }
-func (UnimplementedK8SServiceServer) GetNamespaces(context.Context, *GetNamespacesRequest) (*GetNamespacesResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetNamespaces not implemented")
+func (UnimplementedK8SServiceServer) GetNodeUtilization(context.Context, *GetNodeUtilizationRequest) (*GetNodeUtilizationResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetNodeUtilization not implemented")
+}
+func (UnimplementedK8SServiceServer) GetNodeCost(context.Context, *GetNodeCostRequest) (*GetNodeCostResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetNodeCost not implemented")
+}
+func (UnimplementedK8SServiceServer) GetClusterCost(context.Context, *GetClusterCostRequest) (*GetClusterCostResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetClusterCost not implemented")
+}
+func (UnimplementedK8SServiceServer) GetClusterCostAnalysis(context.Context, *GetClusterCostAnalysisRequest) (*GetClusterCostAnalysisResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetClusterCostAnalysis not implemented")
+}
+func (UnimplementedK8SServiceServer) GetWorkloadAnalysis(context.Context, *GetWorkloadAnalysisRequest) (*GetWorkloadAnalysisResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetWorkloadAnalysis not implemented")
 }
 func (UnimplementedK8SServiceServer) GetResources(context.Context, *GetResourcesRequest) (*GetResourcesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetResources not implemented")
-}
-func (UnimplementedK8SServiceServer) GetNodeMetrics(context.Context, *GetNodeMetricsRequest) (*GetNodeMetricsResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetNodeMetrics not implemented")
-}
-func (UnimplementedK8SServiceServer) GetPodMetrics(context.Context, *GetPodMetricsRequest) (*GetPodMetricsResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetPodMetrics not implemented")
 }
 func (UnimplementedK8SServiceServer) mustEmbedUnimplementedK8SServiceServer() {}
 
@@ -265,42 +265,6 @@ func _K8SService_GetCluster_Handler(srv interface{}, ctx context.Context, dec fu
 	return interceptor(ctx, in, info, handler)
 }
 
-func _K8SService_GetClusterAnalytics_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetClusterAnalyticsRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(K8SServiceServer).GetClusterAnalytics(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: K8SService_GetClusterAnalytics_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(K8SServiceServer).GetClusterAnalytics(ctx, req.(*GetClusterAnalyticsRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _K8SService_GetClusterCostAnalysis_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetClusterCostAnalysisRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(K8SServiceServer).GetClusterCostAnalysis(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: K8SService_GetClusterCostAnalysis_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(K8SServiceServer).GetClusterCostAnalysis(ctx, req.(*GetClusterCostAnalysisRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _K8SService_GetNodes_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetNodesRequest)
 	if err := dec(in); err != nil {
@@ -337,20 +301,92 @@ func _K8SService_GetNodeGroups_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
-func _K8SService_GetNamespaces_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetNamespacesRequest)
+func _K8SService_GetNodeUtilization_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetNodeUtilizationRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(K8SServiceServer).GetNamespaces(ctx, in)
+		return srv.(K8SServiceServer).GetNodeUtilization(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: K8SService_GetNamespaces_FullMethodName,
+		FullMethod: K8SService_GetNodeUtilization_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(K8SServiceServer).GetNamespaces(ctx, req.(*GetNamespacesRequest))
+		return srv.(K8SServiceServer).GetNodeUtilization(ctx, req.(*GetNodeUtilizationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _K8SService_GetNodeCost_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetNodeCostRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(K8SServiceServer).GetNodeCost(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: K8SService_GetNodeCost_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(K8SServiceServer).GetNodeCost(ctx, req.(*GetNodeCostRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _K8SService_GetClusterCost_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetClusterCostRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(K8SServiceServer).GetClusterCost(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: K8SService_GetClusterCost_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(K8SServiceServer).GetClusterCost(ctx, req.(*GetClusterCostRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _K8SService_GetClusterCostAnalysis_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetClusterCostAnalysisRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(K8SServiceServer).GetClusterCostAnalysis(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: K8SService_GetClusterCostAnalysis_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(K8SServiceServer).GetClusterCostAnalysis(ctx, req.(*GetClusterCostAnalysisRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _K8SService_GetWorkloadAnalysis_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetWorkloadAnalysisRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(K8SServiceServer).GetWorkloadAnalysis(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: K8SService_GetWorkloadAnalysis_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(K8SServiceServer).GetWorkloadAnalysis(ctx, req.(*GetWorkloadAnalysisRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -373,42 +409,6 @@ func _K8SService_GetResources_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
-func _K8SService_GetNodeMetrics_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetNodeMetricsRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(K8SServiceServer).GetNodeMetrics(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: K8SService_GetNodeMetrics_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(K8SServiceServer).GetNodeMetrics(ctx, req.(*GetNodeMetricsRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _K8SService_GetPodMetrics_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetPodMetricsRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(K8SServiceServer).GetPodMetrics(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: K8SService_GetPodMetrics_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(K8SServiceServer).GetPodMetrics(ctx, req.(*GetPodMetricsRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 // K8SService_ServiceDesc is the grpc.ServiceDesc for K8SService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -425,14 +425,6 @@ var K8SService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _K8SService_GetCluster_Handler,
 		},
 		{
-			MethodName: "GetClusterAnalytics",
-			Handler:    _K8SService_GetClusterAnalytics_Handler,
-		},
-		{
-			MethodName: "GetClusterCostAnalysis",
-			Handler:    _K8SService_GetClusterCostAnalysis_Handler,
-		},
-		{
 			MethodName: "GetNodes",
 			Handler:    _K8SService_GetNodes_Handler,
 		},
@@ -441,20 +433,28 @@ var K8SService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _K8SService_GetNodeGroups_Handler,
 		},
 		{
-			MethodName: "GetNamespaces",
-			Handler:    _K8SService_GetNamespaces_Handler,
+			MethodName: "GetNodeUtilization",
+			Handler:    _K8SService_GetNodeUtilization_Handler,
+		},
+		{
+			MethodName: "GetNodeCost",
+			Handler:    _K8SService_GetNodeCost_Handler,
+		},
+		{
+			MethodName: "GetClusterCost",
+			Handler:    _K8SService_GetClusterCost_Handler,
+		},
+		{
+			MethodName: "GetClusterCostAnalysis",
+			Handler:    _K8SService_GetClusterCostAnalysis_Handler,
+		},
+		{
+			MethodName: "GetWorkloadAnalysis",
+			Handler:    _K8SService_GetWorkloadAnalysis_Handler,
 		},
 		{
 			MethodName: "GetResources",
 			Handler:    _K8SService_GetResources_Handler,
-		},
-		{
-			MethodName: "GetNodeMetrics",
-			Handler:    _K8SService_GetNodeMetrics_Handler,
-		},
-		{
-			MethodName: "GetPodMetrics",
-			Handler:    _K8SService_GetPodMetrics_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

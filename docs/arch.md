@@ -6,7 +6,7 @@ sequenceDiagram
     participant Cluster as ClusterCollector
     participant Collectors as Other Resource Collectors
     participant Transport as BufferedSender
-    participant Pulse as Pulse Service
+    participant Dakr as Dakr Service
     
     Note over Operator: Operator starts
 
@@ -26,9 +26,9 @@ sequenceDiagram
     Kube-->>Cluster: Return cluster info
     Cluster->>Manager: Send cluster data through channel
     Manager->>Operator: Forward cluster data
-    Operator->>Transport: Send cluster data to Pulse
-    Transport->>Pulse: Register cluster with Pulse
-    Pulse-->>Transport: Acknowledge registration
+    Operator->>Transport: Send cluster data to Dakr
+    Transport->>Dakr: Register cluster with Dakr
+    Dakr-->>Transport: Acknowledge registration
     
     Note over Operator: Phase 2: Full Monitoring
     
@@ -53,17 +53,17 @@ sequenceDiagram
         Kube-->>Collectors: Resource change events
         Collectors->>Manager: Send resource data through channel
         Manager->>Operator: Forward through combined channel
-        Operator->>Transport: Send to Pulse
+        Operator->>Transport: Send to Dakr
         
         alt Sending Succeeds
-            Transport->>Pulse: Send resource data
-            Pulse-->>Transport: Acknowledge
+            Transport->>Dakr: Send resource data
+            Dakr-->>Transport: Acknowledge
         else Sending Fails
             Transport->>Transport: Buffer data for retry
             loop Retry Loop (with backoff)
-                Transport->>Pulse: Retry sending data
+                Transport->>Dakr: Retry sending data
                 alt Retry Succeeds
-                    Pulse-->>Transport: Acknowledge
+                    Dakr-->>Transport: Acknowledge
                 else Retry Fails
                     Note over Transport: Increase backoff time
                 end

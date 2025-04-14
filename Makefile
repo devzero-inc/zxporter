@@ -323,14 +323,14 @@ catalog-build: opm ## Build a catalog image.
 catalog-push: ## Push a catalog image.
 	$(MAKE) docker-push IMG=$(CATALOG_IMG)
 
-# PULSE_* files are related to generating a gRPC client to send resource metadata to Pulse.
-PULSE_DIR ?= /home/devzero/services/pulse
-PULSE_BUF_GEN_FILE ?= buf.gen.yaml
-PULSE_BUF_GEN ?= $(PULSE_DIR)/$(PULSE_BUF_GEN_FILE)
-PULSE_METRICS_COLLECTOR_PROTO_FILE ?= metrics_collector.proto
-PULSE_METRICS_COLLECTOR_PROTO ?= $(PULSE_DIR)/proto/api/v1/$(PULSE_METRICS_COLLECTOR_PROTO_FILE)
+# DAKR_* files are related to generating a gRPC client to send resource metadata to Dakr.
+DAKR_DIR ?= /home/devzero/services/dakr
+DAKR_BUF_GEN_FILE ?= buf.gen.yaml
+DAKR_BUF_GEN ?= $(DAKR_DIR)/$(DAKR_BUF_GEN_FILE)
+DAKR_METRICS_COLLECTOR_PROTO_FILE ?= metrics_collector.proto
+DAKR_METRICS_COLLECTOR_PROTO ?= $(DAKR_DIR)/proto/api/v1/$(DAKR_METRICS_COLLECTOR_PROTO_FILE)
 
-# BUF_VERSION and BUF_BINARY_NAME are to generate a Pulse protobuf/gRPC client.
+# BUF_VERSION and BUF_BINARY_NAME are to generate a Dakr protobuf/gRPC client.
 BUF_VERSION := 1.31.0
 BUF_BINARY_NAME := buf
 
@@ -345,9 +345,9 @@ install-buf: ## Install buf if not already installed
 		echo "$(BUF_BINARY_NAME) is already installed."; \
 	fi
 
-# (for local dev) Get metadata to generate a Pulse client. 
+# (for local dev) Get metadata to generate a Dakr client. 
 .PHONY: generate-proto
-generate-proto: install-buf ## Fetch latest Pulse protobuf
+generate-proto: install-buf ## Fetch latest Dakr protobuf
 	@PROTO_DIR="$(PWD)/proto"; \
 	echo "Cleaning $$PROTO_DIR..."; \
 	# clean ups \
@@ -355,11 +355,11 @@ generate-proto: install-buf ## Fetch latest Pulse protobuf
 	rm -rf "$(PWD)/gen"; \
 	# copy metadata files over \
 	mkdir -p "$$PROTO_DIR"; \
-	cp "$(PULSE_BUF_GEN)" "$$PROTO_DIR/"; \
-	cp "$(PULSE_METRICS_COLLECTOR_PROTO)" "$$PROTO_DIR/"; \
+	cp "$(DAKR_BUF_GEN)" "$$PROTO_DIR/"; \
+	cp "$(DAKR_METRICS_COLLECTOR_PROTO)" "$$PROTO_DIR/"; \
 	# change package name to make it point to zxporter \
-	find "$$PROTO_DIR" -type f -name "*.yaml" -exec perl -pi -e 's|github.com/devzero-inc/services/pulse/gen|github.com/devzero-inc/zxporter/gen|g' {} +; \
+	find "$$PROTO_DIR" -type f -name "*.yaml" -exec perl -pi -e 's|github.com/devzero-inc/services/dakr/gen|github.com/devzero-inc/zxporter/gen|g' {} +; \
 	# only include metrics_collector.proto file while generating descriptor \
-	buf build "$(PULSE_DIR)" --path "$(PULSE_METRICS_COLLECTOR_PROTO)" -o "$$PROTO_DIR"/pulse_proto_descriptor.bin; \
+	buf build "$(DAKR_DIR)" --path "$(DAKR_METRICS_COLLECTOR_PROTO)" -o "$$PROTO_DIR"/dakr_proto_descriptor.bin; \
 	# generate client code from all context in this repo \
-	buf generate --template "$$PROTO_DIR"/"$(PULSE_BUF_GEN_FILE)" --include-imports "$$PROTO_DIR"/pulse_proto_descriptor.bin;
+	buf generate --template "$$PROTO_DIR"/"$(DAKR_BUF_GEN_FILE)" --include-imports "$$PROTO_DIR"/dakr_proto_descriptor.bin;

@@ -1,4 +1,4 @@
-// internal/transport/pulse_client.go
+// internal/transport/dakr_client.go
 package transport
 
 import (
@@ -17,32 +17,32 @@ import (
 	genconnect "github.com/devzero-inc/zxporter/gen/api/v1/apiv1connect"
 )
 
-// RealPulseClient implements communication with Pulse service
-type RealPulseClient struct {
+// RealDakrClient implements communication with Dakr service
+type RealDakrClient struct {
 	logger       logr.Logger
 	client       genconnect.MetricsCollectorServiceClient
 	clusterToken string
 }
 
-// NewPulseClient creates a new client for Pulse service
-func NewPulseClient(pulseBaseURL string, clusterToken string, logger logr.Logger) PulseClient {
-	// We're using the connect client for the Pulse service
+// NewDakrClient creates a new client for Dakr service
+func NewDakrClient(dakrBaseURL string, clusterToken string, logger logr.Logger) DakrClient {
+	// We're using the connect client for the Dakr service
 	client := genconnect.NewMetricsCollectorServiceClient(
 		http.DefaultClient,
-		pulseBaseURL,
+		dakrBaseURL,
 		connect.WithGRPC(),
 	)
 
-	return &RealPulseClient{
-		logger:       logger.WithName("pulse-client"),
+	return &RealDakrClient{
+		logger:       logger.WithName("dakr-client"),
 		client:       client,
 		clusterToken: clusterToken,
 	}
 }
 
-// SendResource sends the resource to Pulse through gRPC
-func (c *RealPulseClient) SendResource(ctx context.Context, resource collector.CollectedResource) (string, error) {
-	c.logger.Info("Sending resource to Pulse",
+// SendResource sends the resource to Dakr through gRPC
+func (c *RealDakrClient) SendResource(ctx context.Context, resource collector.CollectedResource) (string, error) {
+	c.logger.Info("Sending resource to Dakr",
 		"type", resource.ResourceType,
 		"key", resource.Key,
 		"event", resource.EventType)
@@ -88,11 +88,11 @@ func (c *RealPulseClient) SendResource(ctx context.Context, resource collector.C
 		req.Header().Set("cluster_id", clusterString)
 	}
 
-	// Send to Pulse
+	// Send to Dakr
 	resp, err := c.client.SendResource(ctx, req)
 	if err != nil {
-		c.logger.Error(err, "Failed to send resource to Pulse")
-		return "", fmt.Errorf("failed to send resource to Pulse: %w", err)
+		c.logger.Error(err, "Failed to send resource to Dakr")
+		return "", fmt.Errorf("failed to send resource to Dakr: %w", err)
 	}
 
 	return resp.Msg.ClusterIdentifier, nil

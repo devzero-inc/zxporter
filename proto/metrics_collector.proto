@@ -5,7 +5,7 @@ package api.v1;
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/struct.proto";
 
-option go_package = "github.com/devzero-inc/services/pulse/gen/api/v1;gen";
+option go_package = "github.com/devzero-inc/services/dakr/gen/api/v1;gen";
 option java_multiple_files = true;
 option java_package = "gen.api.v1";
 

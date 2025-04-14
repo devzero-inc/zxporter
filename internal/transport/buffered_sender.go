@@ -13,7 +13,7 @@ import (
 
 // BufferedSender is a sender that buffers resources when the destination is unavailable
 type BufferedSender struct {
-	pulseClient       PulseClient
+	dakrClient        DakrClient
 	logger            logr.Logger
 	buffer            []BufferedItem
 	mu                sync.Mutex
@@ -58,9 +58,9 @@ func DefaultBufferedSenderOptions() BufferedSenderOptions {
 }
 
 // NewBufferedSender creates a new buffered sender with the provided options
-func NewBufferedSender(pulseClient PulseClient, logger logr.Logger, options BufferedSenderOptions) Sender {
+func NewBufferedSender(dakrClient DakrClient, logger logr.Logger, options BufferedSenderOptions) Sender {
 	return &BufferedSender{
-		pulseClient:       pulseClient,
+		dakrClient:        dakrClient,
 		logger:            logger.WithName("buffered-sender"),
 		buffer:            make([]BufferedItem, 0, options.MaxBufferSize),
 		stopCh:            make(chan struct{}),
@@ -126,7 +126,7 @@ func (s *BufferedSender) Stop() error {
 func (s *BufferedSender) Send(ctx context.Context, resource collector.CollectedResource) (string, error) {
 	// First try to send directly
 	ctxWithCluster := context.WithValue(ctx, "cluster_id", s.clusterID)
-	clusterID, err := s.pulseClient.SendResource(ctxWithCluster, resource)
+	clusterID, err := s.dakrClient.SendResource(ctxWithCluster, resource)
 	if clusterID != "" {
 		s.SetClusterID(clusterID)
 	}
@@ -193,7 +193,7 @@ func (s *BufferedSender) Flush(ctx context.Context) error {
 	// Try to send each item
 	for _, item := range itemsToFlush {
 		ctxWithCluster := context.WithValue(ctx, "cluster_id", s.clusterID)
-		clusterID, err := s.pulseClient.SendResource(ctxWithCluster, item.Resource)
+		clusterID, err := s.dakrClient.SendResource(ctxWithCluster, item.Resource)
 		if clusterID != "" {
 			s.SetClusterID(clusterID)
 		}
@@ -313,7 +313,7 @@ func (s *BufferedSender) processBufferedItems(ctx context.Context) {
 
 		// Try to send
 		ctxWithCluster := context.WithValue(ctx, "cluster_id", s.clusterID)
-		clusterID, err := s.pulseClient.SendResource(ctxWithCluster, item.Resource)
+		clusterID, err := s.dakrClient.SendResource(ctxWithCluster, item.Resource)
 		if clusterID != "" {
 			s.SetClusterID(clusterID)
 		}

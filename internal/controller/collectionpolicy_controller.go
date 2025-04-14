@@ -104,7 +104,7 @@ type PolicyConfig struct {
 
 	DisabledCollectors []string
 
-	PulseURL            string
+	DakrURL             string
 	ClusterToken        string
 	UpdateInterval      time.Duration
 	NodeMetricsInterval time.Duration
@@ -225,7 +225,7 @@ func (r *CollectionPolicyReconciler) createNewConfig(policy *monitoringv1.Collec
 	targetNamespaces := policy.Spec.TargetSelector.Namespaces
 	excludedNamespaces := policy.Spec.Exclusions.ExcludedNamespaces
 	excludedNodes := policy.Spec.Exclusions.ExcludedNodes
-	pulseURL := policy.Spec.Policies.PulseURL
+	dakrURL := policy.Spec.Policies.DakrURL
 	clusterToken := policy.Spec.Policies.ClusterToken
 	frequencyStr := policy.Spec.Policies.Frequency
 	bufferSize := policy.Spec.Policies.BufferSize
@@ -233,12 +233,12 @@ func (r *CollectionPolicyReconciler) createNewConfig(policy *monitoringv1.Collec
 	var frequency time.Duration
 
 	// Merge with environment config
-	targetNamespaces, excludedNamespaces, excludedNodes, pulseURL, frequency, bufferSize, clusterToken =
+	targetNamespaces, excludedNamespaces, excludedNodes, dakrURL, frequency, bufferSize, clusterToken =
 		r.EnvConfig.MergeWithCRPolicy(
 			targetNamespaces,
 			excludedNamespaces,
 			excludedNodes,
-			pulseURL,
+			dakrURL,
 			frequencyStr,
 			bufferSize,
 			clusterToken,
@@ -270,7 +270,7 @@ func (r *CollectionPolicyReconciler) createNewConfig(policy *monitoringv1.Collec
 		ExcludedNamespaces:  excludedNamespaces,
 		ExcludedPods:        excludedPods,
 		ExcludedNodes:       excludedNodes,
-		PulseURL:            pulseURL,
+		DakrURL:             dakrURL,
 		ClusterToken:        clusterToken,
 		UpdateInterval:      frequency,
 		NodeMetricsInterval: nodeMetricsInterval,
@@ -821,12 +821,12 @@ func (r *CollectionPolicyReconciler) initializeCollectors(ctx context.Context, c
 		return ctrl.Result{}, err
 	}
 
-	// Wait for cluster data to be sent to Pulse
+	// Wait for cluster data to be sent to Dakr
 	registrationResult := r.waitForClusterRegistration(ctx, logger)
 	if registrationResult != nil {
 		// Clean up and return the error result
 		r.cleanupOnFailure(logger)
-		return *registrationResult, fmt.Errorf("failed to register cluster with Pulse")
+		return *registrationResult, fmt.Errorf("failed to register cluster with Dakr")
 	}
 
 	// Register and start all other collectors
@@ -862,14 +862,14 @@ func (r *CollectionPolicyReconciler) setupCollectionManager(ctx context.Context,
 		logger.WithName("collection-manager"),
 	)
 
-	// Create pulse client and sender
-	var pulseClient transport.PulseClient
-	if config.PulseURL != "" {
-		pulseClient = transport.NewPulseClient(config.PulseURL, config.ClusterToken, logger)
-		logger.Info("Created Pulse client with configured URL", "url", config.PulseURL)
+	// Create dakr client and sender
+	var dakrClient transport.DakrClient
+	if config.DakrURL != "" {
+		dakrClient = transport.NewDakrClient(config.DakrURL, config.ClusterToken, logger)
+		logger.Info("Created Dakr client with configured URL", "url", config.DakrURL)
 	} else {
-		pulseClient = transport.NewSimplePulseClient(logger)
-		logger.Info("Created simple (logging) Pulse client because no URL was configured")
+		dakrClient = transport.NewSimpleDakrClient(logger)
+		logger.Info("Created simple (logging) Dakr client because no URL was configured")
 	}
 
 	// Create buffered sender with default options
@@ -878,7 +878,7 @@ func (r *CollectionPolicyReconciler) setupCollectionManager(ctx context.Context,
 		senderOptions.MaxBufferSize = config.BufferSize
 	}
 
-	r.Sender = transport.NewBufferedSender(pulseClient, logger, senderOptions)
+	r.Sender = transport.NewBufferedSender(dakrClient, logger, senderOptions)
 
 	// Start the sender
 	if err := r.Sender.Start(ctx); err != nil {
@@ -931,7 +931,7 @@ func (r *CollectionPolicyReconciler) setupClusterCollector(ctx context.Context, 
 	return clusterCollector, nil
 }
 
-// waitForClusterRegistration waits for cluster data to be sent to Pulse
+// waitForClusterRegistration waits for cluster data to be sent to Dakr
 func (r *CollectionPolicyReconciler) waitForClusterRegistration(ctx context.Context, logger logr.Logger) *ctrl.Result {
 	clusterRegisteredCh := make(chan struct{})
 	clusterFailedCh := make(chan struct{})
@@ -958,14 +958,14 @@ func (r *CollectionPolicyReconciler) waitForClusterRegistration(ctx context.Cont
 	}
 }
 
-// monitorClusterRegistration watches for cluster data and sends it to Pulse
+// monitorClusterRegistration watches for cluster data and sends it to Dakr
 func (r *CollectionPolicyReconciler) monitorClusterRegistration(
 	ctx context.Context,
 	logger logr.Logger,
 	clusterRegisteredCh chan<- struct{},
 	clusterFailedCh chan<- struct{},
 ) {
-	logger.Info("Waiting for cluster data to be sent to Pulse")
+	logger.Info("Waiting for cluster data to be sent to Dakr")
 	resourceChan := r.CollectionManager.GetCombinedChannel()
 
 	attemptCount := 0
@@ -984,14 +984,14 @@ func (r *CollectionPolicyReconciler) monitorClusterRegistration(
 			// Only process cluster resources at this stage
 			if resource.ResourceType == collector.Cluster {
 				attemptCount++
-				logger.Info("Received cluster data, sending to Pulse",
+				logger.Info("Received cluster data, sending to Dakr",
 					"key", resource.Key,
 					"attempt", attemptCount)
 
-				// Send the cluster data to Pulse
+				// Send the cluster data to Dakr
 				_, err := r.Sender.Send(ctx, resource)
 				if err != nil {
-					logger.Error(err, "Failed to send cluster data to Pulse",
+					logger.Error(err, "Failed to send cluster data to Dakr",
 						"attempt", attemptCount)
 
 					if attemptCount >= maxAttempts {
@@ -1002,7 +1002,7 @@ func (r *CollectionPolicyReconciler) monitorClusterRegistration(
 					}
 					// Continue waiting for next attempt
 				} else {
-					logger.Info("Successfully sent cluster data to Pulse")
+					logger.Info("Successfully sent cluster data to Dakr")
 					// Signal that cluster registration is complete
 					close(clusterRegisteredCh)
 					return
@@ -1454,14 +1454,14 @@ func (r *CollectionPolicyReconciler) processCollectedResources(ctx context.Conte
 				return
 			}
 
-			// Send the raw resource directly to Pulse
+			// Send the raw resource directly to Dakr
 			if _, err := r.Sender.Send(ctx, resource); err != nil {
-				logger.Error(err, "Failed to send resource to Pulse",
+				logger.Error(err, "Failed to send resource to Dakr",
 					"resourceType", resource.ResourceType,
 					"eventType", resource.EventType,
 					"key", resource.Key)
 			} else {
-				logger.Info("Sent resource to Pulse",
+				logger.Info("Sent resource to Dakr",
 					"resourceType", resource.ResourceType,
 					"eventType", resource.EventType,
 					"key", resource.Key)

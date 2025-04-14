@@ -349,8 +349,8 @@ type ExcludedEvent struct {
 
 // Policies defines collection behavior
 type Policies struct {
-	// PulseURL is the URL of the Pulse service
-	PulseURL string `json:"pulseURL,omitempty"`
+	// DakrURL is the URL of the Dakr service
+	DakrURL string `json:"dakrURL,omitempty"`
 
 	// ClusterToken is the token used to authenticate as a cluster
 	ClusterToken string `json:"clusterToken,omitempty"`
@@ -396,8 +396,8 @@ type CollectionPolicyStatus struct {
 	// BufferUsage is the percentage of buffer currently in use
 	BufferUsage int `json:"bufferUsage,omitempty"`
 
-	// LastSuccessfulPulseConnection is when the last successful connection to Pulse occurred
-	LastSuccessfulPulseConnection metav1.Time `json:"lastSuccessfulPulseConnection,omitempty"`
+	// LastSuccessfulDakrConnection is when the last successful connection to Dakr occurred
+	LastSuccessfulDakrConnection metav1.Time `json:"lastSuccessfulDakrConnection,omitempty"`
 }
 
 //+kubebuilder:object:root=true

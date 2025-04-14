@@ -16,9 +16,9 @@ const (
 	// Default value: ""
 	_ENV_CLUSTER_TOKEN = "CLUSTER_TOKEN"
 
-	// PULSE_URL is the URL of the Pulse service.
+	// DAKR_URL is the URL of the Dakr service.
 	// Default value: ""
-	_ENV_PULSE_URL = "PULSE_URL"
+	_ENV_DAKR_URL = "DAKR_URL"
 
 	// COLLECTION_FREQUENCY is how often to collect resource usage metrics.
 	// Default value: 10s
@@ -49,8 +49,8 @@ type EnvPolicyConfig struct {
 	// ClusterToken is the token used to authenticate as a cluster
 	ClusterToken string
 
-	// PulseURL is the URL of the Pulse service
-	PulseURL string
+	// DakrURL is the URL of the Dakr service
+	DakrURL string
 
 	// Frequency is how often to collect resource usage metrics
 	Frequency time.Duration
@@ -78,10 +78,10 @@ func LoadEnvPolicyConfig(logger logr.Logger) *EnvPolicyConfig {
 		logger.Info("Loaded ClusterToken from environment")
 	}
 
-	// Load pulse URL
-	if url := os.Getenv(_ENV_PULSE_URL); url != "" {
-		config.PulseURL = url
-		logger.Info("Loaded PulseURL from environment", "url", url)
+	// Load dakr URL
+	if url := os.Getenv(_ENV_DAKR_URL); url != "" {
+		config.DakrURL = url
+		logger.Info("Loaded DakrURL from environment", "url", url)
 	}
 
 	// Load collection frequency
@@ -149,7 +149,7 @@ func (e *EnvPolicyConfig) MergeWithCRPolicy(
 	targetNamespaces []string,
 	excludedNamespaces []string,
 	excludedNodes []string,
-	pulseURL string,
+	dakrURL string,
 	frequencyStr string,
 	bufferSize int,
 	clusterToken string,
@@ -159,7 +159,7 @@ func (e *EnvPolicyConfig) MergeWithCRPolicy(
 	mergedTargetNamespaces := targetNamespaces
 	mergedExcludedNamespaces := excludedNamespaces
 	mergedExcludedNodes := excludedNodes
-	mergedPulseURL := pulseURL
+	mergedDakrURL := dakrURL
 	mergedClusterToken := clusterToken
 
 	// Parse frequency
@@ -185,8 +185,8 @@ func (e *EnvPolicyConfig) MergeWithCRPolicy(
 		mergedExcludedNodes = e.ExcludedNodes
 	}
 
-	if e.PulseURL != "" {
-		mergedPulseURL = e.PulseURL
+	if e.DakrURL != "" {
+		mergedDakrURL = e.DakrURL
 	}
 
 	if e.ClusterToken != "" {
@@ -201,5 +201,5 @@ func (e *EnvPolicyConfig) MergeWithCRPolicy(
 		mergedBufferSize = e.BufferSize
 	}
 
-	return mergedTargetNamespaces, mergedExcludedNamespaces, mergedExcludedNodes, mergedPulseURL, mergedFrequency, mergedBufferSize, mergedClusterToken
+	return mergedTargetNamespaces, mergedExcludedNamespaces, mergedExcludedNodes, mergedDakrURL, mergedFrequency, mergedBufferSize, mergedClusterToken
 }
