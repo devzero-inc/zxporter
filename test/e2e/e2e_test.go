@@ -27,7 +27,7 @@ import (
 	"github.com/devzero-inc/zxporter/test/utils"
 )
 
-const namespace = "zxporter-system"
+const namespace = "devzero-zxporter"
 
 var _ = Describe("controller", Ordered, func() {
 	BeforeAll(func() {
