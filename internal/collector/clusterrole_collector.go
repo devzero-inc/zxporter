@@ -168,12 +168,10 @@ func (c *ClusterRoleCollector) isExcluded(role *rbacv1.ClusterRole) bool {
 func (c *ClusterRoleCollector) Stop() error {
 	c.logger.Info("Stopping ClusterRole collector")
 	if c.stopCh != nil {
-		if c.stopCh != nil {
-			close(c.stopCh)
-			c.stopCh = nil
-		}
+		close(c.stopCh)
 		c.stopCh = nil
 	}
+
 	return nil
 }
 

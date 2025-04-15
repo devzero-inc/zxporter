@@ -207,10 +207,7 @@ func (c *EndpointCollector) isExcluded(endpoints *corev1.Endpoints) bool {
 func (c *EndpointCollector) Stop() error {
 	c.logger.Info("Stopping endpoints collector")
 	if c.stopCh != nil {
-		if c.stopCh != nil {
-			close(c.stopCh)
-			c.stopCh = nil
-		}
+		close(c.stopCh)
 		c.stopCh = nil
 	}
 	return nil

@@ -32,6 +32,10 @@ type ContainerResourceCollectorConfig struct {
 
 	// QueryTimeout specifies the timeout for Prometheus queries
 	QueryTimeout time.Duration
+
+	// DisableNetworkIOMetrics determines whether to disable network and I/O metrics collection
+	// Default is false, so metrics are collected by default
+	DisableNetworkIOMetrics bool
 }
 
 // ContainerResourceCollector collects container resource usage metrics
@@ -100,24 +104,28 @@ func NewContainerResourceCollector(
 func (c *ContainerResourceCollector) Start(ctx context.Context) error {
 	c.logger.Info("Starting container resource collector",
 		"namespaces", c.namespaces,
-		"updateInterval", c.config.UpdateInterval)
+		"updateInterval", c.config.UpdateInterval,
+		"disableNetworkIOMetrics", c.config.DisableNetworkIOMetrics)
 
 	// Check if metrics client is available
 	if c.metricsClient == nil {
 		return fmt.Errorf("metrics client is not available, cannot collect container resources")
 	}
 
-	// Initialize Prometheus client
-
-	c.logger.Info("Initializing Prometheus client for network and I/O metrics",
-		"prometheusURL", c.config.PrometheusURL)
-	client, err := api.NewClient(api.Config{
-		Address: c.config.PrometheusURL,
-	})
-	if err != nil {
-		c.logger.Error(err, "Failed to create Prometheus client, network and I/O metrics will be disabled")
+	// Initialize Prometheus client if network/IO metrics are not disabled
+	if !c.config.DisableNetworkIOMetrics {
+		c.logger.Info("Initializing Prometheus client for network and I/O metrics",
+			"prometheusURL", c.config.PrometheusURL)
+		client, err := api.NewClient(api.Config{
+			Address: c.config.PrometheusURL,
+		})
+		if err != nil {
+			c.logger.Error(err, "Failed to create Prometheus client, network and I/O metrics will be disabled")
+		} else {
+			c.prometheusAPI = v1.NewAPI(client)
+		}
 	} else {
-		c.prometheusAPI = v1.NewAPI(client)
+		c.logger.Info("Network and I/O metrics collection is disabled")
 	}
 
 	// Create informer factory based on namespace configuration
@@ -206,7 +214,7 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 	// Create a context with timeout for Prometheus queries if needed
 	var queryCtx context.Context
 	var cancel context.CancelFunc
-	if c.prometheusAPI != nil {
+	if !c.config.DisableNetworkIOMetrics && c.prometheusAPI != nil {
 		queryCtx, cancel = context.WithTimeout(ctx, c.config.QueryTimeout)
 		defer cancel()
 	}
@@ -244,7 +252,7 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 		for _, containerMetrics := range podMetrics.Containers {
 			// Fetch I/O metrics for this container
 			var ioMetrics map[string]float64
-			if c.prometheusAPI != nil && queryCtx != nil {
+			if !c.config.DisableNetworkIOMetrics && c.prometheusAPI != nil && queryCtx != nil {
 				ioMetrics, err = c.collectContainerIOMetrics(queryCtx, pod, containerMetrics.Name)
 				if err != nil {
 					c.logger.Error(err, "Failed to collect I/O metrics",
@@ -556,21 +564,23 @@ func (c *ContainerResourceCollector) IsAvailable(ctx context.Context) bool {
 		return false
 	}
 
-	// check Prometheus availability
-	if c.prometheusAPI == nil {
-		c.logger.Info("Prometheus client is not available")
-		// Still return true since the main metrics are available
-		return true
-	}
+	// If network/IO metrics are not disabled, also check Prometheus availability
+	if !c.config.DisableNetworkIOMetrics {
+		if c.prometheusAPI == nil {
+			c.logger.Info("Network and I/O metrics are enabled but Prometheus client is not available")
+			// Still return true since the main metrics are available
+			return true
+		}
 
-	// Try a simple query to check if Prometheus is available
-	queryCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
+		// Try a simple query to check if Prometheus is available
+		queryCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		defer cancel()
 
-	_, _, err = c.prometheusAPI.Query(queryCtx, "up", time.Now())
-	if err != nil {
-		c.logger.Info("Prometheus API not available for network and I/O metrics", "error", err.Error())
-		// Still return true since the main metrics are available
+		_, _, err = c.prometheusAPI.Query(queryCtx, "up", time.Now())
+		if err != nil {
+			c.logger.Info("Prometheus API not available for network and I/O metrics", "error", err.Error())
+			// Still return true since the main metrics are available
+		}
 	}
 
 	return true

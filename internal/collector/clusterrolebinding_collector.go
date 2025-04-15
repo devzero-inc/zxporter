@@ -170,10 +170,7 @@ func (c *ClusterRoleBindingCollector) isExcluded(crb *rbacv1.ClusterRoleBinding)
 func (c *ClusterRoleBindingCollector) Stop() error {
 	c.logger.Info("Stopping ClusterRoleBinding collector")
 	if c.stopCh != nil {
-		if c.stopCh != nil {
-			close(c.stopCh)
-			c.stopCh = nil
-		}
+		close(c.stopCh)
 		c.stopCh = nil
 	}
 	return nil

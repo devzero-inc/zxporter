@@ -207,10 +207,7 @@ func (c *LimitRangeCollector) isExcluded(lr *corev1.LimitRange) bool {
 func (c *LimitRangeCollector) Stop() error {
 	c.logger.Info("Stopping limitrange collector")
 	if c.stopCh != nil {
-		if c.stopCh != nil {
-			close(c.stopCh)
-			c.stopCh = nil
-		}
+		close(c.stopCh)
 		c.stopCh = nil
 	}
 	return nil

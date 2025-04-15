@@ -402,10 +402,7 @@ func (c *IngressCollector) isExcluded(ingress *networkingv1.Ingress) bool {
 func (c *IngressCollector) Stop() error {
 	c.logger.Info("Stopping ingress collector")
 	if c.stopCh != nil {
-		if c.stopCh != nil {
-			close(c.stopCh)
-			c.stopCh = nil
-		}
+		close(c.stopCh)
 		c.stopCh = nil
 	}
 	return nil

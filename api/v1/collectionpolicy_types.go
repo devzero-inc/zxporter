@@ -360,6 +360,12 @@ type Policies struct {
 	// +optional
 	PrometheusURL string `json:"prometheusURL,omitempty"`
 
+	// DisableNetworkIOMetrics disables collection of container network and I/O metrics from Prometheus
+	// These metrics include network throughput, packet rates, and disk I/O operations
+	// Default is false, meaning metrics are collected by default
+	// +optional
+	DisableNetworkIOMetrics bool `json:"disableNetworkIOMetrics,omitempty"`
+
 	// Frequency is how often to collect resource usage metrics
 	Frequency string `json:"frequency,omitempty"`
 

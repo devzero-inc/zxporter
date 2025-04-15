@@ -4,10 +4,14 @@ package collector
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/go-logr/logr"
+	"github.com/prometheus/client_golang/api"
+	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
+	"github.com/prometheus/common/model"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers"
@@ -16,33 +20,45 @@ import (
 	metricsv1 "k8s.io/metrics/pkg/client/clientset/versioned"
 )
 
+// NodeCollectorConfig holds configuration for the node collector
+type NodeCollectorConfig struct {
+	// UpdateInterval specifies how often to collect metrics
+	UpdateInterval time.Duration
+
+	// PrometheusURL specifies the URL of the Prometheus instance to query
+	// If empty, defaults to in-cluster Prometheus at http://prometheus.monitoring:9090
+	PrometheusURL string
+
+	// QueryTimeout specifies the timeout for Prometheus queries
+	QueryTimeout time.Duration
+
+	// DisableNetworkIOMetrics determines whether to disable network and I/O metrics collection
+	// Default is false, so metrics are collected by default
+	DisableNetworkIOMetrics bool
+}
+
 // NodeCollector collects node events and resource metrics
 type NodeCollector struct {
 	k8sClient       kubernetes.Interface
 	metricsClient   *metricsv1.Clientset
+	prometheusAPI   v1.API
 	informerFactory informers.SharedInformerFactory
 	nodeInformer    cache.SharedIndexInformer
 	resourceChan    chan CollectedResource
 	stopCh          chan struct{}
 	ticker          *time.Ticker
-	updateInterval  time.Duration
+	config          NodeCollectorConfig
 	excludedNodes   map[string]bool
 	logger          logr.Logger
 	mu              sync.RWMutex
-}
-
-// ExcludedDeployment defines a deployment to exclude from collection
-type ExcludedDeployment struct {
-	Namespace string
-	Name      string
 }
 
 // NewNodeCollector creates a new collector for node resources
 func NewNodeCollector(
 	k8sClient kubernetes.Interface,
 	metricsClient *metricsv1.Clientset,
+	config NodeCollectorConfig,
 	excludedNodes []string,
-	updateInterval time.Duration,
 	logger logr.Logger,
 ) *NodeCollector {
 	// Convert excluded nodes to a map for quicker lookups
@@ -52,24 +68,92 @@ func NewNodeCollector(
 	}
 
 	// Default update interval if not specified
-	if updateInterval <= 0 {
-		updateInterval = 10 * time.Second
+	if config.UpdateInterval <= 0 {
+		config.UpdateInterval = 10 * time.Second
+	}
+
+	// Default Prometheus URL if not specified
+	if config.PrometheusURL == "" {
+		config.PrometheusURL = "http://prometheus.monitoring:9090"
+	}
+
+	// Default query timeout if not specified
+	if config.QueryTimeout <= 0 {
+		config.QueryTimeout = 10 * time.Second
 	}
 
 	return &NodeCollector{
-		k8sClient:      k8sClient,
-		metricsClient:  metricsClient,
-		resourceChan:   make(chan CollectedResource, 100),
-		stopCh:         make(chan struct{}),
-		updateInterval: updateInterval,
-		excludedNodes:  excludedNodesMap,
-		logger:         logger.WithName("node-collector"),
+		k8sClient:     k8sClient,
+		metricsClient: metricsClient,
+		resourceChan:  make(chan CollectedResource, 100),
+		stopCh:        make(chan struct{}),
+		config:        config,
+		excludedNodes: excludedNodesMap,
+		logger:        logger.WithName("node-collector"),
 	}
+}
+
+// initPrometheusClient initializes the Prometheus client with fallback mechanisms
+func (c *NodeCollector) initPrometheusClient(ctx context.Context) error {
+	if c.config.DisableNetworkIOMetrics {
+		c.logger.Info("Network and I/O metrics collection is disabled")
+		return nil
+	}
+
+	c.logger.Info("Initializing Prometheus client for node network and I/O metrics",
+		"prometheusURL", c.config.PrometheusURL)
+
+	client, err := api.NewClient(api.Config{
+		Address: c.config.PrometheusURL,
+	})
+	if err != nil {
+		c.logger.Error(err, "Failed to create Prometheus client, node network and I/O metrics will be disabled")
+		return err
+	}
+
+	// Set the API client
+	c.prometheusAPI = v1.NewAPI(client)
+
+	// Verify access with a simple query
+	queryCtx, cancel := context.WithTimeout(ctx, c.config.QueryTimeout)
+	defer cancel()
+
+	_, _, err = c.prometheusAPI.Query(queryCtx, "up", time.Now())
+	if err != nil {
+		// Check if this is a permission error
+		if strings.Contains(err.Error(), "forbidden") || strings.Contains(err.Error(), "unauthorized") {
+			c.logger.Error(err, "Permission denied when accessing Prometheus. Please ensure the service account has proper RBAC permissions")
+			c.logger.Info("You may need to apply the 'zxporter-prometheus-reader' ClusterRole and ClusterRoleBinding")
+
+			// Continue with basic metrics only
+			c.prometheusAPI = nil
+			return fmt.Errorf("permission error accessing Prometheus: %w", err)
+		}
+
+		// Handle other connection errors
+		c.logger.Error(err, "Failed to connect to Prometheus, node network and I/O metrics will be disabled")
+		c.prometheusAPI = nil
+		return err
+	}
+
+	c.logger.Info("Successfully connected to Prometheus for node network and I/O metrics")
+	return nil
 }
 
 // Start begins the node collection process
 func (c *NodeCollector) Start(ctx context.Context) error {
-	c.logger.Info("Starting node collector", "updateInterval", c.updateInterval)
+	c.logger.Info("Starting node collector",
+		"updateInterval", c.config.UpdateInterval,
+		"disableNetworkIOMetrics", c.config.DisableNetworkIOMetrics)
+
+	// Initialize Prometheus client if network/IO metrics are not disabled
+	if !c.config.DisableNetworkIOMetrics {
+		// Use the more robust initialization method
+		if err := c.initPrometheusClient(ctx); err != nil {
+			// Log but continue - we can still collect CPU/memory metrics
+			c.logger.Info("Continuing with basic node metrics collection only")
+		}
+	}
 
 	// Create informer factory
 	c.informerFactory = informers.NewSharedInformerFactory(c.k8sClient, 0)
@@ -112,7 +196,7 @@ func (c *NodeCollector) Start(ctx context.Context) error {
 	c.logger.Info("Informer caches synced successfully")
 
 	// Start a ticker to collect resource metrics at regular intervals
-	c.ticker = time.NewTicker(c.updateInterval)
+	c.ticker = time.NewTicker(c.config.UpdateInterval)
 
 	// Start the resource collection loop
 	go c.collectNodeResourcesLoop(ctx)
@@ -223,6 +307,14 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 		return
 	}
 
+	// Create a context with timeout for Prometheus queries if needed
+	var queryCtx context.Context
+	var cancel context.CancelFunc
+	if !c.config.DisableNetworkIOMetrics && c.prometheusAPI != nil {
+		queryCtx, cancel = context.WithTimeout(ctx, c.config.QueryTimeout)
+		defer cancel()
+	}
+
 	// Process each node's metrics
 	for _, nodeMetrics := range nodeMetricsList.Items {
 		// Skip excluded nodes
@@ -268,6 +360,30 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 		cpuUtilizationPercent := float64(cpuUsage) / float64(cpuAllocatable) * 100
 		memoryUtilizationPercent := float64(memoryUsage) / float64(memoryAllocatable) * 100
 
+		// Fetch network metrics for the node if enabled
+		var networkMetrics map[string]float64
+		if !c.config.DisableNetworkIOMetrics && c.prometheusAPI != nil && queryCtx != nil {
+			networkMetrics, err = c.collectNodeNetworkMetrics(queryCtx, node.Name)
+			if err != nil {
+				c.logger.Error(err, "Failed to collect node network metrics",
+					"name", node.Name)
+				// Continue with basic metrics
+				networkMetrics = make(map[string]float64)
+			}
+		}
+
+		// Fetch I/O metrics for the node if enabled
+		var ioMetrics map[string]float64
+		if !c.config.DisableNetworkIOMetrics && c.prometheusAPI != nil && queryCtx != nil {
+			ioMetrics, err = c.collectNodeIOMetrics(queryCtx, node.Name)
+			if err != nil {
+				c.logger.Error(err, "Failed to collect node I/O metrics",
+					"name", node.Name)
+				// Continue with basic metrics
+				ioMetrics = make(map[string]float64)
+			}
+		}
+
 		// Create resource data
 		resourceData := map[string]interface{}{
 			// Node identification
@@ -298,6 +414,26 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 			"node": node,
 		}
 
+		// Add network metrics if available
+		if networkMetrics != nil {
+			resourceData["networkReceiveBytes"] = networkMetrics["NetworkReceiveBytes"]
+			resourceData["networkTransmitBytes"] = networkMetrics["NetworkTransmitBytes"]
+			resourceData["networkReceivePackets"] = networkMetrics["NetworkReceivePackets"]
+			resourceData["networkTransmitPackets"] = networkMetrics["NetworkTransmitPackets"]
+			resourceData["networkReceiveErrors"] = networkMetrics["NetworkReceiveErrors"]
+			resourceData["networkTransmitErrors"] = networkMetrics["NetworkTransmitErrors"]
+			resourceData["networkReceiveDropped"] = networkMetrics["NetworkReceiveDropped"]
+			resourceData["networkTransmitDropped"] = networkMetrics["NetworkTransmitDropped"]
+		}
+
+		// Add I/O metrics if available
+		if ioMetrics != nil {
+			resourceData["fsReadBytes"] = ioMetrics["FSReadBytes"]
+			resourceData["fsWriteBytes"] = ioMetrics["FSWriteBytes"]
+			resourceData["fsReads"] = ioMetrics["FSReads"]
+			resourceData["fsWrites"] = ioMetrics["FSWrites"]
+		}
+
 		// Send the resource usage data to the channel
 		c.resourceChan <- CollectedResource{
 			ResourceType: NodeResource,
@@ -307,6 +443,82 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 			Key:          node.Name,
 		}
 	}
+}
+
+// collectNodeNetworkMetrics collects network metrics for a node using Prometheus queries
+func (c *NodeCollector) collectNodeNetworkMetrics(ctx context.Context, nodeName string) (map[string]float64, error) {
+	metrics := make(map[string]float64)
+
+	// Define queries for network metrics
+	queries := map[string]string{
+		"NetworkReceiveBytes":    fmt.Sprintf(`sum(rate(node_network_receive_bytes_total{instance=~"%s:.*"}[5m]))`, nodeName),
+		"NetworkTransmitBytes":   fmt.Sprintf(`sum(rate(node_network_transmit_bytes_total{instance=~"%s:.*"}[5m]))`, nodeName),
+		"NetworkReceivePackets":  fmt.Sprintf(`sum(rate(node_network_receive_packets_total{instance=~"%s:.*"}[5m]))`, nodeName),
+		"NetworkTransmitPackets": fmt.Sprintf(`sum(rate(node_network_transmit_packets_total{instance=~"%s:.*"}[5m]))`, nodeName),
+		"NetworkReceiveErrors":   fmt.Sprintf(`sum(rate(node_network_receive_errs_total{instance=~"%s:.*"}[5m]))`, nodeName),
+		"NetworkTransmitErrors":  fmt.Sprintf(`sum(rate(node_network_transmit_errs_total{instance=~"%s:.*"}[5m]))`, nodeName),
+		"NetworkReceiveDropped":  fmt.Sprintf(`sum(rate(node_network_receive_drop_total{instance=~"%s:.*"}[5m]))`, nodeName),
+		"NetworkTransmitDropped": fmt.Sprintf(`sum(rate(node_network_transmit_drop_total{instance=~"%s:.*"}[5m]))`, nodeName),
+	}
+
+	// Execute each query and store the result
+	for metricName, query := range queries {
+		metrics[metricName] = 0 // Default to 0 for all metrics
+
+		result, _, err := c.prometheusAPI.Query(ctx, query, time.Now())
+		if err != nil {
+			c.logger.Error(err, "Error querying Prometheus",
+				"metric", metricName,
+				"query", query)
+			continue
+		}
+
+		// Extract value from result (if any)
+		if result.Type() == model.ValVector {
+			vector := result.(model.Vector)
+			if len(vector) > 0 {
+				metrics[metricName] = float64(vector[0].Value)
+			}
+		}
+	}
+
+	return metrics, nil
+}
+
+// collectNodeIOMetrics collects I/O metrics for a node using Prometheus queries
+func (c *NodeCollector) collectNodeIOMetrics(ctx context.Context, nodeName string) (map[string]float64, error) {
+	metrics := make(map[string]float64)
+
+	// Define queries for I/O metrics
+	queries := map[string]string{
+		"FSReadBytes":  fmt.Sprintf(`sum(rate(node_disk_read_bytes_total{instance=~"%s:.*"}[5m]))`, nodeName),
+		"FSWriteBytes": fmt.Sprintf(`sum(rate(node_disk_written_bytes_total{instance=~"%s:.*"}[5m]))`, nodeName),
+		"FSReads":      fmt.Sprintf(`sum(rate(node_disk_reads_completed_total{instance=~"%s:.*"}[5m]))`, nodeName),
+		"FSWrites":     fmt.Sprintf(`sum(rate(node_disk_writes_completed_total{instance=~"%s:.*"}[5m]))`, nodeName),
+	}
+
+	// Execute each query and store the result
+	for metricName, query := range queries {
+		metrics[metricName] = 0 // Default to 0 for all metrics
+
+		result, _, err := c.prometheusAPI.Query(ctx, query, time.Now())
+		if err != nil {
+			c.logger.Error(err, "Error querying Prometheus",
+				"metric", metricName,
+				"query", query)
+			continue
+		}
+
+		// Extract value from result (if any)
+		if result.Type() == model.ValVector {
+			vector := result.(model.Vector)
+			if len(vector) > 0 {
+				metrics[metricName] = float64(vector[0].Value)
+			}
+		}
+	}
+
+	return metrics, nil
 }
 
 // isExcluded checks if a node should be excluded from collection
@@ -346,5 +558,22 @@ func (c *NodeCollector) GetType() string {
 
 // IsAvailable checks if Node resources can be accessed in the cluster
 func (c *NodeCollector) IsAvailable(ctx context.Context) bool {
+	// Check if the metrics client is available - this is required for basic metrics
+	if c.metricsClient == nil {
+		c.logger.Info("Metrics client is not available, cannot collect node metrics")
+		return false
+	}
+
+	// Try a simple query to check if the metrics server is available
+	_, err := c.metricsClient.MetricsV1beta1().NodeMetricses().List(ctx, metav1.ListOptions{
+		Limit: 1, // Only request a single item to minimize load
+	})
+	if err != nil {
+		c.logger.Info("Metrics server API not available for node metrics", "error", err.Error())
+		return false
+	}
+
+	// Even if Prometheus is not available, we can still collect basic node metrics
+	// so we return true here
 	return true
 }

@@ -254,10 +254,7 @@ func (c *JobCollector) isExcluded(job *batchv1.Job) bool {
 func (c *JobCollector) Stop() error {
 	c.logger.Info("Stopping job collector")
 	if c.stopCh != nil {
-		if c.stopCh != nil {
-			close(c.stopCh)
-			c.stopCh = nil
-		}
+		close(c.stopCh)
 		c.stopCh = nil
 	}
 	return nil

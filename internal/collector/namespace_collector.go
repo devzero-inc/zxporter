@@ -187,10 +187,7 @@ func (c *NamespaceCollector) isExcluded(namespace *corev1.Namespace) bool {
 func (c *NamespaceCollector) Stop() error {
 	c.logger.Info("Stopping namespace collector")
 	if c.stopCh != nil {
-		if c.stopCh != nil {
-			close(c.stopCh)
-			c.stopCh = nil
-		}
+		close(c.stopCh)
 		c.stopCh = nil
 	}
 	return nil
