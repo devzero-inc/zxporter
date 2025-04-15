@@ -427,15 +427,6 @@ func (r *CollectionPolicyReconciler) identifyAffectedCollectors(oldConfig, newCo
 		affectedCollectors["noderesource"] = true
 	}
 
-	if !reflect.DeepEqual(oldConfig.ExcludedCRDs, newConfig.ExcludedCRDs) ||
-		!reflect.DeepEqual(oldConfig.ExcludedCRDGroups, newConfig.ExcludedCRDGroups) {
-		affectedCollectors["customresourcedefinition"] = true
-	}
-
-	if !reflect.DeepEqual(oldConfig.ExcludedCustomResources, newConfig.ExcludedCustomResources) {
-		affectedCollectors["customresource"] = true
-	}
-
 	if oldConfig.NodeMetricsInterval != newConfig.NodeMetricsInterval {
 		affectedCollectors["noderesource"] = true
 	}
@@ -757,23 +748,6 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 			replacedCollector = collector.NewStorageClassCollector(
 				r.K8sClient,
 				newConfig.ExcludedStorageClasses,
-				logger,
-			)
-		case "customresourcedefinition":
-			replacedCollector = collector.NewCRDCollector(
-				r.ApiExtensions,
-				newConfig.ExcludedCRDs,
-				logger,
-			)
-		case "customresource":
-			replacedCollector = collector.NewCustomResourceCollector(
-				r.ApiExtensions,
-				r.DiscoveryClient,
-				r.DynamicClient,
-				collector.CustomResourceCollectorConfig{
-					ExcludedCRDGroups: newConfig.ExcludedCRDGroups,
-					ExcludedResources: newConfig.ExcludedCustomResources,
-				},
 				logger,
 			)
 		default:
@@ -1371,24 +1345,6 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 			name: collector.PodDisruptionBudget,
 		},
 		{
-			collector: collector.NewCRDCollector(
-				r.ApiExtensions,
-				config.ExcludedCRDs,
-				logger,
-			),
-			name: collector.CustomResourceDefinition,
-		},
-		{
-			collector: collector.NewCustomResourceCollector(
-				r.ApiExtensions,
-				r.DiscoveryClient,
-				r.DynamicClient,
-				collector.CustomResourceCollectorConfig{},
-				logger,
-			),
-			name: collector.CustomResource,
-		},
-		{
 			collector: collector.NewSecretCollector(
 				r.K8sClient,
 				config.TargetNamespaces,
@@ -1734,23 +1690,6 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 				replacedCollector = collector.NewStorageClassCollector(
 					r.K8sClient,
 					newConfig.ExcludedStorageClasses,
-					logger,
-				)
-			case "customresourcedefinition":
-				replacedCollector = collector.NewCRDCollector(
-					r.ApiExtensions,
-					newConfig.ExcludedCRDs,
-					logger,
-				)
-			case "customresource":
-				replacedCollector = collector.NewCustomResourceCollector(
-					r.ApiExtensions,
-					r.DiscoveryClient,
-					r.DynamicClient,
-					collector.CustomResourceCollectorConfig{
-						ExcludedCRDGroups: newConfig.ExcludedCRDGroups,
-						ExcludedResources: newConfig.ExcludedCustomResources,
-					},
 					logger,
 				)
 			case "namespace":

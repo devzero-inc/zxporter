@@ -12,5 +12,5 @@ spec:
       - kube-public
   policies:
     frequency: "30s"
-    bufferSize: 1000
+    bufferSize: 1000000
     dakrURL: "http://host.docker.internal:9990"
