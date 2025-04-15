@@ -171,6 +171,10 @@ build-installer: manifests generate kustomize ## Generate a consolidated YAML wi
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
 	$(KUSTOMIZE) build config/default > dist/install.yaml
 
+.PHONY: build-chart
+build-chart: build-installer ## Generate a consolidated helm chart from the installer manifest.
+	cat dist/install.yaml | helmify chart
+
 ##@ Deployment
 
 ifndef ignore-not-found
@@ -207,6 +211,8 @@ KUSTOMIZE ?= $(LOCALBIN)/kustomize
 CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 ENVTEST ?= $(LOCALBIN)/setup-envtest
 GOLANGCI_LINT = $(LOCALBIN)/golangci-lint
+# to download: `brew install arttor/tap/helmify`
+HELMIFY ?= helmify
 
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v5.4.3
