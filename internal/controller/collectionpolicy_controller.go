@@ -112,9 +112,9 @@ type PolicyConfig struct {
 	MaskSecretData      bool
 }
 
-//+kubebuilder:rbac:groups=monitoring.devzero.io,resources=collectionpolicies,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=monitoring.devzero.io,resources=collectionpolicies/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=monitoring.devzero.io,resources=collectionpolicies/finalizers,verbs=update
+//+kubebuilder:rbac:groups=devzero.io,resources=collectionpolicies,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=devzero.io,resources=collectionpolicies/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=devzero.io,resources=collectionpolicies/finalizers,verbs=update
 
 // Core API Group resources
 //+kubebuilder:rbac:groups=core,resources=pods,verbs=get;list;watch

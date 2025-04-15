@@ -1,4 +1,4 @@
-# zxporter
+# devzero-zxporter
 
 ## development
 
@@ -105,11 +105,11 @@
 
 * cluster needs collection policy to understand what to collect, so install this there
   ```
-    apiVersion: monitoring.devzero.io/v1
+    apiVersion: devzero.io/v1
     kind: CollectionPolicy
     metadata:
       name: default-policy
-      namespace: zxporter-system
+      namespace: devzero-zxporter
     spec:
       targetSelector:
         namespaces: [] # Empty means all namespaces
