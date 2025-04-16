@@ -76,6 +76,7 @@ jobs:
       - name: Create k8s Kind Cluster
         uses: helm/kind-action@v1
         with:
+          version: v0.27.0
           node_image: kindest/node:${{ matrix.k8s-version }}
           cluster_name: kind-${{ matrix.k8s-version }}
           wait: 120s
@@ -110,11 +111,36 @@ jobs:
 
       - name: Wait for deployment to be ready
         run: |
+          echo "Waiting for deployment to be ready..."
           kubectl wait --for=condition=available --timeout=300s deployment/devzero-zxporter-controller-manager -n devzero-zxporter || true
-          kubectl get pods -n devzero-zxporter
+          
+          echo "Getting pod status..."
+          kubectl get pods -n devzero-zxporter -o wide
+          
+          echo "Describing deployment..."
           kubectl describe deployment devzero-zxporter-controller-manager -n devzero-zxporter
+          
+          echo "Getting pod details..."
+          POD_NAME=$(kubectl get pods -n devzero-zxporter -l control-plane=controller-manager -o jsonpath='{.items[0].metadata.name}')
+          kubectl describe pod $POD_NAME -n devzero-zxporter
+          
+          echo "Getting events for the namespace..."
+          kubectl get events -n devzero-zxporter --sort-by='.lastTimestamp'
+          
+          echo "Checking node status..."
+          kubectl describe nodes
+          
+          echo "Checking node resources..."
+          kubectl get nodes -o custom-columns=NAME:.metadata.name,CPU:.status.capacity.cpu,MEMORY:.status.capacity.memory
 
       - name: Verify ZXporter is running
         run: |
-          kubectl get pods -n devzero-zxporter
-          kubectl logs -l control-plane=controller-manager -n devzero-zxporter --tail=100
+          echo "Getting pod status..."
+          kubectl get pods -n devzero-zxporter -o wide
+          
+          echo "Getting pod logs (if any)..."
+          POD_NAME=$(kubectl get pods -n devzero-zxporter -l control-plane=controller-manager -o jsonpath='{.items[0].metadata.name}')
+          kubectl logs $POD_NAME -n devzero-zxporter --tail=100 || echo "No logs available"
+          
+          echo "Getting pod events..."
+          kubectl get events -n devzero-zxporter --field-selector involvedObject.name=$POD_NAME --sort-by='.lastTimestamp'
