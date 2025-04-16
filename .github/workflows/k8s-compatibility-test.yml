@@ -90,7 +90,7 @@ jobs:
       - name: Load Docker image to Kind
         run: |
           ls -la /tmp/docker-images
-          docker load -i /tmp/docker-images/zxporter-image.tar
+          docker load -i /tmp/docker-images/zxporter-image.tar ${{ env.ZXPORTER_IMG }}
           docker images
           kind load docker-image ${{ env.ZXPORTER_IMG }} --name kind-${{ matrix.k8s-version }}
 
