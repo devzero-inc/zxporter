@@ -66,12 +66,10 @@ type PolicyConfig struct {
 	TargetNamespaces               []string
 	ExcludedNamespaces             []string
 	ExcludedPods                   []collector.ExcludedPod
-	ExcludedContainers             []collector.ExcludedContainer
 	ExcludedDeployments            []collector.ExcludedDeployment
 	ExcludedStatefulSets           []collector.ExcludedStatefulSet
 	ExcludedDaemonSets             []collector.ExcludedDaemonSet
 	ExcludedServices               []collector.ExcludedService
-	ExcludedConfigMaps             []collector.ExcludedConfigMap
 	ExcludedPVCs                   []collector.ExcludedPVC
 	ExcludedEvents                 []collector.ExcludedEvent
 	ExcludedJobs                   []collector.ExcludedJob
@@ -92,8 +90,6 @@ type PolicyConfig struct {
 	ExcludedPDBs                   []collector.ExcludedPDB
 	ExcludedPSPs                   []string
 	ExcludedCRDs                   []string
-	ExcludedCustomResources        []collector.ExcludedCustomResource
-	ExcludedSecrets                []collector.ExcludedSecret
 	ExcludedReplicaSet             []collector.ExcludedReplicaSet
 	ExcludedStorageClasses         []string
 	ExcludedPVs                    []string
@@ -125,14 +121,12 @@ type PolicyConfig struct {
 //+kubebuilder:rbac:groups=core,resources=nodes/status,verbs=get
 //+kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch
 //+kubebuilder:rbac:groups=core,resources=namespaces,verbs=get;list;watch
-//+kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch
 //+kubebuilder:rbac:groups=core,resources=persistentvolumeclaims,verbs=get;list;watch
 //+kubebuilder:rbac:groups=core,resources=events,verbs=get;list;watch
 //+kubebuilder:rbac:groups=core,resources=serviceaccounts,verbs=get;list;watch
 //+kubebuilder:rbac:groups=core,resources=limitranges,verbs=get;list;watch
 //+kubebuilder:rbac:groups=core,resources=resourcequotas,verbs=get;list;watch
 //+kubebuilder:rbac:groups=core,resources=replicationcontrollers,verbs=get;list;watch
-//+kubebuilder:rbac:groups=core,resources=secrets,verbs=get;list;watch
 //+kubebuilder:rbac:groups=core,resources=persistentvolumes,verbs=get;list;watch
 
 // Apps API Group resources
@@ -170,9 +164,6 @@ type PolicyConfig struct {
 
 // Storage API Group resources
 //+kubebuilder:rbac:groups=storage.k8s.io,resources=storageclasses,verbs=get;list;watch
-
-// API Extensions resources
-//+kubebuilder:rbac:groups=apiextensions.k8s.io,resources=customresourcedefinitions,verbs=get;list;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -335,10 +326,6 @@ func (r *CollectionPolicyReconciler) identifyAffectedCollectors(oldConfig, newCo
 		affectedCollectors["service"] = true
 	}
 
-	if !reflect.DeepEqual(oldConfig.ExcludedConfigMaps, newConfig.ExcludedConfigMaps) {
-		affectedCollectors["configmap"] = true
-	}
-
 	if !reflect.DeepEqual(oldConfig.ExcludedPVCs, newConfig.ExcludedPVCs) {
 		affectedCollectors["persistentvolumeclaim"] = true
 	}
@@ -409,11 +396,6 @@ func (r *CollectionPolicyReconciler) identifyAffectedCollectors(oldConfig, newCo
 
 	if !reflect.DeepEqual(oldConfig.ExcludedPDBs, newConfig.ExcludedPDBs) {
 		affectedCollectors["poddisruptionbudget"] = true
-	}
-
-	if !reflect.DeepEqual(oldConfig.ExcludedSecrets, newConfig.ExcludedSecrets) ||
-		oldConfig.MaskSecretData != newConfig.MaskSecretData {
-		affectedCollectors["secret"] = true
 	}
 
 	if !reflect.DeepEqual(oldConfig.ExcludedStorageClasses, newConfig.ExcludedStorageClasses) {
@@ -602,13 +584,6 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				newConfig.ExcludedNodes,
 				logger,
 			)
-		case "configmap":
-			replacedCollector = collector.NewConfigMapCollector(
-				r.K8sClient,
-				newConfig.TargetNamespaces,
-				newConfig.ExcludedConfigMaps,
-				logger,
-			)
 		case "persistentvolumeclaim":
 			replacedCollector = collector.NewPersistentVolumeClaimCollector(
 				r.K8sClient,
@@ -745,14 +720,6 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				r.K8sClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedPDBs,
-				logger,
-			)
-		case "secret":
-			replacedCollector = collector.NewSecretCollector(
-				r.K8sClient,
-				newConfig.TargetNamespaces,
-				newConfig.ExcludedSecrets,
-				newConfig.MaskSecretData,
 				logger,
 			)
 		case "storageclass":
@@ -1130,15 +1097,6 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 			name: collector.Pod,
 		},
 		{
-			collector: collector.NewContainerCollector(
-				r.K8sClient,
-				config.TargetNamespaces,
-				config.ExcludedContainers,
-				logger,
-			),
-			name: collector.Container,
-		},
-		{
 			collector: collector.NewDeploymentCollector(
 				r.K8sClient,
 				config.TargetNamespaces,
@@ -1172,15 +1130,6 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				logger,
 			),
 			name: collector.Namespace,
-		},
-		{
-			collector: collector.NewConfigMapCollector(
-				r.K8sClient,
-				config.TargetNamespaces,
-				config.ExcludedConfigMaps,
-				logger,
-			),
-			name: collector.ConfigMap,
 		},
 		{
 			collector: collector.NewReplicationControllerCollector(
@@ -1355,16 +1304,6 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				logger,
 			),
 			name: collector.PodDisruptionBudget,
-		},
-		{
-			collector: collector.NewSecretCollector(
-				r.K8sClient,
-				config.TargetNamespaces,
-				config.ExcludedSecrets,
-				config.MaskSecretData,
-				logger,
-			),
-			name: collector.Secret,
 		},
 		{
 			collector: collector.NewStorageClassCollector(
@@ -1548,13 +1487,6 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					newConfig.ExcludedNodes,
 					logger,
 				)
-			case "configmap":
-				replacedCollector = collector.NewConfigMapCollector(
-					r.K8sClient,
-					newConfig.TargetNamespaces,
-					newConfig.ExcludedConfigMaps,
-					logger,
-				)
 			case "persistentvolumeclaim":
 				replacedCollector = collector.NewPersistentVolumeClaimCollector(
 					r.K8sClient,
@@ -1691,14 +1623,6 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					r.K8sClient,
 					newConfig.TargetNamespaces,
 					newConfig.ExcludedPDBs,
-					logger,
-				)
-			case "secret":
-				replacedCollector = collector.NewSecretCollector(
-					r.K8sClient,
-					newConfig.TargetNamespaces,
-					newConfig.ExcludedSecrets,
-					newConfig.MaskSecretData,
 					logger,
 				)
 			case "storageclass":
