@@ -1,0 +1,79 @@
+name: Kubernetes Compatibility Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    name: Build and Test on Multiple K8s Versions
+    runs-on: ubuntu-latest
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        k8s-version:
+          - v1.25.16
+          - v1.26.15
+          - v1.27.16
+          - v1.28.15
+          - v1.29.14
+          - v1.30.8
+          - v1.31.6
+          - v1.32.3
+
+    steps:
+      - name: Generate UUID for image tag
+        id: uuid
+        run: echo "uuid=$(uuidgen | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+
+      - name: Set Docker image name with TTL
+        id: set-image
+        run: echo "ZXPORTER_IMG=ttl.sh/${{ steps.uuid.outputs.uuid }}:2h" >> $GITHUB_ENV
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: true
+
+      - name: Build Docker image
+        run: make docker-build IMG=${{ env.ZXPORTER_IMG }}
+
+      - name: Push Docker image
+        run: make docker-push IMG=${{ env.ZXPORTER_IMG }}
+
+      - name: Create k8s Kind Cluster
+        uses: helm/kind-action@v1
+        with:
+          node_image: kindest/node:${{ matrix.k8s-version }}
+          cluster_name: kind-${{ matrix.k8s-version }}
+          wait: 120s
+
+      - name: Install Metrics Server
+        run: |
+          helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
+          helm repo update
+          helm upgrade --install --set args={--kubelet-insecure-tls} metrics-server metrics-server/metrics-server --namespace kube-system
+
+      - name: Install Node Exporter
+        run: |
+          helm repo add prometheus-community https://prometheus-community.github.io/helm-charts 
+          helm repo update
+          helm install node-exporter prometheus-community/prometheus-node-exporter
+
+      - name: Deploy ZXporter
+        run: make deploy IMG=${{ env.ZXPORTER_IMG }}
+
+      - name: Wait for deployment to be ready
+        run: |
+          kubectl wait --for=condition=available --timeout=300s deployment/controller-manager -n devzero-zxporter || true
+          kubectl get pods -n devzero-zxporter
+          kubectl describe deployment controller-manager -n devzero-zxporter
+
+      - name: Verify ZXporter is running
+        run: |
+          kubectl get pods -n devzero-zxporter
+          kubectl logs -l control-plane=controller-manager -n devzero-zxporter --tail=100
