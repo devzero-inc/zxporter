@@ -14,8 +14,8 @@ jobs:
       - name: Set Docker image name
         id: set-image
         run: |
-          echo "ZXPORTER_IMG=zxporter:test" >> $GITHUB_ENV
-          echo "image=zxporter:test" >> $GITHUB_OUTPUT
+          echo "ZXPORTER_IMG=zxporter:${{ github.run_id }}" >> $GITHUB_ENV
+          echo "image=zxporter:${{ github.run_id }}" >> $GITHUB_OUTPUT
 
       - name: Checkout code
         uses: actions/checkout@v4
@@ -31,6 +31,7 @@ jobs:
 
       - name: Save Docker image
         run: |
+          rm -rf /tmp/docker-images
           mkdir -p /tmp/docker-images
           docker save ${{ env.ZXPORTER_IMG }} -o /tmp/docker-images/zxporter-image.tar
           ls -la /tmp/docker-images
