@@ -106,8 +106,47 @@ jobs:
           helm repo update
           helm install node-exporter prometheus-community/prometheus-node-exporter
 
-      - name: Deploy ZXporter
-        run: make deploy IMG=${{ env.ZXPORTER_IMG }}
+      - name: Build testserver
+        run: |
+          echo "Building testserver..."
+          go build -o bin/testserver test/testserver/main.go
+
+      - name: Start testserver in background
+        run: |
+          echo "Starting testserver in background..."
+          # Get the host IP address for Linux (GitHub Actions runner)
+          HOST_IP=$(ip -4 addr show scope global dev docker0 | grep inet | awk '{print $2}' | cut -d / -f 1)
+          if [ -z "$HOST_IP" ]; then
+            HOST_IP=$(ip -4 route get 8.8.8.8 | awk '{print $7}' | tr -d '\n')
+          fi
+          echo "Host IP: $HOST_IP"
+          
+          # Start the testserver on port 50051
+          nohup bin/testserver > testserver_output.log 2>&1 &
+          echo "Testserver PID: $!" > testserver_pid.txt
+          
+          # Wait for testserver to start
+          sleep 5
+          
+          # Verify testserver is running
+          if ps -p $(cat testserver_pid.txt) > /dev/null; then
+            echo "Testserver is running with PID $(cat testserver_pid.txt)"
+          else
+            echo "Testserver failed to start"
+            exit 1
+          fi
+
+      - name: Deploy ZXporter with custom DAKR_URL
+        run: |
+          # Get the host IP address for Linux (GitHub Actions runner)
+          HOST_IP=$(ip -4 addr show scope global dev docker0 | grep inet | awk '{print $2}' | cut -d / -f 1)
+          if [ -z "$HOST_IP" ]; then
+            HOST_IP=$(ip -4 route get 8.8.8.8 | awk '{print $7}' | tr -d '\n')
+          fi
+          
+          # Set DAKR_URL to point to the testserver on the host
+          echo "Setting DAKR_URL to grpc://$HOST_IP:50051"
+          make deploy IMG=${{ env.ZXPORTER_IMG }} DAKR_URL=grpc://$HOST_IP:50051
 
       - name: Wait for deployment to be ready
         run: |
@@ -144,3 +183,33 @@ jobs:
           
           echo "Getting pod events..."
           kubectl get events -n devzero-zxporter --field-selector involvedObject.name=$POD_NAME --sort-by='.lastTimestamp'
+
+      - name: Wait for data collection (2 minutes)
+        run: |
+          echo "Waiting for 2 minutes to collect data from ZXporter..."
+          sleep 120
+
+      - name: Check testserver output
+        run: |
+          echo "Checking testserver output..."
+          
+          # Display the testserver output
+          echo "=== TESTSERVER OUTPUT START ==="
+          cat testserver_output.log
+          echo "=== TESTSERVER OUTPUT END ==="
+          
+          # Check if there was any output
+          if [ -s testserver_output.log ]; then
+            echo "Testserver received data from ZXporter!"
+          else
+            echo "ERROR: No data received by testserver from ZXporter!"
+            exit 1
+          fi
+
+      - name: Stop testserver
+        if: always()
+        run: |
+          if [ -f testserver_pid.txt ]; then
+            echo "Stopping testserver with PID $(cat testserver_pid.txt)..."
+            kill -9 $(cat testserver_pid.txt) || true
+          fi
