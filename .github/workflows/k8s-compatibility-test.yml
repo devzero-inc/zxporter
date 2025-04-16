@@ -41,7 +41,6 @@ jobs:
         with:
           path: /tmp/docker-images
           key: docker-image-${{ github.run_id }}
-          restore-keys: docker-image-
 
   test:
     name: Test on K8s ${{ matrix.k8s-version }}
