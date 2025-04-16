@@ -45,7 +45,7 @@ jobs:
   test:
     name: Test on K8s ${{ matrix.k8s-version }}
     needs: build
-    runs-on: devzero-ubuntu-24.04-xlarge
+    runs-on: ubuntu-xl
     
     strategy:
       fail-fast: false
