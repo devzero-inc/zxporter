@@ -28,6 +28,12 @@ type DeploymentCollector struct {
 	mu                  sync.RWMutex
 }
 
+// ExcludedDeployment defines a deployment to exclude from collection
+type ExcludedDeployment struct {
+	Namespace string
+	Name      string
+}
+
 // NewDeploymentCollector creates a new collector for deployment resources
 func NewDeploymentCollector(
 	client kubernetes.Interface,
@@ -229,10 +235,7 @@ func (c *DeploymentCollector) isExcluded(deployment *appsv1.Deployment) bool {
 func (c *DeploymentCollector) Stop() error {
 	c.logger.Info("Stopping deployment collector")
 	if c.stopCh != nil {
-		if c.stopCh != nil {
-			close(c.stopCh)
-			c.stopCh = nil
-		}
+		close(c.stopCh)
 		c.stopCh = nil
 	}
 	return nil

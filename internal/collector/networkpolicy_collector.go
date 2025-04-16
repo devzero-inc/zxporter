@@ -258,10 +258,7 @@ func (c *NetworkPolicyCollector) isExcluded(networkPolicy *networkingv1.NetworkP
 func (c *NetworkPolicyCollector) Stop() error {
 	c.logger.Info("Stopping networkpolicy collector")
 	if c.stopCh != nil {
-		if c.stopCh != nil {
-			close(c.stopCh)
-			c.stopCh = nil
-		}
+		close(c.stopCh)
 		c.stopCh = nil
 	}
 	return nil

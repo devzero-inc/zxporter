@@ -269,10 +269,7 @@ func (c *EventCollector) periodicCleanup(ctx context.Context) {
 func (c *EventCollector) Stop() error {
 	c.logger.Info("Stopping event collector")
 	if c.stopCh != nil {
-		if c.stopCh != nil {
-			close(c.stopCh)
-			c.stopCh = nil
-		}
+		close(c.stopCh)
 		c.stopCh = nil
 	}
 	return nil

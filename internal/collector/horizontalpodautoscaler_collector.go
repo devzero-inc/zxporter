@@ -243,10 +243,7 @@ func (c *HorizontalPodAutoscalerCollector) isExcluded(hpa *autoscalingv2.Horizon
 func (c *HorizontalPodAutoscalerCollector) Stop() error {
 	c.logger.Info("Stopping HorizontalPodAutoscaler collector")
 	if c.stopCh != nil {
-		if c.stopCh != nil {
-			close(c.stopCh)
-			c.stopCh = nil
-		}
+		close(c.stopCh)
 		c.stopCh = nil
 	}
 	return nil

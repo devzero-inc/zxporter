@@ -187,10 +187,7 @@ func (c *IngressClassCollector) isExcluded(ingressClass *networkingv1.IngressCla
 func (c *IngressClassCollector) Stop() error {
 	c.logger.Info("Stopping IngressClass collector")
 	if c.stopCh != nil {
-		if c.stopCh != nil {
-			close(c.stopCh)
-			c.stopCh = nil
-		}
+		close(c.stopCh)
 		c.stopCh = nil
 	}
 	return nil

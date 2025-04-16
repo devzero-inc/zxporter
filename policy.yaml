@@ -11,6 +11,7 @@ spec:
     excludedNamespaces:
       - kube-system
       - kube-public
+      # - monitoring
     excludedNodes: []
     excludedLabels: {}
     
@@ -70,6 +71,8 @@ spec:
     maskSecretData: true
     watchedCRDs: []
     disabledCollectors:
+    prometheusURL: "http://kind-prometheus-kube-prome-prometheus.monitoring.svc.cluster.local:9090"
+    dakrURL: "http://host.docker.internal:9990"
       # - "secret"        # Don't collect any secrets
       # - "configmap"     # Don't collect any configmaps
       # - "event"  

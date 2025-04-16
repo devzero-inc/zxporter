@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strings"
 	"sync"
 	"time"
 
@@ -113,39 +114,58 @@ func (c *CustomResourceCollector) Start(ctx context.Context) error {
 	c.logger.Info("Starting CustomResource collector", "namespaces", c.namespaces)
 
 	// Discover all CRDs in the cluster
-	crds, err := c.discoverCRDs(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to discover CRDs: %w", err)
-	}
+	crds, _ := c.discoverCRDs(ctx) // Ignore error, continue with empty list if needed
 
 	// Setup informers for each CRD
 	for _, crd := range crds {
-		if err := c.setupInformersForCRD(ctx, crd); err != nil {
-			c.logger.Error(err, "Failed to set up informer for CRD",
-				"name", crd.Name,
-				"group", crd.Spec.Group)
-		}
+		// Ignore errors here too
+		_ = c.setupInformersForCRD(ctx, crd)
 	}
 
 	// Start all informers
 	c.informersMutex.RLock()
-	c.logger.Info("Starting all custom resource informers", "count", len(c.informerFactories))
+	informerCount := len(c.informerFactories)
+	c.logger.Info("Starting all custom resource informers", "count", informerCount)
 	for gvr, factory := range c.informerFactories {
 		c.logger.V(4).Info("Starting informer factory", "gvr", gvr.String())
 		factory.Start(c.stopCh)
 	}
 	c.informersMutex.RUnlock()
 
-	// Wait for all informers to sync
-	c.logger.Info("Waiting for custom resource informer caches to sync")
-	c.informersMutex.RLock()
-	for gvr, informer := range c.informers {
-		if !cache.WaitForCacheSync(c.stopCh, informer.HasSynced) {
-			c.logger.Error(nil, "Timed out waiting for cache to sync", "gvr", gvr.String())
+	// If we have no informers, don't wait for sync
+	if informerCount == 0 {
+		c.logger.Info("No custom resource informers to sync, continuing")
+	} else {
+		// Wait for all informers to sync, but don't block on errors
+		c.logger.Info("Waiting for custom resource informer caches to sync")
+		c.informersMutex.RLock()
+
+		// Create a timeout for the sync
+		syncTimeout := time.After(30 * time.Second)
+
+		for gvr, informer := range c.informers {
+			// Use a separate goroutine for each informer so one that never syncs won't block
+			go func(gvr schema.GroupVersionResource, informer cache.SharedIndexInformer) {
+				syncCh := make(chan struct{})
+				go func() {
+					cache.WaitForCacheSync(c.stopCh, informer.HasSynced)
+					close(syncCh)
+				}()
+
+				select {
+				case <-syncCh:
+					c.logger.V(4).Info("Cache synced", "gvr", gvr.String())
+				case <-syncTimeout:
+					c.logger.Info("Timed out waiting for cache to sync, continuing anyway", "gvr", gvr.String())
+				}
+			}(gvr, informer)
 		}
+		c.informersMutex.RUnlock()
+
+		// Wait a bit but don't block forever
+		time.Sleep(2 * time.Second)
+		c.logger.Info("Proceeding after waiting for custom resource informer caches to sync")
 	}
-	c.informersMutex.RUnlock()
-	c.logger.Info("Custom resource informer caches synced")
 
 	// Keep this goroutine alive until context cancellation or stop
 	stopCh := c.stopCh
@@ -165,7 +185,9 @@ func (c *CustomResourceCollector) Start(ctx context.Context) error {
 func (c *CustomResourceCollector) discoverCRDs(ctx context.Context) ([]apiextensionsv1.CustomResourceDefinition, error) {
 	crdList, err := c.apiExtensionsClient.ApiextensionsV1().CustomResourceDefinitions().List(ctx, metav1.ListOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("failed to list CRDs: %w", err)
+		c.logger.Error(err, "Failed to list CRDs, continuing with empty CRD list")
+		// Return empty list instead of error to allow operation to continue
+		return []apiextensionsv1.CustomResourceDefinition{}, nil
 	}
 
 	// Apply filtering based on configuration
@@ -229,6 +251,29 @@ func (c *CustomResourceCollector) setupInformersForCRD(ctx context.Context, crd 
 			"version", gvr.Version,
 			"resource", gvr.Resource)
 
+		// First, verify if we have access to this resource
+		// We don't want to create informers for resources we can't access
+		_, err := c.dynamicClient.Resource(gvr).List(ctx, metav1.ListOptions{Limit: 1})
+		if err != nil {
+			// Check if this is a permission error
+			if strings.Contains(err.Error(), "forbidden") || strings.Contains(err.Error(), "unauthorized") {
+				c.logger.Info("Skipping custom resource due to permissions",
+					"name", crd.Name,
+					"group", gvr.Group,
+					"version", gvr.Version,
+					"resource", gvr.Resource,
+					"error", err.Error())
+				continue
+			}
+
+			// For other errors, log but still try to set up the informer
+			c.logger.Error(err, "Error checking access to custom resource, but continuing",
+				"name", crd.Name,
+				"group", gvr.Group,
+				"version", gvr.Version,
+				"resource", gvr.Resource)
+		}
+
 		// Create dynamic informer factory for this GVR
 		var factory dynamicinformer.DynamicSharedInformerFactory
 
@@ -251,27 +296,48 @@ func (c *CustomResourceCollector) setupInformersForCRD(ctx context.Context, crd 
 		// Create informer for this resource
 		informer := factory.ForResource(gvr).Informer()
 
-		// Add event handlers
-		_, err := informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		// Add event handlers, with error handling
+		_, err = informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
-				u := obj.(*unstructured.Unstructured)
+				u, ok := obj.(*unstructured.Unstructured)
+				if !ok {
+					c.logger.Error(nil, "Failed to convert object to Unstructured", "gvr", gvr.String())
+					return
+				}
 				c.handleCustomResourceEvent(gvr, u, "add")
 			},
 			UpdateFunc: func(oldObj, newObj interface{}) {
-				oldU := oldObj.(*unstructured.Unstructured)
-				newU := newObj.(*unstructured.Unstructured)
+				oldU, ok1 := oldObj.(*unstructured.Unstructured)
+				newU, ok2 := newObj.(*unstructured.Unstructured)
+				if !ok1 || !ok2 {
+					c.logger.Error(nil, "Failed to convert objects to Unstructured", "gvr", gvr.String())
+					return
+				}
 
 				if c.customResourceChanged(oldU, newU) {
 					c.handleCustomResourceEvent(gvr, newU, "update")
 				}
 			},
 			DeleteFunc: func(obj interface{}) {
-				u := obj.(*unstructured.Unstructured)
+				u, ok := obj.(*unstructured.Unstructured)
+				if !ok {
+					// Handle tombstone objects which wrap deleted objects
+					if tombstone, ok := obj.(cache.DeletedFinalStateUnknown); ok {
+						if u, ok := tombstone.Obj.(*unstructured.Unstructured); ok {
+							c.handleCustomResourceEvent(gvr, u, "delete")
+							return
+						}
+					}
+					c.logger.Error(nil, "Failed to convert object to Unstructured", "gvr", gvr.String())
+					return
+				}
 				c.handleCustomResourceEvent(gvr, u, "delete")
 			},
 		})
 		if err != nil {
-			return fmt.Errorf("failed to add event handler for %s: %w", gvr.String(), err)
+			c.logger.Error(err, "Failed to add event handler for resource, skipping",
+				"gvr", gvr.String())
+			continue // Skip this resource but continue with others
 		}
 
 		// Store the factory and informer
@@ -281,7 +347,7 @@ func (c *CustomResourceCollector) setupInformersForCRD(ctx context.Context, crd 
 		c.informersMutex.Unlock()
 	}
 
-	return nil
+	return nil // Always return nil to avoid blocking the controller
 }
 
 // handleCustomResourceEvent processes custom resource events
@@ -395,10 +461,7 @@ func (c *CustomResourceCollector) isExcluded(
 func (c *CustomResourceCollector) Stop() error {
 	c.logger.Info("Stopping CustomResource collector")
 	if c.stopCh != nil {
-		if c.stopCh != nil {
-			close(c.stopCh)
-			c.stopCh = nil
-		}
+		close(c.stopCh)
 		c.stopCh = nil
 	}
 	return nil

@@ -519,6 +519,12 @@ spec:
                   dakrURL:
                     description: DakrURL is the URL of the Dakr service
                     type: string
+                  disableNetworkIOMetrics:
+                    description: |-
+                      DisableNetworkIOMetrics disables collection of container network and I/O metrics from Prometheus
+                      These metrics include network throughput, packet rates, and disk I/O operations
+                      Default is false, meaning metrics are collected by default
+                    type: boolean
                   disabledCollectors:
                     description: |-
                       DisabledCollectors is a list of collector types to completely disable
@@ -538,6 +544,11 @@ spec:
                   nodeMetricsInterval:
                     description: NodeMetricsInterval is how often to collect node
                       metrics (defaults to 6x regular frequency)
+                    type: string
+                  prometheusURL:
+                    description: |-
+                      PrometheusURL is the URL of the Prometheus server to query for metrics
+                      If not provided, defaults to in-cluster Prometheus at "http://prometheus-service.monitoring.svc.cluster.local:8080"
                     type: string
                   watchedCRDs:
                     description: WatchedCRDs is a list of custom resource definitions

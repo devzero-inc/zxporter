@@ -235,10 +235,7 @@ func (c *DaemonSetCollector) isExcluded(daemonset *appsv1.DaemonSet) bool {
 func (c *DaemonSetCollector) Stop() error {
 	c.logger.Info("Stopping daemonset collector")
 	if c.stopCh != nil {
-		if c.stopCh != nil {
-			close(c.stopCh)
-			c.stopCh = nil
-		}
+		close(c.stopCh)
 		c.stopCh = nil
 	}
 	return nil

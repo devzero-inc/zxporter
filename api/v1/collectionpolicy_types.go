@@ -355,6 +355,17 @@ type Policies struct {
 	// ClusterToken is the token used to authenticate as a cluster
 	ClusterToken string `json:"clusterToken,omitempty"`
 
+	// PrometheusURL is the URL of the Prometheus server to query for metrics
+	// If not provided, defaults to in-cluster Prometheus at "http://prometheus-service.monitoring.svc.cluster.local:8080"
+	// +optional
+	PrometheusURL string `json:"prometheusURL,omitempty"`
+
+	// DisableNetworkIOMetrics disables collection of container network and I/O metrics from Prometheus
+	// These metrics include network throughput, packet rates, and disk I/O operations
+	// Default is false, meaning metrics are collected by default
+	// +optional
+	DisableNetworkIOMetrics bool `json:"disableNetworkIOMetrics,omitempty"`
+
 	// Frequency is how often to collect resource usage metrics
 	Frequency string `json:"frequency,omitempty"`
 

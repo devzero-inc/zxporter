@@ -238,10 +238,7 @@ func (c *ConfigMapCollector) isExcluded(configmap *corev1.ConfigMap) bool {
 func (c *ConfigMapCollector) Stop() error {
 	c.logger.Info("Stopping configmap collector")
 	if c.stopCh != nil {
-		if c.stopCh != nil {
-			close(c.stopCh)
-			c.stopCh = nil
-		}
+		close(c.stopCh)
 		c.stopCh = nil
 	}
 	return nil

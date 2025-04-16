@@ -282,10 +282,7 @@ func (c *CronJobCollector) isExcluded(cronJob *batchv1.CronJob) bool {
 func (c *CronJobCollector) Stop() error {
 	c.logger.Info("Stopping cronjob collector")
 	if c.stopCh != nil {
-		if c.stopCh != nil {
-			close(c.stopCh)
-			c.stopCh = nil
-		}
+		close(c.stopCh)
 		c.stopCh = nil
 	}
 	return nil

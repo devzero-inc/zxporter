@@ -195,10 +195,7 @@ func (c *CRDCollector) isExcluded(crd *apiextensionsv1.CustomResourceDefinition)
 func (c *CRDCollector) Stop() error {
 	c.logger.Info("Stopping CustomResourceDefinition collector")
 	if c.stopCh != nil {
-		if c.stopCh != nil {
-			close(c.stopCh)
-			c.stopCh = nil
-		}
+		close(c.stopCh)
 		c.stopCh = nil
 	}
 	return nil

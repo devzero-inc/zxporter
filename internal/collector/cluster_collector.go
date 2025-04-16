@@ -482,10 +482,7 @@ func (c *ClusterCollector) Stop() error {
 	}
 
 	if c.stopCh != nil {
-		if c.stopCh != nil {
-			close(c.stopCh)
-			c.stopCh = nil
-		}
+		close(c.stopCh)
 		c.stopCh = nil
 	}
 	return nil
