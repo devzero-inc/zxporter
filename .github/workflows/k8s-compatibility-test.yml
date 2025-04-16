@@ -14,8 +14,8 @@ jobs:
       - name: Set Docker image name
         id: set-image
         run: |
-          echo "ZXPORTER_IMG=zxporter:latest" >> $GITHUB_ENV
-          echo "image=zxporter:latest" >> $GITHUB_OUTPUT
+          echo "ZXPORTER_IMG=zxporter:test" >> $GITHUB_ENV
+          echo "image=zxporter:test" >> $GITHUB_OUTPUT
 
       - name: Checkout code
         uses: actions/checkout@v4
