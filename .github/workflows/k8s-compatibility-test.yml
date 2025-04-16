@@ -121,12 +121,26 @@ jobs:
           fi
           echo "Host IP: $HOST_IP"
           
-          # Start the testserver on port 50051
-          nohup bin/testserver > testserver_output.log 2>&1 &
+          # Check if port 50051 is already in use
+          echo "Checking if port 50051 is available..."
+          if netstat -tuln | grep -q ":50051 "; then
+            echo "Port 50051 is already in use!"
+            netstat -tuln | grep ":50051 "
+            lsof -i :50051
+          else
+            echo "Port 50051 is available"
+          fi
+          
+          # Start the testserver on port 50051 with output file parameter
+          nohup bin/testserver -output requests.json > /dev/null 2> testserver_stderr.log &
           echo "Testserver PID: $!" > testserver_pid.txt
           
           # Wait for testserver to start
           sleep 5
+          
+          # List directory contents to see what files are created
+          echo "Listing directory contents:"
+          ls -la
           
           # Verify testserver is running
           PID=$(cat testserver_pid.txt)
@@ -134,12 +148,10 @@ jobs:
             echo "Testserver is running with PID $PID"
           else
             echo "Testserver failed to start"
-            echo "=== TESTSERVER OUTPUT LOG ==="
-            cat testserver_output.log || echo "No testserver_output.log file found"
-            echo "=== END TESTSERVER OUTPUT LOG ==="
-            echo "=== SERVER LOG ==="
-            cat server.log || echo "No server.log file found"
-            echo "=== END SERVER LOG ==="
+            ps -p "$PID" || echo "No process found with PID $PID"
+            echo "=== TESTSERVER STDERR LOG ==="
+            cat testserver_stderr.log || echo "No testserver_stderr.log file found"
+            echo "=== END TESTSERVER STDERR LOG ==="
             exit 1
           fi
 
@@ -200,13 +212,18 @@ jobs:
         run: |
           echo "Checking testserver output..."
           
-          # Display the testserver output
-          echo "=== TESTSERVER OUTPUT START ==="
-          cat testserver_output.log
-          echo "=== TESTSERVER OUTPUT END ==="
+          # Display the testserver stderr log for diagnostics
+          echo "=== TESTSERVER STDERR LOG ==="
+          cat testserver_stderr.log || echo "No testserver_stderr.log file found"
+          echo "=== END TESTSERVER STDERR LOG ==="
           
-          # Check if there was any output
-          if [ -s testserver_output.log ]; then
+          # Display the requests file
+          echo "=== REQUESTS FILE CONTENT ==="
+          cat requests.json || echo "No requests.json file found"
+          echo "=== END REQUESTS FILE CONTENT ==="
+          
+          # Check if there was any output in the requests file
+          if [ -s requests.json ]; then
             echo "Testserver received data from ZXporter!"
           else
             echo "ERROR: No data received by testserver from ZXporter!"
