@@ -3,13 +3,13 @@ package collector
 // AllResourceTypes returns all defined resource types
 func AllResourceTypes() []ResourceType {
 	return []ResourceType{
-		Pod, Deployment, StatefulSet, DaemonSet, Service, ConfigMap,
+		Pod, Deployment, StatefulSet, DaemonSet, Service,
 		PersistentVolumeClaim, Event, Job, CronJob, ReplicationController,
 		Ingress, NetworkPolicy, Endpoints, ServiceAccount, LimitRange,
 		ResourceQuota, HorizontalPodAutoscaler, VerticalPodAutoscaler,
 		Role, RoleBinding, ClusterRole, ClusterRoleBinding, PodDisruptionBudget,
-		Secret, StorageClass, PersistentVolume, IngressClass, Node, NodeResource,
-		CustomResourceDefinition, CustomResource, Cluster, ContainerResource,
+		StorageClass, PersistentVolume, IngressClass, Node, NodeResource,
+		Cluster, ContainerResource,
 		Namespace,
 	}
 }

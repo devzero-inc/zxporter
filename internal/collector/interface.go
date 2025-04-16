@@ -14,45 +14,40 @@ type ResourceType int
 // String returns the string representation of the ResourceType
 func (r ResourceType) String() string {
 	names := map[ResourceType]string{
-		Unknown:                  "unknown",
-		Cluster:                  "cluster",
-		Node:                     "node",
-		Pod:                      "pod",
-		Namespace:                "namespace",
-		Event:                    "event",
-		Endpoints:                "endpoints",
-		ServiceAccount:           "service_account",
-		LimitRange:               "limit_range",
-		ResourceQuota:            "resource_quota",
-		Deployment:               "deployment",
-		StatefulSet:              "stateful_set",
-		DaemonSet:                "daemon_set",
-		ReplicaSet:               "replica_set",
-		ReplicationController:    "replication_controller",
-		Job:                      "job",
-		CronJob:                  "cron_job",
-		PersistentVolumeClaim:    "persistent_volume_claim",
-		PersistentVolume:         "persistent_volume",
-		StorageClass:             "storage_class",
-		Service:                  "service",
-		Ingress:                  "ingress",
-		IngressClass:             "ingress_class",
-		NetworkPolicy:            "network_policy",
-		Role:                     "role",
-		RoleBinding:              "role_binding",
-		ClusterRole:              "cluster_role",
-		ClusterRoleBinding:       "cluster_role_binding",
-		HorizontalPodAutoscaler:  "horizontal_pod_autoscaler",
-		VerticalPodAutoscaler:    "vertical_pod_autoscaler",
-		PodDisruptionBudget:      "pod_disruption_budget",
-		PodSecurityPolicy:        "pod_security_policy",
-		CustomResourceDefinition: "custom_resource_definition",
-		CustomResource:           "custom_resource",
-		ConfigMap:                "config_map",
-		Secret:                   "secret",
-		Container:                "container",
-		NodeResource:             "node_resource",
-		ContainerResource:        "container_resource",
+		Unknown:                 "unknown",
+		Cluster:                 "cluster",
+		Node:                    "node",
+		Pod:                     "pod",
+		Namespace:               "namespace",
+		Event:                   "event",
+		Endpoints:               "endpoints",
+		ServiceAccount:          "service_account",
+		LimitRange:              "limit_range",
+		ResourceQuota:           "resource_quota",
+		Deployment:              "deployment",
+		StatefulSet:             "stateful_set",
+		DaemonSet:               "daemon_set",
+		ReplicaSet:              "replica_set",
+		ReplicationController:   "replication_controller",
+		Job:                     "job",
+		CronJob:                 "cron_job",
+		PersistentVolumeClaim:   "persistent_volume_claim",
+		PersistentVolume:        "persistent_volume",
+		StorageClass:            "storage_class",
+		Service:                 "service",
+		Ingress:                 "ingress",
+		IngressClass:            "ingress_class",
+		NetworkPolicy:           "network_policy",
+		Role:                    "role",
+		RoleBinding:             "role_binding",
+		ClusterRole:             "cluster_role",
+		ClusterRoleBinding:      "cluster_role_binding",
+		HorizontalPodAutoscaler: "horizontal_pod_autoscaler",
+		VerticalPodAutoscaler:   "vertical_pod_autoscaler",
+		PodDisruptionBudget:     "pod_disruption_budget",
+		PodSecurityPolicy:       "pod_security_policy",
+		NodeResource:            "node_resource",
+		ContainerResource:       "container_resource",
 	}
 
 	if name, ok := names[r]; ok {
@@ -126,16 +121,6 @@ func (r ResourceType) ProtoType() gen.ResourceType {
 		return gen.ResourceType_RESOURCE_TYPE_POD_DISRUPTION_BUDGET
 	case PodSecurityPolicy:
 		return gen.ResourceType_RESOURCE_TYPE_POD_SECURITY_POLICY
-	case CustomResourceDefinition:
-		return gen.ResourceType_RESOURCE_TYPE_CUSTOM_RESOURCE_DEFINITION
-	case CustomResource:
-		return gen.ResourceType_RESOURCE_TYPE_CUSTOM_RESOURCE
-	case ConfigMap:
-		return gen.ResourceType_RESOURCE_TYPE_CONFIG_MAP
-	case Secret:
-		return gen.ResourceType_RESOURCE_TYPE_SECRET
-	case Container:
-		return gen.ResourceType_RESOURCE_TYPE_CONTAINER
 	case NodeResource:
 		return gen.ResourceType_RESOURCE_TYPE_NODE_RESOURCE
 	case ContainerResource:
@@ -181,11 +166,11 @@ const (
 	VerticalPodAutoscaler
 	PodDisruptionBudget
 	PodSecurityPolicy
-	CustomResourceDefinition
-	CustomResource
-	ConfigMap
-	Secret
-	Container
+	CustomResourceDefinition // leaving here to not screw up enum numbering
+	CustomResource           // leaving here to not screw up enum numbering
+	ConfigMap                // leaving here to not screw up enum numbering
+	Secret                   // leaving here to not screw up enum numbering
+	Container                // leaving here to not screw up enum numbering
 	NodeResource
 	ContainerResource
 )
