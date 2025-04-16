@@ -129,8 +129,9 @@ jobs:
           sleep 5
           
           # Verify testserver is running
-          if ps -p $(cat testserver_pid.txt) > /dev/null; then
-            echo "Testserver is running with PID $(cat testserver_pid.txt)"
+          PID=$(cat testserver_pid.txt)
+          if ps -p "$PID" > /dev/null 2>&1; then
+            echo "Testserver is running with PID $PID"
           else
             echo "Testserver failed to start"
             exit 1
@@ -210,6 +211,7 @@ jobs:
         if: always()
         run: |
           if [ -f testserver_pid.txt ]; then
-            echo "Stopping testserver with PID $(cat testserver_pid.txt)..."
-            kill -9 $(cat testserver_pid.txt) || true
+            PID=$(cat testserver_pid.txt)
+            echo "Stopping testserver with PID $PID..."
+            kill -9 "$PID" || true
           fi
