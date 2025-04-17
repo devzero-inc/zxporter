@@ -10,10 +10,7 @@ spec:
       - name: manager
         env:
         - name: DAKR_URL
-          valueFrom:
-            configMapKeyRef:
-              name: zxporter-config
-              key: DAKR_URL
+          value: "$(DAKR_URL)"
         - name: CLUSTER_TOKEN
           value: "{{ .cluster_token }}"
         - name: LOG_LEVEL

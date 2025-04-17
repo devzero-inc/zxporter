@@ -171,7 +171,7 @@ docker-buildx: ## Build and push docker image for the manager for cross-platform
 build-installer: manifests generate kustomize ## Generate a consolidated YAML with CRDs and deployment.
 	mkdir -p dist
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
-	cd config/manager && $(KUSTOMIZE) edit add configmap zxporter-config --from-literal=DAKR_URL=$(DAKR_URL)
+	sed -i "s|\$$(DAKR_URL)|$(DAKR_URL)|g" config/manager/env-patch.yaml
 	$(KUSTOMIZE) build config/default > dist/install.yaml
 
 .PHONY: build-chart
@@ -195,8 +195,7 @@ uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified 
 .PHONY: deploy
 deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/config.
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
-	cd config/manager && $(KUSTOMIZE) edit add configmap zxporter-config --from-literal=DAKR_URL=$(DAKR_URL)
-	cd config/default && $(KUSTOMIZE) edit set namespace system
+	sed -i "s|\$$(DAKR_URL)|$(DAKR_URL)|g" config/manager/env-patch.yaml
 	$(KUSTOMIZE) build config/default | $(KUBECTL) apply -f -
 
 .PHONY: undeploy
@@ -282,7 +281,7 @@ endif
 bundle: manifests kustomize operator-sdk ## Generate bundle manifests and metadata, then validate generated files.
 	$(OPERATOR_SDK) generate kustomize manifests -q
 	cd config/manager && $(KUSTOMIZE) edit set image controller=$(IMG)
-	cd config/manager && $(KUSTOMIZE) edit add configmap zxporter-config --from-literal=DAKR_URL=$(DAKR_URL)
+	sed -i "s|\$$(DAKR_URL)|$(DAKR_URL)|g" config/manager/env-patch.yaml
 	$(KUSTOMIZE) build config/manifests | $(OPERATOR_SDK) generate bundle $(BUNDLE_GEN_FLAGS)
 	$(OPERATOR_SDK) bundle validate ./bundle
 
