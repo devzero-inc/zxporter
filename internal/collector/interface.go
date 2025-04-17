@@ -131,6 +131,14 @@ func (r ResourceType) ProtoType() gen.ResourceType {
 		return gen.ResourceType_RESOURCE_TYPE_CONTAINER_RESOURCE
 	case Cluster:
 		return gen.ResourceType_RESOURCE_TYPE_CLUSTER
+	case CSINode:
+		return gen.ResourceType_RESOURCE_CSI_NODE
+	case Karpenter:
+		return gen.ResourceType_RESOURCE_KARPENTER
+	case Datadog:
+		return gen.ResourceType_RESOURCE_DATADOG
+	case ArgoRollouts:
+		return gen.ResourceType_RESOURCE_ARGO_ROLLOUTS
 	default:
 		return gen.ResourceType_RESOURCE_TYPE_UNSPECIFIED
 	}

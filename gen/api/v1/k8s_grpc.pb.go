@@ -19,16 +19,23 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	K8SService_GetClusters_FullMethodName            = "/api.v1.K8SService/GetClusters"
-	K8SService_GetCluster_FullMethodName             = "/api.v1.K8SService/GetCluster"
-	K8SService_GetNodes_FullMethodName               = "/api.v1.K8SService/GetNodes"
-	K8SService_GetNodeGroups_FullMethodName          = "/api.v1.K8SService/GetNodeGroups"
-	K8SService_GetNodeUtilization_FullMethodName     = "/api.v1.K8SService/GetNodeUtilization"
-	K8SService_GetNodeCost_FullMethodName            = "/api.v1.K8SService/GetNodeCost"
-	K8SService_GetClusterCost_FullMethodName         = "/api.v1.K8SService/GetClusterCost"
-	K8SService_GetClusterCostAnalysis_FullMethodName = "/api.v1.K8SService/GetClusterCostAnalysis"
-	K8SService_GetWorkloadAnalysis_FullMethodName    = "/api.v1.K8SService/GetWorkloadAnalysis"
-	K8SService_GetResources_FullMethodName           = "/api.v1.K8SService/GetResources"
+	K8SService_GetClusters_FullMethodName                   = "/api.v1.K8SService/GetClusters"
+	K8SService_GetCluster_FullMethodName                    = "/api.v1.K8SService/GetCluster"
+	K8SService_GetNodes_FullMethodName                      = "/api.v1.K8SService/GetNodes"
+	K8SService_GetNodeGroups_FullMethodName                 = "/api.v1.K8SService/GetNodeGroups"
+	K8SService_GetNodeUtilization_FullMethodName            = "/api.v1.K8SService/GetNodeUtilization"
+	K8SService_GetNodeCost_FullMethodName                   = "/api.v1.K8SService/GetNodeCost"
+	K8SService_GetClusterCost_FullMethodName                = "/api.v1.K8SService/GetClusterCost"
+	K8SService_GetClusterCostAnalysis_FullMethodName        = "/api.v1.K8SService/GetClusterCostAnalysis"
+	K8SService_GetWorkloadAnalysis_FullMethodName           = "/api.v1.K8SService/GetWorkloadAnalysis"
+	K8SService_GetNodeDetails_FullMethodName                = "/api.v1.K8SService/GetNodeDetails"
+	K8SService_GetNodeCostHistory_FullMethodName            = "/api.v1.K8SService/GetNodeCostHistory"
+	K8SService_GetNodeCPUUsageHistory_FullMethodName        = "/api.v1.K8SService/GetNodeCPUUsageHistory"
+	K8SService_GetNodeMemoryUsageHistory_FullMethodName     = "/api.v1.K8SService/GetNodeMemoryUsageHistory"
+	K8SService_GetWorkloadDetails_FullMethodName            = "/api.v1.K8SService/GetWorkloadDetails"
+	K8SService_GetWorkloadCostHistory_FullMethodName        = "/api.v1.K8SService/GetWorkloadCostHistory"
+	K8SService_GetWorkloadCPUUsageHistory_FullMethodName    = "/api.v1.K8SService/GetWorkloadCPUUsageHistory"
+	K8SService_GetWorkloadMemoryUsageHistory_FullMethodName = "/api.v1.K8SService/GetWorkloadMemoryUsageHistory"
 )
 
 // K8SServiceClient is the client API for K8SService service.
@@ -53,8 +60,22 @@ type K8SServiceClient interface {
 	GetClusterCostAnalysis(ctx context.Context, in *GetClusterCostAnalysisRequest, opts ...grpc.CallOption) (*GetClusterCostAnalysisResponse, error)
 	// GetWorkloadAnalysis returns detailed workload analysis for a cluster
 	GetWorkloadAnalysis(ctx context.Context, in *GetWorkloadAnalysisRequest, opts ...grpc.CallOption) (*GetWorkloadAnalysisResponse, error)
-	// GetResources retrieves resources for a specific namespace, optionally filtered by kind.
-	GetResources(ctx context.Context, in *GetResourcesRequest, opts ...grpc.CallOption) (*GetResourcesResponse, error)
+	// GetNodeDetails retrieves detailed information about a specific node
+	GetNodeDetails(ctx context.Context, in *GetNodeDetailsRequest, opts ...grpc.CallOption) (*GetNodeDetailsResponse, error)
+	// GetNodeCostHistory retrieves node cost history for a specific node
+	GetNodeCostHistory(ctx context.Context, in *GetNodeCostHistoryRequest, opts ...grpc.CallOption) (*GetNodeCostHistoryResponse, error)
+	// GetNodeCPUUsageHistory retrieves node CPU utilization history for a specific node
+	GetNodeCPUUsageHistory(ctx context.Context, in *GetNodeCPUUsageHistoryRequest, opts ...grpc.CallOption) (*GetNodeCPUUsageHistoryResponse, error)
+	// GetNodeMemoryUsageHistory retrieves node memory utilization history for a specific node
+	GetNodeMemoryUsageHistory(ctx context.Context, in *GetNodeMemoryUsageHistoryRequest, opts ...grpc.CallOption) (*GetNodeMemoryUsageHistoryResponse, error)
+	// GetWorkloadDetails retrieves detailed information about a specific workload
+	GetWorkloadDetails(ctx context.Context, in *GetWorkloadDetailsRequest, opts ...grpc.CallOption) (*GetWorkloadDetailsResponse, error)
+	// GetWorkloadCostHistory returns cost history for a specific workload.
+	GetWorkloadCostHistory(ctx context.Context, in *GetWorkloadCostHistoryRequest, opts ...grpc.CallOption) (*GetWorkloadCostHistoryResponse, error)
+	// GetWorkloadCPUUsageHistory returns CPU usage history for a specific workload.
+	GetWorkloadCPUUsageHistory(ctx context.Context, in *GetWorkloadCPUUsageHistoryRequest, opts ...grpc.CallOption) (*GetWorkloadCPUUsageHistoryResponse, error)
+	// GetWorkloadMemoryUsageHistory returns memory usage history for a specific workload.
+	GetWorkloadMemoryUsageHistory(ctx context.Context, in *GetWorkloadMemoryUsageHistoryRequest, opts ...grpc.CallOption) (*GetWorkloadMemoryUsageHistoryResponse, error)
 }
 
 type k8SServiceClient struct {
@@ -146,9 +167,72 @@ func (c *k8SServiceClient) GetWorkloadAnalysis(ctx context.Context, in *GetWorkl
 	return out, nil
 }
 
-func (c *k8SServiceClient) GetResources(ctx context.Context, in *GetResourcesRequest, opts ...grpc.CallOption) (*GetResourcesResponse, error) {
-	out := new(GetResourcesResponse)
-	err := c.cc.Invoke(ctx, K8SService_GetResources_FullMethodName, in, out, opts...)
+func (c *k8SServiceClient) GetNodeDetails(ctx context.Context, in *GetNodeDetailsRequest, opts ...grpc.CallOption) (*GetNodeDetailsResponse, error) {
+	out := new(GetNodeDetailsResponse)
+	err := c.cc.Invoke(ctx, K8SService_GetNodeDetails_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *k8SServiceClient) GetNodeCostHistory(ctx context.Context, in *GetNodeCostHistoryRequest, opts ...grpc.CallOption) (*GetNodeCostHistoryResponse, error) {
+	out := new(GetNodeCostHistoryResponse)
+	err := c.cc.Invoke(ctx, K8SService_GetNodeCostHistory_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *k8SServiceClient) GetNodeCPUUsageHistory(ctx context.Context, in *GetNodeCPUUsageHistoryRequest, opts ...grpc.CallOption) (*GetNodeCPUUsageHistoryResponse, error) {
+	out := new(GetNodeCPUUsageHistoryResponse)
+	err := c.cc.Invoke(ctx, K8SService_GetNodeCPUUsageHistory_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *k8SServiceClient) GetNodeMemoryUsageHistory(ctx context.Context, in *GetNodeMemoryUsageHistoryRequest, opts ...grpc.CallOption) (*GetNodeMemoryUsageHistoryResponse, error) {
+	out := new(GetNodeMemoryUsageHistoryResponse)
+	err := c.cc.Invoke(ctx, K8SService_GetNodeMemoryUsageHistory_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *k8SServiceClient) GetWorkloadDetails(ctx context.Context, in *GetWorkloadDetailsRequest, opts ...grpc.CallOption) (*GetWorkloadDetailsResponse, error) {
+	out := new(GetWorkloadDetailsResponse)
+	err := c.cc.Invoke(ctx, K8SService_GetWorkloadDetails_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *k8SServiceClient) GetWorkloadCostHistory(ctx context.Context, in *GetWorkloadCostHistoryRequest, opts ...grpc.CallOption) (*GetWorkloadCostHistoryResponse, error) {
+	out := new(GetWorkloadCostHistoryResponse)
+	err := c.cc.Invoke(ctx, K8SService_GetWorkloadCostHistory_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *k8SServiceClient) GetWorkloadCPUUsageHistory(ctx context.Context, in *GetWorkloadCPUUsageHistoryRequest, opts ...grpc.CallOption) (*GetWorkloadCPUUsageHistoryResponse, error) {
+	out := new(GetWorkloadCPUUsageHistoryResponse)
+	err := c.cc.Invoke(ctx, K8SService_GetWorkloadCPUUsageHistory_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *k8SServiceClient) GetWorkloadMemoryUsageHistory(ctx context.Context, in *GetWorkloadMemoryUsageHistoryRequest, opts ...grpc.CallOption) (*GetWorkloadMemoryUsageHistoryResponse, error) {
+	out := new(GetWorkloadMemoryUsageHistoryResponse)
+	err := c.cc.Invoke(ctx, K8SService_GetWorkloadMemoryUsageHistory_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -177,8 +261,22 @@ type K8SServiceServer interface {
 	GetClusterCostAnalysis(context.Context, *GetClusterCostAnalysisRequest) (*GetClusterCostAnalysisResponse, error)
 	// GetWorkloadAnalysis returns detailed workload analysis for a cluster
 	GetWorkloadAnalysis(context.Context, *GetWorkloadAnalysisRequest) (*GetWorkloadAnalysisResponse, error)
-	// GetResources retrieves resources for a specific namespace, optionally filtered by kind.
-	GetResources(context.Context, *GetResourcesRequest) (*GetResourcesResponse, error)
+	// GetNodeDetails retrieves detailed information about a specific node
+	GetNodeDetails(context.Context, *GetNodeDetailsRequest) (*GetNodeDetailsResponse, error)
+	// GetNodeCostHistory retrieves node cost history for a specific node
+	GetNodeCostHistory(context.Context, *GetNodeCostHistoryRequest) (*GetNodeCostHistoryResponse, error)
+	// GetNodeCPUUsageHistory retrieves node CPU utilization history for a specific node
+	GetNodeCPUUsageHistory(context.Context, *GetNodeCPUUsageHistoryRequest) (*GetNodeCPUUsageHistoryResponse, error)
+	// GetNodeMemoryUsageHistory retrieves node memory utilization history for a specific node
+	GetNodeMemoryUsageHistory(context.Context, *GetNodeMemoryUsageHistoryRequest) (*GetNodeMemoryUsageHistoryResponse, error)
+	// GetWorkloadDetails retrieves detailed information about a specific workload
+	GetWorkloadDetails(context.Context, *GetWorkloadDetailsRequest) (*GetWorkloadDetailsResponse, error)
+	// GetWorkloadCostHistory returns cost history for a specific workload.
+	GetWorkloadCostHistory(context.Context, *GetWorkloadCostHistoryRequest) (*GetWorkloadCostHistoryResponse, error)
+	// GetWorkloadCPUUsageHistory returns CPU usage history for a specific workload.
+	GetWorkloadCPUUsageHistory(context.Context, *GetWorkloadCPUUsageHistoryRequest) (*GetWorkloadCPUUsageHistoryResponse, error)
+	// GetWorkloadMemoryUsageHistory returns memory usage history for a specific workload.
+	GetWorkloadMemoryUsageHistory(context.Context, *GetWorkloadMemoryUsageHistoryRequest) (*GetWorkloadMemoryUsageHistoryResponse, error)
 	mustEmbedUnimplementedK8SServiceServer()
 }
 
@@ -213,8 +311,29 @@ func (UnimplementedK8SServiceServer) GetClusterCostAnalysis(context.Context, *Ge
 func (UnimplementedK8SServiceServer) GetWorkloadAnalysis(context.Context, *GetWorkloadAnalysisRequest) (*GetWorkloadAnalysisResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetWorkloadAnalysis not implemented")
 }
-func (UnimplementedK8SServiceServer) GetResources(context.Context, *GetResourcesRequest) (*GetResourcesResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetResources not implemented")
+func (UnimplementedK8SServiceServer) GetNodeDetails(context.Context, *GetNodeDetailsRequest) (*GetNodeDetailsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetNodeDetails not implemented")
+}
+func (UnimplementedK8SServiceServer) GetNodeCostHistory(context.Context, *GetNodeCostHistoryRequest) (*GetNodeCostHistoryResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetNodeCostHistory not implemented")
+}
+func (UnimplementedK8SServiceServer) GetNodeCPUUsageHistory(context.Context, *GetNodeCPUUsageHistoryRequest) (*GetNodeCPUUsageHistoryResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetNodeCPUUsageHistory not implemented")
+}
+func (UnimplementedK8SServiceServer) GetNodeMemoryUsageHistory(context.Context, *GetNodeMemoryUsageHistoryRequest) (*GetNodeMemoryUsageHistoryResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetNodeMemoryUsageHistory not implemented")
+}
+func (UnimplementedK8SServiceServer) GetWorkloadDetails(context.Context, *GetWorkloadDetailsRequest) (*GetWorkloadDetailsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetWorkloadDetails not implemented")
+}
+func (UnimplementedK8SServiceServer) GetWorkloadCostHistory(context.Context, *GetWorkloadCostHistoryRequest) (*GetWorkloadCostHistoryResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetWorkloadCostHistory not implemented")
+}
+func (UnimplementedK8SServiceServer) GetWorkloadCPUUsageHistory(context.Context, *GetWorkloadCPUUsageHistoryRequest) (*GetWorkloadCPUUsageHistoryResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetWorkloadCPUUsageHistory not implemented")
+}
+func (UnimplementedK8SServiceServer) GetWorkloadMemoryUsageHistory(context.Context, *GetWorkloadMemoryUsageHistoryRequest) (*GetWorkloadMemoryUsageHistoryResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetWorkloadMemoryUsageHistory not implemented")
 }
 func (UnimplementedK8SServiceServer) mustEmbedUnimplementedK8SServiceServer() {}
 
@@ -391,20 +510,146 @@ func _K8SService_GetWorkloadAnalysis_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
-func _K8SService_GetResources_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetResourcesRequest)
+func _K8SService_GetNodeDetails_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetNodeDetailsRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(K8SServiceServer).GetResources(ctx, in)
+		return srv.(K8SServiceServer).GetNodeDetails(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: K8SService_GetResources_FullMethodName,
+		FullMethod: K8SService_GetNodeDetails_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(K8SServiceServer).GetResources(ctx, req.(*GetResourcesRequest))
+		return srv.(K8SServiceServer).GetNodeDetails(ctx, req.(*GetNodeDetailsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _K8SService_GetNodeCostHistory_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetNodeCostHistoryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(K8SServiceServer).GetNodeCostHistory(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: K8SService_GetNodeCostHistory_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(K8SServiceServer).GetNodeCostHistory(ctx, req.(*GetNodeCostHistoryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _K8SService_GetNodeCPUUsageHistory_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetNodeCPUUsageHistoryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(K8SServiceServer).GetNodeCPUUsageHistory(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: K8SService_GetNodeCPUUsageHistory_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(K8SServiceServer).GetNodeCPUUsageHistory(ctx, req.(*GetNodeCPUUsageHistoryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _K8SService_GetNodeMemoryUsageHistory_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetNodeMemoryUsageHistoryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(K8SServiceServer).GetNodeMemoryUsageHistory(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: K8SService_GetNodeMemoryUsageHistory_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(K8SServiceServer).GetNodeMemoryUsageHistory(ctx, req.(*GetNodeMemoryUsageHistoryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _K8SService_GetWorkloadDetails_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetWorkloadDetailsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(K8SServiceServer).GetWorkloadDetails(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: K8SService_GetWorkloadDetails_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(K8SServiceServer).GetWorkloadDetails(ctx, req.(*GetWorkloadDetailsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _K8SService_GetWorkloadCostHistory_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetWorkloadCostHistoryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(K8SServiceServer).GetWorkloadCostHistory(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: K8SService_GetWorkloadCostHistory_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(K8SServiceServer).GetWorkloadCostHistory(ctx, req.(*GetWorkloadCostHistoryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _K8SService_GetWorkloadCPUUsageHistory_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetWorkloadCPUUsageHistoryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(K8SServiceServer).GetWorkloadCPUUsageHistory(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: K8SService_GetWorkloadCPUUsageHistory_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(K8SServiceServer).GetWorkloadCPUUsageHistory(ctx, req.(*GetWorkloadCPUUsageHistoryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _K8SService_GetWorkloadMemoryUsageHistory_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetWorkloadMemoryUsageHistoryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(K8SServiceServer).GetWorkloadMemoryUsageHistory(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: K8SService_GetWorkloadMemoryUsageHistory_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(K8SServiceServer).GetWorkloadMemoryUsageHistory(ctx, req.(*GetWorkloadMemoryUsageHistoryRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -453,8 +698,36 @@ var K8SService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _K8SService_GetWorkloadAnalysis_Handler,
 		},
 		{
-			MethodName: "GetResources",
-			Handler:    _K8SService_GetResources_Handler,
+			MethodName: "GetNodeDetails",
+			Handler:    _K8SService_GetNodeDetails_Handler,
+		},
+		{
+			MethodName: "GetNodeCostHistory",
+			Handler:    _K8SService_GetNodeCostHistory_Handler,
+		},
+		{
+			MethodName: "GetNodeCPUUsageHistory",
+			Handler:    _K8SService_GetNodeCPUUsageHistory_Handler,
+		},
+		{
+			MethodName: "GetNodeMemoryUsageHistory",
+			Handler:    _K8SService_GetNodeMemoryUsageHistory_Handler,
+		},
+		{
+			MethodName: "GetWorkloadDetails",
+			Handler:    _K8SService_GetWorkloadDetails_Handler,
+		},
+		{
+			MethodName: "GetWorkloadCostHistory",
+			Handler:    _K8SService_GetWorkloadCostHistory_Handler,
+		},
+		{
+			MethodName: "GetWorkloadCPUUsageHistory",
+			Handler:    _K8SService_GetWorkloadCPUUsageHistory_Handler,
+		},
+		{
+			MethodName: "GetWorkloadMemoryUsageHistory",
+			Handler:    _K8SService_GetWorkloadMemoryUsageHistory_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

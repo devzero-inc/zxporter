@@ -56,8 +56,30 @@ const (
 	// K8SServiceGetWorkloadAnalysisProcedure is the fully-qualified name of the K8SService's
 	// GetWorkloadAnalysis RPC.
 	K8SServiceGetWorkloadAnalysisProcedure = "/api.v1.K8SService/GetWorkloadAnalysis"
-	// K8SServiceGetResourcesProcedure is the fully-qualified name of the K8SService's GetResources RPC.
-	K8SServiceGetResourcesProcedure = "/api.v1.K8SService/GetResources"
+	// K8SServiceGetNodeDetailsProcedure is the fully-qualified name of the K8SService's GetNodeDetails
+	// RPC.
+	K8SServiceGetNodeDetailsProcedure = "/api.v1.K8SService/GetNodeDetails"
+	// K8SServiceGetNodeCostHistoryProcedure is the fully-qualified name of the K8SService's
+	// GetNodeCostHistory RPC.
+	K8SServiceGetNodeCostHistoryProcedure = "/api.v1.K8SService/GetNodeCostHistory"
+	// K8SServiceGetNodeCPUUsageHistoryProcedure is the fully-qualified name of the K8SService's
+	// GetNodeCPUUsageHistory RPC.
+	K8SServiceGetNodeCPUUsageHistoryProcedure = "/api.v1.K8SService/GetNodeCPUUsageHistory"
+	// K8SServiceGetNodeMemoryUsageHistoryProcedure is the fully-qualified name of the K8SService's
+	// GetNodeMemoryUsageHistory RPC.
+	K8SServiceGetNodeMemoryUsageHistoryProcedure = "/api.v1.K8SService/GetNodeMemoryUsageHistory"
+	// K8SServiceGetWorkloadDetailsProcedure is the fully-qualified name of the K8SService's
+	// GetWorkloadDetails RPC.
+	K8SServiceGetWorkloadDetailsProcedure = "/api.v1.K8SService/GetWorkloadDetails"
+	// K8SServiceGetWorkloadCostHistoryProcedure is the fully-qualified name of the K8SService's
+	// GetWorkloadCostHistory RPC.
+	K8SServiceGetWorkloadCostHistoryProcedure = "/api.v1.K8SService/GetWorkloadCostHistory"
+	// K8SServiceGetWorkloadCPUUsageHistoryProcedure is the fully-qualified name of the K8SService's
+	// GetWorkloadCPUUsageHistory RPC.
+	K8SServiceGetWorkloadCPUUsageHistoryProcedure = "/api.v1.K8SService/GetWorkloadCPUUsageHistory"
+	// K8SServiceGetWorkloadMemoryUsageHistoryProcedure is the fully-qualified name of the K8SService's
+	// GetWorkloadMemoryUsageHistory RPC.
+	K8SServiceGetWorkloadMemoryUsageHistoryProcedure = "/api.v1.K8SService/GetWorkloadMemoryUsageHistory"
 )
 
 // K8SServiceClient is a client for the api.v1.K8SService service.
@@ -80,8 +102,22 @@ type K8SServiceClient interface {
 	GetClusterCostAnalysis(context.Context, *connect.Request[v1.GetClusterCostAnalysisRequest]) (*connect.Response[v1.GetClusterCostAnalysisResponse], error)
 	// GetWorkloadAnalysis returns detailed workload analysis for a cluster
 	GetWorkloadAnalysis(context.Context, *connect.Request[v1.GetWorkloadAnalysisRequest]) (*connect.Response[v1.GetWorkloadAnalysisResponse], error)
-	// GetResources retrieves resources for a specific namespace, optionally filtered by kind.
-	GetResources(context.Context, *connect.Request[v1.GetResourcesRequest]) (*connect.Response[v1.GetResourcesResponse], error)
+	// GetNodeDetails retrieves detailed information about a specific node
+	GetNodeDetails(context.Context, *connect.Request[v1.GetNodeDetailsRequest]) (*connect.Response[v1.GetNodeDetailsResponse], error)
+	// GetNodeCostHistory retrieves node cost history for a specific node
+	GetNodeCostHistory(context.Context, *connect.Request[v1.GetNodeCostHistoryRequest]) (*connect.Response[v1.GetNodeCostHistoryResponse], error)
+	// GetNodeCPUUsageHistory retrieves node CPU utilization history for a specific node
+	GetNodeCPUUsageHistory(context.Context, *connect.Request[v1.GetNodeCPUUsageHistoryRequest]) (*connect.Response[v1.GetNodeCPUUsageHistoryResponse], error)
+	// GetNodeMemoryUsageHistory retrieves node memory utilization history for a specific node
+	GetNodeMemoryUsageHistory(context.Context, *connect.Request[v1.GetNodeMemoryUsageHistoryRequest]) (*connect.Response[v1.GetNodeMemoryUsageHistoryResponse], error)
+	// GetWorkloadDetails retrieves detailed information about a specific workload
+	GetWorkloadDetails(context.Context, *connect.Request[v1.GetWorkloadDetailsRequest]) (*connect.Response[v1.GetWorkloadDetailsResponse], error)
+	// GetWorkloadCostHistory returns cost history for a specific workload.
+	GetWorkloadCostHistory(context.Context, *connect.Request[v1.GetWorkloadCostHistoryRequest]) (*connect.Response[v1.GetWorkloadCostHistoryResponse], error)
+	// GetWorkloadCPUUsageHistory returns CPU usage history for a specific workload.
+	GetWorkloadCPUUsageHistory(context.Context, *connect.Request[v1.GetWorkloadCPUUsageHistoryRequest]) (*connect.Response[v1.GetWorkloadCPUUsageHistoryResponse], error)
+	// GetWorkloadMemoryUsageHistory returns memory usage history for a specific workload.
+	GetWorkloadMemoryUsageHistory(context.Context, *connect.Request[v1.GetWorkloadMemoryUsageHistoryRequest]) (*connect.Response[v1.GetWorkloadMemoryUsageHistoryResponse], error)
 }
 
 // NewK8SServiceClient constructs a client for the api.v1.K8SService service. By default, it uses
@@ -139,9 +175,44 @@ func NewK8SServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...
 			baseURL+K8SServiceGetWorkloadAnalysisProcedure,
 			opts...,
 		),
-		getResources: connect.NewClient[v1.GetResourcesRequest, v1.GetResourcesResponse](
+		getNodeDetails: connect.NewClient[v1.GetNodeDetailsRequest, v1.GetNodeDetailsResponse](
 			httpClient,
-			baseURL+K8SServiceGetResourcesProcedure,
+			baseURL+K8SServiceGetNodeDetailsProcedure,
+			opts...,
+		),
+		getNodeCostHistory: connect.NewClient[v1.GetNodeCostHistoryRequest, v1.GetNodeCostHistoryResponse](
+			httpClient,
+			baseURL+K8SServiceGetNodeCostHistoryProcedure,
+			opts...,
+		),
+		getNodeCPUUsageHistory: connect.NewClient[v1.GetNodeCPUUsageHistoryRequest, v1.GetNodeCPUUsageHistoryResponse](
+			httpClient,
+			baseURL+K8SServiceGetNodeCPUUsageHistoryProcedure,
+			opts...,
+		),
+		getNodeMemoryUsageHistory: connect.NewClient[v1.GetNodeMemoryUsageHistoryRequest, v1.GetNodeMemoryUsageHistoryResponse](
+			httpClient,
+			baseURL+K8SServiceGetNodeMemoryUsageHistoryProcedure,
+			opts...,
+		),
+		getWorkloadDetails: connect.NewClient[v1.GetWorkloadDetailsRequest, v1.GetWorkloadDetailsResponse](
+			httpClient,
+			baseURL+K8SServiceGetWorkloadDetailsProcedure,
+			opts...,
+		),
+		getWorkloadCostHistory: connect.NewClient[v1.GetWorkloadCostHistoryRequest, v1.GetWorkloadCostHistoryResponse](
+			httpClient,
+			baseURL+K8SServiceGetWorkloadCostHistoryProcedure,
+			opts...,
+		),
+		getWorkloadCPUUsageHistory: connect.NewClient[v1.GetWorkloadCPUUsageHistoryRequest, v1.GetWorkloadCPUUsageHistoryResponse](
+			httpClient,
+			baseURL+K8SServiceGetWorkloadCPUUsageHistoryProcedure,
+			opts...,
+		),
+		getWorkloadMemoryUsageHistory: connect.NewClient[v1.GetWorkloadMemoryUsageHistoryRequest, v1.GetWorkloadMemoryUsageHistoryResponse](
+			httpClient,
+			baseURL+K8SServiceGetWorkloadMemoryUsageHistoryProcedure,
 			opts...,
 		),
 	}
@@ -149,16 +220,23 @@ func NewK8SServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...
 
 // k8SServiceClient implements K8SServiceClient.
 type k8SServiceClient struct {
-	getClusters            *connect.Client[v1.GetClustersRequest, v1.GetClustersResponse]
-	getCluster             *connect.Client[v1.GetClusterRequest, v1.GetClusterResponse]
-	getNodes               *connect.Client[v1.GetNodesRequest, v1.GetNodesResponse]
-	getNodeGroups          *connect.Client[v1.GetNodeGroupsRequest, v1.GetNodeGroupsResponse]
-	getNodeUtilization     *connect.Client[v1.GetNodeUtilizationRequest, v1.GetNodeUtilizationResponse]
-	getNodeCost            *connect.Client[v1.GetNodeCostRequest, v1.GetNodeCostResponse]
-	getClusterCost         *connect.Client[v1.GetClusterCostRequest, v1.GetClusterCostResponse]
-	getClusterCostAnalysis *connect.Client[v1.GetClusterCostAnalysisRequest, v1.GetClusterCostAnalysisResponse]
-	getWorkloadAnalysis    *connect.Client[v1.GetWorkloadAnalysisRequest, v1.GetWorkloadAnalysisResponse]
-	getResources           *connect.Client[v1.GetResourcesRequest, v1.GetResourcesResponse]
+	getClusters                   *connect.Client[v1.GetClustersRequest, v1.GetClustersResponse]
+	getCluster                    *connect.Client[v1.GetClusterRequest, v1.GetClusterResponse]
+	getNodes                      *connect.Client[v1.GetNodesRequest, v1.GetNodesResponse]
+	getNodeGroups                 *connect.Client[v1.GetNodeGroupsRequest, v1.GetNodeGroupsResponse]
+	getNodeUtilization            *connect.Client[v1.GetNodeUtilizationRequest, v1.GetNodeUtilizationResponse]
+	getNodeCost                   *connect.Client[v1.GetNodeCostRequest, v1.GetNodeCostResponse]
+	getClusterCost                *connect.Client[v1.GetClusterCostRequest, v1.GetClusterCostResponse]
+	getClusterCostAnalysis        *connect.Client[v1.GetClusterCostAnalysisRequest, v1.GetClusterCostAnalysisResponse]
+	getWorkloadAnalysis           *connect.Client[v1.GetWorkloadAnalysisRequest, v1.GetWorkloadAnalysisResponse]
+	getNodeDetails                *connect.Client[v1.GetNodeDetailsRequest, v1.GetNodeDetailsResponse]
+	getNodeCostHistory            *connect.Client[v1.GetNodeCostHistoryRequest, v1.GetNodeCostHistoryResponse]
+	getNodeCPUUsageHistory        *connect.Client[v1.GetNodeCPUUsageHistoryRequest, v1.GetNodeCPUUsageHistoryResponse]
+	getNodeMemoryUsageHistory     *connect.Client[v1.GetNodeMemoryUsageHistoryRequest, v1.GetNodeMemoryUsageHistoryResponse]
+	getWorkloadDetails            *connect.Client[v1.GetWorkloadDetailsRequest, v1.GetWorkloadDetailsResponse]
+	getWorkloadCostHistory        *connect.Client[v1.GetWorkloadCostHistoryRequest, v1.GetWorkloadCostHistoryResponse]
+	getWorkloadCPUUsageHistory    *connect.Client[v1.GetWorkloadCPUUsageHistoryRequest, v1.GetWorkloadCPUUsageHistoryResponse]
+	getWorkloadMemoryUsageHistory *connect.Client[v1.GetWorkloadMemoryUsageHistoryRequest, v1.GetWorkloadMemoryUsageHistoryResponse]
 }
 
 // GetClusters calls api.v1.K8SService.GetClusters.
@@ -206,9 +284,44 @@ func (c *k8SServiceClient) GetWorkloadAnalysis(ctx context.Context, req *connect
 	return c.getWorkloadAnalysis.CallUnary(ctx, req)
 }
 
-// GetResources calls api.v1.K8SService.GetResources.
-func (c *k8SServiceClient) GetResources(ctx context.Context, req *connect.Request[v1.GetResourcesRequest]) (*connect.Response[v1.GetResourcesResponse], error) {
-	return c.getResources.CallUnary(ctx, req)
+// GetNodeDetails calls api.v1.K8SService.GetNodeDetails.
+func (c *k8SServiceClient) GetNodeDetails(ctx context.Context, req *connect.Request[v1.GetNodeDetailsRequest]) (*connect.Response[v1.GetNodeDetailsResponse], error) {
+	return c.getNodeDetails.CallUnary(ctx, req)
+}
+
+// GetNodeCostHistory calls api.v1.K8SService.GetNodeCostHistory.
+func (c *k8SServiceClient) GetNodeCostHistory(ctx context.Context, req *connect.Request[v1.GetNodeCostHistoryRequest]) (*connect.Response[v1.GetNodeCostHistoryResponse], error) {
+	return c.getNodeCostHistory.CallUnary(ctx, req)
+}
+
+// GetNodeCPUUsageHistory calls api.v1.K8SService.GetNodeCPUUsageHistory.
+func (c *k8SServiceClient) GetNodeCPUUsageHistory(ctx context.Context, req *connect.Request[v1.GetNodeCPUUsageHistoryRequest]) (*connect.Response[v1.GetNodeCPUUsageHistoryResponse], error) {
+	return c.getNodeCPUUsageHistory.CallUnary(ctx, req)
+}
+
+// GetNodeMemoryUsageHistory calls api.v1.K8SService.GetNodeMemoryUsageHistory.
+func (c *k8SServiceClient) GetNodeMemoryUsageHistory(ctx context.Context, req *connect.Request[v1.GetNodeMemoryUsageHistoryRequest]) (*connect.Response[v1.GetNodeMemoryUsageHistoryResponse], error) {
+	return c.getNodeMemoryUsageHistory.CallUnary(ctx, req)
+}
+
+// GetWorkloadDetails calls api.v1.K8SService.GetWorkloadDetails.
+func (c *k8SServiceClient) GetWorkloadDetails(ctx context.Context, req *connect.Request[v1.GetWorkloadDetailsRequest]) (*connect.Response[v1.GetWorkloadDetailsResponse], error) {
+	return c.getWorkloadDetails.CallUnary(ctx, req)
+}
+
+// GetWorkloadCostHistory calls api.v1.K8SService.GetWorkloadCostHistory.
+func (c *k8SServiceClient) GetWorkloadCostHistory(ctx context.Context, req *connect.Request[v1.GetWorkloadCostHistoryRequest]) (*connect.Response[v1.GetWorkloadCostHistoryResponse], error) {
+	return c.getWorkloadCostHistory.CallUnary(ctx, req)
+}
+
+// GetWorkloadCPUUsageHistory calls api.v1.K8SService.GetWorkloadCPUUsageHistory.
+func (c *k8SServiceClient) GetWorkloadCPUUsageHistory(ctx context.Context, req *connect.Request[v1.GetWorkloadCPUUsageHistoryRequest]) (*connect.Response[v1.GetWorkloadCPUUsageHistoryResponse], error) {
+	return c.getWorkloadCPUUsageHistory.CallUnary(ctx, req)
+}
+
+// GetWorkloadMemoryUsageHistory calls api.v1.K8SService.GetWorkloadMemoryUsageHistory.
+func (c *k8SServiceClient) GetWorkloadMemoryUsageHistory(ctx context.Context, req *connect.Request[v1.GetWorkloadMemoryUsageHistoryRequest]) (*connect.Response[v1.GetWorkloadMemoryUsageHistoryResponse], error) {
+	return c.getWorkloadMemoryUsageHistory.CallUnary(ctx, req)
 }
 
 // K8SServiceHandler is an implementation of the api.v1.K8SService service.
@@ -231,8 +344,22 @@ type K8SServiceHandler interface {
 	GetClusterCostAnalysis(context.Context, *connect.Request[v1.GetClusterCostAnalysisRequest]) (*connect.Response[v1.GetClusterCostAnalysisResponse], error)
 	// GetWorkloadAnalysis returns detailed workload analysis for a cluster
 	GetWorkloadAnalysis(context.Context, *connect.Request[v1.GetWorkloadAnalysisRequest]) (*connect.Response[v1.GetWorkloadAnalysisResponse], error)
-	// GetResources retrieves resources for a specific namespace, optionally filtered by kind.
-	GetResources(context.Context, *connect.Request[v1.GetResourcesRequest]) (*connect.Response[v1.GetResourcesResponse], error)
+	// GetNodeDetails retrieves detailed information about a specific node
+	GetNodeDetails(context.Context, *connect.Request[v1.GetNodeDetailsRequest]) (*connect.Response[v1.GetNodeDetailsResponse], error)
+	// GetNodeCostHistory retrieves node cost history for a specific node
+	GetNodeCostHistory(context.Context, *connect.Request[v1.GetNodeCostHistoryRequest]) (*connect.Response[v1.GetNodeCostHistoryResponse], error)
+	// GetNodeCPUUsageHistory retrieves node CPU utilization history for a specific node
+	GetNodeCPUUsageHistory(context.Context, *connect.Request[v1.GetNodeCPUUsageHistoryRequest]) (*connect.Response[v1.GetNodeCPUUsageHistoryResponse], error)
+	// GetNodeMemoryUsageHistory retrieves node memory utilization history for a specific node
+	GetNodeMemoryUsageHistory(context.Context, *connect.Request[v1.GetNodeMemoryUsageHistoryRequest]) (*connect.Response[v1.GetNodeMemoryUsageHistoryResponse], error)
+	// GetWorkloadDetails retrieves detailed information about a specific workload
+	GetWorkloadDetails(context.Context, *connect.Request[v1.GetWorkloadDetailsRequest]) (*connect.Response[v1.GetWorkloadDetailsResponse], error)
+	// GetWorkloadCostHistory returns cost history for a specific workload.
+	GetWorkloadCostHistory(context.Context, *connect.Request[v1.GetWorkloadCostHistoryRequest]) (*connect.Response[v1.GetWorkloadCostHistoryResponse], error)
+	// GetWorkloadCPUUsageHistory returns CPU usage history for a specific workload.
+	GetWorkloadCPUUsageHistory(context.Context, *connect.Request[v1.GetWorkloadCPUUsageHistoryRequest]) (*connect.Response[v1.GetWorkloadCPUUsageHistoryResponse], error)
+	// GetWorkloadMemoryUsageHistory returns memory usage history for a specific workload.
+	GetWorkloadMemoryUsageHistory(context.Context, *connect.Request[v1.GetWorkloadMemoryUsageHistoryRequest]) (*connect.Response[v1.GetWorkloadMemoryUsageHistoryResponse], error)
 }
 
 // NewK8SServiceHandler builds an HTTP handler from the service implementation. It returns the path
@@ -286,9 +413,44 @@ func NewK8SServiceHandler(svc K8SServiceHandler, opts ...connect.HandlerOption) 
 		svc.GetWorkloadAnalysis,
 		opts...,
 	)
-	k8SServiceGetResourcesHandler := connect.NewUnaryHandler(
-		K8SServiceGetResourcesProcedure,
-		svc.GetResources,
+	k8SServiceGetNodeDetailsHandler := connect.NewUnaryHandler(
+		K8SServiceGetNodeDetailsProcedure,
+		svc.GetNodeDetails,
+		opts...,
+	)
+	k8SServiceGetNodeCostHistoryHandler := connect.NewUnaryHandler(
+		K8SServiceGetNodeCostHistoryProcedure,
+		svc.GetNodeCostHistory,
+		opts...,
+	)
+	k8SServiceGetNodeCPUUsageHistoryHandler := connect.NewUnaryHandler(
+		K8SServiceGetNodeCPUUsageHistoryProcedure,
+		svc.GetNodeCPUUsageHistory,
+		opts...,
+	)
+	k8SServiceGetNodeMemoryUsageHistoryHandler := connect.NewUnaryHandler(
+		K8SServiceGetNodeMemoryUsageHistoryProcedure,
+		svc.GetNodeMemoryUsageHistory,
+		opts...,
+	)
+	k8SServiceGetWorkloadDetailsHandler := connect.NewUnaryHandler(
+		K8SServiceGetWorkloadDetailsProcedure,
+		svc.GetWorkloadDetails,
+		opts...,
+	)
+	k8SServiceGetWorkloadCostHistoryHandler := connect.NewUnaryHandler(
+		K8SServiceGetWorkloadCostHistoryProcedure,
+		svc.GetWorkloadCostHistory,
+		opts...,
+	)
+	k8SServiceGetWorkloadCPUUsageHistoryHandler := connect.NewUnaryHandler(
+		K8SServiceGetWorkloadCPUUsageHistoryProcedure,
+		svc.GetWorkloadCPUUsageHistory,
+		opts...,
+	)
+	k8SServiceGetWorkloadMemoryUsageHistoryHandler := connect.NewUnaryHandler(
+		K8SServiceGetWorkloadMemoryUsageHistoryProcedure,
+		svc.GetWorkloadMemoryUsageHistory,
 		opts...,
 	)
 	return "/api.v1.K8SService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -311,8 +473,22 @@ func NewK8SServiceHandler(svc K8SServiceHandler, opts ...connect.HandlerOption) 
 			k8SServiceGetClusterCostAnalysisHandler.ServeHTTP(w, r)
 		case K8SServiceGetWorkloadAnalysisProcedure:
 			k8SServiceGetWorkloadAnalysisHandler.ServeHTTP(w, r)
-		case K8SServiceGetResourcesProcedure:
-			k8SServiceGetResourcesHandler.ServeHTTP(w, r)
+		case K8SServiceGetNodeDetailsProcedure:
+			k8SServiceGetNodeDetailsHandler.ServeHTTP(w, r)
+		case K8SServiceGetNodeCostHistoryProcedure:
+			k8SServiceGetNodeCostHistoryHandler.ServeHTTP(w, r)
+		case K8SServiceGetNodeCPUUsageHistoryProcedure:
+			k8SServiceGetNodeCPUUsageHistoryHandler.ServeHTTP(w, r)
+		case K8SServiceGetNodeMemoryUsageHistoryProcedure:
+			k8SServiceGetNodeMemoryUsageHistoryHandler.ServeHTTP(w, r)
+		case K8SServiceGetWorkloadDetailsProcedure:
+			k8SServiceGetWorkloadDetailsHandler.ServeHTTP(w, r)
+		case K8SServiceGetWorkloadCostHistoryProcedure:
+			k8SServiceGetWorkloadCostHistoryHandler.ServeHTTP(w, r)
+		case K8SServiceGetWorkloadCPUUsageHistoryProcedure:
+			k8SServiceGetWorkloadCPUUsageHistoryHandler.ServeHTTP(w, r)
+		case K8SServiceGetWorkloadMemoryUsageHistoryProcedure:
+			k8SServiceGetWorkloadMemoryUsageHistoryHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -358,6 +534,34 @@ func (UnimplementedK8SServiceHandler) GetWorkloadAnalysis(context.Context, *conn
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.K8SService.GetWorkloadAnalysis is not implemented"))
 }
 
-func (UnimplementedK8SServiceHandler) GetResources(context.Context, *connect.Request[v1.GetResourcesRequest]) (*connect.Response[v1.GetResourcesResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.K8SService.GetResources is not implemented"))
+func (UnimplementedK8SServiceHandler) GetNodeDetails(context.Context, *connect.Request[v1.GetNodeDetailsRequest]) (*connect.Response[v1.GetNodeDetailsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.K8SService.GetNodeDetails is not implemented"))
+}
+
+func (UnimplementedK8SServiceHandler) GetNodeCostHistory(context.Context, *connect.Request[v1.GetNodeCostHistoryRequest]) (*connect.Response[v1.GetNodeCostHistoryResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.K8SService.GetNodeCostHistory is not implemented"))
+}
+
+func (UnimplementedK8SServiceHandler) GetNodeCPUUsageHistory(context.Context, *connect.Request[v1.GetNodeCPUUsageHistoryRequest]) (*connect.Response[v1.GetNodeCPUUsageHistoryResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.K8SService.GetNodeCPUUsageHistory is not implemented"))
+}
+
+func (UnimplementedK8SServiceHandler) GetNodeMemoryUsageHistory(context.Context, *connect.Request[v1.GetNodeMemoryUsageHistoryRequest]) (*connect.Response[v1.GetNodeMemoryUsageHistoryResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.K8SService.GetNodeMemoryUsageHistory is not implemented"))
+}
+
+func (UnimplementedK8SServiceHandler) GetWorkloadDetails(context.Context, *connect.Request[v1.GetWorkloadDetailsRequest]) (*connect.Response[v1.GetWorkloadDetailsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.K8SService.GetWorkloadDetails is not implemented"))
+}
+
+func (UnimplementedK8SServiceHandler) GetWorkloadCostHistory(context.Context, *connect.Request[v1.GetWorkloadCostHistoryRequest]) (*connect.Response[v1.GetWorkloadCostHistoryResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.K8SService.GetWorkloadCostHistory is not implemented"))
+}
+
+func (UnimplementedK8SServiceHandler) GetWorkloadCPUUsageHistory(context.Context, *connect.Request[v1.GetWorkloadCPUUsageHistoryRequest]) (*connect.Response[v1.GetWorkloadCPUUsageHistoryResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.K8SService.GetWorkloadCPUUsageHistory is not implemented"))
+}
+
+func (UnimplementedK8SServiceHandler) GetWorkloadMemoryUsageHistory(context.Context, *connect.Request[v1.GetWorkloadMemoryUsageHistoryRequest]) (*connect.Response[v1.GetWorkloadMemoryUsageHistoryResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.K8SService.GetWorkloadMemoryUsageHistory is not implemented"))
 }
