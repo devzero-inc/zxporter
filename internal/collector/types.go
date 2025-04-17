@@ -10,7 +10,7 @@ func AllResourceTypes() []ResourceType {
 		Role, RoleBinding, ClusterRole, ClusterRoleBinding, PodDisruptionBudget,
 		StorageClass, PersistentVolume, IngressClass, Node, NodeResource,
 		Cluster, ContainerResource,
-		Namespace,
+		Namespace, CSINode, Karpenter, Datadog,
 	}
 }
 

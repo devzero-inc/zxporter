@@ -16,6 +16,14 @@ rules:
   - list
   - watch
 - apiGroups:
+  - argoproj.io
+  resources:
+  - rollouts
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - autoscaling
   resources:
   - horizontalpodautoscalers
@@ -67,6 +75,14 @@ rules:
   verbs:
   - get
 - apiGroups:
+  - datadoghq.com
+  resources:
+  - extendeddaemonsetreplicasets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - devzero.io
   resources:
   - collectionpolicies
@@ -92,6 +108,26 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+  - karpenter.k8s.aws
+  resources:
+  - awsnodetemplates
+  - ec2nodeclasses
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - karpenter.sh
+  resources:
+  - machines
+  - nodeclaims
+  - nodepools
+  - provisioners
+  verbs:
+  - get
+  - list
+  - watch
 - apiGroups:
   - metrics.k8s.io
   resources:
@@ -133,6 +169,7 @@ rules:
 - apiGroups:
   - storage.k8s.io
   resources:
+  - csinodes
   - storageclasses
   verbs:
   - get

@@ -48,6 +48,10 @@ func (r ResourceType) String() string {
 		PodSecurityPolicy:       "pod_security_policy",
 		NodeResource:            "node_resource",
 		ContainerResource:       "container_resource",
+		CSINode:                 "csi_node",
+		Karpenter:               "karpenter",
+		Datadog:                 "datadog",
+		ArgoRollouts:            "argo_rollouts",
 	}
 
 	if name, ok := names[r]; ok {
@@ -173,6 +177,10 @@ const (
 	Container                // leaving here to not screw up enum numbering
 	NodeResource
 	ContainerResource
+	CSINode
+	Karpenter
+	Datadog
+	ArgoRollouts
 )
 
 // CollectedResource represents a resource collected from the Kubernetes API
