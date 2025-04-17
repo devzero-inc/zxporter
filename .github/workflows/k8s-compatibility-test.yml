@@ -162,6 +162,9 @@ jobs:
           echo "Waiting for 2 minutes to collect data from ZXporter..."
           sleep 120
 
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3
+
       - name: Check testserver output
         run: |
           echo "Checking testserver output..."
