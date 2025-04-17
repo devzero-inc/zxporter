@@ -125,7 +125,6 @@ func (c *ArgoRolloutsCollector) Start(ctx context.Context) error {
 			}
 
 			c.handleRolloutEvent(newU, "update")
-			// c.analyzeRolloutChanges(oldU, newU)
 		},
 		DeleteFunc: func(obj interface{}) {
 			u, ok := obj.(*unstructured.Unstructured)
@@ -209,96 +208,6 @@ func (c *ArgoRolloutsCollector) handleRolloutEvent(obj *unstructured.Unstructure
 		Key:          key,
 	}
 }
-
-// // analyzeRolloutChanges detects important changes between resource versions
-// func (c *ArgoRolloutsCollector) analyzeRolloutChanges(oldObj, newObj *unstructured.Unstructured) {
-// 	name := newObj.GetName()
-// 	namespace := newObj.GetNamespace()
-
-// 	// Extract phase information
-// 	oldPhase, _, _ := unstructured.NestedString(oldObj.Object, "status", "phase")
-// 	newPhase, _, _ := unstructured.NestedString(newObj.Object, "status", "phase")
-
-// 	// Check for phase changes
-// 	if oldPhase != newPhase {
-// 		c.logger.Info("Rollout phase changed",
-// 			"namespace", namespace,
-// 			"name", name,
-// 			"oldPhase", oldPhase,
-// 			"newPhase", newPhase)
-
-// 		// Send a phase change event
-// 		c.resourceChan <- CollectedResource{
-// 			ResourceType: ResourceType("argo_rollout_phase"),
-// 			Object: map[string]interface{}{
-// 				"namespace": namespace,
-// 				"name":      name,
-// 				"oldPhase":  oldPhase,
-// 				"newPhase":  newPhase,
-// 				"timestamp": time.Now().Unix(),
-// 			},
-// 			Timestamp: time.Now(),
-// 			EventType: "phase_changed",
-// 			Key:       fmt.Sprintf("%s/%s", namespace, name),
-// 		}
-// 	}
-
-// 	// Check for canary changes if this is a canary deployment
-// 	oldCanaryWeight, oldCanaryFound, _ := unstructured.NestedInt64(oldObj.Object, "status", "canary", "weight")
-// 	newCanaryWeight, newCanaryFound, _ := unstructured.NestedInt64(newObj.Object, "status", "canary", "weight")
-
-// 	if (oldCanaryFound && newCanaryFound && oldCanaryWeight != newCanaryWeight) ||
-// 		(oldCanaryFound != newCanaryFound) {
-// 		c.logger.Info("Rollout canary weight changed",
-// 			"namespace", namespace,
-// 			"name", name,
-// 			"oldWeight", oldCanaryWeight,
-// 			"newWeight", newCanaryWeight)
-
-// 		// Send a canary weight change event
-// 		c.resourceChan <- CollectedResource{
-// 			ResourceType: ResourceType("argo_rollout_canary"),
-// 			Object: map[string]interface{}{
-// 				"namespace": namespace,
-// 				"name":      name,
-// 				"weight":    newCanaryWeight,
-// 				"hasCanary": newCanaryFound,
-// 				"timestamp": time.Now().Unix(),
-// 			},
-// 			Timestamp: time.Now(),
-// 			EventType: "canary_weight_changed",
-// 			Key:       fmt.Sprintf("%s/%s", namespace, name),
-// 		}
-// 	}
-
-// 	// Check for blue-green changes if this is a blue-green deployment
-// 	oldActiveService, oldBGFound, _ := unstructured.NestedString(oldObj.Object, "status", "blueGreen", "activeService")
-// 	newActiveService, newBGFound, _ := unstructured.NestedString(newObj.Object, "status", "blueGreen", "activeService")
-
-// 	if (oldBGFound && newBGFound && oldActiveService != newActiveService) ||
-// 		(oldBGFound != newBGFound) {
-// 		c.logger.Info("Rollout blue-green active service changed",
-// 			"namespace", namespace,
-// 			"name", name,
-// 			"oldService", oldActiveService,
-// 			"newService", newActiveService)
-
-// 		// Send a blue-green service change event
-// 		c.resourceChan <- CollectedResource{
-// 			ResourceType: ResourceType("argo_rollout_bluegreen"),
-// 			Object: map[string]interface{}{
-// 				"namespace":     namespace,
-// 				"name":          name,
-// 				"activeService": newActiveService,
-// 				"hasBlueGreen":  newBGFound,
-// 				"timestamp":     time.Now().Unix(),
-// 			},
-// 			Timestamp: time.Now(),
-// 			EventType: "active_service_changed",
-// 			Key:       fmt.Sprintf("%s/%s", namespace, name),
-// 		}
-// 	}
-// }
 
 // processRollout extracts relevant fields from Argo Rollout objects
 func (c *ArgoRolloutsCollector) processRollout(obj *unstructured.Unstructured) map[string]interface{} {
