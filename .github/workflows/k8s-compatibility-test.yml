@@ -133,7 +133,7 @@ jobs:
           
           # Start the testserver on port 50051 with output file parameter
           nohup bin/testserver -output requests.json > /dev/null 2> testserver_stderr.log &
-          echo "Testserver PID: $!" > testserver_pid.txt
+          echo "$!" > testserver_pid.txt
           
           # Wait for testserver to start
           sleep 5
