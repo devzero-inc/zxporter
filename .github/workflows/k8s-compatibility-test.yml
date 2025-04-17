@@ -114,13 +114,6 @@ jobs:
       - name: Start testserver in background
         run: |
           echo "Starting testserver in background..."
-          # Get the host IP address for Linux (GitHub Actions runner)
-          HOST_IP=$(ip -4 addr show scope global dev docker0 | grep inet | awk '{print $2}' | cut -d / -f 1)
-          if [ -z "$HOST_IP" ]; then
-            HOST_IP=$(ip -4 route get 8.8.8.8 | awk '{print $7}' | tr -d '\n')
-          fi
-          echo "Host IP: $HOST_IP"
-          
           # Check if port 50051 is already in use
           echo "Checking if port 50051 is available..."
           if netstat -tuln | grep -q ":50051 "; then
@@ -159,26 +152,41 @@ jobs:
         run: |
           # Create a YAML file with the Endpoints and Service resources
           cat <<EOF > dockerhost-service.yaml
-          apiVersion: v1
-          kind: Endpoints
+          apiVersion: apps/v1
+          kind: Deployment
           metadata:
             name: dockerhost
-          subsets:
-          - addresses:
-            - ip: 172.17.0.1 # this is the gateway IP in the "bridge" docker network
-            ports:
-            - port: 50051
-              name: grpc
-          ---
-          apiVersion: v1
-          kind: Service
-          metadata:
-            name: dockerhost
+            labels:
+              k8s-app: dockerhost
           spec:
-            ports:
-            - port: 50051
-              name: grpc
-            clusterIP: None
+            replicas: 1
+            selector:
+              matchLabels:
+                k8s-app: dockerhost
+            template:
+              metadata:
+                labels:
+                  k8s-app: dockerhost
+              spec:
+                containers:
+                - name: dockerhost
+                  image: qoomon/docker-host
+                  securityContext:
+                    capabilities:
+                      add: ["NET_ADMIN", "NET_RAW"]
+                  env:
+                  # Not needed in MacOs:
+                  - name: DOCKER_HOST
+                      value: 172.17.0.1
+            ---
+            apiVersion: v1
+            kind: Service
+            metadata:
+              name: dockerhost
+            spec:
+              clusterIP: None
+              selector:
+                k8s-app: dockerhost
           EOF
           
           # Apply the YAML file to the Kind cluster
