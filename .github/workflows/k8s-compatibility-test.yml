@@ -155,17 +155,40 @@ jobs:
             exit 1
           fi
 
+      - name: Create Kubernetes Service for host access
+        run: |
+          # Create a YAML file with the Endpoints and Service resources
+          cat <<EOF > dockerhost-service.yaml
+          apiVersion: v1
+          kind: Endpoints
+          metadata:
+            name: dockerhost
+          subsets:
+          - addresses:
+            - ip: 172.17.0.1 # this is the gateway IP in the "bridge" docker network
+            ports:
+            - port: 50051
+              name: grpc
+          ---
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: dockerhost
+          spec:
+            ports:
+            - port: 50051
+              name: grpc
+            clusterIP: None
+          EOF
+          
+          # Apply the YAML file to the Kind cluster
+          kubectl apply -f dockerhost-service.yaml
+
       - name: Deploy ZXporter with custom DAKR_URL
         run: |
-          # Get the host IP address for Linux (GitHub Actions runner)
-          HOST_IP=$(ip -4 addr show scope global dev docker0 | grep inet | awk '{print $2}' | cut -d / -f 1)
-          if [ -z "$HOST_IP" ]; then
-            HOST_IP=$(ip -4 route get 8.8.8.8 | awk '{print $7}' | tr -d '\n')
-          fi
-          
-          # Set DAKR_URL to point to the testserver on the host
-          echo "Setting DAKR_URL to grpc://$HOST_IP:50051"
-          make deploy IMG=${{ env.ZXPORTER_IMG }} DAKR_URL=grpc://$HOST_IP:50051
+          # Set DAKR_URL to point to the dockerhost service
+          echo "Setting DAKR_URL to grpc://dockerhost:50051"
+          make deploy IMG=${{ env.ZXPORTER_IMG }} DAKR_URL=grpc://dockerhost:50051
 
       - name: Wait for deployment to be ready
         run: |
