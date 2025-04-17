@@ -120,6 +120,14 @@ jobs:
           # Set DAKR_URL to point to the testserver service in the same namespace
           echo "Setting DAKR_URL to grpc://testserver.devzero-zxporter.svc.cluster.local:50051"
           make deploy IMG=${{ env.ZXPORTER_IMG }} DAKR_URL=grpc://testserver.devzero-zxporter.svc.cluster.local:50051
+          
+          # Create a temporary copy of collection.yaml with the custom DAKR_URL
+          echo "Creating collection policy with custom DAKR_URL..."
+          sed 's|dakrURL: "http://host.docker.internal:9990"|dakrURL: "grpc://testserver.devzero-zxporter.svc.cluster.local:50051"|g' collection.yaml > collection-custom.yaml
+          
+          # Apply the modified collection.yaml
+          echo "Applying collection policy..."
+          kubectl apply -f collection-custom.yaml
 
       - name: Wait for deployment to be ready
         run: |
@@ -161,9 +169,6 @@ jobs:
         run: |
           echo "Waiting for 2 minutes to collect data from ZXporter..."
           sleep 120
-
-      - name: Setup tmate session
-        uses: mxschmitt/action-tmate@v3
 
       - name: Check testserver output
         run: |
