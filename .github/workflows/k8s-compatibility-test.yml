@@ -144,11 +144,11 @@ jobs:
           
           # Verify testserver is running
           PID=$(cat testserver_pid.txt)
-          if ps -p "$PID" > /dev/null 2>&1; then
+          if ps "$PID" > /dev/null 2>&1; then
             echo "Testserver is running with PID $PID"
           else
             echo "Testserver failed to start"
-            ps -p "$PID" || echo "No process found with PID $PID"
+            ps "$PID" || echo "No process found with PID $PID"
             echo "=== TESTSERVER STDERR LOG ==="
             cat testserver_stderr.log || echo "No testserver_stderr.log file found"
             echo "=== END TESTSERVER STDERR LOG ==="
