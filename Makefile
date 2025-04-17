@@ -49,8 +49,12 @@ endif
 # Set the Operator SDK version to use. By default, what is installed on the system is used.
 # This is useful for CI or a project to utilize a specific version of the operator-sdk toolkit.
 OPERATOR_SDK_VERSION ?= v1.39.1
-# Image URL to use all building/pushing image targets
+# Image URLs to use all building/pushing image targets
 IMG ?= ttl.sh/zxporter:latest
+# Testserver image URL
+TESTSERVER_IMG ?= ttl.sh/zxporter-testserver:latest
+# DAKR URL to use for deployment
+DAKR_URL ?= https://api.devzero.io/dakr
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.31.0
 
@@ -148,6 +152,14 @@ docker-build: ## Build docker image with the manager.
 docker-push: ## Push docker image with the manager.
 	$(CONTAINER_TOOL) push ${IMG}
 
+.PHONY: testserver-docker-build
+testserver-docker-build: ## Build docker image for the testserver.
+	$(CONTAINER_TOOL) build -t ${TESTSERVER_IMG} -f Dockerfile.testserver .
+
+.PHONY: testserver-docker-push
+testserver-docker-push: ## Push docker image for the testserver.
+	$(CONTAINER_TOOL) push ${TESTSERVER_IMG}
+
 # PLATFORMS defines the target platforms for the manager image be built to provide support to multiple
 # architectures. (i.e. make docker-buildx IMG=myregistry/mypoperator:0.0.1). To use this option you need to:
 # - be able to use docker buildx. More info: https://docs.docker.com/build/buildx/
@@ -169,6 +181,7 @@ docker-buildx: ## Build and push docker image for the manager for cross-platform
 build-installer: manifests generate kustomize ## Generate a consolidated YAML with CRDs and deployment.
 	mkdir -p dist
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
+	sed -i "s|\$$(DAKR_URL)|$(DAKR_URL)|g" config/manager/env-patch.yaml
 	$(KUSTOMIZE) build config/default > dist/install.yaml
 
 .PHONY: build-chart
@@ -192,6 +205,7 @@ uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified 
 .PHONY: deploy
 deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/config.
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
+	sed -i "s|\$$(DAKR_URL)|$(DAKR_URL)|g" config/manager/env-patch.yaml
 	$(KUSTOMIZE) build config/default | $(KUBECTL) apply -f -
 
 .PHONY: undeploy
@@ -277,6 +291,7 @@ endif
 bundle: manifests kustomize operator-sdk ## Generate bundle manifests and metadata, then validate generated files.
 	$(OPERATOR_SDK) generate kustomize manifests -q
 	cd config/manager && $(KUSTOMIZE) edit set image controller=$(IMG)
+	sed -i "s|\$$(DAKR_URL)|$(DAKR_URL)|g" config/manager/env-patch.yaml
 	$(KUSTOMIZE) build config/manifests | $(OPERATOR_SDK) generate bundle $(BUNDLE_GEN_FLAGS)
 	$(OPERATOR_SDK) bundle validate ./bundle
 

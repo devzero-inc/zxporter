@@ -10,7 +10,7 @@ spec:
       - name: manager
         env:
         - name: DAKR_URL
-          value: "https://api.devzero.io/dakr"
+          value: "$(DAKR_URL)"
         - name: CLUSTER_TOKEN
           value: "{{ .cluster_token }}"
         - name: LOG_LEVEL

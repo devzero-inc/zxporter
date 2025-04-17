@@ -1,0 +1,66 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: testserver-config
+  namespace: devzero-zxporter
+data:
+  output-path: "/data/requests.json"
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: testserver-data
+  namespace: devzero-zxporter
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: testserver
+  namespace: devzero-zxporter
+  labels:
+    app: testserver
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: testserver
+  template:
+    metadata:
+      labels:
+        app: testserver
+    spec:
+      containers:
+      - name: testserver
+        image: ${TESTSERVER_IMG}
+        args:
+        - "-output"
+        - "/data/requests.json"
+        ports:
+        - containerPort: 50051
+          name: grpc
+        volumeMounts:
+        - name: data-volume
+          mountPath: /data
+      volumes:
+      - name: data-volume
+        persistentVolumeClaim:
+          claimName: testserver-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: testserver
+  namespace: devzero-zxporter
+spec:
+  selector:
+    app: testserver
+  ports:
+  - port: 50051
+    targetPort: grpc
+    name: grpc
