@@ -9,13 +9,18 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       image: ${{ steps.set-image.outputs.image }}
+      testserver_img: ${{ steps.set-image.outputs.testserver_img }}
     
     steps:
-      - name: Set Docker image name
+      - name: Set Docker image names
         id: set-image
         run: |
-          echo "ZXPORTER_IMG=zxporter:${{ github.run_id }}" >> $GITHUB_ENV
-          echo "image=zxporter:${{ github.run_id }}" >> $GITHUB_OUTPUT
+          ZXPORTER_IMG="ttl.sh/$(shell uuidgen | tr -d '-' | tr '[:upper:]' '[:lower:]'):2h"
+          TESTSERVER_IMG="ttl.sh/$(shell uuidgen | tr -d '-' | tr '[:upper:]' '[:lower:]'):2h"
+          echo "ZXPORTER_IMG=$ZXPORTER_IMG" >> $GITHUB_ENV
+          echo "TESTSERVER_IMG=$TESTSERVER_IMG" >> $GITHUB_ENV
+          echo "image=$ZXPORTER_IMG" >> $GITHUB_OUTPUT
+          echo "testserver_img=$TESTSERVER_IMG" >> $GITHUB_OUTPUT
 
       - name: Checkout code
         uses: actions/checkout@v4
@@ -26,21 +31,13 @@ jobs:
           go-version: '1.22'
           cache: true
 
-      - name: Build Docker image
-        run: make docker-build IMG=${{ env.ZXPORTER_IMG }}
-
-      - name: Save Docker image
+      - name: Build and push Docker images
         run: |
-          rm -rf /tmp/docker-images
-          mkdir -p /tmp/docker-images
-          docker save ${{ env.ZXPORTER_IMG }} -o /tmp/docker-images/zxporter-image.tar
-          ls -la /tmp/docker-images
-
-      - name: Cache Docker image
-        uses: actions/cache@v3
-        with:
-          path: /tmp/docker-images
-          key: docker-image-${{ github.run_id }}
+          echo "Building and pushing zxporter image: ${{ env.ZXPORTER_IMG }}"
+          make docker-build docker-push IMG=${{ env.ZXPORTER_IMG }}
+          
+          echo "Building and pushing testserver image: ${{ env.TESTSERVER_IMG }}"
+          make testserver-docker-build testserver-docker-push TESTSERVER_IMG=${{ env.TESTSERVER_IMG }}
 
   test:
     name: Test on K8s ${{ matrix.k8s-version }}
@@ -61,8 +58,10 @@ jobs:
           - v1.32.3
 
     steps:
-      - name: Set Docker image name
-        run: echo "ZXPORTER_IMG=${{ needs.build.outputs.image }}" >> $GITHUB_ENV
+      - name: Set Docker image names
+        run: |
+          echo "ZXPORTER_IMG=${{ needs.build.outputs.image }}" >> $GITHUB_ENV
+          echo "TESTSERVER_IMG=${{ needs.build.outputs.testserver_img }}" >> $GITHUB_ENV
 
       - name: Checkout code
         uses: actions/checkout@v4
@@ -81,19 +80,6 @@ jobs:
           cluster_name: kind-${{ matrix.k8s-version }}
           wait: 120s
 
-      - name: Restore Docker image from cache
-        uses: actions/cache@v3
-        with:
-          path: /tmp/docker-images
-          key: docker-image-${{ github.run_id }}
-
-      - name: Load Docker image to Kind
-        run: |
-          ls -la /tmp/docker-images
-          docker load -i /tmp/docker-images/zxporter-image.tar
-          docker images
-          kind load docker-image ${{ env.ZXPORTER_IMG }} --name kind-${{ matrix.k8s-version }}
-
       - name: Install Metrics Server
         run: |
           helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
@@ -106,97 +92,34 @@ jobs:
           helm repo update
           helm install node-exporter prometheus-community/prometheus-node-exporter
 
-      - name: Build testserver
+      - name: Deploy testserver to Kubernetes
         run: |
-          echo "Building testserver..."
-          go build -o bin/testserver test/testserver/main.go
-
-      - name: Start testserver in background
-        run: |
-          echo "Starting testserver in background..."
-          # Check if port 50051 is already in use
-          echo "Checking if port 50051 is available..."
-          if netstat -tuln | grep -q ":50051 "; then
-            echo "Port 50051 is already in use!"
-            netstat -tuln | grep ":50051 "
-            lsof -i :50051
-          else
-            echo "Port 50051 is available"
-          fi
+          # Create namespace if it doesn't exist
+          kubectl create namespace devzero-zxporter --dry-run=client -o yaml | kubectl apply -f -
           
-          # Start the testserver on port 50051 with output file parameter
-          nohup bin/testserver -output requests.json > /dev/null 2> testserver_stderr.log &
-          echo "$!" > testserver_pid.txt
+          # Replace the image placeholder in the testserver Kubernetes manifest
+          sed "s|\${TESTSERVER_IMG}|${{ env.TESTSERVER_IMG }}|g" test/testserver/kubernetes.yaml > testserver-k8s.yaml
           
-          # Wait for testserver to start
-          sleep 5
+          # Apply the testserver Kubernetes manifest
+          kubectl apply -f testserver-k8s.yaml
           
-          # List directory contents to see what files are created
-          echo "Listing directory contents:"
-          ls -la
+          # Wait for the testserver pod to be ready
+          echo "Waiting for testserver pod to be ready..."
+          kubectl wait --for=condition=ready pod -l app=testserver -n devzero-zxporter --timeout=120s
           
-          # Verify testserver is running
-          PID=$(cat testserver_pid.txt)
-          if [ -d /proc/$PID ]; then
-            echo "Testserver is running with PID $PID"
-          else
-            echo "Testserver failed to start"
-            ps aux | grep "$PID" || echo "No process found with PID $PID"
-            echo "=== TESTSERVER STDERR LOG ==="
-            cat testserver_stderr.log || echo "No testserver_stderr.log file found"
-            echo "=== END TESTSERVER STDERR LOG ==="
-            exit 1
-          fi
-
-      - name: Create Kubernetes Service for host access
-        run: |
-          # Create a YAML file with the Endpoints and Service resources
-          cat <<EOF > dockerhost-service.yaml
-          apiVersion: apps/v1
-          kind: Deployment
-          metadata:
-            name: dockerhost
-            labels:
-              k8s-app: dockerhost
-          spec:
-            replicas: 1
-            selector:
-              matchLabels:
-                k8s-app: dockerhost
-            template:
-              metadata:
-                labels:
-                  k8s-app: dockerhost
-              spec:
-                containers:
-                - name: dockerhost
-                  image: qoomon/docker-host
-                  securityContext:
-                    capabilities:
-                      add: ["NET_ADMIN", "NET_RAW"]
-                  env:
-                  # Not needed in MacOs:
-                  - name: DOCKER_HOST
-                      value: 172.17.0.1
-            ---
-            apiVersion: v1
-            kind: Service
-            metadata:
-              name: dockerhost
-            spec:
-              clusterIP: None
-              selector:
-                k8s-app: dockerhost
-          EOF
+          # Get the testserver pod name
+          TESTSERVER_POD=$(kubectl get pods -n devzero-zxporter -l app=testserver -o jsonpath='{.items[0].metadata.name}')
+          echo "Testserver pod: $TESTSERVER_POD"
           
-          # Apply the YAML file to the Kind cluster
-          kubectl apply -f dockerhost-service.yaml
+          # Check the testserver logs
+          echo "Testserver logs:"
+          kubectl logs $TESTSERVER_POD -n devzero-zxporter
 
       - name: Deploy ZXporter with custom DAKR_URL
         run: |
-          # Set DAKR_URL to point to the dockerhost service
-          echo "Setting DAKR_URL to grpc://dockerhost:50051"
-          make deploy IMG=${{ env.ZXPORTER_IMG }} DAKR_URL=grpc://dockerhost:50051
+          # Set DAKR_URL to point to the testserver service in the same namespace
+          echo "Setting DAKR_URL to grpc://testserver.devzero-zxporter.svc.cluster.local:50051"
+          make deploy IMG=${{ env.ZXPORTER_IMG }} DAKR_URL=grpc://testserver.devzero-zxporter.svc.cluster.local:50051
 
       - name: Wait for deployment to be ready
         run: |
@@ -243,29 +166,28 @@ jobs:
         run: |
           echo "Checking testserver output..."
           
-          # Display the testserver stderr log for diagnostics
-          echo "=== TESTSERVER STDERR LOG ==="
-          cat testserver_stderr.log || echo "No testserver_stderr.log file found"
-          echo "=== END TESTSERVER STDERR LOG ==="
+          # Get the testserver pod name
+          TESTSERVER_POD=$(kubectl get pods -n devzero-zxporter -l app=testserver -o jsonpath='{.items[0].metadata.name}')
+          echo "Testserver pod: $TESTSERVER_POD"
           
-          # Display the requests file
+          # Display the testserver logs
+          echo "=== TESTSERVER LOGS ==="
+          kubectl logs $TESTSERVER_POD -n devzero-zxporter
+          echo "=== END TESTSERVER LOGS ==="
+          
+          # Copy the requests.json file from the pod
+          echo "Copying requests.json from the pod..."
+          kubectl cp devzero-zxporter/$TESTSERVER_POD:/data/requests.json ./pod-requests.json || echo "Failed to copy requests.json from pod"
+          
+          # Display the requests file content
           echo "=== REQUESTS FILE CONTENT ==="
-          cat requests.json || echo "No requests.json file found"
+          cat pod-requests.json || echo "No pod-requests.json file found"
           echo "=== END REQUESTS FILE CONTENT ==="
           
           # Check if there was any output in the requests file
-          if [ -s requests.json ]; then
+          if [ -s pod-requests.json ]; then
             echo "Testserver received data from ZXporter!"
           else
             echo "ERROR: No data received by testserver from ZXporter!"
             exit 1
-          fi
-
-      - name: Stop testserver
-        if: always()
-        run: |
-          if [ -f testserver_pid.txt ]; then
-            PID=$(cat testserver_pid.txt)
-            echo "Stopping testserver with PID $PID..."
-            kill -9 "$PID" || true
           fi

@@ -49,8 +49,10 @@ endif
 # Set the Operator SDK version to use. By default, what is installed on the system is used.
 # This is useful for CI or a project to utilize a specific version of the operator-sdk toolkit.
 OPERATOR_SDK_VERSION ?= v1.39.1
-# Image URL to use all building/pushing image targets
+# Image URLs to use all building/pushing image targets
 IMG ?= ttl.sh/zxporter:latest
+# Testserver image URL
+TESTSERVER_IMG ?= ttl.sh/zxporter-testserver:latest
 # DAKR URL to use for deployment
 DAKR_URL ?= https://api.devzero.io/dakr
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
@@ -149,6 +151,14 @@ docker-build: ## Build docker image with the manager.
 .PHONY: docker-push
 docker-push: ## Push docker image with the manager.
 	$(CONTAINER_TOOL) push ${IMG}
+
+.PHONY: testserver-docker-build
+testserver-docker-build: ## Build docker image for the testserver.
+	$(CONTAINER_TOOL) build -t ${TESTSERVER_IMG} -f Dockerfile.testserver .
+
+.PHONY: testserver-docker-push
+testserver-docker-push: ## Push docker image for the testserver.
+	$(CONTAINER_TOOL) push ${TESTSERVER_IMG}
 
 # PLATFORMS defines the target platforms for the manager image be built to provide support to multiple
 # architectures. (i.e. make docker-buildx IMG=myregistry/mypoperator:0.0.1). To use this option you need to:
