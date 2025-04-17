@@ -15,8 +15,8 @@ jobs:
       - name: Set Docker image names
         id: set-image
         run: |
-          ZXPORTER_IMG="ttl.sh/$(uuidgen | tr -d '-' | tr '[:upper:]' '[:lower:]'):2h"
-          TESTSERVER_IMG="ttl.sh/$(uuidgen | tr -d '-' | tr '[:upper:]' '[:lower:]'):2h"
+          ZXPORTER_IMG="ttl.sh/$(uuidgen):2h"
+          TESTSERVER_IMG="ttl.sh/$(uuidgen):2h"
           echo "ZXPORTER_IMG=$ZXPORTER_IMG" >> $GITHUB_ENV
           echo "TESTSERVER_IMG=$TESTSERVER_IMG" >> $GITHUB_ENV
           echo "image=$ZXPORTER_IMG" >> $GITHUB_OUTPUT
