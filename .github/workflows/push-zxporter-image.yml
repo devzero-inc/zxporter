@@ -1,0 +1,34 @@
+name: 'Push zxporter to Docker Hub'
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  package-and-push:
+    name: Package & Push Docker image
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Code Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          token: ${{ secrets.GH_TOKEN }}
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_ZXPORTER_BALANCE_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_ZXPORTER_BALANCE_TOKEN }}
+
+      - name: Build and push
+        shell: bash
+        run: |
+          make docker-buildx IMG=devzeroinc/zxporter:latest
+
+          GIT_SHA=$(git rev-parse --short HEAD)
+          make docker-buildx IMG=devzeroinc/zxporter:$GIT_SHA
