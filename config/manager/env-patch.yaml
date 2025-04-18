@@ -17,3 +17,5 @@ spec:
           value: "info"
         - name: K8S_PROVIDER
           value: "{{ .k8s_provider }}"
+        - name: PROMETHEUS_URL
+          value: "$(PROMETHEUS_URL)"

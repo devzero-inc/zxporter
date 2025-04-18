@@ -55,13 +55,24 @@ IMG ?= ttl.sh/zxporter:latest
 TESTSERVER_IMG ?= ttl.sh/zxporter-testserver:latest
 # DAKR URL to use for deployment
 DAKR_URL ?= https://api.devzero.io/dakr
+# PROMETHEUS URL for metrics collection
+PROMETHEUS_URL ?= http://prometheus-server.monitoring.svc.cluster.local:9090
 # COLLECTION_FILE is used to control the collectionpolicies.
 COLLECTION_FILE ?= collection.yaml
 # ENV_PATCH_FILE is used to control the zxporter-manager deployment.
 ENV_PATCH_FILE ?= config/manager/env-patch.yaml
 
+# Monitoring resources
+PROMETHEUS_CHART_VERSION ?= 25.8.0
+PROMETHEUS_NAMESPACE ?= monitoring
+NODE_EXPORTER_CHART_VERSION ?= 4.24.0
+METRICS_SERVER_CHART_VERSION ?= 3.12.0
+
 # DIST_INSTALL_BUNDLE is the final complete manifest
 DIST_INSTALL_BUNDLE ?= dist/install.yaml
+DIST_PROMETHEUS_BUNDLE ?= dist/prometheus.yaml
+DIST_NODE_EXPORTER_BUNDLE ?= dist/node-exporter.yaml
+METRICS_SERVER_TEMP ?= metrics-server-template.yaml
 
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.31.0
@@ -185,16 +196,80 @@ docker-buildx: ## Build and push docker image for the manager for cross-platform
 	- $(CONTAINER_TOOL) buildx rm zxporter-builder
 	rm Dockerfile.cross
 
+.PHONY: generate-monitoring-manifests
+generate-monitoring-manifests: helm ## Generate monitoring manifests for Prometheus and Node Exporter.
+	# Generate Prometheus manifest
+	$(HELM) repo add prometheus-community https://prometheus-community.github.io/helm-charts || true
+	$(HELM) repo update
+	echo "# ----- START PROM SERVER -----" > $(DIST_PROMETHEUS_BUNDLE)
+	$(HELM) template prometheus prometheus-community/prometheus \
+		--version $(PROMETHEUS_CHART_VERSION) \
+		--namespace $(PROMETHEUS_NAMESPACE) \
+		--create-namespace \
+		--set server.persistentVolume.enabled=false \
+		--set alertmanager.enabled=false \
+		--set pushgateway.enabled=false \
+		>> $(DIST_PROMETHEUS_BUNDLE)
+	echo "# ----- END PROM SERVER -----" >> $(DIST_PROMETHEUS_BUNDLE)
+	
+	# Generate Node Exporter manifest
+	echo "# ----- START PROM NODE EXPORTER -----" > $(DIST_NODE_EXPORTER_BUNDLE)
+	$(HELM) template node-exporter prometheus-community/prometheus-node-exporter \
+		--version $(NODE_EXPORTER_CHART_VERSION) \
+		--namespace $(PROMETHEUS_NAMESPACE) \
+		--create-namespace \
+		>> $(DIST_NODE_EXPORTER_BUNDLE)
+	echo "# ----- END PROM NODE EXPORTER -----" >> $(DIST_NODE_EXPORTER_BUNDLE)
+	
+	# Generate Metrics Server manifest for inclusion in the main installer
+	$(HELM) repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/ || true
+	$(HELM) repo update
+	echo "# ----- START METRICS SERVER -----" > $(METRICS_SERVER_TEMP)
+	$(HELM) template metrics-server metrics-server/metrics-server \
+		--version $(METRICS_SERVER_CHART_VERSION) \
+		--namespace kube-system \
+		--set args="{--kubelet-insecure-tls}" \
+		>> $(METRICS_SERVER_TEMP)
+	echo "# ----- END METRICS SERVER -----" >> $(METRICS_SERVER_TEMP)
+
 .PHONY: build-installer
 build-installer: manifests generate kustomize ## Generate a consolidated YAML with CRDs and deployment.
 	mkdir -p dist
+
+	$(MAKE) generate-monitoring-manifests
+
+	echo "## ATTN KUBERNETES ADMINS! Read this..." > $(DIST_INSTALL_BUNDLE)
+	echo "#  If prometheus-server is already installed, and you want to use that version," >> $(DIST_INSTALL_BUNDLE)
+	echo "#  comment out the section from \"START PROM SERVER\" to \"END PROM SERVER\" and update the \"prometheusURL\" variable." >> $(DIST_INSTALL_BUNDLE)
+	echo -e "#" >> $(DIST_INSTALL_BUNDLE)
+	echo "#  If prometheus-node-exporter is already installed, and you want to use that version," >> $(DIST_INSTALL_BUNDLE)
+	echo "#  comment out the section from \"START PROM NODE EXPORTER\" to \"END PROM NODE EXPORTER\"" >> $(DIST_INSTALL_BUNDLE)
+	echo -e "# \n" >> $(DIST_INSTALL_BUNDLE)
+	
+	# Append prometheus-server to the main installer
+	cat $(DIST_PROMETHEUS_BUNDLE) >> $(DIST_INSTALL_BUNDLE)
+	rm -f $(DIST_PROMETHEUS_BUNDLE)
+
+	# Append prometheus-node-exporter to the main installer
+	cat $(DIST_NODE_EXPORTER_BUNDLE) >> $(DIST_INSTALL_BUNDLE)
+	rm -f $(DIST_NODE_EXPORTER_BUNDLE)
+
+	# Append Metrics Server to the main installer
+	cat $(METRICS_SERVER_TEMP) >> $(DIST_INSTALL_BUNDLE)
+	rm -f $(METRICS_SERVER_TEMP)
+	
+	# Append zxporter-manager to the installer bundle
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
 	sed "s|\$$(DAKR_URL)|$(DAKR_URL)|g" $(ENV_PATCH_FILE) > temp.yaml && mv temp.yaml $(ENV_PATCH_FILE)
-	$(KUSTOMIZE) build config/default > $(DIST_INSTALL_BUNDLE)
+	$(KUSTOMIZE) build config/default >> $(DIST_INSTALL_BUNDLE)
+	
+	# Append Collection Policy to the installer bundle
 	echo "---" >> $(DIST_INSTALL_BUNDLE)
 	sed "s|\$$(DAKR_URL)|$(DAKR_URL)|g" $(COLLECTION_FILE) > temp.yaml && mv temp.yaml $(COLLECTION_FILE)
+	sed "s|\$$(PROMETHEUS_URL)|$(PROMETHEUS_URL)|g" $(COLLECTION_FILE) > temp.yaml && mv temp.yaml $(COLLECTION_FILE)
 	cat $(COLLECTION_FILE) >> $(DIST_INSTALL_BUNDLE)
 	sed 's/ # READ THIS!.*//' $(DIST_INSTALL_BUNDLE) > temp.yaml && mv temp.yaml $(DIST_INSTALL_BUNDLE)
+	echo "---" >> $(DIST_INSTALL_BUNDLE)
 
 .PHONY: build-chart
 build-chart: build-installer ## Generate a consolidated helm chart from the installer manifest.
@@ -214,12 +289,22 @@ install: manifests kustomize ## Install CRDs into the K8s cluster specified in ~
 uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
 	$(KUSTOMIZE) build config/crd | $(KUBECTL) delete --ignore-not-found=$(ignore-not-found) -f -
 
+.PHONY: deploy-monitoring
+deploy-monitoring: generate-monitoring-manifests ## Deploy monitoring components (Prometheus, Node Exporter).
+	$(KUBECTL) apply -f $(DIST_PROMETHEUS_BUNDLE)
+	$(KUBECTL) apply -f $(DIST_NODE_EXPORTER_BUNDLE)
+
 .PHONY: deploy
-deploy: build-installer ## Deploy controller to the K8s cluster specified in ~/.kube/config.
+deploy: build-installer deploy-monitoring ## Deploy controller to the K8s cluster specified in ~/.kube/config.
 	cat $(DIST_INSTALL_BUNDLE) | $(KUBECTL) apply -f -
 
+.PHONY: undeploy-monitoring
+undeploy-monitoring: ## Undeploy monitoring components.
+	$(KUBECTL) delete --ignore-not-found=$(ignore-not-found) -f $(DIST_NODE_EXPORTER_BUNDLE) || true
+	$(KUBECTL) delete --ignore-not-found=$(ignore-not-found) -f $(DIST_PROMETHEUS_BUNDLE) || true
+
 .PHONY: undeploy
-undeploy: kustomize ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
+undeploy: kustomize undeploy-monitoring ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
 	$(KUSTOMIZE) build config/default | $(KUBECTL) delete --ignore-not-found=$(ignore-not-found) -f -
 
 ##@ Dependencies
@@ -235,6 +320,7 @@ KUSTOMIZE ?= $(LOCALBIN)/kustomize
 CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 ENVTEST ?= $(LOCALBIN)/setup-envtest
 GOLANGCI_LINT = $(LOCALBIN)/golangci-lint
+HELM ?= $(LOCALBIN)/helm
 # to download: `brew install arttor/tap/helmify`
 HELMIFY ?= helmify
 
@@ -243,6 +329,7 @@ KUSTOMIZE_VERSION ?= v5.4.3
 CONTROLLER_TOOLS_VERSION ?= v0.16.1
 ENVTEST_VERSION ?= release-0.19
 GOLANGCI_LINT_VERSION ?= v1.59.1
+HELM_VERSION ?= v3.14.2
 
 .PHONY: kustomize
 kustomize: $(KUSTOMIZE) ## Download kustomize locally if necessary.
@@ -263,6 +350,18 @@ $(ENVTEST): $(LOCALBIN)
 golangci-lint: $(GOLANGCI_LINT) ## Download golangci-lint locally if necessary.
 $(GOLANGCI_LINT): $(LOCALBIN)
 	$(call go-install-tool,$(GOLANGCI_LINT),github.com/golangci/golangci-lint/cmd/golangci-lint,$(GOLANGCI_LINT_VERSION))
+
+.PHONY: helm
+helm: $(HELM) ## Download helm locally if necessary.
+$(HELM): $(LOCALBIN)
+	@{ \
+	set -e ;\
+	mkdir -p $(dir $(HELM)) ;\
+	OS=$(shell go env GOOS) && ARCH=$(shell go env GOARCH) && \
+	curl -sSLo $(HELM).tar.gz https://get.helm.sh/helm-$(HELM_VERSION)-$${OS}-$${ARCH}.tar.gz ;\
+	tar -zxvf $(HELM).tar.gz -C $(LOCALBIN) --strip-components 1 $${OS}-$${ARCH}/helm ;\
+	rm -f $(HELM).tar.gz ;\
+	}
 
 # go-install-tool will 'go install' any package with custom target and name of binary, if it doesn't exist
 # $1 - target path with name of binary
