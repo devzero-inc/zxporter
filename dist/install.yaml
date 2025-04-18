@@ -1108,7 +1108,6 @@ spec:
       serviceAccountName: devzero-zxporter-controller-manager
       terminationGracePeriodSeconds: 10
 ---
----
 # Source: metrics-server/templates/serviceaccount.yaml
 apiVersion: v1
 kind: ServiceAccount
@@ -1379,3 +1378,4 @@ spec:
     bufferSize: 1000000
     dakrURL: "https://api.devzero.io/dakr"
     prometheusURL: "http://prometheus-server.monitoring.svc.cluster.local:9090"
+---

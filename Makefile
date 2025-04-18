@@ -233,17 +233,15 @@ build-installer: manifests generate kustomize generate-monitoring-manifests ## G
 	sed "s|\$$(DAKR_URL)|$(DAKR_URL)|g" $(ENV_PATCH_FILE) > temp.yaml && mv temp.yaml $(ENV_PATCH_FILE)
 	$(KUSTOMIZE) build config/default > $(DIST_INSTALL_BUNDLE)
 	# Append Metrics Server to the main installer
-	echo "---" >> $(DIST_INSTALL_BUNDLE)
 	cat metrics-server-temp.yaml >> $(DIST_INSTALL_BUNDLE)
 	rm -f metrics-server-temp.yaml
 	# Append Collection Policy
 	echo "---" >> $(DIST_INSTALL_BUNDLE)
 	sed "s|\$$(DAKR_URL)|$(DAKR_URL)|g" $(COLLECTION_FILE) > temp.yaml && mv temp.yaml $(COLLECTION_FILE)
-	echo "---" >> $(DIST_INSTALL_BUNDLE)
 	sed "s|\$$(PROMETHEUS_URL)|$(PROMETHEUS_URL)|g" $(COLLECTION_FILE) > temp.yaml && mv temp.yaml $(COLLECTION_FILE)
-	echo "---" >> $(DIST_INSTALL_BUNDLE)
 	cat $(COLLECTION_FILE) >> $(DIST_INSTALL_BUNDLE)
 	sed 's/ # READ THIS!.*//' $(DIST_INSTALL_BUNDLE) > temp.yaml && mv temp.yaml $(DIST_INSTALL_BUNDLE)
+	echo "---" >> $(DIST_INSTALL_BUNDLE)
 
 .PHONY: build-chart
 build-chart: build-installer ## Generate a consolidated helm chart from the installer manifest.
