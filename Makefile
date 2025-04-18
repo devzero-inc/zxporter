@@ -194,6 +194,7 @@ build-installer: manifests generate kustomize ## Generate a consolidated YAML wi
 	echo "---" >> $(DIST_INSTALL_BUNDLE)
 	sed "s|\$$(DAKR_URL)|$(DAKR_URL)|g" $(COLLECTION_FILE) > temp.yaml && mv temp.yaml $(COLLECTION_FILE)
 	cat $(COLLECTION_FILE) >> $(DIST_INSTALL_BUNDLE)
+	sed 's/ # READ THIS!.*//' $(DIST_INSTALL_BUNDLE) > temp.yaml && mv temp.yaml $(DIST_INSTALL_BUNDLE)
 
 .PHONY: build-chart
 build-chart: build-installer ## Generate a consolidated helm chart from the installer manifest.
