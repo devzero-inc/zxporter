@@ -97,6 +97,9 @@ type PolicyConfig struct {
 	ExcludedNodes                  []string
 	ExcludedCRDGroups              []string
 	WatchedCRDs                    []string
+	ExcludedCSINodes               []string
+	ExcludedDatadogReplicaSets     []collector.ExcludedDatadogExtendedDaemonSetReplicaSet
+	ExcludedArgoRollouts           []collector.ExcludedArgoRollout
 
 	DisabledCollectors []string
 
@@ -164,6 +167,21 @@ type PolicyConfig struct {
 
 // Storage API Group resources
 //+kubebuilder:rbac:groups=storage.k8s.io,resources=storageclasses,verbs=get;list;watch
+//+kubebuilder:rbac:groups=storage.k8s.io,resources=csinodes,verbs=get;list;watch
+
+// Karpenter resources
+//+kubebuilder:rbac:groups=karpenter.sh,resources=provisioners,verbs=get;list;watch
+//+kubebuilder:rbac:groups=karpenter.sh,resources=machines,verbs=get;list;watch
+//+kubebuilder:rbac:groups=karpenter.sh,resources=nodepools,verbs=get;list;watch
+//+kubebuilder:rbac:groups=karpenter.sh,resources=nodeclaims,verbs=get;list;watch
+//+kubebuilder:rbac:groups=karpenter.k8s.aws,resources=awsnodetemplates,verbs=get;list;watch
+//+kubebuilder:rbac:groups=karpenter.k8s.aws,resources=ec2nodeclasses,verbs=get;list;watch
+
+// DataDog resources
+//+kubebuilder:rbac:groups=datadoghq.com,resources=extendeddaemonsetreplicasets,verbs=get;list;watch
+
+// Argo Rollouts resources
+//+kubebuilder:rbac:groups=argoproj.io,resources=rollouts,verbs=get;list;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -218,6 +236,7 @@ func (r *CollectionPolicyReconciler) createNewConfig(policy *monitoringv1.Collec
 	targetNamespaces := policy.Spec.TargetSelector.Namespaces
 	excludedNamespaces := policy.Spec.Exclusions.ExcludedNamespaces
 	excludedNodes := policy.Spec.Exclusions.ExcludedNodes
+	excludedCSINodes := policy.Spec.Exclusions.ExcludedNodes
 	dakrURL := policy.Spec.Policies.DakrURL
 	clusterToken := policy.Spec.Policies.ClusterToken
 	prometheusURL := policy.Spec.Policies.PrometheusURL
@@ -265,6 +284,7 @@ func (r *CollectionPolicyReconciler) createNewConfig(policy *monitoringv1.Collec
 		ExcludedNamespaces:      excludedNamespaces,
 		ExcludedPods:            excludedPods,
 		ExcludedNodes:           excludedNodes,
+		ExcludedCSINodes:        excludedCSINodes,
 		DakrURL:                 dakrURL,
 		ClusterToken:            clusterToken,
 		PrometheusURL:           prometheusURL,
@@ -417,6 +437,10 @@ func (r *CollectionPolicyReconciler) identifyAffectedCollectors(oldConfig, newCo
 
 	if oldConfig.NodeMetricsInterval != newConfig.NodeMetricsInterval {
 		affectedCollectors["noderesource"] = true
+	}
+
+	if !reflect.DeepEqual(oldConfig.ExcludedCSINodes, newConfig.ExcludedCSINodes) {
+		affectedCollectors["csinode"] = true
 	}
 
 	// Check if the special node collectors are affected by the update interval change
@@ -726,6 +750,31 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 			replacedCollector = collector.NewStorageClassCollector(
 				r.K8sClient,
 				newConfig.ExcludedStorageClasses,
+				logger,
+			)
+		case "csinode":
+			replacedCollector = collector.NewCSINodeCollector(
+				r.K8sClient,
+				newConfig.ExcludedNodes,
+				logger,
+			)
+		case "karpenter":
+			replacedCollector = collector.NewKarpenterCollector(
+				r.DynamicClient,
+				logger,
+			)
+		case "datadog":
+			replacedCollector = collector.NewDatadogCollector(
+				r.DynamicClient,
+				newConfig.TargetNamespaces,
+				newConfig.ExcludedDatadogReplicaSets,
+				logger,
+			)
+		case "argo_rollouts":
+			replacedCollector = collector.NewArgoRolloutsCollector(
+				r.DynamicClient,
+				newConfig.TargetNamespaces,
+				newConfig.ExcludedArgoRollouts,
 				logger,
 			)
 		default:
@@ -1322,6 +1371,39 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 			),
 			name: collector.StorageClass,
 		},
+		{
+			collector: collector.NewCSINodeCollector(
+				r.K8sClient,
+				config.ExcludedCSINodes,
+				logger,
+			),
+			name: collector.CSINode,
+		},
+		{
+			collector: collector.NewKarpenterCollector(
+				r.DynamicClient,
+				logger,
+			),
+			name: collector.Karpenter,
+		},
+		{
+			collector: collector.NewDatadogCollector(
+				r.DynamicClient,
+				config.TargetNamespaces,
+				config.ExcludedDatadogReplicaSets,
+				logger,
+			),
+			name: collector.Datadog,
+		},
+		{
+			collector: collector.NewArgoRolloutsCollector(
+				r.DynamicClient,
+				config.TargetNamespaces,
+				config.ExcludedArgoRollouts,
+				logger,
+			),
+			name: collector.ArgoRollouts,
+		},
 	}
 
 	// Register all collectors
@@ -1635,6 +1717,31 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 				replacedCollector = collector.NewNamespaceCollector(
 					r.K8sClient,
 					newConfig.ExcludedNamespaces,
+					logger,
+				)
+			case "csinode":
+				replacedCollector = collector.NewCSINodeCollector(
+					r.K8sClient,
+					newConfig.ExcludedCSINodes,
+					logger,
+				)
+			case "karpenter":
+				replacedCollector = collector.NewKarpenterCollector(
+					r.DynamicClient,
+					logger,
+				)
+			case "datadog":
+				replacedCollector = collector.NewDatadogCollector(
+					r.DynamicClient,
+					newConfig.TargetNamespaces,
+					newConfig.ExcludedDatadogReplicaSets,
+					logger,
+				)
+			case "argo_rollouts":
+				replacedCollector = collector.NewArgoRolloutsCollector(
+					r.DynamicClient,
+					newConfig.TargetNamespaces,
+					newConfig.ExcludedArgoRollouts,
 					logger,
 				)
 			default:

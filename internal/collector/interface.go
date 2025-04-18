@@ -48,6 +48,10 @@ func (r ResourceType) String() string {
 		PodSecurityPolicy:       "pod_security_policy",
 		NodeResource:            "node_resource",
 		ContainerResource:       "container_resource",
+		CSINode:                 "csi_node",
+		Karpenter:               "karpenter",
+		Datadog:                 "datadog",
+		ArgoRollouts:            "argo_rollouts",
 	}
 
 	if name, ok := names[r]; ok {
@@ -127,6 +131,14 @@ func (r ResourceType) ProtoType() gen.ResourceType {
 		return gen.ResourceType_RESOURCE_TYPE_CONTAINER_RESOURCE
 	case Cluster:
 		return gen.ResourceType_RESOURCE_TYPE_CLUSTER
+	case CSINode:
+		return gen.ResourceType_RESOURCE_CSI_NODE
+	case Karpenter:
+		return gen.ResourceType_RESOURCE_KARPENTER
+	case Datadog:
+		return gen.ResourceType_RESOURCE_DATADOG
+	case ArgoRollouts:
+		return gen.ResourceType_RESOURCE_ARGO_ROLLOUTS
 	default:
 		return gen.ResourceType_RESOURCE_TYPE_UNSPECIFIED
 	}
@@ -173,6 +185,10 @@ const (
 	Container                // leaving here to not screw up enum numbering
 	NodeResource
 	ContainerResource
+	CSINode
+	Karpenter
+	Datadog
+	ArgoRollouts
 )
 
 // CollectedResource represents a resource collected from the Kubernetes API
