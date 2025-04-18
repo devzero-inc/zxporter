@@ -25,7 +25,7 @@ jobs:
       - name: Build and push
         shell: bash
         run: |
-          make docker-buildx IMG=devzeroinc/zxporter:latest
-
+          make docker-build docker-push IMG=devzeroinc/zxporter:latest
+          
           GIT_SHA=$(git rev-parse --short HEAD)
-          make docker-buildx IMG=devzeroinc/zxporter:$GIT_SHA
+          make docker-build docker-push IMG=devzeroinc/zxporter:$GIT_SHA
