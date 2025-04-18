@@ -1,0 +1,47 @@
+name: Build Installer Check
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-installer-check:
+    name: Check if build-installer produces changes
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: true
+      
+      - name: Set up build environment
+        # Add any setup steps you need here, for example:
+        # - Setting up the correct version of the programming language
+        # - Installing dependencies
+        # You may need to customize this based on your project requirements
+        run: |
+          # Example: Install dependencies
+          # apt-get update && apt-get install -y <your-dependencies>
+          # or
+          # npm install
+          echo "Setting up build environment"
+      
+      - name: Run make build-installer
+        run: make build-installer
+      
+      - name: Check for changes in dist/install.yaml
+        run: |
+          if [[ -n $(git status --porcelain dist/install.yaml) ]]; then
+            echo "::error::Running 'make build-installer' produced changes to dist/install.yaml that aren't committed to the repository."
+            echo "Please run 'make build-installer' locally and commit the changes to dist/install.yaml before pushing."
+            git status dist/install.yaml
+            git diff dist/install.yaml
+            exit 1
+          else
+            echo "No uncommitted changes detected in dist/install.yaml. The file is properly committed."
+          fi
