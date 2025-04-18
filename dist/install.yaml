@@ -2647,23 +2647,3 @@ spec:
         runAsNonRoot: true
       serviceAccountName: devzero-zxporter-controller-manager
       terminationGracePeriodSeconds: 10
----
-apiVersion: devzero.io/v1
-kind: CollectionPolicy
-metadata:
-  name: default-policy
-  namespace: devzero-zxporter
-spec:
-  targetSelector:
-    namespaces: [] # Empty means all namespaces
-  exclusions:
-    excludedNamespaces:
-      - kube-system
-      - kube-public
-  policies:
-    frequency: "30s"
-    bufferSize: 1000000
-    dakrURL: "https://api.devzero.io/dakr"
-    # IMPORTANT: point this to existing prometheus installation, if not using DevZero-provided defaults
-    prometheusURL: "http://prometheus-server.devzero-zxporter.svc.cluster.local:9090"
----
