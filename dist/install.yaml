@@ -1078,6 +1078,8 @@ spec:
           value: info
         - name: K8S_PROVIDER
           value: '{{ .k8s_provider }}'
+        - name: PROMETHEUS_URL
+          value: $(PROMETHEUS_URL)
         image: ttl.sh/zxporter:latest
         livenessProbe:
           httpGet:
@@ -1122,3 +1124,4 @@ spec:
     frequency: "30s"
     bufferSize: 1000000
     dakrURL: "https://api.devzero.io/dakr"
+    prometheusURL: "http://prometheus-server.monitoring.svc.cluster.local:9090"
