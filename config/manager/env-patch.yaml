@@ -10,7 +10,7 @@ spec:
       - name: manager
         env:
         - name: DAKR_URL
-          value: "https://api.devzero.io/dakr" # READ THIS! Makefile rules will update this variable; don't check that in!
+          value: "$(DAKR_URL)" # READ THIS! Makefile rules will update this variable; don't check that in!
         - name: CLUSTER_TOKEN
           value: "{{ .cluster_token }}"
         - name: LOG_LEVEL
