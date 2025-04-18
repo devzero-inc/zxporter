@@ -19,7 +19,9 @@ package controller
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -468,6 +470,20 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 		r.RestartInProgress = false
 	}()
 
+	// Check Prometheus availability if URL changed or metrics configuration changed
+	if newConfig.PrometheusURL != "" &&
+		(r.CurrentConfig.PrometheusURL != newConfig.PrometheusURL ||
+			r.CurrentConfig.DisableNetworkIOMetrics != newConfig.DisableNetworkIOMetrics) {
+		logger.Info("Prometheus configuration changed, checking availability", "url", newConfig.PrometheusURL)
+		prometheusAvailable := r.waitForPrometheusAvailability(ctx, newConfig.PrometheusURL)
+		if !prometheusAvailable {
+			logger.Info("Prometheus is not available after waiting, will continue with restart but metrics may be limited")
+			// We continue with restart, but log the warning
+		} else {
+			logger.Info("Prometheus is available, continuing with full metrics collection")
+		}
+	}
+
 	// Check if the DisabledCollectors list has changed
 	if !reflect.DeepEqual(r.CurrentConfig.DisabledCollectors, newConfig.DisabledCollectors) {
 		logger.Info("Disabled collectors configuration changed, updating affected collectors")
@@ -810,6 +826,18 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 func (r *CollectionPolicyReconciler) initializeCollectors(ctx context.Context, config *PolicyConfig) (ctrl.Result, error) {
 	logger := r.Log.WithName("initialize")
 	logger.Info("Initializing collectors", "config", fmt.Sprintf("%+v", config))
+
+	// Check if Prometheus is available if URL is configured
+	if config.PrometheusURL != "" {
+		logger.Info("Prometheus URL configured, checking availability", "url", config.PrometheusURL)
+		prometheusAvailable := r.waitForPrometheusAvailability(ctx, config.PrometheusURL)
+		if !prometheusAvailable {
+			logger.Info("Prometheus is not available after waiting, will continue initialization but metrics may be limited")
+			// We continue initialization, but log the warning
+		} else {
+			logger.Info("Prometheus is available, continuing with full metrics collection")
+		}
+	}
 
 	// Setup collection manager and basic services
 	if err := r.setupCollectionManager(ctx, config, logger); err != nil {
@@ -1762,6 +1790,82 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 	}
 
 	return nil
+}
+
+// waitForPrometheusAvailability checks if Prometheus is available with retry logic
+// Returns true if Prometheus is available, false if not after maxRetries
+func (r *CollectionPolicyReconciler) waitForPrometheusAvailability(ctx context.Context, prometheusURL string) bool {
+	logger := r.Log.WithName("prometheus-check")
+
+	if prometheusURL == "" {
+		logger.Info("No Prometheus URL configured, skipping availability check")
+		return true
+	}
+
+	logger.Info("Checking Prometheus availability", "url", prometheusURL)
+
+	// Configuration for retry mechanism
+	initialBackoff := 5 * time.Second
+	maxBackoff := 2 * time.Minute
+	backoff := initialBackoff
+	maxRetries := 12 // About 25 minutes total with exponential backoff
+
+	client := &http.Client{
+		Timeout: 5 * time.Second,
+	}
+
+	// Endpoint to verify prometheus is ready
+	healthEndpoint := fmt.Sprintf("%s/-/ready", prometheusURL)
+	if !strings.HasPrefix(prometheusURL, "http") {
+		healthEndpoint = fmt.Sprintf("http://%s/-/ready", prometheusURL)
+	}
+
+	for i := 0; i < maxRetries; i++ {
+		select {
+		case <-ctx.Done():
+			logger.Info("Context cancelled while checking Prometheus availability")
+			return false
+		default:
+			// Try to contact Prometheus
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, healthEndpoint, nil)
+			if err != nil {
+				logger.Error(err, "Failed to create request for Prometheus health check")
+				time.Sleep(backoff)
+				backoff = min(backoff*2, maxBackoff)
+				continue
+			}
+
+			resp, err := client.Do(req)
+			if err != nil {
+				logger.Info("Prometheus not yet available",
+					"attempt", i+1,
+					"maxRetries", maxRetries,
+					"backoff", backoff.String(),
+					"error", err.Error())
+				time.Sleep(backoff)
+				backoff = min(backoff*2, maxBackoff)
+				continue
+			}
+
+			// Check response status
+			if resp.StatusCode == http.StatusOK {
+				logger.Info("Prometheus is available", "statusCode", resp.StatusCode)
+				resp.Body.Close()
+				return true
+			}
+
+			logger.Info("Prometheus returned non-OK status",
+				"statusCode", resp.StatusCode,
+				"attempt", i+1,
+				"maxRetries", maxRetries)
+			resp.Body.Close()
+			time.Sleep(backoff)
+			backoff = min(backoff*2, maxBackoff)
+		}
+	}
+
+	logger.Info("Prometheus availability check failed after maximum retries", "maxRetries", maxRetries)
+	return false
 }
 
 // SetupWithManager sets up the controller with the Manager.
