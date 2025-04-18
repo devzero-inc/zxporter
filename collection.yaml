@@ -15,4 +15,4 @@ spec:
     bufferSize: 1000000
     dakrURL: "$(DAKR_URL)" # READ THIS! Makefile rules will update this variable; don't check that in!
     # IMPORTANT: point this to existing prometheus installation, if not using DevZero-provided defaults
-    prometheusURL: "http://prometheus-server.monitoring.svc.cluster.local:9090"
+    prometheusURL: "$(PROMETHEUS_URL)"

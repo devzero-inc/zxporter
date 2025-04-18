@@ -56,7 +56,7 @@ TESTSERVER_IMG ?= ttl.sh/zxporter-testserver:latest
 # DAKR URL to use for deployment
 DAKR_URL ?= https://api.devzero.io/dakr
 # PROMETHEUS URL for metrics collection
-PROMETHEUS_URL ?= http://prometheus-server.monitoring.svc.cluster.local:9090
+PROMETHEUS_URL ?= http://prometheus-server.$(DEVZERO_MONITORING_NAMESPACE).svc.cluster.local:9090
 # COLLECTION_FILE is used to control the collectionpolicies.
 COLLECTION_FILE ?= collection.yaml
 # ENV_PATCH_FILE is used to control the zxporter-manager deployment.
@@ -64,7 +64,7 @@ ENV_PATCH_FILE ?= config/manager/env-patch.yaml
 
 # Monitoring resources
 PROMETHEUS_CHART_VERSION ?= 25.8.0
-PROMETHEUS_NAMESPACE ?= monitoring
+DEVZERO_MONITORING_NAMESPACE ?= devzero-zxporter
 NODE_EXPORTER_CHART_VERSION ?= 4.24.0
 METRICS_SERVER_CHART_VERSION ?= 3.12.0
 
@@ -204,21 +204,23 @@ generate-monitoring-manifests: helm ## Generate monitoring manifests for Prometh
 	echo "# ----- START PROM SERVER -----" > $(DIST_PROMETHEUS_BUNDLE)
 	$(HELM) template prometheus prometheus-community/prometheus \
 		--version $(PROMETHEUS_CHART_VERSION) \
-		--namespace $(PROMETHEUS_NAMESPACE) \
+		--namespace $(DEVZERO_MONITORING_NAMESPACE) \
 		--create-namespace \
 		--set server.persistentVolume.enabled=false \
 		--set alertmanager.enabled=false \
 		--set pushgateway.enabled=false \
 		>> $(DIST_PROMETHEUS_BUNDLE)
+	echo "---" >> $(DIST_PROMETHEUS_BUNDLE)
 	echo "# ----- END PROM SERVER -----" >> $(DIST_PROMETHEUS_BUNDLE)
 	
 	# Generate Node Exporter manifest
 	echo "# ----- START PROM NODE EXPORTER -----" > $(DIST_NODE_EXPORTER_BUNDLE)
 	$(HELM) template node-exporter prometheus-community/prometheus-node-exporter \
 		--version $(NODE_EXPORTER_CHART_VERSION) \
-		--namespace $(PROMETHEUS_NAMESPACE) \
+		--namespace $(DEVZERO_MONITORING_NAMESPACE) \
 		--create-namespace \
 		>> $(DIST_NODE_EXPORTER_BUNDLE)
+	echo "---" >> $(DIST_NODE_EXPORTER_BUNDLE)
 	echo "# ----- END PROM NODE EXPORTER -----" >> $(DIST_NODE_EXPORTER_BUNDLE)
 	
 	# Generate Metrics Server manifest for inclusion in the main installer
@@ -230,6 +232,7 @@ generate-monitoring-manifests: helm ## Generate monitoring manifests for Prometh
 		--namespace kube-system \
 		--set args="{--kubelet-insecure-tls}" \
 		>> $(METRICS_SERVER_TEMP)
+	echo "---" >> $(METRICS_SERVER_TEMP)
 	echo "# ----- END METRICS SERVER -----" >> $(METRICS_SERVER_TEMP)
 
 .PHONY: build-installer
@@ -246,6 +249,17 @@ build-installer: manifests generate kustomize ## Generate a consolidated YAML wi
 	echo "#  comment out the section from \"START PROM NODE EXPORTER\" to \"END PROM NODE EXPORTER\"" >> $(DIST_INSTALL_BUNDLE)
 	echo -e "# \n" >> $(DIST_INSTALL_BUNDLE)
 	
+	# create the namespace first before doing anything else
+	echo "---" >> $(DIST_INSTALL_BUNDLE)
+	echo "apiVersion: v1" >> $(DIST_INSTALL_BUNDLE)
+	echo "kind: Namespace" >> $(DIST_INSTALL_BUNDLE)
+	echo "metadata:" >> $(DIST_INSTALL_BUNDLE)
+	echo "  labels:" >> $(DIST_INSTALL_BUNDLE)
+	echo "    control-plane: controller-manager" >> $(DIST_INSTALL_BUNDLE)
+	echo "    app.kubernetes.io/name: $(DEVZERO_MONITORING_NAMESPACE)" >> $(DIST_INSTALL_BUNDLE)
+	echo "  name: system" >> $(DIST_INSTALL_BUNDLE)
+	echo "---" >> $(DIST_INSTALL_BUNDLE)
+
 	# Append prometheus-server to the main installer
 	cat $(DIST_PROMETHEUS_BUNDLE) >> $(DIST_INSTALL_BUNDLE)
 	rm -f $(DIST_PROMETHEUS_BUNDLE)
