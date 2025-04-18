@@ -56,7 +56,7 @@ TESTSERVER_IMG ?= ttl.sh/zxporter-testserver:latest
 # DAKR URL to use for deployment
 DAKR_URL ?= https://api.devzero.io/dakr
 # PROMETHEUS URL for metrics collection
-PROMETHEUS_URL ?= http://prometheus-server.monitoring.svc.cluster.local:9090
+PROMETHEUS_URL ?= http://prometheus-server.$(DEVZERO_MONITORING_NAMESPACE).svc.cluster.local:9090
 # COLLECTION_FILE is used to control the collectionpolicies.
 COLLECTION_FILE ?= collection.yaml
 # ENV_PATCH_FILE is used to control the zxporter-manager deployment.
@@ -64,7 +64,7 @@ ENV_PATCH_FILE ?= config/manager/env-patch.yaml
 
 # Monitoring resources
 PROMETHEUS_CHART_VERSION ?= 25.8.0
-PROMETHEUS_NAMESPACE ?= monitoring
+DEVZERO_MONITORING_NAMESPACE ?= devzero-zxporter
 NODE_EXPORTER_CHART_VERSION ?= 4.24.0
 METRICS_SERVER_CHART_VERSION ?= 3.12.0
 
@@ -72,7 +72,7 @@ METRICS_SERVER_CHART_VERSION ?= 3.12.0
 DIST_INSTALL_BUNDLE ?= dist/install.yaml
 DIST_PROMETHEUS_BUNDLE ?= dist/prometheus.yaml
 DIST_NODE_EXPORTER_BUNDLE ?= dist/node-exporter.yaml
-METRICS_SERVER_TEMP ?= metrics-server-template.yaml
+METRICS_SERVER ?= dist/metrics-server.yaml
 
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.31.0
@@ -204,33 +204,36 @@ generate-monitoring-manifests: helm ## Generate monitoring manifests for Prometh
 	echo "# ----- START PROM SERVER -----" > $(DIST_PROMETHEUS_BUNDLE)
 	$(HELM) template prometheus prometheus-community/prometheus \
 		--version $(PROMETHEUS_CHART_VERSION) \
-		--namespace $(PROMETHEUS_NAMESPACE) \
+		--namespace $(DEVZERO_MONITORING_NAMESPACE) \
 		--create-namespace \
 		--set server.persistentVolume.enabled=false \
 		--set alertmanager.enabled=false \
 		--set pushgateway.enabled=false \
 		>> $(DIST_PROMETHEUS_BUNDLE)
+	echo "---" >> $(DIST_PROMETHEUS_BUNDLE)
 	echo "# ----- END PROM SERVER -----" >> $(DIST_PROMETHEUS_BUNDLE)
 	
 	# Generate Node Exporter manifest
 	echo "# ----- START PROM NODE EXPORTER -----" > $(DIST_NODE_EXPORTER_BUNDLE)
 	$(HELM) template node-exporter prometheus-community/prometheus-node-exporter \
 		--version $(NODE_EXPORTER_CHART_VERSION) \
-		--namespace $(PROMETHEUS_NAMESPACE) \
+		--namespace $(DEVZERO_MONITORING_NAMESPACE) \
 		--create-namespace \
 		>> $(DIST_NODE_EXPORTER_BUNDLE)
+	echo "---" >> $(DIST_NODE_EXPORTER_BUNDLE)
 	echo "# ----- END PROM NODE EXPORTER -----" >> $(DIST_NODE_EXPORTER_BUNDLE)
 	
 	# Generate Metrics Server manifest for inclusion in the main installer
 	$(HELM) repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/ || true
 	$(HELM) repo update
-	echo "# ----- START METRICS SERVER -----" > $(METRICS_SERVER_TEMP)
+	echo "# ----- START METRICS SERVER -----" > $(METRICS_SERVER)
 	$(HELM) template metrics-server metrics-server/metrics-server \
 		--version $(METRICS_SERVER_CHART_VERSION) \
 		--namespace kube-system \
 		--set args="{--kubelet-insecure-tls}" \
-		>> $(METRICS_SERVER_TEMP)
-	echo "# ----- END METRICS SERVER -----" >> $(METRICS_SERVER_TEMP)
+		>> $(METRICS_SERVER)
+	echo "---" >> $(METRICS_SERVER)
+	echo "# ----- END METRICS SERVER -----" >> $(METRICS_SERVER)
 
 .PHONY: build-installer
 build-installer: manifests generate kustomize ## Generate a consolidated YAML with CRDs and deployment.
@@ -246,23 +249,35 @@ build-installer: manifests generate kustomize ## Generate a consolidated YAML wi
 	echo "#  comment out the section from \"START PROM NODE EXPORTER\" to \"END PROM NODE EXPORTER\"" >> $(DIST_INSTALL_BUNDLE)
 	echo -e "# \n" >> $(DIST_INSTALL_BUNDLE)
 	
+	# create the namespace first before doing anything else
+	echo "---" >> $(DIST_INSTALL_BUNDLE)
+	echo "apiVersion: v1" >> $(DIST_INSTALL_BUNDLE)
+	echo "kind: Namespace" >> $(DIST_INSTALL_BUNDLE)
+	echo "metadata:" >> $(DIST_INSTALL_BUNDLE)
+	echo "  labels:" >> $(DIST_INSTALL_BUNDLE)
+	echo "    control-plane: controller-manager" >> $(DIST_INSTALL_BUNDLE)
+	echo "    app.kubernetes.io/name: $(DEVZERO_MONITORING_NAMESPACE)" >> $(DIST_INSTALL_BUNDLE)
+	echo "  name: system" >> $(DIST_INSTALL_BUNDLE)
+	echo "---" >> $(DIST_INSTALL_BUNDLE)
+
 	# Append prometheus-server to the main installer
 	cat $(DIST_PROMETHEUS_BUNDLE) >> $(DIST_INSTALL_BUNDLE)
-	rm -f $(DIST_PROMETHEUS_BUNDLE)
 
 	# Append prometheus-node-exporter to the main installer
 	cat $(DIST_NODE_EXPORTER_BUNDLE) >> $(DIST_INSTALL_BUNDLE)
-	rm -f $(DIST_NODE_EXPORTER_BUNDLE)
 
 	# Append Metrics Server to the main installer
-	cat $(METRICS_SERVER_TEMP) >> $(DIST_INSTALL_BUNDLE)
-	rm -f $(METRICS_SERVER_TEMP)
+	cat $(METRICS_SERVER) >> $(DIST_INSTALL_BUNDLE)
 	
 	# Append zxporter-manager to the installer bundle
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
 	sed "s|\$$(DAKR_URL)|$(DAKR_URL)|g" $(ENV_PATCH_FILE) > temp.yaml && mv temp.yaml $(ENV_PATCH_FILE)
 	$(KUSTOMIZE) build config/default >> $(DIST_INSTALL_BUNDLE)
-	
+
+.PHONY: build-collections
+build-collections: DIST_INSTALL_BUNDLE=dist/collection_bundle.yaml
+build-collections:
+	echo "" > $(DIST_INSTALL_BUNDLE)
 	# Append Collection Policy to the installer bundle
 	echo "---" >> $(DIST_INSTALL_BUNDLE)
 	sed "s|\$$(DAKR_URL)|$(DAKR_URL)|g" $(COLLECTION_FILE) > temp.yaml && mv temp.yaml $(COLLECTION_FILE)
@@ -289,13 +304,13 @@ install: manifests kustomize ## Install CRDs into the K8s cluster specified in ~
 uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
 	$(KUSTOMIZE) build config/crd | $(KUBECTL) delete --ignore-not-found=$(ignore-not-found) -f -
 
-.PHONY: deploy-monitoring
-deploy-monitoring: generate-monitoring-manifests ## Deploy monitoring components (Prometheus, Node Exporter).
-	$(KUBECTL) apply -f $(DIST_PROMETHEUS_BUNDLE)
-	$(KUBECTL) apply -f $(DIST_NODE_EXPORTER_BUNDLE)
-
 .PHONY: deploy
-deploy: build-installer deploy-monitoring ## Deploy controller to the K8s cluster specified in ~/.kube/config.
+deploy: build-installer ## Deploy controller to the K8s cluster specified in ~/.kube/config.
+	cat $(DIST_INSTALL_BUNDLE) | $(KUBECTL) apply -f -
+
+.PHONY: deploy-collections
+deploy-collections: DIST_INSTALL_BUNDLE=dist/collection_bundle.yaml
+deploy-collections: build-collections
 	cat $(DIST_INSTALL_BUNDLE) | $(KUBECTL) apply -f -
 
 .PHONY: undeploy-monitoring
