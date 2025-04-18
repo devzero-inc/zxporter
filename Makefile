@@ -72,7 +72,6 @@ METRICS_SERVER_CHART_VERSION ?= 3.12.0
 DIST_INSTALL_BUNDLE ?= dist/install.yaml
 DIST_PROMETHEUS_BUNDLE ?= dist/prometheus.yaml
 DIST_NODE_EXPORTER_BUNDLE ?= dist/node-exporter.yaml
-DIST_METRICS_SERVER_BUNDLE ?= dist/metrics-server.yaml
 
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.31.0
@@ -197,7 +196,7 @@ docker-buildx: ## Build and push docker image for the manager for cross-platform
 	rm Dockerfile.cross
 
 .PHONY: generate-monitoring-manifests
-generate-monitoring-manifests: helm ## Generate monitoring manifests for Prometheus, Node Exporter, and Metrics Server.
+generate-monitoring-manifests: helm ## Generate monitoring manifests for Prometheus and Node Exporter.
 	mkdir -p dist
 	# Generate Prometheus manifest
 	$(HELM) repo add prometheus-community https://prometheus-community.github.io/helm-charts || true
@@ -218,14 +217,14 @@ generate-monitoring-manifests: helm ## Generate monitoring manifests for Prometh
 		--create-namespace \
 		> $(DIST_NODE_EXPORTER_BUNDLE)
 	
-	# Generate Metrics Server manifest
+	# Generate Metrics Server manifest for inclusion in the main installer
 	$(HELM) repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/ || true
 	$(HELM) repo update
 	$(HELM) template metrics-server metrics-server/metrics-server \
 		--version $(METRICS_SERVER_CHART_VERSION) \
 		--namespace kube-system \
 		--set args="{--kubelet-insecure-tls}" \
-		> $(DIST_METRICS_SERVER_BUNDLE)
+		> metrics-server-temp.yaml
 
 .PHONY: build-installer
 build-installer: manifests generate kustomize generate-monitoring-manifests ## Generate a consolidated YAML with CRDs and deployment.
@@ -233,6 +232,11 @@ build-installer: manifests generate kustomize generate-monitoring-manifests ## G
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
 	sed "s|\$$(DAKR_URL)|$(DAKR_URL)|g" $(ENV_PATCH_FILE) > temp.yaml && mv temp.yaml $(ENV_PATCH_FILE)
 	$(KUSTOMIZE) build config/default > $(DIST_INSTALL_BUNDLE)
+	# Append Metrics Server to the main installer
+	echo "---" >> $(DIST_INSTALL_BUNDLE)
+	cat metrics-server-temp.yaml >> $(DIST_INSTALL_BUNDLE)
+	rm -f metrics-server-temp.yaml
+	# Append Collection Policy
 	echo "---" >> $(DIST_INSTALL_BUNDLE)
 	sed "s|\$$(DAKR_URL)|$(DAKR_URL)|g" $(COLLECTION_FILE) > temp.yaml && mv temp.yaml $(COLLECTION_FILE)
 	sed "s|\$$(PROMETHEUS_URL)|$(PROMETHEUS_URL)|g" $(COLLECTION_FILE) > temp.yaml && mv temp.yaml $(COLLECTION_FILE)
@@ -258,10 +262,9 @@ uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified 
 	$(KUSTOMIZE) build config/crd | $(KUBECTL) delete --ignore-not-found=$(ignore-not-found) -f -
 
 .PHONY: deploy-monitoring
-deploy-monitoring: generate-monitoring-manifests ## Deploy monitoring components (Prometheus, Node Exporter, Metrics Server).
+deploy-monitoring: generate-monitoring-manifests ## Deploy monitoring components (Prometheus, Node Exporter).
 	$(KUBECTL) apply -f $(DIST_PROMETHEUS_BUNDLE)
 	$(KUBECTL) apply -f $(DIST_NODE_EXPORTER_BUNDLE)
-	$(KUBECTL) apply -f $(DIST_METRICS_SERVER_BUNDLE)
 
 .PHONY: deploy
 deploy: build-installer deploy-monitoring ## Deploy controller to the K8s cluster specified in ~/.kube/config.
@@ -269,7 +272,6 @@ deploy: build-installer deploy-monitoring ## Deploy controller to the K8s cluste
 
 .PHONY: undeploy-monitoring
 undeploy-monitoring: ## Undeploy monitoring components.
-	$(KUBECTL) delete --ignore-not-found=$(ignore-not-found) -f $(DIST_METRICS_SERVER_BUNDLE) || true
 	$(KUBECTL) delete --ignore-not-found=$(ignore-not-found) -f $(DIST_NODE_EXPORTER_BUNDLE) || true
 	$(KUBECTL) delete --ignore-not-found=$(ignore-not-found) -f $(DIST_PROMETHEUS_BUNDLE) || true
 
