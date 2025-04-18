@@ -241,6 +241,7 @@ build-installer: manifests generate kustomize generate-monitoring-manifests ## G
 	sed "s|\$$(DAKR_URL)|$(DAKR_URL)|g" $(COLLECTION_FILE) > temp.yaml && mv temp.yaml $(COLLECTION_FILE)
 	echo "---" >> $(DIST_INSTALL_BUNDLE)
 	sed "s|\$$(PROMETHEUS_URL)|$(PROMETHEUS_URL)|g" $(COLLECTION_FILE) > temp.yaml && mv temp.yaml $(COLLECTION_FILE)
+	echo "---" >> $(DIST_INSTALL_BUNDLE)
 	cat $(COLLECTION_FILE) >> $(DIST_INSTALL_BUNDLE)
 	sed 's/ # READ THIS!.*//' $(DIST_INSTALL_BUNDLE) > temp.yaml && mv temp.yaml $(DIST_INSTALL_BUNDLE)
 
