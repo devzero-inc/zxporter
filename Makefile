@@ -55,6 +55,14 @@ IMG ?= ttl.sh/zxporter:latest
 TESTSERVER_IMG ?= ttl.sh/zxporter-testserver:latest
 # DAKR URL to use for deployment
 DAKR_URL ?= https://api.devzero.io/dakr
+# COLLECTION_FILE is used to control the collectionpolicies.
+COLLECTION_FILE ?= collection.yaml
+# ENV_PATCH_FILE is used to control the zxporter-manager deployment.
+ENV_PATCH_FILE ?= config/manager/env-patch.yaml
+
+# DIST_INSTALL_BUNDLE is the final complete manifest
+DIST_INSTALL_BUNDLE ?= dist/install.yaml
+
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.31.0
 
@@ -181,12 +189,15 @@ docker-buildx: ## Build and push docker image for the manager for cross-platform
 build-installer: manifests generate kustomize ## Generate a consolidated YAML with CRDs and deployment.
 	mkdir -p dist
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
-	sed -i "s|\$$(DAKR_URL)|$(DAKR_URL)|g" config/manager/env-patch.yaml
-	$(KUSTOMIZE) build config/default > dist/install.yaml
+	sed "s|\$$(DAKR_URL)|$(DAKR_URL)|g" $(ENV_PATCH_FILE) > temp.yaml && mv temp.yaml $(ENV_PATCH_FILE)
+	$(KUSTOMIZE) build config/default > $(DIST_INSTALL_BUNDLE)
+	echo "---" >> $(DIST_INSTALL_BUNDLE)
+	sed "s|\$$(DAKR_URL)|$(DAKR_URL)|g" $(COLLECTION_FILE) > temp.yaml && mv temp.yaml $(COLLECTION_FILE)
+	cat $(COLLECTION_FILE) >> $(DIST_INSTALL_BUNDLE)
 
 .PHONY: build-chart
 build-chart: build-installer ## Generate a consolidated helm chart from the installer manifest.
-	cat dist/install.yaml | helmify chart
+	cat $(DIST_INSTALL_BUNDLE) | helmify chart
 
 ##@ Deployment
 
@@ -203,10 +214,8 @@ uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified 
 	$(KUSTOMIZE) build config/crd | $(KUBECTL) delete --ignore-not-found=$(ignore-not-found) -f -
 
 .PHONY: deploy
-deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/config.
-	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
-	sed -i "s|\$$(DAKR_URL)|$(DAKR_URL)|g" config/manager/env-patch.yaml
-	$(KUSTOMIZE) build config/default | $(KUBECTL) apply -f -
+deploy: build-installer ## Deploy controller to the K8s cluster specified in ~/.kube/config.
+	cat $(DIST_INSTALL_BUNDLE) | $(KUBECTL) apply -f -
 
 .PHONY: undeploy
 undeploy: kustomize ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
@@ -291,7 +300,7 @@ endif
 bundle: manifests kustomize operator-sdk ## Generate bundle manifests and metadata, then validate generated files.
 	$(OPERATOR_SDK) generate kustomize manifests -q
 	cd config/manager && $(KUSTOMIZE) edit set image controller=$(IMG)
-	sed -i "s|\$$(DAKR_URL)|$(DAKR_URL)|g" config/manager/env-patch.yaml
+	sed "s|\$$(DAKR_URL)|$(DAKR_URL)|g" config/manager/env-patch.yaml > temp.yaml && mv temp.yaml config/manager/env-patch.yaml
 	$(KUSTOMIZE) build config/manifests | $(OPERATOR_SDK) generate bundle $(BUNDLE_GEN_FLAGS)
 	$(OPERATOR_SDK) bundle validate ./bundle
 

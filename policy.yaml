@@ -72,7 +72,7 @@ spec:
     watchedCRDs: []
     disabledCollectors:
     prometheusURL: "http://kind-prometheus-kube-prome-prometheus.monitoring.svc.cluster.local:9090"
-    dakrURL: "http://host.docker.internal:9990"
+    dakrURL: "$(DAKR_URL)"
       # - "secret"        # Don't collect any secrets
       # - "configmap"     # Don't collect any configmaps
       # - "event"  
