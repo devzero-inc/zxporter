@@ -13,4 +13,4 @@ spec:
   policies:
     frequency: "30s"
     bufferSize: 1000000
-    dakrURL: "https://api.devzero.io/dakr"
+    dakrURL: "$(DAKR_URL)" # READ THIS! Makefile rules will update this variable; don't check that in!

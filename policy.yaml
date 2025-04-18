@@ -72,7 +72,7 @@ spec:
     watchedCRDs: []
     disabledCollectors:
     prometheusURL: "http://kind-prometheus-kube-prome-prometheus.monitoring.svc.cluster.local:9090"
-    dakrURL: "$(DAKR_URL)"
+    dakrURL: "$(DAKR_URL)" # READ THIS! Makefile rules will update this variable; don't check that in!
       # - "secret"        # Don't collect any secrets
       # - "configmap"     # Don't collect any configmaps
       # - "event"  

@@ -34,14 +34,14 @@ jobs:
       - name: Run make build-installer
         run: make build-installer
       
-      - name: Check for uncommitted changes
+      - name: Check for changes in dist/install.yaml
         run: |
-          if [[ -n $(git status --porcelain) ]]; then
-            echo "::error::Running 'make build-installer' produced changes that aren't committed to the repository."
-            echo "Please run 'make build-installer' locally and commit the changes before pushing."
-            git status
-            git diff
+          if [[ -n $(git status --porcelain dist/install.yaml) ]]; then
+            echo "::error::Running 'make build-installer' produced changes to dist/install.yaml that aren't committed to the repository."
+            echo "Please run 'make build-installer' locally and commit the changes to dist/install.yaml before pushing."
+            git status dist/install.yaml
+            git diff dist/install.yaml
             exit 1
           else
-            echo "No uncommitted changes detected. All build-installer outputs are properly committed."
+            echo "No uncommitted changes detected in dist/install.yaml. The file is properly committed."
           fi
