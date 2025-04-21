@@ -57,9 +57,6 @@ type CollectionPolicyReconciler struct {
 	IsRunning         bool
 	CurrentPolicyHash string
 	CurrentConfig     *PolicyConfig
-	LastEnvCheckTime  time.Time
-	EnvCheckInterval  time.Duration
-	EnvConfig         *util.EnvPolicyConfig
 	RestartInProgress bool
 }
 
@@ -191,21 +188,14 @@ func (r *CollectionPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	logger := log.FromContext(ctx)
 	logger.Info("Reconciling CollectionPolicy", "request", req)
 
-	// Check if we should reload env config (every 5 minutes)
-	if time.Since(r.LastEnvCheckTime) > r.EnvCheckInterval {
-		r.EnvConfig = util.LoadEnvPolicyConfig(logger)
-		r.LastEnvCheckTime = time.Now()
-		logger.Info("Reloaded environment configuration")
-	}
-
-	// Fetch the CollectionPolicy instance
-	var policy monitoringv1.CollectionPolicy
-	if err := r.Get(ctx, req.NamespacedName, &policy); err != nil {
-		return ctrl.Result{}, client.IgnoreNotFound(err)
+	// Create a new config object from the policy and environment
+	newEnvSpec, err := util.LoadCollectionPolicySpecFromEnv()
+	if err != nil {
+		logger.Error(err, "Error loading ENV varaibles")
 	}
 
 	// Create a new config object from the policy and environment
-	newConfig, configChanged := r.createNewConfig(&policy, logger)
+	newConfig, configChanged := r.createNewConfig(&newEnvSpec, logger)
 
 	// Check if we need to restart collectors due to config change
 	if configChanged && r.IsRunning {
@@ -224,78 +214,246 @@ func (r *CollectionPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Req
 }
 
 // createNewConfig creates a new config by merging policy and environment variables
-func (r *CollectionPolicyReconciler) createNewConfig(policy *monitoringv1.CollectionPolicy, logger logr.Logger) (*PolicyConfig, bool) {
-	// Convert excluded pods from policy format
-	var excludedPods []collector.ExcludedPod
-	for _, pod := range policy.Spec.Exclusions.ExcludedPods {
-		excludedPods = append(excludedPods, collector.ExcludedPod{
+func (r *CollectionPolicyReconciler) createNewConfig(envSpec *monitoringv1.CollectionPolicySpec, logger logr.Logger) (*PolicyConfig, bool) {
+	// Convert the merged spec to the PolicyConfig format
+	newConfig := &PolicyConfig{
+		// Target and exclusion basics
+		TargetNamespaces:   envSpec.TargetSelector.Namespaces,
+		ExcludedNamespaces: envSpec.Exclusions.ExcludedNamespaces,
+		ExcludedNodes:      envSpec.Exclusions.ExcludedNodes,
+		ExcludedCSINodes:   envSpec.Exclusions.ExcludedNodes, // Same as nodes
+
+		// Policies
+		DakrURL:                 envSpec.Policies.DakrURL,
+		ClusterToken:            envSpec.Policies.ClusterToken,
+		PrometheusURL:           envSpec.Policies.PrometheusURL,
+		DisableNetworkIOMetrics: envSpec.Policies.DisableNetworkIOMetrics,
+		MaskSecretData:          envSpec.Policies.MaskSecretData,
+		DisabledCollectors:      envSpec.Policies.DisabledCollectors,
+		BufferSize:              envSpec.Policies.BufferSize,
+	}
+
+	// Parse and set frequency
+	frequencyStr := envSpec.Policies.Frequency
+	if frequencyStr != "" {
+		if freq, err := time.ParseDuration(frequencyStr); err == nil {
+			newConfig.UpdateInterval = freq
+		} else {
+			logger.Error(err, "Error parsing frequency string", "frequency", frequencyStr)
+			newConfig.UpdateInterval = 10 * time.Second // Default
+		}
+	} else {
+		newConfig.UpdateInterval = 10 * time.Second // Default
+	}
+
+	// Set node metrics interval (6x regular interval but minimum 60s)
+	nodeMetricsIntervalStr := envSpec.Policies.NodeMetricsInterval
+	if nodeMetricsIntervalStr != "" {
+		if interval, err := time.ParseDuration(nodeMetricsIntervalStr); err == nil {
+			newConfig.NodeMetricsInterval = interval
+		} else {
+			logger.Error(err, "Error parsing node metrics interval", "interval", nodeMetricsIntervalStr)
+			newConfig.NodeMetricsInterval = max(newConfig.UpdateInterval*6, 60*time.Second)
+		}
+	} else {
+		newConfig.NodeMetricsInterval = max(newConfig.UpdateInterval*6, 60*time.Second)
+	}
+
+	// Convert all excluded resources
+	// Pods
+	for _, pod := range envSpec.Exclusions.ExcludedPods {
+		newConfig.ExcludedPods = append(newConfig.ExcludedPods, collector.ExcludedPod{
 			Namespace: pod.Namespace,
 			Name:      pod.Name,
 		})
 	}
 
-	// Get policy values
-	targetNamespaces := policy.Spec.TargetSelector.Namespaces
-	excludedNamespaces := policy.Spec.Exclusions.ExcludedNamespaces
-	excludedNodes := policy.Spec.Exclusions.ExcludedNodes
-	excludedCSINodes := policy.Spec.Exclusions.ExcludedNodes
-	dakrURL := policy.Spec.Policies.DakrURL
-	clusterToken := policy.Spec.Policies.ClusterToken
-	prometheusURL := policy.Spec.Policies.PrometheusURL
-	disableNetworkIOMetrics := policy.Spec.Policies.DisableNetworkIOMetrics
-	frequencyStr := policy.Spec.Policies.Frequency
-	bufferSize := policy.Spec.Policies.BufferSize
-	disabledCollectors := policy.Spec.Policies.DisabledCollectors
-	var frequency time.Duration
-
-	// Merge with environment config
-	targetNamespaces, excludedNamespaces, excludedNodes, dakrURL, frequency, bufferSize, clusterToken =
-		r.EnvConfig.MergeWithCRPolicy(
-			targetNamespaces,
-			excludedNamespaces,
-			excludedNodes,
-			dakrURL,
-			frequencyStr,
-			bufferSize,
-			clusterToken,
-		)
-
-	if frequencyStr != "" {
-		if freq, err := time.ParseDuration(frequencyStr); err == nil {
-			frequency = freq
-		} else {
-			logger.Error(err, "Error parsing frequency string")
-		}
-
+	// Deployments
+	for _, deploy := range envSpec.Exclusions.ExcludedDeployments {
+		newConfig.ExcludedDeployments = append(newConfig.ExcludedDeployments, collector.ExcludedDeployment{
+			Namespace: deploy.Namespace,
+			Name:      deploy.Name,
+		})
 	}
 
-	// Use default if frequency is not set
-	if frequency <= 0 {
-		frequency = 10 * time.Second
+	// StatefulSets
+	for _, sts := range envSpec.Exclusions.ExcludedStatefulSets {
+		newConfig.ExcludedStatefulSets = append(newConfig.ExcludedStatefulSets, collector.ExcludedStatefulSet{
+			Namespace: sts.Namespace,
+			Name:      sts.Name,
+		})
 	}
 
-	// Set node metrics interval (6x regular interval but minimum 60s)
-	nodeMetricsInterval := frequency * 6
-	if nodeMetricsInterval < 60*time.Second {
-		nodeMetricsInterval = 60 * time.Second
+	// DaemonSets
+	for _, ds := range envSpec.Exclusions.ExcludedDaemonSets {
+		newConfig.ExcludedDaemonSets = append(newConfig.ExcludedDaemonSets, collector.ExcludedDaemonSet{
+			Namespace: ds.Namespace,
+			Name:      ds.Name,
+		})
 	}
 
-	// Create the new config
-	newConfig := &PolicyConfig{
-		TargetNamespaces:        targetNamespaces,
-		ExcludedNamespaces:      excludedNamespaces,
-		ExcludedPods:            excludedPods,
-		ExcludedNodes:           excludedNodes,
-		ExcludedCSINodes:        excludedCSINodes,
-		DakrURL:                 dakrURL,
-		ClusterToken:            clusterToken,
-		PrometheusURL:           prometheusURL,
-		DisableNetworkIOMetrics: disableNetworkIOMetrics,
-		UpdateInterval:          frequency,
-		NodeMetricsInterval:     nodeMetricsInterval,
-		BufferSize:              bufferSize,
-		DisabledCollectors:      disabledCollectors,
+	// Services
+	for _, svc := range envSpec.Exclusions.ExcludedServices {
+		newConfig.ExcludedServices = append(newConfig.ExcludedServices, collector.ExcludedService{
+			Namespace: svc.Namespace,
+			Name:      svc.Name,
+		})
 	}
+
+	// PVCs
+	for _, pvc := range envSpec.Exclusions.ExcludedPVCs {
+		newConfig.ExcludedPVCs = append(newConfig.ExcludedPVCs, collector.ExcludedPVC{
+			Namespace: pvc.Namespace,
+			Name:      pvc.Name,
+		})
+	}
+
+	// Jobs
+	for _, job := range envSpec.Exclusions.ExcludedJobs {
+		newConfig.ExcludedJobs = append(newConfig.ExcludedJobs, collector.ExcludedJob{
+			Namespace: job.Namespace,
+			Name:      job.Name,
+		})
+	}
+
+	// CronJobs
+	for _, cron := range envSpec.Exclusions.ExcludedCronJobs {
+		newConfig.ExcludedCronJobs = append(newConfig.ExcludedCronJobs, collector.ExcludedCronJob{
+			Namespace: cron.Namespace,
+			Name:      cron.Name,
+		})
+	}
+
+	// ReplicationControllers
+	for _, rc := range envSpec.Exclusions.ExcludedReplicationControllers {
+		newConfig.ExcludedReplicationControllers = append(newConfig.ExcludedReplicationControllers, collector.ExcludedReplicationController{
+			Namespace: rc.Namespace,
+			Name:      rc.Name,
+		})
+	}
+
+	// Ingresses
+	for _, ing := range envSpec.Exclusions.ExcludedIngresses {
+		newConfig.ExcludedIngresses = append(newConfig.ExcludedIngresses, collector.ExcludedIngress{
+			Namespace: ing.Namespace,
+			Name:      ing.Name,
+		})
+	}
+
+	// IngressClasses
+	newConfig.ExcludedIngressClasses = envSpec.Exclusions.ExcludedIngressClasses
+
+	// NetworkPolicies
+	for _, netpol := range envSpec.Exclusions.ExcludedNetworkPolicies {
+		newConfig.ExcludedNetworkPolicies = append(newConfig.ExcludedNetworkPolicies, collector.ExcludedNetworkPolicy{
+			Namespace: netpol.Namespace,
+			Name:      netpol.Name,
+		})
+	}
+
+	// Endpoints
+	for _, ep := range envSpec.Exclusions.ExcludedEndpoints {
+		newConfig.ExcludedEndpoints = append(newConfig.ExcludedEndpoints, collector.ExcludedEndpoint{
+			Namespace: ep.Namespace,
+			Name:      ep.Name,
+		})
+	}
+
+	// ServiceAccounts
+	for _, sa := range envSpec.Exclusions.ExcludedServiceAccounts {
+		newConfig.ExcludedServiceAccounts = append(newConfig.ExcludedServiceAccounts, collector.ExcludedServiceAccount{
+			Namespace: sa.Namespace,
+			Name:      sa.Name,
+		})
+	}
+
+	// LimitRanges
+	for _, lr := range envSpec.Exclusions.ExcludedLimitRanges {
+		newConfig.ExcludedLimitRanges = append(newConfig.ExcludedLimitRanges, collector.ExcludedLimitRange{
+			Namespace: lr.Namespace,
+			Name:      lr.Name,
+		})
+	}
+
+	// ResourceQuotas
+	for _, rq := range envSpec.Exclusions.ExcludedResourceQuotas {
+		newConfig.ExcludedResourceQuotas = append(newConfig.ExcludedResourceQuotas, collector.ExcludedResourceQuota{
+			Namespace: rq.Namespace,
+			Name:      rq.Name,
+		})
+	}
+
+	// HPAs
+	for _, hpa := range envSpec.Exclusions.ExcludedHPAs {
+		newConfig.ExcludedHPAs = append(newConfig.ExcludedHPAs, collector.ExcludedHPA{
+			Namespace: hpa.Namespace,
+			Name:      hpa.Name,
+		})
+	}
+
+	// VPAs
+	for _, vpa := range envSpec.Exclusions.ExcludedVPAs {
+		newConfig.ExcludedVPAs = append(newConfig.ExcludedVPAs, collector.ExcludedVPA{
+			Namespace: vpa.Namespace,
+			Name:      vpa.Name,
+		})
+	}
+
+	// Roles
+	for _, role := range envSpec.Exclusions.ExcludedRoles {
+		newConfig.ExcludedRoles = append(newConfig.ExcludedRoles, collector.ExcludedRole{
+			Namespace: role.Namespace,
+			Name:      role.Name,
+		})
+	}
+
+	// RoleBindings
+	for _, rb := range envSpec.Exclusions.ExcludedRoleBindings {
+		newConfig.ExcludedRoleBindings = append(newConfig.ExcludedRoleBindings, collector.ExcludedRoleBinding{
+			Namespace: rb.Namespace,
+			Name:      rb.Name,
+		})
+	}
+
+	// ClusterRoles
+	newConfig.ExcludedClusterRoles = envSpec.Exclusions.ExcludedClusterRoles
+
+	// ClusterRoleBindings
+	newConfig.ExcludedClusterRoleBindings = envSpec.Exclusions.ExcludedClusterRoleBindings
+
+	// PDBs
+	for _, pdb := range envSpec.Exclusions.ExcludedPDBs {
+		newConfig.ExcludedPDBs = append(newConfig.ExcludedPDBs, collector.ExcludedPDB{
+			Namespace: pdb.Namespace,
+			Name:      pdb.Name,
+		})
+	}
+
+	// PSPs
+	newConfig.ExcludedPSPs = envSpec.Exclusions.ExcludedPSPs
+
+	// PVs
+	newConfig.ExcludedPVs = envSpec.Exclusions.ExcludedPVs
+
+	// StorageClasses
+	newConfig.ExcludedStorageClasses = envSpec.Exclusions.ExcludedStorageClasses
+
+	// CRDs
+	newConfig.ExcludedCRDs = envSpec.Exclusions.ExcludedCRDs
+
+	// CRDGroups
+	newConfig.ExcludedCRDGroups = envSpec.Exclusions.ExcludedCRDGroups
+
+	// Events - these are special with more fields
+	for _, event := range envSpec.Exclusions.ExcludedEvents {
+		newConfig.ExcludedEvents = append(newConfig.ExcludedEvents, collector.ExcludedEvent{
+			Namespace: event.Namespace,
+			Name:      event.Name,
+		})
+	}
+
+	// Watched CRDs
+	newConfig.WatchedCRDs = envSpec.Policies.WatchedCRDs
 
 	// Check if config has changed
 	configChanged := false
@@ -1872,9 +2030,6 @@ func (r *CollectionPolicyReconciler) waitForPrometheusAvailability(ctx context.C
 func (r *CollectionPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// Set up basic components
 	r.Log = util.NewLogger("controller")
-	r.EnvCheckInterval = 5 * time.Minute
-	r.LastEnvCheckTime = time.Now()
-	r.EnvConfig = util.LoadEnvPolicyConfig(r.Log)
 	r.RestartInProgress = false
 
 	// Create a Kubernetes clientset

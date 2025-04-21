@@ -2,12 +2,13 @@
 package util
 
 import (
+	"encoding/json"
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
-	"time"
 
-	"github.com/go-logr/logr"
+	v1 "github.com/devzero-inc/zxporter/api/v1"
 )
 
 // Configuration environment variables
@@ -42,164 +43,448 @@ const (
 	// This is a comma-separated list.
 	// Default value: [] (all namespaces)
 	_ENV_TARGET_NAMESPACES = "TARGET_NAMESPACES"
+
+	// PROMETHEUS_URL is the URL of the Prometheus server.
+	// Default value: ""
+	_ENV_PROMETHEUS_URL = "PROMETHEUS_URL"
+
+	// DISABLE_NETWORK_IO_METRICS determines whether to disable network IO metrics.
+	// Default value: false
+	_ENV_DISABLE_NETWORK_IO_METRICS = "DISABLE_NETWORK_IO_METRICS"
+
+	// MASK_SECRET_DATA determines whether to redact secret values.
+	// Default value: false
+	_ENV_MASK_SECRET_DATA = "MASK_SECRET_DATA"
+
+	// NODE_METRICS_INTERVAL is how often to collect node metrics.
+	// Default value: collection frequency * 6
+	_ENV_NODE_METRICS_INTERVAL = "NODE_METRICS_INTERVAL"
+
+	// WATCHED_CRDS is a list of custom resource definitions to explicitly watch.
+	// This is a comma-separated list.
+	// Default value: []
+	_ENV_WATCHED_CRDS = "WATCHED_CRDS"
+
+	// DISABLED_COLLECTORS is a list of collector types to completely disable.
+	// This is a comma-separated list.
+	// Default value: []
+	_ENV_DISABLED_COLLECTORS = "DISABLED_COLLECTORS"
+
+	// Exclusions for specific resources follow the format:
+	// EXCLUDED_<RESOURCE>_<NAMESPACE>_<n>
+	// Example: EXCLUDED_POD_default_my-pod=true
+
+	// EXCLUDED_PODS is a JSON-encoded list of pods to exclude.
+	// Format: [{"namespace":"default","name":"pod1"},{"namespace":"kube-system","name":"pod2"}]
+	// Default value: []
+	_ENV_EXCLUDED_PODS = "EXCLUDED_PODS"
+
+	// EXCLUDED_DEPLOYMENTS is a JSON-encoded list of deployments to exclude.
+	// Format: [{"namespace":"default","name":"deploy1"},{"namespace":"kube-system","name":"deploy2"}]
+	// Default value: []
+	_ENV_EXCLUDED_DEPLOYMENTS = "EXCLUDED_DEPLOYMENTS"
+
+	// EXCLUDED_STATEFULSETS is a JSON-encoded list of statefulsets to exclude.
+	// Format: [{"namespace":"default","name":"sts1"},{"namespace":"kube-system","name":"sts2"}]
+	// Default value: []
+	_ENV_EXCLUDED_STATEFULSETS = "EXCLUDED_STATEFULSETS"
+
+	// EXCLUDED_DAEMONSETS is a JSON-encoded list of daemonsets to exclude.
+	// Format: [{"namespace":"default","name":"ds1"},{"namespace":"kube-system","name":"ds2"}]
+	// Default value: []
+	_ENV_EXCLUDED_DAEMONSETS = "EXCLUDED_DAEMONSETS"
+
+	// EXCLUDED_SERVICES is a JSON-encoded list of services to exclude.
+	// Format: [{"namespace":"default","name":"svc1"},{"namespace":"kube-system","name":"svc2"}]
+	// Default value: []
+	_ENV_EXCLUDED_SERVICES = "EXCLUDED_SERVICES"
+
+	// EXCLUDED_PVCS is a JSON-encoded list of persistent volume claims to exclude.
+	// Format: [{"namespace":"default","name":"pvc1"},{"namespace":"kube-system","name":"pvc2"}]
+	// Default value: []
+	_ENV_EXCLUDED_PVCS = "EXCLUDED_PVCS"
+
+	// EXCLUDED_EVENTS is a JSON-encoded list of events to exclude.
+	// Format: [{"namespace":"default","reason":"Scheduled","source":"default-scheduler",
+	//           "involvedObjectKind":"Pod","involvedObjectName":"pod1"}]
+	// Default value: []
+	_ENV_EXCLUDED_EVENTS = "EXCLUDED_EVENTS"
+
+	// EXCLUDED_JOBS is a JSON-encoded list of jobs to exclude.
+	// Format: [{"namespace":"default","name":"job1"},{"namespace":"kube-system","name":"job2"}]
+	// Default value: []
+	_ENV_EXCLUDED_JOBS = "EXCLUDED_JOBS"
+
+	// EXCLUDED_CRONJOBS is a JSON-encoded list of cronjobs to exclude.
+	// Format: [{"namespace":"default","name":"cron1"},{"namespace":"kube-system","name":"cron2"}]
+	// Default value: []
+	_ENV_EXCLUDED_CRONJOBS = "EXCLUDED_CRONJOBS"
+
+	// EXCLUDED_REPLICATIONCONTROLLERS is a JSON-encoded list of replication controllers to exclude.
+	// Format: [{"namespace":"default","name":"rc1"},{"namespace":"kube-system","name":"rc2"}]
+	// Default value: []
+	_ENV_EXCLUDED_REPLICATIONCONTROLLERS = "EXCLUDED_REPLICATIONCONTROLLERS"
+
+	// EXCLUDED_INGRESSES is a JSON-encoded list of ingresses to exclude.
+	// Format: [{"namespace":"default","name":"ing1"},{"namespace":"kube-system","name":"ing2"}]
+	// Default value: []
+	_ENV_EXCLUDED_INGRESSES = "EXCLUDED_INGRESSES"
+
+	// EXCLUDED_INGRESSCLASSES is a comma-separated list of ingress classes to exclude.
+	// Default value: []
+	_ENV_EXCLUDED_INGRESSCLASSES = "EXCLUDED_INGRESSCLASSES"
+
+	// EXCLUDED_NETWORKPOLICIES is a JSON-encoded list of network policies to exclude.
+	// Format: [{"namespace":"default","name":"netpol1"},{"namespace":"kube-system","name":"netpol2"}]
+	// Default value: []
+	_ENV_EXCLUDED_NETWORKPOLICIES = "EXCLUDED_NETWORKPOLICIES"
+
+	// EXCLUDED_ENDPOINTS is a JSON-encoded list of endpoints to exclude.
+	// Format: [{"namespace":"default","name":"ep1"},{"namespace":"kube-system","name":"ep2"}]
+	// Default value: []
+	_ENV_EXCLUDED_ENDPOINTS = "EXCLUDED_ENDPOINTS"
+
+	// EXCLUDED_SERVICEACCOUNTS is a JSON-encoded list of service accounts to exclude.
+	// Format: [{"namespace":"default","name":"sa1"},{"namespace":"kube-system","name":"sa2"}]
+	// Default value: []
+	_ENV_EXCLUDED_SERVICEACCOUNTS = "EXCLUDED_SERVICEACCOUNTS"
+
+	// EXCLUDED_LIMITRANGES is a JSON-encoded list of limit ranges to exclude.
+	// Format: [{"namespace":"default","name":"lr1"},{"namespace":"kube-system","name":"lr2"}]
+	// Default value: []
+	_ENV_EXCLUDED_LIMITRANGES = "EXCLUDED_LIMITRANGES"
+
+	// EXCLUDED_RESOURCEQUOTAS is a JSON-encoded list of resource quotas to exclude.
+	// Format: [{"namespace":"default","name":"rq1"},{"namespace":"kube-system","name":"rq2"}]
+	// Default value: []
+	_ENV_EXCLUDED_RESOURCEQUOTAS = "EXCLUDED_RESOURCEQUOTAS"
+
+	// EXCLUDED_HPAS is a JSON-encoded list of horizontal pod autoscalers to exclude.
+	// Format: [{"namespace":"default","name":"hpa1"},{"namespace":"kube-system","name":"hpa2"}]
+	// Default value: []
+	_ENV_EXCLUDED_HPAS = "EXCLUDED_HPAS"
+
+	// EXCLUDED_VPAS is a JSON-encoded list of vertical pod autoscalers to exclude.
+	// Format: [{"namespace":"default","name":"vpa1"},{"namespace":"kube-system","name":"vpa2"}]
+	// Default value: []
+	_ENV_EXCLUDED_VPAS = "EXCLUDED_VPAS"
+
+	// EXCLUDED_ROLES is a JSON-encoded list of roles to exclude.
+	// Format: [{"namespace":"default","name":"role1"},{"namespace":"kube-system","name":"role2"}]
+	// Default value: []
+	_ENV_EXCLUDED_ROLES = "EXCLUDED_ROLES"
+
+	// EXCLUDED_ROLEBINDINGS is a JSON-encoded list of role bindings to exclude.
+	// Format: [{"namespace":"default","name":"rb1"},{"namespace":"kube-system","name":"rb2"}]
+	// Default value: []
+	_ENV_EXCLUDED_ROLEBINDINGS = "EXCLUDED_ROLEBINDINGS"
+
+	// EXCLUDED_CLUSTERROLES is a comma-separated list of cluster roles to exclude.
+	// Default value: []
+	_ENV_EXCLUDED_CLUSTERROLES = "EXCLUDED_CLUSTERROLES"
+
+	// EXCLUDED_CLUSTERROLEBINDINGS is a comma-separated list of cluster role bindings to exclude.
+	// Default value: []
+	_ENV_EXCLUDED_CLUSTERROLEBINDINGS = "EXCLUDED_CLUSTERROLEBINDINGS"
+
+	// EXCLUDED_PDBS is a JSON-encoded list of pod disruption budgets to exclude.
+	// Format: [{"namespace":"default","name":"pdb1"},{"namespace":"kube-system","name":"pdb2"}]
+	// Default value: []
+	_ENV_EXCLUDED_PDBS = "EXCLUDED_PDBS"
+
+	// EXCLUDED_PSPS is a comma-separated list of pod security policies to exclude.
+	// Default value: []
+	_ENV_EXCLUDED_PSPS = "EXCLUDED_PSPS"
+
+	// EXCLUDED_PVS is a comma-separated list of persistent volumes to exclude.
+	// Default value: []
+	_ENV_EXCLUDED_PVS = "EXCLUDED_PVS"
+
+	// EXCLUDED_STORAGECLASSES is a comma-separated list of storage classes to exclude.
+	// Default value: []
+	_ENV_EXCLUDED_STORAGECLASSES = "EXCLUDED_STORAGECLASSES"
+
+	// EXCLUDED_CRDS is a comma-separated list of custom resource definitions to exclude.
+	// Default value: []
+	_ENV_EXCLUDED_CRDS = "EXCLUDED_CRDS"
+
+	// EXCLUDED_CRDGROUPS is a comma-separated list of custom resource definition groups to exclude.
+	// Default value: []
+	_ENV_EXCLUDED_CRDGROUPS = "EXCLUDED_CRDGROUPS"
 )
 
-// EnvPolicyConfig holds configuration that can be set via environment variables
-type EnvPolicyConfig struct {
-	// ClusterToken is the token used to authenticate as a cluster
-	ClusterToken string
+// LoadCollectionPolicySpecFromEnv reads environment variables, applies them
+// over the provided oldSpec, and returns the new spec along with a boolean
+// indicating whether any field changed, or an error if parsing fails.
+func LoadCollectionPolicySpecFromEnv() (v1.CollectionPolicySpec, error) {
+	newSpec := v1.CollectionPolicySpec{}
 
-	// DakrURL is the URL of the Dakr service
-	DakrURL string
-
-	// Frequency is how often to collect resource usage metrics
-	Frequency time.Duration
-
-	// BufferSize is the size of the sender buffer
-	BufferSize int
-
-	// ExcludedNamespaces are namespaces to exclude from collection
-	ExcludedNamespaces []string
-
-	// ExcludedNodes are nodes to exclude from collection
-	ExcludedNodes []string
-
-	// TargetNamespaces are namespaces to include in collection (empty means all)
-	TargetNamespaces []string
-}
-
-// LoadEnvPolicyConfig loads configuration from environment variables
-func LoadEnvPolicyConfig(logger logr.Logger) *EnvPolicyConfig {
-	config := &EnvPolicyConfig{}
-
-	// Load cluster token
-	if token := os.Getenv(_ENV_CLUSTER_TOKEN); token != "" {
-		config.ClusterToken = token
-		logger.Info("Loaded ClusterToken from environment")
-	}
-
-	// Load dakr URL
-	if url := os.Getenv(_ENV_DAKR_URL); url != "" {
-		config.DakrURL = url
-		logger.Info("Loaded DakrURL from environment", "url", url)
-	}
-
-	// Load collection frequency
-	if freqStr := os.Getenv(_ENV_COLLECTION_FREQUENCY); freqStr != "" {
-		if freq, err := time.ParseDuration(freqStr); err == nil {
-			config.Frequency = freq
-			logger.Info("Loaded collection frequency from environment", "frequency", freq)
-		} else {
-			logger.Error(err, "Failed to parse COLLECTION_FREQUENCY environment variable", "value", freqStr)
+	// Helper to split comma-separated lists
+	splitCSV := func(envKey string) []string {
+		if raw := os.Getenv(envKey); raw != "" {
+			parts := strings.Split(raw, ",")
+			for i := range parts {
+				parts[i] = strings.TrimSpace(parts[i])
+			}
+			return parts
 		}
-	}
-
-	// Load buffer size
-	if sizeStr := os.Getenv(_ENV_BUFFER_SIZE); sizeStr != "" {
-		if size, err := strconv.Atoi(sizeStr); err == nil {
-			config.BufferSize = size
-			logger.Info("Loaded buffer size from environment", "size", size)
-		} else {
-			logger.Error(err, "Failed to parse BUFFER_SIZE environment variable", "value", sizeStr)
-		}
-	}
-
-	// Load excluded namespaces
-	if nsStr := os.Getenv(_ENV_EXCLUDED_NAMESPACES); nsStr != "" {
-		config.ExcludedNamespaces = parseCommaList(nsStr)
-		logger.Info("Loaded excluded namespaces from environment", "namespaces", config.ExcludedNamespaces)
-	}
-
-	// Load excluded nodes
-	if nodesStr := os.Getenv(_ENV_EXCLUDED_NODES); nodesStr != "" {
-		config.ExcludedNodes = parseCommaList(nodesStr)
-		logger.Info("Loaded excluded nodes from environment", "nodes", config.ExcludedNodes)
-	}
-
-	// Load target namespaces
-	if nsStr := os.Getenv(_ENV_TARGET_NAMESPACES); nsStr != "" {
-		config.TargetNamespaces = parseCommaList(nsStr)
-		logger.Info("Loaded target namespaces from environment", "namespaces", config.TargetNamespaces)
-	}
-
-	return config
-}
-
-// parseCommaList parses a comma-separated list of strings
-func parseCommaList(input string) []string {
-	if input == "" {
 		return nil
 	}
 
-	items := strings.Split(input, ",")
-	result := make([]string, 0, len(items))
+	// Helper to unmarshal JSON-encoded env var into out
+	unmarshalJSON := func(envKey string, out interface{}) error {
+		if raw := os.Getenv(envKey); raw != "" {
+			if err := json.Unmarshal([]byte(raw), out); err != nil {
+				return fmt.Errorf("invalid JSON for %s: %w", envKey, err)
+			}
+		}
+		return nil
+	}
 
-	for _, item := range items {
-		trimmed := strings.TrimSpace(item)
-		if trimmed != "" {
-			result = append(result, trimmed)
+	// === TargetSelector ===
+	if ns := splitCSV(_ENV_TARGET_NAMESPACES); ns != nil {
+		newSpec.TargetSelector.Namespaces = ns
+	}
+
+	// === Exclusions (comma-separated) ===
+	if excl := splitCSV(_ENV_EXCLUDED_NAMESPACES); excl != nil {
+		newSpec.Exclusions.ExcludedNamespaces = excl
+	}
+	if excl := splitCSV(_ENV_EXCLUDED_NODES); excl != nil {
+		newSpec.Exclusions.ExcludedNodes = excl
+	}
+	if excl := splitCSV(_ENV_EXCLUDED_INGRESSCLASSES); excl != nil {
+		newSpec.Exclusions.ExcludedIngressClasses = excl
+	}
+	if excl := splitCSV(_ENV_EXCLUDED_PSPS); excl != nil {
+		newSpec.Exclusions.ExcludedPSPs = excl
+	}
+	if excl := splitCSV(_ENV_EXCLUDED_PVS); excl != nil {
+		newSpec.Exclusions.ExcludedPVs = excl
+	}
+	if excl := splitCSV(_ENV_EXCLUDED_STORAGECLASSES); excl != nil {
+		newSpec.Exclusions.ExcludedStorageClasses = excl
+	}
+	if excl := splitCSV(_ENV_EXCLUDED_CRDS); excl != nil {
+		newSpec.Exclusions.ExcludedCRDs = excl
+	}
+	if excl := splitCSV(_ENV_EXCLUDED_CRDGROUPS); excl != nil {
+		newSpec.Exclusions.ExcludedCRDGroups = excl
+	}
+
+	// === Exclusions (JSON-encoded structs) ===
+	var tmpPods []v1.ExcludedPod
+	if err := unmarshalJSON(_ENV_EXCLUDED_PODS, &tmpPods); err != nil {
+		return newSpec, err
+	}
+	if tmpPods != nil {
+		newSpec.Exclusions.ExcludedPods = tmpPods
+	}
+
+	var tmpDeploys []v1.ExcludedDeployment
+	if err := unmarshalJSON(_ENV_EXCLUDED_DEPLOYMENTS, &tmpDeploys); err != nil {
+		return newSpec, err
+	}
+	if tmpDeploys != nil {
+		newSpec.Exclusions.ExcludedDeployments = tmpDeploys
+	}
+
+	var tmpSts []v1.ExcludedStatefulSet
+	if err := unmarshalJSON(_ENV_EXCLUDED_STATEFULSETS, &tmpSts); err != nil {
+		return newSpec, err
+	}
+	if tmpSts != nil {
+		newSpec.Exclusions.ExcludedStatefulSets = tmpSts
+	}
+
+	var tmpDs []v1.ExcludedDaemonSet
+	if err := unmarshalJSON(_ENV_EXCLUDED_DAEMONSETS, &tmpDs); err != nil {
+		return newSpec, err
+	}
+	if tmpDs != nil {
+		newSpec.Exclusions.ExcludedDaemonSets = tmpDs
+	}
+
+	var tmpSvcs []v1.ExcludedService
+	if err := unmarshalJSON(_ENV_EXCLUDED_SERVICES, &tmpSvcs); err != nil {
+		return newSpec, err
+	}
+	if tmpSvcs != nil {
+		newSpec.Exclusions.ExcludedServices = tmpSvcs
+	}
+
+	var tmpPVCs []v1.ExcludedPVC
+	if err := unmarshalJSON(_ENV_EXCLUDED_PVCS, &tmpPVCs); err != nil {
+		return newSpec, err
+	}
+	if tmpPVCs != nil {
+		newSpec.Exclusions.ExcludedPVCs = tmpPVCs
+	}
+
+	var tmpEvents []v1.ExcludedEvent
+	if err := unmarshalJSON(_ENV_EXCLUDED_EVENTS, &tmpEvents); err != nil {
+		return newSpec, err
+	}
+	if tmpEvents != nil {
+		newSpec.Exclusions.ExcludedEvents = tmpEvents
+	}
+
+	var tmpJobs []v1.ExcludedJob
+	if err := unmarshalJSON(_ENV_EXCLUDED_JOBS, &tmpJobs); err != nil {
+		return newSpec, err
+	}
+	if tmpJobs != nil {
+		newSpec.Exclusions.ExcludedJobs = tmpJobs
+	}
+
+	var tmpCron []v1.ExcludedCronJob
+	if err := unmarshalJSON(_ENV_EXCLUDED_CRONJOBS, &tmpCron); err != nil {
+		return newSpec, err
+	}
+	if tmpCron != nil {
+		newSpec.Exclusions.ExcludedCronJobs = tmpCron
+	}
+
+	var tmpRCs []v1.ExcludedReplicationController
+	if err := unmarshalJSON(_ENV_EXCLUDED_REPLICATIONCONTROLLERS, &tmpRCs); err != nil {
+		return newSpec, err
+	}
+	if tmpRCs != nil {
+		newSpec.Exclusions.ExcludedReplicationControllers = tmpRCs
+	}
+
+	var tmpIngs []v1.ExcludedIngress
+	if err := unmarshalJSON(_ENV_EXCLUDED_INGRESSES, &tmpIngs); err != nil {
+		return newSpec, err
+	}
+	if tmpIngs != nil {
+		newSpec.Exclusions.ExcludedIngresses = tmpIngs
+	}
+
+	var tmpNetPol []v1.ExcludedNetworkPolicy
+	if err := unmarshalJSON(_ENV_EXCLUDED_NETWORKPOLICIES, &tmpNetPol); err != nil {
+		return newSpec, err
+	}
+	if tmpNetPol != nil {
+		newSpec.Exclusions.ExcludedNetworkPolicies = tmpNetPol
+	}
+
+	var tmpEndpoints []v1.ExcludedEndpoint
+	if err := unmarshalJSON(_ENV_EXCLUDED_ENDPOINTS, &tmpEndpoints); err != nil {
+		return newSpec, err
+	}
+	if tmpEndpoints != nil {
+		newSpec.Exclusions.ExcludedEndpoints = tmpEndpoints
+	}
+
+	var tmpSAs []v1.ExcludedServiceAccount
+	if err := unmarshalJSON(_ENV_EXCLUDED_SERVICEACCOUNTS, &tmpSAs); err != nil {
+		return newSpec, err
+	}
+	if tmpSAs != nil {
+		newSpec.Exclusions.ExcludedServiceAccounts = tmpSAs
+	}
+
+	var tmpLR []v1.ExcludedLimitRange
+	if err := unmarshalJSON(_ENV_EXCLUDED_LIMITRANGES, &tmpLR); err != nil {
+		return newSpec, err
+	}
+	if tmpLR != nil {
+		newSpec.Exclusions.ExcludedLimitRanges = tmpLR
+	}
+
+	var tmpRQs []v1.ExcludedResourceQuota
+	if err := unmarshalJSON(_ENV_EXCLUDED_RESOURCEQUOTAS, &tmpRQs); err != nil {
+		return newSpec, err
+	}
+	if tmpRQs != nil {
+		newSpec.Exclusions.ExcludedResourceQuotas = tmpRQs
+	}
+
+	var tmpHPAs []v1.ExcludedHPA
+	if err := unmarshalJSON(_ENV_EXCLUDED_HPAS, &tmpHPAs); err != nil {
+		return newSpec, err
+	}
+	if tmpHPAs != nil {
+		newSpec.Exclusions.ExcludedHPAs = tmpHPAs
+	}
+
+	var tmpVPAs []v1.ExcludedVPA
+	if err := unmarshalJSON(_ENV_EXCLUDED_VPAS, &tmpVPAs); err != nil {
+		return newSpec, err
+	}
+	if tmpVPAs != nil {
+		newSpec.Exclusions.ExcludedVPAs = tmpVPAs
+	}
+
+	var tmpRoles []v1.ExcludedRole
+	if err := unmarshalJSON(_ENV_EXCLUDED_ROLES, &tmpRoles); err != nil {
+		return newSpec, err
+	}
+	if tmpRoles != nil {
+		newSpec.Exclusions.ExcludedRoles = tmpRoles
+	}
+
+	var tmpRBs []v1.ExcludedRoleBinding
+	if err := unmarshalJSON(_ENV_EXCLUDED_ROLEBINDINGS, &tmpRBs); err != nil {
+		return newSpec, err
+	}
+	if tmpRBs != nil {
+		newSpec.Exclusions.ExcludedRoleBindings = tmpRBs
+	}
+
+	var tmpPDBs []v1.ExcludedPDB
+	if err := unmarshalJSON(_ENV_EXCLUDED_PDBS, &tmpPDBs); err != nil {
+		return newSpec, err
+	}
+	if tmpPDBs != nil {
+		newSpec.Exclusions.ExcludedPDBs = tmpPDBs
+	}
+
+	// === Policies ===
+	if v := os.Getenv(_ENV_CLUSTER_TOKEN); v != "" {
+		newSpec.Policies.ClusterToken = v
+	}
+	if v := os.Getenv(_ENV_DAKR_URL); v != "" {
+		newSpec.Policies.DakrURL = v
+	}
+	if v := os.Getenv(_ENV_PROMETHEUS_URL); v != "" {
+		newSpec.Policies.PrometheusURL = v
+	}
+	if v := os.Getenv(_ENV_COLLECTION_FREQUENCY); v != "" {
+		newSpec.Policies.Frequency = v
+	}
+	if v := os.Getenv(_ENV_BUFFER_SIZE); v != "" {
+		if i, err := strconv.Atoi(v); err != nil {
+			return newSpec, fmt.Errorf("invalid %s: %w", _ENV_BUFFER_SIZE, err)
+		} else {
+			newSpec.Policies.BufferSize = i
 		}
 	}
-
-	return result
-}
-
-// MergeWithCRPolicy merges environment config with CR policy, with environment taking precedence
-func (e *EnvPolicyConfig) MergeWithCRPolicy(
-	targetNamespaces []string,
-	excludedNamespaces []string,
-	excludedNodes []string,
-	dakrURL string,
-	frequencyStr string,
-	bufferSize int,
-	clusterToken string,
-) ([]string, []string, []string, string, time.Duration, int, string) {
-
-	// Initialize default values from CR
-	mergedTargetNamespaces := targetNamespaces
-	mergedExcludedNamespaces := excludedNamespaces
-	mergedExcludedNodes := excludedNodes
-	mergedDakrURL := dakrURL
-	mergedClusterToken := clusterToken
-
-	// Parse frequency
-	var mergedFrequency time.Duration
-	if frequencyStr != "" {
-		if freq, err := time.ParseDuration(frequencyStr); err == nil {
-			mergedFrequency = freq
+	if v := os.Getenv(_ENV_DISABLE_NETWORK_IO_METRICS); v != "" {
+		if b, err := strconv.ParseBool(v); err != nil {
+			return newSpec, fmt.Errorf("invalid %s: %w", _ENV_DISABLE_NETWORK_IO_METRICS, err)
+		} else {
+			newSpec.Policies.DisableNetworkIOMetrics = b
 		}
 	}
-
-	mergedBufferSize := bufferSize
-
-	// Override with environment values if set
-	if len(e.TargetNamespaces) > 0 {
-		mergedTargetNamespaces = e.TargetNamespaces
+	if v := os.Getenv(_ENV_MASK_SECRET_DATA); v != "" {
+		if b, err := strconv.ParseBool(v); err != nil {
+			return newSpec, fmt.Errorf("invalid %s: %w", _ENV_MASK_SECRET_DATA, err)
+		} else {
+			newSpec.Policies.MaskSecretData = b
+		}
+	}
+	if v := os.Getenv(_ENV_NODE_METRICS_INTERVAL); v != "" {
+		newSpec.Policies.NodeMetricsInterval = v
+	}
+	if list := splitCSV(_ENV_WATCHED_CRDS); list != nil {
+		newSpec.Policies.WatchedCRDs = list
+	}
+	if list := splitCSV(_ENV_DISABLED_COLLECTORS); list != nil {
+		newSpec.Policies.DisabledCollectors = list
 	}
 
-	if len(e.ExcludedNamespaces) > 0 {
-		mergedExcludedNamespaces = e.ExcludedNamespaces
-	}
-
-	if len(e.ExcludedNodes) > 0 {
-		mergedExcludedNodes = e.ExcludedNodes
-	}
-
-	if e.DakrURL != "" {
-		mergedDakrURL = e.DakrURL
-	}
-
-	if e.ClusterToken != "" {
-		mergedClusterToken = e.ClusterToken
-	}
-
-	if e.Frequency > 0 {
-		mergedFrequency = e.Frequency
-	}
-
-	if e.BufferSize > 0 {
-		mergedBufferSize = e.BufferSize
-	}
-
-	return mergedTargetNamespaces, mergedExcludedNamespaces, mergedExcludedNodes, mergedDakrURL, mergedFrequency, mergedBufferSize, mergedClusterToken
+	// Detect any change
+	return newSpec, nil
 }

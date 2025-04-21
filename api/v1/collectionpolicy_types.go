@@ -334,17 +334,8 @@ type ExcludedEvent struct {
 	// Namespace is the event's namespace
 	Namespace string `json:"namespace"`
 
-	// Reason is the event's reason
-	Reason string `json:"reason,omitempty"`
-
-	// Source is the event's source component
-	Source string `json:"source,omitempty"`
-
-	// InvolvedObjectKind is the kind of object involved in the event
-	InvolvedObjectKind string `json:"involvedObjectKind,omitempty"`
-
-	// InvolvedObjectName is the name of the object involved in the event
-	InvolvedObjectName string `json:"involvedObjectName,omitempty"`
+	// Name of the event
+	Name string `json:"name"`
 }
 
 // Policies defines collection behavior

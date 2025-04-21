@@ -178,24 +178,14 @@ spec:
                     items:
                       description: ExcludedEvent identifies an event to exclude
                       properties:
-                        involvedObjectKind:
-                          description: InvolvedObjectKind is the kind of object involved
-                            in the event
-                          type: string
-                        involvedObjectName:
-                          description: InvolvedObjectName is the name of the object
-                            involved in the event
+                        name:
+                          description: Name of the event
                           type: string
                         namespace:
                           description: Namespace is the event's namespace
                           type: string
-                        reason:
-                          description: Reason is the event's reason
-                          type: string
-                        source:
-                          description: Source is the event's source component
-                          type: string
                       required:
+                      - name
                       - namespace
                       type: object
                     type: array
