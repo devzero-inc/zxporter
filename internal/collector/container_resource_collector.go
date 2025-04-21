@@ -270,6 +270,21 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 	}
 }
 
+func sanitize(podCloned *corev1.Pod) {
+	for _, cont := range podCloned.Spec.Containers {
+		cont.Env = []corev1.EnvVar{}
+		cont.EnvFrom = []corev1.EnvFromSource{}
+	}
+	for _, cont := range podCloned.Spec.EphemeralContainers {
+		cont.Env = []corev1.EnvVar{}
+		cont.EnvFrom = []corev1.EnvFromSource{}
+	}
+	for _, cont := range podCloned.Spec.InitContainers {
+		cont.Env = []corev1.EnvVar{}
+		cont.EnvFrom = []corev1.EnvFromSource{}
+	}
+}
+
 // processContainerMetrics processes metrics for a single container
 func (c *ContainerResourceCollector) processContainerMetrics(
 	pod *corev1.Pod,
@@ -277,28 +292,33 @@ func (c *ContainerResourceCollector) processContainerMetrics(
 	networkMetrics map[string]float64,
 	ioMetrics map[string]float64,
 ) {
+	podCloned := pod.DeepCopy()
+
+	// clean out potentially sensitive info
+	sanitize(podCloned)
+
 	// Find the container spec in the pod
 	var containerSpec *corev1.Container
-	for i := range pod.Spec.Containers {
-		if pod.Spec.Containers[i].Name == containerMetrics.Name {
-			containerSpec = &pod.Spec.Containers[i]
+	for i := range podCloned.Spec.Containers {
+		if podCloned.Spec.Containers[i].Name == containerMetrics.Name {
+			containerSpec = &podCloned.Spec.Containers[i]
 			break
 		}
 	}
 
 	if containerSpec == nil {
 		c.logger.Error(nil, "Container spec not found",
-			"namespace", pod.Namespace,
-			"pod", pod.Name,
+			"namespace", podCloned.Namespace,
+			"pod", podCloned.Name,
 			"container", containerMetrics.Name)
 		return
 	}
 
 	// Get container status
 	var containerStatus *corev1.ContainerStatus
-	for i := range pod.Status.ContainerStatuses {
-		if pod.Status.ContainerStatuses[i].Name == containerMetrics.Name {
-			containerStatus = &pod.Status.ContainerStatuses[i]
+	for i := range podCloned.Status.ContainerStatuses {
+		if podCloned.Status.ContainerStatuses[i].Name == containerMetrics.Name {
+			containerStatus = &podCloned.Status.ContainerStatuses[i]
 			break
 		}
 	}
@@ -336,13 +356,13 @@ func (c *ContainerResourceCollector) processContainerMetrics(
 	}
 
 	// Create resource data with both metrics and pod info
-	containerKey := fmt.Sprintf("%s/%s/%s", pod.Namespace, pod.Name, containerMetrics.Name)
+	containerKey := fmt.Sprintf("%s/%s/%s", podCloned.Namespace, podCloned.Name, containerMetrics.Name)
 	resourceData := map[string]interface{}{
 		// Container identification
 		"containerName": containerMetrics.Name,
-		"podName":       pod.Name,
-		"namespace":     pod.Namespace,
-		"nodeName":      pod.Spec.NodeName,
+		"podName":       podCloned.Name,
+		"namespace":     podCloned.Namespace,
+		"nodeName":      podCloned.Spec.NodeName,
 
 		// CPU/Memory resource usage
 		"cpuUsageMillis":   cpuUsage,
@@ -355,7 +375,7 @@ func (c *ContainerResourceCollector) processContainerMetrics(
 		"memoryLimitBytes":   memoryLimitBytes,
 
 		// Labels from the pod for correlation
-		"podLabels": pod.Labels,
+		"podLabels": podCloned.Labels,
 
 		// Container metadata for reference
 		"containerImage": containerSpec.Image,
@@ -365,7 +385,7 @@ func (c *ContainerResourceCollector) processContainerMetrics(
 		"containerRestarts": containerStatus != nil && containerStatus.RestartCount != 0,
 
 		// Include the full pod object for any other needed details
-		"pod": pod,
+		"pod": podCloned,
 	}
 
 	// Add network metrics if available
