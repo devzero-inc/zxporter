@@ -91,5 +91,8 @@ spec:
           requests:
             cpu: 1
             memory: 1024Mi
+        envFrom:
+        - configMapRef:
+            name: devzero-zxporter-config
       serviceAccountName: controller-manager
       terminationGracePeriodSeconds: 10

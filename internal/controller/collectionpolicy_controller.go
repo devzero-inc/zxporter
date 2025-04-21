@@ -29,7 +29,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	monitoringv1 "github.com/devzero-inc/zxporter/api/v1"
 	metricsv1 "k8s.io/metrics/pkg/client/clientset/versioned"
@@ -490,7 +492,7 @@ func (r *CollectionPolicyReconciler) identifyAffectedCollectors(oldConfig, newCo
 		affectedCollectors["container_resources"] = true
 	}
 
-	if !reflect.DeepEqual(oldConfig.ExcludedDeployments, newConfig.ExcludedDeployments) {
+	if !reflect.DeepEqual(oldConfig.ExcludedDeployments, newConfig.ExcludedDeployments) { // TODO: should depployment influence container and pod collectors?
 		affectedCollectors["deployment"] = true
 	}
 
@@ -2040,7 +2042,16 @@ func (r *CollectionPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 	r.K8sClient = clientset
 
+	// Create a periodic reconciliation instead of watching a CRD
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&monitoringv1.CollectionPolicy{}).
+		// Instead of watching a CRD, we'll reconcile periodically
+		// For(&corev1.ConfigMap{}). // Use a dummy object type like ConfigMap
+		WithEventFilter(predicate.Funcs{
+			// Return true only for the reconciler's initial sync
+			CreateFunc:  func(e event.CreateEvent) bool { return false },
+			UpdateFunc:  func(e event.UpdateEvent) bool { return false },
+			DeleteFunc:  func(e event.DeleteEvent) bool { return false },
+			GenericFunc: func(e event.GenericEvent) bool { return false },
+		}).
 		Complete(r)
 }

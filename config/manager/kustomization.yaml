@@ -1,13 +1,13 @@
 resources:
 - manager.yaml
-patches:
-- path: env-patch.yaml
-  target:
-    kind: Deployment
-    name: controller-manager
+# patches:
+# - path: env-patch.yaml
+#   target:
+#     kind: Deployment
+#     name: controller-manager
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 images:
 - name: controller
-  newName: ttl.sh/zxporter
-  newTag: latest
+  newName: remontada007/zxporter
+  newTag: v74

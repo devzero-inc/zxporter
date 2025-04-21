@@ -308,6 +308,11 @@ uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified 
 deploy: build-installer ## Deploy controller to the K8s cluster specified in ~/.kube/config.
 	cat $(DIST_INSTALL_BUNDLE) | $(KUBECTL) apply -f -
 
+.PHONY: local-deploy
+local-deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/config.
+	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
+	$(KUSTOMIZE) build config/default | $(KUBECTL) apply -f -
+
 .PHONY: deploy-collections
 deploy-collections: DIST_INSTALL_BUNDLE=dist/collection_bundle.yaml
 deploy-collections: build-collections

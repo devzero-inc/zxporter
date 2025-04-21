@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: devzero-zxporter-config
+  namespace: devzero-zxporter
+data:
+  EXCLUDED_DEPLOYMENTS: '[{"namespace":"default","name":"spiky-app"},{"namespace":"default","name":"dec-stress"}]'
+  EXCLUDED_NAMESPACES: "kube-system,kube-public"
