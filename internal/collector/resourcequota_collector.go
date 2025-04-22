@@ -236,7 +236,7 @@ func (c *ResourceQuotaCollector) GetResourceChannel() <-chan CollectedResource {
 
 // GetType returns the type of resource this collector handles
 func (c *ResourceQuotaCollector) GetType() string {
-	return "resourcequota"
+	return "resource_quota"
 }
 
 // IsAvailable checks if ResourceQuota resources can be accessed in the cluster

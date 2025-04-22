@@ -227,7 +227,7 @@ func (c *RoleBindingCollector) GetResourceChannel() <-chan CollectedResource {
 
 // GetType returns the type of resource this collector handles
 func (c *RoleBindingCollector) GetType() string {
-	return "rolebinding"
+	return "role_binding"
 }
 
 // IsAvailable checks if RoleBinding resources can be accessed in the cluster

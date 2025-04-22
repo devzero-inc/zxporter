@@ -260,7 +260,7 @@ func (c *ServiceAccountCollector) GetResourceChannel() <-chan CollectedResource 
 
 // GetType returns the type of resource this collector handles
 func (c *ServiceAccountCollector) GetType() string {
-	return "serviceaccount"
+	return "service_account"
 }
 
 // IsAvailable checks if ServiceAccount resources can be accessed in the cluster

@@ -1,0 +1,49 @@
+{
+    "ResourceType": 25,
+    "Object": {
+        "metadata": {
+            "name": "test-rolebinding",
+            "namespace": "default",
+            "uid": "fc50efeb-ca28-426e-89ae-a04ce0b00547",
+            "resourceVersion": "918707",
+            "creationTimestamp": "2025-04-22T16:37:57Z",
+            "annotations": {
+                "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"rbac.authorization.k8s.io/v1\",\"kind\":\"RoleBinding\",\"metadata\":{\"annotations\":{},\"name\":\"test-rolebinding\",\"namespace\":\"default\"},\"roleRef\":{\"apiGroup\":\"rbac.authorization.k8s.io\",\"kind\":\"Role\",\"name\":\"test-role\"},\"subjects\":[{\"kind\":\"ServiceAccount\",\"name\":\"default\",\"namespace\":\"default\"}]}\n"
+            },
+            "managedFields": [
+                {
+                    "manager": "kubectl-client-side-apply",
+                    "operation": "Update",
+                    "apiVersion": "rbac.authorization.k8s.io/v1",
+                    "time": "2025-04-22T16:37:57Z",
+                    "fieldsType": "FieldsV1",
+                    "fieldsV1": {
+                        "f:metadata": {
+                            "f:annotations": {
+                                ".": {},
+                                "f:kubectl.kubernetes.io/last-applied-configuration": {}
+                            }
+                        },
+                        "f:roleRef": {},
+                        "f:subjects": {}
+                    }
+                }
+            ]
+        },
+        "subjects": [
+            {
+                "kind": "ServiceAccount",
+                "name": "default",
+                "namespace": "default"
+            }
+        ],
+        "roleRef": {
+            "apiGroup": "rbac.authorization.k8s.io",
+            "kind": "Role",
+            "name": "test-role"
+        }
+    },
+    "Timestamp": "2025-04-22T16:38:02.772447802Z",
+    "EventType": "add",
+    "Key": "default/test-rolebinding"
+}

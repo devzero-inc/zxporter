@@ -1,0 +1,171 @@
+{
+    "ResourceType": 1,
+    "Object": {
+        "cluster_api": "https://10.96.0.1:443",
+        "cni_plugins": [
+            "unknown"
+        ],
+        "cpu_usage": 0,
+        "cpu_utilization": 0,
+        "created_at": 1745332471,
+        "id": "cluster-5d6b3ba9-%!s(<nil>)",
+        "memory_usage": 0,
+        "memory_utilization": 0,
+        "name": "cluster-5d6b3ba9",
+        "namespace_count": 8,
+        "node_count": 2,
+        "node_groups": [
+            {
+                "name": "unknown",
+                "nodes": [
+                    "my-cluster-control-plane",
+                    "my-cluster-worker"
+                ]
+            }
+        ],
+        "nodes": [
+            {
+                "addresses": {
+                    "Hostname": "my-cluster-control-plane",
+                    "InternalIP": "172.18.0.3"
+                },
+                "allocatable_cpu": 8,
+                "allocatable_memory_bytes": 8218251264,
+                "allocatable_pods": 110,
+                "annotations": {
+                    "kubeadm.alpha.kubernetes.io/cri-socket": "unix:///run/containerd/containerd.sock",
+                    "node.alpha.kubernetes.io/ttl": "0",
+                    "volumes.kubernetes.io/controller-managed-attach-detach": "true"
+                },
+                "architecture": "arm64",
+                "capacity_cpu": 8,
+                "capacity_memory_bytes": 8218251264,
+                "capacity_pods": 110,
+                "conditions": {
+                    "DiskPressure": {
+                        "message": "kubelet has no disk pressure",
+                        "reason": "KubeletHasNoDiskPressure",
+                        "status": "False"
+                    },
+                    "MemoryPressure": {
+                        "message": "kubelet has sufficient memory available",
+                        "reason": "KubeletHasSufficientMemory",
+                        "status": "False"
+                    },
+                    "PIDPressure": {
+                        "message": "kubelet has sufficient PID available",
+                        "reason": "KubeletHasSufficientPID",
+                        "status": "False"
+                    },
+                    "Ready": {
+                        "message": "kubelet is posting ready status",
+                        "reason": "KubeletReady",
+                        "status": "True"
+                    }
+                },
+                "container_runtime": "containerd://1.7.24",
+                "creation_timestamp": 1740765190,
+                "kernel_version": "6.10.14-linuxkit",
+                "kube_proxy_version": "v1.32.0",
+                "kubelet_version": "v1.32.0",
+                "labels": {
+                    "beta.kubernetes.io/arch": "arm64",
+                    "beta.kubernetes.io/os": "linux",
+                    "kubernetes.io/arch": "arm64",
+                    "kubernetes.io/hostname": "my-cluster-control-plane",
+                    "kubernetes.io/os": "linux",
+                    "node-role.kubernetes.io/control-plane": "",
+                    "node.kubernetes.io/exclude-from-external-load-balancers": ""
+                },
+                "name": "my-cluster-control-plane",
+                "node_group": "unknown",
+                "operating_system": "linux",
+                "os_image": "Debian GNU/Linux 12 (bookworm)",
+                "provider_id": "kind://docker/my-cluster/my-cluster-control-plane",
+                "taints": [
+                    {
+                        "effect": "NoSchedule",
+                        "key": "node-role.kubernetes.io/control-plane",
+                        "value": ""
+                    }
+                ],
+                "uid": "9aeaa5af-e9f3-4695-ab4e-304910601b3f",
+                "unschedulable": false
+            },
+            {
+                "addresses": {
+                    "Hostname": "my-cluster-worker",
+                    "InternalIP": "172.18.0.2"
+                },
+                "allocatable_cpu": 8,
+                "allocatable_memory_bytes": 8218251264,
+                "allocatable_pods": 110,
+                "annotations": {
+                    "kubeadm.alpha.kubernetes.io/cri-socket": "unix:///run/containerd/containerd.sock",
+                    "node.alpha.kubernetes.io/ttl": "0",
+                    "volumes.kubernetes.io/controller-managed-attach-detach": "true"
+                },
+                "architecture": "arm64",
+                "capacity_cpu": 8,
+                "capacity_memory_bytes": 8218251264,
+                "capacity_pods": 110,
+                "conditions": {
+                    "DiskPressure": {
+                        "message": "kubelet has no disk pressure",
+                        "reason": "KubeletHasNoDiskPressure",
+                        "status": "False"
+                    },
+                    "MemoryPressure": {
+                        "message": "kubelet has sufficient memory available",
+                        "reason": "KubeletHasSufficientMemory",
+                        "status": "False"
+                    },
+                    "PIDPressure": {
+                        "message": "kubelet has sufficient PID available",
+                        "reason": "KubeletHasSufficientPID",
+                        "status": "False"
+                    },
+                    "Ready": {
+                        "message": "kubelet is posting ready status",
+                        "reason": "KubeletReady",
+                        "status": "True"
+                    }
+                },
+                "container_runtime": "containerd://1.7.24",
+                "creation_timestamp": 1740765205,
+                "kernel_version": "6.10.14-linuxkit",
+                "kube_proxy_version": "v1.32.0",
+                "kubelet_version": "v1.32.0",
+                "labels": {
+                    "beta.kubernetes.io/arch": "arm64",
+                    "beta.kubernetes.io/os": "linux",
+                    "kubernetes.io/arch": "arm64",
+                    "kubernetes.io/hostname": "my-cluster-worker",
+                    "kubernetes.io/os": "linux"
+                },
+                "name": "my-cluster-worker",
+                "node_group": "unknown",
+                "operating_system": "linux",
+                "os_image": "Debian GNU/Linux 12 (bookworm)",
+                "provider_id": "kind://docker/my-cluster/my-cluster-worker",
+                "taints": [],
+                "uid": "9023f602-83c1-4922-a99a-3d13b0cf4d68",
+                "unschedulable": false
+            }
+        ],
+        "provider": "generic",
+        "provider_specific": {
+            "cluster_name": "cluster-5d6b3ba9",
+            "provider": "generic"
+        },
+        "region": null,
+        "total_cpu_capacity": 0,
+        "total_memory_capacity": 0,
+        "updated_at": 1745332471,
+        "version": "v1.32.0",
+        "workload_count": 19
+    },
+    "Timestamp": "2025-04-22T14:34:31.996253053Z",
+    "EventType": "metadata",
+    "Key": "cluster-5d6b3ba9"
+}

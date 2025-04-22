@@ -563,7 +563,7 @@ func (c *ContainerResourceCollector) GetResourceChannel() <-chan CollectedResour
 
 // GetType returns the type of resource this collector handles
 func (c *ContainerResourceCollector) GetType() string {
-	return "container_resources"
+	return "container_resource"
 }
 
 // IsAvailable checks if container resource metrics are available in the cluster

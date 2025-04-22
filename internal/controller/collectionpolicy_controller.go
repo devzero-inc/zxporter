@@ -235,6 +235,8 @@ func (r *CollectionPolicyReconciler) createNewConfig(envSpec *monitoringv1.Colle
 		BufferSize:              envSpec.Policies.BufferSize,
 	}
 
+	logger.Info("Disabled collectors", "name", newConfig.DisabledCollectors)
+
 	// Parse and set frequency
 	frequencyStr := envSpec.Policies.Frequency
 	if frequencyStr != "" {
@@ -489,7 +491,7 @@ func (r *CollectionPolicyReconciler) identifyAffectedCollectors(oldConfig, newCo
 	// Check exclusion lists that affect specific collectors
 	if !reflect.DeepEqual(oldConfig.ExcludedPods, newConfig.ExcludedPods) {
 		affectedCollectors["pod"] = true
-		affectedCollectors["container_resources"] = true
+		affectedCollectors["container_resource"] = true
 	}
 
 	if !reflect.DeepEqual(oldConfig.ExcludedDeployments, newConfig.ExcludedDeployments) { // TODO: should depployment influence container and pod collectors?
@@ -497,11 +499,15 @@ func (r *CollectionPolicyReconciler) identifyAffectedCollectors(oldConfig, newCo
 	}
 
 	if !reflect.DeepEqual(oldConfig.ExcludedStatefulSets, newConfig.ExcludedStatefulSets) {
-		affectedCollectors["statefulset"] = true
+		affectedCollectors["stateful_set"] = true
+	}
+
+	if !reflect.DeepEqual(oldConfig.ExcludedReplicaSet, newConfig.ExcludedReplicaSet) {
+		affectedCollectors["replica_set"] = true
 	}
 
 	if !reflect.DeepEqual(oldConfig.ExcludedDaemonSets, newConfig.ExcludedDaemonSets) {
-		affectedCollectors["daemonset"] = true
+		affectedCollectors["daemon_set"] = true
 	}
 
 	if !reflect.DeepEqual(oldConfig.ExcludedServices, newConfig.ExcludedServices) {
@@ -509,7 +515,7 @@ func (r *CollectionPolicyReconciler) identifyAffectedCollectors(oldConfig, newCo
 	}
 
 	if !reflect.DeepEqual(oldConfig.ExcludedPVCs, newConfig.ExcludedPVCs) {
-		affectedCollectors["persistentvolumeclaim"] = true
+		affectedCollectors["persistent_volume_claim"] = true
 	}
 
 	if !reflect.DeepEqual(oldConfig.ExcludedEvents, newConfig.ExcludedEvents) {
@@ -521,11 +527,11 @@ func (r *CollectionPolicyReconciler) identifyAffectedCollectors(oldConfig, newCo
 	}
 
 	if !reflect.DeepEqual(oldConfig.ExcludedCronJobs, newConfig.ExcludedCronJobs) {
-		affectedCollectors["cronjob"] = true
+		affectedCollectors["cron_job"] = true
 	}
 
 	if !reflect.DeepEqual(oldConfig.ExcludedReplicationControllers, newConfig.ExcludedReplicationControllers) {
-		affectedCollectors["replicationcontroller"] = true
+		affectedCollectors["replication_controller"] = true
 	}
 
 	if !reflect.DeepEqual(oldConfig.ExcludedIngresses, newConfig.ExcludedIngresses) {
@@ -533,7 +539,7 @@ func (r *CollectionPolicyReconciler) identifyAffectedCollectors(oldConfig, newCo
 	}
 
 	if !reflect.DeepEqual(oldConfig.ExcludedNetworkPolicies, newConfig.ExcludedNetworkPolicies) {
-		affectedCollectors["networkpolicy"] = true
+		affectedCollectors["network_policy"] = true
 	}
 
 	if !reflect.DeepEqual(oldConfig.ExcludedEndpoints, newConfig.ExcludedEndpoints) {
@@ -541,23 +547,23 @@ func (r *CollectionPolicyReconciler) identifyAffectedCollectors(oldConfig, newCo
 	}
 
 	if !reflect.DeepEqual(oldConfig.ExcludedServiceAccounts, newConfig.ExcludedServiceAccounts) {
-		affectedCollectors["serviceaccount"] = true
+		affectedCollectors["service_account"] = true
 	}
 
 	if !reflect.DeepEqual(oldConfig.ExcludedLimitRanges, newConfig.ExcludedLimitRanges) {
-		affectedCollectors["limitrange"] = true
+		affectedCollectors["limit_range"] = true
 	}
 
 	if !reflect.DeepEqual(oldConfig.ExcludedResourceQuotas, newConfig.ExcludedResourceQuotas) {
-		affectedCollectors["resourcequota"] = true
+		affectedCollectors["resource_quota"] = true
 	}
 
 	if !reflect.DeepEqual(oldConfig.ExcludedHPAs, newConfig.ExcludedHPAs) {
-		affectedCollectors["horizontalpodautoscaler"] = true
+		affectedCollectors["horizontal_pod_autoscaler"] = true
 	}
 
 	if !reflect.DeepEqual(oldConfig.ExcludedVPAs, newConfig.ExcludedVPAs) {
-		affectedCollectors["verticalpodautoscaler"] = true
+		affectedCollectors["vertical_pod_autoscaler"] = true
 	}
 
 	if !reflect.DeepEqual(oldConfig.ExcludedRoles, newConfig.ExcludedRoles) {
@@ -565,44 +571,44 @@ func (r *CollectionPolicyReconciler) identifyAffectedCollectors(oldConfig, newCo
 	}
 
 	if !reflect.DeepEqual(oldConfig.ExcludedRoleBindings, newConfig.ExcludedRoleBindings) {
-		affectedCollectors["rolebinding"] = true
+		affectedCollectors["role_binding"] = true
 	}
 
 	if !reflect.DeepEqual(oldConfig.ExcludedClusterRoles, newConfig.ExcludedClusterRoles) {
-		affectedCollectors["clusterrole"] = true
+		affectedCollectors["cluster_role"] = true
 	}
 
 	if !reflect.DeepEqual(oldConfig.ExcludedClusterRoleBindings, newConfig.ExcludedClusterRoleBindings) {
-		affectedCollectors["clusterrolebinding"] = true
+		affectedCollectors["cluster_role_binding"] = true
 	}
 
 	if !reflect.DeepEqual(oldConfig.ExcludedPDBs, newConfig.ExcludedPDBs) {
-		affectedCollectors["poddisruptionbudget"] = true
+		affectedCollectors["pod_disruption_budget"] = true
 	}
 
 	if !reflect.DeepEqual(oldConfig.ExcludedStorageClasses, newConfig.ExcludedStorageClasses) {
-		affectedCollectors["storageclass"] = true
+		affectedCollectors["storage_class"] = true
 	}
 
 	if !reflect.DeepEqual(oldConfig.ExcludedPVs, newConfig.ExcludedPVs) {
-		affectedCollectors["persistentvolume"] = true
+		affectedCollectors["persistent_volume"] = true
 	}
 
 	if !reflect.DeepEqual(oldConfig.ExcludedIngressClasses, newConfig.ExcludedIngressClasses) {
-		affectedCollectors["ingressclass"] = true
+		affectedCollectors["ingress_class"] = true
 	}
 
 	if !reflect.DeepEqual(oldConfig.ExcludedNodes, newConfig.ExcludedNodes) {
 		affectedCollectors["node"] = true
-		affectedCollectors["noderesource"] = true
+		affectedCollectors["node_resource"] = true
 	}
 
 	if oldConfig.NodeMetricsInterval != newConfig.NodeMetricsInterval {
-		affectedCollectors["noderesource"] = true
+		affectedCollectors["node_resource"] = true
 	}
 
 	if !reflect.DeepEqual(oldConfig.ExcludedCSINodes, newConfig.ExcludedCSINodes) {
-		affectedCollectors["csinode"] = true
+		affectedCollectors["csi_node"] = true
 	}
 
 	// Check if the special node collectors are affected by the update interval change
@@ -610,7 +616,7 @@ func (r *CollectionPolicyReconciler) identifyAffectedCollectors(oldConfig, newCo
 		oldConfig.PrometheusURL != newConfig.PrometheusURL ||
 		oldConfig.DisableNetworkIOMetrics != newConfig.DisableNetworkIOMetrics {
 		affectedCollectors["node"] = true
-		affectedCollectors["container_resources"] = true
+		affectedCollectors["container_resource"] = true
 	}
 
 	return affectedCollectors
@@ -736,14 +742,21 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				newConfig.ExcludedDeployments,
 				logger,
 			)
-		case "statefulset":
+		case "stateful_set":
 			replacedCollector = collector.NewStatefulSetCollector(
 				r.K8sClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedStatefulSets,
 				logger,
 			)
-		case "daemonset":
+		case "replica_set":
+			replacedCollector = collector.NewReplicaSetCollector(
+				r.K8sClient,
+				newConfig.TargetNamespaces,
+				newConfig.ExcludedReplicaSet,
+				logger,
+			)
+		case "daemon_set":
 			replacedCollector = collector.NewDaemonSetCollector(
 				r.K8sClient,
 				newConfig.TargetNamespaces,
@@ -757,7 +770,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				newConfig.ExcludedServices,
 				logger,
 			)
-		case "container_resources":
+		case "container_resource":
 			replacedCollector = collector.NewContainerResourceCollector(
 				r.K8sClient,
 				metricsClient,
@@ -784,14 +797,14 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				newConfig.ExcludedNodes,
 				logger,
 			)
-		case "persistentvolumeclaim":
+		case "persistent_volume_claim":
 			replacedCollector = collector.NewPersistentVolumeClaimCollector(
 				r.K8sClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedPVCs,
 				logger,
 			)
-		case "persistentvolume":
+		case "persistent_volume":
 			replacedCollector = collector.NewPersistentVolumeCollector(
 				r.K8sClient,
 				newConfig.ExcludedPVs,
@@ -813,14 +826,14 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				newConfig.ExcludedJobs,
 				logger,
 			)
-		case "cronjob":
+		case "cron_job":
 			replacedCollector = collector.NewCronJobCollector(
 				r.K8sClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedCronJobs,
 				logger,
 			)
-		case "replicationcontroller":
+		case "replication_controller":
 			replacedCollector = collector.NewReplicationControllerCollector(
 				r.K8sClient,
 				newConfig.TargetNamespaces,
@@ -834,13 +847,13 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				newConfig.ExcludedIngresses,
 				logger,
 			)
-		case "ingressclass":
+		case "ingress_class":
 			replacedCollector = collector.NewIngressClassCollector(
 				r.K8sClient,
 				newConfig.ExcludedIngressClasses,
 				logger,
 			)
-		case "networkpolicy":
+		case "network_policy":
 			replacedCollector = collector.NewNetworkPolicyCollector(
 				r.K8sClient,
 				newConfig.TargetNamespaces,
@@ -854,35 +867,35 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				newConfig.ExcludedEndpoints,
 				logger,
 			)
-		case "serviceaccount":
+		case "service_account":
 			replacedCollector = collector.NewServiceAccountCollector(
 				r.K8sClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedServiceAccounts,
 				logger,
 			)
-		case "limitrange":
+		case "limit_range":
 			replacedCollector = collector.NewLimitRangeCollector(
 				r.K8sClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedLimitRanges,
 				logger,
 			)
-		case "resourcequota":
+		case "resource_quota":
 			replacedCollector = collector.NewResourceQuotaCollector(
 				r.K8sClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedResourceQuotas,
 				logger,
 			)
-		case "horizontalpodautoscaler":
+		case "horizontal_pod_autoscaler":
 			replacedCollector = collector.NewHorizontalPodAutoscalerCollector(
 				r.K8sClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedHPAs,
 				logger,
 			)
-		case "verticalpodautoscaler":
+		case "vertical_pod_autoscaler":
 			replacedCollector = collector.NewVerticalPodAutoscalerCollector(
 				r.DynamicClient,
 				newConfig.TargetNamespaces,
@@ -896,39 +909,39 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				newConfig.ExcludedRoles,
 				logger,
 			)
-		case "rolebinding":
+		case "role_binding":
 			replacedCollector = collector.NewRoleBindingCollector(
 				r.K8sClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedRoleBindings,
 				logger,
 			)
-		case "clusterrole":
+		case "cluster_role":
 			replacedCollector = collector.NewClusterRoleCollector(
 				r.K8sClient,
 				newConfig.ExcludedClusterRoles,
 				logger,
 			)
-		case "clusterrolebinding":
+		case "cluster_role_binding":
 			replacedCollector = collector.NewClusterRoleBindingCollector(
 				r.K8sClient,
 				newConfig.ExcludedClusterRoleBindings,
 				logger,
 			)
-		case "poddisruptionbudget":
+		case "pod_disruption_budget":
 			replacedCollector = collector.NewPodDisruptionBudgetCollector(
 				r.K8sClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedPDBs,
 				logger,
 			)
-		case "storageclass":
+		case "storage_class":
 			replacedCollector = collector.NewStorageClassCollector(
 				r.K8sClient,
 				newConfig.ExcludedStorageClasses,
 				logger,
 			)
-		case "csinode":
+		case "csi_node":
 			replacedCollector = collector.NewCSINodeCollector(
 				r.K8sClient,
 				newConfig.ExcludedNodes,
@@ -1709,14 +1722,21 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					newConfig.ExcludedDeployments,
 					logger,
 				)
-			case "statefulset":
+			case "stateful_set":
 				replacedCollector = collector.NewStatefulSetCollector(
 					r.K8sClient,
 					newConfig.TargetNamespaces,
 					newConfig.ExcludedStatefulSets,
 					logger,
 				)
-			case "daemonset":
+			case "replica_set":
+				replacedCollector = collector.NewReplicaSetCollector(
+					r.K8sClient,
+					newConfig.TargetNamespaces,
+					newConfig.ExcludedReplicaSet,
+					logger,
+				)
+			case "daemon_set":
 				replacedCollector = collector.NewDaemonSetCollector(
 					r.K8sClient,
 					newConfig.TargetNamespaces,
@@ -1730,7 +1750,7 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					newConfig.ExcludedServices,
 					logger,
 				)
-			case "container_resources":
+			case "container_resource":
 				replacedCollector = collector.NewContainerResourceCollector(
 					r.K8sClient,
 					metricsClient,
@@ -1757,14 +1777,14 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					newConfig.ExcludedNodes,
 					logger,
 				)
-			case "persistentvolumeclaim":
+			case "persistent_volume_claim":
 				replacedCollector = collector.NewPersistentVolumeClaimCollector(
 					r.K8sClient,
 					newConfig.TargetNamespaces,
 					newConfig.ExcludedPVCs,
 					logger,
 				)
-			case "persistentvolume":
+			case "persistent_volume":
 				replacedCollector = collector.NewPersistentVolumeCollector(
 					r.K8sClient,
 					newConfig.ExcludedPVs,
@@ -1786,14 +1806,14 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					newConfig.ExcludedJobs,
 					logger,
 				)
-			case "cronjob":
+			case "cron_job":
 				replacedCollector = collector.NewCronJobCollector(
 					r.K8sClient,
 					newConfig.TargetNamespaces,
 					newConfig.ExcludedCronJobs,
 					logger,
 				)
-			case "replicationcontroller":
+			case "replication_controller":
 				replacedCollector = collector.NewReplicationControllerCollector(
 					r.K8sClient,
 					newConfig.TargetNamespaces,
@@ -1807,13 +1827,13 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					newConfig.ExcludedIngresses,
 					logger,
 				)
-			case "ingressclass":
+			case "ingress_class":
 				replacedCollector = collector.NewIngressClassCollector(
 					r.K8sClient,
 					newConfig.ExcludedIngressClasses,
 					logger,
 				)
-			case "networkpolicy":
+			case "network_policy":
 				replacedCollector = collector.NewNetworkPolicyCollector(
 					r.K8sClient,
 					newConfig.TargetNamespaces,
@@ -1827,35 +1847,35 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					newConfig.ExcludedEndpoints,
 					logger,
 				)
-			case "serviceaccount":
+			case "service_account":
 				replacedCollector = collector.NewServiceAccountCollector(
 					r.K8sClient,
 					newConfig.TargetNamespaces,
 					newConfig.ExcludedServiceAccounts,
 					logger,
 				)
-			case "limitrange":
+			case "limit_range":
 				replacedCollector = collector.NewLimitRangeCollector(
 					r.K8sClient,
 					newConfig.TargetNamespaces,
 					newConfig.ExcludedLimitRanges,
 					logger,
 				)
-			case "resourcequota":
+			case "resource_quota":
 				replacedCollector = collector.NewResourceQuotaCollector(
 					r.K8sClient,
 					newConfig.TargetNamespaces,
 					newConfig.ExcludedResourceQuotas,
 					logger,
 				)
-			case "horizontalpodautoscaler":
+			case "horizontal_pod_autoscaler":
 				replacedCollector = collector.NewHorizontalPodAutoscalerCollector(
 					r.K8sClient,
 					newConfig.TargetNamespaces,
 					newConfig.ExcludedHPAs,
 					logger,
 				)
-			case "verticalpodautoscaler":
+			case "vertical_pod_autoscaler":
 				replacedCollector = collector.NewVerticalPodAutoscalerCollector(
 					r.DynamicClient,
 					newConfig.TargetNamespaces,
@@ -1869,33 +1889,33 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					newConfig.ExcludedRoles,
 					logger,
 				)
-			case "rolebinding":
+			case "role_binding":
 				replacedCollector = collector.NewRoleBindingCollector(
 					r.K8sClient,
 					newConfig.TargetNamespaces,
 					newConfig.ExcludedRoleBindings,
 					logger,
 				)
-			case "clusterrole":
+			case "cluster_role":
 				replacedCollector = collector.NewClusterRoleCollector(
 					r.K8sClient,
 					newConfig.ExcludedClusterRoles,
 					logger,
 				)
-			case "clusterrolebinding":
+			case "cluster_role_binding":
 				replacedCollector = collector.NewClusterRoleBindingCollector(
 					r.K8sClient,
 					newConfig.ExcludedClusterRoleBindings,
 					logger,
 				)
-			case "poddisruptionbudget":
+			case "pod_disruption_budget":
 				replacedCollector = collector.NewPodDisruptionBudgetCollector(
 					r.K8sClient,
 					newConfig.TargetNamespaces,
 					newConfig.ExcludedPDBs,
 					logger,
 				)
-			case "storageclass":
+			case "storage_class":
 				replacedCollector = collector.NewStorageClassCollector(
 					r.K8sClient,
 					newConfig.ExcludedStorageClasses,
@@ -1907,7 +1927,7 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					newConfig.ExcludedNamespaces,
 					logger,
 				)
-			case "csinode":
+			case "csi_node":
 				replacedCollector = collector.NewCSINodeCollector(
 					r.K8sClient,
 					newConfig.ExcludedCSINodes,

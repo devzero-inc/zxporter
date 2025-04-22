@@ -1,0 +1,262 @@
+{
+    "ResourceType": 10,
+    "Object": {
+        "metadata": {
+            "name": "inc-load",
+            "namespace": "default",
+            "uid": "c3051d22-60f8-4a05-ab58-00865fcb4335",
+            "resourceVersion": "911730",
+            "generation": 4,
+            "creationTimestamp": "2025-03-07T10:26:14Z",
+            "annotations": {
+                "deployment.kubernetes.io/revision": "4",
+                "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"apps/v1\",\"kind\":\"Deployment\",\"metadata\":{\"annotations\":{},\"name\":\"inc-load\",\"namespace\":\"default\"},\"spec\":{\"replicas\":1,\"selector\":{\"matchLabels\":{\"app\":\"inc-load\"}},\"template\":{\"metadata\":{\"annotations\":{\"prometheus.io/path\":\"/metrics\",\"prometheus.io/port\":\"8090\",\"prometheus.io/scrape\":\"true\"},\"labels\":{\"app\":\"inc-load\",\"meta.devzero.io/created-by-user\":\"us-716dcb5f2e7f5576a568f0f3cbadb2c2\",\"meta.devzero.io/organization-id\":\"team-03f3f9b48aa3465ca63de2787eb40106\",\"meta.devzero.io/virtual-cluster-id\":\"inc-dec-cluster-4246b1e251d84f3082513827a5d8eea1\",\"meta.devzero.io/workload-id\":\"workspace-7ab57eabff8f499a9cb2f53ab784d65e\",\"meta.devzero.io/workload-name\":\"informed-polliwog-ybwu\"}},\"spec\":{\"containers\":[{\"image\":\"docker.io/remontada007/inc-test-app:v1\",\"name\":\"inc-load\",\"ports\":[{\"containerPort\":9001}],\"resources\":{\"limits\":{\"cpu\":\"70m\",\"memory\":\"60Mi\"},\"requests\":{\"cpu\":\"65m\",\"memory\":\"40Mi\"}}}]}}}}\n"
+            },
+            "managedFields": [
+                {
+                    "manager": "kubectl-client-side-apply",
+                    "operation": "Update",
+                    "apiVersion": "apps/v1",
+                    "time": "2025-03-07T10:49:56Z",
+                    "fieldsType": "FieldsV1",
+                    "fieldsV1": {
+                        "f:metadata": {
+                            "f:annotations": {
+                                ".": {},
+                                "f:kubectl.kubernetes.io/last-applied-configuration": {}
+                            }
+                        },
+                        "f:spec": {
+                            "f:progressDeadlineSeconds": {},
+                            "f:replicas": {},
+                            "f:revisionHistoryLimit": {},
+                            "f:selector": {},
+                            "f:strategy": {
+                                "f:rollingUpdate": {
+                                    ".": {},
+                                    "f:maxSurge": {},
+                                    "f:maxUnavailable": {}
+                                },
+                                "f:type": {}
+                            },
+                            "f:template": {
+                                "f:metadata": {
+                                    "f:annotations": {
+                                        ".": {},
+                                        "f:prometheus.io/path": {},
+                                        "f:prometheus.io/port": {},
+                                        "f:prometheus.io/scrape": {}
+                                    },
+                                    "f:labels": {
+                                        ".": {},
+                                        "f:app": {},
+                                        "f:meta.devzero.io/created-by-user": {},
+                                        "f:meta.devzero.io/organization-id": {},
+                                        "f:meta.devzero.io/virtual-cluster-id": {},
+                                        "f:meta.devzero.io/workload-id": {},
+                                        "f:meta.devzero.io/workload-name": {}
+                                    }
+                                },
+                                "f:spec": {
+                                    "f:containers": {
+                                        "k:{\"name\":\"inc-load\"}": {
+                                            ".": {},
+                                            "f:image": {},
+                                            "f:imagePullPolicy": {},
+                                            "f:name": {},
+                                            "f:ports": {
+                                                ".": {},
+                                                "k:{\"containerPort\":9001,\"protocol\":\"TCP\"}": {
+                                                    ".": {},
+                                                    "f:containerPort": {},
+                                                    "f:protocol": {}
+                                                }
+                                            },
+                                            "f:resources": {
+                                                ".": {},
+                                                "f:limits": {
+                                                    ".": {},
+                                                    "f:cpu": {},
+                                                    "f:memory": {}
+                                                },
+                                                "f:requests": {
+                                                    ".": {},
+                                                    "f:cpu": {},
+                                                    "f:memory": {}
+                                                }
+                                            },
+                                            "f:terminationMessagePath": {},
+                                            "f:terminationMessagePolicy": {}
+                                        }
+                                    },
+                                    "f:dnsPolicy": {},
+                                    "f:restartPolicy": {},
+                                    "f:schedulerName": {},
+                                    "f:securityContext": {},
+                                    "f:terminationGracePeriodSeconds": {}
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "manager": "kubectl-rollout",
+                    "operation": "Update",
+                    "apiVersion": "apps/v1",
+                    "time": "2025-03-14T15:49:41Z",
+                    "fieldsType": "FieldsV1",
+                    "fieldsV1": {
+                        "f:spec": {
+                            "f:template": {
+                                "f:metadata": {
+                                    "f:annotations": {
+                                        "f:kubectl.kubernetes.io/restartedAt": {}
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "manager": "kube-controller-manager",
+                    "operation": "Update",
+                    "apiVersion": "apps/v1",
+                    "time": "2025-04-22T15:41:54Z",
+                    "fieldsType": "FieldsV1",
+                    "fieldsV1": {
+                        "f:metadata": {
+                            "f:annotations": {
+                                "f:deployment.kubernetes.io/revision": {}
+                            }
+                        },
+                        "f:status": {
+                            "f:availableReplicas": {},
+                            "f:conditions": {
+                                ".": {},
+                                "k:{\"type\":\"Available\"}": {
+                                    ".": {},
+                                    "f:lastTransitionTime": {},
+                                    "f:lastUpdateTime": {},
+                                    "f:message": {},
+                                    "f:reason": {},
+                                    "f:status": {},
+                                    "f:type": {}
+                                },
+                                "k:{\"type\":\"Progressing\"}": {
+                                    ".": {},
+                                    "f:lastTransitionTime": {},
+                                    "f:lastUpdateTime": {},
+                                    "f:message": {},
+                                    "f:reason": {},
+                                    "f:status": {},
+                                    "f:type": {}
+                                }
+                            },
+                            "f:observedGeneration": {},
+                            "f:readyReplicas": {},
+                            "f:replicas": {},
+                            "f:updatedReplicas": {}
+                        }
+                    },
+                    "subresource": "status"
+                }
+            ]
+        },
+        "spec": {
+            "replicas": 1,
+            "selector": {
+                "matchLabels": {
+                    "app": "inc-load"
+                }
+            },
+            "template": {
+                "metadata": {
+                    "creationTimestamp": null,
+                    "labels": {
+                        "app": "inc-load",
+                        "meta.devzero.io/created-by-user": "us-716dcb5f2e7f5576a568f0f3cbadb2c2",
+                        "meta.devzero.io/organization-id": "team-03f3f9b48aa3465ca63de2787eb40106",
+                        "meta.devzero.io/virtual-cluster-id": "inc-dec-cluster-4246b1e251d84f3082513827a5d8eea1",
+                        "meta.devzero.io/workload-id": "workspace-7ab57eabff8f499a9cb2f53ab784d65e",
+                        "meta.devzero.io/workload-name": "informed-polliwog-ybwu"
+                    },
+                    "annotations": {
+                        "kubectl.kubernetes.io/restartedAt": "2025-03-14T21:19:41+05:30",
+                        "prometheus.io/path": "/metrics",
+                        "prometheus.io/port": "8090",
+                        "prometheus.io/scrape": "true"
+                    }
+                },
+                "spec": {
+                    "containers": [
+                        {
+                            "name": "inc-load",
+                            "image": "docker.io/remontada007/inc-test-app:v1",
+                            "ports": [
+                                {
+                                    "containerPort": 9001,
+                                    "protocol": "TCP"
+                                }
+                            ],
+                            "resources": {
+                                "limits": {
+                                    "cpu": "70m",
+                                    "memory": "60Mi"
+                                },
+                                "requests": {
+                                    "cpu": "65m",
+                                    "memory": "40Mi"
+                                }
+                            },
+                            "terminationMessagePath": "/dev/termination-log",
+                            "terminationMessagePolicy": "File",
+                            "imagePullPolicy": "IfNotPresent"
+                        }
+                    ],
+                    "restartPolicy": "Always",
+                    "terminationGracePeriodSeconds": 30,
+                    "dnsPolicy": "ClusterFirst",
+                    "securityContext": {},
+                    "schedulerName": "default-scheduler"
+                }
+            },
+            "strategy": {
+                "type": "RollingUpdate",
+                "rollingUpdate": {
+                    "maxUnavailable": "25%",
+                    "maxSurge": "25%"
+                }
+            },
+            "revisionHistoryLimit": 10,
+            "progressDeadlineSeconds": 600
+        },
+        "status": {
+            "observedGeneration": 4,
+            "replicas": 1,
+            "updatedReplicas": 1,
+            "readyReplicas": 1,
+            "availableReplicas": 1,
+            "conditions": [
+                {
+                    "type": "Progressing",
+                    "status": "True",
+                    "lastUpdateTime": "2025-03-14T15:49:43Z",
+                    "lastTransitionTime": "2025-03-07T10:26:14Z",
+                    "reason": "NewReplicaSetAvailable",
+                    "message": "ReplicaSet \"inc-load-5777cbd67f\" has successfully progressed."
+                },
+                {
+                    "type": "Available",
+                    "status": "True",
+                    "lastUpdateTime": "2025-04-22T15:41:54Z",
+                    "lastTransitionTime": "2025-04-22T15:41:54Z",
+                    "reason": "MinimumReplicasAvailable",
+                    "message": "Deployment has minimum availability."
+                }
+            ]
+        }
+    },
+    "Timestamp": "2025-04-22T15:41:54.455503924Z",
+    "EventType": "update",
+    "Key": "default/inc-load"
+}

@@ -265,7 +265,7 @@ func (c *VerticalPodAutoscalerCollector) GetResourceChannel() <-chan CollectedRe
 
 // GetType returns the type of resource this collector handles
 func (c *VerticalPodAutoscalerCollector) GetType() string {
-	return "verticalpodautoscaler"
+	return "vertical_pod_autoscaler"
 }
 
 // IsAvailable checks if VPA resources are available in the cluster

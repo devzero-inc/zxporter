@@ -1,0 +1,196 @@
+{
+    "ResourceType": 11,
+    "Object": {
+        "metadata": {
+            "name": "test-statefulset",
+            "namespace": "default",
+            "uid": "558518a8-58eb-4efd-a293-50491fd160e1",
+            "resourceVersion": "918736",
+            "generation": 1,
+            "creationTimestamp": "2025-04-22T16:37:57Z",
+            "annotations": {
+                "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"apps/v1\",\"kind\":\"StatefulSet\",\"metadata\":{\"annotations\":{},\"name\":\"test-statefulset\",\"namespace\":\"default\"},\"spec\":{\"replicas\":1,\"selector\":{\"matchLabels\":{\"app\":\"test-stateful\"}},\"serviceName\":\"test-service\",\"template\":{\"metadata\":{\"labels\":{\"app\":\"test-stateful\"}},\"spec\":{\"containers\":[{\"image\":\"nginx\",\"name\":\"app\",\"volumeMounts\":[{\"mountPath\":\"/usr/share/nginx/html\",\"name\":\"data\"}]}]}},\"volumeClaimTemplates\":[{\"metadata\":{\"name\":\"data\"},\"spec\":{\"accessModes\":[\"ReadWriteOnce\"],\"resources\":{\"requests\":{\"storage\":\"1Gi\"}}}}]}}\n"
+            },
+            "managedFields": [
+                {
+                    "manager": "kubectl-client-side-apply",
+                    "operation": "Update",
+                    "apiVersion": "apps/v1",
+                    "time": "2025-04-22T16:37:57Z",
+                    "fieldsType": "FieldsV1",
+                    "fieldsV1": {
+                        "f:metadata": {
+                            "f:annotations": {
+                                ".": {},
+                                "f:kubectl.kubernetes.io/last-applied-configuration": {}
+                            }
+                        },
+                        "f:spec": {
+                            "f:persistentVolumeClaimRetentionPolicy": {
+                                ".": {},
+                                "f:whenDeleted": {},
+                                "f:whenScaled": {}
+                            },
+                            "f:podManagementPolicy": {},
+                            "f:replicas": {},
+                            "f:revisionHistoryLimit": {},
+                            "f:selector": {},
+                            "f:serviceName": {},
+                            "f:template": {
+                                "f:metadata": {
+                                    "f:labels": {
+                                        ".": {},
+                                        "f:app": {}
+                                    }
+                                },
+                                "f:spec": {
+                                    "f:containers": {
+                                        "k:{\"name\":\"app\"}": {
+                                            ".": {},
+                                            "f:image": {},
+                                            "f:imagePullPolicy": {},
+                                            "f:name": {},
+                                            "f:resources": {},
+                                            "f:terminationMessagePath": {},
+                                            "f:terminationMessagePolicy": {},
+                                            "f:volumeMounts": {
+                                                ".": {},
+                                                "k:{\"mountPath\":\"/usr/share/nginx/html\"}": {
+                                                    ".": {},
+                                                    "f:mountPath": {},
+                                                    "f:name": {}
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "f:dnsPolicy": {},
+                                    "f:restartPolicy": {},
+                                    "f:schedulerName": {},
+                                    "f:securityContext": {},
+                                    "f:terminationGracePeriodSeconds": {}
+                                }
+                            },
+                            "f:updateStrategy": {
+                                "f:rollingUpdate": {
+                                    ".": {},
+                                    "f:partition": {}
+                                },
+                                "f:type": {}
+                            },
+                            "f:volumeClaimTemplates": {}
+                        }
+                    }
+                },
+                {
+                    "manager": "kube-controller-manager",
+                    "operation": "Update",
+                    "apiVersion": "apps/v1",
+                    "time": "2025-04-22T16:38:02Z",
+                    "fieldsType": "FieldsV1",
+                    "fieldsV1": {
+                        "f:status": {
+                            "f:availableReplicas": {},
+                            "f:collisionCount": {},
+                            "f:currentReplicas": {},
+                            "f:currentRevision": {},
+                            "f:observedGeneration": {},
+                            "f:readyReplicas": {},
+                            "f:replicas": {},
+                            "f:updateRevision": {},
+                            "f:updatedReplicas": {}
+                        }
+                    },
+                    "subresource": "status"
+                }
+            ]
+        },
+        "spec": {
+            "replicas": 1,
+            "selector": {
+                "matchLabels": {
+                    "app": "test-stateful"
+                }
+            },
+            "template": {
+                "metadata": {
+                    "creationTimestamp": null,
+                    "labels": {
+                        "app": "test-stateful"
+                    }
+                },
+                "spec": {
+                    "containers": [
+                        {
+                            "name": "app",
+                            "image": "nginx",
+                            "resources": {},
+                            "volumeMounts": [
+                                {
+                                    "name": "data",
+                                    "mountPath": "/usr/share/nginx/html"
+                                }
+                            ],
+                            "terminationMessagePath": "/dev/termination-log",
+                            "terminationMessagePolicy": "File",
+                            "imagePullPolicy": "Always"
+                        }
+                    ],
+                    "restartPolicy": "Always",
+                    "terminationGracePeriodSeconds": 30,
+                    "dnsPolicy": "ClusterFirst",
+                    "securityContext": {},
+                    "schedulerName": "default-scheduler"
+                }
+            },
+            "volumeClaimTemplates": [
+                {
+                    "metadata": {
+                        "name": "data",
+                        "creationTimestamp": null
+                    },
+                    "spec": {
+                        "accessModes": [
+                            "ReadWriteOnce"
+                        ],
+                        "resources": {
+                            "requests": {
+                                "storage": "1Gi"
+                            }
+                        },
+                        "volumeMode": "Filesystem"
+                    },
+                    "status": {
+                        "phase": "Pending"
+                    }
+                }
+            ],
+            "serviceName": "test-service",
+            "podManagementPolicy": "OrderedReady",
+            "updateStrategy": {
+                "type": "RollingUpdate",
+                "rollingUpdate": {
+                    "partition": 0
+                }
+            },
+            "revisionHistoryLimit": 10,
+            "persistentVolumeClaimRetentionPolicy": {
+                "whenDeleted": "Retain",
+                "whenScaled": "Retain"
+            }
+        },
+        "status": {
+            "observedGeneration": 1,
+            "replicas": 1,
+            "readyReplicas": 1,
+            "currentReplicas": 1,
+            "updatedReplicas": 1,
+            "currentRevision": "test-statefulset-7c749fbd8",
+            "updateRevision": "test-statefulset-7c749fbd8",
+            "collisionCount": 0,
+            "availableReplicas": 1
+        }
+    },
+    "Timestamp": "2025-04-22T16:38:02.369543052Z",
+    "EventType": "add",
+    "Key": "default/test-statefulset"
+}

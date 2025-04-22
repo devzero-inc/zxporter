@@ -1,0 +1,60 @@
+{
+    "ResourceType": 23,
+    "Object": {
+        "metadata": {
+            "name": "test-network-policy",
+            "namespace": "default",
+            "uid": "261232c9-e6ae-4496-b391-d629440b74d3",
+            "resourceVersion": "918703",
+            "generation": 1,
+            "creationTimestamp": "2025-04-22T16:37:57Z",
+            "annotations": {
+                "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"networking.k8s.io/v1\",\"kind\":\"NetworkPolicy\",\"metadata\":{\"annotations\":{},\"name\":\"test-network-policy\",\"namespace\":\"default\"},\"spec\":{\"ingress\":[{\"from\":[{\"podSelector\":{}}]}],\"podSelector\":{\"matchLabels\":{\"app\":\"test-replica\"}},\"policyTypes\":[\"Ingress\"]}}\n"
+            },
+            "managedFields": [
+                {
+                    "manager": "kubectl-client-side-apply",
+                    "operation": "Update",
+                    "apiVersion": "networking.k8s.io/v1",
+                    "time": "2025-04-22T16:37:57Z",
+                    "fieldsType": "FieldsV1",
+                    "fieldsV1": {
+                        "f:metadata": {
+                            "f:annotations": {
+                                ".": {},
+                                "f:kubectl.kubernetes.io/last-applied-configuration": {}
+                            }
+                        },
+                        "f:spec": {
+                            "f:ingress": {},
+                            "f:podSelector": {},
+                            "f:policyTypes": {}
+                        }
+                    }
+                }
+            ]
+        },
+        "spec": {
+            "podSelector": {
+                "matchLabels": {
+                    "app": "test-replica"
+                }
+            },
+            "ingress": [
+                {
+                    "from": [
+                        {
+                            "podSelector": {}
+                        }
+                    ]
+                }
+            ],
+            "policyTypes": [
+                "Ingress"
+            ]
+        }
+    },
+    "Timestamp": "2025-04-22T16:38:02.571530427Z",
+    "EventType": "add",
+    "Key": "default/test-network-policy"
+}

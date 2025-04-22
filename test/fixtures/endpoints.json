@@ -1,0 +1,52 @@
+{
+    "ResourceType": 6,
+    "Object": {
+        "metadata": {
+            "name": "kubernetes",
+            "namespace": "default",
+            "uid": "7f2df0bc-ae44-41cf-90cc-fbf8bb4a30ea",
+            "resourceVersion": "799867",
+            "creationTimestamp": "2025-02-28T17:53:12Z",
+            "labels": {
+                "endpointslice.kubernetes.io/skip-mirror": "true"
+            },
+            "managedFields": [
+                {
+                    "manager": "kube-apiserver",
+                    "operation": "Update",
+                    "apiVersion": "v1",
+                    "time": "2025-04-18T06:19:59Z",
+                    "fieldsType": "FieldsV1",
+                    "fieldsV1": {
+                        "f:metadata": {
+                            "f:labels": {
+                                ".": {},
+                                "f:endpointslice.kubernetes.io/skip-mirror": {}
+                            }
+                        },
+                        "f:subsets": {}
+                    }
+                }
+            ]
+        },
+        "subsets": [
+            {
+                "addresses": [
+                    {
+                        "ip": "172.18.0.3"
+                    }
+                ],
+                "ports": [
+                    {
+                        "name": "https",
+                        "port": 6443,
+                        "protocol": "TCP"
+                    }
+                ]
+            }
+        ]
+    },
+    "Timestamp": "2025-04-22T15:52:10.009534292Z",
+    "EventType": "add",
+    "Key": "default/kubernetes"
+}
