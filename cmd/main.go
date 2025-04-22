@@ -72,7 +72,7 @@ func main() {
 		"If set, the metrics endpoint is served securely via HTTPS. Use --metrics-secure=false to use HTTP instead.")
 	flag.BoolVar(&enableHTTP2, "enable-http2", false,
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
-	flag.DurationVar(&reconcileInterval, "reconcile-interval", 30*time.Second,
+	flag.DurationVar(&reconcileInterval, "reconcile-interval", 5*time.Second,
 		"The interval at which the controller will perform reconciliation.")
 	opts := zap.Options{
 		Development: true,
