@@ -460,40 +460,40 @@ func LoadCollectionPolicySpecFromEnv() (v1.CollectionPolicySpec, error) {
 	}
 
 	// === Policies ===
-	if v := os.Getenv(_ENV_CLUSTER_TOKEN); v != "" {
+	if v := getEnv(_ENV_CLUSTER_TOKEN); v != "" {
 		newSpec.Policies.ClusterToken = v
 	}
-	if v := os.Getenv(_ENV_DAKR_URL); v != "" {
+	if v := getEnv(_ENV_DAKR_URL); v != "" {
 		newSpec.Policies.DakrURL = v
 	}
-	if v := os.Getenv(_ENV_PROMETHEUS_URL); v != "" {
+	if v := getEnv(_ENV_PROMETHEUS_URL); v != "" {
 		newSpec.Policies.PrometheusURL = v
 	}
-	if v := os.Getenv(_ENV_COLLECTION_FREQUENCY); v != "" {
+	if v := getEnv(_ENV_COLLECTION_FREQUENCY); v != "" {
 		newSpec.Policies.Frequency = v
 	}
-	if v := os.Getenv(_ENV_BUFFER_SIZE); v != "" {
+	if v := getEnv(_ENV_BUFFER_SIZE); v != "" {
 		if i, err := strconv.Atoi(v); err != nil {
 			return newSpec, fmt.Errorf("invalid %s: %w", _ENV_BUFFER_SIZE, err)
 		} else {
 			newSpec.Policies.BufferSize = i
 		}
 	}
-	if v := os.Getenv(_ENV_DISABLE_NETWORK_IO_METRICS); v != "" {
+	if v := getEnv(_ENV_DISABLE_NETWORK_IO_METRICS); v != "" {
 		if b, err := strconv.ParseBool(v); err != nil {
 			return newSpec, fmt.Errorf("invalid %s: %w", _ENV_DISABLE_NETWORK_IO_METRICS, err)
 		} else {
 			newSpec.Policies.DisableNetworkIOMetrics = b
 		}
 	}
-	if v := os.Getenv(_ENV_MASK_SECRET_DATA); v != "" {
+	if v := getEnv(_ENV_MASK_SECRET_DATA); v != "" {
 		if b, err := strconv.ParseBool(v); err != nil {
 			return newSpec, fmt.Errorf("invalid %s: %w", _ENV_MASK_SECRET_DATA, err)
 		} else {
 			newSpec.Policies.MaskSecretData = b
 		}
 	}
-	if v := os.Getenv(_ENV_NODE_METRICS_INTERVAL); v != "" {
+	if v := getEnv(_ENV_NODE_METRICS_INTERVAL); v != "" {
 		newSpec.Policies.NodeMetricsInterval = v
 	}
 	if list := splitCSV(_ENV_WATCHED_CRDS); list != nil {
