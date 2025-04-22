@@ -158,7 +158,7 @@ func (c *EnvBasedController) runPeriodicReconciliation(ctx context.Context) {
 
 // doReconcile performs a single reconciliation
 func (c *EnvBasedController) doReconcile(ctx context.Context) error {
-	c.Log.Info("Performing reconciliation based on environment variables")
+	// c.Log.Info("Performing reconciliation based on environment variables")
 
 	// Create a dummy request
 	req := ctrl.Request{}
@@ -169,6 +169,6 @@ func (c *EnvBasedController) doReconcile(ctx context.Context) error {
 		return fmt.Errorf("reconciliation failed: %w", err)
 	}
 
-	c.Log.Info("Reconciliation completed successfully")
+	// c.Log.Info("Reconciliation completed successfully")
 	return nil
 }

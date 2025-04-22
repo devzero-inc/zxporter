@@ -1,8 +1,8 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: devzero-zxporter-env-config
-  namespace: devzero-zxporter
+  name: env-config
+  namespace: system
 data:
   CLUSTER_TOKEN: "{{ .cluster_token }}"
   DAKR_URL: "$(DAKR_URL)"
@@ -10,7 +10,7 @@ data:
   K8S_PROVIDER: "{{ .k8s_provider }}"
   COLLECTION_FREQUENCY: ""
   BUFFER_SIZE: ""
-  EXCLUDED_NAMESPACES: "kube-system,kube-public"
+  EXCLUDED_NAMESPACES: ""
   EXCLUDED_NODES: ""
   TARGET_NAMESPACES: ""
   DISABLE_NETWORK_IO_METRICS: ""
@@ -22,7 +22,7 @@ data:
   EXCLUDED_PODS: ""
   EXCLUDED_DEPLOYMENTS: ""
   EXCLUDED_STATEFULSETS: ""
-  EXCLUDED_DAEMONSETS: ""  # '[{"namespace":"default","name":"spiky-app"},{"namespace":"default","name":"dec-load"}]'
+  EXCLUDED_DAEMONSETS: ""
   EXCLUDED_SERVICES: ""
   EXCLUDED_PVCS: ""
   EXCLUDED_EVENTS: ""
@@ -48,4 +48,3 @@ data:
   EXCLUDED_STORAGECLASSES: ""
   EXCLUDED_CRDS: ""
   EXCLUDED_CRDGROUPS: ""
-

@@ -1,5 +1,6 @@
 resources:
 - manager.yaml
+- env_configmap.yaml
 # patches:
 # - path: env-patch.yaml
 #   target:
@@ -10,4 +11,4 @@ kind: Kustomization
 images:
 - name: controller
   newName: remontada007/zxporter
-  newTag: v74
+  newTag: v75

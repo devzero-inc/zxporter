@@ -213,6 +213,18 @@ const (
 	_ENV_EXCLUDED_CRDGROUPS = "EXCLUDED_CRDGROUPS"
 )
 
+const configVolumeMountPath = "/etc/zxporter/config"
+
+func getEnv(key string) string {
+	// Fallback to reading from file mounted at /etc/zxporter/config/<key>
+	filePath := fmt.Sprintf("%s/%s", configVolumeMountPath, key)
+	if data, err := os.ReadFile(filePath); err == nil {
+		return strings.TrimSpace(string(data))
+	}
+
+	return ""
+}
+
 // LoadCollectionPolicySpecFromEnv reads environment variables, applies them
 // over the provided oldSpec, and returns the new spec along with a boolean
 // indicating whether any field changed, or an error if parsing fails.
@@ -221,7 +233,7 @@ func LoadCollectionPolicySpecFromEnv() (v1.CollectionPolicySpec, error) {
 
 	// Helper to split comma-separated lists
 	splitCSV := func(envKey string) []string {
-		if raw := os.Getenv(envKey); raw != "" {
+		if raw := getEnv(envKey); raw != "" {
 			parts := strings.Split(raw, ",")
 			for i := range parts {
 				parts[i] = strings.TrimSpace(parts[i])
@@ -233,7 +245,7 @@ func LoadCollectionPolicySpecFromEnv() (v1.CollectionPolicySpec, error) {
 
 	// Helper to unmarshal JSON-encoded env var into out
 	unmarshalJSON := func(envKey string, out interface{}) error {
-		if raw := os.Getenv(envKey); raw != "" {
+		if raw := getEnv(envKey); raw != "" {
 			if err := json.Unmarshal([]byte(raw), out); err != nil {
 				return fmt.Errorf("invalid JSON for %s: %w", envKey, err)
 			}
@@ -270,6 +282,12 @@ func LoadCollectionPolicySpecFromEnv() (v1.CollectionPolicySpec, error) {
 	}
 	if excl := splitCSV(_ENV_EXCLUDED_CRDGROUPS); excl != nil {
 		newSpec.Exclusions.ExcludedCRDGroups = excl
+	}
+	if excl := splitCSV(_ENV_EXCLUDED_CLUSTERROLES); excl != nil {
+		newSpec.Exclusions.ExcludedClusterRoles = excl
+	}
+	if excl := splitCSV(_ENV_EXCLUDED_CLUSTERROLEBINDINGS); excl != nil {
+		newSpec.Exclusions.ExcludedClusterRoleBindings = excl
 	}
 
 	// === Exclusions (JSON-encoded structs) ===
