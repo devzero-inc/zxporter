@@ -341,6 +341,7 @@ CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 ENVTEST ?= $(LOCALBIN)/setup-envtest
 GOLANGCI_LINT = $(LOCALBIN)/golangci-lint
 HELM ?= $(LOCALBIN)/helm
+# to download: https://github.com/mikefarah/yq?tab=readme-ov-file#install
 YQ ?= $(LOCALBIN)/yq
 # to download: `brew install arttor/tap/helmify`
 HELMIFY ?= helmify
