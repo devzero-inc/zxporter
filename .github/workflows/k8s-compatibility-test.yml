@@ -147,6 +147,8 @@ jobs:
               - "1"
               - "--vm-bytes"
               - "128M"
+              - "--vm-hang"
+              - "0"
               resources:
                 requests:
                   cpu: 500m
