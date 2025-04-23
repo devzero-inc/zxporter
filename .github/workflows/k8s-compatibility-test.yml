@@ -11,6 +11,7 @@ jobs:
     outputs:
       image: ${{ steps.set-image.outputs.image }}
       testserver_img: ${{ steps.set-image.outputs.testserver_img }}
+      stress_img: ${{ steps.set-image.outputs.stress_img }}
     
     steps:
       - name: Set Docker image names
@@ -18,10 +19,13 @@ jobs:
         run: |
           ZXPORTER_IMG="ttl.sh/$(uuidgen):2h"
           TESTSERVER_IMG="ttl.sh/$(uuidgen):2h"
+          STRESS_IMG="ttl.sh/$(uuidgen):2h"
           echo "ZXPORTER_IMG=$ZXPORTER_IMG" >> $GITHUB_ENV
           echo "TESTSERVER_IMG=$TESTSERVER_IMG" >> $GITHUB_ENV
+          echo "STRESS_IMG=$STRESS_IMG" >> $GITHUB_ENV
           echo "image=$ZXPORTER_IMG" >> $GITHUB_OUTPUT
           echo "testserver_img=$TESTSERVER_IMG" >> $GITHUB_OUTPUT
+          echo "stress_img=$STRESS_IMG" >> $GITHUB_OUTPUT
 
       - name: Checkout code
         uses: actions/checkout@v4
@@ -39,6 +43,9 @@ jobs:
           
           echo "Building and pushing testserver image: ${{ env.TESTSERVER_IMG }}"
           make testserver-docker-build testserver-docker-push TESTSERVER_IMG=${{ env.TESTSERVER_IMG }}
+          
+          echo "Building and pushing stress image: ${{ env.STRESS_IMG }}"
+          make stress-docker-build stress-docker-push STRESS_IMG=${{ env.STRESS_IMG }}
 
   test:
     name: Test on K8s ${{ matrix.k8s-version }}
@@ -63,6 +70,7 @@ jobs:
         run: |
           echo "ZXPORTER_IMG=${{ needs.build.outputs.image }}" >> $GITHUB_ENV
           echo "TESTSERVER_IMG=${{ needs.build.outputs.testserver_img }}" >> $GITHUB_ENV
+          echo "STRESS_IMG=${{ needs.build.outputs.stress_img }}" >> $GITHUB_ENV
 
       - name: Checkout code
         uses: actions/checkout@v4
@@ -131,10 +139,14 @@ jobs:
           spec:
             containers:
             - name: stress
-              image: progrium/stress
-              command: ["/bin/sh", "-c"]
+              image: ${{ env.STRESS_IMG }}
               args:
-              - "stress --cpu 1 --vm 1 --vm-bytes 128M & sleep infinity"
+              - "--cpu"
+              - "1"
+              - "--vm"
+              - "1"
+              - "--vm-bytes"
+              - "128M"
               resources:
                 requests:
                   cpu: 500m

@@ -53,6 +53,8 @@ OPERATOR_SDK_VERSION ?= v1.39.1
 IMG ?= ttl.sh/zxporter:latest
 # Testserver image URL
 TESTSERVER_IMG ?= ttl.sh/zxporter-testserver:latest
+# Stress test image URL
+STRESS_IMG ?= ttl.sh/zxporter-stress:latest
 # DAKR URL to use for deployment
 DAKR_URL ?= https://api.devzero.io/dakr
 # PROMETHEUS URL for metrics collection
@@ -181,6 +183,14 @@ testserver-docker-build: ## Build docker image for the testserver.
 .PHONY: testserver-docker-push
 testserver-docker-push: ## Push docker image for the testserver.
 	$(CONTAINER_TOOL) push ${TESTSERVER_IMG}
+
+.PHONY: stress-docker-build
+stress-docker-build: ## Build docker image for the stress test.
+	$(CONTAINER_TOOL) build -t ${STRESS_IMG} -f Dockerfile.stress .
+
+.PHONY: stress-docker-push
+stress-docker-push: ## Push docker image for the stress test.
+	$(CONTAINER_TOOL) push ${STRESS_IMG}
 
 # PLATFORMS defines the target platforms for the manager image be built to provide support to multiple
 # architectures. (i.e. make docker-buildx IMG=myregistry/mypoperator:0.0.1). To use this option you need to:
