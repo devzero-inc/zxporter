@@ -116,11 +116,52 @@ jobs:
           echo "Testserver logs:"
           kubectl logs $TESTSERVER_POD -n devzero-zxporter
 
-      - name: Deploy ZXporter with custom DAKR_URL
+      - name: Create dztest namespace and deploy stress test pod
+        run: |
+          # Create dztest namespace
+          kubectl create namespace dztest --dry-run=client -o yaml | kubectl apply -f -
+          
+          # Deploy stress test pod
+          cat <<EOF | kubectl apply -f -
+          apiVersion: v1
+          kind: Pod
+          metadata:
+            name: stress-test
+            namespace: dztest
+          spec:
+            containers:
+            - name: stress
+              image: progrium/stress
+              args:
+              - --cpu
+              - "1"
+              - --vm
+              - "1"
+              - --vm-bytes
+              - 128M
+              resources:
+                requests:
+                  cpu: 500m
+                  memory: 64Mi
+                limits:
+                  cpu: 2000m
+                  memory: 256Mi
+          EOF
+          
+          # Wait for the stress pod to be ready
+          echo "Waiting for stress pod to be ready..."
+          kubectl wait --for=condition=ready pod/stress-test -n dztest --timeout=60s
+          
+          # Check the stress pod status
+          kubectl get pod stress-test -n dztest -o wide
+
+      - name: Deploy ZXporter with custom DAKR_URL and TARGET_NAMESPACES
         run: |
           # Set DAKR_URL to point to the testserver service in the same namespace
+          # Set TARGET_NAMESPACES to dztest to limit collection to that namespace
           echo "Setting DAKR_URL to http://testserver.devzero-zxporter.svc.cluster.local:50051"
-          make deploy IMG=${{ env.ZXPORTER_IMG }} DAKR_URL=http://testserver.devzero-zxporter.svc.cluster.local:50051
+          echo "Setting TARGET_NAMESPACES to dztest"
+          make deploy IMG=${{ env.ZXPORTER_IMG }} DAKR_URL=http://testserver.devzero-zxporter.svc.cluster.local:50051 TARGET_NAMESPACES=dztest
 
       - name: Wait for deployment to be ready
         run: |

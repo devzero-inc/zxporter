@@ -57,6 +57,8 @@ TESTSERVER_IMG ?= ttl.sh/zxporter-testserver:latest
 DAKR_URL ?= https://api.devzero.io/dakr
 # PROMETHEUS URL for metrics collection
 PROMETHEUS_URL ?= http://prometheus-server.$(DEVZERO_MONITORING_NAMESPACE).svc.cluster.local:80
+# TARGET_NAMESPACES for limiting collection to specific namespaces (comma-separated)
+TARGET_NAMESPACES ?= 
 # COLLECTION_FILE is used to control the collectionpolicies.
 COLLECTION_FILE ?= env_configmap.yaml
 # ENV_CONFIGMAP_FILE is used to control the zxporter-manager deployment.
@@ -274,6 +276,7 @@ build-installer: manifests generate kustomize yq ## Generate a consolidated YAML
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
 	$(YQ) e '.data.DAKR_URL = "$(DAKR_URL)"' -i $(ENV_CONFIGMAP_FILE)
 	$(YQ) e '.data.PROMETHEUS_URL = "$(PROMETHEUS_URL)"' -i $(ENV_CONFIGMAP_FILE)
+	$(YQ) e '.data.TARGET_NAMESPACES = "$(TARGET_NAMESPACES)"' -i $(ENV_CONFIGMAP_FILE)
 
 	$(KUSTOMIZE) build config/default >> $(DIST_INSTALL_BUNDLE)
 
@@ -285,6 +288,7 @@ build-env-configmap:
 	# Copy and patch environment config
 	sed "s|\$$(DAKR_URL)|$(DAKR_URL)|g" $(ENV_CONFIGMAP_FILE) > temp.yaml && mv temp.yaml $(ENV_CONFIGMAP_FILE)
 	sed "s|\$$(PROMETHEUS_URL)|$(PROMETHEUS_URL)|g" $(ENV_CONFIGMAP_FILE) > temp.yaml && mv temp.yaml $(ENV_CONFIGMAP_FILE)
+	sed "s|\$$(TARGET_NAMESPACES)|$(TARGET_NAMESPACES)|g" $(ENV_CONFIGMAP_FILE) > temp.yaml && mv temp.yaml $(ENV_CONFIGMAP_FILE)
 	$(KUSTOMIZE) build config/default | \
 	yq eval 'select(.kind == "ConfigMap" and .metadata.name == "devzero-zxporter-env-config")' - >> $(DIST_INSTALL_BUNDLE)
 
@@ -438,6 +442,7 @@ bundle: manifests kustomize operator-sdk ## Generate bundle manifests and metada
 	$(OPERATOR_SDK) generate kustomize manifests -q
 	cd config/manager && $(KUSTOMIZE) edit set image controller=$(IMG)
 	sed "s|\$$(DAKR_URL)|$(DAKR_URL)|g" config/manager/env_configmap.yaml > temp.yaml && mv temp.yaml config/manager/env_configmap.yaml
+	sed "s|\$$(TARGET_NAMESPACES)|$(TARGET_NAMESPACES)|g" config/manager/env_configmap.yaml > temp.yaml && mv temp.yaml config/manager/env_configmap.yaml
 	$(KUSTOMIZE) build config/manifests | $(OPERATOR_SDK) generate bundle $(BUNDLE_GEN_FLAGS)
 	$(OPERATOR_SDK) bundle validate ./bundle
 
