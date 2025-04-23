@@ -298,6 +298,25 @@ jobs:
           TOTAL_MESSAGES=$(echo "$STATS_RESPONSE" | grep -o '"total_messages": [0-9]*' | awk '{print $2}')
           echo "Total messages received: $TOTAL_MESSAGES"
           
+          # Extract and display resource usage information if available
+          echo "Checking for resource usage information..."
+          
+          # Check for pod usage reports
+          POD_USAGE=$(echo "$STATS_RESPONSE" | grep -o '"usage_report_pods":' || echo "")
+          if [ ! -z "$POD_USAGE" ]; then
+            echo "✅ Pod resource usage information is available in the stats"
+          else
+            echo "⚠️ No pod resource usage information found"
+          fi
+          
+          # Check for node usage reports
+          NODE_USAGE=$(echo "$STATS_RESPONSE" | grep -o '"usage_report_nodes":' || echo "")
+          if [ ! -z "$NODE_USAGE" ]; then
+            echo "✅ Node resource usage information is available in the stats"
+          else
+            echo "⚠️ No node resource usage information found"
+          fi
+          
           if [ "$TOTAL_MESSAGES" -gt 0 ]; then
             echo "Testserver received data from ZXporter!"
           else
