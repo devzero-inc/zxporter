@@ -237,7 +237,7 @@ generate-monitoring-manifests: helm ## Generate monitoring manifests for Prometh
 	echo "# ----- END METRICS SERVER -----" >> $(METRICS_SERVER)
 
 .PHONY: build-installer
-build-installer: manifests generate kustomize ## Generate a consolidated YAML with CRDs and deployment.
+build-installer: manifests generate kustomize yq ## Generate a consolidated YAML with deployment.
 	mkdir -p $(DIST_DIR)
 
 	$(MAKE) generate-monitoring-manifests
@@ -272,8 +272,9 @@ build-installer: manifests generate kustomize ## Generate a consolidated YAML wi
 	
 	# Append zxporter-manager to the installer bundle
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
-	sed "s|\$$(DAKR_URL)|$(DAKR_URL)|g" $(ENV_CONFIGMAP_FILE) > temp.yaml && mv temp.yaml $(ENV_CONFIGMAP_FILE)
-	sed "s|\$$(PROMETHEUS_URL)|$(PROMETHEUS_URL)|g" $(ENV_CONFIGMAP_FILE) > temp.yaml && mv temp.yaml $(ENV_CONFIGMAP_FILE)
+	$(YQ) e '.data.DAKR_URL = "$(DAKR_URL)"' -i $(ENV_CONFIGMAP_FILE)
+	$(YQ) e '.data.PROMETHEUS_URL = "$(PROMETHEUS_URL)"' -i $(ENV_CONFIGMAP_FILE)
+
 	$(KUSTOMIZE) build config/default >> $(DIST_INSTALL_BUNDLE)
 
 .PHONY: build-env-configmap
@@ -410,7 +411,8 @@ $(YQ): $(LOCALBIN)
 	mkdir -p $(dir $(YQ)) ;\
 	VERSION=v4.40.5 ;\
 	OS=$(shell go env GOOS) && ARCH=$(shell go env GOARCH) ;\
-	curl -sSL -o $(YQ) https://github.com/mikefarah/yq/releases/download/$$VERSION/yq_$$OS_$$ARCH ;\
+	echo "Downloading yq $$VERSION for $$OS/$$ARCH..." ;\
+	curl -sSLo $(YQ) https://github.com/mikefarah/yq/releases/download/$$VERSION/yq_$${OS}_$${ARCH} ;\
 	chmod +x $(YQ) ;\
 	}
 
