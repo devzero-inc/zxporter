@@ -166,6 +166,7 @@ jobs:
           echo "Getting pod logs (if any)..."
           POD_NAME=$(kubectl get pods -n devzero-zxporter -l control-plane=controller-manager -o jsonpath='{.items[0].metadata.name}')
           kubectl logs $POD_NAME -n devzero-zxporter --tail=100 || echo "No logs available"
+          kubectl logs -n devzero-zxporter -l app.kubernetes.io/name=prometheus --all-containers
 
       - name: Check testserver output
         run: |
