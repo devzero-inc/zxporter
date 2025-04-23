@@ -306,7 +306,7 @@ jobs:
                   "memory": "64Mi"
                 },
                 "limits": {
-                  "cpu": "2000m",
+                  "cpu": "2",
                   "memory": "256Mi"
                 },
                 "containers": {
