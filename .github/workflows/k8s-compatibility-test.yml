@@ -163,6 +163,10 @@ jobs:
           echo "Waiting for 2 minutes to collect data from ZXporter..."
           sleep 120
 
+          echo "Getting pod logs (if any)..."
+          POD_NAME=$(kubectl get pods -n devzero-zxporter -l control-plane=controller-manager -o jsonpath='{.items[0].metadata.name}')
+          kubectl logs $POD_NAME -n devzero-zxporter --tail=100 || echo "No logs available"
+
       - name: Check testserver output
         run: |
           echo "Checking testserver output..."
