@@ -158,6 +158,17 @@ jobs:
           echo "Getting pod events..."
           kubectl get events -n devzero-zxporter --field-selector involvedObject.name=$POD_NAME --sort-by='.lastTimestamp'
 
+      - name: Wait for data collection (2 minutes)
+        run: |
+          echo "Waiting for 2 minutes to collect data from ZXporter..."
+          sleep 180
+
+          echo "Getting pod logs (if any)..."
+          POD_NAME=$(kubectl get pods -n devzero-zxporter -l control-plane=controller-manager -o jsonpath='{.items[0].metadata.name}')
+          kubectl logs $POD_NAME -n devzero-zxporter --tail=100 || echo "No logs available"
+          kubectl logs -n devzero-zxporter -l app.kubernetes.io/name=prometheus --all-containers
+
+
       - name: Debug Prometheus status and logs
         run: |
           PROM_POD=$(kubectl get pod -n devzero-zxporter -l app.kubernetes.io/name=prometheus,app.kubernetes.io/component=server -o jsonpath='{.items[0].metadata.name}')
@@ -165,27 +176,35 @@ jobs:
         
           echo "Describing Prometheus pod..."
           kubectl describe pod $PROM_POD -n devzero-zxporter || echo "Describe failed"
-      
+        
           echo "Getting logs from Prometheus containers..."
           kubectl logs $PROM_POD -n devzero-zxporter -c prometheus-server || echo "No prometheus-server logs"
           kubectl logs $PROM_POD -n devzero-zxporter -c prometheus-server-configmap-reload || echo "No configmap-reload logs"
         
-          echo "Curling Prometheus /-/ready endpoint..."
-          kubectl exec -n devzero-zxporter $PROM_POD -c prometheus-server -- curl -v http://localhost:9090/-/ready || echo "Prometheus not responding to /-/ready"
-      
+          echo "Spawning debug pod to test Prometheus readiness endpoint..."
+
+          # Create a temporary curl pod
+          kubectl run curlbox \
+            -n devzero-zxporter \
+            --image=curlimages/curl:latest \
+            --restart=Never \
+            --command -- sleep 120
+
+          # Wait for it to be ready
+          kubectl wait --for=condition=Ready pod/curlbox -n devzero-zxporter --timeout=30s
+
+          # Run curl against the Prometheus /-/ready endpoint
+          kubectl exec -n devzero-zxporter curlbox -- \
+            curl -v http://prometheus-server.devzero-zxporter.svc.cluster.local:80/-/ready || echo "Prometheus not responding to /-/ready"
+          kubectl exec -n devzero-zxporter curlbox -- \
+            curl -v http://prometheus-server.devzero-zxporter.svc.cluster.local:9090/-/ready || echo "Prometheus not responding to /-/ready"
+
+          # Clean up
+          kubectl delete pod curlbox -n devzero-zxporter --ignore-not-found
+
           echo "Checking Prometheus config mounted in pod..."
           kubectl exec -n devzero-zxporter $PROM_POD -c prometheus-server -- cat /etc/config/prometheus.yml || echo "Could not read prometheus.yml"        
-      
-      - name: Wait for data collection (2 minutes)
-        run: |
-          echo "Waiting for 2 minutes to collect data from ZXporter..."
-          sleep 120
-
-          echo "Getting pod logs (if any)..."
-          POD_NAME=$(kubectl get pods -n devzero-zxporter -l control-plane=controller-manager -o jsonpath='{.items[0].metadata.name}')
-          kubectl logs $POD_NAME -n devzero-zxporter --tail=100 || echo "No logs available"
-          kubectl logs -n devzero-zxporter -l app.kubernetes.io/name=prometheus --all-containers
-
+        
       - name: Check testserver output
         run: |
           echo "Checking testserver output..."
