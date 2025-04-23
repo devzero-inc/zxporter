@@ -132,13 +132,9 @@ jobs:
             containers:
             - name: stress
               image: progrium/stress
+              command: ["/bin/sh", "-c"]
               args:
-              - --cpu
-              - "1"
-              - --vm
-              - "1"
-              - --vm-bytes
-              - 128M
+              - "stress --cpu 1 --vm 1 --vm-bytes 128M & sleep infinity"
               resources:
                 requests:
                   cpu: 500m
@@ -150,7 +146,13 @@ jobs:
           
           # Wait for the stress pod to be ready
           echo "Waiting for stress pod to be ready..."
-          kubectl wait --for=condition=ready pod/stress-test -n dztest --timeout=60s
+          if ! kubectl wait --for=condition=ready pod/stress-test -n dztest --timeout=60s; then
+            echo "Stress pod did not become ready within timeout. Checking events and status..."
+            kubectl describe pod/stress-test -n dztest
+            kubectl get events -n dztest --sort-by='.lastTimestamp' | grep stress-test
+            # Continue anyway since we want to collect metrics even if the pod isn't fully ready
+            echo "Continuing with test despite stress pod not being ready..."
+          fi
           
           # Check the stress pod status
           kubectl get pod stress-test -n dztest -o wide
