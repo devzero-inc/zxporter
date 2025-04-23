@@ -20,14 +20,16 @@ import (
 type Stats struct {
 	TotalMessages    int            `json:"total_messages"`
 	MessagesByType   map[string]int `json:"messages_by_type"`
+	UniqueResources  map[string]int `json:"unique_resources"`
 	FirstMessageTime *time.Time     `json:"first_message_time,omitempty"`
 }
 
 // MetricsServer implements the MetricsCollectorServiceHandler interface
 type MetricsServer struct {
-	outputFile string
-	mu         sync.Mutex
-	stats      Stats
+	outputFile    string
+	mu            sync.Mutex
+	stats         Stats
+	seenResources map[string]bool // Track unique resources by type+key
 }
 
 // SendResource implements the SendResource RPC method
@@ -54,6 +56,18 @@ func (s *MetricsServer) SendResource(ctx context.Context, req *connect.Request[a
 		s.stats.MessagesByType = make(map[string]int)
 	}
 	s.stats.MessagesByType[resourceTypeStr]++
+
+	// Track unique resources by type+key
+	resourceKey := fmt.Sprintf("%s:%s", resourceTypeStr, req.Msg.Key)
+	if !s.seenResources[resourceKey] {
+		s.seenResources[resourceKey] = true
+
+		// Update unique resources count by type
+		if s.stats.UniqueResources == nil {
+			s.stats.UniqueResources = make(map[string]int)
+		}
+		s.stats.UniqueResources[resourceTypeStr]++
+	}
 
 	// Update first message time if not set
 	if s.stats.FirstMessageTime == nil {
@@ -122,8 +136,10 @@ func main() {
 	server := &MetricsServer{
 		outputFile: *outputFile,
 		stats: Stats{
-			MessagesByType: make(map[string]int),
+			MessagesByType:  make(map[string]int),
+			UniqueResources: make(map[string]int),
 		},
+		seenResources: make(map[string]bool),
 	}
 
 	// Create a Connect handler for the MetricsCollectorService
