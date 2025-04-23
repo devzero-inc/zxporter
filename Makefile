@@ -53,10 +53,14 @@ OPERATOR_SDK_VERSION ?= v1.39.1
 IMG ?= ttl.sh/zxporter:latest
 # Testserver image URL
 TESTSERVER_IMG ?= ttl.sh/zxporter-testserver:latest
+# Stress test image URL
+STRESS_IMG ?= ttl.sh/zxporter-stress:latest
 # DAKR URL to use for deployment
 DAKR_URL ?= https://api.devzero.io/dakr
 # PROMETHEUS URL for metrics collection
 PROMETHEUS_URL ?= http://prometheus-server.$(DEVZERO_MONITORING_NAMESPACE).svc.cluster.local:80
+# TARGET_NAMESPACES for limiting collection to specific namespaces (comma-separated)
+TARGET_NAMESPACES ?= 
 # COLLECTION_FILE is used to control the collectionpolicies.
 COLLECTION_FILE ?= env_configmap.yaml
 # ENV_CONFIGMAP_FILE is used to control the zxporter-manager deployment.
@@ -180,6 +184,14 @@ testserver-docker-build: ## Build docker image for the testserver.
 testserver-docker-push: ## Push docker image for the testserver.
 	$(CONTAINER_TOOL) push ${TESTSERVER_IMG}
 
+.PHONY: stress-docker-build
+stress-docker-build: ## Build docker image for the stress test.
+	$(CONTAINER_TOOL) build -t ${STRESS_IMG} -f Dockerfile.stress .
+
+.PHONY: stress-docker-push
+stress-docker-push: ## Push docker image for the stress test.
+	$(CONTAINER_TOOL) push ${STRESS_IMG}
+
 # PLATFORMS defines the target platforms for the manager image be built to provide support to multiple
 # architectures. (i.e. make docker-buildx IMG=myregistry/mypoperator:0.0.1). To use this option you need to:
 # - be able to use docker buildx. More info: https://docs.docker.com/build/buildx/
@@ -274,6 +286,7 @@ build-installer: manifests generate kustomize yq ## Generate a consolidated YAML
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
 	$(YQ) e '.data.DAKR_URL = "$(DAKR_URL)"' -i $(ENV_CONFIGMAP_FILE)
 	$(YQ) e '.data.PROMETHEUS_URL = "$(PROMETHEUS_URL)"' -i $(ENV_CONFIGMAP_FILE)
+	$(YQ) e '.data.TARGET_NAMESPACES = "$(TARGET_NAMESPACES)"' -i $(ENV_CONFIGMAP_FILE)
 
 	$(KUSTOMIZE) build config/default >> $(DIST_INSTALL_BUNDLE)
 
@@ -285,6 +298,7 @@ build-env-configmap:
 	# Copy and patch environment config
 	sed "s|\$$(DAKR_URL)|$(DAKR_URL)|g" $(ENV_CONFIGMAP_FILE) > temp.yaml && mv temp.yaml $(ENV_CONFIGMAP_FILE)
 	sed "s|\$$(PROMETHEUS_URL)|$(PROMETHEUS_URL)|g" $(ENV_CONFIGMAP_FILE) > temp.yaml && mv temp.yaml $(ENV_CONFIGMAP_FILE)
+	sed "s|\$$(TARGET_NAMESPACES)|$(TARGET_NAMESPACES)|g" $(ENV_CONFIGMAP_FILE) > temp.yaml && mv temp.yaml $(ENV_CONFIGMAP_FILE)
 	$(KUSTOMIZE) build config/default | \
 	yq eval 'select(.kind == "ConfigMap" and .metadata.name == "devzero-zxporter-env-config")' - >> $(DIST_INSTALL_BUNDLE)
 
@@ -438,6 +452,7 @@ bundle: manifests kustomize operator-sdk ## Generate bundle manifests and metada
 	$(OPERATOR_SDK) generate kustomize manifests -q
 	cd config/manager && $(KUSTOMIZE) edit set image controller=$(IMG)
 	sed "s|\$$(DAKR_URL)|$(DAKR_URL)|g" config/manager/env_configmap.yaml > temp.yaml && mv temp.yaml config/manager/env_configmap.yaml
+	sed "s|\$$(TARGET_NAMESPACES)|$(TARGET_NAMESPACES)|g" config/manager/env_configmap.yaml > temp.yaml && mv temp.yaml config/manager/env_configmap.yaml
 	$(KUSTOMIZE) build config/manifests | $(OPERATOR_SDK) generate bundle $(BUNDLE_GEN_FLAGS)
 	$(OPERATOR_SDK) bundle validate ./bundle
 

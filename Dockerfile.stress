@@ -1,0 +1,10 @@
+FROM alpine:latest
+
+# Install stress-ng
+RUN apk add --no-cache stress-ng
+
+# Set the entrypoint to stress-ng
+ENTRYPOINT ["stress-ng"]
+
+# Default command (can be overridden)
+CMD ["--help"]

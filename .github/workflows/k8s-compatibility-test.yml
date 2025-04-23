@@ -11,6 +11,7 @@ jobs:
     outputs:
       image: ${{ steps.set-image.outputs.image }}
       testserver_img: ${{ steps.set-image.outputs.testserver_img }}
+      stress_img: ${{ steps.set-image.outputs.stress_img }}
     
     steps:
       - name: Set Docker image names
@@ -18,10 +19,13 @@ jobs:
         run: |
           ZXPORTER_IMG="ttl.sh/$(uuidgen):2h"
           TESTSERVER_IMG="ttl.sh/$(uuidgen):2h"
+          STRESS_IMG="ttl.sh/$(uuidgen):2h"
           echo "ZXPORTER_IMG=$ZXPORTER_IMG" >> $GITHUB_ENV
           echo "TESTSERVER_IMG=$TESTSERVER_IMG" >> $GITHUB_ENV
+          echo "STRESS_IMG=$STRESS_IMG" >> $GITHUB_ENV
           echo "image=$ZXPORTER_IMG" >> $GITHUB_OUTPUT
           echo "testserver_img=$TESTSERVER_IMG" >> $GITHUB_OUTPUT
+          echo "stress_img=$STRESS_IMG" >> $GITHUB_OUTPUT
 
       - name: Checkout code
         uses: actions/checkout@v4
@@ -39,6 +43,9 @@ jobs:
           
           echo "Building and pushing testserver image: ${{ env.TESTSERVER_IMG }}"
           make testserver-docker-build testserver-docker-push TESTSERVER_IMG=${{ env.TESTSERVER_IMG }}
+          
+          echo "Building and pushing stress image: ${{ env.STRESS_IMG }}"
+          make stress-docker-build stress-docker-push STRESS_IMG=${{ env.STRESS_IMG }}
 
   test:
     name: Test on K8s ${{ matrix.k8s-version }}
@@ -63,6 +70,7 @@ jobs:
         run: |
           echo "ZXPORTER_IMG=${{ needs.build.outputs.image }}" >> $GITHUB_ENV
           echo "TESTSERVER_IMG=${{ needs.build.outputs.testserver_img }}" >> $GITHUB_ENV
+          echo "STRESS_IMG=${{ needs.build.outputs.stress_img }}" >> $GITHUB_ENV
 
       - name: Checkout code
         uses: actions/checkout@v4
@@ -116,11 +124,58 @@ jobs:
           echo "Testserver logs:"
           kubectl logs $TESTSERVER_POD -n devzero-zxporter
 
-      - name: Deploy ZXporter with custom DAKR_URL
+      - name: Create dztest namespace and deploy stress test pod
+        run: |
+          # Create dztest namespace
+          kubectl create namespace dztest --dry-run=client -o yaml | kubectl apply -f -
+          
+          # Deploy stress test pod
+          cat <<EOF | kubectl apply -f -
+          apiVersion: v1
+          kind: Pod
+          metadata:
+            name: stress-test
+            namespace: dztest
+          spec:
+            containers:
+            - name: stress
+              image: ${{ env.STRESS_IMG }}
+              args:
+              - "--cpu"
+              - "1"
+              - "--vm"
+              - "1"
+              - "--vm-bytes"
+              - "128M"
+              resources:
+                requests:
+                  cpu: 500m
+                  memory: 64Mi
+                limits:
+                  cpu: 2000m
+                  memory: 256Mi
+          EOF
+          
+          # Wait for the stress pod to be ready
+          echo "Waiting for stress pod to be ready..."
+          if ! kubectl wait --for=condition=ready pod/stress-test -n dztest --timeout=60s; then
+            echo "Stress pod did not become ready within timeout. Checking events and status..."
+            kubectl describe pod/stress-test -n dztest
+            kubectl get events -n dztest --sort-by='.lastTimestamp' | grep stress-test
+            # Continue anyway since we want to collect metrics even if the pod isn't fully ready
+            echo "Continuing with test despite stress pod not being ready..."
+          fi
+          
+          # Check the stress pod status
+          kubectl get pod stress-test -n dztest -o wide
+
+      - name: Deploy ZXporter with custom DAKR_URL and TARGET_NAMESPACES
         run: |
           # Set DAKR_URL to point to the testserver service in the same namespace
+          # Set TARGET_NAMESPACES to dztest to limit collection to that namespace
           echo "Setting DAKR_URL to http://testserver.devzero-zxporter.svc.cluster.local:50051"
-          make deploy IMG=${{ env.ZXPORTER_IMG }} DAKR_URL=http://testserver.devzero-zxporter.svc.cluster.local:50051
+          echo "Setting TARGET_NAMESPACES to dztest"
+          make deploy IMG=${{ env.ZXPORTER_IMG }} DAKR_URL=http://testserver.devzero-zxporter.svc.cluster.local:50051 TARGET_NAMESPACES=dztest
 
       - name: Wait for deployment to be ready
         run: |
@@ -203,9 +258,9 @@ jobs:
           echo "Checking Prometheus config mounted in pod..."
           kubectl exec -n devzero-zxporter $PROM_POD -c prometheus-server -- cat /etc/config/prometheus.yml || echo "Could not read prometheus.yml"        
         
-      - name: Check testserver output
+      - name: Check testserver stats
         run: |
-          echo "Checking testserver output..."
+          echo "Checking testserver stats..."
           
           # Get the testserver pod name
           TESTSERVER_POD=$(kubectl get pods -n devzero-zxporter -l app=testserver -o jsonpath='{.items[0].metadata.name}')
@@ -216,17 +271,34 @@ jobs:
           kubectl logs $TESTSERVER_POD -n devzero-zxporter
           echo "=== END TESTSERVER LOGS ==="
           
-          # Copy the requests.json file from the pod
-          echo "Copying requests.json from the pod..."
-          kubectl cp devzero-zxporter/$TESTSERVER_POD:/data/requests.json ./pod-requests.json || echo "Failed to copy requests.json from pod"
+          # Call the stats endpoint
+          echo "Calling stats endpoint..."
           
-          # Display the requests file content
-          echo "=== REQUESTS FILE CONTENT ==="
-          cat pod-requests.json || echo "No pod-requests.json file found"
-          echo "=== END REQUESTS FILE CONTENT ==="
+          # Create a temporary curl pod
+          kubectl run curlbox \
+            -n devzero-zxporter \
+            --image=curlimages/curl:latest \
+            --restart=Never \
+            --command -- sleep 120
+
+          # Wait for it to be ready
+          kubectl wait --for=condition=Ready pod/curlbox -n devzero-zxporter --timeout=30s
+
+          # Run curl against the stats endpoint
+          echo "=== STATS ENDPOINT RESPONSE ==="
+          STATS_RESPONSE=$(kubectl exec -n devzero-zxporter curlbox -- \
+            curl -s http://testserver.devzero-zxporter.svc.cluster.local:8080/stats)
+          echo "$STATS_RESPONSE"
+          echo "=== END STATS ENDPOINT RESPONSE ==="
           
-          # Check if there was any output in the requests file
-          if [ -s pod-requests.json ]; then
+          # Clean up
+          kubectl delete pod curlbox -n devzero-zxporter --ignore-not-found
+          
+          # Check if there was any data received
+          TOTAL_MESSAGES=$(echo "$STATS_RESPONSE" | grep -o '"total_messages": [0-9]*' | awk '{print $2}')
+          echo "Total messages received: $TOTAL_MESSAGES"
+          
+          if [ "$TOTAL_MESSAGES" -gt 0 ]; then
             echo "Testserver received data from ZXporter!"
           else
             echo "ERROR: No data received by testserver from ZXporter!"
