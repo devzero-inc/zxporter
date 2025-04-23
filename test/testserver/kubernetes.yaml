@@ -44,6 +44,8 @@ spec:
         ports:
         - containerPort: 50051
           name: grpc
+        - containerPort: 8080
+          name: http
         volumeMounts:
         - name: data-volume
           mountPath: /data
@@ -64,3 +66,6 @@ spec:
   - port: 50051
     targetPort: grpc
     name: grpc
+  - port: 8080
+    targetPort: http
+    name: http

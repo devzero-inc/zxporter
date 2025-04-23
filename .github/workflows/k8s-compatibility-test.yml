@@ -203,9 +203,9 @@ jobs:
           echo "Checking Prometheus config mounted in pod..."
           kubectl exec -n devzero-zxporter $PROM_POD -c prometheus-server -- cat /etc/config/prometheus.yml || echo "Could not read prometheus.yml"        
         
-      - name: Check testserver output
+      - name: Check testserver stats
         run: |
-          echo "Checking testserver output..."
+          echo "Checking testserver stats..."
           
           # Get the testserver pod name
           TESTSERVER_POD=$(kubectl get pods -n devzero-zxporter -l app=testserver -o jsonpath='{.items[0].metadata.name}')
@@ -216,17 +216,34 @@ jobs:
           kubectl logs $TESTSERVER_POD -n devzero-zxporter
           echo "=== END TESTSERVER LOGS ==="
           
-          # Copy the requests.json file from the pod
-          echo "Copying requests.json from the pod..."
-          kubectl cp devzero-zxporter/$TESTSERVER_POD:/data/requests.json ./pod-requests.json || echo "Failed to copy requests.json from pod"
+          # Call the stats endpoint
+          echo "Calling stats endpoint..."
           
-          # Display the requests file content
-          echo "=== REQUESTS FILE CONTENT ==="
-          cat pod-requests.json || echo "No pod-requests.json file found"
-          echo "=== END REQUESTS FILE CONTENT ==="
+          # Create a temporary curl pod
+          kubectl run curlbox \
+            -n devzero-zxporter \
+            --image=curlimages/curl:latest \
+            --restart=Never \
+            --command -- sleep 120
+
+          # Wait for it to be ready
+          kubectl wait --for=condition=Ready pod/curlbox -n devzero-zxporter --timeout=30s
+
+          # Run curl against the stats endpoint
+          echo "=== STATS ENDPOINT RESPONSE ==="
+          STATS_RESPONSE=$(kubectl exec -n devzero-zxporter curlbox -- \
+            curl -s http://testserver.devzero-zxporter.svc.cluster.local:8080/stats)
+          echo "$STATS_RESPONSE"
+          echo "=== END STATS ENDPOINT RESPONSE ==="
           
-          # Check if there was any output in the requests file
-          if [ -s pod-requests.json ]; then
+          # Clean up
+          kubectl delete pod curlbox -n devzero-zxporter --ignore-not-found
+          
+          # Check if there was any data received
+          TOTAL_MESSAGES=$(echo "$STATS_RESPONSE" | grep -o '"total_messages": [0-9]*' | awk '{print $2}')
+          echo "Total messages received: $TOTAL_MESSAGES"
+          
+          if [ "$TOTAL_MESSAGES" -gt 0 ]; then
             echo "Testserver received data from ZXporter!"
           else
             echo "ERROR: No data received by testserver from ZXporter!"
