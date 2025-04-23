@@ -56,7 +56,7 @@ TESTSERVER_IMG ?= ttl.sh/zxporter-testserver:latest
 # DAKR URL to use for deployment
 DAKR_URL ?= https://api.devzero.io/dakr
 # PROMETHEUS URL for metrics collection
-PROMETHEUS_URL ?= http://prometheus-server.$(DEVZERO_MONITORING_NAMESPACE).svc.cluster.local:9090
+PROMETHEUS_URL ?= http://prometheus-server.$(DEVZERO_MONITORING_NAMESPACE).svc.cluster.local:80
 # COLLECTION_FILE is used to control the collectionpolicies.
 COLLECTION_FILE ?= env_configmap.yaml
 # ENV_CONFIGMAP_FILE is used to control the zxporter-manager deployment.

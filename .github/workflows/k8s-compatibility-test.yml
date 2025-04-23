@@ -120,7 +120,7 @@ jobs:
         run: |
           # Set DAKR_URL to point to the testserver service in the same namespace
           echo "Setting DAKR_URL to http://testserver.devzero-zxporter.svc.cluster.local:50051"
-          make deploy IMG=${{ env.ZXPORTER_IMG }} DAKR_URL=http://testserver.devzero-zxporter.svc.cluster.local:50051
+          make deploy IMG=${{ env.ZXPORTER_IMG }} DAKR_URL=http://testserver.devzero-zxporter.svc.cluster.local:50051 PROMETHEUS_URL= http://prometheus-server.devzero-zxporter.svc.cluster.local:80
 
       - name: Wait for deployment to be ready
         run: |
@@ -196,8 +196,6 @@ jobs:
           # Run curl against the Prometheus /-/ready endpoint
           kubectl exec -n devzero-zxporter curlbox -- \
             curl -v http://prometheus-server.devzero-zxporter.svc.cluster.local:80/-/ready || echo "Prometheus not responding to /-/ready"
-          kubectl exec -n devzero-zxporter curlbox -- \
-            curl -v http://prometheus-server.devzero-zxporter.svc.cluster.local:9090/-/ready || echo "Prometheus not responding to /-/ready"
 
           # Clean up
           kubectl delete pod curlbox -n devzero-zxporter --ignore-not-found
