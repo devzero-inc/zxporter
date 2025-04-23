@@ -258,7 +258,7 @@ jobs:
           echo "Checking Prometheus config mounted in pod..."
           kubectl exec -n devzero-zxporter $PROM_POD -c prometheus-server -- cat /etc/config/prometheus.yml || echo "Could not read prometheus.yml"        
         
-      - name: Check testserver stats
+      - name: Check testserver stats and validate resource usage
         run: |
           echo "Checking testserver stats..."
           
@@ -284,14 +284,41 @@ jobs:
           # Wait for it to be ready
           kubectl wait --for=condition=Ready pod/curlbox -n devzero-zxporter --timeout=30s
 
-          # Run curl against the stats endpoint
+          # Run curl against the stats endpoint and save to a file
           echo "=== STATS ENDPOINT RESPONSE ==="
           STATS_RESPONSE=$(kubectl exec -n devzero-zxporter curlbox -- \
             curl -s http://testserver.devzero-zxporter.svc.cluster.local:8080/stats)
           echo "$STATS_RESPONSE"
           echo "=== END STATS ENDPOINT RESPONSE ==="
           
-          # Clean up
+          # Save the stats response to a file
+          echo "$STATS_RESPONSE" > stats.json
+          
+          # Create the expected.json file with the expected pod resource usage
+          cat <<EOF > expected.json
+          {
+            "usage_report_pods": {
+              "dztest/stress-test": {
+                "requests": {
+                  "cpu": "500m",
+                  "memory": "64Mi"
+                },
+                "limits": {
+                  "cpu": "2000m",
+                  "memory": "256Mi"
+                },
+                "containers": {
+                  "stress": {
+                    "used_cpu": "1000m",
+                    "used_memory": "134217728"
+                  }
+                }
+              }
+            }
+          }
+          EOF
+          
+          # Clean up the curl pod
           kubectl delete pod curlbox -n devzero-zxporter --ignore-not-found
           
           # Check if there was any data received
@@ -307,6 +334,7 @@ jobs:
             echo "✅ Pod resource usage information is available in the stats"
           else
             echo "⚠️ No pod resource usage information found"
+            exit 1
           fi
           
           # Check for node usage reports
@@ -323,3 +351,7 @@ jobs:
             echo "ERROR: No data received by testserver from ZXporter!"
             exit 1
           fi
+          
+          # Run the validator to validate the resource usage
+          echo "Running validator to validate resource usage..."
+          go run ./test/validator/main.go --stats=stats.json --expected=expected.json --tolerance=20

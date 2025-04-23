@@ -15,37 +15,14 @@ import (
 
 	apiv1 "github.com/devzero-inc/zxporter/gen/api/v1"
 	apiv1connect "github.com/devzero-inc/zxporter/gen/api/v1/apiv1connect"
+	"github.com/devzero-inc/zxporter/test/stats"
 )
-
-// PodResourceUsage represents resource usage for a pod
-type PodResourceUsage struct {
-	Requests   map[string]string            `json:"requests,omitempty"`
-	Limits     map[string]string            `json:"limits,omitempty"`
-	Containers map[string]map[string]string `json:"containers,omitempty"`
-}
-
-// NodeResourceUsage represents resource usage for a node
-type NodeResourceUsage struct {
-	Capacity    map[string]string `json:"capacity,omitempty"`
-	Allocatable map[string]string `json:"allocatable,omitempty"`
-	Usage       map[string]string `json:"usage,omitempty"`
-}
-
-// Stats represents the statistics about received messages
-type Stats struct {
-	TotalMessages    int                          `json:"total_messages"`
-	MessagesByType   map[string]int               `json:"messages_by_type"`
-	UniqueResources  map[string]int               `json:"unique_resources"`
-	FirstMessageTime *time.Time                   `json:"first_message_time,omitempty"`
-	UsageReportPods  map[string]PodResourceUsage  `json:"usage_report_pods,omitempty"`
-	UsageReportNodes map[string]NodeResourceUsage `json:"usage_report_nodes,omitempty"`
-}
 
 // MetricsServer implements the MetricsCollectorServiceHandler interface
 type MetricsServer struct {
 	outputFile    string
 	mu            sync.Mutex
-	stats         Stats
+	stats         stats.Stats
 	seenResources map[string]bool // Track unique resources by type+key
 }
 
@@ -151,7 +128,7 @@ func (s *MetricsServer) extractPodResourceInfo(key string, data *structpb.Struct
 
 	// Initialize pod resource usage if not exists
 	if _, exists := s.stats.UsageReportPods[key]; !exists {
-		s.stats.UsageReportPods[key] = PodResourceUsage{
+		s.stats.UsageReportPods[key] = stats.PodResourceUsage{
 			Requests:   make(map[string]string),
 			Limits:     make(map[string]string),
 			Containers: make(map[string]map[string]string),
@@ -246,7 +223,7 @@ func (s *MetricsServer) extractContainerResourceInfo(data *structpb.Struct) {
 
 	// Initialize pod resource usage if not exists
 	if _, exists := s.stats.UsageReportPods[podKey]; !exists {
-		s.stats.UsageReportPods[podKey] = PodResourceUsage{
+		s.stats.UsageReportPods[podKey] = stats.PodResourceUsage{
 			Requests:   make(map[string]string),
 			Limits:     make(map[string]string),
 			Containers: make(map[string]map[string]string),
@@ -288,7 +265,7 @@ func (s *MetricsServer) extractNodeResourceInfo(key string, data *structpb.Struc
 
 	// Initialize node resource usage if not exists
 	if _, exists := s.stats.UsageReportNodes[key]; !exists {
-		s.stats.UsageReportNodes[key] = NodeResourceUsage{
+		s.stats.UsageReportNodes[key] = stats.NodeResourceUsage{
 			Capacity:    make(map[string]string),
 			Allocatable: make(map[string]string),
 			Usage:       make(map[string]string),
@@ -356,11 +333,11 @@ func main() {
 	// Create a new server
 	server := &MetricsServer{
 		outputFile: *outputFile,
-		stats: Stats{
+		stats: stats.Stats{
 			MessagesByType:   make(map[string]int),
 			UniqueResources:  make(map[string]int),
-			UsageReportPods:  make(map[string]PodResourceUsage),
-			UsageReportNodes: make(map[string]NodeResourceUsage),
+			UsageReportPods:  make(map[string]stats.PodResourceUsage),
+			UsageReportNodes: make(map[string]stats.NodeResourceUsage),
 		},
 		seenResources: make(map[string]bool),
 	}
