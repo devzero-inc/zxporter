@@ -148,8 +148,8 @@ jobs:
 
       - name: Verify ZXporter is running
         run: |
-          echo "Getting pod status..."
-          kubectl get pods -n devzero-zxporter -o wide
+          echo "Getting all devzero resource status..."
+          kubectl get all -n devzero-zxporter -o wide
           
           echo "Getting pod logs (if any)..."
           POD_NAME=$(kubectl get pods -n devzero-zxporter -l control-plane=controller-manager -o jsonpath='{.items[0].metadata.name}')
