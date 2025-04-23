@@ -1903,7 +1903,7 @@ data:
   BUFFER_SIZE: ""
   CLUSTER_TOKEN: '{{ .cluster_token }}'
   COLLECTION_FREQUENCY: ""
-  DAKR_URL: http://localhost:50051
+  DAKR_URL: https://api.devzero.io/dakr
   DISABLE_NETWORK_IO_METRICS: ""
   DISABLED_COLLECTORS: ""
   EXCLUDED_CLUSTERROLEBINDINGS: ""
@@ -1940,7 +1940,7 @@ data:
   K8S_PROVIDER: '{{ .k8s_provider }}'
   MASK_SECRET_DATA: ""
   NODE_METRICS_INTERVAL: ""
-  PROMETHEUS_URL: http://prom-server
+  PROMETHEUS_URL: http://prometheus-server.devzero-zxporter.svc.cluster.local:80
   TARGET_NAMESPACES: ""
   WATCHED_CRDS: ""
 kind: ConfigMap
