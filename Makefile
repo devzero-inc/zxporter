@@ -69,10 +69,11 @@ NODE_EXPORTER_CHART_VERSION ?= 4.24.0
 METRICS_SERVER_CHART_VERSION ?= 3.12.0
 
 # DIST_INSTALL_BUNDLE is the final complete manifest
-DIST_INSTALL_BUNDLE ?= dist/install.yaml
-DIST_PROMETHEUS_BUNDLE ?= dist/prometheus.yaml
-DIST_NODE_EXPORTER_BUNDLE ?= dist/node-exporter.yaml
-METRICS_SERVER ?= dist/metrics-server.yaml
+DIST_DIR ?= dist
+DIST_INSTALL_BUNDLE ?= $(DIST_DIR)/install.yaml
+DIST_PROMETHEUS_BUNDLE ?= $(DIST_DIR)/prometheus.yaml
+DIST_NODE_EXPORTER_BUNDLE ?= $(DIST_DIR)/node-exporter.yaml
+METRICS_SERVER ?= $(DIST_DIR)/metrics-server.yaml
 
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.31.0
@@ -237,7 +238,7 @@ generate-monitoring-manifests: helm ## Generate monitoring manifests for Prometh
 
 .PHONY: build-installer
 build-installer: manifests generate kustomize ## Generate a consolidated YAML with CRDs and deployment.
-	mkdir -p dist
+	mkdir -p $(DIST_DIR)
 
 	$(MAKE) generate-monitoring-manifests
 
@@ -276,7 +277,7 @@ build-installer: manifests generate kustomize ## Generate a consolidated YAML wi
 	$(KUSTOMIZE) build config/default >> $(DIST_INSTALL_BUNDLE)
 
 .PHONY: build-env-configmap
-build-env-configmap: DIST_INSTALL_BUNDLE=dist/env_configmap.yaml
+build-env-configmap: DIST_INSTALL_BUNDLE=$(DIST_DIR)/env_configmap.yaml
 build-env-configmap: yq
 build-env-configmap:
 	echo "" > $(DIST_INSTALL_BUNDLE)
@@ -314,7 +315,7 @@ local-deploy: manifests kustomize ## Deploy controller to the K8s cluster specif
 	$(KUSTOMIZE) build config/default | $(KUBECTL) apply -f -
 
 .PHONY: deploy-env-configmap
-deploy-env-configmap: DIST_INSTALL_BUNDLE=dist/env_configmap.yaml
+deploy-env-configmap: DIST_INSTALL_BUNDLE=$(DIST_DIR)/env_configmap.yaml
 deploy-env-configmap: build-env-configmap
 	cat $(DIST_INSTALL_BUNDLE) | $(KUBECTL) apply -f -
 
