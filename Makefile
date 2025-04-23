@@ -258,7 +258,7 @@ build-installer: manifests generate kustomize ## Generate a consolidated YAML wi
 	echo "  labels:" >> $(DIST_INSTALL_BUNDLE)
 	echo "    control-plane: controller-manager" >> $(DIST_INSTALL_BUNDLE)
 	echo "    app.kubernetes.io/name: $(DEVZERO_MONITORING_NAMESPACE)" >> $(DIST_INSTALL_BUNDLE)
-	echo "  name: system" >> $(DIST_INSTALL_BUNDLE)
+	echo "  name: $(DEVZERO_MONITORING_NAMESPACE)" >> $(DIST_INSTALL_BUNDLE)
 	echo "---" >> $(DIST_INSTALL_BUNDLE)
 
 	# Append prometheus-server to the main installer

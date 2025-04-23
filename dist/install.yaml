@@ -13,7 +13,7 @@ metadata:
   labels:
     control-plane: controller-manager
     app.kubernetes.io/name: devzero-zxporter
-  name: system
+  name: devzero-zxporter
 ---
 # ----- START PROM SERVER -----
 ---
