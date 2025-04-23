@@ -122,14 +122,6 @@ jobs:
           echo "Setting DAKR_URL to http://testserver.devzero-zxporter.svc.cluster.local:50051"
           make deploy IMG=${{ env.ZXPORTER_IMG }} DAKR_URL=http://testserver.devzero-zxporter.svc.cluster.local:50051
 
-      - name: Wait for CRD to become available
-        run: |
-          kubectl wait --for=condition=Established crd/collectionpolicies.devzero.io --timeout=120s
-
-      - name: Deploy collection yaml
-        run: |
-          make deploy-collections IMG=${{ env.ZXPORTER_IMG }} DAKR_URL=http://testserver.devzero-zxporter.svc.cluster.local:50051
-
       - name: Wait for deployment to be ready
         run: |
           echo "Waiting for deployment to be ready..."
