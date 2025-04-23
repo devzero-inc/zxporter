@@ -312,7 +312,7 @@ jobs:
                 "containers": {
                   "stress": {
                     "used_cpu": "1000m",
-                    "used_memory": "134217728"
+                    "used_memory": "190000000"
                   }
                 }
               }
