@@ -295,7 +295,7 @@ func (c *CronJobCollector) GetResourceChannel() <-chan CollectedResource {
 
 // GetType returns the type of resource this collector handles
 func (c *CronJobCollector) GetType() string {
-	return "cronjob"
+	return "cron_job"
 }
 
 // IsAvailable checks if CronJob resources can be accessed in the cluster

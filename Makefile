@@ -56,11 +56,11 @@ TESTSERVER_IMG ?= ttl.sh/zxporter-testserver:latest
 # DAKR URL to use for deployment
 DAKR_URL ?= https://api.devzero.io/dakr
 # PROMETHEUS URL for metrics collection
-PROMETHEUS_URL ?= http://prometheus-server.$(DEVZERO_MONITORING_NAMESPACE).svc.cluster.local:9090
+PROMETHEUS_URL ?= http://prometheus-server.$(DEVZERO_MONITORING_NAMESPACE).svc.cluster.local:80
 # COLLECTION_FILE is used to control the collectionpolicies.
-COLLECTION_FILE ?= collection.yaml
-# ENV_PATCH_FILE is used to control the zxporter-manager deployment.
-ENV_PATCH_FILE ?= config/manager/env-patch.yaml
+COLLECTION_FILE ?= env_configmap.yaml
+# ENV_CONFIGMAP_FILE is used to control the zxporter-manager deployment.
+ENV_CONFIGMAP_FILE ?= config/manager/env_configmap.yaml
 
 # Monitoring resources
 PROMETHEUS_CHART_VERSION ?= 25.8.0
@@ -69,10 +69,11 @@ NODE_EXPORTER_CHART_VERSION ?= 4.24.0
 METRICS_SERVER_CHART_VERSION ?= 3.12.0
 
 # DIST_INSTALL_BUNDLE is the final complete manifest
-DIST_INSTALL_BUNDLE ?= dist/install.yaml
-DIST_PROMETHEUS_BUNDLE ?= dist/prometheus.yaml
-DIST_NODE_EXPORTER_BUNDLE ?= dist/node-exporter.yaml
-METRICS_SERVER ?= dist/metrics-server.yaml
+DIST_DIR ?= dist
+DIST_INSTALL_BUNDLE ?= $(DIST_DIR)/install.yaml
+DIST_PROMETHEUS_BUNDLE ?= $(DIST_DIR)/prometheus.yaml
+DIST_NODE_EXPORTER_BUNDLE ?= $(DIST_DIR)/node-exporter.yaml
+METRICS_SERVER ?= $(DIST_DIR)/metrics-server.yaml
 
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.31.0
@@ -236,8 +237,8 @@ generate-monitoring-manifests: helm ## Generate monitoring manifests for Prometh
 	echo "# ----- END METRICS SERVER -----" >> $(METRICS_SERVER)
 
 .PHONY: build-installer
-build-installer: manifests generate kustomize ## Generate a consolidated YAML with CRDs and deployment.
-	mkdir -p dist
+build-installer: manifests generate kustomize yq ## Generate a consolidated YAML with deployment.
+	mkdir -p $(DIST_DIR)
 
 	$(MAKE) generate-monitoring-manifests
 
@@ -257,7 +258,7 @@ build-installer: manifests generate kustomize ## Generate a consolidated YAML wi
 	echo "  labels:" >> $(DIST_INSTALL_BUNDLE)
 	echo "    control-plane: controller-manager" >> $(DIST_INSTALL_BUNDLE)
 	echo "    app.kubernetes.io/name: $(DEVZERO_MONITORING_NAMESPACE)" >> $(DIST_INSTALL_BUNDLE)
-	echo "  name: system" >> $(DIST_INSTALL_BUNDLE)
+	echo "  name: $(DEVZERO_MONITORING_NAMESPACE)" >> $(DIST_INSTALL_BUNDLE)
 	echo "---" >> $(DIST_INSTALL_BUNDLE)
 
 	# Append prometheus-server to the main installer
@@ -271,20 +272,21 @@ build-installer: manifests generate kustomize ## Generate a consolidated YAML wi
 	
 	# Append zxporter-manager to the installer bundle
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
-	sed "s|\$$(DAKR_URL)|$(DAKR_URL)|g" $(ENV_PATCH_FILE) > temp.yaml && mv temp.yaml $(ENV_PATCH_FILE)
+	$(YQ) e '.data.DAKR_URL = "$(DAKR_URL)"' -i $(ENV_CONFIGMAP_FILE)
+	$(YQ) e '.data.PROMETHEUS_URL = "$(PROMETHEUS_URL)"' -i $(ENV_CONFIGMAP_FILE)
+
 	$(KUSTOMIZE) build config/default >> $(DIST_INSTALL_BUNDLE)
 
-.PHONY: build-collections
-build-collections: DIST_INSTALL_BUNDLE=dist/collection_bundle.yaml
-build-collections:
+.PHONY: build-env-configmap
+build-env-configmap: DIST_INSTALL_BUNDLE=$(DIST_DIR)/env_configmap.yaml
+build-env-configmap: yq
+build-env-configmap:
 	echo "" > $(DIST_INSTALL_BUNDLE)
-	# Append Collection Policy to the installer bundle
-	echo "---" >> $(DIST_INSTALL_BUNDLE)
-	sed "s|\$$(DAKR_URL)|$(DAKR_URL)|g" $(COLLECTION_FILE) > temp.yaml && mv temp.yaml $(COLLECTION_FILE)
-	sed "s|\$$(PROMETHEUS_URL)|$(PROMETHEUS_URL)|g" $(COLLECTION_FILE) > temp.yaml && mv temp.yaml $(COLLECTION_FILE)
-	cat $(COLLECTION_FILE) >> $(DIST_INSTALL_BUNDLE)
-	sed 's/ # READ THIS!.*//' $(DIST_INSTALL_BUNDLE) > temp.yaml && mv temp.yaml $(DIST_INSTALL_BUNDLE)
-	echo "---" >> $(DIST_INSTALL_BUNDLE)
+	# Copy and patch environment config
+	sed "s|\$$(DAKR_URL)|$(DAKR_URL)|g" $(ENV_CONFIGMAP_FILE) > temp.yaml && mv temp.yaml $(ENV_CONFIGMAP_FILE)
+	sed "s|\$$(PROMETHEUS_URL)|$(PROMETHEUS_URL)|g" $(ENV_CONFIGMAP_FILE) > temp.yaml && mv temp.yaml $(ENV_CONFIGMAP_FILE)
+	$(KUSTOMIZE) build config/default | \
+	yq eval 'select(.kind == "ConfigMap" and .metadata.name == "devzero-zxporter-env-config")' - >> $(DIST_INSTALL_BUNDLE)
 
 .PHONY: build-chart
 build-chart: build-installer ## Generate a consolidated helm chart from the installer manifest.
@@ -308,9 +310,14 @@ uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified 
 deploy: build-installer ## Deploy controller to the K8s cluster specified in ~/.kube/config.
 	cat $(DIST_INSTALL_BUNDLE) | $(KUBECTL) apply -f -
 
-.PHONY: deploy-collections
-deploy-collections: DIST_INSTALL_BUNDLE=dist/collection_bundle.yaml
-deploy-collections: build-collections
+.PHONY: local-deploy
+local-deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/config.
+	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
+	$(KUSTOMIZE) build config/default | $(KUBECTL) apply -f -
+
+.PHONY: deploy-env-configmap
+deploy-env-configmap: DIST_INSTALL_BUNDLE=$(DIST_DIR)/env_configmap.yaml
+deploy-env-configmap: build-env-configmap
 	cat $(DIST_INSTALL_BUNDLE) | $(KUBECTL) apply -f -
 
 .PHONY: undeploy-monitoring
@@ -336,6 +343,8 @@ CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 ENVTEST ?= $(LOCALBIN)/setup-envtest
 GOLANGCI_LINT = $(LOCALBIN)/golangci-lint
 HELM ?= $(LOCALBIN)/helm
+# to download: https://github.com/mikefarah/yq?tab=readme-ov-file#install
+YQ ?= $(LOCALBIN)/yq
 # to download: `brew install arttor/tap/helmify`
 HELMIFY ?= helmify
 
@@ -394,6 +403,19 @@ mv $(1) $(1)-$(3) ;\
 ln -sf $(1)-$(3) $(1)
 endef
 
+.PHONY: yq
+yq: $(YQ) ## Download yq locally if necessary.
+$(YQ): $(LOCALBIN)
+	@{ \
+	set -e ;\
+	mkdir -p $(dir $(YQ)) ;\
+	VERSION=v4.40.5 ;\
+	OS=$(shell go env GOOS) && ARCH=$(shell go env GOARCH) ;\
+	echo "Downloading yq $$VERSION for $$OS/$$ARCH..." ;\
+	curl -sSLo $(YQ) https://github.com/mikefarah/yq/releases/download/$$VERSION/yq_$${OS}_$${ARCH} ;\
+	chmod +x $(YQ) ;\
+	}
+
 .PHONY: operator-sdk
 OPERATOR_SDK ?= $(LOCALBIN)/operator-sdk
 operator-sdk: ## Download operator-sdk locally if necessary.
@@ -415,7 +437,7 @@ endif
 bundle: manifests kustomize operator-sdk ## Generate bundle manifests and metadata, then validate generated files.
 	$(OPERATOR_SDK) generate kustomize manifests -q
 	cd config/manager && $(KUSTOMIZE) edit set image controller=$(IMG)
-	sed "s|\$$(DAKR_URL)|$(DAKR_URL)|g" config/manager/env-patch.yaml > temp.yaml && mv temp.yaml config/manager/env-patch.yaml
+	sed "s|\$$(DAKR_URL)|$(DAKR_URL)|g" config/manager/env_configmap.yaml > temp.yaml && mv temp.yaml config/manager/env_configmap.yaml
 	$(KUSTOMIZE) build config/manifests | $(OPERATOR_SDK) generate bundle $(BUNDLE_GEN_FLAGS)
 	$(OPERATOR_SDK) bundle validate ./bundle
 

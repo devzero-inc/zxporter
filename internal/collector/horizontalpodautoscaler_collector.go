@@ -256,7 +256,7 @@ func (c *HorizontalPodAutoscalerCollector) GetResourceChannel() <-chan Collected
 
 // GetType returns the type of resource this collector handles
 func (c *HorizontalPodAutoscalerCollector) GetType() string {
-	return "horizontalpodautoscaler"
+	return "horizontal_pod_autoscaler"
 }
 
 // IsAvailable checks if HPA v2 resources can be accessed in the cluster

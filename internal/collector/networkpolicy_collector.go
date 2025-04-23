@@ -271,7 +271,7 @@ func (c *NetworkPolicyCollector) GetResourceChannel() <-chan CollectedResource {
 
 // GetType returns the type of resource this collector handles
 func (c *NetworkPolicyCollector) GetType() string {
-	return "networkpolicy"
+	return "network_policy"
 }
 
 // IsAvailable checks if NetworkPolicy resources can be accessed in the cluster

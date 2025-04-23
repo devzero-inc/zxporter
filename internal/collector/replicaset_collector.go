@@ -306,7 +306,7 @@ func (c *ReplicaSetCollector) GetResourceChannel() <-chan CollectedResource {
 
 // GetType returns the type of resource this collector handles
 func (c *ReplicaSetCollector) GetType() string {
-	return "replicaset"
+	return "replica_set"
 }
 
 // IsAvailable checks if ReplicaSet resources can be accessed in the cluster

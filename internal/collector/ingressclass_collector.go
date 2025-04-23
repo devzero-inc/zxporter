@@ -200,7 +200,7 @@ func (c *IngressClassCollector) GetResourceChannel() <-chan CollectedResource {
 
 // GetType returns the type of resource this collector handles
 func (c *IngressClassCollector) GetType() string {
-	return "ingressclass"
+	return "ingress_class"
 }
 
 // IsAvailable checks if IngressClass resources can be accessed in the cluster

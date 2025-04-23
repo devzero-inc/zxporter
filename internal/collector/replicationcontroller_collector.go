@@ -236,7 +236,7 @@ func (c *ReplicationControllerCollector) GetResourceChannel() <-chan CollectedRe
 
 // GetType returns the type of resource this collector handles
 func (c *ReplicationControllerCollector) GetType() string {
-	return "replicationcontroller"
+	return "replication_controller"
 }
 
 // IsAvailable checks if ReplicationController resources can be accessed in the cluster

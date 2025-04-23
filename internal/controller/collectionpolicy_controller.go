@@ -19,7 +19,9 @@ package controller
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -27,7 +29,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	monitoringv1 "github.com/devzero-inc/zxporter/api/v1"
 	metricsv1 "k8s.io/metrics/pkg/client/clientset/versioned"
@@ -55,9 +59,6 @@ type CollectionPolicyReconciler struct {
 	IsRunning         bool
 	CurrentPolicyHash string
 	CurrentConfig     *PolicyConfig
-	LastEnvCheckTime  time.Time
-	EnvCheckInterval  time.Duration
-	EnvConfig         *util.EnvPolicyConfig
 	RestartInProgress bool
 }
 
@@ -189,21 +190,14 @@ func (r *CollectionPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	logger := log.FromContext(ctx)
 	logger.Info("Reconciling CollectionPolicy", "request", req)
 
-	// Check if we should reload env config (every 5 minutes)
-	if time.Since(r.LastEnvCheckTime) > r.EnvCheckInterval {
-		r.EnvConfig = util.LoadEnvPolicyConfig(logger)
-		r.LastEnvCheckTime = time.Now()
-		logger.Info("Reloaded environment configuration")
-	}
-
-	// Fetch the CollectionPolicy instance
-	var policy monitoringv1.CollectionPolicy
-	if err := r.Get(ctx, req.NamespacedName, &policy); err != nil {
-		return ctrl.Result{}, client.IgnoreNotFound(err)
+	// Create a new config object from the policy and environment
+	newEnvSpec, err := util.LoadCollectionPolicySpecFromEnv()
+	if err != nil {
+		logger.Error(err, "Error loading ENV varaibles")
 	}
 
 	// Create a new config object from the policy and environment
-	newConfig, configChanged := r.createNewConfig(&policy, logger)
+	newConfig, configChanged := r.createNewConfig(&newEnvSpec, logger)
 
 	// Check if we need to restart collectors due to config change
 	if configChanged && r.IsRunning {
@@ -222,78 +216,248 @@ func (r *CollectionPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Req
 }
 
 // createNewConfig creates a new config by merging policy and environment variables
-func (r *CollectionPolicyReconciler) createNewConfig(policy *monitoringv1.CollectionPolicy, logger logr.Logger) (*PolicyConfig, bool) {
-	// Convert excluded pods from policy format
-	var excludedPods []collector.ExcludedPod
-	for _, pod := range policy.Spec.Exclusions.ExcludedPods {
-		excludedPods = append(excludedPods, collector.ExcludedPod{
+func (r *CollectionPolicyReconciler) createNewConfig(envSpec *monitoringv1.CollectionPolicySpec, logger logr.Logger) (*PolicyConfig, bool) {
+	// Convert the merged spec to the PolicyConfig format
+	newConfig := &PolicyConfig{
+		// Target and exclusion basics
+		TargetNamespaces:   envSpec.TargetSelector.Namespaces,
+		ExcludedNamespaces: envSpec.Exclusions.ExcludedNamespaces,
+		ExcludedNodes:      envSpec.Exclusions.ExcludedNodes,
+		ExcludedCSINodes:   envSpec.Exclusions.ExcludedNodes, // Same as nodes
+
+		// Policies
+		DakrURL:                 envSpec.Policies.DakrURL,
+		ClusterToken:            envSpec.Policies.ClusterToken,
+		PrometheusURL:           envSpec.Policies.PrometheusURL,
+		DisableNetworkIOMetrics: envSpec.Policies.DisableNetworkIOMetrics,
+		MaskSecretData:          envSpec.Policies.MaskSecretData,
+		DisabledCollectors:      envSpec.Policies.DisabledCollectors,
+		BufferSize:              envSpec.Policies.BufferSize,
+	}
+
+	logger.Info("Disabled collectors", "name", newConfig.DisabledCollectors)
+
+	// Parse and set frequency
+	frequencyStr := envSpec.Policies.Frequency
+	if frequencyStr != "" {
+		if freq, err := time.ParseDuration(frequencyStr); err == nil {
+			newConfig.UpdateInterval = freq
+		} else {
+			logger.Error(err, "Error parsing frequency string", "frequency", frequencyStr)
+			newConfig.UpdateInterval = 10 * time.Second // Default
+		}
+	} else {
+		newConfig.UpdateInterval = 10 * time.Second // Default
+	}
+
+	// Set node metrics interval (6x regular interval but minimum 60s)
+	nodeMetricsIntervalStr := envSpec.Policies.NodeMetricsInterval
+	if nodeMetricsIntervalStr != "" {
+		if interval, err := time.ParseDuration(nodeMetricsIntervalStr); err == nil {
+			newConfig.NodeMetricsInterval = interval
+		} else {
+			logger.Error(err, "Error parsing node metrics interval", "interval", nodeMetricsIntervalStr)
+			newConfig.NodeMetricsInterval = max(newConfig.UpdateInterval*6, 60*time.Second)
+		}
+	} else {
+		newConfig.NodeMetricsInterval = max(newConfig.UpdateInterval*6, 60*time.Second)
+	}
+
+	// Convert all excluded resources
+	// Pods
+	for _, pod := range envSpec.Exclusions.ExcludedPods {
+		newConfig.ExcludedPods = append(newConfig.ExcludedPods, collector.ExcludedPod{
 			Namespace: pod.Namespace,
 			Name:      pod.Name,
 		})
 	}
 
-	// Get policy values
-	targetNamespaces := policy.Spec.TargetSelector.Namespaces
-	excludedNamespaces := policy.Spec.Exclusions.ExcludedNamespaces
-	excludedNodes := policy.Spec.Exclusions.ExcludedNodes
-	excludedCSINodes := policy.Spec.Exclusions.ExcludedNodes
-	dakrURL := policy.Spec.Policies.DakrURL
-	clusterToken := policy.Spec.Policies.ClusterToken
-	prometheusURL := policy.Spec.Policies.PrometheusURL
-	disableNetworkIOMetrics := policy.Spec.Policies.DisableNetworkIOMetrics
-	frequencyStr := policy.Spec.Policies.Frequency
-	bufferSize := policy.Spec.Policies.BufferSize
-	disabledCollectors := policy.Spec.Policies.DisabledCollectors
-	var frequency time.Duration
-
-	// Merge with environment config
-	targetNamespaces, excludedNamespaces, excludedNodes, dakrURL, frequency, bufferSize, clusterToken =
-		r.EnvConfig.MergeWithCRPolicy(
-			targetNamespaces,
-			excludedNamespaces,
-			excludedNodes,
-			dakrURL,
-			frequencyStr,
-			bufferSize,
-			clusterToken,
-		)
-
-	if frequencyStr != "" {
-		if freq, err := time.ParseDuration(frequencyStr); err == nil {
-			frequency = freq
-		} else {
-			logger.Error(err, "Error parsing frequency string")
-		}
-
+	// Deployments
+	for _, deploy := range envSpec.Exclusions.ExcludedDeployments {
+		newConfig.ExcludedDeployments = append(newConfig.ExcludedDeployments, collector.ExcludedDeployment{
+			Namespace: deploy.Namespace,
+			Name:      deploy.Name,
+		})
 	}
 
-	// Use default if frequency is not set
-	if frequency <= 0 {
-		frequency = 10 * time.Second
+	// StatefulSets
+	for _, sts := range envSpec.Exclusions.ExcludedStatefulSets {
+		newConfig.ExcludedStatefulSets = append(newConfig.ExcludedStatefulSets, collector.ExcludedStatefulSet{
+			Namespace: sts.Namespace,
+			Name:      sts.Name,
+		})
 	}
 
-	// Set node metrics interval (6x regular interval but minimum 60s)
-	nodeMetricsInterval := frequency * 6
-	if nodeMetricsInterval < 60*time.Second {
-		nodeMetricsInterval = 60 * time.Second
+	// DaemonSets
+	for _, ds := range envSpec.Exclusions.ExcludedDaemonSets {
+		newConfig.ExcludedDaemonSets = append(newConfig.ExcludedDaemonSets, collector.ExcludedDaemonSet{
+			Namespace: ds.Namespace,
+			Name:      ds.Name,
+		})
 	}
 
-	// Create the new config
-	newConfig := &PolicyConfig{
-		TargetNamespaces:        targetNamespaces,
-		ExcludedNamespaces:      excludedNamespaces,
-		ExcludedPods:            excludedPods,
-		ExcludedNodes:           excludedNodes,
-		ExcludedCSINodes:        excludedCSINodes,
-		DakrURL:                 dakrURL,
-		ClusterToken:            clusterToken,
-		PrometheusURL:           prometheusURL,
-		DisableNetworkIOMetrics: disableNetworkIOMetrics,
-		UpdateInterval:          frequency,
-		NodeMetricsInterval:     nodeMetricsInterval,
-		BufferSize:              bufferSize,
-		DisabledCollectors:      disabledCollectors,
+	// Services
+	for _, svc := range envSpec.Exclusions.ExcludedServices {
+		newConfig.ExcludedServices = append(newConfig.ExcludedServices, collector.ExcludedService{
+			Namespace: svc.Namespace,
+			Name:      svc.Name,
+		})
 	}
+
+	// PVCs
+	for _, pvc := range envSpec.Exclusions.ExcludedPVCs {
+		newConfig.ExcludedPVCs = append(newConfig.ExcludedPVCs, collector.ExcludedPVC{
+			Namespace: pvc.Namespace,
+			Name:      pvc.Name,
+		})
+	}
+
+	// Jobs
+	for _, job := range envSpec.Exclusions.ExcludedJobs {
+		newConfig.ExcludedJobs = append(newConfig.ExcludedJobs, collector.ExcludedJob{
+			Namespace: job.Namespace,
+			Name:      job.Name,
+		})
+	}
+
+	// CronJobs
+	for _, cron := range envSpec.Exclusions.ExcludedCronJobs {
+		newConfig.ExcludedCronJobs = append(newConfig.ExcludedCronJobs, collector.ExcludedCronJob{
+			Namespace: cron.Namespace,
+			Name:      cron.Name,
+		})
+	}
+
+	// ReplicationControllers
+	for _, rc := range envSpec.Exclusions.ExcludedReplicationControllers {
+		newConfig.ExcludedReplicationControllers = append(newConfig.ExcludedReplicationControllers, collector.ExcludedReplicationController{
+			Namespace: rc.Namespace,
+			Name:      rc.Name,
+		})
+	}
+
+	// Ingresses
+	for _, ing := range envSpec.Exclusions.ExcludedIngresses {
+		newConfig.ExcludedIngresses = append(newConfig.ExcludedIngresses, collector.ExcludedIngress{
+			Namespace: ing.Namespace,
+			Name:      ing.Name,
+		})
+	}
+
+	// IngressClasses
+	newConfig.ExcludedIngressClasses = envSpec.Exclusions.ExcludedIngressClasses
+
+	// NetworkPolicies
+	for _, netpol := range envSpec.Exclusions.ExcludedNetworkPolicies {
+		newConfig.ExcludedNetworkPolicies = append(newConfig.ExcludedNetworkPolicies, collector.ExcludedNetworkPolicy{
+			Namespace: netpol.Namespace,
+			Name:      netpol.Name,
+		})
+	}
+
+	// Endpoints
+	for _, ep := range envSpec.Exclusions.ExcludedEndpoints {
+		newConfig.ExcludedEndpoints = append(newConfig.ExcludedEndpoints, collector.ExcludedEndpoint{
+			Namespace: ep.Namespace,
+			Name:      ep.Name,
+		})
+	}
+
+	// ServiceAccounts
+	for _, sa := range envSpec.Exclusions.ExcludedServiceAccounts {
+		newConfig.ExcludedServiceAccounts = append(newConfig.ExcludedServiceAccounts, collector.ExcludedServiceAccount{
+			Namespace: sa.Namespace,
+			Name:      sa.Name,
+		})
+	}
+
+	// LimitRanges
+	for _, lr := range envSpec.Exclusions.ExcludedLimitRanges {
+		newConfig.ExcludedLimitRanges = append(newConfig.ExcludedLimitRanges, collector.ExcludedLimitRange{
+			Namespace: lr.Namespace,
+			Name:      lr.Name,
+		})
+	}
+
+	// ResourceQuotas
+	for _, rq := range envSpec.Exclusions.ExcludedResourceQuotas {
+		newConfig.ExcludedResourceQuotas = append(newConfig.ExcludedResourceQuotas, collector.ExcludedResourceQuota{
+			Namespace: rq.Namespace,
+			Name:      rq.Name,
+		})
+	}
+
+	// HPAs
+	for _, hpa := range envSpec.Exclusions.ExcludedHPAs {
+		newConfig.ExcludedHPAs = append(newConfig.ExcludedHPAs, collector.ExcludedHPA{
+			Namespace: hpa.Namespace,
+			Name:      hpa.Name,
+		})
+	}
+
+	// VPAs
+	for _, vpa := range envSpec.Exclusions.ExcludedVPAs {
+		newConfig.ExcludedVPAs = append(newConfig.ExcludedVPAs, collector.ExcludedVPA{
+			Namespace: vpa.Namespace,
+			Name:      vpa.Name,
+		})
+	}
+
+	// Roles
+	for _, role := range envSpec.Exclusions.ExcludedRoles {
+		newConfig.ExcludedRoles = append(newConfig.ExcludedRoles, collector.ExcludedRole{
+			Namespace: role.Namespace,
+			Name:      role.Name,
+		})
+	}
+
+	// RoleBindings
+	for _, rb := range envSpec.Exclusions.ExcludedRoleBindings {
+		newConfig.ExcludedRoleBindings = append(newConfig.ExcludedRoleBindings, collector.ExcludedRoleBinding{
+			Namespace: rb.Namespace,
+			Name:      rb.Name,
+		})
+	}
+
+	// ClusterRoles
+	newConfig.ExcludedClusterRoles = envSpec.Exclusions.ExcludedClusterRoles
+
+	// ClusterRoleBindings
+	newConfig.ExcludedClusterRoleBindings = envSpec.Exclusions.ExcludedClusterRoleBindings
+
+	// PDBs
+	for _, pdb := range envSpec.Exclusions.ExcludedPDBs {
+		newConfig.ExcludedPDBs = append(newConfig.ExcludedPDBs, collector.ExcludedPDB{
+			Namespace: pdb.Namespace,
+			Name:      pdb.Name,
+		})
+	}
+
+	// PSPs
+	newConfig.ExcludedPSPs = envSpec.Exclusions.ExcludedPSPs
+
+	// PVs
+	newConfig.ExcludedPVs = envSpec.Exclusions.ExcludedPVs
+
+	// StorageClasses
+	newConfig.ExcludedStorageClasses = envSpec.Exclusions.ExcludedStorageClasses
+
+	// CRDs
+	newConfig.ExcludedCRDs = envSpec.Exclusions.ExcludedCRDs
+
+	// CRDGroups
+	newConfig.ExcludedCRDGroups = envSpec.Exclusions.ExcludedCRDGroups
+
+	// Events - these are special with more fields
+	for _, event := range envSpec.Exclusions.ExcludedEvents {
+		newConfig.ExcludedEvents = append(newConfig.ExcludedEvents, collector.ExcludedEvent{
+			Namespace: event.Namespace,
+			Name:      event.Name,
+		})
+	}
+
+	// Watched CRDs
+	newConfig.WatchedCRDs = envSpec.Policies.WatchedCRDs
 
 	// Check if config has changed
 	configChanged := false
@@ -327,19 +491,23 @@ func (r *CollectionPolicyReconciler) identifyAffectedCollectors(oldConfig, newCo
 	// Check exclusion lists that affect specific collectors
 	if !reflect.DeepEqual(oldConfig.ExcludedPods, newConfig.ExcludedPods) {
 		affectedCollectors["pod"] = true
-		affectedCollectors["container_resources"] = true
+		affectedCollectors["container_resource"] = true
 	}
 
-	if !reflect.DeepEqual(oldConfig.ExcludedDeployments, newConfig.ExcludedDeployments) {
+	if !reflect.DeepEqual(oldConfig.ExcludedDeployments, newConfig.ExcludedDeployments) { // TODO: should depployment influence container and pod collectors?
 		affectedCollectors["deployment"] = true
 	}
 
 	if !reflect.DeepEqual(oldConfig.ExcludedStatefulSets, newConfig.ExcludedStatefulSets) {
-		affectedCollectors["statefulset"] = true
+		affectedCollectors["stateful_set"] = true
+	}
+
+	if !reflect.DeepEqual(oldConfig.ExcludedReplicaSet, newConfig.ExcludedReplicaSet) {
+		affectedCollectors["replica_set"] = true
 	}
 
 	if !reflect.DeepEqual(oldConfig.ExcludedDaemonSets, newConfig.ExcludedDaemonSets) {
-		affectedCollectors["daemonset"] = true
+		affectedCollectors["daemon_set"] = true
 	}
 
 	if !reflect.DeepEqual(oldConfig.ExcludedServices, newConfig.ExcludedServices) {
@@ -347,7 +515,7 @@ func (r *CollectionPolicyReconciler) identifyAffectedCollectors(oldConfig, newCo
 	}
 
 	if !reflect.DeepEqual(oldConfig.ExcludedPVCs, newConfig.ExcludedPVCs) {
-		affectedCollectors["persistentvolumeclaim"] = true
+		affectedCollectors["persistent_volume_claim"] = true
 	}
 
 	if !reflect.DeepEqual(oldConfig.ExcludedEvents, newConfig.ExcludedEvents) {
@@ -359,11 +527,11 @@ func (r *CollectionPolicyReconciler) identifyAffectedCollectors(oldConfig, newCo
 	}
 
 	if !reflect.DeepEqual(oldConfig.ExcludedCronJobs, newConfig.ExcludedCronJobs) {
-		affectedCollectors["cronjob"] = true
+		affectedCollectors["cron_job"] = true
 	}
 
 	if !reflect.DeepEqual(oldConfig.ExcludedReplicationControllers, newConfig.ExcludedReplicationControllers) {
-		affectedCollectors["replicationcontroller"] = true
+		affectedCollectors["replication_controller"] = true
 	}
 
 	if !reflect.DeepEqual(oldConfig.ExcludedIngresses, newConfig.ExcludedIngresses) {
@@ -371,7 +539,7 @@ func (r *CollectionPolicyReconciler) identifyAffectedCollectors(oldConfig, newCo
 	}
 
 	if !reflect.DeepEqual(oldConfig.ExcludedNetworkPolicies, newConfig.ExcludedNetworkPolicies) {
-		affectedCollectors["networkpolicy"] = true
+		affectedCollectors["network_policy"] = true
 	}
 
 	if !reflect.DeepEqual(oldConfig.ExcludedEndpoints, newConfig.ExcludedEndpoints) {
@@ -379,23 +547,23 @@ func (r *CollectionPolicyReconciler) identifyAffectedCollectors(oldConfig, newCo
 	}
 
 	if !reflect.DeepEqual(oldConfig.ExcludedServiceAccounts, newConfig.ExcludedServiceAccounts) {
-		affectedCollectors["serviceaccount"] = true
+		affectedCollectors["service_account"] = true
 	}
 
 	if !reflect.DeepEqual(oldConfig.ExcludedLimitRanges, newConfig.ExcludedLimitRanges) {
-		affectedCollectors["limitrange"] = true
+		affectedCollectors["limit_range"] = true
 	}
 
 	if !reflect.DeepEqual(oldConfig.ExcludedResourceQuotas, newConfig.ExcludedResourceQuotas) {
-		affectedCollectors["resourcequota"] = true
+		affectedCollectors["resource_quota"] = true
 	}
 
 	if !reflect.DeepEqual(oldConfig.ExcludedHPAs, newConfig.ExcludedHPAs) {
-		affectedCollectors["horizontalpodautoscaler"] = true
+		affectedCollectors["horizontal_pod_autoscaler"] = true
 	}
 
 	if !reflect.DeepEqual(oldConfig.ExcludedVPAs, newConfig.ExcludedVPAs) {
-		affectedCollectors["verticalpodautoscaler"] = true
+		affectedCollectors["vertical_pod_autoscaler"] = true
 	}
 
 	if !reflect.DeepEqual(oldConfig.ExcludedRoles, newConfig.ExcludedRoles) {
@@ -403,44 +571,44 @@ func (r *CollectionPolicyReconciler) identifyAffectedCollectors(oldConfig, newCo
 	}
 
 	if !reflect.DeepEqual(oldConfig.ExcludedRoleBindings, newConfig.ExcludedRoleBindings) {
-		affectedCollectors["rolebinding"] = true
+		affectedCollectors["role_binding"] = true
 	}
 
 	if !reflect.DeepEqual(oldConfig.ExcludedClusterRoles, newConfig.ExcludedClusterRoles) {
-		affectedCollectors["clusterrole"] = true
+		affectedCollectors["cluster_role"] = true
 	}
 
 	if !reflect.DeepEqual(oldConfig.ExcludedClusterRoleBindings, newConfig.ExcludedClusterRoleBindings) {
-		affectedCollectors["clusterrolebinding"] = true
+		affectedCollectors["cluster_role_binding"] = true
 	}
 
 	if !reflect.DeepEqual(oldConfig.ExcludedPDBs, newConfig.ExcludedPDBs) {
-		affectedCollectors["poddisruptionbudget"] = true
+		affectedCollectors["pod_disruption_budget"] = true
 	}
 
 	if !reflect.DeepEqual(oldConfig.ExcludedStorageClasses, newConfig.ExcludedStorageClasses) {
-		affectedCollectors["storageclass"] = true
+		affectedCollectors["storage_class"] = true
 	}
 
 	if !reflect.DeepEqual(oldConfig.ExcludedPVs, newConfig.ExcludedPVs) {
-		affectedCollectors["persistentvolume"] = true
+		affectedCollectors["persistent_volume"] = true
 	}
 
 	if !reflect.DeepEqual(oldConfig.ExcludedIngressClasses, newConfig.ExcludedIngressClasses) {
-		affectedCollectors["ingressclass"] = true
+		affectedCollectors["ingress_class"] = true
 	}
 
 	if !reflect.DeepEqual(oldConfig.ExcludedNodes, newConfig.ExcludedNodes) {
 		affectedCollectors["node"] = true
-		affectedCollectors["noderesource"] = true
+		affectedCollectors["node_resource"] = true
 	}
 
 	if oldConfig.NodeMetricsInterval != newConfig.NodeMetricsInterval {
-		affectedCollectors["noderesource"] = true
+		affectedCollectors["node_resource"] = true
 	}
 
 	if !reflect.DeepEqual(oldConfig.ExcludedCSINodes, newConfig.ExcludedCSINodes) {
-		affectedCollectors["csinode"] = true
+		affectedCollectors["csi_node"] = true
 	}
 
 	// Check if the special node collectors are affected by the update interval change
@@ -448,7 +616,7 @@ func (r *CollectionPolicyReconciler) identifyAffectedCollectors(oldConfig, newCo
 		oldConfig.PrometheusURL != newConfig.PrometheusURL ||
 		oldConfig.DisableNetworkIOMetrics != newConfig.DisableNetworkIOMetrics {
 		affectedCollectors["node"] = true
-		affectedCollectors["container_resources"] = true
+		affectedCollectors["container_resource"] = true
 	}
 
 	return affectedCollectors
@@ -467,6 +635,20 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 	defer func() {
 		r.RestartInProgress = false
 	}()
+
+	// Check Prometheus availability if URL changed or metrics configuration changed
+	if newConfig.PrometheusURL != "" &&
+		(r.CurrentConfig.PrometheusURL != newConfig.PrometheusURL ||
+			r.CurrentConfig.DisableNetworkIOMetrics != newConfig.DisableNetworkIOMetrics) {
+		logger.Info("Prometheus configuration changed, checking availability", "url", newConfig.PrometheusURL)
+		prometheusAvailable := r.waitForPrometheusAvailability(ctx, newConfig.PrometheusURL)
+		if !prometheusAvailable {
+			logger.Info("Prometheus is not available after waiting, will continue with restart but metrics may be limited")
+			// We continue with restart, but log the warning
+		} else {
+			logger.Info("Prometheus is available, continuing with full metrics collection")
+		}
+	}
 
 	// Check if the DisabledCollectors list has changed
 	if !reflect.DeepEqual(r.CurrentConfig.DisabledCollectors, newConfig.DisabledCollectors) {
@@ -560,14 +742,21 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				newConfig.ExcludedDeployments,
 				logger,
 			)
-		case "statefulset":
+		case "stateful_set":
 			replacedCollector = collector.NewStatefulSetCollector(
 				r.K8sClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedStatefulSets,
 				logger,
 			)
-		case "daemonset":
+		case "replica_set":
+			replacedCollector = collector.NewReplicaSetCollector(
+				r.K8sClient,
+				newConfig.TargetNamespaces,
+				newConfig.ExcludedReplicaSet,
+				logger,
+			)
+		case "daemon_set":
 			replacedCollector = collector.NewDaemonSetCollector(
 				r.K8sClient,
 				newConfig.TargetNamespaces,
@@ -581,7 +770,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				newConfig.ExcludedServices,
 				logger,
 			)
-		case "container_resources":
+		case "container_resource":
 			replacedCollector = collector.NewContainerResourceCollector(
 				r.K8sClient,
 				metricsClient,
@@ -608,14 +797,14 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				newConfig.ExcludedNodes,
 				logger,
 			)
-		case "persistentvolumeclaim":
+		case "persistent_volume_claim":
 			replacedCollector = collector.NewPersistentVolumeClaimCollector(
 				r.K8sClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedPVCs,
 				logger,
 			)
-		case "persistentvolume":
+		case "persistent_volume":
 			replacedCollector = collector.NewPersistentVolumeCollector(
 				r.K8sClient,
 				newConfig.ExcludedPVs,
@@ -637,14 +826,14 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				newConfig.ExcludedJobs,
 				logger,
 			)
-		case "cronjob":
+		case "cron_job":
 			replacedCollector = collector.NewCronJobCollector(
 				r.K8sClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedCronJobs,
 				logger,
 			)
-		case "replicationcontroller":
+		case "replication_controller":
 			replacedCollector = collector.NewReplicationControllerCollector(
 				r.K8sClient,
 				newConfig.TargetNamespaces,
@@ -658,13 +847,13 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				newConfig.ExcludedIngresses,
 				logger,
 			)
-		case "ingressclass":
+		case "ingress_class":
 			replacedCollector = collector.NewIngressClassCollector(
 				r.K8sClient,
 				newConfig.ExcludedIngressClasses,
 				logger,
 			)
-		case "networkpolicy":
+		case "network_policy":
 			replacedCollector = collector.NewNetworkPolicyCollector(
 				r.K8sClient,
 				newConfig.TargetNamespaces,
@@ -678,35 +867,35 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				newConfig.ExcludedEndpoints,
 				logger,
 			)
-		case "serviceaccount":
+		case "service_account":
 			replacedCollector = collector.NewServiceAccountCollector(
 				r.K8sClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedServiceAccounts,
 				logger,
 			)
-		case "limitrange":
+		case "limit_range":
 			replacedCollector = collector.NewLimitRangeCollector(
 				r.K8sClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedLimitRanges,
 				logger,
 			)
-		case "resourcequota":
+		case "resource_quota":
 			replacedCollector = collector.NewResourceQuotaCollector(
 				r.K8sClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedResourceQuotas,
 				logger,
 			)
-		case "horizontalpodautoscaler":
+		case "horizontal_pod_autoscaler":
 			replacedCollector = collector.NewHorizontalPodAutoscalerCollector(
 				r.K8sClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedHPAs,
 				logger,
 			)
-		case "verticalpodautoscaler":
+		case "vertical_pod_autoscaler":
 			replacedCollector = collector.NewVerticalPodAutoscalerCollector(
 				r.DynamicClient,
 				newConfig.TargetNamespaces,
@@ -720,39 +909,39 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				newConfig.ExcludedRoles,
 				logger,
 			)
-		case "rolebinding":
+		case "role_binding":
 			replacedCollector = collector.NewRoleBindingCollector(
 				r.K8sClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedRoleBindings,
 				logger,
 			)
-		case "clusterrole":
+		case "cluster_role":
 			replacedCollector = collector.NewClusterRoleCollector(
 				r.K8sClient,
 				newConfig.ExcludedClusterRoles,
 				logger,
 			)
-		case "clusterrolebinding":
+		case "cluster_role_binding":
 			replacedCollector = collector.NewClusterRoleBindingCollector(
 				r.K8sClient,
 				newConfig.ExcludedClusterRoleBindings,
 				logger,
 			)
-		case "poddisruptionbudget":
+		case "pod_disruption_budget":
 			replacedCollector = collector.NewPodDisruptionBudgetCollector(
 				r.K8sClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedPDBs,
 				logger,
 			)
-		case "storageclass":
+		case "storage_class":
 			replacedCollector = collector.NewStorageClassCollector(
 				r.K8sClient,
 				newConfig.ExcludedStorageClasses,
 				logger,
 			)
-		case "csinode":
+		case "csi_node":
 			replacedCollector = collector.NewCSINodeCollector(
 				r.K8sClient,
 				newConfig.ExcludedNodes,
@@ -810,6 +999,18 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 func (r *CollectionPolicyReconciler) initializeCollectors(ctx context.Context, config *PolicyConfig) (ctrl.Result, error) {
 	logger := r.Log.WithName("initialize")
 	logger.Info("Initializing collectors", "config", fmt.Sprintf("%+v", config))
+
+	// Check if Prometheus is available if URL is configured
+	if config.PrometheusURL != "" {
+		logger.Info("Prometheus URL configured, checking availability", "url", config.PrometheusURL)
+		prometheusAvailable := r.waitForPrometheusAvailability(ctx, config.PrometheusURL)
+		if !prometheusAvailable {
+			logger.Info("Prometheus is not available after waiting, will continue initialization but metrics may be limited")
+			// We continue initialization, but log the warning
+		} else {
+			logger.Info("Prometheus is available, continuing with full metrics collection")
+		}
+	}
 
 	// Setup collection manager and basic services
 	if err := r.setupCollectionManager(ctx, config, logger); err != nil {
@@ -1521,14 +1722,21 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					newConfig.ExcludedDeployments,
 					logger,
 				)
-			case "statefulset":
+			case "stateful_set":
 				replacedCollector = collector.NewStatefulSetCollector(
 					r.K8sClient,
 					newConfig.TargetNamespaces,
 					newConfig.ExcludedStatefulSets,
 					logger,
 				)
-			case "daemonset":
+			case "replica_set":
+				replacedCollector = collector.NewReplicaSetCollector(
+					r.K8sClient,
+					newConfig.TargetNamespaces,
+					newConfig.ExcludedReplicaSet,
+					logger,
+				)
+			case "daemon_set":
 				replacedCollector = collector.NewDaemonSetCollector(
 					r.K8sClient,
 					newConfig.TargetNamespaces,
@@ -1542,7 +1750,7 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					newConfig.ExcludedServices,
 					logger,
 				)
-			case "container_resources":
+			case "container_resource":
 				replacedCollector = collector.NewContainerResourceCollector(
 					r.K8sClient,
 					metricsClient,
@@ -1569,14 +1777,14 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					newConfig.ExcludedNodes,
 					logger,
 				)
-			case "persistentvolumeclaim":
+			case "persistent_volume_claim":
 				replacedCollector = collector.NewPersistentVolumeClaimCollector(
 					r.K8sClient,
 					newConfig.TargetNamespaces,
 					newConfig.ExcludedPVCs,
 					logger,
 				)
-			case "persistentvolume":
+			case "persistent_volume":
 				replacedCollector = collector.NewPersistentVolumeCollector(
 					r.K8sClient,
 					newConfig.ExcludedPVs,
@@ -1598,14 +1806,14 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					newConfig.ExcludedJobs,
 					logger,
 				)
-			case "cronjob":
+			case "cron_job":
 				replacedCollector = collector.NewCronJobCollector(
 					r.K8sClient,
 					newConfig.TargetNamespaces,
 					newConfig.ExcludedCronJobs,
 					logger,
 				)
-			case "replicationcontroller":
+			case "replication_controller":
 				replacedCollector = collector.NewReplicationControllerCollector(
 					r.K8sClient,
 					newConfig.TargetNamespaces,
@@ -1619,13 +1827,13 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					newConfig.ExcludedIngresses,
 					logger,
 				)
-			case "ingressclass":
+			case "ingress_class":
 				replacedCollector = collector.NewIngressClassCollector(
 					r.K8sClient,
 					newConfig.ExcludedIngressClasses,
 					logger,
 				)
-			case "networkpolicy":
+			case "network_policy":
 				replacedCollector = collector.NewNetworkPolicyCollector(
 					r.K8sClient,
 					newConfig.TargetNamespaces,
@@ -1639,35 +1847,35 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					newConfig.ExcludedEndpoints,
 					logger,
 				)
-			case "serviceaccount":
+			case "service_account":
 				replacedCollector = collector.NewServiceAccountCollector(
 					r.K8sClient,
 					newConfig.TargetNamespaces,
 					newConfig.ExcludedServiceAccounts,
 					logger,
 				)
-			case "limitrange":
+			case "limit_range":
 				replacedCollector = collector.NewLimitRangeCollector(
 					r.K8sClient,
 					newConfig.TargetNamespaces,
 					newConfig.ExcludedLimitRanges,
 					logger,
 				)
-			case "resourcequota":
+			case "resource_quota":
 				replacedCollector = collector.NewResourceQuotaCollector(
 					r.K8sClient,
 					newConfig.TargetNamespaces,
 					newConfig.ExcludedResourceQuotas,
 					logger,
 				)
-			case "horizontalpodautoscaler":
+			case "horizontal_pod_autoscaler":
 				replacedCollector = collector.NewHorizontalPodAutoscalerCollector(
 					r.K8sClient,
 					newConfig.TargetNamespaces,
 					newConfig.ExcludedHPAs,
 					logger,
 				)
-			case "verticalpodautoscaler":
+			case "vertical_pod_autoscaler":
 				replacedCollector = collector.NewVerticalPodAutoscalerCollector(
 					r.DynamicClient,
 					newConfig.TargetNamespaces,
@@ -1681,33 +1889,33 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					newConfig.ExcludedRoles,
 					logger,
 				)
-			case "rolebinding":
+			case "role_binding":
 				replacedCollector = collector.NewRoleBindingCollector(
 					r.K8sClient,
 					newConfig.TargetNamespaces,
 					newConfig.ExcludedRoleBindings,
 					logger,
 				)
-			case "clusterrole":
+			case "cluster_role":
 				replacedCollector = collector.NewClusterRoleCollector(
 					r.K8sClient,
 					newConfig.ExcludedClusterRoles,
 					logger,
 				)
-			case "clusterrolebinding":
+			case "cluster_role_binding":
 				replacedCollector = collector.NewClusterRoleBindingCollector(
 					r.K8sClient,
 					newConfig.ExcludedClusterRoleBindings,
 					logger,
 				)
-			case "poddisruptionbudget":
+			case "pod_disruption_budget":
 				replacedCollector = collector.NewPodDisruptionBudgetCollector(
 					r.K8sClient,
 					newConfig.TargetNamespaces,
 					newConfig.ExcludedPDBs,
 					logger,
 				)
-			case "storageclass":
+			case "storage_class":
 				replacedCollector = collector.NewStorageClassCollector(
 					r.K8sClient,
 					newConfig.ExcludedStorageClasses,
@@ -1719,7 +1927,7 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					newConfig.ExcludedNamespaces,
 					logger,
 				)
-			case "csinode":
+			case "csi_node":
 				replacedCollector = collector.NewCSINodeCollector(
 					r.K8sClient,
 					newConfig.ExcludedCSINodes,
@@ -1764,13 +1972,86 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 	return nil
 }
 
+// waitForPrometheusAvailability checks if Prometheus is available with retry logic
+// Returns true if Prometheus is available, false if not after maxRetries
+func (r *CollectionPolicyReconciler) waitForPrometheusAvailability(ctx context.Context, prometheusURL string) bool {
+	logger := r.Log.WithName("prometheus-check")
+
+	if prometheusURL == "" {
+		logger.Info("No Prometheus URL configured, skipping availability check")
+		return true
+	}
+
+	logger.Info("Checking Prometheus availability", "url", prometheusURL)
+
+	// Configuration for retry mechanism
+	initialBackoff := 5 * time.Second
+	maxBackoff := 2 * time.Minute
+	backoff := initialBackoff
+	maxRetries := 12 // About 25 minutes total with exponential backoff
+
+	client := &http.Client{
+		Timeout: 5 * time.Second,
+	}
+
+	// Endpoint to verify prometheus is ready
+	healthEndpoint := fmt.Sprintf("%s/-/ready", prometheusURL)
+	if !strings.HasPrefix(prometheusURL, "http") {
+		healthEndpoint = fmt.Sprintf("http://%s/-/ready", prometheusURL)
+	}
+
+	for i := 0; i < maxRetries; i++ {
+		select {
+		case <-ctx.Done():
+			logger.Info("Context cancelled while checking Prometheus availability")
+			return false
+		default:
+			// Try to contact Prometheus
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, healthEndpoint, nil)
+			if err != nil {
+				logger.Error(err, "Failed to create request for Prometheus health check")
+				time.Sleep(backoff)
+				backoff = min(backoff*2, maxBackoff)
+				continue
+			}
+
+			resp, err := client.Do(req)
+			if err != nil {
+				logger.Info("Prometheus not yet available",
+					"attempt", i+1,
+					"maxRetries", maxRetries,
+					"backoff", backoff.String(),
+					"error", err.Error())
+				time.Sleep(backoff)
+				backoff = min(backoff*2, maxBackoff)
+				continue
+			}
+
+			// Check response status
+			if resp.StatusCode == http.StatusOK {
+				logger.Info("Prometheus is available", "statusCode", resp.StatusCode)
+				resp.Body.Close()
+				return true
+			}
+
+			logger.Info("Prometheus returned non-OK status",
+				"statusCode", resp.StatusCode,
+				"attempt", i+1,
+				"maxRetries", maxRetries)
+			resp.Body.Close()
+			time.Sleep(backoff)
+			backoff = min(backoff*2, maxBackoff)
+		}
+	}
+
+	logger.Info("Prometheus availability check failed after maximum retries", "maxRetries", maxRetries)
+	return false
+}
+
 // SetupWithManager sets up the controller with the Manager.
 func (r *CollectionPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// Set up basic components
 	r.Log = util.NewLogger("controller")
-	r.EnvCheckInterval = 5 * time.Minute
-	r.LastEnvCheckTime = time.Now()
-	r.EnvConfig = util.LoadEnvPolicyConfig(r.Log)
 	r.RestartInProgress = false
 
 	// Create a Kubernetes clientset
@@ -1781,7 +2062,16 @@ func (r *CollectionPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 	r.K8sClient = clientset
 
+	// Create a periodic reconciliation instead of watching a CRD
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&monitoringv1.CollectionPolicy{}).
+		// Instead of watching a CRD, we'll reconcile periodically
+		// For(&corev1.ConfigMap{}). // Use a dummy object type like ConfigMap
+		WithEventFilter(predicate.Funcs{
+			// Return true only for the reconciler's initial sync
+			CreateFunc:  func(e event.CreateEvent) bool { return false },
+			UpdateFunc:  func(e event.UpdateEvent) bool { return false },
+			DeleteFunc:  func(e event.DeleteEvent) bool { return false },
+			GenericFunc: func(e event.GenericEvent) bool { return false },
+		}).
 		Complete(r)
 }

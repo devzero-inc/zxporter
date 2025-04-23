@@ -79,6 +79,6 @@ func (c *SimpleDakrClient) SendResource(ctx context.Context, resource collector.
 	c.logger.Info("Would send resource to Dakr",
 		"resourceType", resource.ResourceType,
 		"dataType", fmt.Sprintf("%T", resource.Object),
-		"data", resource.Object)
+		"FULL_RESOURCE", resource)
 	return "", nil
 }

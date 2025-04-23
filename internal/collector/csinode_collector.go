@@ -231,7 +231,7 @@ func (c *CSINodeCollector) GetResourceChannel() <-chan CollectedResource {
 
 // GetType returns the type of resource this collector handles
 func (c *CSINodeCollector) GetType() string {
-	return "csinode"
+	return "csi_node"
 }
 
 // IsAvailable checks if CSINode resources can be accessed in the cluster

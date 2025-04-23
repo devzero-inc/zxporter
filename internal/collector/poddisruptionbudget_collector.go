@@ -233,7 +233,7 @@ func (c *PodDisruptionBudgetCollector) GetResourceChannel() <-chan CollectedReso
 
 // GetType returns the type of resource this collector handles
 func (c *PodDisruptionBudgetCollector) GetType() string {
-	return "poddisruptionbudget"
+	return "pod_disruption_budget"
 }
 
 // IsAvailable checks if PodDisruptionBudget resources can be accessed in the cluster

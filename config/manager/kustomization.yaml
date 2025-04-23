@@ -1,10 +1,11 @@
 resources:
 - manager.yaml
-patches:
-- path: env-patch.yaml
-  target:
-    kind: Deployment
-    name: controller-manager
+- env_configmap.yaml
+# patches:
+# - path: env-patch.yaml
+#   target:
+#     kind: Deployment
+#     name: controller-manager
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 images:

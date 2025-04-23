@@ -276,7 +276,7 @@ func (c *StorageClassCollector) GetResourceChannel() <-chan CollectedResource {
 
 // GetType returns the type of resource this collector handles
 func (c *StorageClassCollector) GetType() string {
-	return "storageclass"
+	return "storage_class"
 }
 
 // IsAvailable checks if StorageClass resources can be accessed in the cluster

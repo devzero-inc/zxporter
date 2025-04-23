@@ -220,7 +220,7 @@ func (c *LimitRangeCollector) GetResourceChannel() <-chan CollectedResource {
 
 // GetType returns the type of resource this collector handles
 func (c *LimitRangeCollector) GetType() string {
-	return "limitrange"
+	return "limit_range"
 }
 
 // IsAvailable checks if LimitRange resources can be accessed in the cluster
