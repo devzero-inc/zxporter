@@ -20,7 +20,9 @@ type CSINodeCollector struct {
 	client          kubernetes.Interface
 	informerFactory informers.SharedInformerFactory
 	csiNodeInformer cache.SharedIndexInformer
-	resourceChan    chan CollectedResource
+	batchChan       chan CollectedResource   // Channel for individual resources -> input to batcher
+	resourceChan    chan []CollectedResource // Channel for batched resources -> output from batcher
+	batcher         *ResourcesBatcher
 	stopCh          chan struct{}
 	excludedNodes   map[string]bool
 	logger          logr.Logger
@@ -31,6 +33,8 @@ type CSINodeCollector struct {
 func NewCSINodeCollector(
 	client kubernetes.Interface,
 	excludedNodes []string,
+	maxBatchSize int,
+	maxBatchTime time.Duration,
 	logger logr.Logger,
 ) *CSINodeCollector {
 	// Convert excluded nodes to a map for quicker lookups
@@ -39,9 +43,24 @@ func NewCSINodeCollector(
 		excludedNodesMap[node] = true
 	}
 
+	// Create channels
+	batchChan := make(chan CollectedResource, 100)
+	resourceChan := make(chan []CollectedResource, 100)
+
+	// Create the batcher
+	batcher := NewResourcesBatcher(
+		maxBatchSize,
+		maxBatchTime,
+		batchChan,
+		resourceChan,
+		logger,
+	)
+
 	return &CSINodeCollector{
 		client:        client,
-		resourceChan:  make(chan CollectedResource, 100),
+		batchChan:     batchChan,
+		resourceChan:  resourceChan,
+		batcher:       batcher,
 		stopCh:        make(chan struct{}),
 		excludedNodes: excludedNodesMap,
 		logger:        logger.WithName("csinode-collector"),
@@ -87,6 +106,10 @@ func (c *CSINodeCollector) Start(ctx context.Context) error {
 		return fmt.Errorf("timed out waiting for caches to sync")
 	}
 	c.logger.Info("Informer caches synced successfully")
+
+	// Start the batcher after the cache is synced
+	c.logger.Info("Starting resources batcher for CSINodes")
+	c.batcher.start()
 
 	// Keep this goroutine alive until context cancellation or stop
 	stopCh := c.stopCh
@@ -151,8 +174,8 @@ func (c *CSINodeCollector) handleCSINodeEvent(csiNode *storagev1.CSINode, eventT
 		"raw":               csiNode, // Include the raw object for reference
 	}
 
-	// Send the CSINode data to the resource channel
-	c.resourceChan <- CollectedResource{
+	// Send the CSINode data to the batch channel
+	c.batchChan <- CollectedResource{
 		ResourceType: CSINode, // Use string-based ResourceType
 		Object:       enrichedCSINode,
 		Timestamp:    time.Now(),
@@ -180,7 +203,7 @@ func (c *CSINodeCollector) sendCSIDriverEvent(
 	}
 
 	// Send the driver-specific event
-	c.resourceChan <- CollectedResource{
+	c.batchChan <- CollectedResource{
 		ResourceType: CSINode,
 		Object:       driverInfo,
 		Timestamp:    time.Now(),
@@ -198,7 +221,7 @@ func (c *CSINodeCollector) sendCSIDriverRemovedEvent(csiNode *storagev1.CSINode,
 	}
 
 	// Send the driver removal event
-	c.resourceChan <- CollectedResource{
+	c.batchChan <- CollectedResource{
 		ResourceType: CSINode,
 		Object:       driverInfo,
 		Timestamp:    time.Now(),
@@ -217,15 +240,35 @@ func (c *CSINodeCollector) isExcluded(csiNode *storagev1.CSINode) bool {
 // Stop gracefully shuts down the CSINode collector
 func (c *CSINodeCollector) Stop() error {
 	c.logger.Info("Stopping CSINode collector")
-	if c.stopCh != nil {
+
+	// 1. Signal the informer factory to stop by closing stopCh.
+	select {
+	case <-c.stopCh:
+		c.logger.Info("CSINode collector stop channel already closed")
+	default:
 		close(c.stopCh)
-		c.stopCh = nil
+		c.logger.Info("Closed CSINode collector stop channel")
 	}
+
+	// 2. Close the batchChan (input to the batcher).
+	if c.batchChan != nil {
+		close(c.batchChan)
+		c.batchChan = nil
+		c.logger.Info("Closed CSINode collector batch input channel")
+	}
+
+	// 3. Stop the batcher (waits for completion).
+	if c.batcher != nil {
+		c.batcher.stop()
+		c.logger.Info("CSINode collector batcher stopped")
+	}
+	// resourceChan is closed by the batcher's defer func.
+
 	return nil
 }
 
-// GetResourceChannel returns the channel for collected resources
-func (c *CSINodeCollector) GetResourceChannel() <-chan CollectedResource {
+// GetResourceChannel returns the channel for collected resource batches
+func (c *CSINodeCollector) GetResourceChannel() <-chan []CollectedResource {
 	return c.resourceChan
 }
 

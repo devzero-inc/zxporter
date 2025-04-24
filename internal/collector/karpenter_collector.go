@@ -26,7 +26,9 @@ type KarpenterResource struct {
 // KarpenterCollector watches for Karpenter resources
 type KarpenterCollector struct {
 	dynamicClient     dynamic.Interface
-	resourceChan      chan CollectedResource
+	batchChan         chan CollectedResource   // Channel for individual resources -> input to batcher
+	resourceChan      chan []CollectedResource // Channel for batched resources -> output from batcher
+	batcher           *ResourcesBatcher
 	stopCh            chan struct{}
 	logger            logr.Logger
 	informers         map[string]cache.SharedIndexInformer
@@ -38,11 +40,28 @@ type KarpenterCollector struct {
 // NewKarpenterCollector creates a new collector for Karpenter resources
 func NewKarpenterCollector(
 	dynamicClient dynamic.Interface,
+	maxBatchSize int,
+	maxBatchTime time.Duration,
 	logger logr.Logger,
 ) *KarpenterCollector {
+	// Create channels
+	batchChan := make(chan CollectedResource, 100)
+	resourceChan := make(chan []CollectedResource, 100)
+
+	// Create the batcher
+	batcher := NewResourcesBatcher(
+		maxBatchSize,
+		maxBatchTime,
+		batchChan,
+		resourceChan,
+		logger,
+	)
+
 	return &KarpenterCollector{
 		dynamicClient:     dynamicClient,
-		resourceChan:      make(chan CollectedResource, 100),
+		batchChan:         batchChan,
+		resourceChan:      resourceChan,
+		batcher:           batcher,
 		stopCh:            make(chan struct{}),
 		logger:            logger.WithName("karpenter-collector"),
 		informers:         make(map[string]cache.SharedIndexInformer),
@@ -118,6 +137,10 @@ func (c *KarpenterCollector) Start(ctx context.Context) error {
 			// Continue with other resources even if one fails
 		}
 	}
+
+	// Start the batcher after all informers are synced
+	c.logger.Info("Starting resources batcher for Karpenter resources")
+	c.batcher.start()
 
 	// Keep this goroutine alive until context cancellation or stop
 	stopCh := c.stopCh
@@ -278,8 +301,8 @@ func (c *KarpenterCollector) handleKarpenterResourceEvent(
 		processedObj = c.processGenericResource(obj)
 	}
 
-	// Send the Karpenter resource to the channel
-	c.resourceChan <- CollectedResource{
+	// Send the Karpenter resource to the batch channel
+	c.batchChan <- CollectedResource{
 		ResourceType: Karpenter,
 		Object:       processedObj,
 		Timestamp:    time.Now(),
@@ -576,17 +599,34 @@ func (c *KarpenterCollector) Stop() error {
 	c.informers = make(map[string]cache.SharedIndexInformer)
 	c.informerStopChs = make(map[string]chan struct{})
 
-	// Close the main stop channel
-	if c.stopCh != nil {
+	// Close the main stop channel (signals informers to stop)
+	select {
+	case <-c.stopCh:
+		c.logger.Info("Karpenter collector stop channel already closed")
+	default:
 		close(c.stopCh)
-		c.stopCh = nil
+		c.logger.Info("Closed Karpenter collector stop channel")
 	}
+
+	// Close the batchChan (input to the batcher).
+	if c.batchChan != nil {
+		close(c.batchChan)
+		c.batchChan = nil
+		c.logger.Info("Closed Karpenter collector batch input channel")
+	}
+
+	// Stop the batcher (waits for completion).
+	if c.batcher != nil {
+		c.batcher.stop()
+		c.logger.Info("Karpenter collector batcher stopped")
+	}
+	// resourceChan is closed by the batcher's defer func.
 
 	return nil
 }
 
-// GetResourceChannel returns the channel for collected resources
-func (c *KarpenterCollector) GetResourceChannel() <-chan CollectedResource {
+// GetResourceChannel returns the channel for collected resource batches
+func (c *KarpenterCollector) GetResourceChannel() <-chan []CollectedResource {
 	return c.resourceChan
 }
 

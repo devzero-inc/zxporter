@@ -26,24 +26,18 @@ type MetricsServer struct {
 	seenResources map[string]bool // Track unique resources by type+key
 }
 
-// SendResource implements the SendResource RPC method
-func (s *MetricsServer) SendResource(ctx context.Context, req *connect.Request[apiv1.SendResourceRequest]) (*connect.Response[apiv1.SendResourceResponse], error) {
-	// Convert the request to JSON
-	jsonData, err := json.Marshal(req.Msg)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error marshaling request to JSON: %v\n", err)
-		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("error marshaling request to JSON: %w", err))
+// processResourceItem handles the statistics update and data extraction for a single resource item.
+// NOTE: This function assumes the caller holds the mutex (s.mu).
+func (s *MetricsServer) processResourceItem(resourceType apiv1.ResourceType, resource *apiv1.ResourceItem) {
+	if resource == nil {
+		return // Should not happen, but good practice
 	}
-
-	// Write the JSON to the output file
-	s.mu.Lock()
-	defer s.mu.Unlock()
 
 	// Update stats
 	s.stats.TotalMessages++
 
 	// Convert ResourceType to string
-	resourceTypeStr := req.Msg.ResourceType.String()
+	resourceTypeStr := resourceType.String()
 
 	// Update messages by type
 	if s.stats.MessagesByType == nil {
@@ -52,7 +46,7 @@ func (s *MetricsServer) SendResource(ctx context.Context, req *connect.Request[a
 	s.stats.MessagesByType[resourceTypeStr]++
 
 	// Track unique resources by type+key
-	resourceKey := fmt.Sprintf("%s:%s", resourceTypeStr, req.Msg.Key)
+	resourceKey := fmt.Sprintf("%s:%s", resourceTypeStr, resource.Key)
 	if !s.seenResources[resourceKey] {
 		s.seenResources[resourceKey] = true
 
@@ -70,17 +64,35 @@ func (s *MetricsServer) SendResource(ctx context.Context, req *connect.Request[a
 	}
 
 	// Extract resource usage information based on resource type
-	if req.Msg.Data != nil {
-		switch req.Msg.ResourceType {
+	if resource.Data != nil {
+		switch resourceType {
 		case apiv1.ResourceType_RESOURCE_TYPE_POD:
-			s.extractPodResourceInfo(req.Msg.Key, req.Msg.Data)
+			s.extractPodResourceInfo(resource.Key, resource.Data)
 		case apiv1.ResourceType_RESOURCE_TYPE_CONTAINER_RESOURCE:
-			s.extractContainerResourceInfo(req.Msg.Data)
+			s.extractContainerResourceInfo(resource.Data)
 		case apiv1.ResourceType_RESOURCE_TYPE_NODE_RESOURCE:
-			s.extractNodeResourceInfo(req.Msg.Key, req.Msg.Data)
+			s.extractNodeResourceInfo(resource.Key, resource.Data)
 		}
 	}
+}
 
+// SendResource implements the SendResource RPC method
+func (s *MetricsServer) SendResource(ctx context.Context, req *connect.Request[apiv1.SendResourceRequest]) (*connect.Response[apiv1.SendResourceResponse], error) {
+	// Convert the request to JSON
+	jsonData, err := json.Marshal(req.Msg)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error marshaling request to JSON: %v\n", err)
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("error marshaling request to JSON: %w", err))
+	}
+
+	// Write the JSON to the output file
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Process the single resource item
+	s.processResourceItem(req.Msg.ResourceType, req.Msg.Resource)
+
+	// Write the original request JSON to the output file
 	f, err := os.OpenFile(s.outputFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error opening output file: %v\n", err)
@@ -97,6 +109,53 @@ func (s *MetricsServer) SendResource(ctx context.Context, req *connect.Request[a
 	resp := connect.NewResponse(&apiv1.SendResourceResponse{
 		ResourceType:      req.Msg.ResourceType,
 		ClusterIdentifier: req.Msg.ClusterId,
+	})
+
+	return resp, nil
+}
+
+// SendResourceBatch implements the SendResourceBatch RPC method
+func (s *MetricsServer) SendResourceBatch(ctx context.Context, req *connect.Request[apiv1.SendResourceBatchRequest]) (*connect.Response[apiv1.SendResourceBatchResponse], error) {
+	// Convert the batch request to JSON (optional, for logging consistency)
+	jsonData, err := json.Marshal(req.Msg)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error marshaling batch request to JSON: %v\n", err)
+		// Continue processing even if logging fails, but don't write the faulty JSON
+	}
+
+	// Lock for stats update and file writing
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Write the JSON to the output file if marshaling succeeded
+	if err == nil {
+		f, fileErr := os.OpenFile(s.outputFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+		if fileErr != nil {
+			fmt.Fprintf(os.Stderr, "Error opening output file for batch: %v\n", fileErr)
+			// Return error as file writing is crucial for testing
+			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("error opening output file for batch: %w", fileErr))
+		}
+		defer f.Close() // Ensure file is closed even if writing fails
+
+		if _, writeErr := f.WriteString(string(jsonData) + "\n"); writeErr != nil {
+			fmt.Fprintf(os.Stderr, "Error writing batch to output file: %v\n", writeErr)
+			// Return error as file writing is crucial for testing
+			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("error writing batch to output file: %w", writeErr))
+		}
+	}
+
+	// Process each resource in the batch using the helper
+	processedCount := 0
+	for _, resource := range req.Msg.Resources {
+		s.processResourceItem(req.Msg.ResourceType, resource)
+		processedCount++
+	}
+
+	// Return a response
+	resp := connect.NewResponse(&apiv1.SendResourceBatchResponse{
+		ResourceType:      req.Msg.ResourceType,
+		ClusterIdentifier: req.Msg.ClusterId,
+		ProcessedCount:    int32(processedCount),
 	})
 
 	return resp, nil

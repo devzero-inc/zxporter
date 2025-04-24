@@ -19,7 +19,8 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	MetricsCollectorService_SendResource_FullMethodName = "/api.v1.MetricsCollectorService/SendResource"
+	MetricsCollectorService_SendResource_FullMethodName      = "/api.v1.MetricsCollectorService/SendResource"
+	MetricsCollectorService_SendResourceBatch_FullMethodName = "/api.v1.MetricsCollectorService/SendResourceBatch"
 )
 
 // MetricsCollectorServiceClient is the client API for MetricsCollectorService service.
@@ -28,6 +29,8 @@ const (
 type MetricsCollectorServiceClient interface {
 	// SendResource pushes a single metric for a resource.
 	SendResource(ctx context.Context, in *SendResourceRequest, opts ...grpc.CallOption) (*SendResourceResponse, error)
+	// SendResourceBatch pushes multiple metrics for resources of the same type.
+	SendResourceBatch(ctx context.Context, in *SendResourceBatchRequest, opts ...grpc.CallOption) (*SendResourceBatchResponse, error)
 }
 
 type metricsCollectorServiceClient struct {
@@ -47,12 +50,23 @@ func (c *metricsCollectorServiceClient) SendResource(ctx context.Context, in *Se
 	return out, nil
 }
 
+func (c *metricsCollectorServiceClient) SendResourceBatch(ctx context.Context, in *SendResourceBatchRequest, opts ...grpc.CallOption) (*SendResourceBatchResponse, error) {
+	out := new(SendResourceBatchResponse)
+	err := c.cc.Invoke(ctx, MetricsCollectorService_SendResourceBatch_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // MetricsCollectorServiceServer is the server API for MetricsCollectorService service.
 // All implementations must embed UnimplementedMetricsCollectorServiceServer
 // for forward compatibility
 type MetricsCollectorServiceServer interface {
 	// SendResource pushes a single metric for a resource.
 	SendResource(context.Context, *SendResourceRequest) (*SendResourceResponse, error)
+	// SendResourceBatch pushes multiple metrics for resources of the same type.
+	SendResourceBatch(context.Context, *SendResourceBatchRequest) (*SendResourceBatchResponse, error)
 	mustEmbedUnimplementedMetricsCollectorServiceServer()
 }
 
@@ -62,6 +76,9 @@ type UnimplementedMetricsCollectorServiceServer struct {
 
 func (UnimplementedMetricsCollectorServiceServer) SendResource(context.Context, *SendResourceRequest) (*SendResourceResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SendResource not implemented")
+}
+func (UnimplementedMetricsCollectorServiceServer) SendResourceBatch(context.Context, *SendResourceBatchRequest) (*SendResourceBatchResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SendResourceBatch not implemented")
 }
 func (UnimplementedMetricsCollectorServiceServer) mustEmbedUnimplementedMetricsCollectorServiceServer() {
 }
@@ -95,6 +112,24 @@ func _MetricsCollectorService_SendResource_Handler(srv interface{}, ctx context.
 	return interceptor(ctx, in, info, handler)
 }
 
+func _MetricsCollectorService_SendResourceBatch_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SendResourceBatchRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MetricsCollectorServiceServer).SendResourceBatch(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MetricsCollectorService_SendResourceBatch_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MetricsCollectorServiceServer).SendResourceBatch(ctx, req.(*SendResourceBatchRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // MetricsCollectorService_ServiceDesc is the grpc.ServiceDesc for MetricsCollectorService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -105,6 +140,10 @@ var MetricsCollectorService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SendResource",
 			Handler:    _MetricsCollectorService_SendResource_Handler,
+		},
+		{
+			MethodName: "SendResourceBatch",
+			Handler:    _MetricsCollectorService_SendResourceBatch_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

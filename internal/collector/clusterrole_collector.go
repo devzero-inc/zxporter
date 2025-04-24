@@ -20,7 +20,9 @@ type ClusterRoleCollector struct {
 	client               kubernetes.Interface
 	informerFactory      informers.SharedInformerFactory
 	clusterRoleInformer  cache.SharedIndexInformer
-	resourceChan         chan CollectedResource
+	batchChan            chan CollectedResource   // Channel for individual resources -> input to batcher
+	resourceChan         chan []CollectedResource // Channel for batched resources -> output from batcher
+	batcher              *ResourcesBatcher
 	stopCh               chan struct{}
 	excludedClusterRoles map[string]bool
 	logger               logr.Logger
@@ -31,6 +33,8 @@ type ClusterRoleCollector struct {
 func NewClusterRoleCollector(
 	client kubernetes.Interface,
 	excludedClusterRoles []string,
+	maxBatchSize int,
+	maxBatchTime time.Duration,
 	logger logr.Logger,
 ) *ClusterRoleCollector {
 	// Convert excluded ClusterRoles to a map for quicker lookups
@@ -39,9 +43,24 @@ func NewClusterRoleCollector(
 		excludedClusterRolesMap[role] = true
 	}
 
+	// Create channels
+	batchChan := make(chan CollectedResource, 100)
+	resourceChan := make(chan []CollectedResource, 100)
+
+	// Create the batcher
+	batcher := NewResourcesBatcher(
+		maxBatchSize,
+		maxBatchTime,
+		batchChan,
+		resourceChan,
+		logger,
+	)
+
 	return &ClusterRoleCollector{
 		client:               client,
-		resourceChan:         make(chan CollectedResource, 100),
+		batchChan:            batchChan,
+		resourceChan:         resourceChan,
+		batcher:              batcher,
 		stopCh:               make(chan struct{}),
 		excludedClusterRoles: excludedClusterRolesMap,
 		logger:               logger.WithName("clusterrole-collector"),
@@ -92,6 +111,10 @@ func (c *ClusterRoleCollector) Start(ctx context.Context) error {
 	}
 	c.logger.Info("Informer caches synced successfully")
 
+	// Start the batcher after the cache is synced
+	c.logger.Info("Starting resources batcher for ClusterRoles")
+	c.batcher.start()
+
 	// Keep this goroutine alive until context cancellation or stop
 	stopCh := c.stopCh
 	go func() {
@@ -116,8 +139,8 @@ func (c *ClusterRoleCollector) handleClusterRoleEvent(role *rbacv1.ClusterRole, 
 		"name", role.Name,
 		"eventType", eventType)
 
-	// Send the raw ClusterRole object directly to the resource channel
-	c.resourceChan <- CollectedResource{
+	// Send the raw ClusterRole object to the batch channel
+	c.batchChan <- CollectedResource{
 		ResourceType: ClusterRole,
 		Object:       role, // Send the entire ClusterRole object as-is
 		Timestamp:    time.Now(),
@@ -167,16 +190,35 @@ func (c *ClusterRoleCollector) isExcluded(role *rbacv1.ClusterRole) bool {
 // Stop gracefully shuts down the ClusterRole collector
 func (c *ClusterRoleCollector) Stop() error {
 	c.logger.Info("Stopping ClusterRole collector")
-	if c.stopCh != nil {
+
+	// 1. Signal the informer factory to stop by closing stopCh.
+	select {
+	case <-c.stopCh:
+		c.logger.Info("ClusterRole collector stop channel already closed")
+	default:
 		close(c.stopCh)
-		c.stopCh = nil
+		c.logger.Info("Closed ClusterRole collector stop channel")
 	}
+
+	// 2. Close the batchChan (input to the batcher).
+	if c.batchChan != nil {
+		close(c.batchChan)
+		c.batchChan = nil
+		c.logger.Info("Closed ClusterRole collector batch input channel")
+	}
+
+	// 3. Stop the batcher (waits for completion).
+	if c.batcher != nil {
+		c.batcher.stop()
+		c.logger.Info("ClusterRole collector batcher stopped")
+	}
+	// resourceChan is closed by the batcher's defer func.
 
 	return nil
 }
 
-// GetResourceChannel returns the channel for collected resources
-func (c *ClusterRoleCollector) GetResourceChannel() <-chan CollectedResource {
+// GetResourceChannel returns the channel for collected resource batches
+func (c *ClusterRoleCollector) GetResourceChannel() <-chan []CollectedResource {
 	return c.resourceChan
 }
 

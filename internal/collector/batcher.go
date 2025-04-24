@@ -1,0 +1,145 @@
+package collector
+
+import (
+	"sync"
+	"time"
+
+	"github.com/go-logr/logr"
+)
+
+const (
+	// DefaultMaxBatchSize is the default maximum number of resources in a batch.
+	DefaultMaxBatchSize = 100
+	// DefaultMaxBatchTime is the default maximum time duration before sending a batch.
+	DefaultMaxBatchTime = 5 * time.Second
+)
+
+// ResourcesBatcher handles batching of CollectedResource items.
+type ResourcesBatcher struct {
+	maxBatchSize int
+	maxBatchTime time.Duration
+	inputChan    <-chan CollectedResource
+	outBatchChan chan<- []CollectedResource
+	stopCh       chan struct{}
+	wg           sync.WaitGroup
+	logger       logr.Logger
+}
+
+// NewResourcesBatcher creates a new ResourcesBatcher.
+func NewResourcesBatcher(
+	maxBatchSize int,
+	maxBatchTime time.Duration,
+	inputChan <-chan CollectedResource,
+	outBatchChan chan<- []CollectedResource,
+	logger logr.Logger,
+) *ResourcesBatcher {
+	if maxBatchSize <= 0 {
+		maxBatchSize = DefaultMaxBatchSize
+	}
+	if maxBatchTime <= 0 {
+		maxBatchTime = DefaultMaxBatchTime
+	}
+	return &ResourcesBatcher{
+		maxBatchSize: maxBatchSize,
+		maxBatchTime: maxBatchTime,
+		inputChan:    inputChan,
+		outBatchChan: outBatchChan,
+		stopCh:       make(chan struct{}),
+		logger:       logger.WithName("resources-batcher"),
+	}
+}
+
+// start begins the batching process in a separate goroutine.
+func (b *ResourcesBatcher) start() {
+	b.wg.Add(1)
+	go func() {
+		// Ensure WaitGroup is decremented and output channel is closed on exit
+		defer func() {
+			close(b.outBatchChan) // Close the output channel as we are done producing batches
+			b.logger.Info("Closed batcher output channel")
+			b.wg.Done()
+		}()
+
+		batch := make([]CollectedResource, 0, b.maxBatchSize)
+		ticker := time.NewTicker(b.maxBatchTime)
+		defer ticker.Stop() // Ensure ticker is stopped eventually
+
+	loop:
+		for {
+			select {
+			case <-b.stopCh:
+				b.logger.Info("Stop signal received, entering drain phase")
+				break loop // Exit the main select loop to start draining
+
+			case resource, ok := <-b.inputChan:
+				if !ok { // Input channel closed
+					b.logger.Info("Input channel closed, preparing final batch")
+					b.inputChan = nil // Set to nil to disable this case in select
+					break loop        // Exit the main select loop to send final batch
+				}
+				batch = append(batch, resource)
+				if len(batch) >= b.maxBatchSize {
+					b.logger.V(4).Info("Sending batch due to size limit", "batchSize", len(batch))
+					b.outBatchChan <- batch
+					batch = make([]CollectedResource, 0, b.maxBatchSize) // Reset batch
+					// Reset the timer only when a batch is sent due to size
+					// to ensure the time limit applies correctly to the *new* batch.
+					ticker.Reset(b.maxBatchTime)
+				}
+
+			case <-ticker.C:
+				if len(batch) > 0 {
+					b.logger.V(4).Info("Sending batch due to time limit", "batchSize", len(batch))
+					b.outBatchChan <- batch
+					batch = make([]CollectedResource, 0, b.maxBatchSize) // Reset batch
+				}
+				// Timer resets automatically after read, no need for explicit Reset here.
+			}
+		}
+
+		// --- Draining Phase ---
+		// This section is reached when stopCh is closed or inputChan is closed.
+
+		// Drain any remaining items from inputChan *if* it wasn't the reason we exited the loop.
+		// If b.inputChan is nil, it means it was detected as closed in the select loop.
+		if b.inputChan != nil {
+			b.logger.Info("Draining remaining items from input channel...")
+			// Stop the timer explicitly if we exited due to stopCh, as we no longer need it.
+			ticker.Stop()
+			for resource := range b.inputChan { // Reads until channel is closed and empty
+				batch = append(batch, resource)
+				if len(batch) >= b.maxBatchSize {
+					b.logger.V(4).Info("Sending batch due to size limit during drain", "batchSize", len(batch))
+					b.outBatchChan <- batch
+					batch = make([]CollectedResource, 0, b.maxBatchSize) // Reset batch
+				}
+			}
+			b.logger.Info("Input channel drained")
+		}
+
+		// Send any final partial batch that might remain
+		if len(batch) > 0 {
+			b.logger.V(4).Info("Sending final batch", "batchSize", len(batch))
+			b.outBatchChan <- batch
+		}
+
+		b.logger.Info("Batching goroutine finished")
+	}()
+}
+
+// stop signals the batching goroutine to stop and waits for it to finish.
+func (b *ResourcesBatcher) stop() {
+	b.logger.Info("Stopping resources batcher")
+	// Ensure stopCh is closed only once.
+	select {
+	case <-b.stopCh:
+		// Already closed.
+		b.logger.V(4).Info("Stop channel was already closed")
+	default:
+		// Close the channel to signal the goroutine.
+		close(b.stopCh)
+		b.logger.V(4).Info("Closed stop channel")
+	}
+	b.wg.Wait() // Wait for the goroutine to complete its draining and exit.
+	b.logger.Info("Resources batcher stopped")
+}

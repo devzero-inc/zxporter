@@ -22,7 +22,9 @@ type CronJobCollector struct {
 	client           kubernetes.Interface
 	informerFactory  informers.SharedInformerFactory
 	cronJobInformer  cache.SharedIndexInformer
-	resourceChan     chan CollectedResource
+	batchChan        chan CollectedResource   // Channel for individual resources -> input to batcher
+	resourceChan     chan []CollectedResource // Channel for batched resources -> output from batcher
+	batcher          *ResourcesBatcher
 	stopCh           chan struct{}
 	namespaces       []string
 	excludedCronJobs map[types.NamespacedName]bool
@@ -41,6 +43,8 @@ func NewCronJobCollector(
 	client kubernetes.Interface,
 	namespaces []string,
 	excludedCronJobs []ExcludedCronJob,
+	maxBatchSize int,
+	maxBatchTime time.Duration,
 	logger logr.Logger,
 ) *CronJobCollector {
 	// Convert excluded cronjobs to a map for quicker lookups
@@ -52,9 +56,24 @@ func NewCronJobCollector(
 		}] = true
 	}
 
+	// Create channels
+	batchChan := make(chan CollectedResource, 50) // Keep lower buffer for less frequent CronJobs
+	resourceChan := make(chan []CollectedResource, 50)
+
+	// Create the batcher
+	batcher := NewResourcesBatcher(
+		maxBatchSize,
+		maxBatchTime,
+		batchChan,
+		resourceChan,
+		logger,
+	)
+
 	return &CronJobCollector{
 		client:           client,
-		resourceChan:     make(chan CollectedResource, 50), // CronJobs are usually less frequent
+		batchChan:        batchChan,
+		resourceChan:     resourceChan,
+		batcher:          batcher,
 		stopCh:           make(chan struct{}),
 		namespaces:       namespaces,
 		excludedCronJobs: excludedCronJobsMap,
@@ -116,6 +135,10 @@ func (c *CronJobCollector) Start(ctx context.Context) error {
 	}
 	c.logger.Info("Informer caches synced successfully")
 
+	// Start the batcher after the cache is synced
+	c.logger.Info("Starting resources batcher for CronJobs")
+	c.batcher.start()
+
 	// Keep this goroutine alive until context cancellation or stop
 	stopCh := c.stopCh
 	go func() {
@@ -142,8 +165,8 @@ func (c *CronJobCollector) handleCronJobEvent(cronJob *batchv1.CronJob, eventTyp
 		"eventType", eventType,
 		"schedule", cronJob.Spec.Schedule)
 
-	// Send the raw cronjob object directly to the resource channel
-	c.resourceChan <- CollectedResource{
+	// Send the raw cronjob object to the batch channel
+	c.batchChan <- CollectedResource{
 		ResourceType: CronJob,
 		Object:       cronJob, // Send the entire cronjob object as-is
 		Timestamp:    time.Now(),
@@ -281,15 +304,35 @@ func (c *CronJobCollector) isExcluded(cronJob *batchv1.CronJob) bool {
 // Stop gracefully shuts down the cronjob collector
 func (c *CronJobCollector) Stop() error {
 	c.logger.Info("Stopping cronjob collector")
-	if c.stopCh != nil {
+
+	// 1. Signal the informer factory to stop by closing stopCh.
+	select {
+	case <-c.stopCh:
+		c.logger.Info("CronJob collector stop channel already closed")
+	default:
 		close(c.stopCh)
-		c.stopCh = nil
+		c.logger.Info("Closed cronjob collector stop channel")
 	}
+
+	// 2. Close the batchChan (input to the batcher).
+	if c.batchChan != nil {
+		close(c.batchChan)
+		c.batchChan = nil
+		c.logger.Info("Closed cronjob collector batch input channel")
+	}
+
+	// 3. Stop the batcher (waits for completion).
+	if c.batcher != nil {
+		c.batcher.stop()
+		c.logger.Info("CronJob collector batcher stopped")
+	}
+	// resourceChan is closed by the batcher's defer func.
+
 	return nil
 }
 
-// GetResourceChannel returns the channel for collected resources
-func (c *CronJobCollector) GetResourceChannel() <-chan CollectedResource {
+// GetResourceChannel returns the channel for collected resource batches
+func (c *CronJobCollector) GetResourceChannel() <-chan []CollectedResource {
 	return c.resourceChan
 }
 

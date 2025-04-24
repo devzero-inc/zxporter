@@ -20,7 +20,9 @@ type ClusterRoleBindingCollector struct {
 	client                      kubernetes.Interface
 	informerFactory             informers.SharedInformerFactory
 	clusterRoleBindingInformer  cache.SharedIndexInformer
-	resourceChan                chan CollectedResource
+	batchChan                   chan CollectedResource   // Channel for individual resources -> input to batcher
+	resourceChan                chan []CollectedResource // Channel for batched resources -> output from batcher
+	batcher                     *ResourcesBatcher
 	stopCh                      chan struct{}
 	excludedClusterRoleBindings map[string]bool
 	logger                      logr.Logger
@@ -31,6 +33,8 @@ type ClusterRoleBindingCollector struct {
 func NewClusterRoleBindingCollector(
 	client kubernetes.Interface,
 	excludedClusterRoleBindings []string,
+	maxBatchSize int,
+	maxBatchTime time.Duration,
 	logger logr.Logger,
 ) *ClusterRoleBindingCollector {
 	// Convert excluded ClusterRoleBindings to a map for quicker lookups
@@ -39,9 +43,24 @@ func NewClusterRoleBindingCollector(
 		excludedClusterRoleBindingsMap[crb] = true
 	}
 
+	// Create channels
+	batchChan := make(chan CollectedResource, 100)
+	resourceChan := make(chan []CollectedResource, 100)
+
+	// Create the batcher
+	batcher := NewResourcesBatcher(
+		maxBatchSize,
+		maxBatchTime,
+		batchChan,
+		resourceChan,
+		logger,
+	)
+
 	return &ClusterRoleBindingCollector{
 		client:                      client,
-		resourceChan:                make(chan CollectedResource, 100),
+		batchChan:                   batchChan,
+		resourceChan:                resourceChan,
+		batcher:                     batcher,
 		stopCh:                      make(chan struct{}),
 		excludedClusterRoleBindings: excludedClusterRoleBindingsMap,
 		logger:                      logger.WithName("clusterrolebinding-collector"),
@@ -92,6 +111,10 @@ func (c *ClusterRoleBindingCollector) Start(ctx context.Context) error {
 	}
 	c.logger.Info("Informer caches synced successfully")
 
+	// Start the batcher after the cache is synced
+	c.logger.Info("Starting resources batcher for ClusterRoleBindings")
+	c.batcher.start()
+
 	// Keep this goroutine alive until context cancellation or stop
 	stopCh := c.stopCh
 	go func() {
@@ -116,8 +139,8 @@ func (c *ClusterRoleBindingCollector) handleClusterRoleBindingEvent(crb *rbacv1.
 		"name", crb.Name,
 		"eventType", eventType)
 
-	// Send the raw ClusterRoleBinding object directly to the resource channel
-	c.resourceChan <- CollectedResource{
+	// Send the raw ClusterRoleBinding object to the batch channel
+	c.batchChan <- CollectedResource{
 		ResourceType: ClusterRoleBinding,
 		Object:       crb, // Send the entire ClusterRoleBinding object as-is
 		Timestamp:    time.Now(),
@@ -169,15 +192,35 @@ func (c *ClusterRoleBindingCollector) isExcluded(crb *rbacv1.ClusterRoleBinding)
 // Stop gracefully shuts down the ClusterRoleBinding collector
 func (c *ClusterRoleBindingCollector) Stop() error {
 	c.logger.Info("Stopping ClusterRoleBinding collector")
-	if c.stopCh != nil {
+
+	// 1. Signal the informer factory to stop by closing stopCh.
+	select {
+	case <-c.stopCh:
+		c.logger.Info("ClusterRoleBinding collector stop channel already closed")
+	default:
 		close(c.stopCh)
-		c.stopCh = nil
+		c.logger.Info("Closed ClusterRoleBinding collector stop channel")
 	}
+
+	// 2. Close the batchChan (input to the batcher).
+	if c.batchChan != nil {
+		close(c.batchChan)
+		c.batchChan = nil
+		c.logger.Info("Closed ClusterRoleBinding collector batch input channel")
+	}
+
+	// 3. Stop the batcher (waits for completion).
+	if c.batcher != nil {
+		c.batcher.stop()
+		c.logger.Info("ClusterRoleBinding collector batcher stopped")
+	}
+	// resourceChan is closed by the batcher's defer func.
+
 	return nil
 }
 
-// GetResourceChannel returns the channel for collected resources
-func (c *ClusterRoleBindingCollector) GetResourceChannel() <-chan CollectedResource {
+// GetResourceChannel returns the channel for collected resource batches
+func (c *ClusterRoleBindingCollector) GetResourceChannel() <-chan []CollectedResource {
 	return c.resourceChan
 }
 

@@ -72,6 +72,33 @@ enum ResourceType {
 
   // Cluster resource - registration type
   RESOURCE_TYPE_CLUSTER = 38;
+
+  // CSINode type
+  RESOURCE_CSI_NODE = 39;
+
+  // Karpenter type
+  RESOURCE_KARPENTER = 40;
+
+  // Datadog type
+  RESOURCE_DATADOG = 41;
+
+  // Argo rollouts type
+  RESOURCE_ARGO_ROLLOUTS = 42;
+}
+
+// ResourceItem contains the data for a single resource event.
+message ResourceItem {
+  // Unique identifier for the resource (optional, might be derived from data)
+  string key = 1;
+
+  // Timestamp when the resource was collected
+  google.protobuf.Timestamp timestamp = 2;
+
+  // Event type (add, update, delete, metrics, etc.)
+  string event_type = 3;
+
+  // The actual resource data as a flexible structure
+  google.protobuf.Struct data = 4;
 }
 
 // Requests
@@ -80,23 +107,29 @@ message SendResourceRequest {
   // Type of resource (pod, container, node_resources, etc.)
   ResourceType resource_type = 1;
 
-  // Unique identifier for the resource
-  string key = 2;
-
-  // Timestamp when the resource was collected
-  google.protobuf.Timestamp timestamp = 3;
-
-  // Event type (add, update, delete, metrics, etc.)
-  string event_type = 4;
-
-  // The actual resource data as a flexible structure
-  google.protobuf.Struct data = 5;
+  // The resource data and metadata
+  ResourceItem resource = 2;
 
   // cluster_id of resource
-  string cluster_id = 6;
+  string cluster_id = 3;
 
   // team_id of resource
-  string team_id = 7;
+  string team_id = 4;
+}
+
+// SendResourceBatchRequest is used to push metrics for multiple resources of the same type.
+message SendResourceBatchRequest {
+  // Type of resource (pod, container, node_resources, etc.) - all resources in the batch must be of this type
+  ResourceType resource_type = 1;
+
+  // The list of resources to process
+  repeated ResourceItem resources = 2;
+
+  // cluster_id of resources - all resources in the batch must belong to this cluster
+  string cluster_id = 3;
+  
+  // team_id of resources - all resources in the batch must belong to this team
+  string team_id = 4;
 }
 
 // Responses
@@ -109,8 +142,23 @@ message SendResourceResponse {
   string cluster_identifier = 2;
 }
 
+// Response for batch send operations
+message SendResourceBatchResponse {
+  // Type of resource (pod, container, node_resources, etc.)
+  ResourceType resource_type = 1;
+  
+  // Unique identifier for the cluster
+  string cluster_identifier = 2;
+  
+  // Number of resources successfully processed
+  int32 processed_count = 3;
+}
+
 // Defines the service that provides RPC methods for Kubernetes cluster monitoring metrics collector.
 service MetricsCollectorService {
   // SendResource pushes a single metric for a resource.
   rpc SendResource(SendResourceRequest) returns (SendResourceResponse);
+  
+  // SendResourceBatch pushes multiple metrics for resources of the same type.
+  rpc SendResourceBatch(SendResourceBatchRequest) returns (SendResourceBatchResponse);
 }

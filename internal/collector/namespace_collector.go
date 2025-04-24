@@ -19,7 +19,9 @@ type NamespaceCollector struct {
 	client             kubernetes.Interface
 	informerFactory    informers.SharedInformerFactory
 	namespaceInformer  cache.SharedIndexInformer
-	resourceChan       chan CollectedResource
+	batchChan          chan CollectedResource   // Channel for individual resources -> input to batcher
+	resourceChan       chan []CollectedResource // Channel for batched resources -> output from batcher
+	batcher            *ResourcesBatcher
 	stopCh             chan struct{}
 	excludedNamespaces map[string]bool
 	logger             logr.Logger
@@ -30,6 +32,8 @@ type NamespaceCollector struct {
 func NewNamespaceCollector(
 	client kubernetes.Interface,
 	excludedNamespaces []string,
+	maxBatchSize int,
+	maxBatchTime time.Duration,
 	logger logr.Logger,
 ) *NamespaceCollector {
 	// Convert excluded namespaces to a map for quicker lookups
@@ -38,9 +42,24 @@ func NewNamespaceCollector(
 		excludedNamespacesMap[namespace] = true
 	}
 
+	// Create channels
+	batchChan := make(chan CollectedResource, 50) // Keep lower buffer for infrequent Namespaces
+	resourceChan := make(chan []CollectedResource, 50)
+
+	// Create the batcher
+	batcher := NewResourcesBatcher(
+		maxBatchSize,
+		maxBatchTime,
+		batchChan,
+		resourceChan,
+		logger,
+	)
+
 	return &NamespaceCollector{
 		client:             client,
-		resourceChan:       make(chan CollectedResource, 50), // Namespaces change less frequently
+		batchChan:          batchChan,
+		resourceChan:       resourceChan,
+		batcher:            batcher,
 		stopCh:             make(chan struct{}),
 		excludedNamespaces: excludedNamespacesMap,
 		logger:             logger.WithName("namespace-collector"),
@@ -91,6 +110,10 @@ func (c *NamespaceCollector) Start(ctx context.Context) error {
 	}
 	c.logger.Info("Informer caches synced successfully")
 
+	// Start the batcher after the cache is synced
+	c.logger.Info("Starting resources batcher for Namespaces")
+	c.batcher.start()
+
 	// Keep this goroutine alive until context cancellation or stop
 	stopCh := c.stopCh
 	go func() {
@@ -115,8 +138,8 @@ func (c *NamespaceCollector) handleNamespaceEvent(namespace *corev1.Namespace, e
 		"name", namespace.Name,
 		"eventType", eventType)
 
-	// Send the raw namespace object directly to the resource channel
-	c.resourceChan <- CollectedResource{
+	// Send the raw namespace object to the batch channel
+	c.batchChan <- CollectedResource{
 		ResourceType: Namespace,
 		Object:       namespace, // Send the entire namespace object as-is
 		Timestamp:    time.Now(),
@@ -186,15 +209,35 @@ func (c *NamespaceCollector) isExcluded(namespace *corev1.Namespace) bool {
 // Stop gracefully shuts down the namespace collector
 func (c *NamespaceCollector) Stop() error {
 	c.logger.Info("Stopping namespace collector")
-	if c.stopCh != nil {
+
+	// 1. Signal the informer factory to stop by closing stopCh.
+	select {
+	case <-c.stopCh:
+		c.logger.Info("Namespace collector stop channel already closed")
+	default:
 		close(c.stopCh)
-		c.stopCh = nil
+		c.logger.Info("Closed namespace collector stop channel")
 	}
+
+	// 2. Close the batchChan (input to the batcher).
+	if c.batchChan != nil {
+		close(c.batchChan)
+		c.batchChan = nil
+		c.logger.Info("Closed namespace collector batch input channel")
+	}
+
+	// 3. Stop the batcher (waits for completion).
+	if c.batcher != nil {
+		c.batcher.stop()
+		c.logger.Info("Namespace collector batcher stopped")
+	}
+	// resourceChan is closed by the batcher's defer func.
+
 	return nil
 }
 
-// GetResourceChannel returns the channel for collected resources
-func (c *NamespaceCollector) GetResourceChannel() <-chan CollectedResource {
+// GetResourceChannel returns the channel for collected resource batches
+func (c *NamespaceCollector) GetResourceChannel() <-chan []CollectedResource {
 	return c.resourceChan
 }
 

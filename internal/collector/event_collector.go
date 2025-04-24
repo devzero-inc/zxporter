@@ -20,7 +20,9 @@ type EventCollector struct {
 	client           kubernetes.Interface
 	informerFactory  informers.SharedInformerFactory
 	eventInformer    cache.SharedIndexInformer
-	resourceChan     chan CollectedResource
+	batchChan        chan CollectedResource   // Channel for individual resources -> input to batcher
+	resourceChan     chan []CollectedResource // Channel for batched resources -> output from batcher
+	batcher          *ResourcesBatcher
 	stopCh           chan struct{}
 	namespaces       []string
 	excludedEvents   map[types.NamespacedName]bool
@@ -44,6 +46,8 @@ func NewEventCollector(
 	excludedEvents []ExcludedEvent,
 	maxEventsPerType int,
 	retentionPeriod time.Duration,
+	maxBatchSize int,
+	maxBatchTime time.Duration,
 	logger logr.Logger,
 ) *EventCollector {
 	// Convert excluded events to a map for quicker lookups
@@ -64,9 +68,24 @@ func NewEventCollector(
 		retentionPeriod = 1 * time.Hour // Default to 1 hour retention
 	}
 
+	// Create channels
+	batchChan := make(chan CollectedResource, 1000)     // Keep high buffer for individual events
+	resourceChan := make(chan []CollectedResource, 100) // Buffer for batches
+
+	// Create the batcher
+	batcher := NewResourcesBatcher(
+		maxBatchSize,
+		maxBatchTime,
+		batchChan,
+		resourceChan,
+		logger,
+	)
+
 	return &EventCollector{
 		client:           client,
-		resourceChan:     make(chan CollectedResource, 1000), // Events can be high volume
+		batchChan:        batchChan,
+		resourceChan:     resourceChan,
+		batcher:          batcher,
 		stopCh:           make(chan struct{}),
 		namespaces:       namespaces,
 		excludedEvents:   excludedEventsMap,
@@ -134,6 +153,10 @@ func (c *EventCollector) Start(ctx context.Context) error {
 	}
 	c.logger.Info("Informer caches synced successfully")
 
+	// Start the batcher after the cache is synced
+	c.logger.Info("Starting resources batcher for Events")
+	c.batcher.start()
+
 	// Start a goroutine to clean up old events
 	go c.periodicCleanup(ctx)
 
@@ -182,8 +205,8 @@ func (c *EventCollector) handleEvent(event *corev1.Event, eventType string) {
 		"reason", event.Reason,
 		"eventType", eventType)
 
-	// Send the raw event object directly to the resource channel
-	c.resourceChan <- CollectedResource{
+	// Send the raw event object to the batch channel
+	c.batchChan <- CollectedResource{
 		ResourceType: Event,
 		Object:       event, // Send the entire event object as-is
 		Timestamp:    time.Now(),
@@ -252,7 +275,11 @@ func (c *EventCollector) periodicCleanup(ctx context.Context) {
 
 	for {
 		select {
-		case <-ctx.Done():
+		case <-ctx.Done(): // Context cancellation from Start
+			c.logger.Info("Context done, stopping periodic cleanup")
+			return
+		case <-c.stopCh: // Stop signal from Stop() method
+			c.logger.Info("Stop signal received, stopping periodic cleanup")
 			return
 		case <-ticker.C:
 			c.mu.Lock()
@@ -268,15 +295,35 @@ func (c *EventCollector) periodicCleanup(ctx context.Context) {
 // Stop gracefully shuts down the event collector
 func (c *EventCollector) Stop() error {
 	c.logger.Info("Stopping event collector")
-	if c.stopCh != nil {
+
+	// 1. Signal the informer factory and cleanup goroutine to stop by closing stopCh.
+	select {
+	case <-c.stopCh:
+		c.logger.Info("Event collector stop channel already closed")
+	default:
 		close(c.stopCh)
-		c.stopCh = nil
+		c.logger.Info("Closed event collector stop channel")
 	}
+
+	// 2. Close the batchChan (input to the batcher).
+	if c.batchChan != nil {
+		close(c.batchChan)
+		c.batchChan = nil
+		c.logger.Info("Closed event collector batch input channel")
+	}
+
+	// 3. Stop the batcher (waits for completion).
+	if c.batcher != nil {
+		c.batcher.stop()
+		c.logger.Info("Event collector batcher stopped")
+	}
+	// resourceChan is closed by the batcher's defer func.
+
 	return nil
 }
 
-// GetResourceChannel returns the channel for collected resources
-func (c *EventCollector) GetResourceChannel() <-chan CollectedResource {
+// GetResourceChannel returns the channel for collected resource batches
+func (c *EventCollector) GetResourceChannel() <-chan []CollectedResource {
 	return c.resourceChan
 }
 

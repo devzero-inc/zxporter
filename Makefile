@@ -506,7 +506,7 @@ catalog-push: ## Push a catalog image.
 	$(MAKE) docker-push IMG=$(CATALOG_IMG)
 
 # DAKR_* files are related to generating a gRPC client to send resource metadata to Dakr.
-DAKR_DIR ?= /home/devzero/services/dakr
+DAKR_DIR ?= /Users/kevinshi/services/dakr
 DAKR_BUF_GEN_FILE ?= buf.gen.yaml
 DAKR_BUF_GEN ?= $(DAKR_DIR)/$(DAKR_BUF_GEN_FILE)
 DAKR_METRICS_COLLECTOR_PROTO_FILE ?= metrics_collector.proto
@@ -532,16 +532,11 @@ install-buf: ## Install buf if not already installed
 generate-proto: install-buf ## Fetch latest Dakr protobuf
 	@PROTO_DIR="$(PWD)/proto"; \
 	echo "Cleaning $$PROTO_DIR..."; \
-	# clean ups \
 	rm -rf "$$PROTO_DIR"/*; \
 	rm -rf "$(PWD)/gen"; \
-	# copy metadata files over \
 	mkdir -p "$$PROTO_DIR"; \
 	cp "$(DAKR_BUF_GEN)" "$$PROTO_DIR/"; \
 	cp "$(DAKR_METRICS_COLLECTOR_PROTO)" "$$PROTO_DIR/"; \
-	# change package name to make it point to zxporter \
 	find "$$PROTO_DIR" -type f -name "*.yaml" -exec perl -pi -e 's|github.com/devzero-inc/services/dakr/gen|github.com/devzero-inc/zxporter/gen|g' {} +; \
-	# only include metrics_collector.proto file while generating descriptor \
 	buf build "$(DAKR_DIR)" --path "$(DAKR_METRICS_COLLECTOR_PROTO)" -o "$$PROTO_DIR"/dakr_proto_descriptor.bin; \
-	# generate client code from all context in this repo \
 	buf generate --template "$$PROTO_DIR"/"$(DAKR_BUF_GEN_FILE)" --include-imports "$$PROTO_DIR"/dakr_proto_descriptor.bin;

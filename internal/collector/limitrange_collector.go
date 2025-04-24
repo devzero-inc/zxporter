@@ -21,7 +21,9 @@ type LimitRangeCollector struct {
 	client              kubernetes.Interface
 	informerFactory     informers.SharedInformerFactory
 	limitRangeInformer  cache.SharedIndexInformer
-	resourceChan        chan CollectedResource
+	batchChan           chan CollectedResource   // Channel for individual resources -> input to batcher
+	resourceChan        chan []CollectedResource // Channel for batched resources -> output from batcher
+	batcher             *ResourcesBatcher
 	stopCh              chan struct{}
 	namespaces          []string
 	excludedLimitRanges map[types.NamespacedName]bool
@@ -40,6 +42,8 @@ func NewLimitRangeCollector(
 	client kubernetes.Interface,
 	namespaces []string,
 	excludedLimitRanges []ExcludedLimitRange,
+	maxBatchSize int,
+	maxBatchTime time.Duration,
 	logger logr.Logger,
 ) *LimitRangeCollector {
 	// Convert excluded limitranges to a map for quicker lookups
@@ -51,9 +55,24 @@ func NewLimitRangeCollector(
 		}] = true
 	}
 
+	// Create channels
+	batchChan := make(chan CollectedResource, 50) // Keep lower buffer for infrequent LimitRanges
+	resourceChan := make(chan []CollectedResource, 50)
+
+	// Create the batcher
+	batcher := NewResourcesBatcher(
+		maxBatchSize,
+		maxBatchTime,
+		batchChan,
+		resourceChan,
+		logger,
+	)
+
 	return &LimitRangeCollector{
 		client:              client,
-		resourceChan:        make(chan CollectedResource, 50), // LimitRanges change infrequently
+		batchChan:           batchChan,
+		resourceChan:        resourceChan,
+		batcher:             batcher,
 		stopCh:              make(chan struct{}),
 		namespaces:          namespaces,
 		excludedLimitRanges: excludedLimitRangesMap,
@@ -115,6 +134,10 @@ func (c *LimitRangeCollector) Start(ctx context.Context) error {
 	}
 	c.logger.Info("Informer caches synced successfully")
 
+	// Start the batcher after the cache is synced
+	c.logger.Info("Starting resources batcher for LimitRanges")
+	c.batcher.start()
+
 	// Keep this goroutine alive until context cancellation or stop
 	stopCh := c.stopCh
 	go func() {
@@ -140,8 +163,8 @@ func (c *LimitRangeCollector) handleLimitRangeEvent(lr *corev1.LimitRange, event
 		"name", lr.Name,
 		"eventType", eventType)
 
-	// Send the raw limitrange object directly to the resource channel
-	c.resourceChan <- CollectedResource{
+	// Send the raw limitrange object to the batch channel
+	c.batchChan <- CollectedResource{
 		ResourceType: LimitRange,
 		Object:       lr, // Send the entire limitrange object as-is
 		Timestamp:    time.Now(),
@@ -206,15 +229,35 @@ func (c *LimitRangeCollector) isExcluded(lr *corev1.LimitRange) bool {
 // Stop gracefully shuts down the limitrange collector
 func (c *LimitRangeCollector) Stop() error {
 	c.logger.Info("Stopping limitrange collector")
-	if c.stopCh != nil {
+
+	// 1. Signal the informer factory to stop by closing stopCh.
+	select {
+	case <-c.stopCh:
+		c.logger.Info("LimitRange collector stop channel already closed")
+	default:
 		close(c.stopCh)
-		c.stopCh = nil
+		c.logger.Info("Closed limitrange collector stop channel")
 	}
+
+	// 2. Close the batchChan (input to the batcher).
+	if c.batchChan != nil {
+		close(c.batchChan)
+		c.batchChan = nil
+		c.logger.Info("Closed limitrange collector batch input channel")
+	}
+
+	// 3. Stop the batcher (waits for completion).
+	if c.batcher != nil {
+		c.batcher.stop()
+		c.logger.Info("LimitRange collector batcher stopped")
+	}
+	// resourceChan is closed by the batcher's defer func.
+
 	return nil
 }
 
-// GetResourceChannel returns the channel for collected resources
-func (c *LimitRangeCollector) GetResourceChannel() <-chan CollectedResource {
+// GetResourceChannel returns the channel for collected resource batches
+func (c *LimitRangeCollector) GetResourceChannel() <-chan []CollectedResource {
 	return c.resourceChan
 }
 

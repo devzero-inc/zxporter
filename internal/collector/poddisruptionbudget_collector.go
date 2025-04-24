@@ -21,7 +21,9 @@ type PodDisruptionBudgetCollector struct {
 	client          kubernetes.Interface
 	informerFactory informers.SharedInformerFactory
 	pdbInformer     cache.SharedIndexInformer
-	resourceChan    chan CollectedResource
+	batchChan       chan CollectedResource   // Channel for individual resources -> input to batcher
+	resourceChan    chan []CollectedResource // Channel for batched resources -> output from batcher
+	batcher         *ResourcesBatcher
 	stopCh          chan struct{}
 	namespaces      []string
 	excludedPDBs    map[types.NamespacedName]bool
@@ -40,6 +42,8 @@ func NewPodDisruptionBudgetCollector(
 	client kubernetes.Interface,
 	namespaces []string,
 	excludedPDBs []ExcludedPDB,
+	maxBatchSize int,
+	maxBatchTime time.Duration,
 	logger logr.Logger,
 ) *PodDisruptionBudgetCollector {
 	// Convert excluded PDBs to a map for quicker lookups
@@ -51,9 +55,24 @@ func NewPodDisruptionBudgetCollector(
 		}] = true
 	}
 
+	// Create channels
+	batchChan := make(chan CollectedResource, 100)
+	resourceChan := make(chan []CollectedResource, 100)
+
+	// Create the batcher
+	batcher := NewResourcesBatcher(
+		maxBatchSize,
+		maxBatchTime,
+		batchChan,
+		resourceChan,
+		logger,
+	)
+
 	return &PodDisruptionBudgetCollector{
 		client:       client,
-		resourceChan: make(chan CollectedResource, 100),
+		batchChan:    batchChan,
+		resourceChan: resourceChan,
+		batcher:      batcher,
 		stopCh:       make(chan struct{}),
 		namespaces:   namespaces,
 		excludedPDBs: excludedPDBsMap,
@@ -115,6 +134,10 @@ func (c *PodDisruptionBudgetCollector) Start(ctx context.Context) error {
 	}
 	c.logger.Info("Informer caches synced successfully")
 
+	// Start the batcher after the cache is synced
+	c.logger.Info("Starting resources batcher for PDBs")
+	c.batcher.start()
+
 	// Keep this goroutine alive until context cancellation or stop
 	stopCh := c.stopCh
 	go func() {
@@ -140,8 +163,8 @@ func (c *PodDisruptionBudgetCollector) handlePDBEvent(pdb *policyv1.PodDisruptio
 		"name", pdb.Name,
 		"eventType", eventType)
 
-	// Send the raw PDB object directly to the resource channel
-	c.resourceChan <- CollectedResource{
+	// Send the raw PDB object to the batch channel
+	c.batchChan <- CollectedResource{
 		ResourceType: PodDisruptionBudget,
 		Object:       pdb, // Send the entire PDB object as-is
 		Timestamp:    time.Now(),
@@ -219,15 +242,35 @@ func (c *PodDisruptionBudgetCollector) isExcluded(pdb *policyv1.PodDisruptionBud
 // Stop gracefully shuts down the PDB collector
 func (c *PodDisruptionBudgetCollector) Stop() error {
 	c.logger.Info("Stopping PodDisruptionBudget collector")
-	if c.stopCh != nil {
+
+	// 1. Signal the informer factory to stop by closing stopCh.
+	select {
+	case <-c.stopCh:
+		c.logger.Info("PDB collector stop channel already closed")
+	default:
 		close(c.stopCh)
-		c.stopCh = nil
+		c.logger.Info("Closed PDB collector stop channel")
 	}
+
+	// 2. Close the batchChan (input to the batcher).
+	if c.batchChan != nil {
+		close(c.batchChan)
+		c.batchChan = nil
+		c.logger.Info("Closed PDB collector batch input channel")
+	}
+
+	// 3. Stop the batcher (waits for completion).
+	if c.batcher != nil {
+		c.batcher.stop()
+		c.logger.Info("PDB collector batcher stopped")
+	}
+	// resourceChan is closed by the batcher's defer func.
+
 	return nil
 }
 
-// GetResourceChannel returns the channel for collected resources
-func (c *PodDisruptionBudgetCollector) GetResourceChannel() <-chan CollectedResource {
+// GetResourceChannel returns the channel for collected resource batches
+func (c *PodDisruptionBudgetCollector) GetResourceChannel() <-chan []CollectedResource {
 	return c.resourceChan
 }
 
