@@ -160,7 +160,7 @@ func (c *HorizontalPodAutoscalerCollector) handleHPAEvent(hpa *autoscalingv2.Hor
 		return
 	}
 
-	c.logger.V(4).Info("Processing HorizontalPodAutoscaler event",
+	c.logger.Info("Processing HorizontalPodAutoscaler event",
 		"namespace", hpa.Namespace,
 		"name", hpa.Name,
 		"eventType", eventType)

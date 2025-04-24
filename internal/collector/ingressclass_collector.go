@@ -136,7 +136,7 @@ func (c *IngressClassCollector) handleIngressClassEvent(ingressClass *networking
 		return
 	}
 
-	c.logger.V(4).Info("Processing IngressClass event",
+	c.logger.Info("Processing IngressClass event",
 		"name", ingressClass.Name,
 		"eventType", eventType,
 		"controller", ingressClass.Spec.Controller)

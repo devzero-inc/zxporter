@@ -135,7 +135,7 @@ func (c *ClusterRoleCollector) handleClusterRoleEvent(role *rbacv1.ClusterRole, 
 		return
 	}
 
-	c.logger.V(4).Info("Processing ClusterRole event",
+	c.logger.Info("Processing ClusterRole event",
 		"name", role.Name,
 		"eventType", eventType)
 

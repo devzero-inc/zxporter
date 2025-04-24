@@ -79,7 +79,7 @@ func (b *ResourcesBatcher) start() {
 				}
 				batch = append(batch, resource)
 				if len(batch) >= b.maxBatchSize {
-					b.logger.V(4).Info("Sending batch due to size limit", "batchSize", len(batch))
+					b.logger.Info("Sending batch due to size limit", "batchSize", len(batch))
 					b.outBatchChan <- batch
 					batch = make([]CollectedResource, 0, b.maxBatchSize) // Reset batch
 					// Reset the timer only when a batch is sent due to size
@@ -89,7 +89,7 @@ func (b *ResourcesBatcher) start() {
 
 			case <-ticker.C:
 				if len(batch) > 0 {
-					b.logger.V(4).Info("Sending batch due to time limit", "batchSize", len(batch))
+					b.logger.Info("Sending batch due to time limit", "batchSize", len(batch))
 					b.outBatchChan <- batch
 					batch = make([]CollectedResource, 0, b.maxBatchSize) // Reset batch
 				}
@@ -109,7 +109,7 @@ func (b *ResourcesBatcher) start() {
 			for resource := range b.inputChan { // Reads until channel is closed and empty
 				batch = append(batch, resource)
 				if len(batch) >= b.maxBatchSize {
-					b.logger.V(4).Info("Sending batch due to size limit during drain", "batchSize", len(batch))
+					b.logger.Info("Sending batch due to size limit during drain", "batchSize", len(batch))
 					b.outBatchChan <- batch
 					batch = make([]CollectedResource, 0, b.maxBatchSize) // Reset batch
 				}
@@ -119,7 +119,7 @@ func (b *ResourcesBatcher) start() {
 
 		// Send any final partial batch that might remain
 		if len(batch) > 0 {
-			b.logger.V(4).Info("Sending final batch", "batchSize", len(batch))
+			b.logger.Info("Sending final batch", "batchSize", len(batch))
 			b.outBatchChan <- batch
 		}
 
@@ -134,11 +134,11 @@ func (b *ResourcesBatcher) stop() {
 	select {
 	case <-b.stopCh:
 		// Already closed.
-		b.logger.V(4).Info("Stop channel was already closed")
+		b.logger.Info("Stop channel was already closed")
 	default:
 		// Close the channel to signal the goroutine.
 		close(b.stopCh)
-		b.logger.V(4).Info("Closed stop channel")
+		b.logger.Info("Closed stop channel")
 	}
 	b.wg.Wait() // Wait for the goroutine to complete its draining and exit.
 	b.logger.Info("Resources batcher stopped")

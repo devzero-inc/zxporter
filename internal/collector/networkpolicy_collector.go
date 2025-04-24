@@ -160,7 +160,7 @@ func (c *NetworkPolicyCollector) handleNetworkPolicyEvent(networkPolicy *network
 		return
 	}
 
-	c.logger.V(4).Info("Processing networkpolicy event",
+	c.logger.Info("Processing networkpolicy event",
 		"namespace", networkPolicy.Namespace,
 		"name", networkPolicy.Name,
 		"eventType", eventType)

@@ -158,7 +158,7 @@ func (c *EndpointCollector) handleEndpointsEvent(endpoints *corev1.Endpoints, ev
 		return
 	}
 
-	c.logger.V(4).Info("Processing endpoints event",
+	c.logger.Info("Processing endpoints event",
 		"namespace", endpoints.Namespace,
 		"name", endpoints.Name,
 		"eventType", eventType)

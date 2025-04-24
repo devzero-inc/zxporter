@@ -158,7 +158,7 @@ func (c *RoleCollector) handleRoleEvent(role *rbacv1.Role, eventType string) {
 		return
 	}
 
-	c.logger.V(4).Info("Processing Role event",
+	c.logger.Info("Processing Role event",
 		"namespace", role.Namespace,
 		"name", role.Name,
 		"eventType", eventType)

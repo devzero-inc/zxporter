@@ -159,7 +159,7 @@ func (c *ServiceAccountCollector) handleServiceAccountEvent(sa *corev1.ServiceAc
 		return
 	}
 
-	c.logger.V(4).Info("Processing serviceaccount event",
+	c.logger.Info("Processing serviceaccount event",
 		"namespace", sa.Namespace,
 		"name", sa.Name,
 		"eventType", eventType)

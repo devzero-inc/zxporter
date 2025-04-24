@@ -158,7 +158,7 @@ func (c *PodDisruptionBudgetCollector) handlePDBEvent(pdb *policyv1.PodDisruptio
 		return
 	}
 
-	c.logger.V(4).Info("Processing PodDisruptionBudget event",
+	c.logger.Info("Processing PodDisruptionBudget event",
 		"namespace", pdb.Namespace,
 		"name", pdb.Name,
 		"eventType", eventType)

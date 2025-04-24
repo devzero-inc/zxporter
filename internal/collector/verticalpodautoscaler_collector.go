@@ -171,7 +171,7 @@ func (c *VerticalPodAutoscalerCollector) handleVPAEvent(vpa *unstructured.Unstru
 	namespace := vpa.GetNamespace()
 	name := vpa.GetName()
 
-	c.logger.V(4).Info("Processing VerticalPodAutoscaler event",
+	c.logger.Info("Processing VerticalPodAutoscaler event",
 		"namespace", namespace,
 		"name", name,
 		"eventType", eventType)

@@ -134,7 +134,7 @@ func (c *PersistentVolumeCollector) handlePVEvent(pv *corev1.PersistentVolume, e
 		return
 	}
 
-	c.logger.V(4).Info("Processing PersistentVolume event",
+	c.logger.Info("Processing PersistentVolume event",
 		"name", pv.Name,
 		"eventType", eventType,
 		"phase", pv.Status.Phase)

@@ -158,7 +158,7 @@ func (c *ResourceQuotaCollector) handleResourceQuotaEvent(rq *corev1.ResourceQuo
 		return
 	}
 
-	c.logger.V(4).Info("Processing resourcequota event",
+	c.logger.Info("Processing resourcequota event",
 		"namespace", rq.Namespace,
 		"name", rq.Name,
 		"eventType", eventType)

@@ -135,7 +135,7 @@ func (c *ClusterRoleBindingCollector) handleClusterRoleBindingEvent(crb *rbacv1.
 		return
 	}
 
-	c.logger.V(4).Info("Processing ClusterRoleBinding event",
+	c.logger.Info("Processing ClusterRoleBinding event",
 		"name", crb.Name,
 		"eventType", eventType)
 

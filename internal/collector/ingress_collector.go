@@ -159,7 +159,7 @@ func (c *IngressCollector) handleIngressEvent(ingress *networkingv1.Ingress, eve
 		return
 	}
 
-	c.logger.V(4).Info("Processing ingress event",
+	c.logger.Info("Processing ingress event",
 		"namespace", ingress.Namespace,
 		"name", ingress.Name,
 		"eventType", eventType)

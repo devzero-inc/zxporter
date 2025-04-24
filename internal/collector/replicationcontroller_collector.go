@@ -157,7 +157,7 @@ func (c *ReplicationControllerCollector) handleReplicationControllerEvent(rc *co
 		return
 	}
 
-	c.logger.V(4).Info("Processing replicationcontroller event",
+	c.logger.Info("Processing replicationcontroller event",
 		"namespace", rc.Namespace,
 		"name", rc.Name,
 		"eventType", eventType)

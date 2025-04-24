@@ -135,7 +135,7 @@ func (c *StorageClassCollector) handleStorageClassEvent(sc *storagev1.StorageCla
 		return
 	}
 
-	c.logger.V(4).Info("Processing StorageClass event",
+	c.logger.Info("Processing StorageClass event",
 		"name", sc.Name,
 		"eventType", eventType,
 		"provisioner", sc.Provisioner)

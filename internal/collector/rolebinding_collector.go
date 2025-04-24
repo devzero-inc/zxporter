@@ -158,7 +158,7 @@ func (c *RoleBindingCollector) handleRoleBindingEvent(rb *rbacv1.RoleBinding, ev
 		return
 	}
 
-	c.logger.V(4).Info("Processing RoleBinding event",
+	c.logger.Info("Processing RoleBinding event",
 		"namespace", rb.Namespace,
 		"name", rb.Name,
 		"eventType", eventType)

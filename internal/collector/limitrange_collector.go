@@ -158,7 +158,7 @@ func (c *LimitRangeCollector) handleLimitRangeEvent(lr *corev1.LimitRange, event
 		return
 	}
 
-	c.logger.V(4).Info("Processing limitrange event",
+	c.logger.Info("Processing limitrange event",
 		"namespace", lr.Namespace,
 		"name", lr.Name,
 		"eventType", eventType)
