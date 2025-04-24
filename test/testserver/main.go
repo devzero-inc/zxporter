@@ -28,10 +28,11 @@ type MetricsServer struct {
 
 // processResourceItem handles the statistics update and data extraction for a single resource item.
 // NOTE: This function assumes the caller holds the mutex (s.mu).
-func (s *MetricsServer) processResourceItem(resourceType apiv1.ResourceType, resource *apiv1.ResourceItem) {
+func (s *MetricsServer) processResourceItem(resource *apiv1.ResourceItem) {
 	if resource == nil {
 		return // Should not happen, but good practice
 	}
+	resourceType := resource.ResourceType // Get type from the item itself
 
 	// Update stats
 	s.stats.TotalMessages++
@@ -65,7 +66,7 @@ func (s *MetricsServer) processResourceItem(resourceType apiv1.ResourceType, res
 
 	// Extract resource usage information based on resource type
 	if resource.Data != nil {
-		switch resourceType {
+		switch resource.ResourceType { // Use resource.ResourceType here
 		case apiv1.ResourceType_RESOURCE_TYPE_POD:
 			s.extractPodResourceInfo(resource.Key, resource.Data)
 		case apiv1.ResourceType_RESOURCE_TYPE_CONTAINER_RESOURCE:
@@ -78,7 +79,16 @@ func (s *MetricsServer) processResourceItem(resourceType apiv1.ResourceType, res
 
 // SendResource implements the SendResource RPC method
 func (s *MetricsServer) SendResource(ctx context.Context, req *connect.Request[apiv1.SendResourceRequest]) (*connect.Response[apiv1.SendResourceResponse], error) {
-	// Convert the request to JSON
+	// Create a ResourceItem from the request message
+	resourceItem := &apiv1.ResourceItem{
+		Key:          req.Msg.Key,
+		Timestamp:    req.Msg.Timestamp,
+		EventType:    req.Msg.EventType,
+		Data:         req.Msg.Data,
+		ResourceType: req.Msg.ResourceType,
+	}
+
+	// Convert the request to JSON for logging
 	jsonData, err := json.Marshal(req.Msg)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error marshaling request to JSON: %v\n", err)
@@ -90,7 +100,7 @@ func (s *MetricsServer) SendResource(ctx context.Context, req *connect.Request[a
 	defer s.mu.Unlock()
 
 	// Process the single resource item
-	s.processResourceItem(req.Msg.ResourceType, req.Msg.Resource)
+	s.processResourceItem(resourceItem) // Pass the constructed item
 
 	// Write the original request JSON to the output file
 	f, err := os.OpenFile(s.outputFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
@@ -116,7 +126,7 @@ func (s *MetricsServer) SendResource(ctx context.Context, req *connect.Request[a
 
 // SendResourceBatch implements the SendResourceBatch RPC method
 func (s *MetricsServer) SendResourceBatch(ctx context.Context, req *connect.Request[apiv1.SendResourceBatchRequest]) (*connect.Response[apiv1.SendResourceBatchResponse], error) {
-	// Convert the batch request to JSON (optional, for logging consistency)
+	// Convert the batch request to JSON for logging
 	jsonData, err := json.Marshal(req.Msg)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error marshaling batch request to JSON: %v\n", err)
@@ -147,13 +157,12 @@ func (s *MetricsServer) SendResourceBatch(ctx context.Context, req *connect.Requ
 	// Process each resource in the batch using the helper
 	processedCount := 0
 	for _, resource := range req.Msg.Resources {
-		s.processResourceItem(req.Msg.ResourceType, resource)
+		s.processResourceItem(resource)
 		processedCount++
 	}
 
 	// Return a response
 	resp := connect.NewResponse(&apiv1.SendResourceBatchResponse{
-		ResourceType:      req.Msg.ResourceType,
 		ClusterIdentifier: req.Msg.ClusterId,
 		ProcessedCount:    int32(processedCount),
 	})

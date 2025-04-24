@@ -99,6 +99,9 @@ message ResourceItem {
 
   // The actual resource data as a flexible structure
   google.protobuf.Struct data = 4;
+
+  // Type of resource (pod, container, node_resources, etc.)
+  ResourceType resource_type = 5;
 }
 
 // Requests
@@ -107,29 +110,35 @@ message SendResourceRequest {
   // Type of resource (pod, container, node_resources, etc.)
   ResourceType resource_type = 1;
 
-  // The resource data and metadata
-  ResourceItem resource = 2;
+  // Unique identifier for the resource
+  string key = 2;
+
+  // Timestamp when the resource was collected
+  google.protobuf.Timestamp timestamp = 3;
+
+  // Event type (add, update, delete, metrics, etc.)
+  string event_type = 4;
+
+  // The actual resource data as a flexible structure
+  google.protobuf.Struct data = 5;
 
   // cluster_id of resource
-  string cluster_id = 3;
+  string cluster_id = 6;
 
   // team_id of resource
-  string team_id = 4;
+  string team_id = 7;
 }
 
 // SendResourceBatchRequest is used to push metrics for multiple resources of the same type.
 message SendResourceBatchRequest {
-  // Type of resource (pod, container, node_resources, etc.) - all resources in the batch must be of this type
-  ResourceType resource_type = 1;
-
   // The list of resources to process
-  repeated ResourceItem resources = 2;
+  repeated ResourceItem resources = 1;
 
   // cluster_id of resources - all resources in the batch must belong to this cluster
-  string cluster_id = 3;
+  string cluster_id = 2;
   
   // team_id of resources - all resources in the batch must belong to this team
-  string team_id = 4;
+  string team_id = 3;
 }
 
 // Responses

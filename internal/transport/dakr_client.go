@@ -74,12 +74,10 @@ func (c *RealDakrClient) SendResource(ctx context.Context, resource collector.Co
 	// Create the request
 	res := &gen.SendResourceRequest{
 		ResourceType: resource.ResourceType.ProtoType(),
-		Resource: &gen.ResourceItem{
-			Key:       resource.Key,
-			Timestamp: timestamppb.New(resource.Timestamp),
-			EventType: resource.EventType,
-			Data:      dataStruct,
-		},
+		Key:          resource.Key,
+		Timestamp:    timestamppb.New(resource.Timestamp),
+		EventType:    resource.EventType,
+		Data:         dataStruct,
 	}
 
 	req := connect.NewRequest(res)
@@ -137,10 +135,11 @@ func (c *RealDakrClient) SendResourceBatch(ctx context.Context, resources []coll
 
 		// Create the resource item
 		item := &gen.ResourceItem{
-			Key:       resource.Key,
-			Timestamp: timestamppb.New(resource.Timestamp),
-			EventType: resource.EventType,
-			Data:      dataStruct,
+			Key:          resource.Key,
+			Timestamp:    timestamppb.New(resource.Timestamp),
+			EventType:    resource.EventType,
+			Data:         dataStruct,
+			ResourceType: resource.ResourceType.ProtoType(), // Add ResourceType here
 		}
 		resourceItems = append(resourceItems, item)
 	}
@@ -154,8 +153,7 @@ func (c *RealDakrClient) SendResourceBatch(ctx context.Context, resources []coll
 
 	// Create the batch request
 	batchReq := &gen.SendResourceBatchRequest{
-		ResourceType: resourceType.ProtoType(),
-		Resources:    resourceItems,
+		Resources: resourceItems,
 	}
 
 	req := connect.NewRequest(batchReq)
