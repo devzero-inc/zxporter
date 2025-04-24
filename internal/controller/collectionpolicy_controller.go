@@ -837,7 +837,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				newConfig.ExcludedEvents,
 				10,             // maxEventsPerType - keeping existing value
 				10*time.Minute, // retentionPeriod - keeping existing value
-				collector.DefaultMaxBatchSize,
+				400,
 				collector.DefaultMaxBatchTime,
 				logger,
 			)
@@ -1500,7 +1500,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				config.ExcludedEvents,
 				10,
 				10*time.Minute,
-				collector.DefaultMaxBatchSize,
+				400,
 				collector.DefaultMaxBatchTime,
 				logger,
 			),
@@ -1935,7 +1935,7 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					newConfig.ExcludedEvents,
 					10,
 					10*time.Minute,
-					collector.DefaultMaxBatchSize,
+					400,
 					collector.DefaultMaxBatchTime,
 					logger,
 				)
