@@ -56,7 +56,7 @@ func NewPodCollector(
 
 	// Create channels
 	batchChan := make(chan CollectedResource, 500)      // Keep original buffer size for individual items
-	resourceChan := make(chan []CollectedResource, 100) // Buffer for batches
+	resourceChan := make(chan []CollectedResource, 200) // Buffer for batches
 
 	// Create the batcher, passing through the configurable parameters
 	batcher := NewResourcesBatcher(

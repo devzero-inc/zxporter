@@ -9,7 +9,7 @@ import (
 
 const (
 	// DefaultMaxBatchSize is the default maximum number of resources in a batch.
-	DefaultMaxBatchSize = 100
+	DefaultMaxBatchSize = 50
 	// DefaultMaxBatchTime is the default maximum time duration before sending a batch.
 	DefaultMaxBatchTime = 5 * time.Second
 )
