@@ -20,7 +20,9 @@ type PodCollector struct {
 	client          kubernetes.Interface
 	informerFactory informers.SharedInformerFactory
 	podInformer     cache.SharedIndexInformer
-	resourceChan    chan CollectedResource
+	batchChan       chan CollectedResource   // Channel for individual resources -> input to batcher
+	resourceChan    chan []CollectedResource // Channel for batched resources -> output from batcher
+	batcher         *ResourcesBatcher
 	stopCh          chan struct{}
 	namespaces      []string
 	excludedPods    map[types.NamespacedName]bool
@@ -39,6 +41,8 @@ func NewPodCollector(
 	client kubernetes.Interface,
 	namespaces []string,
 	excludedPods []ExcludedPod,
+	maxBatchSize int, // Added parameter
+	maxBatchTime time.Duration, // Added parameter
 	logger logr.Logger,
 ) *PodCollector {
 	// Convert excluded pods to a map for quicker lookups
@@ -50,9 +54,24 @@ func NewPodCollector(
 		}] = true
 	}
 
+	// Create channels
+	batchChan := make(chan CollectedResource, 500)      // Keep original buffer size for individual items
+	resourceChan := make(chan []CollectedResource, 200) // Buffer for batches
+
+	// Create the batcher, passing through the configurable parameters
+	batcher := NewResourcesBatcher(
+		maxBatchSize, // Use provided parameter
+		maxBatchTime, // Use provided parameter
+		batchChan,
+		resourceChan,
+		logger,
+	)
+
 	return &PodCollector{
 		client:       client,
-		resourceChan: make(chan CollectedResource, 500),
+		batchChan:    batchChan,
+		resourceChan: resourceChan,
+		batcher:      batcher,
 		stopCh:       make(chan struct{}),
 		namespaces:   namespaces,
 		excludedPods: excludedPodsMap,
@@ -110,6 +129,10 @@ func (c *PodCollector) Start(ctx context.Context) error {
 	}
 	c.logger.Info("Informer caches synced successfully")
 
+	// Start the batcher after the cache is synced
+	c.logger.Info("Starting resources batcher for pods")
+	c.batcher.start()
+
 	// Keep this goroutine alive until context cancellation or stop
 	stopCh := c.stopCh
 	go func() {
@@ -135,8 +158,8 @@ func (c *PodCollector) handlePodEvent(pod *corev1.Pod, eventType string) {
 		"name", pod.Name,
 		"eventType", eventType)
 
-	// Send the raw pod object directly to the resource channel
-	c.resourceChan <- CollectedResource{
+	// Send the raw pod object to the batch channel
+	c.batchChan <- CollectedResource{
 		ResourceType: Pod,
 		Object:       pod, // Send the entire pod object as-is
 		Timestamp:    time.Now(),
@@ -209,9 +232,9 @@ func (c *PodCollector) checkForContainerEvents(oldPod, newPod *corev1.Pod) {
 func (c *PodCollector) sendContainerEvent(pod *corev1.Pod, containerName, eventType string, status *corev1.ContainerStatus) {
 	containerKey := fmt.Sprintf("%s/%s/%s", pod.Namespace, pod.Name, containerName)
 
-	// We're still sending the entire pod, but with additional context about which container and event
-	c.resourceChan <- CollectedResource{
-		ResourceType: Container,
+	// Send the container event to the batch channel
+	c.batchChan <- CollectedResource{
+		ResourceType: Container, // Note: Still using Container type for these specific events
 		Object: map[string]interface{}{
 			"pod":           pod,           // The entire pod object
 			"containerName": containerName, // The specific container name
@@ -254,15 +277,35 @@ func (c *PodCollector) isExcluded(pod *corev1.Pod) bool {
 // Stop gracefully shuts down the pod collector
 func (c *PodCollector) Stop() error {
 	c.logger.Info("Stopping pod collector")
-	if c.stopCh != nil {
+
+	// 1. Signal the informer factory to stop by closing stopCh.
+	select {
+	case <-c.stopCh:
+		c.logger.Info("Pod collector stop channel already closed")
+	default:
 		close(c.stopCh)
-		c.stopCh = nil
+		c.logger.Info("Closed pod collector stop channel")
 	}
+
+	// 2. Close the batchChan (input to the batcher).
+	if c.batchChan != nil {
+		close(c.batchChan)
+		c.batchChan = nil
+		c.logger.Info("Closed pod collector batch input channel")
+	}
+
+	// 3. Stop the batcher (waits for completion).
+	if c.batcher != nil {
+		c.batcher.stop()
+		c.logger.Info("Pod collector batcher stopped")
+	}
+	// resourceChan is closed by the batcher's defer func.
+
 	return nil
 }
 
-// GetResourceChannel returns the channel for collected resources
-func (c *PodCollector) GetResourceChannel() <-chan CollectedResource {
+// GetResourceChannel returns the channel for collected resource batches
+func (c *PodCollector) GetResourceChannel() <-chan []CollectedResource {
 	return c.resourceChan
 }
 

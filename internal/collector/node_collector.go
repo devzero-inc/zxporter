@@ -44,7 +44,9 @@ type NodeCollector struct {
 	prometheusAPI   v1.API
 	informerFactory informers.SharedInformerFactory
 	nodeInformer    cache.SharedIndexInformer
-	resourceChan    chan CollectedResource
+	batchChan       chan CollectedResource   // Channel for individual resources -> input to batcher
+	resourceChan    chan []CollectedResource // Channel for batched resources -> output from batcher
+	batcher         *ResourcesBatcher
 	stopCh          chan struct{}
 	ticker          *time.Ticker
 	config          NodeCollectorConfig
@@ -59,6 +61,8 @@ func NewNodeCollector(
 	metricsClient *metricsv1.Clientset,
 	config NodeCollectorConfig,
 	excludedNodes []string,
+	maxBatchSize int,
+	maxBatchTime time.Duration,
 	logger logr.Logger,
 ) *NodeCollector {
 	// Convert excluded nodes to a map for quicker lookups
@@ -82,10 +86,25 @@ func NewNodeCollector(
 		config.QueryTimeout = 10 * time.Second
 	}
 
+	// Create channels
+	batchChan := make(chan CollectedResource, 100)      // For metrics
+	resourceChan := make(chan []CollectedResource, 100) // For events and batched metrics
+
+	// Create the batcher for metrics
+	batcher := NewResourcesBatcher(
+		maxBatchSize,
+		maxBatchTime,
+		batchChan,
+		resourceChan, // Batcher output goes to the same channel as direct events
+		logger,
+	)
+
 	return &NodeCollector{
 		k8sClient:     k8sClient,
 		metricsClient: metricsClient,
-		resourceChan:  make(chan CollectedResource, 100),
+		batchChan:     batchChan,
+		resourceChan:  resourceChan,
+		batcher:       batcher,
 		stopCh:        make(chan struct{}),
 		config:        config,
 		excludedNodes: excludedNodesMap,
@@ -195,6 +214,10 @@ func (c *NodeCollector) Start(ctx context.Context) error {
 	}
 	c.logger.Info("Informer caches synced successfully")
 
+	// Start the batcher (for metrics) after the cache is synced
+	c.logger.Info("Starting resources batcher for node metrics")
+	c.batcher.start()
+
 	// Start a ticker to collect resource metrics at regular intervals
 	c.ticker = time.NewTicker(c.config.UpdateInterval)
 
@@ -225,13 +248,15 @@ func (c *NodeCollector) handleNodeEvent(node *corev1.Node, eventType string) {
 		"name", node.Name,
 		"eventType", eventType)
 
-	// Send the raw node object to the resource channel
-	c.resourceChan <- CollectedResource{
-		ResourceType: Node,
-		Object:       node,
-		Timestamp:    time.Now(),
-		EventType:    eventType,
-		Key:          node.Name,
+	// Send node events directly to resourceChan as a single-item batch
+	c.resourceChan <- []CollectedResource{
+		{
+			ResourceType: Node,
+			Object:       node,
+			Timestamp:    time.Now(),
+			EventType:    eventType,
+			Key:          node.Name,
+		},
 	}
 }
 
@@ -434,8 +459,8 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 			resourceData["fsWrites"] = ioMetrics["FSWrites"]
 		}
 
-		// Send the resource usage data to the channel
-		c.resourceChan <- CollectedResource{
+		// Send node resource metrics to the batch channel for batching
+		c.batchChan <- CollectedResource{
 			ResourceType: NodeResource,
 			Object:       resourceData,
 			Timestamp:    time.Now(),
@@ -532,22 +557,40 @@ func (c *NodeCollector) isExcluded(nodeName string) bool {
 func (c *NodeCollector) Stop() error {
 	c.logger.Info("Stopping node collector")
 
+	// 1. Stop the ticker
 	if c.ticker != nil {
 		c.ticker.Stop()
+		c.logger.Info("Stopped node collector ticker")
 	}
 
-	if c.stopCh != nil {
-		if c.stopCh != nil {
-			close(c.stopCh)
-			c.stopCh = nil
-		}
-		c.stopCh = nil
+	// 2. Signal the informer factory and collection loop to stop by closing stopCh.
+	select {
+	case <-c.stopCh:
+		c.logger.Info("Node collector stop channel already closed")
+	default:
+		close(c.stopCh)
+		c.logger.Info("Closed node collector stop channel")
 	}
+
+	// 3. Close the batchChan (input to the batcher for metrics).
+	if c.batchChan != nil {
+		close(c.batchChan)
+		c.batchChan = nil
+		c.logger.Info("Closed node collector batch input channel")
+	}
+
+	// 4. Stop the batcher (waits for completion).
+	if c.batcher != nil {
+		c.batcher.stop() // This will close resourceChan when done
+		c.logger.Info("Node collector batcher stopped")
+	}
+	// resourceChan is closed by the batcher's defer func.
+
 	return nil
 }
 
-// GetResourceChannel returns the channel for collected resources
-func (c *NodeCollector) GetResourceChannel() <-chan CollectedResource {
+// GetResourceChannel returns the channel for collected resource batches
+func (c *NodeCollector) GetResourceChannel() <-chan []CollectedResource {
 	return c.resourceChan
 }
 

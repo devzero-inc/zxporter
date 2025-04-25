@@ -82,3 +82,12 @@ func (c *SimpleDakrClient) SendResource(ctx context.Context, resource collector.
 		"FULL_RESOURCE", resource)
 	return "", nil
 }
+
+// SendResourceBatch logs the batch resource data (for development/testing)
+func (c *SimpleDakrClient) SendResourceBatch(ctx context.Context, resources []collector.CollectedResource, resourceType collector.ResourceType) (string, error) {
+	// For now, just log that we would send something
+	c.logger.Info("Would send resource batch to Dakr",
+		"resourceType", resourceType,
+		"count", len(resources))
+	return "", nil
+}

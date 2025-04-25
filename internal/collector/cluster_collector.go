@@ -25,7 +25,7 @@ type ClusterCollector struct {
 	k8sClient      kubernetes.Interface
 	metricsClient  metricsv1.Interface
 	provider       provider.Provider
-	resourceChan   chan CollectedResource
+	resourceChan   chan []CollectedResource
 	stopCh         chan struct{}
 	ticker         *time.Ticker
 	updateInterval time.Duration
@@ -50,7 +50,7 @@ func NewClusterCollector(
 		k8sClient:      k8sClient,
 		metricsClient:  metricsClient,
 		provider:       provider,
-		resourceChan:   make(chan CollectedResource, 10),
+		resourceChan:   make(chan []CollectedResource, 10),
 		stopCh:         make(chan struct{}),
 		updateInterval: updateInterval,
 		logger:         logger.WithName("cluster-collector"),
@@ -168,14 +168,14 @@ func (c *ClusterCollector) collectClusterData(ctx context.Context) error {
 		"updated_at":            time.Now().Unix(),
 	}
 
-	// 11. Send the data through the channel
-	c.resourceChan <- CollectedResource{
+	// 11. Send the data through the channel as a slice
+	c.resourceChan <- []CollectedResource{{
 		ResourceType: Cluster,
 		Object:       clusterData,
 		Timestamp:    time.Now(),
 		EventType:    "metadata",
 		Key:          fmt.Sprintf("%s", providerData["cluster_name"]),
-	}
+	}}
 
 	c.logger.Info("Cluster data collected successfully",
 		"cluster", providerData["cluster_name"],
@@ -489,7 +489,7 @@ func (c *ClusterCollector) Stop() error {
 }
 
 // GetResourceChannel returns the channel for collected resources
-func (c *ClusterCollector) GetResourceChannel() <-chan CollectedResource {
+func (c *ClusterCollector) GetResourceChannel() <-chan []CollectedResource {
 	return c.resourceChan
 }
 

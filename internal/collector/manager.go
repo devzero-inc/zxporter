@@ -40,7 +40,7 @@ type CollectionManager struct {
 	collectors      map[string]ResourceCollector
 	collectorCtxs   map[string]context.CancelFunc // Track context cancellation functions for each collector
 	processorWg     map[string]*sync.WaitGroup    // Track processor goroutines for each collector
-	combinedChannel chan CollectedResource
+	combinedChannel chan []CollectedResource
 	wg              sync.WaitGroup
 	mu              sync.RWMutex
 	bufferSize      int
@@ -60,7 +60,7 @@ func NewCollectionManager(config *CollectionConfig, client kubernetes.Interface,
 		collectors:      make(map[string]ResourceCollector),
 		collectorCtxs:   make(map[string]context.CancelFunc),
 		processorWg:     make(map[string]*sync.WaitGroup),
-		combinedChannel: make(chan CollectedResource, bufferSize),
+		combinedChannel: make(chan []CollectedResource, bufferSize),
 		bufferSize:      bufferSize,
 		client:          client,
 		config:          config,
@@ -302,7 +302,7 @@ func (m *CollectionManager) StopAll() error {
 	// Close the combined channel
 	originalBufferSize := cap(m.combinedChannel)
 	close(m.combinedChannel)
-	m.combinedChannel = make(chan CollectedResource, originalBufferSize)
+	m.combinedChannel = make(chan []CollectedResource, originalBufferSize)
 
 	// Clear all tracking maps
 	m.collectorCtxs = make(map[string]context.CancelFunc)
@@ -334,24 +334,20 @@ func (m *CollectionManager) processCollectorChannel(collectorType string, collec
 	m.logger.Info("Starting to process collector channel", "type", collectorType)
 	resourceChan := collector.GetResourceChannel()
 
-	for resource := range resourceChan {
+	for resources := range resourceChan {
 		// Skip if channel is closed
-		if resource.ResourceType == Unknown {
+		if len(resources) == 0 {
 			continue
 		}
 
-		// Apply any filtering here if needed
-		if m.shouldCollectResource(resource) {
-			// Forward to the combined channel
-			select {
-			case m.combinedChannel <- resource:
-				// Successfully sent
-			default:
-				// Channel full, log warning
-				m.logger.Info("Combined channel buffer full, dropping resource",
-					"type", resource.ResourceType,
-					"key", resource.Key)
-			}
+		// Forward to the combined channel
+		select {
+		case m.combinedChannel <- resources:
+			// Successfully sent
+		default:
+			// Channel full, log warning
+			m.logger.Info("Combined channel buffer full, dropping resource",
+				"type", resources[0].ResourceType)
 		}
 	}
 
@@ -365,7 +361,7 @@ func (m *CollectionManager) shouldCollectResource(resource CollectedResource) bo
 }
 
 // GetCombinedChannel returns the combined channel for all collectors
-func (m *CollectionManager) GetCombinedChannel() <-chan CollectedResource {
+func (m *CollectionManager) GetCombinedChannel() <-chan []CollectedResource {
 	return m.combinedChannel
 }
 

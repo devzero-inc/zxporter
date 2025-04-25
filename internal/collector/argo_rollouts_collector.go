@@ -29,7 +29,9 @@ type ExcludedArgoRollout struct {
 // ArgoRolloutsCollector watches for Argo Rollouts resources
 type ArgoRolloutsCollector struct {
 	dynamicClient    dynamic.Interface
-	resourceChan     chan CollectedResource
+	batchChan        chan CollectedResource   // Channel for individual resources -> input to batcher
+	resourceChan     chan []CollectedResource // Channel for batched resources -> output from batcher
+	batcher          *ResourcesBatcher
 	stopCh           chan struct{}
 	informers        map[string]cache.SharedIndexInformer
 	informerStopChs  map[string]chan struct{}
@@ -44,6 +46,8 @@ func NewArgoRolloutsCollector(
 	dynamicClient dynamic.Interface,
 	namespaces []string,
 	excludedRollouts []ExcludedArgoRollout,
+	maxBatchSize int,
+	maxBatchTime time.Duration,
 	logger logr.Logger,
 ) *ArgoRolloutsCollector {
 	// Convert excluded rollouts to a map for quicker lookups
@@ -55,9 +59,24 @@ func NewArgoRolloutsCollector(
 		}] = true
 	}
 
+	// Create channels
+	batchChan := make(chan CollectedResource, 100)
+	resourceChan := make(chan []CollectedResource, 100)
+
+	// Create the batcher
+	batcher := NewResourcesBatcher(
+		maxBatchSize,
+		maxBatchTime,
+		batchChan,
+		resourceChan,
+		logger,
+	)
+
 	return &ArgoRolloutsCollector{
 		dynamicClient:    dynamicClient,
-		resourceChan:     make(chan CollectedResource, 100),
+		batchChan:        batchChan,
+		resourceChan:     resourceChan,
+		batcher:          batcher,
 		stopCh:           make(chan struct{}),
 		informers:        make(map[string]cache.SharedIndexInformer),
 		informerStopChs:  make(map[string]chan struct{}),
@@ -164,6 +183,10 @@ func (c *ArgoRolloutsCollector) Start(ctx context.Context) error {
 
 	c.logger.Info("Successfully started informer for Argo Rollouts")
 
+	// Start the batcher after the cache is synced
+	c.logger.Info("Starting resources batcher for Argo Rollouts")
+	c.batcher.start()
+
 	// Keep this goroutine alive until context cancellation or stop
 	stopCh := c.stopCh
 	go func() {
@@ -199,8 +222,8 @@ func (c *ArgoRolloutsCollector) handleRolloutEvent(obj *unstructured.Unstructure
 	// Create a resource key
 	key := fmt.Sprintf("%s/%s", namespace, name)
 
-	// Send the processed resource to the channel
-	c.resourceChan <- CollectedResource{
+	// Send the processed resource to the batch channel
+	c.batchChan <- CollectedResource{
 		ResourceType: ArgoRollouts,
 		Object:       processedObj,
 		Timestamp:    time.Now(),
@@ -370,17 +393,34 @@ func (c *ArgoRolloutsCollector) Stop() error {
 	c.informers = make(map[string]cache.SharedIndexInformer)
 	c.informerStopChs = make(map[string]chan struct{})
 
-	// Close the main stop channel
-	if c.stopCh != nil {
+	// Close the main stop channel (signals informers to stop)
+	select {
+	case <-c.stopCh:
+		c.logger.Info("Argo Rollouts collector stop channel already closed")
+	default:
 		close(c.stopCh)
-		c.stopCh = nil
+		c.logger.Info("Closed Argo Rollouts collector stop channel")
 	}
+
+	// Close the batchChan (input to the batcher).
+	if c.batchChan != nil {
+		close(c.batchChan)
+		c.batchChan = nil
+		c.logger.Info("Closed Argo Rollouts collector batch input channel")
+	}
+
+	// Stop the batcher (waits for completion).
+	if c.batcher != nil {
+		c.batcher.stop()
+		c.logger.Info("Argo Rollouts collector batcher stopped")
+	}
+	// resourceChan is closed by the batcher's defer func.
 
 	return nil
 }
 
-// GetResourceChannel returns the channel for collected resources
-func (c *ArgoRolloutsCollector) GetResourceChannel() <-chan CollectedResource {
+// GetResourceChannel returns the channel for collected resource batches
+func (c *ArgoRolloutsCollector) GetResourceChannel() <-chan []CollectedResource {
 	return c.resourceChan
 }
 

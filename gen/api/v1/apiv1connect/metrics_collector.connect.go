@@ -36,12 +36,17 @@ const (
 	// MetricsCollectorServiceSendResourceProcedure is the fully-qualified name of the
 	// MetricsCollectorService's SendResource RPC.
 	MetricsCollectorServiceSendResourceProcedure = "/api.v1.MetricsCollectorService/SendResource"
+	// MetricsCollectorServiceSendResourceBatchProcedure is the fully-qualified name of the
+	// MetricsCollectorService's SendResourceBatch RPC.
+	MetricsCollectorServiceSendResourceBatchProcedure = "/api.v1.MetricsCollectorService/SendResourceBatch"
 )
 
 // MetricsCollectorServiceClient is a client for the api.v1.MetricsCollectorService service.
 type MetricsCollectorServiceClient interface {
 	// SendResource pushes a single metric for a resource.
 	SendResource(context.Context, *connect.Request[v1.SendResourceRequest]) (*connect.Response[v1.SendResourceResponse], error)
+	// SendResourceBatch pushes multiple metrics for resources of the same type.
+	SendResourceBatch(context.Context, *connect.Request[v1.SendResourceBatchRequest]) (*connect.Response[v1.SendResourceBatchResponse], error)
 }
 
 // NewMetricsCollectorServiceClient constructs a client for the api.v1.MetricsCollectorService
@@ -59,12 +64,18 @@ func NewMetricsCollectorServiceClient(httpClient connect.HTTPClient, baseURL str
 			baseURL+MetricsCollectorServiceSendResourceProcedure,
 			opts...,
 		),
+		sendResourceBatch: connect.NewClient[v1.SendResourceBatchRequest, v1.SendResourceBatchResponse](
+			httpClient,
+			baseURL+MetricsCollectorServiceSendResourceBatchProcedure,
+			opts...,
+		),
 	}
 }
 
 // metricsCollectorServiceClient implements MetricsCollectorServiceClient.
 type metricsCollectorServiceClient struct {
-	sendResource *connect.Client[v1.SendResourceRequest, v1.SendResourceResponse]
+	sendResource      *connect.Client[v1.SendResourceRequest, v1.SendResourceResponse]
+	sendResourceBatch *connect.Client[v1.SendResourceBatchRequest, v1.SendResourceBatchResponse]
 }
 
 // SendResource calls api.v1.MetricsCollectorService.SendResource.
@@ -72,11 +83,18 @@ func (c *metricsCollectorServiceClient) SendResource(ctx context.Context, req *c
 	return c.sendResource.CallUnary(ctx, req)
 }
 
+// SendResourceBatch calls api.v1.MetricsCollectorService.SendResourceBatch.
+func (c *metricsCollectorServiceClient) SendResourceBatch(ctx context.Context, req *connect.Request[v1.SendResourceBatchRequest]) (*connect.Response[v1.SendResourceBatchResponse], error) {
+	return c.sendResourceBatch.CallUnary(ctx, req)
+}
+
 // MetricsCollectorServiceHandler is an implementation of the api.v1.MetricsCollectorService
 // service.
 type MetricsCollectorServiceHandler interface {
 	// SendResource pushes a single metric for a resource.
 	SendResource(context.Context, *connect.Request[v1.SendResourceRequest]) (*connect.Response[v1.SendResourceResponse], error)
+	// SendResourceBatch pushes multiple metrics for resources of the same type.
+	SendResourceBatch(context.Context, *connect.Request[v1.SendResourceBatchRequest]) (*connect.Response[v1.SendResourceBatchResponse], error)
 }
 
 // NewMetricsCollectorServiceHandler builds an HTTP handler from the service implementation. It
@@ -90,10 +108,17 @@ func NewMetricsCollectorServiceHandler(svc MetricsCollectorServiceHandler, opts 
 		svc.SendResource,
 		opts...,
 	)
+	metricsCollectorServiceSendResourceBatchHandler := connect.NewUnaryHandler(
+		MetricsCollectorServiceSendResourceBatchProcedure,
+		svc.SendResourceBatch,
+		opts...,
+	)
 	return "/api.v1.MetricsCollectorService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case MetricsCollectorServiceSendResourceProcedure:
 			metricsCollectorServiceSendResourceHandler.ServeHTTP(w, r)
+		case MetricsCollectorServiceSendResourceBatchProcedure:
+			metricsCollectorServiceSendResourceBatchHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -105,4 +130,8 @@ type UnimplementedMetricsCollectorServiceHandler struct{}
 
 func (UnimplementedMetricsCollectorServiceHandler) SendResource(context.Context, *connect.Request[v1.SendResourceRequest]) (*connect.Response[v1.SendResourceResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.MetricsCollectorService.SendResource is not implemented"))
+}
+
+func (UnimplementedMetricsCollectorServiceHandler) SendResourceBatch(context.Context, *connect.Request[v1.SendResourceBatchRequest]) (*connect.Response[v1.SendResourceBatchResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.MetricsCollectorService.SendResourceBatch is not implemented"))
 }

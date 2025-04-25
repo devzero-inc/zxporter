@@ -219,7 +219,7 @@ type ResourceCollector interface {
 	Stop() error
 
 	// GetResourceChannel returns a channel for receiving collected resources
-	GetResourceChannel() <-chan CollectedResource
+	GetResourceChannel() <-chan []CollectedResource
 
 	// GetType returns the type of resource this collector handles
 	GetType() string

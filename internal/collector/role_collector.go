@@ -21,7 +21,9 @@ type RoleCollector struct {
 	client          kubernetes.Interface
 	informerFactory informers.SharedInformerFactory
 	roleInformer    cache.SharedIndexInformer
-	resourceChan    chan CollectedResource
+	batchChan       chan CollectedResource   // Channel for individual resources -> input to batcher
+	resourceChan    chan []CollectedResource // Channel for batched resources -> output from batcher
+	batcher         *ResourcesBatcher
 	stopCh          chan struct{}
 	namespaces      []string
 	excludedRoles   map[types.NamespacedName]bool
@@ -40,6 +42,8 @@ func NewRoleCollector(
 	client kubernetes.Interface,
 	namespaces []string,
 	excludedRoles []ExcludedRole,
+	maxBatchSize int,
+	maxBatchTime time.Duration,
 	logger logr.Logger,
 ) *RoleCollector {
 	// Convert excluded Roles to a map for quicker lookups
@@ -51,9 +55,24 @@ func NewRoleCollector(
 		}] = true
 	}
 
+	// Create channels
+	batchChan := make(chan CollectedResource, 100)
+	resourceChan := make(chan []CollectedResource, 100)
+
+	// Create the batcher
+	batcher := NewResourcesBatcher(
+		maxBatchSize,
+		maxBatchTime,
+		batchChan,
+		resourceChan,
+		logger,
+	)
+
 	return &RoleCollector{
 		client:        client,
-		resourceChan:  make(chan CollectedResource, 100),
+		batchChan:     batchChan,
+		resourceChan:  resourceChan,
+		batcher:       batcher,
 		stopCh:        make(chan struct{}),
 		namespaces:    namespaces,
 		excludedRoles: excludedRolesMap,
@@ -115,6 +134,10 @@ func (c *RoleCollector) Start(ctx context.Context) error {
 	}
 	c.logger.Info("Informer caches synced successfully")
 
+	// Start the batcher after the cache is synced
+	c.logger.Info("Starting resources batcher for Roles")
+	c.batcher.start()
+
 	// Keep this goroutine alive until context cancellation or stop
 	stopCh := c.stopCh
 	go func() {
@@ -135,13 +158,13 @@ func (c *RoleCollector) handleRoleEvent(role *rbacv1.Role, eventType string) {
 		return
 	}
 
-	c.logger.V(4).Info("Processing Role event",
+	c.logger.Info("Processing Role event",
 		"namespace", role.Namespace,
 		"name", role.Name,
 		"eventType", eventType)
 
-	// Send the raw Role object directly to the resource channel
-	c.resourceChan <- CollectedResource{
+	// Send the raw Role object to the batch channel
+	c.batchChan <- CollectedResource{
 		ResourceType: Role,
 		Object:       role, // Send the entire Role object as-is
 		Timestamp:    time.Now(),
@@ -206,15 +229,35 @@ func (c *RoleCollector) isExcluded(role *rbacv1.Role) bool {
 // Stop gracefully shuts down the Role collector
 func (c *RoleCollector) Stop() error {
 	c.logger.Info("Stopping Role collector")
-	if c.stopCh != nil {
+
+	// 1. Signal the informer factory to stop by closing stopCh.
+	select {
+	case <-c.stopCh:
+		c.logger.Info("Role collector stop channel already closed")
+	default:
 		close(c.stopCh)
-		c.stopCh = nil
+		c.logger.Info("Closed Role collector stop channel")
 	}
+
+	// 2. Close the batchChan (input to the batcher).
+	if c.batchChan != nil {
+		close(c.batchChan)
+		c.batchChan = nil
+		c.logger.Info("Closed Role collector batch input channel")
+	}
+
+	// 3. Stop the batcher (waits for completion).
+	if c.batcher != nil {
+		c.batcher.stop()
+		c.logger.Info("Role collector batcher stopped")
+	}
+	// resourceChan is closed by the batcher's defer func.
+
 	return nil
 }
 
-// GetResourceChannel returns the channel for collected resources
-func (c *RoleCollector) GetResourceChannel() <-chan CollectedResource {
+// GetResourceChannel returns the channel for collected resource batches
+func (c *RoleCollector) GetResourceChannel() <-chan []CollectedResource {
 	return c.resourceChan
 }
 

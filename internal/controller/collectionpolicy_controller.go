@@ -55,7 +55,7 @@ type CollectionPolicyReconciler struct {
 	DiscoveryClient   *discovery.DiscoveryClient
 	ApiExtensions     *apiextensionsclientset.Clientset
 	CollectionManager *collector.CollectionManager
-	Sender            transport.Sender
+	Sender            transport.DirectSender
 	IsRunning         bool
 	CurrentPolicyHash string
 	CurrentConfig     *PolicyConfig
@@ -733,6 +733,8 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				r.K8sClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedPods,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
 				logger,
 			)
 		case "deployment":
@@ -740,6 +742,8 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				r.K8sClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedDeployments,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
 				logger,
 			)
 		case "stateful_set":
@@ -747,6 +751,8 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				r.K8sClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedStatefulSets,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
 				logger,
 			)
 		case "replica_set":
@@ -754,6 +760,8 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				r.K8sClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedReplicaSet,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
 				logger,
 			)
 		case "daemon_set":
@@ -761,6 +769,8 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				r.K8sClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedDaemonSets,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
 				logger,
 			)
 		case "service":
@@ -768,6 +778,8 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				r.K8sClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedServices,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
 				logger,
 			)
 		case "container_resource":
@@ -782,6 +794,8 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				},
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedPods,
+				collector.DefaultMaxBatchSize,
+				newConfig.UpdateInterval,
 				logger,
 			)
 		case "node":
@@ -795,6 +809,8 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 					DisableNetworkIOMetrics: newConfig.DisableNetworkIOMetrics,
 				},
 				newConfig.ExcludedNodes,
+				collector.DefaultMaxBatchSize,
+				newConfig.UpdateInterval,
 				logger,
 			)
 		case "persistent_volume_claim":
@@ -802,12 +818,16 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				r.K8sClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedPVCs,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
 				logger,
 			)
 		case "persistent_volume":
 			replacedCollector = collector.NewPersistentVolumeCollector(
 				r.K8sClient,
 				newConfig.ExcludedPVs,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
 				logger,
 			)
 		case "event":
@@ -815,8 +835,10 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				r.K8sClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedEvents,
-				10,
-				10*time.Minute,
+				10,             // maxEventsPerType - keeping existing value
+				10*time.Minute, // retentionPeriod - keeping existing value
+				400,
+				collector.DefaultMaxBatchTime,
 				logger,
 			)
 		case "job":
@@ -824,6 +846,8 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				r.K8sClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedJobs,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
 				logger,
 			)
 		case "cron_job":
@@ -831,6 +855,8 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				r.K8sClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedCronJobs,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
 				logger,
 			)
 		case "replication_controller":
@@ -838,6 +864,8 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				r.K8sClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedReplicationControllers,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
 				logger,
 			)
 		case "ingress":
@@ -845,12 +873,16 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				r.K8sClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedIngresses,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
 				logger,
 			)
 		case "ingress_class":
 			replacedCollector = collector.NewIngressClassCollector(
 				r.K8sClient,
 				newConfig.ExcludedIngressClasses,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
 				logger,
 			)
 		case "network_policy":
@@ -858,6 +890,8 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				r.K8sClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedNetworkPolicies,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
 				logger,
 			)
 		case "endpoints":
@@ -865,6 +899,8 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				r.K8sClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedEndpoints,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
 				logger,
 			)
 		case "service_account":
@@ -872,6 +908,8 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				r.K8sClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedServiceAccounts,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
 				logger,
 			)
 		case "limit_range":
@@ -879,6 +917,8 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				r.K8sClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedLimitRanges,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
 				logger,
 			)
 		case "resource_quota":
@@ -886,6 +926,8 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				r.K8sClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedResourceQuotas,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
 				logger,
 			)
 		case "horizontal_pod_autoscaler":
@@ -893,6 +935,8 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				r.K8sClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedHPAs,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
 				logger,
 			)
 		case "vertical_pod_autoscaler":
@@ -900,6 +944,8 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				r.DynamicClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedVPAs,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
 				logger,
 			)
 		case "role":
@@ -907,6 +953,8 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				r.K8sClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedRoles,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
 				logger,
 			)
 		case "role_binding":
@@ -914,18 +962,24 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				r.K8sClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedRoleBindings,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
 				logger,
 			)
 		case "cluster_role":
 			replacedCollector = collector.NewClusterRoleCollector(
 				r.K8sClient,
 				newConfig.ExcludedClusterRoles,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
 				logger,
 			)
 		case "cluster_role_binding":
 			replacedCollector = collector.NewClusterRoleBindingCollector(
 				r.K8sClient,
 				newConfig.ExcludedClusterRoleBindings,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
 				logger,
 			)
 		case "pod_disruption_budget":
@@ -933,23 +987,31 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				r.K8sClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedPDBs,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
 				logger,
 			)
 		case "storage_class":
 			replacedCollector = collector.NewStorageClassCollector(
 				r.K8sClient,
 				newConfig.ExcludedStorageClasses,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
 				logger,
 			)
 		case "csi_node":
 			replacedCollector = collector.NewCSINodeCollector(
 				r.K8sClient,
 				newConfig.ExcludedNodes,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
 				logger,
 			)
 		case "karpenter":
 			replacedCollector = collector.NewKarpenterCollector(
 				r.DynamicClient,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
 				logger,
 			)
 		case "datadog":
@@ -957,6 +1019,8 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				r.DynamicClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedDatadogReplicaSets,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
 				logger,
 			)
 		case "argo_rollouts":
@@ -964,6 +1028,8 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				r.DynamicClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedArgoRollouts,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
 				logger,
 			)
 		default:
@@ -1074,19 +1140,7 @@ func (r *CollectionPolicyReconciler) setupCollectionManager(ctx context.Context,
 		logger.Info("Created simple (logging) Dakr client because no URL was configured")
 	}
 
-	// Create buffered sender with default options
-	senderOptions := transport.DefaultBufferedSenderOptions()
-	if config.BufferSize > 0 {
-		senderOptions.MaxBufferSize = config.BufferSize
-	}
-
-	r.Sender = transport.NewBufferedSender(dakrClient, logger, senderOptions)
-
-	// Start the sender
-	if err := r.Sender.Start(ctx); err != nil {
-		logger.Error(err, "Failed to start sender")
-		return err
-	}
+	r.Sender = transport.NewDirectSender(dakrClient, logger)
 
 	return nil
 }
@@ -1175,7 +1229,7 @@ func (r *CollectionPolicyReconciler) monitorClusterRegistration(
 
 	for {
 		select {
-		case resource, ok := <-resourceChan:
+		case resources, ok := <-resourceChan:
 			if !ok {
 				// Channel closed unexpectedly
 				logger.Error(nil, "Resource channel closed while waiting for cluster data")
@@ -1184,14 +1238,14 @@ func (r *CollectionPolicyReconciler) monitorClusterRegistration(
 			}
 
 			// Only process cluster resources at this stage
-			if resource.ResourceType == collector.Cluster {
+			if len(resources) == 1 && resources[0].ResourceType == collector.Cluster {
 				attemptCount++
 				logger.Info("Received cluster data, sending to Dakr",
-					"key", resource.Key,
+					"key", resources[0].Key,
 					"attempt", attemptCount)
 
 				// Send the cluster data to Dakr
-				_, err := r.Sender.Send(ctx, resource)
+				_, err := r.Sender.Send(ctx, resources[0])
 				if err != nil {
 					logger.Error(err, "Failed to send cluster data to Dakr",
 						"attempt", attemptCount)
@@ -1225,11 +1279,6 @@ func (r *CollectionPolicyReconciler) cleanupOnFailure(logger logr.Logger) {
 	if r.CollectionManager != nil {
 		if err := r.CollectionManager.StopAll(); err != nil {
 			logger.Error(err, "Error stopping collection manager during failure")
-		}
-	}
-	if r.Sender != nil {
-		if err := r.Sender.Stop(); err != nil {
-			logger.Error(err, "Error stopping sender during failure")
 		}
 	}
 
@@ -1298,6 +1347,8 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				r.K8sClient,
 				config.TargetNamespaces,
 				config.ExcludedEndpoints,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
 				logger,
 			),
 			name: collector.Endpoints,
@@ -1307,6 +1358,8 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				r.K8sClient,
 				config.TargetNamespaces,
 				config.ExcludedServiceAccounts,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
 				logger,
 			),
 			name: collector.ServiceAccount,
@@ -1316,6 +1369,8 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				r.K8sClient,
 				config.TargetNamespaces,
 				config.ExcludedLimitRanges,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
 				logger,
 			),
 			name: collector.LimitRange,
@@ -1325,6 +1380,8 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				r.K8sClient,
 				config.TargetNamespaces,
 				config.ExcludedResourceQuotas,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
 				logger,
 			),
 			name: collector.ResourceQuota,
@@ -1333,6 +1390,8 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 			collector: collector.NewPersistentVolumeCollector(
 				r.K8sClient,
 				config.ExcludedPVs,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
 				logger,
 			),
 			name: collector.PersistentVolume,
@@ -1342,6 +1401,8 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				r.K8sClient,
 				config.TargetNamespaces,
 				config.ExcludedPods,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
 				logger,
 			),
 			name: collector.Pod,
@@ -1351,6 +1412,8 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				r.K8sClient,
 				config.TargetNamespaces,
 				config.ExcludedDeployments,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
 				logger,
 			),
 			name: collector.Deployment,
@@ -1360,6 +1423,8 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				r.K8sClient,
 				config.TargetNamespaces,
 				config.ExcludedStatefulSets,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
 				logger,
 			),
 			name: collector.StatefulSet,
@@ -1369,6 +1434,8 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				r.K8sClient,
 				config.TargetNamespaces,
 				config.ExcludedDaemonSets,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
 				logger,
 			),
 			name: collector.DaemonSet,
@@ -1377,6 +1444,8 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 			collector: collector.NewNamespaceCollector(
 				r.K8sClient,
 				config.ExcludedNamespaces,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
 				logger,
 			),
 			name: collector.Namespace,
@@ -1386,6 +1455,8 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				r.K8sClient,
 				config.TargetNamespaces,
 				config.ExcludedReplicationControllers,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
 				logger,
 			),
 			name: collector.ReplicationController,
@@ -1395,6 +1466,8 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				r.K8sClient,
 				config.TargetNamespaces,
 				config.ExcludedIngresses,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
 				logger,
 			),
 			name: collector.Ingress,
@@ -1403,6 +1476,8 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 			collector: collector.NewIngressClassCollector(
 				r.K8sClient,
 				config.ExcludedIngressClasses,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
 				logger,
 			),
 			name: collector.IngressClass,
@@ -1412,6 +1487,8 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				r.K8sClient,
 				config.TargetNamespaces,
 				config.ExcludedPVCs,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
 				logger,
 			),
 			name: collector.PersistentVolumeClaim,
@@ -1423,6 +1500,8 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				config.ExcludedEvents,
 				10,
 				10*time.Minute,
+				400,
+				collector.DefaultMaxBatchTime,
 				logger,
 			),
 			name: collector.Event,
@@ -1432,6 +1511,8 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				r.K8sClient,
 				config.TargetNamespaces,
 				config.ExcludedServices,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
 				logger,
 			),
 			name: collector.Service,
@@ -1441,6 +1522,8 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				r.K8sClient,
 				config.TargetNamespaces,
 				config.ExcludedJobs,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
 				logger,
 			),
 			name: collector.Job,
@@ -1450,6 +1533,8 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				r.K8sClient,
 				config.TargetNamespaces,
 				config.ExcludedNetworkPolicies,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
 				logger,
 			),
 			name: collector.NetworkPolicy,
@@ -1459,6 +1544,8 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				r.K8sClient,
 				config.TargetNamespaces,
 				config.ExcludedCronJobs,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
 				logger,
 			),
 			name: collector.CronJob,
@@ -1475,6 +1562,8 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				},
 				config.TargetNamespaces,
 				config.ExcludedPods,
+				collector.DefaultMaxBatchSize,
+				config.UpdateInterval,
 				logger,
 			),
 			name: collector.ContainerResource,
@@ -1490,6 +1579,8 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 					DisableNetworkIOMetrics: config.DisableNetworkIOMetrics,
 				},
 				config.ExcludedNodes,
+				collector.DefaultMaxBatchSize,
+				config.UpdateInterval,
 				logger,
 			),
 			name: collector.Node,
@@ -1499,6 +1590,8 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				r.K8sClient,
 				config.TargetNamespaces,
 				config.ExcludedRoles,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
 				logger,
 			),
 			name: collector.Role,
@@ -1508,6 +1601,8 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				r.K8sClient,
 				config.TargetNamespaces,
 				config.ExcludedRoleBindings,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
 				logger,
 			),
 			name: collector.RoleBinding,
@@ -1516,6 +1611,8 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 			collector: collector.NewClusterRoleCollector(
 				r.K8sClient,
 				config.ExcludedClusterRoles,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
 				logger,
 			),
 			name: collector.ClusterRole,
@@ -1524,6 +1621,8 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 			collector: collector.NewClusterRoleBindingCollector(
 				r.K8sClient,
 				config.ExcludedClusterRoleBindings,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
 				logger,
 			),
 			name: collector.ClusterRoleBinding,
@@ -1533,6 +1632,8 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				r.K8sClient,
 				config.TargetNamespaces,
 				config.ExcludedHPAs,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
 				logger,
 			),
 			name: collector.HorizontalPodAutoscaler,
@@ -1542,6 +1643,8 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				r.DynamicClient,
 				config.TargetNamespaces,
 				config.ExcludedVPAs,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
 				logger,
 			),
 			name: collector.VerticalPodAutoscaler,
@@ -1551,6 +1654,8 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				r.K8sClient,
 				config.TargetNamespaces,
 				config.ExcludedPDBs,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
 				logger,
 			),
 			name: collector.PodDisruptionBudget,
@@ -1559,6 +1664,8 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 			collector: collector.NewStorageClassCollector(
 				r.K8sClient,
 				config.ExcludedStorageClasses,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
 				logger,
 			),
 			name: collector.StorageClass,
@@ -1568,14 +1675,18 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				r.K8sClient,
 				config.TargetNamespaces,
 				config.ExcludedReplicaSet,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
 				logger,
 			),
-			name: collector.StorageClass,
+			name: collector.ReplicaSet,
 		},
 		{
 			collector: collector.NewCSINodeCollector(
 				r.K8sClient,
 				config.ExcludedCSINodes,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
 				logger,
 			),
 			name: collector.CSINode,
@@ -1583,6 +1694,8 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 		{
 			collector: collector.NewKarpenterCollector(
 				r.DynamicClient,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
 				logger,
 			),
 			name: collector.Karpenter,
@@ -1592,6 +1705,8 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				r.DynamicClient,
 				config.TargetNamespaces,
 				config.ExcludedDatadogReplicaSets,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
 				logger,
 			),
 			name: collector.Datadog,
@@ -1601,6 +1716,8 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				r.DynamicClient,
 				config.TargetNamespaces,
 				config.ExcludedArgoRollouts,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
 				logger,
 			),
 			name: collector.ArgoRollouts,
@@ -1638,23 +1755,24 @@ func (r *CollectionPolicyReconciler) processCollectedResources(ctx context.Conte
 		case <-ctx.Done():
 			logger.Info("Context done, stopping processor")
 			return
-		case resource, ok := <-resourceChan:
+		case resources, ok := <-resourceChan:
 			if !ok {
 				logger.Info("Resource channel closed, stopping processor")
 				return
 			}
 
+			if len(resources) == 0 {
+				logger.Info("Empty list of resources")
+				continue
+			}
+
 			// Send the raw resource directly to Dakr
-			if _, err := r.Sender.Send(ctx, resource); err != nil {
+			if _, err := r.Sender.SendBatch(ctx, resources, resources[0].ResourceType); err != nil {
 				logger.Error(err, "Failed to send resource to Dakr",
-					"resourceType", resource.ResourceType,
-					"eventType", resource.EventType,
-					"key", resource.Key)
+					"resourceType", resources[0].ResourceType)
 			} else {
 				logger.Info("Sent resource to Dakr",
-					"resourceType", resource.ResourceType,
-					"eventType", resource.EventType,
-					"key", resource.Key)
+					"resourceType", resources[0].ResourceType)
 			}
 		}
 	}
@@ -1713,6 +1831,8 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					r.K8sClient,
 					newConfig.TargetNamespaces,
 					newConfig.ExcludedPods,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
 					logger,
 				)
 			case "deployment":
@@ -1720,6 +1840,8 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					r.K8sClient,
 					newConfig.TargetNamespaces,
 					newConfig.ExcludedDeployments,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
 					logger,
 				)
 			case "stateful_set":
@@ -1727,6 +1849,8 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					r.K8sClient,
 					newConfig.TargetNamespaces,
 					newConfig.ExcludedStatefulSets,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
 					logger,
 				)
 			case "replica_set":
@@ -1734,6 +1858,8 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					r.K8sClient,
 					newConfig.TargetNamespaces,
 					newConfig.ExcludedReplicaSet,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
 					logger,
 				)
 			case "daemon_set":
@@ -1741,6 +1867,8 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					r.K8sClient,
 					newConfig.TargetNamespaces,
 					newConfig.ExcludedDaemonSets,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
 					logger,
 				)
 			case "service":
@@ -1748,6 +1876,8 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					r.K8sClient,
 					newConfig.TargetNamespaces,
 					newConfig.ExcludedServices,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
 					logger,
 				)
 			case "container_resource":
@@ -1762,6 +1892,8 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					},
 					newConfig.TargetNamespaces,
 					newConfig.ExcludedPods,
+					collector.DefaultMaxBatchSize,
+					newConfig.UpdateInterval,
 					logger,
 				)
 			case "node":
@@ -1775,6 +1907,8 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 						DisableNetworkIOMetrics: newConfig.DisableNetworkIOMetrics,
 					},
 					newConfig.ExcludedNodes,
+					collector.DefaultMaxBatchSize,
+					newConfig.UpdateInterval,
 					logger,
 				)
 			case "persistent_volume_claim":
@@ -1782,12 +1916,16 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					r.K8sClient,
 					newConfig.TargetNamespaces,
 					newConfig.ExcludedPVCs,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
 					logger,
 				)
 			case "persistent_volume":
 				replacedCollector = collector.NewPersistentVolumeCollector(
 					r.K8sClient,
 					newConfig.ExcludedPVs,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
 					logger,
 				)
 			case "event":
@@ -1797,6 +1935,8 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					newConfig.ExcludedEvents,
 					10,
 					10*time.Minute,
+					400,
+					collector.DefaultMaxBatchTime,
 					logger,
 				)
 			case "job":
@@ -1804,6 +1944,8 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					r.K8sClient,
 					newConfig.TargetNamespaces,
 					newConfig.ExcludedJobs,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
 					logger,
 				)
 			case "cron_job":
@@ -1811,6 +1953,8 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					r.K8sClient,
 					newConfig.TargetNamespaces,
 					newConfig.ExcludedCronJobs,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
 					logger,
 				)
 			case "replication_controller":
@@ -1818,6 +1962,8 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					r.K8sClient,
 					newConfig.TargetNamespaces,
 					newConfig.ExcludedReplicationControllers,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
 					logger,
 				)
 			case "ingress":
@@ -1825,12 +1971,16 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					r.K8sClient,
 					newConfig.TargetNamespaces,
 					newConfig.ExcludedIngresses,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
 					logger,
 				)
 			case "ingress_class":
 				replacedCollector = collector.NewIngressClassCollector(
 					r.K8sClient,
 					newConfig.ExcludedIngressClasses,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
 					logger,
 				)
 			case "network_policy":
@@ -1838,6 +1988,8 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					r.K8sClient,
 					newConfig.TargetNamespaces,
 					newConfig.ExcludedNetworkPolicies,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
 					logger,
 				)
 			case "endpoints":
@@ -1845,6 +1997,8 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					r.K8sClient,
 					newConfig.TargetNamespaces,
 					newConfig.ExcludedEndpoints,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
 					logger,
 				)
 			case "service_account":
@@ -1852,6 +2006,8 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					r.K8sClient,
 					newConfig.TargetNamespaces,
 					newConfig.ExcludedServiceAccounts,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
 					logger,
 				)
 			case "limit_range":
@@ -1859,6 +2015,8 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					r.K8sClient,
 					newConfig.TargetNamespaces,
 					newConfig.ExcludedLimitRanges,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
 					logger,
 				)
 			case "resource_quota":
@@ -1866,6 +2024,8 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					r.K8sClient,
 					newConfig.TargetNamespaces,
 					newConfig.ExcludedResourceQuotas,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
 					logger,
 				)
 			case "horizontal_pod_autoscaler":
@@ -1873,6 +2033,8 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					r.K8sClient,
 					newConfig.TargetNamespaces,
 					newConfig.ExcludedHPAs,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
 					logger,
 				)
 			case "vertical_pod_autoscaler":
@@ -1880,6 +2042,8 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					r.DynamicClient,
 					newConfig.TargetNamespaces,
 					newConfig.ExcludedVPAs,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
 					logger,
 				)
 			case "role":
@@ -1887,6 +2051,8 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					r.K8sClient,
 					newConfig.TargetNamespaces,
 					newConfig.ExcludedRoles,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
 					logger,
 				)
 			case "role_binding":
@@ -1894,18 +2060,24 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					r.K8sClient,
 					newConfig.TargetNamespaces,
 					newConfig.ExcludedRoleBindings,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
 					logger,
 				)
 			case "cluster_role":
 				replacedCollector = collector.NewClusterRoleCollector(
 					r.K8sClient,
 					newConfig.ExcludedClusterRoles,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
 					logger,
 				)
 			case "cluster_role_binding":
 				replacedCollector = collector.NewClusterRoleBindingCollector(
 					r.K8sClient,
 					newConfig.ExcludedClusterRoleBindings,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
 					logger,
 				)
 			case "pod_disruption_budget":
@@ -1913,29 +2085,39 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					r.K8sClient,
 					newConfig.TargetNamespaces,
 					newConfig.ExcludedPDBs,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
 					logger,
 				)
 			case "storage_class":
 				replacedCollector = collector.NewStorageClassCollector(
 					r.K8sClient,
 					newConfig.ExcludedStorageClasses,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
 					logger,
 				)
 			case "namespace":
 				replacedCollector = collector.NewNamespaceCollector(
 					r.K8sClient,
 					newConfig.ExcludedNamespaces,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
 					logger,
 				)
 			case "csi_node":
 				replacedCollector = collector.NewCSINodeCollector(
 					r.K8sClient,
 					newConfig.ExcludedCSINodes,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
 					logger,
 				)
 			case "karpenter":
 				replacedCollector = collector.NewKarpenterCollector(
 					r.DynamicClient,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
 					logger,
 				)
 			case "datadog":
@@ -1943,6 +2125,8 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					r.DynamicClient,
 					newConfig.TargetNamespaces,
 					newConfig.ExcludedDatadogReplicaSets,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
 					logger,
 				)
 			case "argo_rollouts":
@@ -1950,6 +2134,8 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					r.DynamicClient,
 					newConfig.TargetNamespaces,
 					newConfig.ExcludedArgoRollouts,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
 					logger,
 				)
 			default:

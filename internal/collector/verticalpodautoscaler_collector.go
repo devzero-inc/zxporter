@@ -23,7 +23,9 @@ type VerticalPodAutoscalerCollector struct {
 	client          dynamic.Interface
 	informerFactory dynamicinformer.DynamicSharedInformerFactory
 	vpaInformer     cache.SharedIndexInformer
-	resourceChan    chan CollectedResource
+	batchChan       chan CollectedResource   // Channel for individual resources -> input to batcher
+	resourceChan    chan []CollectedResource // Channel for batched resources -> output from batcher
+	batcher         *ResourcesBatcher
 	stopCh          chan struct{}
 	namespaces      []string
 	excludedVPAs    map[types.NamespacedName]bool
@@ -49,6 +51,8 @@ func NewVerticalPodAutoscalerCollector(
 	client dynamic.Interface,
 	namespaces []string,
 	excludedVPAs []ExcludedVPA,
+	maxBatchSize int,
+	maxBatchTime time.Duration,
 	logger logr.Logger,
 ) *VerticalPodAutoscalerCollector {
 	// Convert excluded VPAs to a map for quicker lookups
@@ -60,9 +64,24 @@ func NewVerticalPodAutoscalerCollector(
 		}] = true
 	}
 
+	// Create channels
+	batchChan := make(chan CollectedResource, 100)
+	resourceChan := make(chan []CollectedResource, 100)
+
+	// Create the batcher
+	batcher := NewResourcesBatcher(
+		maxBatchSize,
+		maxBatchTime,
+		batchChan,
+		resourceChan,
+		logger,
+	)
+
 	return &VerticalPodAutoscalerCollector{
 		client:       client,
-		resourceChan: make(chan CollectedResource, 100),
+		batchChan:    batchChan,
+		resourceChan: resourceChan,
+		batcher:      batcher,
 		stopCh:       make(chan struct{}),
 		namespaces:   namespaces,
 		excludedVPAs: excludedVPAsMap,
@@ -125,6 +144,10 @@ func (c *VerticalPodAutoscalerCollector) Start(ctx context.Context) error {
 	}
 	c.logger.Info("Informer caches synced successfully")
 
+	// Start the batcher after the cache is synced
+	c.logger.Info("Starting resources batcher for VPAs")
+	c.batcher.start()
+
 	// Keep this goroutine alive until context cancellation or stop
 	stopCh := c.stopCh
 	go func() {
@@ -148,13 +171,13 @@ func (c *VerticalPodAutoscalerCollector) handleVPAEvent(vpa *unstructured.Unstru
 	namespace := vpa.GetNamespace()
 	name := vpa.GetName()
 
-	c.logger.V(4).Info("Processing VerticalPodAutoscaler event",
+	c.logger.Info("Processing VerticalPodAutoscaler event",
 		"namespace", namespace,
 		"name", name,
 		"eventType", eventType)
 
-	// Send the raw VPA object directly to the resource channel
-	c.resourceChan <- CollectedResource{
+	// Send the raw VPA object to the batch channel
+	c.batchChan <- CollectedResource{
 		ResourceType: VerticalPodAutoscaler,
 		Object:       vpa, // Send the entire VPA object as-is
 		Timestamp:    time.Now(),
@@ -251,15 +274,35 @@ func (c *VerticalPodAutoscalerCollector) isExcluded(vpa *unstructured.Unstructur
 // Stop gracefully shuts down the VPA collector
 func (c *VerticalPodAutoscalerCollector) Stop() error {
 	c.logger.Info("Stopping VerticalPodAutoscaler collector")
-	if c.stopCh != nil {
+
+	// 1. Signal the informer factory to stop by closing stopCh.
+	select {
+	case <-c.stopCh:
+		c.logger.Info("VPA collector stop channel already closed")
+	default:
 		close(c.stopCh)
-		c.stopCh = nil
+		c.logger.Info("Closed VPA collector stop channel")
 	}
+
+	// 2. Close the batchChan (input to the batcher).
+	if c.batchChan != nil {
+		close(c.batchChan)
+		c.batchChan = nil
+		c.logger.Info("Closed VPA collector batch input channel")
+	}
+
+	// 3. Stop the batcher (waits for completion).
+	if c.batcher != nil {
+		c.batcher.stop()
+		c.logger.Info("VPA collector batcher stopped")
+	}
+	// resourceChan is closed by the batcher's defer func.
+
 	return nil
 }
 
-// GetResourceChannel returns the channel for collected resources
-func (c *VerticalPodAutoscalerCollector) GetResourceChannel() <-chan CollectedResource {
+// GetResourceChannel returns the channel for collected resource batches
+func (c *VerticalPodAutoscalerCollector) GetResourceChannel() <-chan []CollectedResource {
 	return c.resourceChan
 }
 

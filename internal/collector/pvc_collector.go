@@ -20,7 +20,9 @@ type PersistentVolumeClaimCollector struct {
 	client          kubernetes.Interface
 	informerFactory informers.SharedInformerFactory
 	pvcInformer     cache.SharedIndexInformer
-	resourceChan    chan CollectedResource
+	batchChan       chan CollectedResource   // Channel for individual resources -> input to batcher
+	resourceChan    chan []CollectedResource // Channel for batched resources -> output from batcher
+	batcher         *ResourcesBatcher
 	stopCh          chan struct{}
 	namespaces      []string
 	excludedPVCs    map[types.NamespacedName]bool
@@ -39,6 +41,8 @@ func NewPersistentVolumeClaimCollector(
 	client kubernetes.Interface,
 	namespaces []string,
 	excludedPVCs []ExcludedPVC,
+	maxBatchSize int,
+	maxBatchTime time.Duration,
 	logger logr.Logger,
 ) *PersistentVolumeClaimCollector {
 	// Convert excluded PVCs to a map for quicker lookups
@@ -50,9 +54,24 @@ func NewPersistentVolumeClaimCollector(
 		}] = true
 	}
 
+	// Create channels
+	batchChan := make(chan CollectedResource, 100)
+	resourceChan := make(chan []CollectedResource, 100)
+
+	// Create the batcher
+	batcher := NewResourcesBatcher(
+		maxBatchSize,
+		maxBatchTime,
+		batchChan,
+		resourceChan,
+		logger,
+	)
+
 	return &PersistentVolumeClaimCollector{
 		client:       client,
-		resourceChan: make(chan CollectedResource, 100),
+		batchChan:    batchChan,
+		resourceChan: resourceChan,
+		batcher:      batcher,
 		stopCh:       make(chan struct{}),
 		namespaces:   namespaces,
 		excludedPVCs: excludedPVCsMap,
@@ -114,6 +133,10 @@ func (c *PersistentVolumeClaimCollector) Start(ctx context.Context) error {
 	}
 	c.logger.Info("Informer caches synced successfully")
 
+	// Start the batcher after the cache is synced
+	c.logger.Info("Starting resources batcher for PVCs")
+	c.batcher.start()
+
 	// Keep this goroutine alive until context cancellation or stop
 	stopCh := c.stopCh
 	go func() {
@@ -139,8 +162,8 @@ func (c *PersistentVolumeClaimCollector) handlePVCEvent(pvc *corev1.PersistentVo
 		"name", pvc.Name,
 		"eventType", eventType)
 
-	// Send the raw PVC object directly to the resource channel
-	c.resourceChan <- CollectedResource{
+	// Send the raw PVC object to the batch channel
+	c.batchChan <- CollectedResource{
 		ResourceType: PersistentVolumeClaim,
 		Object:       pvc, // Send the entire PVC object as-is
 		Timestamp:    time.Now(),
@@ -243,15 +266,35 @@ func (c *PersistentVolumeClaimCollector) isExcluded(pvc *corev1.PersistentVolume
 // Stop gracefully shuts down the PVC collector
 func (c *PersistentVolumeClaimCollector) Stop() error {
 	c.logger.Info("Stopping PVC collector")
-	if c.stopCh != nil {
+
+	// 1. Signal the informer factory to stop by closing stopCh.
+	select {
+	case <-c.stopCh:
+		c.logger.Info("PVC collector stop channel already closed")
+	default:
 		close(c.stopCh)
-		c.stopCh = nil
+		c.logger.Info("Closed PVC collector stop channel")
 	}
+
+	// 2. Close the batchChan (input to the batcher).
+	if c.batchChan != nil {
+		close(c.batchChan)
+		c.batchChan = nil
+		c.logger.Info("Closed PVC collector batch input channel")
+	}
+
+	// 3. Stop the batcher (waits for completion).
+	if c.batcher != nil {
+		c.batcher.stop()
+		c.logger.Info("PVC collector batcher stopped")
+	}
+	// resourceChan is closed by the batcher's defer func.
+
 	return nil
 }
 
-// GetResourceChannel returns the channel for collected resources
-func (c *PersistentVolumeClaimCollector) GetResourceChannel() <-chan CollectedResource {
+// GetResourceChannel returns the channel for collected resource batches
+func (c *PersistentVolumeClaimCollector) GetResourceChannel() <-chan []CollectedResource {
 	return c.resourceChan
 }
 

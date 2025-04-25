@@ -20,7 +20,9 @@ type ReplicationControllerCollector struct {
 	client                         kubernetes.Interface
 	informerFactory                informers.SharedInformerFactory
 	replicationControllerInformer  cache.SharedIndexInformer
-	resourceChan                   chan CollectedResource
+	batchChan                      chan CollectedResource   // Channel for individual resources -> input to batcher
+	resourceChan                   chan []CollectedResource // Channel for batched resources -> output from batcher
+	batcher                        *ResourcesBatcher
 	stopCh                         chan struct{}
 	namespaces                     []string
 	excludedReplicationControllers map[types.NamespacedName]bool
@@ -39,6 +41,8 @@ func NewReplicationControllerCollector(
 	client kubernetes.Interface,
 	namespaces []string,
 	excludedReplicationControllers []ExcludedReplicationController,
+	maxBatchSize int,
+	maxBatchTime time.Duration,
 	logger logr.Logger,
 ) *ReplicationControllerCollector {
 	// Convert excluded replicationcontrollers to a map for quicker lookups
@@ -50,9 +54,24 @@ func NewReplicationControllerCollector(
 		}] = true
 	}
 
+	// Create channels
+	batchChan := make(chan CollectedResource, 100)
+	resourceChan := make(chan []CollectedResource, 100)
+
+	// Create the batcher
+	batcher := NewResourcesBatcher(
+		maxBatchSize,
+		maxBatchTime,
+		batchChan,
+		resourceChan,
+		logger,
+	)
+
 	return &ReplicationControllerCollector{
 		client:                         client,
-		resourceChan:                   make(chan CollectedResource, 100),
+		batchChan:                      batchChan,
+		resourceChan:                   resourceChan,
+		batcher:                        batcher,
 		stopCh:                         make(chan struct{}),
 		namespaces:                     namespaces,
 		excludedReplicationControllers: excludedReplicationControllersMap,
@@ -114,6 +133,10 @@ func (c *ReplicationControllerCollector) Start(ctx context.Context) error {
 	}
 	c.logger.Info("Informer caches synced successfully")
 
+	// Start the batcher after the cache is synced
+	c.logger.Info("Starting resources batcher for ReplicationControllers")
+	c.batcher.start()
+
 	// Keep this goroutine alive until context cancellation or stop
 	stopCh := c.stopCh
 	go func() {
@@ -134,13 +157,13 @@ func (c *ReplicationControllerCollector) handleReplicationControllerEvent(rc *co
 		return
 	}
 
-	c.logger.V(4).Info("Processing replicationcontroller event",
+	c.logger.Info("Processing replicationcontroller event",
 		"namespace", rc.Namespace,
 		"name", rc.Name,
 		"eventType", eventType)
 
-	// Send the raw replicationcontroller object directly to the resource channel
-	c.resourceChan <- CollectedResource{
+	// Send the raw replicationcontroller object to the batch channel
+	c.batchChan <- CollectedResource{
 		ResourceType: ReplicationController,
 		Object:       rc, // Send the entire replicationcontroller object as-is
 		Timestamp:    time.Now(),
@@ -222,15 +245,35 @@ func (c *ReplicationControllerCollector) isExcluded(rc *corev1.ReplicationContro
 // Stop gracefully shuts down the replicationcontroller collector
 func (c *ReplicationControllerCollector) Stop() error {
 	c.logger.Info("Stopping replicationcontroller collector")
-	if c.stopCh != nil {
+
+	// 1. Signal the informer factory to stop by closing stopCh.
+	select {
+	case <-c.stopCh:
+		c.logger.Info("ReplicationController collector stop channel already closed")
+	default:
 		close(c.stopCh)
-		c.stopCh = nil
+		c.logger.Info("Closed replicationcontroller collector stop channel")
 	}
+
+	// 2. Close the batchChan (input to the batcher).
+	if c.batchChan != nil {
+		close(c.batchChan)
+		c.batchChan = nil
+		c.logger.Info("Closed replicationcontroller collector batch input channel")
+	}
+
+	// 3. Stop the batcher (waits for completion).
+	if c.batcher != nil {
+		c.batcher.stop()
+		c.logger.Info("ReplicationController collector batcher stopped")
+	}
+	// resourceChan is closed by the batcher's defer func.
+
 	return nil
 }
 
-// GetResourceChannel returns the channel for collected resources
-func (c *ReplicationControllerCollector) GetResourceChannel() <-chan CollectedResource {
+// GetResourceChannel returns the channel for collected resource batches
+func (c *ReplicationControllerCollector) GetResourceChannel() <-chan []CollectedResource {
 	return c.resourceChan
 }
 

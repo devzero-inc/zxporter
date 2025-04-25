@@ -21,7 +21,9 @@ type ResourceQuotaCollector struct {
 	client                 kubernetes.Interface
 	informerFactory        informers.SharedInformerFactory
 	resourceQuotaInformer  cache.SharedIndexInformer
-	resourceChan           chan CollectedResource
+	batchChan              chan CollectedResource   // Channel for individual resources -> input to batcher
+	resourceChan           chan []CollectedResource // Channel for batched resources -> output from batcher
+	batcher                *ResourcesBatcher
 	stopCh                 chan struct{}
 	namespaces             []string
 	excludedResourceQuotas map[types.NamespacedName]bool
@@ -40,6 +42,8 @@ func NewResourceQuotaCollector(
 	client kubernetes.Interface,
 	namespaces []string,
 	excludedResourceQuotas []ExcludedResourceQuota,
+	maxBatchSize int,
+	maxBatchTime time.Duration,
 	logger logr.Logger,
 ) *ResourceQuotaCollector {
 	// Convert excluded resourcequotas to a map for quicker lookups
@@ -51,9 +55,24 @@ func NewResourceQuotaCollector(
 		}] = true
 	}
 
+	// Create channels
+	batchChan := make(chan CollectedResource, 50) // Keep lower buffer for infrequent ResourceQuotas
+	resourceChan := make(chan []CollectedResource, 50)
+
+	// Create the batcher
+	batcher := NewResourcesBatcher(
+		maxBatchSize,
+		maxBatchTime,
+		batchChan,
+		resourceChan,
+		logger,
+	)
+
 	return &ResourceQuotaCollector{
 		client:                 client,
-		resourceChan:           make(chan CollectedResource, 50), // ResourceQuotas change infrequently
+		batchChan:              batchChan,
+		resourceChan:           resourceChan,
+		batcher:                batcher,
 		stopCh:                 make(chan struct{}),
 		namespaces:             namespaces,
 		excludedResourceQuotas: excludedResourceQuotasMap,
@@ -115,6 +134,10 @@ func (c *ResourceQuotaCollector) Start(ctx context.Context) error {
 	}
 	c.logger.Info("Informer caches synced successfully")
 
+	// Start the batcher after the cache is synced
+	c.logger.Info("Starting resources batcher for ResourceQuotas")
+	c.batcher.start()
+
 	// Keep this goroutine alive until context cancellation or stop
 	stopCh := c.stopCh
 	go func() {
@@ -135,13 +158,13 @@ func (c *ResourceQuotaCollector) handleResourceQuotaEvent(rq *corev1.ResourceQuo
 		return
 	}
 
-	c.logger.V(4).Info("Processing resourcequota event",
+	c.logger.Info("Processing resourcequota event",
 		"namespace", rq.Namespace,
 		"name", rq.Name,
 		"eventType", eventType)
 
-	// Send the raw resourcequota object directly to the resource channel
-	c.resourceChan <- CollectedResource{
+	// Send the raw resourcequota object to the batch channel
+	c.batchChan <- CollectedResource{
 		ResourceType: ResourceQuota,
 		Object:       rq, // Send the entire resourcequota object as-is
 		Timestamp:    time.Now(),
@@ -222,15 +245,35 @@ func (c *ResourceQuotaCollector) isExcluded(rq *corev1.ResourceQuota) bool {
 // Stop gracefully shuts down the resourcequota collector
 func (c *ResourceQuotaCollector) Stop() error {
 	c.logger.Info("Stopping resourcequota collector")
-	if c.stopCh != nil {
+
+	// 1. Signal the informer factory to stop by closing stopCh.
+	select {
+	case <-c.stopCh:
+		c.logger.Info("ResourceQuota collector stop channel already closed")
+	default:
 		close(c.stopCh)
-		c.stopCh = nil
+		c.logger.Info("Closed resourcequota collector stop channel")
 	}
+
+	// 2. Close the batchChan (input to the batcher).
+	if c.batchChan != nil {
+		close(c.batchChan)
+		c.batchChan = nil
+		c.logger.Info("Closed resourcequota collector batch input channel")
+	}
+
+	// 3. Stop the batcher (waits for completion).
+	if c.batcher != nil {
+		c.batcher.stop()
+		c.logger.Info("ResourceQuota collector batcher stopped")
+	}
+	// resourceChan is closed by the batcher's defer func.
+
 	return nil
 }
 
-// GetResourceChannel returns the channel for collected resources
-func (c *ResourceQuotaCollector) GetResourceChannel() <-chan CollectedResource {
+// GetResourceChannel returns the channel for collected resource batches
+func (c *ResourceQuotaCollector) GetResourceChannel() <-chan []CollectedResource {
 	return c.resourceChan
 }
 

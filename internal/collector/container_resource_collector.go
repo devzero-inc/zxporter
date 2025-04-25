@@ -45,7 +45,9 @@ type ContainerResourceCollector struct {
 	prometheusAPI   v1.API
 	informerFactory informers.SharedInformerFactory
 	podInformer     cache.SharedIndexInformer
-	resourceChan    chan CollectedResource
+	batchChan       chan CollectedResource   // Channel for individual resources -> input to batcher
+	resourceChan    chan []CollectedResource // Channel for batched resources -> output from batcher
+	batcher         *ResourcesBatcher
 	stopCh          chan struct{}
 	ticker          *time.Ticker
 	config          ContainerResourceCollectorConfig
@@ -62,6 +64,8 @@ func NewContainerResourceCollector(
 	config ContainerResourceCollectorConfig,
 	namespaces []string,
 	excludedPods []ExcludedPod,
+	maxBatchSize int, // Added parameter
+	maxBatchTime time.Duration, // Added parameter
 	logger logr.Logger,
 ) *ContainerResourceCollector {
 	// Convert excluded pods to a map for quicker lookups
@@ -88,10 +92,25 @@ func NewContainerResourceCollector(
 		config.QueryTimeout = 10 * time.Second
 	}
 
+	// Create channels
+	batchChan := make(chan CollectedResource, 500)      // Keep original buffer size for individual items
+	resourceChan := make(chan []CollectedResource, 200) // Buffer for batches
+
+	// Create the batcher
+	batcher := NewResourcesBatcher(
+		maxBatchSize,
+		maxBatchTime,
+		batchChan,
+		resourceChan,
+		logger,
+	)
+
 	return &ContainerResourceCollector{
 		k8sClient:     k8sClient,
 		metricsClient: metricsClient,
-		resourceChan:  make(chan CollectedResource, 500),
+		batchChan:     batchChan,
+		resourceChan:  resourceChan,
+		batcher:       batcher,
 		stopCh:        make(chan struct{}),
 		config:        config,
 		namespaces:    namespaces,
@@ -153,6 +172,10 @@ func (c *ContainerResourceCollector) Start(ctx context.Context) error {
 		return fmt.Errorf("timed out waiting for pod cache to sync")
 	}
 	c.logger.Info("Informer caches synced successfully")
+
+	// Start the batcher after the cache is synced
+	c.logger.Info("Starting resources batcher for container resources")
+	c.batcher.start()
 
 	// Start a ticker to collect resource metrics at regular intervals
 	c.ticker = time.NewTicker(c.config.UpdateInterval)
@@ -408,8 +431,8 @@ func (c *ContainerResourceCollector) processContainerMetrics(
 		resourceData["fsWrites"] = ioMetrics["FSWrites"]
 	}
 
-	// Send the resource usage data to the channel
-	c.resourceChan <- CollectedResource{
+	// Send the resource usage data to the batch channel
+	c.batchChan <- CollectedResource{
 		ResourceType: ContainerResource,
 		Object:       resourceData,
 		Timestamp:    time.Now(),
@@ -545,19 +568,40 @@ func (c *ContainerResourceCollector) isExcluded(namespace, name string) bool {
 func (c *ContainerResourceCollector) Stop() error {
 	c.logger.Info("Stopping container resource collector")
 
+	// 1. Stop the ticker
 	if c.ticker != nil {
 		c.ticker.Stop()
+		c.logger.Info("Stopped container resource collector ticker")
 	}
 
-	if c.stopCh != nil {
+	// 2. Signal the informer factory and collection loop to stop by closing stopCh.
+	select {
+	case <-c.stopCh:
+		c.logger.Info("Container resource collector stop channel already closed")
+	default:
 		close(c.stopCh)
-		c.stopCh = nil
+		c.logger.Info("Closed container resource collector stop channel")
 	}
+
+	// 3. Close the batchChan (input to the batcher).
+	if c.batchChan != nil {
+		close(c.batchChan)
+		c.batchChan = nil
+		c.logger.Info("Closed container resource collector batch input channel")
+	}
+
+	// 4. Stop the batcher (waits for completion).
+	if c.batcher != nil {
+		c.batcher.stop()
+		c.logger.Info("Container resource collector batcher stopped")
+	}
+	// resourceChan is closed by the batcher's defer func.
+
 	return nil
 }
 
-// GetResourceChannel returns the channel for collected resources
-func (c *ContainerResourceCollector) GetResourceChannel() <-chan CollectedResource {
+// GetResourceChannel returns the channel for collected resource batches
+func (c *ContainerResourceCollector) GetResourceChannel() <-chan []CollectedResource {
 	return c.resourceChan
 }
 

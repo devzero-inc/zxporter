@@ -20,7 +20,9 @@ type ServiceAccountCollector struct {
 	client                  kubernetes.Interface
 	informerFactory         informers.SharedInformerFactory
 	serviceAccountInformer  cache.SharedIndexInformer
-	resourceChan            chan CollectedResource
+	batchChan               chan CollectedResource
+	resourceChan            chan []CollectedResource
+	batcher                 *ResourcesBatcher
 	stopCh                  chan struct{}
 	namespaces              []string
 	excludedServiceAccounts map[types.NamespacedName]bool
@@ -39,6 +41,8 @@ func NewServiceAccountCollector(
 	client kubernetes.Interface,
 	namespaces []string,
 	excludedServiceAccounts []ExcludedServiceAccount,
+	maxBatchSize int, // Added parameter
+	maxBatchTime time.Duration, // Added parameter
 	logger logr.Logger,
 ) *ServiceAccountCollector {
 	// Convert excluded serviceaccounts to a map for quicker lookups
@@ -50,9 +54,26 @@ func NewServiceAccountCollector(
 		}] = true
 	}
 
+	// Create channels
+	// batchChan receives individual events from the informer
+	batchChan := make(chan CollectedResource, 100)
+	// resourceChan receives batches from the ResourcesBatcher
+	resourceChan := make(chan []CollectedResource, 100)
+
+	// Create the batcher, passing through the configurable parameters
+	batcher := NewResourcesBatcher(
+		maxBatchSize, // Use provided parameter
+		maxBatchTime, // Use provided parameter
+		batchChan,
+		resourceChan,
+		logger,
+	)
+
 	return &ServiceAccountCollector{
 		client:                  client,
-		resourceChan:            make(chan CollectedResource, 100),
+		batchChan:               batchChan,
+		resourceChan:            resourceChan,
+		batcher:                 batcher,
 		stopCh:                  make(chan struct{}),
 		namespaces:              namespaces,
 		excludedServiceAccounts: excludedServiceAccountsMap,
@@ -114,6 +135,10 @@ func (c *ServiceAccountCollector) Start(ctx context.Context) error {
 	}
 	c.logger.Info("Informer caches synced successfully")
 
+	// Start the batcher after the cache is synced
+	c.logger.Info("Starting resources batcher for service accounts")
+	c.batcher.start()
+
 	// Keep this goroutine alive until context cancellation or stop
 	stopCh := c.stopCh
 	go func() {
@@ -134,13 +159,13 @@ func (c *ServiceAccountCollector) handleServiceAccountEvent(sa *corev1.ServiceAc
 		return
 	}
 
-	c.logger.V(4).Info("Processing serviceaccount event",
+	c.logger.Info("Processing serviceaccount event",
 		"namespace", sa.Namespace,
 		"name", sa.Name,
 		"eventType", eventType)
 
-	// Send the raw serviceaccount object directly to the resource channel
-	c.resourceChan <- CollectedResource{
+	// Send the raw serviceaccount object to the batch channel
+	c.batchChan <- CollectedResource{
 		ResourceType: ServiceAccount,
 		Object:       sa, // Send the entire serviceaccount object as-is
 		Timestamp:    time.Now(),
@@ -246,15 +271,39 @@ func (c *ServiceAccountCollector) isExcluded(sa *corev1.ServiceAccount) bool {
 // Stop gracefully shuts down the serviceaccount collector
 func (c *ServiceAccountCollector) Stop() error {
 	c.logger.Info("Stopping serviceaccount collector")
-	if c.stopCh != nil {
+
+	// 1. Signal the informer factory to stop by closing stopCh.
+	// Use a select to prevent double-closing stopCh.
+	select {
+	case <-c.stopCh:
+		// Already closed
+		c.logger.Info("ServiceAccount collector stop channel already closed")
+	default:
 		close(c.stopCh)
-		c.stopCh = nil
+		c.logger.Info("Closed serviceaccount collector stop channel")
+	}
+
+	// 2. Close the batchChan (input to the batcher) to signal no more new items.
+	// Check if it's nil before closing.
+	if c.batchChan != nil {
+		// Assuming batchChan is not closed by others. Add recovery if needed.
+		close(c.batchChan)
+		c.batchChan = nil // Set to nil to prevent further use
+		c.logger.Info("Closed serviceaccount collector batch input channel")
+	}
+
+	// 3. Stop the batcher. This will wait for the batcher's goroutine
+	//    to finish processing remaining items from batchChan. The batcher's
+	//    defer function will close resourceChan upon exiting.
+	if c.batcher != nil {
+		c.batcher.stop() // This blocks until the batcher goroutine exits
+		c.logger.Info("ServiceAccount collector batcher stopped")
 	}
 	return nil
 }
 
-// GetResourceChannel returns the channel for collected resources
-func (c *ServiceAccountCollector) GetResourceChannel() <-chan CollectedResource {
+// GetResourceChannel returns the channel for collected resource batches
+func (c *ServiceAccountCollector) GetResourceChannel() <-chan []CollectedResource {
 	return c.resourceChan
 }
 
