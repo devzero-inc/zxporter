@@ -34,7 +34,7 @@ spec:
       name: "dcgm-exporter"
     spec:
       containers:
-      - image: "remontada007/dcgm-exporter:3.3.9-3.6.1-ubuntu22.04"
+      - image: "nvidia/dcgm-exporter:3.3.9-3.6.1-ubuntu22.04"
         env:
         - name: "DCGM_EXPORTER_LISTEN"
           value: ":9400"

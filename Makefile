@@ -71,6 +71,10 @@ PROMETHEUS_CHART_VERSION ?= 25.8.0
 DEVZERO_MONITORING_NAMESPACE ?= devzero-zxporter
 NODE_EXPORTER_CHART_VERSION ?= 4.24.0
 METRICS_SERVER_CHART_VERSION ?= 3.12.0
+GPU_OPERATOR_CHART_VERSION ?= 25.3.0  # Use appropriate version
+GPU_OPERATOR_NAMESPACE ?= $(DEVZERO_MONITORING_NAMESPACE)
+DIST_GPU_OPERATOR_BUNDLE ?= $(DIST_DIR)/gpu-operator.yaml
+DIST_DCGM_SERVICEMONITOR ?= $(DIST_DIR)/dcgm-servicemonitor.yaml
 
 # DIST_INSTALL_BUNDLE is the final complete manifest
 DIST_DIR ?= dist
@@ -391,6 +395,8 @@ deploy-env-configmap: build-env-configmap
 undeploy-monitoring: ## Undeploy monitoring components.
 	$(KUBECTL) delete --ignore-not-found=$(ignore-not-found) -f $(DIST_NODE_EXPORTER_BUNDLE) || true
 	$(KUBECTL) delete --ignore-not-found=$(ignore-not-found) -f $(DIST_PROMETHEUS_BUNDLE) || true
+	$(KUBECTL) delete --ignore-not-found=$(ignore-not-found) -f $(DIST_DCGM_SERVICEMONITOR) || true
+	$(KUBECTL) delete --ignore-not-found=$(ignore-not-found) -f $(DIST_GPU_OPERATOR_BUNDLE) || true
 
 .PHONY: undeploy
 undeploy: kustomize undeploy-monitoring ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.

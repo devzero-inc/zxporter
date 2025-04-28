@@ -509,6 +509,12 @@ spec:
                   dakrURL:
                     description: DakrURL is the URL of the Dakr service
                     type: string
+                  disableGpuMetrics:
+                    description: |-
+                      DisableGpuMetrics disables collection of GPU metrics from Prometheus
+                      These metrics include GPU utilization, memory usage, and temperature
+                      Default is false, meaning metrics are collected by default
+                    type: boolean
                   disableNetworkIOMetrics:
                     description: |-
                       DisableNetworkIOMetrics disables collection of container network and I/O metrics from Prometheus

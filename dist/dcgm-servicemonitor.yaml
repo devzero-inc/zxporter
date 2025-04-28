@@ -1,0 +1,20 @@
+# ----- START DCGM SERVICEMONITOR -----
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: nvidia-dcgm-exporter
+  namespace: devzero-zxporter
+  labels:
+    release: kind-prometheus
+spec:
+  selector:
+    matchLabels:
+      app: nvidia-dcgm-exporter
+  namespaceSelector:
+    matchNames:
+      - devzero-zxporter
+  endpoints:
+    - port: gpu-metrics
+      interval: 15s
+---
+# ----- END DCGM SERVICEMONITOR -----
