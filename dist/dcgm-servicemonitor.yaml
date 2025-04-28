@@ -5,7 +5,7 @@ metadata:
   name: nvidia-dcgm-exporter
   namespace: devzero-zxporter
   labels:
-    release: kind-prometheus
+    release: prometheus
 spec:
   selector:
     matchLabels:
