@@ -1168,7 +1168,7 @@ func (r *CollectionPolicyReconciler) setupClusterCollector(ctx context.Context, 
 		r.K8sClient,
 		metricsClient,
 		detectedProvider,
-		30*time.Second, // Regular interval is 30 minutes
+		30*time.Minute,
 		logger,
 	)
 
