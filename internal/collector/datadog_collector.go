@@ -128,7 +128,7 @@ func (c *DatadogCollector) Start(ctx context.Context) error {
 				c.logger.Error(nil, "Failed to convert object to unstructured")
 				return
 			}
-			c.handleReplicaSetEvent(u, "add")
+			c.handleReplicaSetEvent(u, EventTypeAdd)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			_, ok := oldObj.(*unstructured.Unstructured)
@@ -143,7 +143,7 @@ func (c *DatadogCollector) Start(ctx context.Context) error {
 				return
 			}
 
-			c.handleReplicaSetEvent(newU, "update")
+			c.handleReplicaSetEvent(newU, EventTypeUpdate)
 		},
 		DeleteFunc: func(obj interface{}) {
 			u, ok := obj.(*unstructured.Unstructured)
@@ -151,14 +151,14 @@ func (c *DatadogCollector) Start(ctx context.Context) error {
 				// Try to handle DeletedFinalStateUnknown
 				if tombstone, ok := obj.(cache.DeletedFinalStateUnknown); ok {
 					if u, ok = tombstone.Obj.(*unstructured.Unstructured); ok {
-						c.handleReplicaSetEvent(u, "delete")
+						c.handleReplicaSetEvent(u, EventTypeDelete)
 						return
 					}
 				}
 				c.logger.Error(nil, "Failed to convert deleted object")
 				return
 			}
-			c.handleReplicaSetEvent(u, "delete")
+			c.handleReplicaSetEvent(u, EventTypeDelete)
 		},
 	})
 	if err != nil {
@@ -202,7 +202,7 @@ func (c *DatadogCollector) Start(ctx context.Context) error {
 }
 
 // handleReplicaSetEvent processes DataDog ExtendedDaemonSetReplicaSet events
-func (c *DatadogCollector) handleReplicaSetEvent(obj *unstructured.Unstructured, eventType string) {
+func (c *DatadogCollector) handleReplicaSetEvent(obj *unstructured.Unstructured, eventType EventType) {
 	name := obj.GetName()
 	namespace := obj.GetNamespace()
 
@@ -214,7 +214,7 @@ func (c *DatadogCollector) handleReplicaSetEvent(obj *unstructured.Unstructured,
 	c.logger.Info("Processing ExtendedDaemonSetReplicaSet event",
 		"name", name,
 		"namespace", namespace,
-		"eventType", eventType)
+		"eventType", eventType.String())
 
 	// Create a resource key
 	key := fmt.Sprintf("%s/%s", namespace, name)

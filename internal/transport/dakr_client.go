@@ -76,7 +76,7 @@ func (c *RealDakrClient) SendResource(ctx context.Context, resource collector.Co
 		ResourceType: resource.ResourceType.ProtoType(),
 		Key:          resource.Key,
 		Timestamp:    timestamppb.New(resource.Timestamp),
-		EventType:    resource.EventType,
+		EventType:    resource.EventType.ProtoType(),
 		Data:         dataStruct,
 	}
 
@@ -137,7 +137,7 @@ func (c *RealDakrClient) SendResourceBatch(ctx context.Context, resources []coll
 		item := &gen.ResourceItem{
 			Key:          resource.Key,
 			Timestamp:    timestamppb.New(resource.Timestamp),
-			EventType:    resource.EventType,
+			EventType:    resource.EventType.ProtoType(),
 			Data:         dataStruct,
 			ResourceType: resource.ResourceType.ProtoType(), // Add ResourceType here
 		}

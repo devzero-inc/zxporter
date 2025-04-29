@@ -81,7 +81,7 @@ func (c *ClusterRoleCollector) Start(ctx context.Context) error {
 	_, err := c.clusterRoleInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			role := obj.(*rbacv1.ClusterRole)
-			c.handleClusterRoleEvent(role, "add")
+			c.handleClusterRoleEvent(role, EventTypeAdd)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			oldRole := oldObj.(*rbacv1.ClusterRole)
@@ -89,12 +89,12 @@ func (c *ClusterRoleCollector) Start(ctx context.Context) error {
 
 			// Only handle meaningful updates
 			if c.clusterRoleChanged(oldRole, newRole) {
-				c.handleClusterRoleEvent(newRole, "update")
+				c.handleClusterRoleEvent(newRole, EventTypeUpdate)
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
 			role := obj.(*rbacv1.ClusterRole)
-			c.handleClusterRoleEvent(role, "delete")
+			c.handleClusterRoleEvent(role, EventTypeDelete)
 		},
 	})
 	if err != nil {
@@ -130,14 +130,14 @@ func (c *ClusterRoleCollector) Start(ctx context.Context) error {
 }
 
 // handleClusterRoleEvent processes ClusterRole events
-func (c *ClusterRoleCollector) handleClusterRoleEvent(role *rbacv1.ClusterRole, eventType string) {
+func (c *ClusterRoleCollector) handleClusterRoleEvent(role *rbacv1.ClusterRole, eventType EventType) {
 	if c.isExcluded(role) {
 		return
 	}
 
 	c.logger.Info("Processing ClusterRole event",
 		"name", role.Name,
-		"eventType", eventType)
+		"eventType", eventType.String())
 
 	// Send the raw ClusterRole object to the batch channel
 	c.batchChan <- CollectedResource{

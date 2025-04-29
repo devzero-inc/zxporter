@@ -80,7 +80,7 @@ func (c *NamespaceCollector) Start(ctx context.Context) error {
 	_, err := c.namespaceInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			namespace := obj.(*corev1.Namespace)
-			c.handleNamespaceEvent(namespace, "add")
+			c.handleNamespaceEvent(namespace, EventTypeAdd)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			oldNamespace := oldObj.(*corev1.Namespace)
@@ -88,12 +88,12 @@ func (c *NamespaceCollector) Start(ctx context.Context) error {
 
 			// Only handle meaningful updates
 			if c.namespaceChanged(oldNamespace, newNamespace) {
-				c.handleNamespaceEvent(newNamespace, "update")
+				c.handleNamespaceEvent(newNamespace, EventTypeUpdate)
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
 			namespace := obj.(*corev1.Namespace)
-			c.handleNamespaceEvent(namespace, "delete")
+			c.handleNamespaceEvent(namespace, EventTypeDelete)
 		},
 	})
 	if err != nil {
@@ -129,14 +129,14 @@ func (c *NamespaceCollector) Start(ctx context.Context) error {
 }
 
 // handleNamespaceEvent processes namespace events
-func (c *NamespaceCollector) handleNamespaceEvent(namespace *corev1.Namespace, eventType string) {
+func (c *NamespaceCollector) handleNamespaceEvent(namespace *corev1.Namespace, eventType EventType) {
 	if c.isExcluded(namespace) {
 		return
 	}
 
 	c.logger.Info("Processing namespace event",
 		"name", namespace.Name,
-		"eventType", eventType)
+		"eventType", eventType.String())
 
 	// Send the raw namespace object to the batch channel
 	c.batchChan <- CollectedResource{

@@ -103,7 +103,7 @@ func (c *JobCollector) Start(ctx context.Context) error {
 	_, err := c.jobInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			job := obj.(*batchv1.Job)
-			c.handleJobEvent(job, "add")
+			c.handleJobEvent(job, EventTypeAdd)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			oldJob := oldObj.(*batchv1.Job)
@@ -111,12 +111,12 @@ func (c *JobCollector) Start(ctx context.Context) error {
 
 			// Only handle meaningful updates
 			if c.jobChanged(oldJob, newJob) {
-				c.handleJobEvent(newJob, "update")
+				c.handleJobEvent(newJob, EventTypeUpdate)
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
 			job := obj.(*batchv1.Job)
-			c.handleJobEvent(job, "delete")
+			c.handleJobEvent(job, EventTypeDelete)
 		},
 	})
 	if err != nil {
@@ -152,7 +152,7 @@ func (c *JobCollector) Start(ctx context.Context) error {
 }
 
 // handleJobEvent processes job events
-func (c *JobCollector) handleJobEvent(job *batchv1.Job, eventType string) {
+func (c *JobCollector) handleJobEvent(job *batchv1.Job, eventType EventType) {
 	if c.isExcluded(job) {
 		return
 	}
@@ -160,7 +160,7 @@ func (c *JobCollector) handleJobEvent(job *batchv1.Job, eventType string) {
 	c.logger.Info("Processing job event",
 		"namespace", job.Namespace,
 		"name", job.Name,
-		"eventType", eventType)
+		"eventType", eventType.String())
 
 	// Send the raw job object to the batch channel
 	c.batchChan <- CollectedResource{

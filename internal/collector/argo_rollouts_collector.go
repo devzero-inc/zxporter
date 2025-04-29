@@ -128,7 +128,7 @@ func (c *ArgoRolloutsCollector) Start(ctx context.Context) error {
 				c.logger.Error(nil, "Failed to convert object to unstructured")
 				return
 			}
-			c.handleRolloutEvent(u, "add")
+			c.handleRolloutEvent(u, EventTypeAdd)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			_, ok := oldObj.(*unstructured.Unstructured)
@@ -143,7 +143,7 @@ func (c *ArgoRolloutsCollector) Start(ctx context.Context) error {
 				return
 			}
 
-			c.handleRolloutEvent(newU, "update")
+			c.handleRolloutEvent(newU, EventTypeUpdate)
 		},
 		DeleteFunc: func(obj interface{}) {
 			u, ok := obj.(*unstructured.Unstructured)
@@ -151,14 +151,14 @@ func (c *ArgoRolloutsCollector) Start(ctx context.Context) error {
 				// Try to handle DeletedFinalStateUnknown
 				if tombstone, ok := obj.(cache.DeletedFinalStateUnknown); ok {
 					if u, ok = tombstone.Obj.(*unstructured.Unstructured); ok {
-						c.handleRolloutEvent(u, "delete")
+						c.handleRolloutEvent(u, EventTypeDelete)
 						return
 					}
 				}
 				c.logger.Error(nil, "Failed to convert deleted object")
 				return
 			}
-			c.handleRolloutEvent(u, "delete")
+			c.handleRolloutEvent(u, EventTypeDelete)
 		},
 	})
 	if err != nil {
@@ -202,7 +202,7 @@ func (c *ArgoRolloutsCollector) Start(ctx context.Context) error {
 }
 
 // handleRolloutEvent processes Argo Rollout events
-func (c *ArgoRolloutsCollector) handleRolloutEvent(obj *unstructured.Unstructured, eventType string) {
+func (c *ArgoRolloutsCollector) handleRolloutEvent(obj *unstructured.Unstructured, eventType EventType) {
 	name := obj.GetName()
 	namespace := obj.GetNamespace()
 
@@ -214,7 +214,7 @@ func (c *ArgoRolloutsCollector) handleRolloutEvent(obj *unstructured.Unstructure
 	c.logger.Info("Processing Argo Rollout event",
 		"name", name,
 		"namespace", namespace,
-		"eventType", eventType)
+		"eventType", eventType.String())
 
 	// Process the rollout
 	processedObj := c.processRollout(obj)

@@ -104,7 +104,7 @@ func (c *ResourceQuotaCollector) Start(ctx context.Context) error {
 	_, err := c.resourceQuotaInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			rq := obj.(*corev1.ResourceQuota)
-			c.handleResourceQuotaEvent(rq, "add")
+			c.handleResourceQuotaEvent(rq, EventTypeAdd)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			oldRQ := oldObj.(*corev1.ResourceQuota)
@@ -112,12 +112,12 @@ func (c *ResourceQuotaCollector) Start(ctx context.Context) error {
 
 			// Only handle meaningful updates
 			if c.resourceQuotaChanged(oldRQ, newRQ) {
-				c.handleResourceQuotaEvent(newRQ, "update")
+				c.handleResourceQuotaEvent(newRQ, EventTypeUpdate)
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
 			rq := obj.(*corev1.ResourceQuota)
-			c.handleResourceQuotaEvent(rq, "delete")
+			c.handleResourceQuotaEvent(rq, EventTypeDelete)
 		},
 	})
 	if err != nil {
@@ -153,7 +153,7 @@ func (c *ResourceQuotaCollector) Start(ctx context.Context) error {
 }
 
 // handleResourceQuotaEvent processes resourcequota events
-func (c *ResourceQuotaCollector) handleResourceQuotaEvent(rq *corev1.ResourceQuota, eventType string) {
+func (c *ResourceQuotaCollector) handleResourceQuotaEvent(rq *corev1.ResourceQuota, eventType EventType) {
 	if c.isExcluded(rq) {
 		return
 	}
@@ -161,7 +161,7 @@ func (c *ResourceQuotaCollector) handleResourceQuotaEvent(rq *corev1.ResourceQuo
 	c.logger.Info("Processing resourcequota event",
 		"namespace", rq.Namespace,
 		"name", rq.Name,
-		"eventType", eventType)
+		"eventType", eventType.String())
 
 	// Send the raw resourcequota object to the batch channel
 	c.batchChan <- CollectedResource{

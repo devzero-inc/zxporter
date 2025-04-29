@@ -104,7 +104,7 @@ func (c *EndpointCollector) Start(ctx context.Context) error {
 	_, err := c.endpointsInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			endpoints := obj.(*corev1.Endpoints)
-			c.handleEndpointsEvent(endpoints, "add")
+			c.handleEndpointsEvent(endpoints, EventTypeAdd)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			oldEndpoints := oldObj.(*corev1.Endpoints)
@@ -112,12 +112,12 @@ func (c *EndpointCollector) Start(ctx context.Context) error {
 
 			// Only handle meaningful updates
 			if c.endpointsChanged(oldEndpoints, newEndpoints) {
-				c.handleEndpointsEvent(newEndpoints, "update")
+				c.handleEndpointsEvent(newEndpoints, EventTypeUpdate)
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
 			endpoints := obj.(*corev1.Endpoints)
-			c.handleEndpointsEvent(endpoints, "delete")
+			c.handleEndpointsEvent(endpoints, EventTypeDelete)
 		},
 	})
 	if err != nil {
@@ -153,7 +153,7 @@ func (c *EndpointCollector) Start(ctx context.Context) error {
 }
 
 // handleEndpointsEvent processes endpoints events
-func (c *EndpointCollector) handleEndpointsEvent(endpoints *corev1.Endpoints, eventType string) {
+func (c *EndpointCollector) handleEndpointsEvent(endpoints *corev1.Endpoints, eventType EventType) {
 	if c.isExcluded(endpoints) {
 		return
 	}
@@ -161,7 +161,7 @@ func (c *EndpointCollector) handleEndpointsEvent(endpoints *corev1.Endpoints, ev
 	c.logger.Info("Processing endpoints event",
 		"namespace", endpoints.Namespace,
 		"name", endpoints.Name,
-		"eventType", eventType)
+		"eventType", eventType.String())
 
 	// Send the raw endpoints object to the batch channel
 	c.batchChan <- CollectedResource{

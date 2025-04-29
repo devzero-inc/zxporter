@@ -81,7 +81,7 @@ func (c *StorageClassCollector) Start(ctx context.Context) error {
 	_, err := c.storageClassInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			sc := obj.(*storagev1.StorageClass)
-			c.handleStorageClassEvent(sc, "add")
+			c.handleStorageClassEvent(sc, EventTypeAdd)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			oldSC := oldObj.(*storagev1.StorageClass)
@@ -89,12 +89,12 @@ func (c *StorageClassCollector) Start(ctx context.Context) error {
 
 			// Only handle meaningful updates
 			if c.storageClassChanged(oldSC, newSC) {
-				c.handleStorageClassEvent(newSC, "update")
+				c.handleStorageClassEvent(newSC, EventTypeUpdate)
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
 			sc := obj.(*storagev1.StorageClass)
-			c.handleStorageClassEvent(sc, "delete")
+			c.handleStorageClassEvent(sc, EventTypeDelete)
 		},
 	})
 	if err != nil {
@@ -130,14 +130,14 @@ func (c *StorageClassCollector) Start(ctx context.Context) error {
 }
 
 // handleStorageClassEvent processes StorageClass events
-func (c *StorageClassCollector) handleStorageClassEvent(sc *storagev1.StorageClass, eventType string) {
+func (c *StorageClassCollector) handleStorageClassEvent(sc *storagev1.StorageClass, eventType EventType) {
 	if c.isExcluded(sc) {
 		return
 	}
 
 	c.logger.Info("Processing StorageClass event",
 		"name", sc.Name,
-		"eventType", eventType,
+		"eventType", eventType.String(),
 		"provisioner", sc.Provisioner)
 
 	// Send the raw StorageClass object to the batch channel

@@ -103,7 +103,7 @@ func (c *DaemonSetCollector) Start(ctx context.Context) error {
 	_, err := c.daemonSetInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			daemonset := obj.(*appsv1.DaemonSet)
-			c.handleDaemonSetEvent(daemonset, "add")
+			c.handleDaemonSetEvent(daemonset, EventTypeAdd)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			oldDaemonSet := oldObj.(*appsv1.DaemonSet)
@@ -111,12 +111,12 @@ func (c *DaemonSetCollector) Start(ctx context.Context) error {
 
 			// Only handle meaningful updates
 			if c.daemonSetChanged(oldDaemonSet, newDaemonSet) {
-				c.handleDaemonSetEvent(newDaemonSet, "update")
+				c.handleDaemonSetEvent(newDaemonSet, EventTypeUpdate)
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
 			daemonset := obj.(*appsv1.DaemonSet)
-			c.handleDaemonSetEvent(daemonset, "delete")
+			c.handleDaemonSetEvent(daemonset, EventTypeDelete)
 		},
 	})
 	if err != nil {
@@ -152,7 +152,7 @@ func (c *DaemonSetCollector) Start(ctx context.Context) error {
 }
 
 // handleDaemonSetEvent processes daemonset events
-func (c *DaemonSetCollector) handleDaemonSetEvent(daemonset *appsv1.DaemonSet, eventType string) {
+func (c *DaemonSetCollector) handleDaemonSetEvent(daemonset *appsv1.DaemonSet, eventType EventType) {
 	if c.isExcluded(daemonset) {
 		return
 	}
@@ -160,7 +160,7 @@ func (c *DaemonSetCollector) handleDaemonSetEvent(daemonset *appsv1.DaemonSet, e
 	c.logger.Info("Processing daemonset event",
 		"namespace", daemonset.Namespace,
 		"name", daemonset.Name,
-		"eventType", eventType)
+		"eventType", eventType.String())
 
 	// Send the raw daemonset object to the batch channel
 	c.batchChan <- CollectedResource{

@@ -103,7 +103,7 @@ func (c *PodCollector) Start(ctx context.Context) error {
 	_, err := c.podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			pod := obj.(*corev1.Pod)
-			c.handlePodEvent(pod, "add")
+			c.handlePodEvent(pod, EventTypeAdd)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			oldPod := oldObj.(*corev1.Pod)
@@ -112,7 +112,7 @@ func (c *PodCollector) Start(ctx context.Context) error {
 		},
 		DeleteFunc: func(obj interface{}) {
 			pod := obj.(*corev1.Pod)
-			c.handlePodEvent(pod, "delete")
+			c.handlePodEvent(pod, EventTypeDelete)
 		},
 	})
 	if err != nil {
@@ -148,7 +148,7 @@ func (c *PodCollector) Start(ctx context.Context) error {
 }
 
 // handlePodEvent processes pod add and delete events
-func (c *PodCollector) handlePodEvent(pod *corev1.Pod, eventType string) {
+func (c *PodCollector) handlePodEvent(pod *corev1.Pod, eventType EventType) {
 	if c.isExcluded(pod) {
 		return
 	}
@@ -156,7 +156,7 @@ func (c *PodCollector) handlePodEvent(pod *corev1.Pod, eventType string) {
 	c.logger.Info("Processing pod event",
 		"namespace", pod.Namespace,
 		"name", pod.Name,
-		"eventType", eventType)
+		"eventType", eventType.String())
 
 	// Send the raw pod object to the batch channel
 	c.batchChan <- CollectedResource{
@@ -175,7 +175,7 @@ func (c *PodCollector) handlePodUpdate(oldPod, newPod *corev1.Pod) {
 	}
 
 	// Send the basic pod update
-	c.handlePodEvent(newPod, "update")
+	c.handlePodEvent(newPod, EventTypeUpdate)
 
 	// Check for container events like OOMKilled
 	c.checkForContainerEvents(oldPod, newPod)
@@ -201,35 +201,35 @@ func (c *PodCollector) checkForContainerEvents(oldPod, newPod *corev1.Pod) {
 
 		// Check for container start
 		if (!exists || oldStatus.State.Running == nil) && newStatus.State.Running != nil {
-			c.sendContainerEvent(newPod, newStatus.Name, "containerStarted", &newStatus)
+			c.sendContainerEvent(newPod, newStatus.Name, EventTypeContainerStarted, &newStatus)
 		}
 
 		// Check for container stop
 		if (exists && oldStatus.State.Running != nil) && newStatus.State.Running == nil {
-			c.sendContainerEvent(newPod, newStatus.Name, "containerStopped", &newStatus)
+			c.sendContainerEvent(newPod, newStatus.Name, EventTypeContainerStopped, &newStatus)
 		}
 
 		// Check for container restart
 		if exists && newStatus.RestartCount > oldStatus.RestartCount {
-			reason := "containerRestarted"
+			// reason := "containerRestarted"
 
 			// Check if the restart was due to OOM
 			if newStatus.LastTerminationState.Terminated != nil &&
 				newStatus.LastTerminationState.Terminated.Reason == "OOMKilled" {
-				reason = "containerOOMKilled"
+				// reason = "containerOOMKilled"
 				c.logger.Info("Container OOM killed",
 					"namespace", newPod.Namespace,
 					"pod", newPod.Name,
 					"container", newStatus.Name)
 			}
 
-			c.sendContainerEvent(newPod, newStatus.Name, reason, &newStatus)
+			c.sendContainerEvent(newPod, newStatus.Name, EventTypeContainerRestarted, &newStatus)
 		}
 	}
 }
 
 // sendContainerEvent sends a container-specific event
-func (c *PodCollector) sendContainerEvent(pod *corev1.Pod, containerName, eventType string, status *corev1.ContainerStatus) {
+func (c *PodCollector) sendContainerEvent(pod *corev1.Pod, containerName string, eventType EventType, status *corev1.ContainerStatus) {
 	containerKey := fmt.Sprintf("%s/%s/%s", pod.Namespace, pod.Name, containerName)
 
 	// Send the container event to the batch channel

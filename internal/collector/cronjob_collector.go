@@ -105,7 +105,7 @@ func (c *CronJobCollector) Start(ctx context.Context) error {
 	_, err := c.cronJobInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			cronJob := obj.(*batchv1.CronJob)
-			c.handleCronJobEvent(cronJob, "add")
+			c.handleCronJobEvent(cronJob, EventTypeAdd)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			oldCronJob := oldObj.(*batchv1.CronJob)
@@ -113,12 +113,12 @@ func (c *CronJobCollector) Start(ctx context.Context) error {
 
 			// Only handle meaningful updates
 			if c.cronJobChanged(oldCronJob, newCronJob) {
-				c.handleCronJobEvent(newCronJob, "update")
+				c.handleCronJobEvent(newCronJob, EventTypeUpdate)
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
 			cronJob := obj.(*batchv1.CronJob)
-			c.handleCronJobEvent(cronJob, "delete")
+			c.handleCronJobEvent(cronJob, EventTypeDelete)
 		},
 	})
 	if err != nil {
@@ -154,7 +154,7 @@ func (c *CronJobCollector) Start(ctx context.Context) error {
 }
 
 // handleCronJobEvent processes cronjob events
-func (c *CronJobCollector) handleCronJobEvent(cronJob *batchv1.CronJob, eventType string) {
+func (c *CronJobCollector) handleCronJobEvent(cronJob *batchv1.CronJob, eventType EventType) {
 	if c.isExcluded(cronJob) {
 		return
 	}
@@ -162,7 +162,7 @@ func (c *CronJobCollector) handleCronJobEvent(cronJob *batchv1.CronJob, eventTyp
 	c.logger.Info("Processing cronjob event",
 		"namespace", cronJob.Namespace,
 		"name", cronJob.Name,
-		"eventType", eventType,
+		"eventType", eventType.String(),
 		"schedule", cronJob.Spec.Schedule)
 
 	// Send the raw cronjob object to the batch channel

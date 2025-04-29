@@ -80,7 +80,7 @@ func (c *PersistentVolumeCollector) Start(ctx context.Context) error {
 	_, err := c.pvInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			pv := obj.(*corev1.PersistentVolume)
-			c.handlePVEvent(pv, "add")
+			c.handlePVEvent(pv, EventTypeAdd)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			oldPV := oldObj.(*corev1.PersistentVolume)
@@ -88,12 +88,12 @@ func (c *PersistentVolumeCollector) Start(ctx context.Context) error {
 
 			// Only handle meaningful updates
 			if c.pvChanged(oldPV, newPV) {
-				c.handlePVEvent(newPV, "update")
+				c.handlePVEvent(newPV, EventTypeUpdate)
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
 			pv := obj.(*corev1.PersistentVolume)
-			c.handlePVEvent(pv, "delete")
+			c.handlePVEvent(pv, EventTypeDelete)
 		},
 	})
 	if err != nil {
@@ -129,14 +129,14 @@ func (c *PersistentVolumeCollector) Start(ctx context.Context) error {
 }
 
 // handlePVEvent processes PV events
-func (c *PersistentVolumeCollector) handlePVEvent(pv *corev1.PersistentVolume, eventType string) {
+func (c *PersistentVolumeCollector) handlePVEvent(pv *corev1.PersistentVolume, eventType EventType) {
 	if c.isExcluded(pv) {
 		return
 	}
 
 	c.logger.Info("Processing PersistentVolume event",
 		"name", pv.Name,
-		"eventType", eventType,
+		"eventType", eventType.String(),
 		"phase", pv.Status.Phase)
 
 	// Send the raw PV object to the batch channel

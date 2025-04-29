@@ -5,7 +5,7 @@ metadata:
   namespace: system
 data:
   CLUSTER_TOKEN: "{{ .cluster_token }}"
-  DAKR_URL: "https://api.devzero.io/dakr"
+  DAKR_URL: "http://host.docker.internal:9990"
   PROMETHEUS_URL: "http://prometheus-server.devzero-zxporter.svc.cluster.local:80"
   K8S_PROVIDER: "{{ .k8s_provider }}"
   COLLECTION_FREQUENCY: ""

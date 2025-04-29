@@ -114,7 +114,7 @@ func (c *VerticalPodAutoscalerCollector) Start(ctx context.Context) error {
 	_, err := c.vpaInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			vpa := obj.(*unstructured.Unstructured)
-			c.handleVPAEvent(vpa, "add")
+			c.handleVPAEvent(vpa, EventTypeAdd)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			oldVPA := oldObj.(*unstructured.Unstructured)
@@ -122,12 +122,12 @@ func (c *VerticalPodAutoscalerCollector) Start(ctx context.Context) error {
 
 			// Only handle meaningful updates
 			if c.vpaChanged(oldVPA, newVPA) {
-				c.handleVPAEvent(newVPA, "update")
+				c.handleVPAEvent(newVPA, EventTypeUpdate)
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
 			vpa := obj.(*unstructured.Unstructured)
-			c.handleVPAEvent(vpa, "delete")
+			c.handleVPAEvent(vpa, EventTypeDelete)
 		},
 	})
 	if err != nil {
@@ -163,7 +163,7 @@ func (c *VerticalPodAutoscalerCollector) Start(ctx context.Context) error {
 }
 
 // handleVPAEvent processes VPA events
-func (c *VerticalPodAutoscalerCollector) handleVPAEvent(vpa *unstructured.Unstructured, eventType string) {
+func (c *VerticalPodAutoscalerCollector) handleVPAEvent(vpa *unstructured.Unstructured, eventType EventType) {
 	if c.isExcluded(vpa) {
 		return
 	}
@@ -174,7 +174,7 @@ func (c *VerticalPodAutoscalerCollector) handleVPAEvent(vpa *unstructured.Unstru
 	c.logger.Info("Processing VerticalPodAutoscaler event",
 		"namespace", namespace,
 		"name", name,
-		"eventType", eventType)
+		"eventType", eventType.String())
 
 	// Send the raw VPA object to the batch channel
 	c.batchChan <- CollectedResource{

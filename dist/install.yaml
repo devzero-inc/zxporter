@@ -1903,7 +1903,7 @@ data:
   BUFFER_SIZE: ""
   CLUSTER_TOKEN: '{{ .cluster_token }}'
   COLLECTION_FREQUENCY: ""
-  DAKR_URL: https://api.devzero.io/dakr
+  DAKR_URL: http://host.docker.internal:9990
   DISABLE_NETWORK_IO_METRICS: ""
   DISABLED_COLLECTORS: ""
   EXCLUDED_CLUSTERROLEBINDINGS: ""
@@ -1994,7 +1994,7 @@ spec:
         - --health-probe-bind-address=:8081
         command:
         - /manager
-        image: ttl.sh/zxporter:latest
+        image: zvonimirtomesic/zxporter:v11-local
         livenessProbe:
           httpGet:
             path: /healthz

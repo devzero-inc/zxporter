@@ -104,7 +104,7 @@ func (c *RoleBindingCollector) Start(ctx context.Context) error {
 	_, err := c.roleBindingInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			rb := obj.(*rbacv1.RoleBinding)
-			c.handleRoleBindingEvent(rb, "add")
+			c.handleRoleBindingEvent(rb, EventTypeAdd)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			oldRB := oldObj.(*rbacv1.RoleBinding)
@@ -112,12 +112,12 @@ func (c *RoleBindingCollector) Start(ctx context.Context) error {
 
 			// Only handle meaningful updates
 			if c.roleBindingChanged(oldRB, newRB) {
-				c.handleRoleBindingEvent(newRB, "update")
+				c.handleRoleBindingEvent(newRB, EventTypeUpdate)
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
 			rb := obj.(*rbacv1.RoleBinding)
-			c.handleRoleBindingEvent(rb, "delete")
+			c.handleRoleBindingEvent(rb, EventTypeDelete)
 		},
 	})
 	if err != nil {
@@ -153,7 +153,7 @@ func (c *RoleBindingCollector) Start(ctx context.Context) error {
 }
 
 // handleRoleBindingEvent processes RoleBinding events
-func (c *RoleBindingCollector) handleRoleBindingEvent(rb *rbacv1.RoleBinding, eventType string) {
+func (c *RoleBindingCollector) handleRoleBindingEvent(rb *rbacv1.RoleBinding, eventType EventType) {
 	if c.isExcluded(rb) {
 		return
 	}
@@ -161,7 +161,7 @@ func (c *RoleBindingCollector) handleRoleBindingEvent(rb *rbacv1.RoleBinding, ev
 	c.logger.Info("Processing RoleBinding event",
 		"namespace", rb.Namespace,
 		"name", rb.Name,
-		"eventType", eventType)
+		"eventType", eventType.String())
 
 	// Send the raw RoleBinding object to the batch channel
 	c.batchChan <- CollectedResource{

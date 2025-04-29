@@ -8,8 +8,125 @@ import (
 	gen "github.com/devzero-inc/zxporter/gen/api/v1"
 )
 
+// ResourceType represents the type of a resource
+type EventType int
+
+const (
+	// EventTypeUnknown represents an unknown event type
+	EventTypeUnknown EventType = iota
+	// EventTypeAdd represents an added resource
+	EventTypeAdd
+	// EventTypeUpdate represents an updated resource
+	EventTypeUpdate
+	// EventTypeDelete represents a deleted resource
+	EventTypeDelete
+	// EventTypeMetadata represents a metadata resource
+	EventTypeMetadata
+	// EventTypeMetrics represents a metrics resource
+	EventTypeMetrics
+	// EventTypeContainerStarted represents a container started event
+	EventTypeContainerStarted
+	// EventTypeContainerStopped represents a container stopped event
+	EventTypeContainerStopped
+	// EventTypeContainerRestarted represents a container restarted event
+	EventTypeContainerRestarted
+)
+
+// String returns the string representation of the EventType
+func (e EventType) String() string {
+	names := map[EventType]string{
+		EventTypeUnknown:            "unknown",
+		EventTypeAdd:                "add",
+		EventTypeUpdate:             "update",
+		EventTypeDelete:             "delete",
+		EventTypeMetadata:           "metadata",
+		EventTypeMetrics:            "metrics",
+		EventTypeContainerStarted:   "container_started",
+		EventTypeContainerStopped:   "container_stopped",
+		EventTypeContainerRestarted: "container_restarted",
+	}
+
+	if name, ok := names[e]; ok {
+		return name
+	}
+	return "unknown"
+}
+
+// ProtoType returns the string representation of the EventType for the protobuf
+func (e EventType) ProtoType() gen.EventType {
+	switch e {
+	case EventTypeUnknown:
+		return gen.EventType_EVENT_TYPE_UNSPECIFIED
+	case EventTypeAdd:
+		return gen.EventType_EVENT_TYPE_ADD
+	case EventTypeUpdate:
+		return gen.EventType_EVENT_TYPE_UPDATE
+	case EventTypeDelete:
+		return gen.EventType_EVENT_TYPE_DELETE
+	case EventTypeMetadata:
+		return gen.EventType_EVENT_TYPE_METADATA
+	case EventTypeMetrics:
+		return gen.EventType_EVENT_TYPE_METRICS
+	case EventTypeContainerStarted:
+		return gen.EventType_EVENT_TYPE_CONTAINER_STARTED
+	case EventTypeContainerStopped:
+		return gen.EventType_EVENT_TYPE_CONTAINER_STOPPED
+	case EventTypeContainerRestarted:
+		return gen.EventType_EVENT_TYPE_CONTAINER_RESTARTED
+	default:
+		return gen.EventType_EVENT_TYPE_UNSPECIFIED
+	}
+}
+
 // ResourceType is a type for the type of resource being collected
 type ResourceType int
+
+// enum for resource type
+const (
+	Unknown ResourceType = iota
+	Cluster
+	Node
+	Pod
+	Namespace
+	Event
+	Endpoints
+	ServiceAccount
+	LimitRange
+	ResourceQuota
+	Deployment
+	StatefulSet
+	DaemonSet
+	ReplicaSet
+	ReplicationController
+	Job
+	CronJob
+	PersistentVolumeClaim
+	PersistentVolume
+	StorageClass
+	Service
+	Ingress
+	IngressClass
+	NetworkPolicy
+	Role
+	RoleBinding
+	ClusterRole
+	ClusterRoleBinding
+	HorizontalPodAutoscaler
+	VerticalPodAutoscaler
+	PodDisruptionBudget
+	PodSecurityPolicy
+	CustomResourceDefinition // leaving here to not screw up enum numbering
+	CustomResource           // leaving here to not screw up enum numbering
+	ConfigMap                // leaving here to not screw up enum numbering
+	Secret                   // leaving here to not screw up enum numbering
+	Container                // leaving here to not screw up enum numbering
+	NodeResource
+	ContainerResource
+	CSINode
+	Karpenter
+	Datadog
+	ArgoRollouts
+)
 
 // String returns the string representation of the ResourceType
 func (r ResourceType) String() string {
@@ -144,53 +261,6 @@ func (r ResourceType) ProtoType() gen.ResourceType {
 	}
 }
 
-// enum for resource type
-const (
-	Unknown ResourceType = iota
-	Cluster
-	Node
-	Pod
-	Namespace
-	Event
-	Endpoints
-	ServiceAccount
-	LimitRange
-	ResourceQuota
-	Deployment
-	StatefulSet
-	DaemonSet
-	ReplicaSet
-	ReplicationController
-	Job
-	CronJob
-	PersistentVolumeClaim
-	PersistentVolume
-	StorageClass
-	Service
-	Ingress
-	IngressClass
-	NetworkPolicy
-	Role
-	RoleBinding
-	ClusterRole
-	ClusterRoleBinding
-	HorizontalPodAutoscaler
-	VerticalPodAutoscaler
-	PodDisruptionBudget
-	PodSecurityPolicy
-	CustomResourceDefinition // leaving here to not screw up enum numbering
-	CustomResource           // leaving here to not screw up enum numbering
-	ConfigMap                // leaving here to not screw up enum numbering
-	Secret                   // leaving here to not screw up enum numbering
-	Container                // leaving here to not screw up enum numbering
-	NodeResource
-	ContainerResource
-	CSINode
-	Karpenter
-	Datadog
-	ArgoRollouts
-)
-
 // CollectedResource represents a resource collected from the Kubernetes API
 type CollectedResource struct {
 	// ResourceType is the type of resource (pod, container, node, etc.)
@@ -204,7 +274,7 @@ type CollectedResource struct {
 	Timestamp time.Time
 
 	// EventType indicates whether this is an add, update, or delete event
-	EventType string
+	EventType EventType
 
 	// Key is a unique identifier for this resource
 	Key string

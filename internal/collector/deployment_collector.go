@@ -103,7 +103,7 @@ func (c *DeploymentCollector) Start(ctx context.Context) error {
 	_, err := c.deploymentInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			deployment := obj.(*appsv1.Deployment)
-			c.handleDeploymentEvent(deployment, "add")
+			c.handleDeploymentEvent(deployment, EventTypeAdd)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			oldDeployment := oldObj.(*appsv1.Deployment)
@@ -111,12 +111,12 @@ func (c *DeploymentCollector) Start(ctx context.Context) error {
 
 			// Only handle meaningful updates
 			if c.deploymentChanged(oldDeployment, newDeployment) {
-				c.handleDeploymentEvent(newDeployment, "update")
+				c.handleDeploymentEvent(newDeployment, EventTypeUpdate)
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
 			deployment := obj.(*appsv1.Deployment)
-			c.handleDeploymentEvent(deployment, "delete")
+			c.handleDeploymentEvent(deployment, EventTypeDelete)
 		},
 	})
 	if err != nil {
@@ -152,7 +152,7 @@ func (c *DeploymentCollector) Start(ctx context.Context) error {
 }
 
 // handleDeploymentEvent processes deployment events
-func (c *DeploymentCollector) handleDeploymentEvent(deployment *appsv1.Deployment, eventType string) {
+func (c *DeploymentCollector) handleDeploymentEvent(deployment *appsv1.Deployment, eventType EventType) {
 	if c.isExcluded(deployment) {
 		return
 	}
@@ -160,7 +160,7 @@ func (c *DeploymentCollector) handleDeploymentEvent(deployment *appsv1.Deploymen
 	c.logger.Info("Processing deployment event",
 		"namespace", deployment.Namespace,
 		"name", deployment.Name,
-		"eventType", eventType)
+		"eventType", eventType.String())
 
 	// Send the raw deployment object to the batch channel
 	c.batchChan <- CollectedResource{

@@ -103,7 +103,7 @@ func (c *ServiceCollector) Start(ctx context.Context) error {
 	_, err := c.serviceInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			service := obj.(*corev1.Service)
-			c.handleServiceEvent(service, "add")
+			c.handleServiceEvent(service, EventTypeAdd)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			oldService := oldObj.(*corev1.Service)
@@ -111,12 +111,12 @@ func (c *ServiceCollector) Start(ctx context.Context) error {
 
 			// Only handle meaningful updates
 			if c.serviceChanged(oldService, newService) {
-				c.handleServiceEvent(newService, "update")
+				c.handleServiceEvent(newService, EventTypeUpdate)
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
 			service := obj.(*corev1.Service)
-			c.handleServiceEvent(service, "delete")
+			c.handleServiceEvent(service, EventTypeDelete)
 		},
 	})
 	if err != nil {
@@ -152,7 +152,7 @@ func (c *ServiceCollector) Start(ctx context.Context) error {
 }
 
 // handleServiceEvent processes service events
-func (c *ServiceCollector) handleServiceEvent(service *corev1.Service, eventType string) {
+func (c *ServiceCollector) handleServiceEvent(service *corev1.Service, eventType EventType) {
 	if c.isExcluded(service) {
 		return
 	}
@@ -160,7 +160,7 @@ func (c *ServiceCollector) handleServiceEvent(service *corev1.Service, eventType
 	c.logger.Info("Processing service event",
 		"namespace", service.Namespace,
 		"name", service.Name,
-		"eventType", eventType)
+		"eventType", eventType.String())
 
 	// Send the raw service object to the batch channel
 	c.batchChan <- CollectedResource{
