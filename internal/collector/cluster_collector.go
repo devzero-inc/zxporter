@@ -173,7 +173,7 @@ func (c *ClusterCollector) collectClusterData(ctx context.Context) error {
 		ResourceType: Cluster,
 		Object:       clusterData,
 		Timestamp:    time.Now(),
-		EventType:    "metadata",
+		EventType:    EventTypeMetadata,
 		Key:          fmt.Sprintf("%s", providerData["cluster_name"]),
 	}}
 

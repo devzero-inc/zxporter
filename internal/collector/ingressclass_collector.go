@@ -82,7 +82,7 @@ func (c *IngressClassCollector) Start(ctx context.Context) error {
 	_, err := c.ingressClassInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			ingressClass := obj.(*networkingv1.IngressClass)
-			c.handleIngressClassEvent(ingressClass, "add")
+			c.handleIngressClassEvent(ingressClass, EventTypeAdd)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			oldIngressClass := oldObj.(*networkingv1.IngressClass)
@@ -90,12 +90,12 @@ func (c *IngressClassCollector) Start(ctx context.Context) error {
 
 			// Only handle meaningful updates
 			if c.ingressClassChanged(oldIngressClass, newIngressClass) {
-				c.handleIngressClassEvent(newIngressClass, "update")
+				c.handleIngressClassEvent(newIngressClass, EventTypeUpdate)
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
 			ingressClass := obj.(*networkingv1.IngressClass)
-			c.handleIngressClassEvent(ingressClass, "delete")
+			c.handleIngressClassEvent(ingressClass, EventTypeDelete)
 		},
 	})
 	if err != nil {
@@ -131,14 +131,14 @@ func (c *IngressClassCollector) Start(ctx context.Context) error {
 }
 
 // handleIngressClassEvent processes IngressClass events
-func (c *IngressClassCollector) handleIngressClassEvent(ingressClass *networkingv1.IngressClass, eventType string) {
+func (c *IngressClassCollector) handleIngressClassEvent(ingressClass *networkingv1.IngressClass, eventType EventType) {
 	if c.isExcluded(ingressClass) {
 		return
 	}
 
 	c.logger.Info("Processing IngressClass event",
 		"name", ingressClass.Name,
-		"eventType", eventType,
+		"eventType", eventType.String(),
 		"controller", ingressClass.Spec.Controller)
 
 	// Send the raw IngressClass object to the batch channel

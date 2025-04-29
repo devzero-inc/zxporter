@@ -105,7 +105,7 @@ func (c *IngressCollector) Start(ctx context.Context) error {
 	_, err := c.ingressInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			ingress := obj.(*networkingv1.Ingress)
-			c.handleIngressEvent(ingress, "add")
+			c.handleIngressEvent(ingress, EventTypeAdd)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			oldIngress := oldObj.(*networkingv1.Ingress)
@@ -113,12 +113,12 @@ func (c *IngressCollector) Start(ctx context.Context) error {
 
 			// Only handle meaningful updates
 			if c.ingressChanged(oldIngress, newIngress) {
-				c.handleIngressEvent(newIngress, "update")
+				c.handleIngressEvent(newIngress, EventTypeUpdate)
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
 			ingress := obj.(*networkingv1.Ingress)
-			c.handleIngressEvent(ingress, "delete")
+			c.handleIngressEvent(ingress, EventTypeDelete)
 		},
 	})
 	if err != nil {
@@ -154,7 +154,7 @@ func (c *IngressCollector) Start(ctx context.Context) error {
 }
 
 // handleIngressEvent processes ingress events
-func (c *IngressCollector) handleIngressEvent(ingress *networkingv1.Ingress, eventType string) {
+func (c *IngressCollector) handleIngressEvent(ingress *networkingv1.Ingress, eventType EventType) {
 	if c.isExcluded(ingress) {
 		return
 	}
@@ -162,7 +162,7 @@ func (c *IngressCollector) handleIngressEvent(ingress *networkingv1.Ingress, eve
 	c.logger.Info("Processing ingress event",
 		"namespace", ingress.Namespace,
 		"name", ingress.Name,
-		"eventType", eventType)
+		"eventType", eventType.String())
 
 	// Send the raw ingress object to the batch channel
 	c.batchChan <- CollectedResource{

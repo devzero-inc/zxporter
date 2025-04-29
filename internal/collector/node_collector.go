@@ -184,7 +184,7 @@ func (c *NodeCollector) Start(ctx context.Context) error {
 	_, err := c.nodeInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			node := obj.(*corev1.Node)
-			c.handleNodeEvent(node, "add")
+			c.handleNodeEvent(node, EventTypeAdd)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			oldNode := oldObj.(*corev1.Node)
@@ -192,12 +192,12 @@ func (c *NodeCollector) Start(ctx context.Context) error {
 
 			// Only send updates if there's a meaningful change
 			if c.nodeStatusChanged(oldNode, newNode) {
-				c.handleNodeEvent(newNode, "update")
+				c.handleNodeEvent(newNode, EventTypeUpdate)
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
 			node := obj.(*corev1.Node)
-			c.handleNodeEvent(node, "delete")
+			c.handleNodeEvent(node, EventTypeDelete)
 		},
 	})
 	if err != nil {
@@ -239,14 +239,14 @@ func (c *NodeCollector) Start(ctx context.Context) error {
 }
 
 // handleNodeEvent processes node add, update, and delete events
-func (c *NodeCollector) handleNodeEvent(node *corev1.Node, eventType string) {
+func (c *NodeCollector) handleNodeEvent(node *corev1.Node, eventType EventType) {
 	if c.isExcluded(node.Name) {
 		return
 	}
 
 	c.logger.Info("Processing node event",
 		"name", node.Name,
-		"eventType", eventType)
+		"eventType", eventType.String())
 
 	// Send node events directly to resourceChan as a single-item batch
 	c.resourceChan <- []CollectedResource{
@@ -464,7 +464,7 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 			ResourceType: NodeResource,
 			Object:       resourceData,
 			Timestamp:    time.Now(),
-			EventType:    "metrics",
+			EventType:    EventTypeMetrics,
 			Key:          node.Name,
 		}
 	}

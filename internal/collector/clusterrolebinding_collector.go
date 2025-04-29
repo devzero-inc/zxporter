@@ -81,7 +81,7 @@ func (c *ClusterRoleBindingCollector) Start(ctx context.Context) error {
 	_, err := c.clusterRoleBindingInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			crb := obj.(*rbacv1.ClusterRoleBinding)
-			c.handleClusterRoleBindingEvent(crb, "add")
+			c.handleClusterRoleBindingEvent(crb, EventTypeAdd)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			oldCRB := oldObj.(*rbacv1.ClusterRoleBinding)
@@ -89,12 +89,12 @@ func (c *ClusterRoleBindingCollector) Start(ctx context.Context) error {
 
 			// Only handle meaningful updates
 			if c.clusterRoleBindingChanged(oldCRB, newCRB) {
-				c.handleClusterRoleBindingEvent(newCRB, "update")
+				c.handleClusterRoleBindingEvent(newCRB, EventTypeUpdate)
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
 			crb := obj.(*rbacv1.ClusterRoleBinding)
-			c.handleClusterRoleBindingEvent(crb, "delete")
+			c.handleClusterRoleBindingEvent(crb, EventTypeDelete)
 		},
 	})
 	if err != nil {
@@ -130,14 +130,14 @@ func (c *ClusterRoleBindingCollector) Start(ctx context.Context) error {
 }
 
 // handleClusterRoleBindingEvent processes ClusterRoleBinding events
-func (c *ClusterRoleBindingCollector) handleClusterRoleBindingEvent(crb *rbacv1.ClusterRoleBinding, eventType string) {
+func (c *ClusterRoleBindingCollector) handleClusterRoleBindingEvent(crb *rbacv1.ClusterRoleBinding, eventType EventType) {
 	if c.isExcluded(crb) {
 		return
 	}
 
 	c.logger.Info("Processing ClusterRoleBinding event",
 		"name", crb.Name,
-		"eventType", eventType)
+		"eventType", eventType.String())
 
 	// Send the raw ClusterRoleBinding object to the batch channel
 	c.batchChan <- CollectedResource{

@@ -104,7 +104,7 @@ func (c *RoleCollector) Start(ctx context.Context) error {
 	_, err := c.roleInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			role := obj.(*rbacv1.Role)
-			c.handleRoleEvent(role, "add")
+			c.handleRoleEvent(role, EventTypeAdd)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			oldRole := oldObj.(*rbacv1.Role)
@@ -112,12 +112,12 @@ func (c *RoleCollector) Start(ctx context.Context) error {
 
 			// Only handle meaningful updates
 			if c.roleChanged(oldRole, newRole) {
-				c.handleRoleEvent(newRole, "update")
+				c.handleRoleEvent(newRole, EventTypeUpdate)
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
 			role := obj.(*rbacv1.Role)
-			c.handleRoleEvent(role, "delete")
+			c.handleRoleEvent(role, EventTypeDelete)
 		},
 	})
 	if err != nil {
@@ -153,7 +153,7 @@ func (c *RoleCollector) Start(ctx context.Context) error {
 }
 
 // handleRoleEvent processes Role events
-func (c *RoleCollector) handleRoleEvent(role *rbacv1.Role, eventType string) {
+func (c *RoleCollector) handleRoleEvent(role *rbacv1.Role, eventType EventType) {
 	if c.isExcluded(role) {
 		return
 	}
@@ -161,7 +161,7 @@ func (c *RoleCollector) handleRoleEvent(role *rbacv1.Role, eventType string) {
 	c.logger.Info("Processing Role event",
 		"namespace", role.Namespace,
 		"name", role.Name,
-		"eventType", eventType)
+		"eventType", eventType.String())
 
 	// Send the raw Role object to the batch channel
 	c.batchChan <- CollectedResource{

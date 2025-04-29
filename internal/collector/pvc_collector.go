@@ -103,7 +103,7 @@ func (c *PersistentVolumeClaimCollector) Start(ctx context.Context) error {
 	_, err := c.pvcInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			pvc := obj.(*corev1.PersistentVolumeClaim)
-			c.handlePVCEvent(pvc, "add")
+			c.handlePVCEvent(pvc, EventTypeAdd)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			oldPVC := oldObj.(*corev1.PersistentVolumeClaim)
@@ -111,12 +111,12 @@ func (c *PersistentVolumeClaimCollector) Start(ctx context.Context) error {
 
 			// Only handle meaningful updates
 			if c.pvcChanged(oldPVC, newPVC) {
-				c.handlePVCEvent(newPVC, "update")
+				c.handlePVCEvent(newPVC, EventTypeUpdate)
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
 			pvc := obj.(*corev1.PersistentVolumeClaim)
-			c.handlePVCEvent(pvc, "delete")
+			c.handlePVCEvent(pvc, EventTypeDelete)
 		},
 	})
 	if err != nil {
@@ -152,7 +152,7 @@ func (c *PersistentVolumeClaimCollector) Start(ctx context.Context) error {
 }
 
 // handlePVCEvent processes PVC events
-func (c *PersistentVolumeClaimCollector) handlePVCEvent(pvc *corev1.PersistentVolumeClaim, eventType string) {
+func (c *PersistentVolumeClaimCollector) handlePVCEvent(pvc *corev1.PersistentVolumeClaim, eventType EventType) {
 	if c.isExcluded(pvc) {
 		return
 	}
@@ -160,7 +160,7 @@ func (c *PersistentVolumeClaimCollector) handlePVCEvent(pvc *corev1.PersistentVo
 	c.logger.Info("Processing PVC event",
 		"namespace", pvc.Namespace,
 		"name", pvc.Name,
-		"eventType", eventType)
+		"eventType", eventType.String())
 
 	// Send the raw PVC object to the batch channel
 	c.batchChan <- CollectedResource{

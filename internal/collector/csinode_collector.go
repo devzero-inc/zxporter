@@ -81,16 +81,16 @@ func (c *CSINodeCollector) Start(ctx context.Context) error {
 	_, err := c.csiNodeInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			csiNode := obj.(*storagev1.CSINode)
-			c.handleCSINodeEvent(csiNode, "add")
+			c.handleCSINodeEvent(csiNode, EventTypeAdd)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			// oldCSINode := oldObj.(*storagev1.CSINode)
 			newCSINode := newObj.(*storagev1.CSINode)
-			c.handleCSINodeEvent(newCSINode, "update")
+			c.handleCSINodeEvent(newCSINode, EventTypeUpdate)
 		},
 		DeleteFunc: func(obj interface{}) {
 			csiNode := obj.(*storagev1.CSINode)
-			c.handleCSINodeEvent(csiNode, "delete")
+			c.handleCSINodeEvent(csiNode, EventTypeDelete)
 		},
 	})
 	if err != nil {
@@ -126,14 +126,14 @@ func (c *CSINodeCollector) Start(ctx context.Context) error {
 }
 
 // handleCSINodeEvent processes CSINode add, update, and delete events
-func (c *CSINodeCollector) handleCSINodeEvent(csiNode *storagev1.CSINode, eventType string) {
+func (c *CSINodeCollector) handleCSINodeEvent(csiNode *storagev1.CSINode, eventType EventType) {
 	if c.isExcluded(csiNode) {
 		return
 	}
 
 	c.logger.Info("Processing CSINode event",
 		"name", csiNode.Name,
-		"eventType", eventType)
+		"eventType", eventType.String())
 
 	// Convert the drivers to a more digestible format
 	drivers := make([]map[string]interface{}, 0, len(csiNode.Spec.Drivers))
@@ -188,7 +188,7 @@ func (c *CSINodeCollector) handleCSINodeEvent(csiNode *storagev1.CSINode, eventT
 func (c *CSINodeCollector) sendCSIDriverEvent(
 	csiNode *storagev1.CSINode,
 	driver storagev1.CSINodeDriver,
-	eventType string,
+	eventType EventType,
 ) {
 	driverInfo := map[string]interface{}{
 		"node":          csiNode.Name,
@@ -225,7 +225,7 @@ func (c *CSINodeCollector) sendCSIDriverRemovedEvent(csiNode *storagev1.CSINode,
 		ResourceType: CSINode,
 		Object:       driverInfo,
 		Timestamp:    time.Now(),
-		EventType:    "driver_removed",
+		EventType:    EventTypeDelete,
 		Key:          fmt.Sprintf("%s/%s", csiNode.Name, driverName),
 	}
 }

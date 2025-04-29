@@ -106,7 +106,7 @@ func (c *HorizontalPodAutoscalerCollector) Start(ctx context.Context) error {
 	_, err := c.horizontalPodAutoscalerInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			hpa := obj.(*autoscalingv2.HorizontalPodAutoscaler)
-			c.handleHPAEvent(hpa, "add")
+			c.handleHPAEvent(hpa, EventTypeAdd)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			oldHPA := oldObj.(*autoscalingv2.HorizontalPodAutoscaler)
@@ -114,12 +114,12 @@ func (c *HorizontalPodAutoscalerCollector) Start(ctx context.Context) error {
 
 			// Only handle meaningful updates
 			if c.hpaChanged(oldHPA, newHPA) {
-				c.handleHPAEvent(newHPA, "update")
+				c.handleHPAEvent(newHPA, EventTypeUpdate)
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
 			hpa := obj.(*autoscalingv2.HorizontalPodAutoscaler)
-			c.handleHPAEvent(hpa, "delete")
+			c.handleHPAEvent(hpa, EventTypeDelete)
 		},
 	})
 	if err != nil {
@@ -155,7 +155,7 @@ func (c *HorizontalPodAutoscalerCollector) Start(ctx context.Context) error {
 }
 
 // handleHPAEvent processes HPA events
-func (c *HorizontalPodAutoscalerCollector) handleHPAEvent(hpa *autoscalingv2.HorizontalPodAutoscaler, eventType string) {
+func (c *HorizontalPodAutoscalerCollector) handleHPAEvent(hpa *autoscalingv2.HorizontalPodAutoscaler, eventType EventType) {
 	if c.isExcluded(hpa) {
 		return
 	}
@@ -163,7 +163,7 @@ func (c *HorizontalPodAutoscalerCollector) handleHPAEvent(hpa *autoscalingv2.Hor
 	c.logger.Info("Processing HorizontalPodAutoscaler event",
 		"namespace", hpa.Namespace,
 		"name", hpa.Name,
-		"eventType", eventType)
+		"eventType", eventType.String())
 
 	// Send the raw HPA object to the batch channel
 	c.batchChan <- CollectedResource{

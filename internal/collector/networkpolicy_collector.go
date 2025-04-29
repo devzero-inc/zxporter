@@ -106,7 +106,7 @@ func (c *NetworkPolicyCollector) Start(ctx context.Context) error {
 	_, err := c.networkPolicyInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			networkPolicy := obj.(*networkingv1.NetworkPolicy)
-			c.handleNetworkPolicyEvent(networkPolicy, "add")
+			c.handleNetworkPolicyEvent(networkPolicy, EventTypeAdd)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			oldNetworkPolicy := oldObj.(*networkingv1.NetworkPolicy)
@@ -114,12 +114,12 @@ func (c *NetworkPolicyCollector) Start(ctx context.Context) error {
 
 			// Only handle meaningful updates
 			if c.networkPolicyChanged(oldNetworkPolicy, newNetworkPolicy) {
-				c.handleNetworkPolicyEvent(newNetworkPolicy, "update")
+				c.handleNetworkPolicyEvent(newNetworkPolicy, EventTypeUpdate)
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
 			networkPolicy := obj.(*networkingv1.NetworkPolicy)
-			c.handleNetworkPolicyEvent(networkPolicy, "delete")
+			c.handleNetworkPolicyEvent(networkPolicy, EventTypeDelete)
 		},
 	})
 	if err != nil {
@@ -155,7 +155,7 @@ func (c *NetworkPolicyCollector) Start(ctx context.Context) error {
 }
 
 // handleNetworkPolicyEvent processes networkpolicy events
-func (c *NetworkPolicyCollector) handleNetworkPolicyEvent(networkPolicy *networkingv1.NetworkPolicy, eventType string) {
+func (c *NetworkPolicyCollector) handleNetworkPolicyEvent(networkPolicy *networkingv1.NetworkPolicy, eventType EventType) {
 	if c.isExcluded(networkPolicy) {
 		return
 	}
@@ -163,7 +163,7 @@ func (c *NetworkPolicyCollector) handleNetworkPolicyEvent(networkPolicy *network
 	c.logger.Info("Processing networkpolicy event",
 		"namespace", networkPolicy.Namespace,
 		"name", networkPolicy.Name,
-		"eventType", eventType)
+		"eventType", eventType.String())
 
 	// Send the raw networkpolicy object to the batch channel
 	c.batchChan <- CollectedResource{

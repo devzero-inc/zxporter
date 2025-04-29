@@ -104,7 +104,7 @@ func (c *PodDisruptionBudgetCollector) Start(ctx context.Context) error {
 	_, err := c.pdbInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			pdb := obj.(*policyv1.PodDisruptionBudget)
-			c.handlePDBEvent(pdb, "add")
+			c.handlePDBEvent(pdb, EventTypeAdd)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			oldPDB := oldObj.(*policyv1.PodDisruptionBudget)
@@ -112,12 +112,12 @@ func (c *PodDisruptionBudgetCollector) Start(ctx context.Context) error {
 
 			// Only handle meaningful updates
 			if c.pdbChanged(oldPDB, newPDB) {
-				c.handlePDBEvent(newPDB, "update")
+				c.handlePDBEvent(newPDB, EventTypeUpdate)
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
 			pdb := obj.(*policyv1.PodDisruptionBudget)
-			c.handlePDBEvent(pdb, "delete")
+			c.handlePDBEvent(pdb, EventTypeDelete)
 		},
 	})
 	if err != nil {
@@ -153,7 +153,7 @@ func (c *PodDisruptionBudgetCollector) Start(ctx context.Context) error {
 }
 
 // handlePDBEvent processes PDB events
-func (c *PodDisruptionBudgetCollector) handlePDBEvent(pdb *policyv1.PodDisruptionBudget, eventType string) {
+func (c *PodDisruptionBudgetCollector) handlePDBEvent(pdb *policyv1.PodDisruptionBudget, eventType EventType) {
 	if c.isExcluded(pdb) {
 		return
 	}
@@ -161,7 +161,7 @@ func (c *PodDisruptionBudgetCollector) handlePDBEvent(pdb *policyv1.PodDisruptio
 	c.logger.Info("Processing PodDisruptionBudget event",
 		"namespace", pdb.Namespace,
 		"name", pdb.Name,
-		"eventType", eventType)
+		"eventType", eventType.String())
 
 	// Send the raw PDB object to the batch channel
 	c.batchChan <- CollectedResource{

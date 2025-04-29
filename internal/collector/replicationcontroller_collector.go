@@ -103,7 +103,7 @@ func (c *ReplicationControllerCollector) Start(ctx context.Context) error {
 	_, err := c.replicationControllerInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			rc := obj.(*corev1.ReplicationController)
-			c.handleReplicationControllerEvent(rc, "add")
+			c.handleReplicationControllerEvent(rc, EventTypeAdd)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			oldRC := oldObj.(*corev1.ReplicationController)
@@ -111,12 +111,12 @@ func (c *ReplicationControllerCollector) Start(ctx context.Context) error {
 
 			// Only handle meaningful updates
 			if c.replicationControllerChanged(oldRC, newRC) {
-				c.handleReplicationControllerEvent(newRC, "update")
+				c.handleReplicationControllerEvent(newRC, EventTypeUpdate)
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
 			rc := obj.(*corev1.ReplicationController)
-			c.handleReplicationControllerEvent(rc, "delete")
+			c.handleReplicationControllerEvent(rc, EventTypeDelete)
 		},
 	})
 	if err != nil {
@@ -152,7 +152,7 @@ func (c *ReplicationControllerCollector) Start(ctx context.Context) error {
 }
 
 // handleReplicationControllerEvent processes replicationcontroller events
-func (c *ReplicationControllerCollector) handleReplicationControllerEvent(rc *corev1.ReplicationController, eventType string) {
+func (c *ReplicationControllerCollector) handleReplicationControllerEvent(rc *corev1.ReplicationController, eventType EventType) {
 	if c.isExcluded(rc) {
 		return
 	}
@@ -160,7 +160,7 @@ func (c *ReplicationControllerCollector) handleReplicationControllerEvent(rc *co
 	c.logger.Info("Processing replicationcontroller event",
 		"namespace", rc.Namespace,
 		"name", rc.Name,
-		"eventType", eventType)
+		"eventType", eventType.String())
 
 	// Send the raw replicationcontroller object to the batch channel
 	c.batchChan <- CollectedResource{

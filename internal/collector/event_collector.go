@@ -123,7 +123,7 @@ func (c *EventCollector) Start(ctx context.Context) error {
 	_, err := c.eventInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			event := obj.(*corev1.Event)
-			c.handleEvent(event, "add")
+			c.handleEvent(event, EventTypeAdd)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			oldEvent := oldObj.(*corev1.Event)
@@ -131,12 +131,12 @@ func (c *EventCollector) Start(ctx context.Context) error {
 
 			// Only handle meaningful updates
 			if c.eventChanged(oldEvent, newEvent) {
-				c.handleEvent(newEvent, "update")
+				c.handleEvent(newEvent, EventTypeUpdate)
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
 			event := obj.(*corev1.Event)
-			c.handleEvent(event, "delete")
+			c.handleEvent(event, EventTypeDelete)
 		},
 	})
 	if err != nil {
@@ -175,7 +175,7 @@ func (c *EventCollector) Start(ctx context.Context) error {
 }
 
 // handleEvent processes event events
-func (c *EventCollector) handleEvent(event *corev1.Event, eventType string) {
+func (c *EventCollector) handleEvent(event *corev1.Event, eventType EventType) {
 	if c.isExcluded(event) {
 		return
 	}
@@ -186,7 +186,7 @@ func (c *EventCollector) handleEvent(event *corev1.Event, eventType string) {
 	// Check if we've hit the limit for this event type
 	c.mu.Lock()
 	count := c.eventCounts[typeKey]
-	if count >= c.maxEventsPerType && eventType == "add" {
+	if count >= c.maxEventsPerType && eventType == EventTypeAdd {
 		c.mu.Unlock()
 		c.logger.V(5).Info("Skipping event due to per-type limit",
 			"namespace", event.Namespace,
@@ -203,7 +203,7 @@ func (c *EventCollector) handleEvent(event *corev1.Event, eventType string) {
 		"namespace", event.Namespace,
 		"name", event.Name,
 		"reason", event.Reason,
-		"eventType", eventType)
+		"eventType", eventType.String())
 
 	// Send the raw event object to the batch channel
 	c.batchChan <- CollectedResource{

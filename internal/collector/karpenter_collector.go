@@ -187,7 +187,7 @@ func (c *KarpenterCollector) startResourceInformer(ctx context.Context, res Karp
 				c.logger.Error(nil, "Failed to convert object to unstructured", "resource", resKey)
 				return
 			}
-			c.handleKarpenterResourceEvent(u, res, "add")
+			c.handleKarpenterResourceEvent(u, res, EventTypeAdd)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			_, ok := oldObj.(*unstructured.Unstructured)
@@ -202,7 +202,7 @@ func (c *KarpenterCollector) startResourceInformer(ctx context.Context, res Karp
 				return
 			}
 
-			c.handleKarpenterResourceEvent(newU, res, "update")
+			c.handleKarpenterResourceEvent(newU, res, EventTypeUpdate)
 		},
 		DeleteFunc: func(obj interface{}) {
 			u, ok := obj.(*unstructured.Unstructured)
@@ -210,14 +210,14 @@ func (c *KarpenterCollector) startResourceInformer(ctx context.Context, res Karp
 				// Try to handle DeletedFinalStateUnknown
 				if tombstone, ok := obj.(cache.DeletedFinalStateUnknown); ok {
 					if u, ok = tombstone.Obj.(*unstructured.Unstructured); ok {
-						c.handleKarpenterResourceEvent(u, res, "delete")
+						c.handleKarpenterResourceEvent(u, res, EventTypeDelete)
 						return
 					}
 				}
 				c.logger.Error(nil, "Failed to convert deleted object", "resource", resKey)
 				return
 			}
-			c.handleKarpenterResourceEvent(u, res, "delete")
+			c.handleKarpenterResourceEvent(u, res, EventTypeDelete)
 		},
 	})
 	if err != nil {
@@ -254,7 +254,7 @@ func (c *KarpenterCollector) startResourceInformer(ctx context.Context, res Karp
 func (c *KarpenterCollector) handleKarpenterResourceEvent(
 	obj *unstructured.Unstructured,
 	resource KarpenterResource,
-	eventType string,
+	eventType EventType,
 ) {
 	name := obj.GetName()
 	namespace := obj.GetNamespace()
@@ -278,7 +278,7 @@ func (c *KarpenterCollector) handleKarpenterResourceEvent(
 		"apiVersion", obj.GetAPIVersion(),
 		"name", name,
 		"namespace", namespace,
-		"eventType", eventType)
+		"eventType", eventType.String())
 
 	// Process resource based on its kind
 	var processedObj map[string]interface{}

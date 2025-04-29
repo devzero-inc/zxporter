@@ -104,7 +104,7 @@ func (c *LimitRangeCollector) Start(ctx context.Context) error {
 	_, err := c.limitRangeInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			lr := obj.(*corev1.LimitRange)
-			c.handleLimitRangeEvent(lr, "add")
+			c.handleLimitRangeEvent(lr, EventTypeAdd)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			oldLR := oldObj.(*corev1.LimitRange)
@@ -112,12 +112,12 @@ func (c *LimitRangeCollector) Start(ctx context.Context) error {
 
 			// Only handle meaningful updates
 			if c.limitRangeChanged(oldLR, newLR) {
-				c.handleLimitRangeEvent(newLR, "update")
+				c.handleLimitRangeEvent(newLR, EventTypeUpdate)
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
 			lr := obj.(*corev1.LimitRange)
-			c.handleLimitRangeEvent(lr, "delete")
+			c.handleLimitRangeEvent(lr, EventTypeDelete)
 		},
 	})
 	if err != nil {
@@ -153,7 +153,7 @@ func (c *LimitRangeCollector) Start(ctx context.Context) error {
 }
 
 // handleLimitRangeEvent processes limitrange events
-func (c *LimitRangeCollector) handleLimitRangeEvent(lr *corev1.LimitRange, eventType string) {
+func (c *LimitRangeCollector) handleLimitRangeEvent(lr *corev1.LimitRange, eventType EventType) {
 	if c.isExcluded(lr) {
 		return
 	}
@@ -161,7 +161,7 @@ func (c *LimitRangeCollector) handleLimitRangeEvent(lr *corev1.LimitRange, event
 	c.logger.Info("Processing limitrange event",
 		"namespace", lr.Namespace,
 		"name", lr.Name,
-		"eventType", eventType)
+		"eventType", eventType.String())
 
 	// Send the raw limitrange object to the batch channel
 	c.batchChan <- CollectedResource{

@@ -436,7 +436,7 @@ func (c *ContainerResourceCollector) processContainerMetrics(
 		ResourceType: ContainerResource,
 		Object:       resourceData,
 		Timestamp:    time.Now(),
-		EventType:    "metrics",
+		EventType:    EventTypeMetrics,
 		Key:          containerKey,
 	}
 }

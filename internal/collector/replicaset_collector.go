@@ -105,7 +105,7 @@ func (c *ReplicaSetCollector) Start(ctx context.Context) error {
 	_, err := c.replicaSetInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			replicaset := obj.(*appsv1.ReplicaSet)
-			c.handleReplicaSetEvent(replicaset, "add")
+			c.handleReplicaSetEvent(replicaset, EventTypeAdd)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			oldReplicaSet := oldObj.(*appsv1.ReplicaSet)
@@ -113,12 +113,12 @@ func (c *ReplicaSetCollector) Start(ctx context.Context) error {
 
 			// Only handle meaningful updates
 			if c.replicaSetChanged(oldReplicaSet, newReplicaSet) {
-				c.handleReplicaSetEvent(newReplicaSet, "update")
+				c.handleReplicaSetEvent(newReplicaSet, EventTypeUpdate)
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
 			replicaset := obj.(*appsv1.ReplicaSet)
-			c.handleReplicaSetEvent(replicaset, "delete")
+			c.handleReplicaSetEvent(replicaset, EventTypeDelete)
 		},
 	})
 	if err != nil {
@@ -154,7 +154,7 @@ func (c *ReplicaSetCollector) Start(ctx context.Context) error {
 }
 
 // handleReplicaSetEvent processes replicaset events
-func (c *ReplicaSetCollector) handleReplicaSetEvent(replicaset *appsv1.ReplicaSet, eventType string) {
+func (c *ReplicaSetCollector) handleReplicaSetEvent(replicaset *appsv1.ReplicaSet, eventType EventType) {
 	if c.isExcluded(replicaset) {
 		return
 	}
@@ -162,7 +162,7 @@ func (c *ReplicaSetCollector) handleReplicaSetEvent(replicaset *appsv1.ReplicaSe
 	c.logger.Info("Processing replicaset event",
 		"namespace", replicaset.Namespace,
 		"name", replicaset.Name,
-		"eventType", eventType)
+		"eventType", eventType.String())
 
 	// Send the raw replicaset object to the batch channel
 	c.batchChan <- CollectedResource{

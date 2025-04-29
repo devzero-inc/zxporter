@@ -105,7 +105,7 @@ func (c *ServiceAccountCollector) Start(ctx context.Context) error {
 	_, err := c.serviceAccountInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			sa := obj.(*corev1.ServiceAccount)
-			c.handleServiceAccountEvent(sa, "add")
+			c.handleServiceAccountEvent(sa, EventTypeAdd)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			oldSA := oldObj.(*corev1.ServiceAccount)
@@ -113,12 +113,12 @@ func (c *ServiceAccountCollector) Start(ctx context.Context) error {
 
 			// Only handle meaningful updates
 			if c.serviceAccountChanged(oldSA, newSA) {
-				c.handleServiceAccountEvent(newSA, "update")
+				c.handleServiceAccountEvent(newSA, EventTypeUpdate)
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
 			sa := obj.(*corev1.ServiceAccount)
-			c.handleServiceAccountEvent(sa, "delete")
+			c.handleServiceAccountEvent(sa, EventTypeDelete)
 		},
 	})
 	if err != nil {
@@ -154,7 +154,7 @@ func (c *ServiceAccountCollector) Start(ctx context.Context) error {
 }
 
 // handleServiceAccountEvent processes serviceaccount events
-func (c *ServiceAccountCollector) handleServiceAccountEvent(sa *corev1.ServiceAccount, eventType string) {
+func (c *ServiceAccountCollector) handleServiceAccountEvent(sa *corev1.ServiceAccount, eventType EventType) {
 	if c.isExcluded(sa) {
 		return
 	}
@@ -162,7 +162,7 @@ func (c *ServiceAccountCollector) handleServiceAccountEvent(sa *corev1.ServiceAc
 	c.logger.Info("Processing serviceaccount event",
 		"namespace", sa.Namespace,
 		"name", sa.Name,
-		"eventType", eventType)
+		"eventType", eventType.String())
 
 	// Send the raw serviceaccount object to the batch channel
 	c.batchChan <- CollectedResource{

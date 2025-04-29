@@ -103,7 +103,7 @@ func (c *StatefulSetCollector) Start(ctx context.Context) error {
 	_, err := c.statefulSetInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			statefulset := obj.(*appsv1.StatefulSet)
-			c.handleStatefulSetEvent(statefulset, "add")
+			c.handleStatefulSetEvent(statefulset, EventTypeAdd)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			oldStatefulSet := oldObj.(*appsv1.StatefulSet)
@@ -111,12 +111,12 @@ func (c *StatefulSetCollector) Start(ctx context.Context) error {
 
 			// Only handle meaningful updates
 			if c.statefulSetChanged(oldStatefulSet, newStatefulSet) {
-				c.handleStatefulSetEvent(newStatefulSet, "update")
+				c.handleStatefulSetEvent(newStatefulSet, EventTypeUpdate)
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
 			statefulset := obj.(*appsv1.StatefulSet)
-			c.handleStatefulSetEvent(statefulset, "delete")
+			c.handleStatefulSetEvent(statefulset, EventTypeDelete)
 		},
 	})
 	if err != nil {
@@ -152,7 +152,7 @@ func (c *StatefulSetCollector) Start(ctx context.Context) error {
 }
 
 // handleStatefulSetEvent processes statefulset events
-func (c *StatefulSetCollector) handleStatefulSetEvent(statefulset *appsv1.StatefulSet, eventType string) {
+func (c *StatefulSetCollector) handleStatefulSetEvent(statefulset *appsv1.StatefulSet, eventType EventType) {
 	if c.isExcluded(statefulset) {
 		return
 	}
@@ -160,7 +160,7 @@ func (c *StatefulSetCollector) handleStatefulSetEvent(statefulset *appsv1.Statef
 	c.logger.Info("Processing statefulset event",
 		"namespace", statefulset.Namespace,
 		"name", statefulset.Name,
-		"eventType", eventType)
+		"eventType", eventType.String())
 
 	// Send the raw statefulset object to the batch channel
 	c.batchChan <- CollectedResource{
