@@ -9,6 +9,19 @@ option go_package = "github.com/devzero-inc/services/dakr/gen/api/v1;gen";
 option java_multiple_files = true;
 option java_package = "gen.api.v1";
 
+// EventType is a type of a event that can enter the system
+enum EventType {
+  EVENT_TYPE_UNSPECIFIED = 0;
+  EVENT_TYPE_ADD = 1;
+  EVENT_TYPE_UPDATE = 2;
+  EVENT_TYPE_DELETE = 3;
+  EVENT_TYPE_METADATA = 4;
+  EVENT_TYPE_METRICS = 5;
+  EVENT_TYPE_CONTAINER_STARTED = 6;
+  EVENT_TYPE_CONTAINER_STOPPED = 7;
+  EVENT_TYPE_CONTAINER_RESTARTED = 8;
+}
+
 // ResourceType is a type of resource that can enter the system
 enum ResourceType {
   RESOURCE_TYPE_UNSPECIFIED = 0;
@@ -95,7 +108,7 @@ message ResourceItem {
   google.protobuf.Timestamp timestamp = 2;
 
   // Event type (add, update, delete, metrics, etc.)
-  string event_type = 3;
+  EventType event_type = 3;
 
   // The actual resource data as a flexible structure
   google.protobuf.Struct data = 4;
@@ -117,7 +130,7 @@ message SendResourceRequest {
   google.protobuf.Timestamp timestamp = 3;
 
   // Event type (add, update, delete, metrics, etc.)
-  string event_type = 4;
+  EventType event_type = 4;
 
   // The actual resource data as a flexible structure
   google.protobuf.Struct data = 5;
