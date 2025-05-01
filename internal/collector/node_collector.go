@@ -35,6 +35,10 @@ type NodeCollectorConfig struct {
 	// DisableNetworkIOMetrics determines whether to disable network and I/O metrics collection
 	// Default is false, so metrics are collected by default
 	DisableNetworkIOMetrics bool
+
+	// DisableGPUMetrics determines whether to disable GPU metrics collection
+	// Default is false, so metrics are collected by default
+	DisableGPUMetrics bool
 }
 
 // NodeCollector collects node events and resource metrics
@@ -114,19 +118,14 @@ func NewNodeCollector(
 
 // initPrometheusClient initializes the Prometheus client with fallback mechanisms
 func (c *NodeCollector) initPrometheusClient(ctx context.Context) error {
-	if c.config.DisableNetworkIOMetrics {
-		c.logger.Info("Network and I/O metrics collection is disabled")
-		return nil
-	}
-
-	c.logger.Info("Initializing Prometheus client for node network and I/O metrics",
+	c.logger.Info("Initializing Prometheus client",
 		"prometheusURL", c.config.PrometheusURL)
 
 	client, err := api.NewClient(api.Config{
 		Address: c.config.PrometheusURL,
 	})
 	if err != nil {
-		c.logger.Error(err, "Failed to create Prometheus client, node network and I/O metrics will be disabled")
+		c.logger.Error(err, "Failed to create Prometheus client, node network, I/O and GPU metrics will be disabled")
 		return err
 	}
 
@@ -150,12 +149,12 @@ func (c *NodeCollector) initPrometheusClient(ctx context.Context) error {
 		}
 
 		// Handle other connection errors
-		c.logger.Error(err, "Failed to connect to Prometheus, node network and I/O metrics will be disabled")
+		c.logger.Error(err, "Failed to connect to Prometheus, node network, I/O and GPU metrics will be disabled")
 		c.prometheusAPI = nil
 		return err
 	}
 
-	c.logger.Info("Successfully connected to Prometheus for node network and I/O metrics")
+	c.logger.Info("Successfully connected to Prometheus for node network, I/O and GPU metrics")
 	return nil
 }
 
@@ -163,10 +162,11 @@ func (c *NodeCollector) initPrometheusClient(ctx context.Context) error {
 func (c *NodeCollector) Start(ctx context.Context) error {
 	c.logger.Info("Starting node collector",
 		"updateInterval", c.config.UpdateInterval,
-		"disableNetworkIOMetrics", c.config.DisableNetworkIOMetrics)
+		"disableNetworkIOMetrics", c.config.DisableNetworkIOMetrics,
+		"disableGPUMetrics", c.config.DisableGPUMetrics)
 
 	// Initialize Prometheus client if network/IO metrics are not disabled
-	if !c.config.DisableNetworkIOMetrics {
+	if !c.config.DisableNetworkIOMetrics || !c.config.DisableGPUMetrics {
 		// Use the more robust initialization method
 		if err := c.initPrometheusClient(ctx); err != nil {
 			// Log but continue - we can still collect CPU/memory metrics
@@ -335,7 +335,7 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 	// Create a context with timeout for Prometheus queries if needed
 	var queryCtx context.Context
 	var cancel context.CancelFunc
-	if !c.config.DisableNetworkIOMetrics && c.prometheusAPI != nil {
+	if !c.config.DisableNetworkIOMetrics && !c.config.DisableGPUMetrics && c.prometheusAPI != nil {
 		queryCtx, cancel = context.WithTimeout(ctx, c.config.QueryTimeout)
 		defer cancel()
 	}
@@ -409,6 +409,18 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 			}
 		}
 
+		// Fetch GPU metrics for the node if enabled
+		var gpuMetrics map[string]interface{}
+		if !c.config.DisableGPUMetrics && c.prometheusAPI != nil && queryCtx != nil {
+			gpuMetrics, err = c.collectNodeGPUMetrics(queryCtx, node.Name)
+			if err != nil {
+				c.logger.Error(err, "Failed to collect node GPU metrics",
+					"name", node.Name)
+				// Continue with other metrics
+				gpuMetrics = make(map[string]interface{})
+			}
+		}
+
 		// Create resource data
 		resourceData := map[string]interface{}{
 			// Node identification
@@ -440,7 +452,7 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 		}
 
 		// Add network metrics if available
-		if networkMetrics != nil {
+		if len(networkMetrics) > 0 {
 			resourceData["networkReceiveBytes"] = networkMetrics["NetworkReceiveBytes"]
 			resourceData["networkTransmitBytes"] = networkMetrics["NetworkTransmitBytes"]
 			resourceData["networkReceivePackets"] = networkMetrics["NetworkReceivePackets"]
@@ -452,11 +464,44 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 		}
 
 		// Add I/O metrics if available
-		if ioMetrics != nil {
+		if len(ioMetrics) > 0 {
 			resourceData["fsReadBytes"] = ioMetrics["FSReadBytes"]
 			resourceData["fsWriteBytes"] = ioMetrics["FSWriteBytes"]
 			resourceData["fsReads"] = ioMetrics["FSReads"]
 			resourceData["fsWrites"] = ioMetrics["FSWrites"]
+		}
+
+		// Add GPU metrics if available
+		if len(gpuMetrics) > 0 {
+			// Basic GPU counts and utilization
+			resourceData["gpuCount"] = gpuMetrics["GPUCount"]
+			resourceData["gpuUtilizationAvg"] = gpuMetrics["GPUUtilizationAvg"]
+			resourceData["gpuUtilizationMax"] = gpuMetrics["GPUUtilizationMax"]
+
+			// GPU memory
+			resourceData["gpuMemoryUsedTotal"] = gpuMetrics["GPUMemoryUsedTotal"]
+			resourceData["gpuMemoryFreeTotal"] = gpuMetrics["GPUMemoryFreeTotal"]
+			resourceData["gpuMemoryTotalMb"] = gpuMetrics["GPUMemoryTotalMb"]
+
+			// GPU power and temperature
+			resourceData["gpuPowerUsageTotal"] = gpuMetrics["GPUPowerUsageTotal"]
+			resourceData["gpuTemperatureAvg"] = gpuMetrics["GPUTemperatureAvg"]
+			resourceData["gpuTemperatureMax"] = gpuMetrics["GPUTemperatureMax"]
+			resourceData["gpuMemoryTemperatureAvg"] = gpuMetrics["GPUMemoryTemperatureAvg"]
+			resourceData["gpuMemoryTemperatureMax"] = gpuMetrics["GPUMemoryTemperatureMax"]
+
+			// GPU utilization details
+			resourceData["gpuTensorUtilizationAvg"] = gpuMetrics["GPUTensorUtilizationAvg"]
+			resourceData["gpuDramUtilizationAvg"] = gpuMetrics["GPUDramUtilizationAvg"]
+			resourceData["gpuPCIeTxBytesTotal"] = gpuMetrics["GPUPCIeTxBytesTotal"]
+			resourceData["gpuPCIeRxBytesTotal"] = gpuMetrics["GPUPCIeRxBytesTotal"]
+
+			// Graphic utilization
+			resourceData["gpuGraphicsUtilizationAvg"] = gpuMetrics["GPUGraphicsUtilizationAvg"]
+
+			// GPU models and identifiers
+			resourceData["gpuModels"] = gpuMetrics["GPUModels"]
+			resourceData["gpuUUIDs"] = gpuMetrics["GPUUUIDs"]
 		}
 
 		// Send node resource metrics to the batch channel for batching
@@ -540,6 +585,119 @@ func (c *NodeCollector) collectNodeIOMetrics(ctx context.Context, nodeName strin
 			if len(vector) > 0 {
 				metrics[metricName] = float64(vector[0].Value)
 			}
+		}
+	}
+
+	return metrics, nil
+}
+
+// collectNodeGPUMetrics collects GPU metrics for a node using Prometheus queries
+func (c *NodeCollector) collectNodeGPUMetrics(ctx context.Context, nodeName string) (map[string]interface{}, error) {
+	metrics := make(map[string]interface{})
+
+	// First query to check if this node has any GPUs
+	nodeGPUQuery := fmt.Sprintf(`count(DCGM_FI_DEV_GPU_UTIL{nodeName="%s"})`, nodeName)
+
+	result, _, err := c.prometheusAPI.Query(ctx, nodeGPUQuery, time.Now())
+	if err != nil {
+		return nil, fmt.Errorf("error querying GPU availability: %w", err)
+	}
+
+	// Check if node has GPU metrics
+	hasGPU := false
+	if result.Type() == model.ValVector {
+		vector := result.(model.Vector)
+		if len(vector) > 0 && float64(vector[0].Value) > 0 {
+			hasGPU = true
+		}
+	}
+
+	if !hasGPU {
+		// Return empty metrics if no GPU is on this node
+		return metrics, nil
+	}
+
+	// Node has GPUs, collect metrics
+	queries := map[string]string{
+		"GPUCount":                  fmt.Sprintf(`count(DCGM_FI_DEV_GPU_UTIL{nodeName="%s"})`, nodeName),
+		"GPUUtilizationAvg":         fmt.Sprintf(`avg(DCGM_FI_DEV_GPU_UTIL{nodeName="%s"})`, nodeName),
+		"GPUUtilizationMax":         fmt.Sprintf(`max(DCGM_FI_DEV_GPU_UTIL{nodeName="%s"})`, nodeName),
+		"GPUMemoryUsedTotal":        fmt.Sprintf(`sum(DCGM_FI_DEV_FB_USED{nodeName="%s"})`, nodeName),
+		"GPUMemoryFreeTotal":        fmt.Sprintf(`sum(DCGM_FI_DEV_FB_FREE{nodeName="%s"})`, nodeName),
+		"GPUPowerUsageTotal":        fmt.Sprintf(`sum(DCGM_FI_DEV_POWER_USAGE{nodeName="%s"})`, nodeName),
+		"GPUTemperatureAvg":         fmt.Sprintf(`avg(DCGM_FI_DEV_GPU_TEMP{nodeName="%s"})`, nodeName),
+		"GPUTemperatureMax":         fmt.Sprintf(`max(DCGM_FI_DEV_GPU_TEMP{nodeName="%s"})`, nodeName),
+		"GPUMemoryTemperatureAvg":   fmt.Sprintf(`avg(DCGM_FI_DEV_MEMORY_TEMP{nodeName="%s"})`, nodeName),
+		"GPUMemoryTemperatureMax":   fmt.Sprintf(`max(DCGM_FI_DEV_MEMORY_TEMP{nodeName="%s"})`, nodeName),
+		"GPUTensorUtilizationAvg":   fmt.Sprintf(`avg(DCGM_FI_PROF_PIPE_TENSOR_ACTIVE{nodeName="%s"})`, nodeName),
+		"GPUDramUtilizationAvg":     fmt.Sprintf(`avg(DCGM_FI_PROF_DRAM_ACTIVE{nodeName="%s"})`, nodeName),
+		"GPUPCIeTxBytesTotal":       fmt.Sprintf(`sum(DCGM_FI_PROF_PCIE_TX_BYTES{nodeName="%s"})`, nodeName),
+		"GPUPCIeRxBytesTotal":       fmt.Sprintf(`sum(DCGM_FI_PROF_PCIE_RX_BYTES{nodeName="%s"})`, nodeName),
+		"GPUGraphicsUtilizationAvg": fmt.Sprintf(`avg(DCGM_FI_PROF_GR_ENGINE_ACTIVE{nodeName="%s"})`, nodeName),
+	}
+
+	// Execute each query and store the result
+	for metricName, query := range queries {
+		result, _, err := c.prometheusAPI.Query(ctx, query, time.Now())
+		if err != nil {
+			c.logger.Error(err, "Error querying Prometheus for GPU metrics",
+				"metric", metricName,
+				"query", query,
+				"node", nodeName)
+			continue
+		}
+
+		// Extract value from result (if any)
+		if result.Type() == model.ValVector {
+			vector := result.(model.Vector)
+			if len(vector) > 0 {
+				metrics[metricName] = float64(vector[0].Value)
+			}
+		}
+	}
+
+	// If we found no GPU metrics, return an empty map
+	if len(metrics) == 0 {
+		return metrics, nil
+	}
+
+	// Get GPU models on this node - this requires a specific query and parsing
+	modelQuery := fmt.Sprintf(`DCGM_FI_DEV_GPU_UTIL{nodeName="%s"}`, nodeName)
+	result, _, err = c.prometheusAPI.Query(ctx, modelQuery, time.Now())
+	if err == nil && result.Type() == model.ValVector {
+		vector := result.(model.Vector)
+
+		// Store unique GPU models
+		gpuModels := make(map[string]int)
+		gpuUUIDs := make([]string, 0)
+
+		for _, sample := range vector {
+			model := string(sample.Metric["modelName"])
+			if model != "" {
+				gpuModels[model]++
+			}
+
+			// Collect UUID if available
+			uuid := string(sample.Metric["UUID"])
+			if uuid != "" {
+				gpuUUIDs = append(gpuUUIDs, uuid)
+			}
+		}
+
+		// Convert model map to a summarized string
+		modelSummary := make([]string, 0)
+		for model, count := range gpuModels {
+			modelSummary = append(modelSummary, fmt.Sprintf("%dx %s", count, model))
+		}
+
+		metrics["GPUModels"] = modelSummary
+		metrics["GPUUUIDs"] = gpuUUIDs
+	}
+
+	// Calculate total GPU memory
+	if memUsed, ok := metrics["GPUMemoryUsedTotal"].(float64); ok {
+		if memFree, ok := metrics["GPUMemoryFreeTotal"].(float64); ok {
+			metrics["GPUMemoryTotalMb"] = memUsed + memFree
 		}
 	}
 
