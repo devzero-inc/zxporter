@@ -1278,19 +1278,20 @@ spec:
           hostPath:
             path: /
 # ----- END PROM NODE EXPORTER -----
-# ----- START GPU OPERATOR -----
+# ----- START NVIDIA GPU OPERATOR -----
+# Note: Comment out this section if gpu-operator is already installed
 ---
 # Source: gpu-operator/charts/node-feature-discovery/templates/serviceaccount.yaml
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: node-feature-discovery
-  namespace: devzero-zxporter
+  namespace: default
   labels:
-    helm.sh/chart: node-feature-discovery-0.17.2
+    helm.sh/chart: node-feature-discovery-0.16.6
     app.kubernetes.io/name: node-feature-discovery
     app.kubernetes.io/instance: gpu-operator
-    app.kubernetes.io/version: "v0.17.2"
+    app.kubernetes.io/version: "v0.16.6"
     app.kubernetes.io/managed-by: Helm
 ---
 # Source: gpu-operator/templates/serviceaccount.yaml
@@ -1300,9 +1301,9 @@ metadata:
   name: gpu-operator
   labels:
     app.kubernetes.io/name: gpu-operator
-    helm.sh/chart: gpu-operator-v25.3.0
+    helm.sh/chart: gpu-operator-v24.9.2
     app.kubernetes.io/instance: gpu-operator
-    app.kubernetes.io/version: "v25.3.0"
+    app.kubernetes.io/version: "v24.9.2"
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: "gpu-operator"
 ---
@@ -1311,12 +1312,12 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: gpu-operator-node-feature-discovery-master-conf
-  namespace: devzero-zxporter
+  namespace: default
   labels:
-    helm.sh/chart: node-feature-discovery-0.17.2
+    helm.sh/chart: node-feature-discovery-0.16.6
     app.kubernetes.io/name: node-feature-discovery
     app.kubernetes.io/instance: gpu-operator
-    app.kubernetes.io/version: "v0.17.2"
+    app.kubernetes.io/version: "v0.16.6"
     app.kubernetes.io/managed-by: Helm
 data:
   nfd-master.conf: |-
@@ -1328,12 +1329,12 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: gpu-operator-node-feature-discovery-worker-conf
-  namespace: devzero-zxporter
+  namespace: default
   labels:
-    helm.sh/chart: node-feature-discovery-0.17.2
+    helm.sh/chart: node-feature-discovery-0.16.6
     app.kubernetes.io/name: node-feature-discovery
     app.kubernetes.io/instance: gpu-operator
-    app.kubernetes.io/version: "v0.17.2"
+    app.kubernetes.io/version: "v0.16.6"
     app.kubernetes.io/managed-by: Helm
 data:
   nfd-worker.conf: |-
@@ -1354,19 +1355,12 @@ kind: ClusterRole
 metadata:
   name: gpu-operator-node-feature-discovery
   labels:
-    helm.sh/chart: node-feature-discovery-0.17.2
+    helm.sh/chart: node-feature-discovery-0.16.6
     app.kubernetes.io/name: node-feature-discovery
     app.kubernetes.io/instance: gpu-operator
-    app.kubernetes.io/version: "v0.17.2"
+    app.kubernetes.io/version: "v0.16.6"
     app.kubernetes.io/managed-by: Helm
 rules:
-- apiGroups:
-  - ""
-  resources:
-  - namespaces
-  verbs:
-  - watch
-  - list
 - apiGroups:
   - ""
   resources:
@@ -1416,10 +1410,10 @@ kind: ClusterRole
 metadata:
   name: gpu-operator-node-feature-discovery-gc
   labels:
-    helm.sh/chart: node-feature-discovery-0.17.2
+    helm.sh/chart: node-feature-discovery-0.16.6
     app.kubernetes.io/name: node-feature-discovery
     app.kubernetes.io/instance: gpu-operator
-    app.kubernetes.io/version: "v0.17.2"
+    app.kubernetes.io/version: "v0.16.6"
     app.kubernetes.io/managed-by: Helm
 rules:
 - apiGroups:
@@ -1457,9 +1451,9 @@ metadata:
   name: gpu-operator
   labels:
     app.kubernetes.io/name: gpu-operator
-    helm.sh/chart: gpu-operator-v25.3.0
+    helm.sh/chart: gpu-operator-v24.9.2
     app.kubernetes.io/instance: gpu-operator
-    app.kubernetes.io/version: "v25.3.0"
+    app.kubernetes.io/version: "v24.9.2"
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: "gpu-operator"
 rules:
@@ -1523,6 +1517,7 @@ rules:
   verbs:
   - get
   - list
+  - create
   - watch
   - update
   - patch
@@ -1530,26 +1525,16 @@ rules:
   - ""
   resources:
   - events
-  verbs:
-  - create
-  - get
-  - list
-  - watch
-  - delete
-- apiGroups:
-  - ""
-  resources:
   - pods
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - ""
-  resources:
   - pods/eviction
   verbs:
   - create
+  - get
+  - list
+  - watch
+  - update
+  - patch
+  - delete
 - apiGroups:
   - apps
   resources:
@@ -1614,10 +1599,10 @@ kind: ClusterRoleBinding
 metadata:
   name: gpu-operator-node-feature-discovery
   labels:
-    helm.sh/chart: node-feature-discovery-0.17.2
+    helm.sh/chart: node-feature-discovery-0.16.6
     app.kubernetes.io/name: node-feature-discovery
     app.kubernetes.io/instance: gpu-operator
-    app.kubernetes.io/version: "v0.17.2"
+    app.kubernetes.io/version: "v0.16.6"
     app.kubernetes.io/managed-by: Helm
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -1626,7 +1611,7 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: node-feature-discovery
-  namespace: devzero-zxporter
+  namespace: default
 ---
 # Source: gpu-operator/charts/node-feature-discovery/templates/clusterrolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -1634,10 +1619,10 @@ kind: ClusterRoleBinding
 metadata:
   name: gpu-operator-node-feature-discovery-gc
   labels:
-    helm.sh/chart: node-feature-discovery-0.17.2
+    helm.sh/chart: node-feature-discovery-0.16.6
     app.kubernetes.io/name: node-feature-discovery
     app.kubernetes.io/instance: gpu-operator
-    app.kubernetes.io/version: "v0.17.2"
+    app.kubernetes.io/version: "v0.16.6"
     app.kubernetes.io/managed-by: Helm
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -1646,7 +1631,7 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: node-feature-discovery
-  namespace: devzero-zxporter
+  namespace: default
 ---
 # Source: gpu-operator/templates/clusterrolebinding.yaml
 kind: ClusterRoleBinding
@@ -1655,15 +1640,18 @@ metadata:
   name: gpu-operator
   labels:
     app.kubernetes.io/name: gpu-operator
-    helm.sh/chart: gpu-operator-v25.3.0
+    helm.sh/chart: gpu-operator-v24.9.2
     app.kubernetes.io/instance: gpu-operator
-    app.kubernetes.io/version: "v25.3.0"
+    app.kubernetes.io/version: "v24.9.2"
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: "gpu-operator"
 subjects:
 - kind: ServiceAccount
   name: gpu-operator
-  namespace: devzero-zxporter
+  namespace: default
+- kind: ServiceAccount
+  name: node-feature-discovery
+  namespace: default
 roleRef:
   kind: ClusterRole
   name: gpu-operator
@@ -1674,12 +1662,12 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: gpu-operator-node-feature-discovery-worker
-  namespace: devzero-zxporter
+  namespace: default
   labels:
-    helm.sh/chart: node-feature-discovery-0.17.2
+    helm.sh/chart: node-feature-discovery-0.16.6
     app.kubernetes.io/name: node-feature-discovery
     app.kubernetes.io/instance: gpu-operator
-    app.kubernetes.io/version: "v0.17.2"
+    app.kubernetes.io/version: "v0.16.6"
     app.kubernetes.io/managed-by: Helm
 rules:
 - apiGroups:
@@ -1690,7 +1678,6 @@ rules:
   - create
   - get
   - update
-  - delete
 - apiGroups:
   - ""
   resources:
@@ -1705,9 +1692,9 @@ metadata:
   name: gpu-operator
   labels:
     app.kubernetes.io/name: gpu-operator
-    helm.sh/chart: gpu-operator-v25.3.0
+    helm.sh/chart: gpu-operator-v24.9.2
     app.kubernetes.io/instance: gpu-operator
-    app.kubernetes.io/version: "v25.3.0"
+    app.kubernetes.io/version: "v24.9.2"
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: "gpu-operator"
 rules:
@@ -1793,12 +1780,12 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: gpu-operator-node-feature-discovery-worker
-  namespace: devzero-zxporter
+  namespace: default
   labels:
-    helm.sh/chart: node-feature-discovery-0.17.2
+    helm.sh/chart: node-feature-discovery-0.16.6
     app.kubernetes.io/name: node-feature-discovery
     app.kubernetes.io/instance: gpu-operator
-    app.kubernetes.io/version: "v0.17.2"
+    app.kubernetes.io/version: "v0.16.6"
     app.kubernetes.io/managed-by: Helm
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -1807,7 +1794,7 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: node-feature-discovery
-  namespace: devzero-zxporter
+  namespace: default
 ---
 # Source: gpu-operator/templates/rolebinding.yaml
 kind: RoleBinding
@@ -1816,15 +1803,15 @@ metadata:
   name: gpu-operator
   labels:
     app.kubernetes.io/name: gpu-operator
-    helm.sh/chart: gpu-operator-v25.3.0
+    helm.sh/chart: gpu-operator-v24.9.2
     app.kubernetes.io/instance: gpu-operator
-    app.kubernetes.io/version: "v25.3.0"
+    app.kubernetes.io/version: "v24.9.2"
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: "gpu-operator"
 subjects:
 - kind: ServiceAccount
   name: gpu-operator
-  namespace: devzero-zxporter
+  namespace: default
 roleRef:
   kind: Role
   name: gpu-operator
@@ -1835,12 +1822,12 @@ apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name:  gpu-operator-node-feature-discovery-worker
-  namespace: devzero-zxporter
+  namespace: default
   labels:
-    helm.sh/chart: node-feature-discovery-0.17.2
+    helm.sh/chart: node-feature-discovery-0.16.6
     app.kubernetes.io/name: node-feature-discovery
     app.kubernetes.io/instance: gpu-operator
-    app.kubernetes.io/version: "v0.17.2"
+    app.kubernetes.io/version: "v0.16.6"
     app.kubernetes.io/managed-by: Helm
     role: worker
 spec:
@@ -1856,8 +1843,6 @@ spec:
         app.kubernetes.io/name: node-feature-discovery
         app.kubernetes.io/instance: gpu-operator
         role: worker
-      annotations:
-        checksum/config: 71acbcafb7e08d692a20555fbdbe2269f83c371624fc977198f50e3d48f9ea98
     spec:
       dnsPolicy: ClusterFirstWithHostNet
       priorityClassName: system-node-critical
@@ -1874,17 +1859,17 @@ spec:
               - ALL
             readOnlyRootFilesystem: true
             runAsNonRoot: true
-        image: "registry.k8s.io/nfd/node-feature-discovery:v0.17.2"
+        image: "registry.k8s.io/nfd/node-feature-discovery:v0.16.6"
         imagePullPolicy: IfNotPresent
         livenessProbe:
-          grpc:
-            port: 8082
-          initialDelaySeconds: 10
+            grpc:
+              port: 8082
+            initialDelaySeconds: 10
         readinessProbe:
-          grpc:
-            port: 8082
-          initialDelaySeconds: 5
-          failureThreshold: 10
+            failureThreshold: 10
+            grpc:
+              port: 8082
+            initialDelaySeconds: 5
         env:
         - name: NODE_NAME
           valueFrom:
@@ -1907,7 +1892,8 @@ spec:
         command:
         - "nfd-worker"
         args:
-        # Go over featureGate and add the feature-gate flag
+# Go over featureGate and add the feature-gate flag
+        - "-feature-gates=NodeFeatureAPI=true"
         - "-feature-gates=NodeFeatureGroupAPI=false"
         - "-metrics=8081"
         - "-grpc-health=8082"
@@ -1935,6 +1921,9 @@ spec:
         - name: host-proc-swaps
           mountPath: "/host-proc/swaps"
           readOnly: true
+        - name: source-d
+          mountPath: "/etc/kubernetes/node-feature-discovery/source.d/"
+          readOnly: true
         - name: features-d
           mountPath: "/etc/kubernetes/node-feature-discovery/features.d/"
           readOnly: true
@@ -1960,6 +1949,9 @@ spec:
         - name: host-proc-swaps
           hostPath:
             path: "/proc/swaps"
+        - name: source-d
+          hostPath:
+            path: "/etc/kubernetes/node-feature-discovery/source.d/"
         - name: features-d
           hostPath:
             path: "/etc/kubernetes/node-feature-discovery/features.d/"
@@ -1987,12 +1979,12 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name:  gpu-operator-node-feature-discovery-master
-  namespace: devzero-zxporter
+  namespace: default
   labels:
-    helm.sh/chart: node-feature-discovery-0.17.2
+    helm.sh/chart: node-feature-discovery-0.16.6
     app.kubernetes.io/name: node-feature-discovery
     app.kubernetes.io/instance: gpu-operator
-    app.kubernetes.io/version: "v0.17.2"
+    app.kubernetes.io/version: "v0.16.6"
     app.kubernetes.io/managed-by: Helm
     role: master
 spec:
@@ -2009,8 +2001,6 @@ spec:
         app.kubernetes.io/name: node-feature-discovery
         app.kubernetes.io/instance: gpu-operator
         role: master
-      annotations:
-        checksum/config: 8b48967540b8eced4b7ca0a6f851e55ef564f118d18b3fa45991aef44308339d
     spec:
       priorityClassName: system-node-critical
       serviceAccountName: node-feature-discovery
@@ -2027,20 +2017,20 @@ spec:
               - ALL
             readOnlyRootFilesystem: true
             runAsNonRoot: true
-          image: "registry.k8s.io/nfd/node-feature-discovery:v0.17.2"
+          image: "registry.k8s.io/nfd/node-feature-discovery:v0.16.6"
           imagePullPolicy: IfNotPresent
-          startupProbe:
-            grpc:
-              port: 8082
-            failureThreshold: 30
           livenessProbe:
             grpc:
               port: 8082
+            initialDelaySeconds: 10
           readinessProbe:
+            failureThreshold: 10
             grpc:
               port: 8082
-            failureThreshold: 10
+            initialDelaySeconds: 5
           ports:
+          - containerPort: 8080
+            name: grpc
           - containerPort: 8081
             name: metrics
           - containerPort: 8082
@@ -2059,8 +2049,10 @@ spec:
               cpu: 100m
               memory: 128Mi
           args:
-            - "-enable-leader-election"
+            ## By default, disable crd controller for other than the default instances
+            - "-crd-controller=true"
             # Go over featureGates and add the feature-gate flag
+            - "-feature-gates=NodeFeatureAPI=true"
             - "-feature-gates=NodeFeatureGroupAPI=false"
             - "-metrics=8081"
             - "-grpc-health=8082"
@@ -2107,12 +2099,12 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: gpu-operator-node-feature-discovery-gc
-  namespace: devzero-zxporter
+  namespace: default
   labels:
-    helm.sh/chart: node-feature-discovery-0.17.2
+    helm.sh/chart: node-feature-discovery-0.16.6
     app.kubernetes.io/name: node-feature-discovery
     app.kubernetes.io/instance: gpu-operator
-    app.kubernetes.io/version: "v0.17.2"
+    app.kubernetes.io/version: "v0.16.6"
     app.kubernetes.io/managed-by: Helm
     role: gc
 spec:
@@ -2138,7 +2130,7 @@ spec:
       hostNetwork: false
       containers:
       - name: gc
-        image: "registry.k8s.io/nfd/node-feature-discovery:v0.17.2"
+        image: "registry.k8s.io/nfd/node-feature-discovery:v0.16.6"
         imagePullPolicy: "IfNotPresent"
         env:
         - name: NODE_NAME
@@ -2172,9 +2164,9 @@ metadata:
   name: gpu-operator
   labels:
     app.kubernetes.io/name: gpu-operator
-    helm.sh/chart: gpu-operator-v25.3.0
+    helm.sh/chart: gpu-operator-v24.9.2
     app.kubernetes.io/instance: gpu-operator
-    app.kubernetes.io/version: "v25.3.0"
+    app.kubernetes.io/version: "v24.9.2"
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: "gpu-operator"
     nvidia.com/gpu-driver-upgrade-drain.skip: "true"
@@ -2188,9 +2180,9 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: gpu-operator
-        helm.sh/chart: gpu-operator-v25.3.0
+        helm.sh/chart: gpu-operator-v24.9.2
         app.kubernetes.io/instance: gpu-operator
-        app.kubernetes.io/version: "v25.3.0"
+        app.kubernetes.io/version: "v24.9.2"
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/component: "gpu-operator"
         app: "gpu-operator"
@@ -2202,7 +2194,7 @@ spec:
       priorityClassName: system-node-critical
       containers:
       - name: gpu-operator
-        image: nvcr.io/nvidia/gpu-operator:v25.3.0
+        image: nvcr.io/nvidia/gpu-operator:v24.9.2
         imagePullPolicy: IfNotPresent
         command: ["gpu-operator"]
         args:
@@ -2217,7 +2209,7 @@ spec:
             fieldRef:
               fieldPath: metadata.namespace
         - name: "DRIVER_MANAGER_IMAGE"
-          value: "nvcr.io/nvidia/cloud-native/k8s-driver-manager:v0.8.0"
+          value: "nvcr.io/nvidia/cloud-native/k8s-driver-manager:v0.7.0"
         volumeMounts:
           - name: host-os-release
             mountPath: "/host-etc/os-release"
@@ -2282,9 +2274,9 @@ metadata:
   name: cluster-policy
   labels:
     app.kubernetes.io/name: gpu-operator
-    helm.sh/chart: gpu-operator-v25.3.0
+    helm.sh/chart: gpu-operator-v24.9.2
     app.kubernetes.io/instance: gpu-operator
-    app.kubernetes.io/version: "v25.3.0"
+    app.kubernetes.io/version: "v24.9.2"
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: "gpu-operator"
 spec:
@@ -2292,15 +2284,16 @@ spec:
     rootFS: /
     driverInstallDir: /run/nvidia/driver
   operator:
+    defaultRuntime: docker
     runtimeClass: nvidia
     initContainer:
       repository: nvcr.io/nvidia
       image: cuda
-      version: "12.8.1-base-ubi9"
+      version: "12.6.3-base-ubi9"
       imagePullPolicy: IfNotPresent
   daemonsets:
     labels:
-      helm.sh/chart: gpu-operator-v25.3.0
+      helm.sh/chart: gpu-operator-v24.9.2
       app.kubernetes.io/managed-by: gpu-operator
     tolerations: 
       - effect: NoSchedule
@@ -2313,7 +2306,7 @@ spec:
   validator:
     repository: nvcr.io/nvidia/cloud-native
     image: gpu-operator-validator
-    version: "v25.3.0"
+    version: "v24.9.2"
     imagePullPolicy: IfNotPresent
     plugin:
       env: 
@@ -2330,11 +2323,11 @@ spec:
   driver:
     enabled: true
     useNvidiaDriverCRD: false
-    kernelModuleType: auto
+    useOpenKernelModules: false
     usePrecompiled: false
     repository: nvcr.io/nvidia
     image: driver
-    version: "570.124.06"
+    version: "550.144.03"
     imagePullPolicy: IfNotPresent
     startupProbe: 
       failureThreshold: 120
@@ -2347,7 +2340,7 @@ spec:
     manager:
       repository: nvcr.io/nvidia/cloud-native
       image: k8s-driver-manager
-      version: "v0.8.0"
+      version: "v0.7.0"
       imagePullPolicy: IfNotPresent
       env: 
         - name: ENABLE_GPU_POD_EVICTION
@@ -2395,7 +2388,7 @@ spec:
     driverManager:
       repository: nvcr.io/nvidia/cloud-native
       image: k8s-driver-manager
-      version: "v0.8.0"
+      version: "v0.7.0"
       imagePullPolicy: IfNotPresent
       env: 
         - name: ENABLE_GPU_POD_EVICTION
@@ -2420,18 +2413,18 @@ spec:
           nvidia.com/cc.capable: "true"
     repository: nvcr.io/nvidia/cloud-native
     image: k8s-kata-manager
-    version: "v0.2.3"
+    version: "v0.2.2"
     imagePullPolicy: IfNotPresent
   vfioManager:
     enabled: true
     repository: nvcr.io/nvidia
     image: cuda
-    version: "12.8.1-base-ubi9"
+    version: "12.6.3-base-ubi9"
     imagePullPolicy: IfNotPresent
     driverManager:
       repository: nvcr.io/nvidia/cloud-native
       image: k8s-driver-manager
-      version: "v0.8.0"
+      version: "v0.7.0"
       imagePullPolicy: IfNotPresent
       env: 
         - name: ENABLE_GPU_POD_EVICTION
@@ -2442,7 +2435,7 @@ spec:
     enabled: true
     repository: nvcr.io/nvidia/cloud-native
     image: vgpu-device-manager
-    version: "v0.3.0"
+    version: "v0.2.8"
     imagePullPolicy: IfNotPresent
     config: 
       default: default
@@ -2460,14 +2453,14 @@ spec:
     enabled: true
     repository: nvcr.io/nvidia/k8s
     image: container-toolkit
-    version: "v1.17.5-ubuntu20.04"
+    version: "v1.17.4-ubuntu20.04"
     imagePullPolicy: IfNotPresent
     installDir: /usr/local/nvidia
   devicePlugin:
     enabled: true
     repository: nvcr.io/nvidia
     image: k8s-device-plugin
-    version: "v0.17.1"
+    version: "v0.17.0"
     imagePullPolicy: IfNotPresent
     env: 
       - name: PASS_DEVICE_SPECS
@@ -2486,13 +2479,13 @@ spec:
     enabled: false
     repository: nvcr.io/nvidia/cloud-native
     image: dcgm
-    version: "4.1.1-2-ubuntu22.04"
+    version: "3.3.9-1-ubuntu22.04"
     imagePullPolicy: IfNotPresent
   dcgmExporter:
     enabled: true
     repository: nvcr.io/nvidia/k8s
     image: dcgm-exporter
-    version: "4.1.1-4.0.4-ubuntu22.04"
+    version: "3.3.9-3.6.1-ubuntu22.04"
     imagePullPolicy: IfNotPresent
     env: 
       - name: DCGM_EXPORTER_LISTEN
@@ -2511,7 +2504,7 @@ spec:
     enabled: true
     repository: nvcr.io/nvidia
     image: k8s-device-plugin
-    version: "v0.17.1"
+    version: "v0.17.0"
     imagePullPolicy: IfNotPresent
     env: 
       - name: GFD_SLEEP_INTERVAL
@@ -2522,7 +2515,7 @@ spec:
     enabled: true
     repository: nvcr.io/nvidia/cloud-native
     image: k8s-mig-manager
-    version: "v0.12.1-ubuntu20.04"
+    version: "v0.10.0-ubuntu20.04"
     imagePullPolicy: IfNotPresent
     env: 
       - name: WITH_REBOOT
@@ -2536,13 +2529,13 @@ spec:
     enabled: false
     repository: nvcr.io/nvidia/cloud-native
     image: gpu-operator-validator
-    version: "v25.3.0"
+    version: "v24.9.2"
     imagePullPolicy: IfNotPresent
   gdrcopy:
     enabled: false
     repository: nvcr.io/nvidia/cloud-native
     image: gdrdrv
-    version: "v2.4.4"
+    version: "v2.4.1-2"
     imagePullPolicy: IfNotPresent
   sandboxWorkloads:
     enabled: false
@@ -2551,7 +2544,7 @@ spec:
     enabled: true
     repository: nvcr.io/nvidia
     image: kubevirt-gpu-device-plugin
-    version: "v1.3.1"
+    version: "v1.2.10"
     imagePullPolicy: IfNotPresent
 ---
 # Source: gpu-operator/charts/node-feature-discovery/templates/post-delete-job.yaml
@@ -2559,12 +2552,12 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: gpu-operator-node-feature-discovery-prune
-  namespace: devzero-zxporter
+  namespace: default
   labels:
-    helm.sh/chart: node-feature-discovery-0.17.2
+    helm.sh/chart: node-feature-discovery-0.16.6
     app.kubernetes.io/name: node-feature-discovery
     app.kubernetes.io/instance: gpu-operator
-    app.kubernetes.io/version: "v0.17.2"
+    app.kubernetes.io/version: "v0.16.6"
     app.kubernetes.io/managed-by: Helm
   annotations:
     "helm.sh/hook": post-delete
@@ -2586,10 +2579,10 @@ kind: ClusterRole
 metadata:
   name: gpu-operator-node-feature-discovery-prune
   labels:
-    helm.sh/chart: node-feature-discovery-0.17.2
+    helm.sh/chart: node-feature-discovery-0.16.6
     app.kubernetes.io/name: node-feature-discovery
     app.kubernetes.io/instance: gpu-operator
-    app.kubernetes.io/version: "v0.17.2"
+    app.kubernetes.io/version: "v0.16.6"
     app.kubernetes.io/managed-by: Helm
   annotations:
     "helm.sh/hook": post-delete
@@ -2634,10 +2627,10 @@ kind: ClusterRoleBinding
 metadata:
   name: gpu-operator-node-feature-discovery-prune
   labels:
-    helm.sh/chart: node-feature-discovery-0.17.2
+    helm.sh/chart: node-feature-discovery-0.16.6
     app.kubernetes.io/name: node-feature-discovery
     app.kubernetes.io/instance: gpu-operator
-    app.kubernetes.io/version: "v0.17.2"
+    app.kubernetes.io/version: "v0.16.6"
     app.kubernetes.io/managed-by: Helm
   annotations:
     "helm.sh/hook": post-delete
@@ -2649,7 +2642,7 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: gpu-operator-node-feature-discovery-prune
-  namespace: devzero-zxporter
+  namespace: default
 ---
 # Source: gpu-operator/templates/upgrade_crd.yaml
 kind: ClusterRoleBinding
@@ -2663,7 +2656,7 @@ metadata:
 subjects:
   - kind: ServiceAccount
     name: gpu-operator-upgrade-crd-hook-sa
-    namespace: devzero-zxporter
+    namespace: default
 roleRef:
   kind: ClusterRole
   name: gpu-operator-upgrade-crd-hook-role
@@ -2674,12 +2667,12 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name:  gpu-operator-node-feature-discovery-prune
-  namespace: devzero-zxporter
+  namespace: default
   labels:
-    helm.sh/chart: node-feature-discovery-0.17.2
+    helm.sh/chart: node-feature-discovery-0.16.6
     app.kubernetes.io/name: node-feature-discovery
     app.kubernetes.io/instance: gpu-operator
-    app.kubernetes.io/version: "v0.17.2"
+    app.kubernetes.io/version: "v0.16.6"
     app.kubernetes.io/managed-by: Helm
   annotations:
     "helm.sh/hook": post-delete
@@ -2688,10 +2681,10 @@ spec:
   template:
     metadata:
       labels:
-        helm.sh/chart: node-feature-discovery-0.17.2
+        helm.sh/chart: node-feature-discovery-0.16.6
         app.kubernetes.io/name: node-feature-discovery
         app.kubernetes.io/instance: gpu-operator
-        app.kubernetes.io/version: "v0.17.2"
+        app.kubernetes.io/version: "v0.16.6"
         app.kubernetes.io/managed-by: Helm
         role: prune
     spec:
@@ -2705,7 +2698,7 @@ spec:
               - ALL
             readOnlyRootFilesystem: true
             runAsNonRoot: true
-          image: "registry.k8s.io/nfd/node-feature-discovery:v0.17.2"
+          image: "registry.k8s.io/nfd/node-feature-discovery:v0.16.6"
           imagePullPolicy: IfNotPresent
           command:
             - "nfd-master"
@@ -2744,16 +2737,16 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: gpu-operator-upgrade-crd
-  namespace: devzero-zxporter
+  namespace: default
   annotations:
     "helm.sh/hook": pre-upgrade
     "helm.sh/hook-weight": "1"
     "helm.sh/hook-delete-policy": hook-succeeded,before-hook-creation
   labels:
     app.kubernetes.io/name: gpu-operator
-    helm.sh/chart: gpu-operator-v25.3.0
+    helm.sh/chart: gpu-operator-v24.9.2
     app.kubernetes.io/instance: gpu-operator
-    app.kubernetes.io/version: "v25.3.0"
+    app.kubernetes.io/version: "v24.9.2"
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: "gpu-operator"
 spec:
@@ -2762,9 +2755,9 @@ spec:
       name: gpu-operator-upgrade-crd
       labels:
         app.kubernetes.io/name: gpu-operator
-        helm.sh/chart: gpu-operator-v25.3.0
+        helm.sh/chart: gpu-operator-v24.9.2
         app.kubernetes.io/instance: gpu-operator
-        app.kubernetes.io/version: "v25.3.0"
+        app.kubernetes.io/version: "v24.9.2"
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/component: "gpu-operator"
     spec:
@@ -2780,7 +2773,7 @@ spec:
           value: ""
       containers:
         - name: upgrade-crd
-          image: nvcr.io/nvidia/gpu-operator:v25.3.0
+          image: nvcr.io/nvidia/gpu-operator:v24.9.2
           imagePullPolicy: IfNotPresent
           command:
           - /bin/sh
@@ -2791,7 +2784,7 @@ spec:
             kubectl apply -f /opt/gpu-operator/nfd-api-crds.yaml;
       restartPolicy: OnFailure
 ---
-# ----- END GPU OPERATOR -----
+# ----- END NVIDIA GPU OPERATOR -----
 # ----- START DCGM SERVICEMONITOR -----
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
@@ -2813,6 +2806,7 @@ spec:
 ---
 # ----- END DCGM SERVICEMONITOR -----
 # ----- START METRICS SERVER -----
+# Note: Comment out this section if metrics-server is already installed
 ---
 # Source: metrics-server/templates/serviceaccount.yaml
 apiVersion: v1
@@ -3433,7 +3427,7 @@ data:
   BUFFER_SIZE: ""
   CLUSTER_TOKEN: '{{ .cluster_token }}'
   COLLECTION_FREQUENCY: ""
-  DAKR_URL: https://api.devzero.io/dakr
+  DAKR_URL: ""
   DISABLE_NETWORK_IO_METRICS: ""
   DISABLED_COLLECTORS: ""
   EXCLUDED_CLUSTERROLEBINDINGS: ""
@@ -3524,7 +3518,7 @@ spec:
         - --health-probe-bind-address=:8081
         command:
         - /manager
-        image: ttl.sh/zxporter:latest
+        image: docker.io/remontada007/zxporter:v99
         livenessProbe:
           httpGet:
             path: /healthz
