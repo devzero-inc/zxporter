@@ -452,7 +452,7 @@ func (c *ContainerResourceCollector) processContainerMetrics(
 		resourceData["fsWrites"] = ioMetrics["FSWrites"]
 	}
 
-	if gpuMetrics != nil {
+	if gpuMetrics != nil && len(gpuMetrics) > 0 {
 		resourceData["gPUUtilizationPercentage"] = gpuMetrics["GPUUtilizationPercentage"]
 		resourceData["gPUMemoryUsedMb"] = gpuMetrics["GPUMemoryUsedMb"]
 		resourceData["gPUMemoryFreeMb"] = gpuMetrics["GPUMemoryFreeMb"]
@@ -623,6 +623,11 @@ func (c *ContainerResourceCollector) collectContainerGPUMetrics(ctx context.Cont
 				}
 			}
 		}
+	}
+
+	// If we dont have any gpu metrics then sent nil from here
+	if len(metrics) == 0 {
+		return metrics, nil
 	}
 
 	// Extract resource requests and limits for GPU
