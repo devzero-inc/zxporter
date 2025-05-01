@@ -4,8 +4,7 @@ data:
   BUFFER_SIZE: ""
   CLUSTER_TOKEN: '{{ .cluster_token }}'
   COLLECTION_FREQUENCY: ""
-  # DAKR_URL: https://api.devzero.io/dakr
-  DAKR_URL: ""
+  DAKR_URL: https://api.devzero.io/dakr
   DISABLE_NETWORK_IO_METRICS: ""
   DISABLE_GPU_METRICS: ""
   DISABLED_COLLECTORS: ""

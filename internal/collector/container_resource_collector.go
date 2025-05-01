@@ -433,7 +433,7 @@ func (c *ContainerResourceCollector) processContainerMetrics(
 	}
 
 	// Add network metrics if available
-	if networkMetrics != nil {
+	if len(networkMetrics) > 0 {
 		resourceData["networkReceiveBytes"] = networkMetrics["NetworkReceiveBytes"]
 		resourceData["networkTransmitBytes"] = networkMetrics["NetworkTransmitBytes"]
 		resourceData["networkReceivePackets"] = networkMetrics["NetworkReceivePackets"]
@@ -445,14 +445,14 @@ func (c *ContainerResourceCollector) processContainerMetrics(
 	}
 
 	// Add I/O metrics if available
-	if ioMetrics != nil {
+	if len(ioMetrics) > 0 {
 		resourceData["fsReadBytes"] = ioMetrics["FSReadBytes"]
 		resourceData["fsWriteBytes"] = ioMetrics["FSWriteBytes"]
 		resourceData["fsReads"] = ioMetrics["FSReads"]
 		resourceData["fsWrites"] = ioMetrics["FSWrites"]
 	}
 
-	if gpuMetrics != nil && len(gpuMetrics) > 0 {
+	if len(gpuMetrics) > 0 {
 		resourceData["gPUUtilizationPercentage"] = gpuMetrics["GPUUtilizationPercentage"]
 		resourceData["gPUMemoryUsedMb"] = gpuMetrics["GPUMemoryUsedMb"]
 		resourceData["gPUMemoryFreeMb"] = gpuMetrics["GPUMemoryFreeMb"]
