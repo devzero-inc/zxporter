@@ -135,6 +135,10 @@ func (p *GCPProvider) GetClusterMetadata(ctx context.Context) (map[string]interf
 						p.clusterName = name
 						break
 					}
+					if name, ok := node.Labels["cluster_name"]; ok {
+						p.clusterName = name
+						break
+					}
 				}
 			}
 		}
