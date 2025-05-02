@@ -49,18 +49,18 @@ func NewGCPProvider(logger logr.Logger, k8sClient kubernetes.Interface) (*GCPPro
 	// Check if running on GCP
 	available, err := isGCPMetadataAvailable(httpClient)
 	if err != nil || !available {
-		return nil, fmt.Errorf("GCP metadata service not available: %w", err)
+		return nil, fmt.Errorf("[NewGCPProvider] GCP metadata service not available: %w", err)
 	}
 
 	// Get project ID, zone and region
 	projectID, err := getGCPMetadata(httpClient, "project/project-id")
 	if err != nil {
-		return nil, fmt.Errorf("getting project ID: %w", err)
+		return nil, fmt.Errorf("[NewGCPProvider] getting project ID: %w", err)
 	}
 
 	zone, err := getGCPMetadata(httpClient, "instance/zone")
 	if err != nil {
-		return nil, fmt.Errorf("getting zone: %w", err)
+		return nil, fmt.Errorf("[NewGCPProvider] getting zone: %w", err)
 	}
 	// Zone is returned as "projects/PROJECT_NUM/zones/ZONE", extract just the zone name
 	zoneParts := strings.Split(zone, "/")
@@ -75,23 +75,23 @@ func NewGCPProvider(logger logr.Logger, k8sClient kubernetes.Interface) (*GCPPro
 	// Get cluster name from metadata
 	clusterName, err := getGCPMetadata(httpClient, "instance/attributes/cluster-name")
 	if err != nil {
-		logger.Info("Couldn't get cluster name from metadata, will try to discover from node labels")
+		logger.Info("[NewGCPProvider] Couldn't get cluster name from metadata, will try to discover from node labels")
 	}
 
 	// Create Google API clients
 	creds, err := google.FindDefaultCredentials(ctx, container.CloudPlatformScope)
 	if err != nil {
-		return nil, fmt.Errorf("getting GCP credentials: %w", err)
+		return nil, fmt.Errorf("[NewGCPProvider] getting GCP credentials: %w", err)
 	}
 
 	containerSvc, err := container.NewService(ctx, option.WithCredentials(creds))
 	if err != nil {
-		return nil, fmt.Errorf("creating GKE client: %w", err)
+		return nil, fmt.Errorf("[NewGCPProvider] creating GKE client: %w", err)
 	}
 
 	computeSvc, err := compute.NewService(ctx, option.WithCredentials(creds))
 	if err != nil {
-		return nil, fmt.Errorf("creating Compute Engine client: %w", err)
+		return nil, fmt.Errorf("[NewGCPProvider] creating Compute Engine client: %w", err)
 	}
 
 	provider := &GCPProvider{
@@ -106,11 +106,10 @@ func NewGCPProvider(logger logr.Logger, k8sClient kubernetes.Interface) (*GCPPro
 		clusterName:  clusterName,
 		nodePools:    make(map[string]map[string]interface{}),
 	}
-	logger.Info("provider projectID", projectID)
-	logger.Info("provider zone", zone)
-	logger.Info("provider region", region)
-	logger.Info("provider cluster name", clusterName)
-	logger.Info("provider metadata", provider)
+	logger.Info("[NewGCPProvider] provider projectID", "project", projectID)
+	logger.Info("[NewGCPProvider] provider zone", "zone", zone)
+	logger.Info("[NewGCPProvider] provider region", "region", region)
+	logger.Info("[NewGCPProvider] provider cluster name", "clust_name", clusterName)
 	return provider, nil
 }
 
@@ -134,11 +133,11 @@ func (p *GCPProvider) GetClusterMetadata(ctx context.Context) (map[string]interf
 			// Try to extract cluster name from node provider ID
 			// GKE provider ID format: gce://PROJECT/ZONE/NODE_NAME
 			providerID := nodes.Items[0].Spec.ProviderID
-			p.logger.Info("[GetClusterMetadata] nodes", nodes)
+			p.logger.Info("[GetClusterMetadata] nodes", "nodes", nodes)
 			if strings.HasPrefix(providerID, "gce://") {
 				// Check for cluster-name label
 				for _, node := range nodes.Items {
-					p.logger.Info("[GetClusterMetadata] node labels", node.Labels)
+					p.logger.Info("[GetClusterMetadata] node labels", "node_labels", node.Labels)
 					if name, ok := node.Labels["cluster_name"]; ok {
 						p.clusterName = name
 						break
