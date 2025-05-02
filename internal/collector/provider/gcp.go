@@ -106,10 +106,6 @@ func NewGCPProvider(logger logr.Logger, k8sClient kubernetes.Interface) (*GCPPro
 		clusterName:  clusterName,
 		nodePools:    make(map[string]map[string]interface{}),
 	}
-	logger.Info("[NewGCPProvider] provider projectID", "project", projectID)
-	logger.Info("[NewGCPProvider] provider zone", "zone", zone)
-	logger.Info("[NewGCPProvider] provider region", "region", region)
-	logger.Info("[NewGCPProvider] provider cluster name", "clust_name", clusterName)
 	return provider, nil
 }
 
@@ -133,11 +129,9 @@ func (p *GCPProvider) GetClusterMetadata(ctx context.Context) (map[string]interf
 			// Try to extract cluster name from node provider ID
 			// GKE provider ID format: gce://PROJECT/ZONE/NODE_NAME
 			providerID := nodes.Items[0].Spec.ProviderID
-			p.logger.Info("[GetClusterMetadata] nodes", "nodes", nodes)
 			if strings.HasPrefix(providerID, "gce://") {
 				// Check for cluster-name label
 				for _, node := range nodes.Items {
-					p.logger.Info("[GetClusterMetadata] node labels", "node_labels", node.Labels)
 					if name, ok := node.Labels["cluster_name"]; ok {
 						p.clusterName = name
 						break
@@ -152,33 +146,40 @@ func (p *GCPProvider) GetClusterMetadata(ctx context.Context) (map[string]interf
 	}
 
 	// Get the cluster details from GKE API
-	var cluster *container.Cluster
-	var err error
 
 	// Try getting cluster from zone
-	cluster, err = p.containerSvc.Projects.Zones.Clusters.Get(p.projectID, p.zone, p.clusterName).Do()
+	cluster, err := p.containerSvc.Projects.Zones.Clusters.Get(p.projectID, p.zone, p.clusterName).Do()
 	if err != nil {
+		p.logger.Error(err, "failed to get clusters in curr project zone... continuing with partial metadata",
+			"project_id", p.projectID,
+			"zone", p.zone,
+			"cluster_name", p.clusterName)
+
 		// If zone lookup fails, try region
 		cluster, err = p.containerSvc.Projects.Locations.Clusters.Get(
 			fmt.Sprintf("projects/%s/locations/%s/clusters/%s", p.projectID, p.region, p.clusterName)).Do()
 		if err != nil {
-			return nil, fmt.Errorf("getting cluster details: %w", err)
+			p.logger.Error(err, "failed to get clusters in curr project region... continuing with partial metadata",
+				"project_id", p.projectID,
+				"region", p.region,
+				"cluster_name", p.clusterName)
 		}
 	}
 
 	// Get node pools
 	nodePools, err := p.getNodePools(ctx)
 	if err != nil {
-		p.logger.Error(err, "Failed to get node pools, continuing with partial metadata")
+		p.logger.Error(err, "Failed to get node pools... continuing with partial metadata")
 	}
 
 	// Extract network info
-	networkConfig := map[string]interface{}{
-		"network":    cluster.Network,
-		"subnetwork": cluster.Subnetwork,
+	networkConfig := map[string]interface{}{}
+	if cluster != nil {
+		networkConfig["network"] = cluster.Network
+		networkConfig["subnetwork"] = cluster.Subnetwork
 	}
 
-	if cluster.NetworkConfig != nil {
+	if cluster != nil && cluster.NetworkConfig != nil {
 		// Add available fields from NetworkConfig
 		if cluster.NetworkConfig.EnableIntraNodeVisibility {
 			networkConfig["enable_intra_node_visibility"] = cluster.NetworkConfig.EnableIntraNodeVisibility
@@ -216,15 +217,23 @@ func (p *GCPProvider) GetClusterMetadata(ctx context.Context) (map[string]interf
 		"project_id":         p.projectID,
 		"zone":               p.zone,
 		"region":             p.region,
-		"cluster_name":       cluster.Name,
-		"kubernetes_version": cluster.CurrentMasterVersion,
-		"create_time":        cluster.CreateTime,
+		"cluster_name":       p.clusterName,                // default is overwritten in case cluster info is available
+		"kubernetes_version": cluster.CurrentMasterVersion, // need everton
+		"create_time":        cluster.CreateTime,           // need everton
 		"node_pools":         nodePools,
 		"network_config":     networkConfig,
-		"endpoint":           cluster.Endpoint,
+		"endpoint":           cluster.Endpoint,         // need everton
 		"location_type":      getLocationType(cluster), // zonal or regional
-		"status":             cluster.Status,
-		"cluster_ipv4_cidr":  cluster.ClusterIpv4Cidr,
+		"status":             cluster.Status,           // need everton
+		"cluster_ipv4_cidr":  cluster.ClusterIpv4Cidr,  // need everton
+	}
+	if cluster != nil {
+		metadata["cluster_name"] = cluster.Name
+		metadata["kubernetes_version"] = cluster.CurrentMasterVersion
+		metadata["create_time"] = cluster.CreateTime
+		metadata["endpoint"] = cluster.Endpoint
+		metadata["status"] = cluster.Status
+		metadata["cluster_ipv4_cidr"] = cluster.ClusterIpv4Cidr
 	}
 
 	// Add addon configurations if available
