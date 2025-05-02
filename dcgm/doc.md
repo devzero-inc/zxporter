@@ -81,6 +81,8 @@ This approach uses Kubernetes metadata (`__meta_kubernetes_pod_node_name`) to ex
     -   For reliability, always use `nodeName` label added by ServiceMonitor relabeling
     -   Use `__meta_kubernetes_pod_node_name` as source for consistent node identification
 
+4. DCGM only collecting container labels, if that container is in the same namespace the dcgm present. Seems like some permission issues.
+
 **Example of Mixed Labels in Metrics:**
 
 ```

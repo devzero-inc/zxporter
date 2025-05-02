@@ -25,6 +25,6 @@ spec:
     relabelings:
     # Extract Kubernetes node name from pod label and set as 'nodeName' label
     - sourceLabels: [__meta_kubernetes_pod_node_name]
-      targetLabel: nodeName
+      targetLabel: node
       action: replace
   jobLabel: app

@@ -1,0 +1,16 @@
+dcgmExporter:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+  env:
+    - name: DCGM_EXPORTER_KUBERNETES
+      value: "true"
+    - name: DCGM_EXPORTER_KUBERNETES_GPU_ID_TYPE
+      value: "device-name"
+
+# command to install the GPU Operator
+# helm install --wait --generate-name \
+#   -n gpu-operator --create-namespace \
+#   nvidia/gpu-operator \
+#   --version=v25.3.0 \
+#   -f gpu-operator-values.yaml
