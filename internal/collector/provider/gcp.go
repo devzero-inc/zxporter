@@ -190,26 +190,13 @@ func (p *GCPProvider) GetClusterMetadata(ctx context.Context) (map[string]interf
 	// Extract cluster information if available
 	if cluster != nil {
 		// Extract network info
-		if cluster.Network != "" {
-			networkConfig["network"] = cluster.Network
-		}
-
-		if cluster.Subnetwork != "" {
-			networkConfig["subnetwork"] = cluster.Subnetwork
-		}
+		networkConfig["network"] = cluster.Network
+		networkConfig["subnetwork"] = cluster.Subnetwork
 
 		if cluster.NetworkConfig != nil {
-			if cluster.NetworkConfig.EnableIntraNodeVisibility {
-				networkConfig["enable_intra_node_visibility"] = cluster.NetworkConfig.EnableIntraNodeVisibility
-			}
-
-			if cluster.NetworkConfig.DatapathProvider != "" {
-				networkConfig["datapath_provider"] = cluster.NetworkConfig.DatapathProvider
-			}
-
-			if cluster.NetworkConfig.DefaultEnablePrivateNodes {
-				networkConfig["default_enable_private_nodes"] = cluster.NetworkConfig.DefaultEnablePrivateNodes
-			}
+			networkConfig["enable_intra_node_visibility"] = cluster.NetworkConfig.EnableIntraNodeVisibility
+			networkConfig["datapath_provider"] = cluster.NetworkConfig.DatapathProvider
+			networkConfig["default_enable_private_nodes"] = cluster.NetworkConfig.DefaultEnablePrivateNodes
 
 			if cluster.NetworkConfig.DefaultSnatStatus != nil {
 				networkConfig["default_snat_disabled"] = cluster.NetworkConfig.DefaultSnatStatus.Disabled
