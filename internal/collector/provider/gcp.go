@@ -118,138 +118,146 @@ func (p *GCPProvider) Name() string {
 func (p *GCPProvider) GetClusterMetadata(ctx context.Context) (map[string]interface{}, error) {
 	p.logger.Info("Collecting GCP GKE cluster metadata")
 
-	// If we don't have the cluster name yet, try to get it from a node
+	// Initialize default metadata with known values
+	metadata := map[string]interface{}{
+		"provider":   "gke",
+		"project_id": p.projectID,
+		"zone":       p.zone,
+		"region":     p.region,
+	}
+
+	// Initialize node pools and network config as empty to avoid nil references
+	nodePools := []map[string]interface{}{}
+	networkConfig := map[string]interface{}{}
+
+	// Try to determine cluster name if not already set
 	if p.clusterName == "" {
 		nodes, err := p.k8sClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{Limit: 1})
 		if err != nil {
-			return nil, fmt.Errorf("listing nodes: %w", err)
-		}
-
-		if len(nodes.Items) > 0 {
+			p.logger.Error(err, "Failed to list nodes to determine cluster name")
+		} else if len(nodes.Items) > 0 {
 			// Try to extract cluster name from node provider ID
 			// GKE provider ID format: gce://PROJECT/ZONE/NODE_NAME
-			providerID := nodes.Items[0].Spec.ProviderID
-			if strings.HasPrefix(providerID, "gce://") {
-				// Check for cluster-name label
-				for _, node := range nodes.Items {
-					if name, ok := node.Labels["cluster_name"]; ok {
-						p.clusterName = name
-						break
-					}
+			for _, node := range nodes.Items {
+				if name, ok := node.Labels["cluster_name"]; ok {
+					p.clusterName = name
+					break
 				}
 			}
 		}
-
-		if p.clusterName == "" {
-			return nil, fmt.Errorf("couldn't determine GKE cluster name")
-		}
 	}
 
-	// Get the cluster details from GKE API
+	metadata["cluster_name"] = p.clusterName
 
-	// Try getting cluster from zone
-	cluster, err := p.containerSvc.Projects.Zones.Clusters.Get(p.projectID, p.zone, p.clusterName).Do()
+	// Get the cluster details from GKE API, but don't fail if we can't
+	var cluster *container.Cluster
+
+	// Try getting cluster from zone first
+	clusterZone, err := p.containerSvc.Projects.Zones.Clusters.Get(p.projectID, p.zone, p.clusterName).Do()
 	if err != nil {
-		p.logger.Error(err, "failed to get clusters in curr project zone... continuing with partial metadata",
+		p.logger.Error(err, "Failed to get clusters in project zone",
 			"project_id", p.projectID,
 			"zone", p.zone,
 			"cluster_name", p.clusterName)
 
 		// If zone lookup fails, try region
-		cluster, err = p.containerSvc.Projects.Locations.Clusters.Get(
+		clusterRegion, err := p.containerSvc.Projects.Locations.Clusters.Get(
 			fmt.Sprintf("projects/%s/locations/%s/clusters/%s", p.projectID, p.region, p.clusterName)).Do()
 		if err != nil {
-			p.logger.Error(err, "failed to get clusters in curr project region... continuing with partial metadata",
+			p.logger.Error(err, "Failed to get clusters in project region",
 				"project_id", p.projectID,
 				"region", p.region,
 				"cluster_name", p.clusterName)
+		} else {
+			cluster = clusterRegion
 		}
+	} else {
+		cluster = clusterZone
 	}
 
-	// Get node pools
-	nodePools, err := p.getNodePools(ctx)
+	// Get node pools -> if it fails will just have an empty list
+	nodePoolsData, err := p.getNodePools(ctx)
 	if err != nil {
-		p.logger.Error(err, "Failed to get node pools... continuing with partial metadata")
+		p.logger.Error(err, "Failed to get node pools")
+	} else {
+		nodePools = nodePoolsData
 	}
 
-	// Extract network info
-	networkConfig := map[string]interface{}{}
+	// Add all information we have to metadata
+	metadata["node_pools"] = nodePools
+	metadata["network_config"] = networkConfig
+
+	// Extract cluster information if available
 	if cluster != nil {
-		networkConfig["network"] = cluster.Network
-		networkConfig["subnetwork"] = cluster.Subnetwork
-	}
-
-	if cluster != nil && cluster.NetworkConfig != nil {
-		// Add available fields from NetworkConfig
-		if cluster.NetworkConfig.EnableIntraNodeVisibility {
-			networkConfig["enable_intra_node_visibility"] = cluster.NetworkConfig.EnableIntraNodeVisibility
+		// Extract network info
+		if cluster.Network != "" {
+			networkConfig["network"] = cluster.Network
 		}
 
-		if cluster.NetworkConfig.DatapathProvider != "" {
-			networkConfig["datapath_provider"] = cluster.NetworkConfig.DatapathProvider
+		if cluster.Subnetwork != "" {
+			networkConfig["subnetwork"] = cluster.Subnetwork
 		}
 
-		if cluster.NetworkConfig.DefaultEnablePrivateNodes {
-			networkConfig["default_enable_private_nodes"] = cluster.NetworkConfig.DefaultEnablePrivateNodes
-		}
-
-		if cluster.NetworkConfig.DefaultSnatStatus != nil {
-			networkConfig["default_snat_disabled"] = cluster.NetworkConfig.DefaultSnatStatus.Disabled
-		}
-
-		if cluster.NetworkConfig.DnsConfig != nil {
-			networkConfig["dns_config"] = map[string]interface{}{
-				"cluster_dns":        cluster.NetworkConfig.DnsConfig.ClusterDns,
-				"cluster_dns_scope":  cluster.NetworkConfig.DnsConfig.ClusterDnsScope,
-				"cluster_dns_domain": cluster.NetworkConfig.DnsConfig.ClusterDnsDomain,
+		if cluster.NetworkConfig != nil {
+			if cluster.NetworkConfig.EnableIntraNodeVisibility {
+				networkConfig["enable_intra_node_visibility"] = cluster.NetworkConfig.EnableIntraNodeVisibility
 			}
+
+			if cluster.NetworkConfig.DatapathProvider != "" {
+				networkConfig["datapath_provider"] = cluster.NetworkConfig.DatapathProvider
+			}
+
+			if cluster.NetworkConfig.DefaultEnablePrivateNodes {
+				networkConfig["default_enable_private_nodes"] = cluster.NetworkConfig.DefaultEnablePrivateNodes
+			}
+
+			if cluster.NetworkConfig.DefaultSnatStatus != nil {
+				networkConfig["default_snat_disabled"] = cluster.NetworkConfig.DefaultSnatStatus.Disabled
+			}
+
+			if cluster.NetworkConfig.DnsConfig != nil {
+				networkConfig["dns_config"] = map[string]interface{}{
+					"cluster_dns":        cluster.NetworkConfig.DnsConfig.ClusterDns,
+					"cluster_dns_scope":  cluster.NetworkConfig.DnsConfig.ClusterDnsScope,
+					"cluster_dns_domain": cluster.NetworkConfig.DnsConfig.ClusterDnsDomain,
+				}
+			}
+
+			// Add other relevant fields from NetworkConfig
+			networkConfig["enable_l4ilb_subsetting"] = cluster.NetworkConfig.EnableL4ilbSubsetting
+			networkConfig["enable_multi_networking"] = cluster.NetworkConfig.EnableMultiNetworking
+			networkConfig["private_ipv6_google_access"] = cluster.NetworkConfig.PrivateIpv6GoogleAccess
 		}
 
-		// Add other relevant fields from NetworkConfig
-		networkConfig["enable_l4ilb_subsetting"] = cluster.NetworkConfig.EnableL4ilbSubsetting
-		networkConfig["enable_multi_networking"] = cluster.NetworkConfig.EnableMultiNetworking
-		networkConfig["private_ipv6_google_access"] = cluster.NetworkConfig.PrivateIpv6GoogleAccess
-	}
-
-	// Build metadata
-	metadata := map[string]interface{}{
-		"provider":           "gke",
-		"project_id":         p.projectID,
-		"zone":               p.zone,
-		"region":             p.region,
-		"cluster_name":       p.clusterName,                // default is overwritten in case cluster info is available
-		"kubernetes_version": cluster.CurrentMasterVersion, // need everton
-		"create_time":        cluster.CreateTime,           // need everton
-		"node_pools":         nodePools,
-		"network_config":     networkConfig,
-		"endpoint":           cluster.Endpoint,         // need everton
-		"location_type":      getLocationType(cluster), // zonal or regional
-		"status":             cluster.Status,           // need everton
-		"cluster_ipv4_cidr":  cluster.ClusterIpv4Cidr,  // need everton
-	}
-	if cluster != nil {
+		// Update metadata with cluster details
 		metadata["cluster_name"] = cluster.Name
 		metadata["kubernetes_version"] = cluster.CurrentMasterVersion
 		metadata["create_time"] = cluster.CreateTime
 		metadata["endpoint"] = cluster.Endpoint
+		metadata["location_type"] = getLocationType(cluster)
 		metadata["status"] = cluster.Status
 		metadata["cluster_ipv4_cidr"] = cluster.ClusterIpv4Cidr
-	}
 
-	// Add addon configurations if available
-	if cluster.AddonsConfig != nil {
-		metadata["addons_config"] = map[string]interface{}{
-			"http_load_balancing_enabled":        cluster.AddonsConfig.HttpLoadBalancing == nil || !cluster.AddonsConfig.HttpLoadBalancing.Disabled,
-			"horizontal_pod_autoscaling_enabled": cluster.AddonsConfig.HorizontalPodAutoscaling == nil || !cluster.AddonsConfig.HorizontalPodAutoscaling.Disabled,
-			"kubernetes_dashboard_enabled":       cluster.AddonsConfig.KubernetesDashboard != nil && !cluster.AddonsConfig.KubernetesDashboard.Disabled,
-			"network_policy_enabled":             cluster.AddonsConfig.NetworkPolicyConfig != nil && !cluster.AddonsConfig.NetworkPolicyConfig.Disabled,
+		// Add addon configurations if available
+		if cluster.AddonsConfig != nil {
+			metadata["addons_config"] = map[string]interface{}{
+				"http_load_balancing_enabled":        cluster.AddonsConfig.HttpLoadBalancing == nil || !cluster.AddonsConfig.HttpLoadBalancing.Disabled,
+				"horizontal_pod_autoscaling_enabled": cluster.AddonsConfig.HorizontalPodAutoscaling == nil || !cluster.AddonsConfig.HorizontalPodAutoscaling.Disabled,
+				"kubernetes_dashboard_enabled":       cluster.AddonsConfig.KubernetesDashboard != nil && !cluster.AddonsConfig.KubernetesDashboard.Disabled,
+				"network_policy_enabled":             cluster.AddonsConfig.NetworkPolicyConfig != nil && !cluster.AddonsConfig.NetworkPolicyConfig.Disabled,
+			}
 		}
-	}
 
-	p.logger.Info("Collected GKE cluster metadata",
-		"cluster", cluster.Name,
-		"project", p.projectID,
-		"region", p.region)
+		p.logger.Info("Collected GKE cluster metadata",
+			"cluster", cluster.Name,
+			"project", p.projectID,
+			"region", p.region)
+	} else {
+		p.logger.Info("Collected partial GKE cluster metadata (cluster API not accessible)",
+			"cluster_name", p.clusterName,
+			"project", p.projectID,
+			"region", p.region)
+	}
 
 	return metadata, nil
 }
