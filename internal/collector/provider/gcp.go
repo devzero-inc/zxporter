@@ -128,13 +128,11 @@ func (p *GCPProvider) GetClusterMetadata(ctx context.Context) (map[string]interf
 			// Try to extract cluster name from node provider ID
 			// GKE provider ID format: gce://PROJECT/ZONE/NODE_NAME
 			providerID := nodes.Items[0].Spec.ProviderID
+			p.logger.Info("[GetClusterMetadata] nodes", nodes)
 			if strings.HasPrefix(providerID, "gce://") {
 				// Check for cluster-name label
 				for _, node := range nodes.Items {
-					if name, ok := node.Labels["cloud.google.com/gke-cluster"]; ok {
-						p.clusterName = name
-						break
-					}
+					p.logger.Info("[GetClusterMetadata] node labels", node.Labels)
 					if name, ok := node.Labels["cluster_name"]; ok {
 						p.clusterName = name
 						break
