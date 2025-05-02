@@ -94,7 +94,7 @@ func NewGCPProvider(logger logr.Logger, k8sClient kubernetes.Interface) (*GCPPro
 		return nil, fmt.Errorf("creating Compute Engine client: %w", err)
 	}
 
-	return &GCPProvider{
+	provider := &GCPProvider{
 		logger:       logger,
 		k8sClient:    k8sClient,
 		httpClient:   httpClient,
@@ -105,7 +105,13 @@ func NewGCPProvider(logger logr.Logger, k8sClient kubernetes.Interface) (*GCPPro
 		region:       region,
 		clusterName:  clusterName,
 		nodePools:    make(map[string]map[string]interface{}),
-	}, nil
+	}
+	logger.Info("provider projectID", projectID)
+	logger.Info("provider zone", zone)
+	logger.Info("provider region", region)
+	logger.Info("provider cluster name", clusterName)
+	logger.Info("provider metadata", provider)
+	return provider, nil
 }
 
 // Name returns the provider name
