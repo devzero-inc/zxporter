@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -12,6 +13,8 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/eks"
 	"github.com/go-logr/logr"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 )
 
@@ -23,6 +26,8 @@ const (
 
 // AWSProvider implements provider interface for AWS EKS
 type AWSProvider struct {
+	sync.Mutex
+
 	logger      logr.Logger
 	k8sClient   kubernetes.Interface
 	metaClient  *ec2metadata.EC2Metadata
@@ -31,8 +36,11 @@ type AWSProvider struct {
 	region      string
 	accountID   string
 	clusterName string
-	nodeGroups  map[string]map[string]interface{}
+	nodeGroups  map[NodePoolName]map[AWSNodeGroupType][]string
 }
+
+// CapacityTypesOnDemand, CapacityTypesSpot or CapacityTypesCapacityBlock
+type AWSNodeGroupType string
 
 // NewAWSProvider creates a new AWS provider
 func NewAWSProvider(logger logr.Logger, k8sClient kubernetes.Interface) (*AWSProvider, error) {
@@ -68,7 +76,7 @@ func NewAWSProvider(logger logr.Logger, k8sClient kubernetes.Interface) (*AWSPro
 		ec2Client:  ec2Client,
 		eksClient:  eksClient,
 		region:     region,
-		nodeGroups: make(map[string]map[string]interface{}),
+		nodeGroups: make(map[NodePoolName]map[AWSNodeGroupType][]string),
 	}, nil
 }
 
@@ -141,11 +149,7 @@ func (p *AWSProvider) GetClusterMetadata(ctx context.Context) (map[string]interf
 	}
 
 	// Get node groups for this cluster
-	nodeGroups, err := p.getNodeGroups(ctx)
-	if err != nil {
-		p.logger.Error(err, "Failed to get node groups, continuing with partial metadata")
-	}
-
+	nodeGroups := p.GetNodeGroupMetadata(ctx)
 	metadata := map[string]interface{}{
 		"provider":      "eks",
 		"region":        p.region,
@@ -181,108 +185,69 @@ func (p *AWSProvider) GetClusterMetadata(ctx context.Context) (map[string]interf
 }
 
 func (p *AWSProvider) GetNodeGroupMetadata(ctx context.Context) map[string]map[string][]string {
-	return nil
+	nodeList, err := p.k8sClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
+	if err != nil { // failed to call K8s API
+		// return cached info, if available
+		return awsTypesToGeneric(p.nodeGroups)
+	}
+
+	refreshedNodeGroupMetadata := getAWSNodeGroupMetadata(nodeList)
+	p.Lock()
+	p.nodeGroups = refreshedNodeGroupMetadata
+	p.Unlock()
+
+	return awsTypesToGeneric(p.nodeGroups)
 }
 
-// getNodeGroups retrieves all node groups associated with the EKS cluster
-func (p *AWSProvider) getNodeGroups(ctx context.Context) ([]map[string]interface{}, error) {
-	if p.clusterName == "" {
-		return nil, fmt.Errorf("cluster name not set")
+func getAWSNodeGroupMetadata(nodeList *corev1.NodeList) map[NodePoolName]map[AWSNodeGroupType][]string {
+	var nodeGroupInfo map[NodePoolName]map[AWSNodeGroupType][]string
+	if nodeList == nil {
+		return nodeGroupInfo
 	}
 
-	// List node groups in this cluster
-	nodeGroupsOutput, err := p.eksClient.ListNodegroupsWithContext(ctx, &eks.ListNodegroupsInput{
-		ClusterName: aws.String(p.clusterName),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("listing node groups: %w", err)
+	for _, node := range nodeList.Items {
+		nodePoolLabel := getAWSNodePoolLabel(&node)
+		nodePoolScaleSet := getAWSNodeGroupType(node)
+		// update node count in node pool
+		if _, ok := nodeGroupInfo[nodePoolLabel]; !ok {
+			nodeGroupInfo[nodePoolLabel] = make(map[AWSNodeGroupType][]string)
+		}
+
+		if _, ok := nodeGroupInfo[nodePoolLabel][nodePoolScaleSet]; !ok {
+			nodeGroupInfo[nodePoolLabel][nodePoolScaleSet] = []string{}
+		}
+		nodeGroupInfo[nodePoolLabel][nodePoolScaleSet] = append(nodeGroupInfo[nodePoolLabel][nodePoolScaleSet], node.Name)
 	}
-
-	var nodeGroups []map[string]interface{}
-
-	// Get details for each node group
-	for _, ngName := range nodeGroupsOutput.Nodegroups {
-		ngDetails, err := p.eksClient.DescribeNodegroupWithContext(ctx, &eks.DescribeNodegroupInput{
-			ClusterName:   aws.String(p.clusterName),
-			NodegroupName: ngName,
-		})
-		if err != nil {
-			p.logger.Error(err, "Failed to get node group details", "nodegroup", *ngName)
-			continue
-		}
-
-		ng := ngDetails.Nodegroup
-
-		// Get launch template info if available
-		var launchTemplate map[string]interface{}
-		if ng.LaunchTemplate != nil {
-			launchTemplate = map[string]interface{}{
-				"id":      *ng.LaunchTemplate.Id,
-				"version": *ng.LaunchTemplate.Version,
-			}
-		}
-
-		// Extract instance types
-		var instanceTypes []string
-		if ng.InstanceTypes != nil {
-			for _, it := range ng.InstanceTypes {
-				instanceTypes = append(instanceTypes, *it)
-			}
-		}
-
-		// Extract scaling config
-		var scalingConfig map[string]interface{}
-		if ng.ScalingConfig != nil {
-			scalingConfig = map[string]interface{}{
-				"desired_size": *ng.ScalingConfig.DesiredSize,
-				"min_size":     *ng.ScalingConfig.MinSize,
-				"max_size":     *ng.ScalingConfig.MaxSize,
-			}
-		}
-
-		nodeGroup := map[string]interface{}{
-			"name":            *ng.NodegroupName,
-			"status":          *ng.Status,
-			"instance_types":  instanceTypes,
-			"scaling_config":  scalingConfig,
-			"launch_template": launchTemplate,
-			"ami_type":        pointerToString(ng.AmiType),
-			"capacity_type":   pointerToString(ng.CapacityType),
-			"disk_size":       pointerToInt(ng.DiskSize),
-			"created_at":      ngTimeToUnix(ng.CreatedAt),
-		}
-
-		nodeGroups = append(nodeGroups, nodeGroup)
-
-		// Store in the nodeGroups map for later use
-		p.nodeGroups[*ng.NodegroupName] = nodeGroup
-	}
-
-	return nodeGroups, nil
+	return nodeGroupInfo
 }
 
-// GetNodeGroupForNode determines which node group a node belongs to
-func (p *AWSProvider) GetNodeGroupForNode(nodeName string) (map[string]interface{}, error) {
-	// First check if we need to load node groups
-	if len(p.nodeGroups) == 0 {
-		_, err := p.getNodeGroups(context.Background())
-		if err != nil {
-			return nil, fmt.Errorf("loading node groups: %w", err)
-		}
+func getAWSNodePoolLabel(node *corev1.Node) NodePoolName {
+	if val, ok := node.Labels["eks.amazonaws.com/nodegroup"]; ok {
+		return NodePoolName(val)
+	}
+	return NodePoolName("unknown")
+}
+
+func getAWSNodeGroupType(node corev1.Node) AWSNodeGroupType {
+	if val, ok := node.Labels["eks.amazonaws.com/capacityType"]; ok {
+		return AWSNodeGroupType(val)
+	}
+	return eks.CapacityTypesOnDemand // "on-demand"
+}
+
+func awsTypesToGeneric(metadata map[NodePoolName]map[AWSNodeGroupType][]string) map[string]map[string][]string {
+	var m map[string]map[string][]string
+	if metadata == nil {
+		return m
 	}
 
-	// For EKS, the node group info is typically in a label on the node
-	// We would need to get the node object from K8s API to check this properly
-	// This is a simplified version that extracts from node name
-
-	// In EKS, nodes often have the pattern: [nodegroup-name]-[uuid]
-	for ngName, ngDetails := range p.nodeGroups {
-		if strings.Contains(nodeName, ngName) {
-			return ngDetails, nil
+	for nodePool, nodePoolTypeToNodeList := range metadata {
+		m[string(nodePool)] = make(map[string][]string)
+		for nodePoolType, nodeList := range nodePoolTypeToNodeList {
+			m[string(nodePool)][string(nodePoolType)] = nodeList
 		}
 	}
-
-	return nil, fmt.Errorf("couldn't find node group for node %s", nodeName)
+	return m
 }
 
 // Helper functions

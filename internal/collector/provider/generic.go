@@ -215,3 +215,7 @@ func (p *GenericProvider) guessProviderFromNodes(nodes []corev1.Node) string {
 
 	return ""
 }
+
+func (p *GenericProvider) GetNodeGroupMetadata(context.Context) map[string]map[string][]string {
+	return nil
+}
