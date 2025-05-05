@@ -5,7 +5,8 @@ ARG TARGETARCH
 
 WORKDIR /workspace
 # Copy the Go Modules manifests
-COPY . .
+COPY go.mod go.sum ./
+
 # COPY go.sum go.sum
 # # cache deps before building and copying source so that we don't need to re-download as much
 # # and so that source changes don't invalidate our downloaded layer
@@ -13,6 +14,8 @@ ARG GITHUB_TOKEN
 RUN git config --global url."https://${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
 RUN go mod download
 
+
+COPY . .
 # Build
 # the GOARCH has not a default value to allow the binary be built according to the host where the command
 # was called. For example, if we call make docker-build in a local env which has the Apple Silicon M1 SO
