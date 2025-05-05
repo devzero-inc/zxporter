@@ -120,7 +120,7 @@ func (c *ClusterCollector) collectClusterData(ctx context.Context) error {
 	}
 
 	// 4. Get node groups and map nodes to node groups
-	nodeGroups, nodesWithNodeGroups := c.getNodeGroupMapping(ctx, nodes.Items)
+	nodeGroupMetadata := c.provider.GetNodeGroupMetadata(ctx)
 
 	// 5. Get namespaces count
 	namespaces, err := c.k8sClient.CoreV1().Namespaces().List(ctx, metav1.ListOptions{})
@@ -150,8 +150,7 @@ func (c *ClusterCollector) collectClusterData(ctx context.Context) error {
 		"cluster_api":           clusterAPI,
 		"version":               k8sVersion,
 		"cni_plugins":           cniPlugins,
-		"node_groups":           nodeGroups,
-		"nodes":                 nodesWithNodeGroups,
+		"node_group_metadata":   nodeGroupMetadata,
 		"provider_specific":     providerData,
 		"node_count":            len(nodes.Items),
 		"namespace_count":       len(namespaces.Items),
@@ -196,104 +195,6 @@ func (c *ClusterCollector) getKubernetesVersion(ctx context.Context) string {
 		return "unknown"
 	}
 	return serverVersion.String()
-}
-
-// getNodeGroupMapping creates a mapping between nodes and their node groups
-func (c *ClusterCollector) getNodeGroupMapping(ctx context.Context, nodes []corev1.Node) ([]map[string]interface{}, []map[string]interface{}) {
-	nodeGroups := make(map[string]map[string]interface{})
-	nodesWithNodeGroups := make([]map[string]interface{}, 0, len(nodes))
-
-	for _, node := range nodes {
-		nodeMap := c.nodeToMap(&node)
-
-		// Try to find node group for this node
-		ngData, err := c.provider.GetNodeGroupForNode(node.Name)
-		if err != nil {
-			c.logger.Info("Couldn't find node group for node", "node", node.Name, "error", err)
-			nodeMap["node_group"] = nil
-		} else {
-			nodeMap["node_group"] = ngData["name"]
-
-			// Add node group to map if not already there
-			if _, ok := nodeGroups[ngData["name"].(string)]; !ok {
-				nodeGroups[ngData["name"].(string)] = ngData
-			}
-
-			// Add node to node group's nodes if needed
-			if _, ok := nodeGroups[ngData["name"].(string)]["nodes"]; !ok {
-				nodeGroups[ngData["name"].(string)]["nodes"] = []string{node.Name}
-			} else {
-				nodeList := nodeGroups[ngData["name"].(string)]["nodes"].([]string)
-				nodeGroups[ngData["name"].(string)]["nodes"] = append(nodeList, node.Name)
-			}
-		}
-
-		nodesWithNodeGroups = append(nodesWithNodeGroups, nodeMap)
-	}
-
-	// Convert nodeGroups map to slice
-	nodeGroupsSlice := make([]map[string]interface{}, 0, len(nodeGroups))
-	for _, ng := range nodeGroups {
-		nodeGroupsSlice = append(nodeGroupsSlice, ng)
-	}
-
-	return nodeGroupsSlice, nodesWithNodeGroups
-}
-
-// nodeToMap converts a Node object to a map for JSON serialization
-func (c *ClusterCollector) nodeToMap(node *corev1.Node) map[string]interface{} {
-	conditions := make(map[string]interface{})
-	for _, condition := range node.Status.Conditions {
-		conditions[string(condition.Type)] = map[string]interface{}{
-			"status":  string(condition.Status),
-			"reason":  condition.Reason,
-			"message": condition.Message,
-		}
-	}
-
-	taints := make([]map[string]string, 0, len(node.Spec.Taints))
-	for _, taint := range node.Spec.Taints {
-		taints = append(taints, map[string]string{
-			"key":    taint.Key,
-			"value":  taint.Value,
-			"effect": string(taint.Effect),
-		})
-	}
-
-	return map[string]interface{}{
-		"name":                     node.Name,
-		"uid":                      string(node.UID),
-		"labels":                   node.Labels,
-		"annotations":              node.Annotations,
-		"creation_timestamp":       node.CreationTimestamp.Unix(),
-		"conditions":               conditions,
-		"taints":                   taints,
-		"unschedulable":            node.Spec.Unschedulable,
-		"architecture":             node.Status.NodeInfo.Architecture,
-		"container_runtime":        node.Status.NodeInfo.ContainerRuntimeVersion,
-		"kernel_version":           node.Status.NodeInfo.KernelVersion,
-		"kube_proxy_version":       node.Status.NodeInfo.KubeProxyVersion,
-		"kubelet_version":          node.Status.NodeInfo.KubeletVersion,
-		"operating_system":         node.Status.NodeInfo.OperatingSystem,
-		"os_image":                 node.Status.NodeInfo.OSImage,
-		"capacity_cpu":             node.Status.Capacity.Cpu().Value(),
-		"capacity_memory_bytes":    node.Status.Capacity.Memory().Value(),
-		"capacity_pods":            node.Status.Capacity.Pods().Value(),
-		"allocatable_cpu":          node.Status.Allocatable.Cpu().Value(),
-		"allocatable_memory_bytes": node.Status.Allocatable.Memory().Value(),
-		"allocatable_pods":         node.Status.Allocatable.Pods().Value(),
-		"provider_id":              node.Spec.ProviderID,
-		"addresses":                c.getNodeAddresses(node),
-	}
-}
-
-// getNodeAddresses extracts and formats node address information
-func (c *ClusterCollector) getNodeAddresses(node *corev1.Node) map[string]string {
-	addresses := make(map[string]string)
-	for _, addr := range node.Status.Addresses {
-		addresses[string(addr.Type)] = addr.Address
-	}
-	return addresses
 }
 
 // getResourceMetrics calculates cluster-wide resource usage metrics
@@ -351,7 +252,7 @@ func (c *ClusterCollector) getWorkloadCount(ctx context.Context) int {
 
 // detectCNIPlugins attempts to identify CNI plugins used in the cluster
 func (c *ClusterCollector) detectCNIPlugins(ctx context.Context) []string {
-	// This is a simplified version - a more robust implementation would check multiple sources
+	// TODO: This is clearly a simplified version - a more robust implementation would check multiple sources
 
 	// Common CNI plugins and their detection patterns
 	cniPatterns := map[string][]string{
@@ -432,7 +333,7 @@ func (c *ClusterCollector) getClusterAPIEndpoint(ctx context.Context) string {
 	if err == nil {
 		if clusterConfig, ok := configMap.Data["ClusterConfiguration"]; ok {
 			// Very simple extraction - in a real implementation you'd parse the YAML
-			if containsString(clusterConfig, "controlPlaneEndpoint:") {
+			if !containsString(clusterConfig, "controlPlaneEndpoint:") {
 				// Extract the endpoint
 				lines := strings.Split(clusterConfig, "\n")
 				for _, line := range lines {

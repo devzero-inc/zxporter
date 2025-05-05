@@ -180,6 +180,10 @@ func (p *AWSProvider) GetClusterMetadata(ctx context.Context) (map[string]interf
 	return metadata, nil
 }
 
+func (p *AWSProvider) GetNodeGroupMetadata(ctx context.Context) map[string]map[string][]string {
+	return nil
+}
+
 // getNodeGroups retrieves all node groups associated with the EKS cluster
 func (p *AWSProvider) getNodeGroups(ctx context.Context) ([]map[string]interface{}, error) {
 	if p.clusterName == "" {
