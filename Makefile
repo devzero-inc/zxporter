@@ -248,7 +248,7 @@ generate-monitoring-manifests: helm ## Generate monitoring manifests for Prometh
 
 .PHONY: build-installer
 build-installer: manifests generate kustomize yq ## Generate a consolidated YAML with deployment.
-	mkdir -p $(DIST_DIR)
+	@mkdir -p $(DIST_DIR)
 
 	@echo "[INFO] Generating manifests for monitoring components..."
 	@$(MAKE) generate-monitoring-manifests
@@ -358,7 +358,8 @@ undeploy: kustomize undeploy-monitoring ## Undeploy controller from the K8s clus
 ## Location to install dependencies to
 LOCALBIN ?= $(shell pwd)/bin
 $(LOCALBIN):
-	mkdir -p $(LOCALBIN)
+	@echo "[BIN] Creating $(LOCALBIN) directory"
+	@mkdir -p $(LOCALBIN)
 
 ## Tool Binaries
 KUBECTL ?= kubectl
@@ -378,6 +379,7 @@ CONTROLLER_TOOLS_VERSION ?= v0.16.1
 ENVTEST_VERSION ?= release-0.19
 GOLANGCI_LINT_VERSION ?= v1.59.1
 HELM_VERSION ?= v3.14.2
+YQ_VERSION ?= v4.40.5
 
 .PHONY: kustomize
 kustomize: $(KUSTOMIZE) ## Download kustomize locally if necessary.
@@ -402,14 +404,14 @@ $(GOLANGCI_LINT): $(LOCALBIN)
 .PHONY: helm
 helm: $(HELM) ## Download helm locally if necessary.
 $(HELM): $(LOCALBIN)
-	@{ \
-	set -e ;\
-	mkdir -p $(dir $(HELM)) ;\
-	OS=$(shell go env GOOS) && ARCH=$(shell go env GOARCH) && \
-	curl -sSLo $(HELM).tar.gz https://get.helm.sh/helm-$(HELM_VERSION)-$${OS}-$${ARCH}.tar.gz ;\
-	tar -zxvf $(HELM).tar.gz -C $(LOCALBIN) --strip-components 1 $${OS}-$${ARCH}/helm ;\
-	rm -f $(HELM).tar.gz ;\
-	}
+	@if [ ! -f $(HELM) ]; then \
+		OS=$$(go env GOOS) ;\
+		ARCH=$$(go env GOARCH) ;\
+		echo "[BIN] Downloading helm $(HELM_VERSION) $$VERSION for $$OS/$$ARCH..." ;\
+		curl -sSLo helm.tar.gz https://get.helm.sh/helm-$(HELM_VERSION)-$$OS-$$ARCH.tar.gz ;\
+		tar -zxvf helm.tar.gz -C $(LOCALBIN) --strip-components=1 $$OS-$$ARCH/helm ;\
+		rm -f helm.tar.gz ;\
+	fi
 
 # go-install-tool will 'go install' any package with custom target and name of binary, if it doesn't exist
 # $1 - target path with name of binary
@@ -430,15 +432,13 @@ endef
 .PHONY: yq
 yq: $(YQ) ## Download yq locally if necessary.
 $(YQ): $(LOCALBIN)
-	@{ \
-	set -e ;\
-	mkdir -p $(dir $(YQ)) ;\
-	VERSION=v4.40.5 ;\
-	OS=$(shell go env GOOS) && ARCH=$(shell go env GOARCH) ;\
-	echo "Downloading yq $$VERSION for $$OS/$$ARCH..." ;\
-	curl -sSLo $(YQ) https://github.com/mikefarah/yq/releases/download/$$VERSION/yq_$${OS}_$${ARCH} ;\
-	chmod +x $(YQ) ;\
-	}
+	@if [ ! -f $(YQ) ]; then \
+		OS=$(shell go env GOOS) ;\
+		ARCH=$(shell go env GOARCH) ;\
+		echo "[BIN]  Downloading yq $(YQ_VERSION) for $$OS/$$ARCH..." ;\
+		curl -sSLo $(YQ) https://github.com/mikefarah/yq/releases/download/$(YQ_VERSION)/yq_$${OS}_$${ARCH} ;\
+		chmod +x $(YQ) ;\
+	fi
 
 .PHONY: operator-sdk
 OPERATOR_SDK ?= $(LOCALBIN)/operator-sdk
@@ -450,6 +450,7 @@ ifeq (, $(shell which operator-sdk 2>/dev/null))
 	mkdir -p $(dir $(OPERATOR_SDK)) ;\
 	OS=$(shell go env GOOS) && ARCH=$(shell go env GOARCH) && \
 	curl -sSLo $(OPERATOR_SDK) https://github.com/operator-framework/operator-sdk/releases/download/$(OPERATOR_SDK_VERSION)/operator-sdk_$${OS}_$${ARCH} ;\
+	echo "[BIN] Downloading operator-sdk $(OPERATOR_SDK_VERSION) for $$OS/$$ARCH..." ;\
 	chmod +x $(OPERATOR_SDK) ;\
 	}
 else
