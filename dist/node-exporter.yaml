@@ -1,4 +1,3 @@
-# ----- START PROM NODE EXPORTER -----
 ---
 # Source: prometheus-node-exporter/templates/serviceaccount.yaml
 apiVersion: v1
@@ -155,5 +154,3 @@ spec:
         - name: root
           hostPath:
             path: /
----
-# ----- END PROM NODE EXPORTER -----

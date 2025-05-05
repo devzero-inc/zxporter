@@ -6,7 +6,6 @@
 #  comment out the section from "START PROM NODE EXPORTER" to "END PROM NODE EXPORTER"
 # 
 
----
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -14,7 +13,6 @@ metadata:
     control-plane: controller-manager
     app.kubernetes.io/name: devzero-zxporter
   name: devzero-zxporter
----
 # ----- START PROM SERVER -----
 ---
 # Source: prometheus/charts/kube-state-metrics/templates/serviceaccount.yaml
@@ -1121,7 +1119,6 @@ spec:
         - name: storage-volume
           emptyDir:
             {}
----
 # ----- END PROM SERVER -----
 # ----- START PROM NODE EXPORTER -----
 ---
@@ -1280,7 +1277,6 @@ spec:
         - name: root
           hostPath:
             path: /
----
 # ----- END PROM NODE EXPORTER -----
 # ----- START METRICS SERVER -----
 ---
@@ -1536,8 +1532,8 @@ spec:
     port: 443
   version: v1beta1
   versionPriority: 100
----
 # ----- END METRICS SERVER -----
+---
 apiVersion: v1
 kind: Namespace
 metadata:
