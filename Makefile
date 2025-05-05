@@ -75,6 +75,7 @@ METRICS_SERVER_CHART_VERSION ?= 3.12.0
 # DIST_INSTALL_BUNDLE is the final complete manifest
 DIST_DIR ?= dist
 DIST_INSTALL_BUNDLE ?= $(DIST_DIR)/install.yaml
+DIST_ZXPORTER_BUNDLE ?= $(DIST_DIR)/zxporter.yaml
 DIST_PROMETHEUS_BUNDLE ?= $(DIST_DIR)/prometheus.yaml
 DIST_NODE_EXPORTER_BUNDLE ?= $(DIST_DIR)/node-exporter.yaml
 METRICS_SERVER ?= $(DIST_DIR)/metrics-server.yaml
@@ -296,7 +297,8 @@ build-installer: manifests generate kustomize yq ## Generate a consolidated YAML
 	@$(YQ) e '.data.PROMETHEUS_URL = "$(PROMETHEUS_URL)"' -i $(ENV_CONFIGMAP_FILE)
 	@$(YQ) e '.data.TARGET_NAMESPACES = "$(TARGET_NAMESPACES)"' -i $(ENV_CONFIGMAP_FILE)
 
-	@$(KUSTOMIZE) build config/default >> $(DIST_INSTALL_BUNDLE)
+	@$(KUSTOMIZE) build config/default > $(DIST_ZXPORTER_BUNDLE)
+	@cat $(DIST_ZXPORTER_BUNDLE) >> $(DIST_INSTALL_BUNDLE)
 
 .PHONY: build-env-configmap
 build-env-configmap: DIST_INSTALL_BUNDLE=$(DIST_DIR)/env_configmap.yaml
