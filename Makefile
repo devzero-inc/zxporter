@@ -211,84 +211,92 @@ docker-buildx: ## Build and push docker image for the manager for cross-platform
 
 .PHONY: generate-monitoring-manifests
 generate-monitoring-manifests: helm ## Generate monitoring manifests for Prometheus and Node Exporter.
-	# Generate Prometheus manifest
-	$(HELM) repo add prometheus-community https://prometheus-community.github.io/helm-charts || true
-	$(HELM) repo update
-	echo "# ----- START PROM SERVER -----" > $(DIST_PROMETHEUS_BUNDLE)
-	$(HELM) template prometheus prometheus-community/prometheus \
+	@echo "[INFO] Adding Prometheus repo"
+	@$(HELM) repo add prometheus-community https://prometheus-community.github.io/helm-charts >> /dev/null || true
+	@echo "[INFO] Fetching prometheus repo data"
+	@$(HELM) repo update prometheus-community >> /dev/null
+
+	@echo "[INFO] Generate prometheus manifest"
+	@$(HELM) template prometheus prometheus-community/prometheus \
 		--version $(PROMETHEUS_CHART_VERSION) \
 		--namespace $(DEVZERO_MONITORING_NAMESPACE) \
 		--create-namespace \
 		--set server.persistentVolume.enabled=false \
 		--set alertmanager.enabled=false \
 		--set pushgateway.enabled=false \
-		>> $(DIST_PROMETHEUS_BUNDLE)
-	echo "---" >> $(DIST_PROMETHEUS_BUNDLE)
-	echo "# ----- END PROM SERVER -----" >> $(DIST_PROMETHEUS_BUNDLE)
-	
-	# Generate Node Exporter manifest
-	echo "# ----- START PROM NODE EXPORTER -----" > $(DIST_NODE_EXPORTER_BUNDLE)
-	$(HELM) template node-exporter prometheus-community/prometheus-node-exporter \
+		> $(DIST_PROMETHEUS_BUNDLE)
+
+	@echo "[INFO] Generate Node Exporter manifest"
+	@$(HELM) template node-exporter prometheus-community/prometheus-node-exporter \
 		--version $(NODE_EXPORTER_CHART_VERSION) \
 		--namespace $(DEVZERO_MONITORING_NAMESPACE) \
 		--create-namespace \
-		>> $(DIST_NODE_EXPORTER_BUNDLE)
-	echo "---" >> $(DIST_NODE_EXPORTER_BUNDLE)
-	echo "# ----- END PROM NODE EXPORTER -----" >> $(DIST_NODE_EXPORTER_BUNDLE)
-	
-	# Generate Metrics Server manifest for inclusion in the main installer
-	$(HELM) repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/ || true
-	$(HELM) repo update
-	echo "# ----- START METRICS SERVER -----" > $(METRICS_SERVER)
-	$(HELM) template metrics-server metrics-server/metrics-server \
+		> $(DIST_NODE_EXPORTER_BUNDLE)
+
+	@echo "[INFO] Adding Metrics Server repo"
+	@$(HELM) repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/ >> /dev/null || true
+	@echo "[INFO] Fetching Metrics Server repo data"
+	@$(HELM) repo update metrics-server >> /dev/null
+
+	@echo "[INFO] Generate Metrics Server manifest"
+	@$(HELM) template metrics-server metrics-server/metrics-server \
 		--version $(METRICS_SERVER_CHART_VERSION) \
 		--namespace kube-system \
 		--set args="{--kubelet-insecure-tls}" \
-		>> $(METRICS_SERVER)
-	echo "---" >> $(METRICS_SERVER)
-	echo "# ----- END METRICS SERVER -----" >> $(METRICS_SERVER)
+		> $(METRICS_SERVER)
+
 
 .PHONY: build-installer
 build-installer: manifests generate kustomize yq ## Generate a consolidated YAML with deployment.
 	mkdir -p $(DIST_DIR)
 
-	$(MAKE) generate-monitoring-manifests
+	@echo "[INFO] Generating manifests for monitoring components..."
+	@$(MAKE) generate-monitoring-manifests
+	@echo "[INFO] Monitoring manifests generated."
 
-	echo "## ATTN KUBERNETES ADMINS! Read this..." > $(DIST_INSTALL_BUNDLE)
-	echo "#  If prometheus-server is already installed, and you want to use that version," >> $(DIST_INSTALL_BUNDLE)
-	echo "#  comment out the section from \"START PROM SERVER\" to \"END PROM SERVER\" and update the \"prometheusURL\" variable." >> $(DIST_INSTALL_BUNDLE)
-	echo -e "#" >> $(DIST_INSTALL_BUNDLE)
-	echo "#  If prometheus-node-exporter is already installed, and you want to use that version," >> $(DIST_INSTALL_BUNDLE)
-	echo "#  comment out the section from \"START PROM NODE EXPORTER\" to \"END PROM NODE EXPORTER\"" >> $(DIST_INSTALL_BUNDLE)
-	echo -e "# \n" >> $(DIST_INSTALL_BUNDLE)
+	@echo "[INFO] Generating installer bundle..."
+	@echo "## ATTN KUBERNETES ADMINS! Read this..." > $(DIST_INSTALL_BUNDLE)
+	@echo "#  If prometheus-server is already installed, and you want to use that version," >> $(DIST_INSTALL_BUNDLE)
+	@echo "#  comment out the section from \"START PROM SERVER\" to \"END PROM SERVER\" and update the \"prometheusURL\" variable." >> $(DIST_INSTALL_BUNDLE)
+	@echo -e "#" >> $(DIST_INSTALL_BUNDLE)
+	@echo "#  If prometheus-node-exporter is already installed, and you want to use that version," >> $(DIST_INSTALL_BUNDLE)
+	@echo "#  comment out the section from \"START PROM NODE EXPORTER\" to \"END PROM NODE EXPORTER\"" >> $(DIST_INSTALL_BUNDLE)
+	@echo -e "# \n" >> $(DIST_INSTALL_BUNDLE)
+
+	@echo "[INFO] Adding namespace to the main installer"
+	@echo "apiVersion: v1" >> $(DIST_INSTALL_BUNDLE)
+	@echo "kind: Namespace" >> $(DIST_INSTALL_BUNDLE)
+	@echo "metadata:" >> $(DIST_INSTALL_BUNDLE)
+	@echo "  labels:" >> $(DIST_INSTALL_BUNDLE)
+	@echo "    control-plane: controller-manager" >> $(DIST_INSTALL_BUNDLE)
+	@echo "    app.kubernetes.io/name: $(DEVZERO_MONITORING_NAMESPACE)" >> $(DIST_INSTALL_BUNDLE)
+	@echo "  name: $(DEVZERO_MONITORING_NAMESPACE)" >> $(DIST_INSTALL_BUNDLE)
+
+	@echo "[INFO] Append prometheus-server to the main installer"
+	@echo "# ----- START PROM SERVER -----" >> $(DIST_INSTALL_BUNDLE)
+	@cat $(DIST_PROMETHEUS_BUNDLE) >> $(DIST_INSTALL_BUNDLE)
+	@echo "# ----- END PROM SERVER -----" >> $(DIST_INSTALL_BUNDLE)
+
+	@echo "[INFO] Append prometheus-node-exporter to the main installer"
+	@echo "# ----- START PROM NODE EXPORTER -----" >> $(DIST_INSTALL_BUNDLE)
+	@cat $(DIST_NODE_EXPORTER_BUNDLE) >> $(DIST_INSTALL_BUNDLE)
+	@echo "# ----- END PROM NODE EXPORTER -----" >> $(DIST_INSTALL_BUNDLE)
+
+	@echo "[INFO] Append Metrics Server to the main installer"
+	@echo "# ----- START METRICS SERVER -----" >> $(DIST_INSTALL_BUNDLE)
+	@cat $(METRICS_SERVER) >> $(DIST_INSTALL_BUNDLE)
+	@echo "# ----- END METRICS SERVER -----" >> $(DIST_INSTALL_BUNDLE)
+	@echo "---" >> $(DIST_INSTALL_BUNDLE)
 	
-	# create the namespace first before doing anything else
-	echo "---" >> $(DIST_INSTALL_BUNDLE)
-	echo "apiVersion: v1" >> $(DIST_INSTALL_BUNDLE)
-	echo "kind: Namespace" >> $(DIST_INSTALL_BUNDLE)
-	echo "metadata:" >> $(DIST_INSTALL_BUNDLE)
-	echo "  labels:" >> $(DIST_INSTALL_BUNDLE)
-	echo "    control-plane: controller-manager" >> $(DIST_INSTALL_BUNDLE)
-	echo "    app.kubernetes.io/name: $(DEVZERO_MONITORING_NAMESPACE)" >> $(DIST_INSTALL_BUNDLE)
-	echo "  name: $(DEVZERO_MONITORING_NAMESPACE)" >> $(DIST_INSTALL_BUNDLE)
-	echo "---" >> $(DIST_INSTALL_BUNDLE)
+	@echo "[INFO] Append zxporter-manager to the installer bundle"
+	@cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
 
-	# Append prometheus-server to the main installer
-	cat $(DIST_PROMETHEUS_BUNDLE) >> $(DIST_INSTALL_BUNDLE)
+	@echo "[INFO] Replacing env variables in configmap"
+	@$(YQ) e '.data.DAKR_URL = "$(DAKR_URL)"' -i $(ENV_CONFIGMAP_FILE)
+	@$(YQ) e '.data.PROMETHEUS_URL = "$(PROMETHEUS_URL)"' -i $(ENV_CONFIGMAP_FILE)
+	@$(YQ) e '.data.TARGET_NAMESPACES = "$(TARGET_NAMESPACES)"' -i $(ENV_CONFIGMAP_FILE)
 
-	# Append prometheus-node-exporter to the main installer
-	cat $(DIST_NODE_EXPORTER_BUNDLE) >> $(DIST_INSTALL_BUNDLE)
-
-	# Append Metrics Server to the main installer
-	cat $(METRICS_SERVER) >> $(DIST_INSTALL_BUNDLE)
-	
-	# Append zxporter-manager to the installer bundle
-	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
-	$(YQ) e '.data.DAKR_URL = "$(DAKR_URL)"' -i $(ENV_CONFIGMAP_FILE)
-	$(YQ) e '.data.PROMETHEUS_URL = "$(PROMETHEUS_URL)"' -i $(ENV_CONFIGMAP_FILE)
-	$(YQ) e '.data.TARGET_NAMESPACES = "$(TARGET_NAMESPACES)"' -i $(ENV_CONFIGMAP_FILE)
-
-	$(KUSTOMIZE) build config/default >> $(DIST_INSTALL_BUNDLE)
+	@$(KUSTOMIZE) build config/default >> $(DIST_INSTALL_BUNDLE)
 
 .PHONY: build-env-configmap
 build-env-configmap: DIST_INSTALL_BUNDLE=$(DIST_DIR)/env_configmap.yaml
@@ -304,7 +312,9 @@ build-env-configmap:
 
 .PHONY: build-chart
 build-chart: build-installer ## Generate a consolidated helm chart from the installer manifest.
-	cat $(DIST_INSTALL_BUNDLE) | helmify chart
+	@echo "[INFO] Generating helm chart from the installer bundle"
+	@cat $(DIST_INSTALL_BUNDLE) | helmify chart
+	@echo "[INFO] Helm chart generated in the 'chart' directory"
 
 ##@ Deployment
 

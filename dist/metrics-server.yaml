@@ -1,4 +1,3 @@
-# ----- START METRICS SERVER -----
 ---
 # Source: metrics-server/templates/serviceaccount.yaml
 apiVersion: v1
@@ -252,5 +251,3 @@ spec:
     port: 443
   version: v1beta1
   versionPriority: 100
----
-# ----- END METRICS SERVER -----

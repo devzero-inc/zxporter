@@ -1,4 +1,3 @@
-# ----- START PROM SERVER -----
 ---
 # Source: prometheus/charts/kube-state-metrics/templates/serviceaccount.yaml
 apiVersion: v1
@@ -1104,5 +1103,3 @@ spec:
         - name: storage-volume
           emptyDir:
             {}
----
-# ----- END PROM SERVER -----
