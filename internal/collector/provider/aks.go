@@ -77,6 +77,9 @@ func NewAzureProvider(logger logr.Logger, k8sClient kubernetes.Interface) (*Azur
 		return nil, fmt.Errorf("[NewAzureProvider] failed while getting Azure metadata: %w", err)
 	}
 
+	// TODO: this expects the azure resource group name to be in a very particular pattern and should perhaps have an override somewhere.
+	// note, if users are setting custom resource group names, this can be problematic since we're pulling cluster name, resource group name etc from that blob
+	// more: https://learn.microsoft.com/en-us/azure/aks/faq#can-i-provide-my-own-name-for-the-aks-node-resource-group-
 	aksMetadata, err := parseAKSResourceGroupName(metadata.Compute.ResourceGroupName)
 	if err != nil {
 		logger.Error(err, "[NewAzureProvider] could not parse resource groupname",
