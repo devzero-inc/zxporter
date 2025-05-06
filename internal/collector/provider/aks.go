@@ -7,11 +7,12 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice"
 	"github.com/go-logr/logr"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 )
@@ -20,21 +21,31 @@ const (
 	// Azure metadata server endpoint
 	azureMetadataEndpoint = "http://169.254.169.254/metadata/instance"
 
-	// AKS node label for node pools
-	aksNodePoolLabel = "agentpool"
+	// Azure agent pool label
+	azureAgentPoolLabel = "kubernetes.azure.com/agentpool"
+
+	// Azure scale priority label
+	azureScalePriorityLabel = "kubernetes.azure.com/scalesetpriority"
+
+	// Azure cluster label
+	azureClusterLbel = "kubernetes.azure.com/cluster"
+
+	// todo move some of the strings into consts
 )
 
 // AzureProvider implements provider interface for Azure AKS
 type AzureProvider struct {
-	logger         logr.Logger
-	k8sClient      kubernetes.Interface
-	httpClient     *http.Client
-	resourceGroup  string
-	subscriptionID string
-	location       string
-	clusterName    string
-	aksClient      *armcontainerservice.ManagedClustersClient
-	nodePools      map[string]map[string]interface{}
+	sync.Mutex
+
+	logger            logr.Logger
+	k8sClient         kubernetes.Interface
+	httpClient        *http.Client
+	resourceGroupName string
+	subscriptionID    string
+	location          string
+	clusterName       string
+	resourceGroup     string
+	nodePools         map[NodePoolName]map[armcontainerservice.ScaleSetPriority][]string
 }
 
 // AzureMetadata holds information returned from the Azure metadata service
@@ -49,44 +60,44 @@ type AzureMetadata struct {
 	} `json:"compute"`
 }
 
+type AKSMetadata struct {
+	ResourceGroup string
+	ClusterName   string
+	Region        string // also available in ".compute.location"
+}
+
 // NewAzureProvider creates a new Azure provider
 func NewAzureProvider(logger logr.Logger, k8sClient kubernetes.Interface) (*AzureProvider, error) {
 	// Create HTTP client for metadata server
 	httpClient := &http.Client{Timeout: 5 * time.Second}
 
-	// Check if running on Azure
-	available, err := isAzureMetadataAvailable(httpClient)
-	if err != nil || !available {
-		return nil, fmt.Errorf("azure metadata service not available: %w", err)
-	}
-
-	// Get Azure instance metadata
+	// Get Azure instance metadata (test to see if azure or not)
 	metadata, err := getAzureMetadata(httpClient)
-	if err != nil {
-		return nil, fmt.Errorf("getting Azure metadata: %w", err)
+	if err != nil || metadata == nil {
+		return nil, fmt.Errorf("[NewAzureProvider] failed while getting Azure metadata: %w", err)
 	}
 
-	// Create Azure clients
-	cred, err := azidentity.NewDefaultAzureCredential(nil)
+	// TODO: this expects the azure resource group name to be in a very particular pattern and should perhaps have an override somewhere.
+	// note, if users are setting custom resource group names, this can be problematic since we're pulling cluster name, resource group name etc from that blob
+	// more: https://learn.microsoft.com/en-us/azure/aks/faq#can-i-provide-my-own-name-for-the-aks-node-resource-group-
+	aksMetadata, err := parseAKSResourceGroupName(metadata.Compute.ResourceGroupName)
 	if err != nil {
-		return nil, fmt.Errorf("getting Azure credentials: %w", err)
-	}
-
-	aksClient, err := armcontainerservice.NewManagedClustersClient(metadata.Compute.SubscriptionID, cred, nil)
-	if err != nil {
-		return nil, fmt.Errorf("creating AKS client: %w", err)
+		logger.Error(err, "[NewAzureProvider] could not parse resource groupname",
+			"resourceGroupName", metadata.Compute.ResourceGroupName)
+		return nil, fmt.Errorf("[NewAzureProvider] resource grouped name could not be parsed: %w", err)
 	}
 
 	// Initialize provider
 	provider := &AzureProvider{
-		logger:         logger,
-		k8sClient:      k8sClient,
-		httpClient:     httpClient,
-		resourceGroup:  metadata.Compute.ResourceGroupName,
-		subscriptionID: metadata.Compute.SubscriptionID,
-		location:       metadata.Compute.Location,
-		aksClient:      aksClient,
-		nodePools:      make(map[string]map[string]interface{}),
+		logger:            logger,
+		k8sClient:         k8sClient,
+		httpClient:        httpClient,
+		resourceGroupName: metadata.Compute.ResourceGroupName,
+		subscriptionID:    metadata.Compute.SubscriptionID,
+		location:          metadata.Compute.Location, // can also be read from aksMetadata.Region
+		nodePools:         make(map[NodePoolName]map[armcontainerservice.ScaleSetPriority][]string),
+		clusterName:       aksMetadata.ClusterName,
+		resourceGroup:     aksMetadata.ResourceGroup,
 	}
 
 	// Try to discover cluster name (this is challenging in Azure)
@@ -110,103 +121,95 @@ func (p *AzureProvider) Name() string {
 func (p *AzureProvider) GetClusterMetadata(ctx context.Context) (map[string]interface{}, error) {
 	p.logger.Info("Collecting Azure AKS cluster metadata")
 
-	// If we don't have the cluster name yet, try again
-	if p.clusterName == "" {
-		clusterName, err := p.discoverClusterName(ctx)
-		if err != nil {
-			p.logger.Error(err, "Failed to discover AKS cluster name")
-			// Continue with partial metadata
-		} else {
-			p.clusterName = clusterName
-		}
-	}
-
 	// Build base metadata even if we couldn't find the cluster
 	metadata := map[string]interface{}{
 		"provider":        "aks",
 		"subscription_id": p.subscriptionID,
 		"resource_group":  p.resourceGroup,
 		"location":        p.location,
+		"cluster_name":    p.clusterName,
 	}
 
-	// If we have the cluster name, get detailed cluster info
-	if p.clusterName != "" {
-		metadata["cluster_name"] = p.clusterName
-
-		// Get cluster details from AKS API
-		cluster, err := p.aksClient.Get(ctx, p.resourceGroup, p.clusterName, nil)
-		if err != nil {
-			p.logger.Error(err, "Failed to get cluster details from AKS API",
-				"cluster", p.clusterName,
-				"resourceGroup", p.resourceGroup)
-		} else if cluster.Properties != nil {
-			// Extract and add cluster properties
-			if cluster.Properties.KubernetesVersion != nil {
-				metadata["kubernetes_version"] = *cluster.Properties.KubernetesVersion
-			}
-
-			if cluster.Properties.DNSPrefix != nil {
-				metadata["dns_prefix"] = *cluster.Properties.DNSPrefix
-			}
-
-			if cluster.Properties.Fqdn != nil {
-				metadata["fqdn"] = *cluster.Properties.Fqdn
-			}
-
-			if cluster.Properties.ProvisioningState != nil {
-				metadata["provisioning_state"] = *cluster.Properties.ProvisioningState
-			}
-
-			// Extract network profile
-			if cluster.Properties.NetworkProfile != nil {
-				networkProfile := map[string]interface{}{}
-
-				if cluster.Properties.NetworkProfile.NetworkPlugin != nil {
-					networkProfile["network_plugin"] = *cluster.Properties.NetworkProfile.NetworkPlugin
-				}
-
-				if cluster.Properties.NetworkProfile.NetworkPolicy != nil {
-					networkProfile["network_policy"] = *cluster.Properties.NetworkProfile.NetworkPolicy
-				}
-
-				if cluster.Properties.NetworkProfile.PodCidr != nil {
-					networkProfile["pod_cidr"] = *cluster.Properties.NetworkProfile.PodCidr
-				}
-
-				if cluster.Properties.NetworkProfile.ServiceCidr != nil {
-					networkProfile["service_cidr"] = *cluster.Properties.NetworkProfile.ServiceCidr
-				}
-
-				metadata["network_profile"] = networkProfile
-			}
-
-			// Get agent pools (node pools)
-			if cluster.Properties.AgentPoolProfiles != nil {
-				nodePools, err := p.getNodePoolsFromAPI(ctx, cluster.Properties.AgentPoolProfiles)
-				if err != nil {
-					p.logger.Error(err, "Failed to process agent pool profiles")
-				} else {
-					metadata["node_pools"] = nodePools
-				}
-			}
-		}
+	// kubernetes version
+	version, err := p.k8sClient.Discovery().ServerVersion()
+	if err != nil {
+		p.logger.Error(err, "failed to get kubernetes version")
 	} else {
-		// If we couldn't get cluster name, try to get node pools from node labels
-		nodePools, err := p.getNodePoolsFromNodes(ctx)
-		if err != nil {
-			p.logger.Error(err, "Failed to get node pools from nodes")
-		} else {
-			metadata["node_pools"] = nodePools
-		}
+		metadata["kubernetes_version"] = version
 	}
+
+	nodeList, err := p.k8sClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
+	if err != nil {
+		p.logger.Error(err, "failed to get node list")
+	}
+
+	refreshedNodPoolMetadata := getAKSNodePoolMetadata(nodeList)
+	metadata["node_pools"] = refreshedNodPoolMetadata
+	p.Lock()
+	p.nodePools = refreshedNodPoolMetadata
+	p.Unlock()
 
 	p.logger.Info("Collected AKS cluster metadata",
 		"subscription", p.subscriptionID,
 		"resourceGroup", p.resourceGroup,
 		"location", p.location,
-		"cluster", p.clusterName)
+		"cluster", p.clusterName,
+		"metadata", metadata,
+	)
 
 	return metadata, nil
+}
+
+func (p *AzureProvider) GetNodeGroupMetadata(ctx context.Context) map[string]map[string][]string {
+	nodeList, err := p.k8sClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
+	if err != nil { // failed to call K8s API
+		// return cached info, if available
+		return azureTypesToGeneric(p.nodePools)
+	}
+
+	refreshedNodPoolMetadata := getAKSNodePoolMetadata(nodeList)
+	p.Lock()
+	p.nodePools = refreshedNodPoolMetadata
+	p.Unlock()
+
+	return azureTypesToGeneric(p.nodePools)
+}
+
+func getAKSNodePoolMetadata(nodeList *corev1.NodeList) map[NodePoolName]map[armcontainerservice.ScaleSetPriority][]string {
+	nodePoolInfo := make(map[NodePoolName]map[armcontainerservice.ScaleSetPriority][]string)
+	if nodeList == nil {
+		return nodePoolInfo
+	}
+
+	for _, node := range nodeList.Items {
+		nodePoolLabel := getAKSNodePoolLabel(&node)
+		nodePoolScaleSet := getNodePoolScaleSetPriority(node)
+		// update node count in node pool
+		if _, ok := nodePoolInfo[nodePoolLabel]; !ok {
+			nodePoolInfo[nodePoolLabel] = make(map[armcontainerservice.ScaleSetPriority][]string)
+		}
+
+		if _, ok := nodePoolInfo[nodePoolLabel][nodePoolScaleSet]; !ok {
+			nodePoolInfo[nodePoolLabel][nodePoolScaleSet] = []string{}
+		}
+		nodePoolInfo[nodePoolLabel][nodePoolScaleSet] = append(nodePoolInfo[nodePoolLabel][nodePoolScaleSet], node.Name)
+	}
+	return nodePoolInfo
+}
+
+func azureTypesToGeneric(metadata map[NodePoolName]map[armcontainerservice.ScaleSetPriority][]string) map[string]map[string][]string {
+	m := make(map[string]map[string][]string)
+	if metadata == nil {
+		return m
+	}
+
+	for nodePool, nodePoolTypeToNodeList := range metadata {
+		m[string(nodePool)] = make(map[string][]string)
+		for nodePoolType, nodeList := range nodePoolTypeToNodeList {
+			m[string(nodePool)][string(nodePoolType)] = nodeList
+		}
+	}
+	return m
 }
 
 // discoverClusterName attempts to determine the AKS cluster name
@@ -219,261 +222,78 @@ func (p *AzureProvider) discoverClusterName(ctx context.Context) (string, error)
 
 	for _, node := range nodes.Items {
 		// Check for cluster name label
-		if clusterName, ok := node.Labels["kubernetes.azure.com/cluster"]; ok {
-			return clusterName, nil
+		if resourceGroupName, ok := node.Labels[azureClusterLbel]; ok {
+			aksMetadata, err := parseAKSResourceGroupName(resourceGroupName)
+			if err != nil {
+				// TODO maybe log?
+				continue
+			}
+			return aksMetadata.ClusterName, nil
 		}
+	}
+
+	if len(nodes.Items) < 1 {
+		return "", fmt.Errorf("cannot determine AKS cluster name since we have no nodes in this cluster")
 	}
 
 	// Method 2: Try to find it in node provider IDs (more complex)
-	if len(nodes.Items) > 0 {
-		// AKS provider ID format: azure:///subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Compute/virtualMachineScaleSets/{nodeResourceGroup}/{vmssName}/virtualMachines/1
-		providerID := nodes.Items[0].Spec.ProviderID
-		if strings.HasPrefix(providerID, "azure://") {
-			// Split the provider ID
-			parts := strings.Split(providerID, "/")
-			if len(parts) >= 9 {
-				// Try to list all AKS clusters in the resource group
-				pager := p.aksClient.NewListByResourceGroupPager(p.resourceGroup, nil)
-				for pager.More() {
-					page, err := pager.NextPage(ctx)
-					if err != nil {
-						return "", fmt.Errorf("listing AKS clusters: %w", err)
-					}
-
-					// If there's only one cluster, use that
-					if len(page.Value) == 1 && page.Value[0].Name != nil {
-						return *page.Value[0].Name, nil
-					}
-
-					// Otherwise try to match by node resource group or other properties
-					for _, cluster := range page.Value {
-						if cluster.Name != nil && cluster.Properties != nil && cluster.Properties.NodeResourceGroup != nil {
-							// If we can find the node resource group in the provider ID
-							if strings.Contains(providerID, *cluster.Properties.NodeResourceGroup) {
-								return *cluster.Name, nil
-							}
-						}
-					}
-				}
-			}
-		}
+	// AKS provider ID format: azure:///subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Compute/virtualMachineScaleSets/{nodeResourceGroup}/{vmssName}/virtualMachines/1
+	providerID := nodes.Items[0].Spec.ProviderID
+	if !strings.HasPrefix(providerID, "azure://") {
+		return "", fmt.Errorf("cannot determine AKS cluster name provider ID doesnt start with azure://")
 	}
 
-	// Method 3: Try listing all clusters in the resource group
-	pager := p.aksClient.NewListByResourceGroupPager(p.resourceGroup, nil)
-	page, err := pager.NextPage(ctx)
-	if err != nil {
-		return "", fmt.Errorf("listing AKS clusters: %w", err)
-	}
-
-	// If there's only one cluster in the resource group, use that
-	if len(page.Value) == 1 && page.Value[0].Name != nil {
-		return *page.Value[0].Name, nil
+	if clusterName, err := getClusterNameFromProviderID(providerID); err == nil {
+		return clusterName, nil
 	}
 
 	return "", fmt.Errorf("could not determine AKS cluster name")
 }
 
-// getNodePoolsFromAPI processes agent pool profiles from the AKS API
-func (p *AzureProvider) getNodePoolsFromAPI(ctx context.Context, profiles []*armcontainerservice.ManagedClusterAgentPoolProfile) ([]map[string]interface{}, error) {
-	var nodePools []map[string]interface{}
+type NodePoolName string
 
-	for _, profile := range profiles {
-		if profile.Name == nil {
-			continue
-		}
-
-		// Create node pool data
-		nodePool := map[string]interface{}{
-			"name": *profile.Name,
-		}
-
-		if profile.VMSize != nil {
-			nodePool["vm_size"] = *profile.VMSize
-		}
-
-		if profile.Count != nil {
-			nodePool["node_count"] = *profile.Count
-		}
-
-		if profile.OSDiskSizeGB != nil {
-			nodePool["os_disk_size_gb"] = *profile.OSDiskSizeGB
-		}
-
-		if profile.OSType != nil {
-			nodePool["os_type"] = string(*profile.OSType)
-		}
-
-		if profile.Mode != nil {
-			nodePool["mode"] = string(*profile.Mode)
-		}
-
-		// Auto scaling settings
-		if profile.EnableAutoScaling != nil && *profile.EnableAutoScaling {
-			autoscaling := map[string]interface{}{
-				"enabled": true,
-			}
-
-			if profile.MinCount != nil {
-				autoscaling["min_count"] = *profile.MinCount
-			}
-
-			if profile.MaxCount != nil {
-				autoscaling["max_count"] = *profile.MaxCount
-			}
-
-			nodePool["autoscaling"] = autoscaling
-		}
-
-		// Check if spot/low priority
-		if profile.ScaleSetPriority != nil && *profile.ScaleSetPriority == armcontainerservice.ScaleSetPrioritySpot {
-			nodePool["spot"] = true
-		} else {
-			nodePool["spot"] = false
-		}
-
-		// Add to result
-		nodePools = append(nodePools, nodePool)
-
-		// Store for later node mapping
-		p.nodePools[*profile.Name] = nodePool
+func getAKSNodePoolLabel(node *corev1.Node) NodePoolName {
+	if val, ok := node.Labels["agentpool"]; ok {
+		return NodePoolName(val)
 	}
-
-	return nodePools, nil
+	if val, ok := node.Labels[azureAgentPoolLabel]; ok {
+		return NodePoolName(val)
+	}
+	return NodePoolName("unknown")
 }
 
-// getNodePoolsFromNodes builds node pool info from node labels when API access fails
-func (p *AzureProvider) getNodePoolsFromNodes(ctx context.Context) ([]map[string]interface{}, error) {
-	nodes, err := p.k8sClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("listing nodes: %w", err)
+func getNodePoolScaleSetPriority(node corev1.Node) armcontainerservice.ScaleSetPriority {
+	if val, ok := node.Labels[azureScalePriorityLabel]; ok {
+		return armcontainerservice.ScaleSetPriority(val) // usually this will be armcontainerservice.ScaleSetPrioritySpot => "Spot"
 	}
-
-	nodePoolMap := make(map[string]map[string]interface{})
-	nodeCountByPool := make(map[string]int)
-
-	for _, node := range nodes.Items {
-		// Check for the agentpool label
-		poolName, ok := node.Labels[aksNodePoolLabel]
-		if !ok {
-			continue
-		}
-
-		// Count nodes in each pool
-		nodeCountByPool[poolName]++
-
-		// Create node pool entry if it doesn't exist
-		if _, exists := nodePoolMap[poolName]; !exists {
-			// Extract VM size/type from node
-			vmSize := ""
-			if label, ok := node.Labels["beta.kubernetes.io/instance-type"]; ok {
-				vmSize = label
-			} else if label, ok := node.Labels["node.kubernetes.io/instance-type"]; ok {
-				vmSize = label
-			}
-
-			// Check if spot instance
-			isSpot := false
-			if label, ok := node.Labels["kubernetes.azure.com/scalesetpriority"]; ok && label == "spot" {
-				isSpot = true
-			}
-
-			nodePoolMap[poolName] = map[string]interface{}{
-				"name":    poolName,
-				"vm_size": vmSize,
-				"spot":    isSpot,
-			}
-		}
-	}
-
-	// Update node counts
-	for poolName, count := range nodeCountByPool {
-		if pool, ok := nodePoolMap[poolName]; ok {
-			pool["node_count"] = count
-			nodePoolMap[poolName] = pool
-		}
-	}
-
-	// Convert map to slice
-	var nodePools []map[string]interface{}
-	for _, pool := range nodePoolMap {
-		nodePools = append(nodePools, pool)
-		// Store for later node mapping
-		p.nodePools[pool["name"].(string)] = pool
-	}
-
-	return nodePools, nil
+	return armcontainerservice.ScaleSetPriorityRegular // "Regular"
 }
 
-// GetNodeGroupForNode identifies the node pool a node belongs to
-func (p *AzureProvider) GetNodeGroupForNode(nodeName string) (map[string]interface{}, error) {
-	// Try to get node details from K8s API
-	node, err := p.k8sClient.CoreV1().Nodes().Get(context.Background(), nodeName, metav1.GetOptions{})
+func getClusterNameFromProviderID(providerID string) (string, error) {
+	// providerID looks something like this:
+	// azure:///subscriptions/a32b188c-43fd-4e28-8f67-c95649ab3119/resourceGroups/mc_dev-test_devzero_eastus/providers/Microsoft.Compute/virtualMachineScaleSets/aks-systemnp-35145560-vmss/virtualMachines/0
+	const resourceGroupKey = "resourceGroups/"
+	idx := strings.Index(providerID, resourceGroupKey)
+	if idx == -1 {
+		return "", fmt.Errorf("resourceGroups/ not found in providerID: %s", providerID)
+	}
+
+	start := idx + len(resourceGroupKey)
+	remaining := providerID[start:]
+	end := strings.Index(remaining, "/")
+	if end == -1 {
+		return "", fmt.Errorf("unable to parse resource group from providerID: %s", providerID)
+	}
+
+	resourceGroup := remaining[:end]
+	aksMetadata, err := parseAKSResourceGroupName(resourceGroup)
 	if err != nil {
-		return nil, fmt.Errorf("getting node %s: %w", nodeName, err)
+		return "", err
 	}
-
-	// Check for agentpool label
-	poolName, ok := node.Labels[aksNodePoolLabel]
-	if !ok {
-		return nil, fmt.Errorf("node %s does not have AKS agent pool label", nodeName)
-	}
-
-	// Load node pools if empty
-	if len(p.nodePools) == 0 {
-		_, err := p.getNodePoolsFromNodes(context.Background())
-		if err != nil {
-			p.logger.Error(err, "Failed to load node pools")
-		}
-	}
-
-	// Try to find node pool in our cache
-	if nodePool, ok := p.nodePools[poolName]; ok {
-		return nodePool, nil
-	}
-
-	// If not in cache, create basic info
-	nodePool := map[string]interface{}{
-		"name": poolName,
-	}
-
-	// Extract VM size from node
-	if vmSize, ok := node.Labels["beta.kubernetes.io/instance-type"]; ok {
-		nodePool["vm_size"] = vmSize
-	} else if vmSize, ok := node.Labels["node.kubernetes.io/instance-type"]; ok {
-		nodePool["vm_size"] = vmSize
-	}
-
-	// Check if spot instance
-	isSpot := false
-	if val, ok := node.Labels["kubernetes.azure.com/scalesetpriority"]; ok && val == "spot" {
-		isSpot = true
-	}
-	nodePool["spot"] = isSpot
-
-	// Store in cache for future use
-	p.nodePools[poolName] = nodePool
-
-	return nodePool, nil
+	return aksMetadata.ClusterName, nil
 }
 
 // Helper functions
-func isAzureMetadataAvailable(client *http.Client) (bool, error) {
-	req, err := http.NewRequest("GET", azureMetadataEndpoint, nil)
-	if err != nil {
-		return false, err
-	}
-	req.Header.Set("Metadata", "true")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return false, err
-	}
-	defer resp.Body.Close()
-
-	return resp.StatusCode == http.StatusOK, nil
-}
-
 func getAzureMetadata(client *http.Client) (*AzureMetadata, error) {
 	url := fmt.Sprintf("%s?api-version=2021-02-01", azureMetadataEndpoint)
 	req, err := http.NewRequest("GET", url, nil)
@@ -503,4 +323,18 @@ func getAzureMetadata(client *http.Client) (*AzureMetadata, error) {
 	}
 
 	return &metadata, nil
+}
+
+func parseAKSResourceGroupName(resourceGroupName string) (*AKSMetadata, error) {
+	// https://learn.microsoft.com/en-us/azure/aks/faq#why-are-two-resource-groups-created-with-aks-
+	// pattern is expected to be: MC_myResourceGroup_myAKSCluster_eastus
+	parts := strings.Split(resourceGroupName, "_")
+	if len(parts) != 4 || !strings.EqualFold(parts[0], "mc") {
+		return nil, fmt.Errorf("unexpected format: %s", resourceGroupName)
+	}
+	return &AKSMetadata{
+		ResourceGroup: parts[1],
+		ClusterName:   parts[2],
+		Region:        parts[3],
+	}, nil
 }

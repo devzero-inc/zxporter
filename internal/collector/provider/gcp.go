@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -13,6 +14,7 @@ import (
 	compute "google.golang.org/api/compute/v1"
 	container "google.golang.org/api/container/v1"
 	"google.golang.org/api/option"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 )
@@ -23,10 +25,18 @@ const (
 
 	// GKE node label for node pools
 	gkeNodePoolLabel = "cloud.google.com/gke-nodepool"
+
+	// GKE node label for SOPT instance
+	gkeSpotLabel = "cloud.google.com/gke-spot"
+
+	// GKE node label for provisioning instance
+	gkeProvisioningLabel = "cloud.google.com/gke-provisioning"
 )
 
 // GCPProvider implements provider interface for GCP GKE
 type GCPProvider struct {
+	sync.Mutex
+
 	logger       logr.Logger
 	k8sClient    kubernetes.Interface
 	httpClient   *http.Client
@@ -36,7 +46,7 @@ type GCPProvider struct {
 	zone         string
 	region       string
 	clusterName  string
-	nodePools    map[string]map[string]interface{}
+	nodePools    map[NodePoolName]map[GKENodePoolType][]string
 }
 
 // NewGCPProvider creates a new GCP provider
@@ -59,18 +69,21 @@ func NewGCPProvider(logger logr.Logger, k8sClient kubernetes.Interface) (*GCPPro
 	}
 
 	zone, err := getGCPMetadata(httpClient, "instance/zone")
+	// example API response: projects/354385559261/zones/us-central1-a
 	if err != nil {
 		return nil, fmt.Errorf("[NewGCPProvider] getting zone: %w", err)
 	}
 	// Zone is returned as "projects/PROJECT_NUM/zones/ZONE", extract just the zone name
 	zoneParts := strings.Split(zone, "/")
 	zone = zoneParts[len(zoneParts)-1]
+	// based on prev example, zone will be set to: us-central1-a
 
 	// Determine region from zone (remove the last character, which is the zone letter)
 	region := zone
 	if len(zone) > 2 {
 		region = zone[:len(zone)-2]
 	}
+	// based on prev example, region will be set to: us-central1
 
 	// Get cluster name from metadata
 	clusterName, err := getGCPMetadata(httpClient, "instance/attributes/cluster-name")
@@ -104,7 +117,7 @@ func NewGCPProvider(logger logr.Logger, k8sClient kubernetes.Interface) (*GCPPro
 		zone:         zone,
 		region:       region,
 		clusterName:  clusterName,
-		nodePools:    make(map[string]map[string]interface{}),
+		nodePools:    make(map[NodePoolName]map[GKENodePoolType][]string),
 	}
 	return provider, nil
 }
@@ -127,7 +140,6 @@ func (p *GCPProvider) GetClusterMetadata(ctx context.Context) (map[string]interf
 	}
 
 	// Initialize node pools and network config as empty to avoid nil references
-	nodePools := []map[string]interface{}{}
 	networkConfig := map[string]interface{}{}
 
 	// Try to determine cluster name if not already set
@@ -176,15 +188,25 @@ func (p *GCPProvider) GetClusterMetadata(ctx context.Context) (map[string]interf
 	}
 
 	// Get node pools -> if it fails will just have an empty list
-	nodePoolsData, err := p.getNodePools(ctx)
+	version, err := p.k8sClient.Discovery().ServerVersion()
 	if err != nil {
-		p.logger.Error(err, "Failed to get node pools")
+		p.logger.Error(err, "failed to get kubernetes version")
 	} else {
-		nodePools = nodePoolsData
+		metadata["kubernetes_version"] = version
 	}
 
+	nodeList, err := p.k8sClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
+	if err != nil {
+		p.logger.Error(err, "failed to get node list")
+	}
+
+	refreshedNodPoolMetadata := getGKENodePoolMetadata(nodeList)
+	metadata["node_pools"] = refreshedNodPoolMetadata
+	p.Lock()
+	p.nodePools = refreshedNodPoolMetadata
+	p.Unlock()
+
 	// Add all information we have to metadata
-	metadata["node_pools"] = nodePools
 	metadata["network_config"] = networkConfig
 
 	// Extract cluster information if available
@@ -249,180 +271,88 @@ func (p *GCPProvider) GetClusterMetadata(ctx context.Context) (map[string]interf
 	return metadata, nil
 }
 
-// getNodePools retrieves all node pools associated with the GKE cluster
-func (p *GCPProvider) getNodePools(ctx context.Context) ([]map[string]interface{}, error) {
-	// First try to get node pools from GKE API
-	var nodePoolsResponse *container.ListNodePoolsResponse
-	var err error
-
-	// Try zonal endpoint
-	nodePoolsResponse, err = p.containerSvc.Projects.Zones.Clusters.NodePools.List(
-		p.projectID, p.zone, p.clusterName).Do()
-
-	if err != nil {
-		// If zonal fails, try regional endpoint
-		nodePoolsResponse, err = p.containerSvc.Projects.Locations.Clusters.NodePools.List(
-			fmt.Sprintf("projects/%s/locations/%s/clusters/%s", p.projectID, p.region, p.clusterName)).Do()
-		if err != nil {
-			// If API access fails, fall back to gathering from node labels
-			return p.getNodePoolsFromNodes(ctx)
-		}
+func (p *GCPProvider) GetNodeGroupMetadata(ctx context.Context) map[string]map[string][]string {
+	nodeList, err := p.k8sClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
+	if err != nil { // failed to call K8s API
+		// return cached info, if available
+		return gkeTypesToGeneric(p.nodePools)
 	}
 
-	var nodePools []map[string]interface{}
+	refreshedNodPoolMetadata := getGKENodePoolMetadata(nodeList)
+	p.Lock()
+	p.nodePools = refreshedNodPoolMetadata
+	p.Unlock()
 
-	for _, np := range nodePoolsResponse.NodePools {
-		// Get machine type details
-		var machineType string
-		if len(np.Config.MachineType) > 0 {
-			machineType = np.Config.MachineType
-		}
-
-		// Get autoscaling settings
-		var autoscaling map[string]interface{}
-		if np.Autoscaling != nil {
-			autoscaling = map[string]interface{}{
-				"enabled":     np.Autoscaling.Enabled,
-				"min_nodes":   np.Autoscaling.MinNodeCount,
-				"max_nodes":   np.Autoscaling.MaxNodeCount,
-				"auto_repair": np.Management != nil && np.Management.AutoRepair,
-			}
-		}
-
-		// Create node pool data
-		nodePool := map[string]interface{}{
-			"name":               np.Name,
-			"version":            np.Version,
-			"status":             np.Status,
-			"machine_type":       machineType,
-			"disk_size_gb":       np.Config.DiskSizeGb,
-			"disk_type":          np.Config.DiskType,
-			"image_type":         np.Config.ImageType,
-			"initial_node_count": np.InitialNodeCount,
-			"autoscaling":        autoscaling,
-			"preemptible":        np.Config.Preemptible,
-		}
-
-		// Store for later node mapping
-		p.nodePools[np.Name] = nodePool
-		nodePools = append(nodePools, nodePool)
-	}
-
-	return nodePools, nil
+	return gkeTypesToGeneric(p.nodePools)
 }
 
-// getNodePoolsFromNodes builds node pool info from node labels when API access fails
-func (p *GCPProvider) getNodePoolsFromNodes(ctx context.Context) ([]map[string]interface{}, error) {
-	nodes, err := p.k8sClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("listing nodes: %w", err)
+func gkeTypesToGeneric(metadata map[NodePoolName]map[GKENodePoolType][]string) map[string]map[string][]string {
+	m := make(map[string]map[string][]string)
+	if metadata == nil {
+		return m
 	}
 
-	nodePoolMap := make(map[string]map[string]interface{})
-	nodeCountByPool := make(map[string]int)
-
-	for _, node := range nodes.Items {
-		poolName, ok := node.Labels[gkeNodePoolLabel]
-		if !ok {
-			continue
-		}
-
-		// Count nodes in each pool
-		nodeCountByPool[poolName]++
-
-		// Create node pool entry if it doesn't exist
-		if _, exists := nodePoolMap[poolName]; !exists {
-			// Extract machine type from node
-			machineType := ""
-			if label, ok := node.Labels["beta.kubernetes.io/instance-type"]; ok {
-				machineType = label
-			} else if label, ok := node.Labels["node.kubernetes.io/instance-type"]; ok {
-				machineType = label
-			}
-
-			// Check if preemptible
-			preemptible := false
-			if label, ok := node.Labels["cloud.google.com/gke-preemptible"]; ok && label == "true" {
-				preemptible = true
-			}
-
-			nodePoolMap[poolName] = map[string]interface{}{
-				"name":         poolName,
-				"machine_type": machineType,
-				"preemptible":  preemptible,
-			}
+	for nodePool, nodePoolTypeToNodeList := range metadata {
+		m[string(nodePool)] = make(map[string][]string)
+		for nodePoolType, nodeList := range nodePoolTypeToNodeList {
+			m[string(nodePool)][string(nodePoolType)] = nodeList
 		}
 	}
-
-	// Update node counts
-	for poolName, count := range nodeCountByPool {
-		if pool, ok := nodePoolMap[poolName]; ok {
-			pool["current_node_count"] = count
-			nodePoolMap[poolName] = pool
-		}
-	}
-
-	// Convert map to slice
-	var nodePools []map[string]interface{}
-	for _, pool := range nodePoolMap {
-		nodePools = append(nodePools, pool)
-		// Store for later node mapping
-		p.nodePools[pool["name"].(string)] = pool
-	}
-
-	return nodePools, nil
+	return m
 }
 
-// GetNodeGroupForNode identifies the node pool a node belongs to
-func (p *GCPProvider) GetNodeGroupForNode(nodeName string) (map[string]interface{}, error) {
-	// Try to get node details from K8s API
-	node, err := p.k8sClient.CoreV1().Nodes().Get(context.Background(), nodeName, metav1.GetOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("getting node %s: %w", nodeName, err)
+func getGKENodePoolMetadata(nodeList *corev1.NodeList) map[NodePoolName]map[GKENodePoolType][]string {
+	nodePoolInfo := make(map[NodePoolName]map[GKENodePoolType][]string)
+	if nodeList == nil {
+		return nodePoolInfo
 	}
 
-	// Check for node pool label
-	poolName, ok := node.Labels[gkeNodePoolLabel]
-	if !ok {
-		return nil, fmt.Errorf("node %s does not have GKE node pool label", nodeName)
-	}
+	for _, node := range nodeList.Items {
+		nodePoolLabel := getGKENodePoolLabel(&node)
+		nodePoolType := getGKENodePoolType(node)
+		// update node count in node pool
+		if _, ok := nodePoolInfo[nodePoolLabel]; !ok {
+			nodePoolInfo[nodePoolLabel] = make(map[GKENodePoolType][]string)
+		}
 
-	// Load node pools if empty
-	if len(p.nodePools) == 0 {
-		_, err := p.getNodePools(context.Background())
-		if err != nil {
-			p.logger.Error(err, "Failed to load node pools")
+		if _, ok := nodePoolInfo[nodePoolLabel][nodePoolType]; !ok {
+			nodePoolInfo[nodePoolLabel][nodePoolType] = []string{}
+		}
+		nodePoolInfo[nodePoolLabel][nodePoolType] = append(nodePoolInfo[nodePoolLabel][nodePoolType], node.Name)
+	}
+	return nodePoolInfo
+}
+
+func getGKENodePoolLabel(node *corev1.Node) NodePoolName {
+	// https://cloud.google.com/kubernetes-engine/docs/how-to/creating-managing-labels#automatically-applied-labels
+	if val, ok := node.Labels[gkeNodePoolLabel]; ok {
+		return NodePoolName(val)
+	}
+	return NodePoolName("unknown")
+}
+
+type GKENodePoolType string
+
+const (
+	// GKE_Regular - Regular VMs.
+	GKE_Regular GKENodePoolType = "Regular"
+	// GKE_Regular - Spot/preemtible.
+	GKE_Spot GKENodePoolType = "Spot"
+)
+
+func getGKENodePoolType(node corev1.Node) GKENodePoolType {
+	// https://cloud.google.com/kubernetes-engine/docs/concepts/spot-vms
+	if val, ok := node.Labels[gkeSpotLabel]; ok {
+		if strings.EqualFold(val, "true") {
+			return GKE_Spot
 		}
 	}
-
-	// Try to find node pool in our cache
-	if nodePool, ok := p.nodePools[poolName]; ok {
-		return nodePool, nil
+	if val, ok := node.Labels[gkeProvisioningLabel]; ok {
+		if strings.EqualFold(val, "spot") {
+			return GKE_Spot
+		}
 	}
-
-	// If not in cache, create basic info
-	nodePool := map[string]interface{}{
-		"name": poolName,
-	}
-
-	// Extract machine type from node
-	if machineType, ok := node.Labels["beta.kubernetes.io/instance-type"]; ok {
-		nodePool["machine_type"] = machineType
-	} else if machineType, ok := node.Labels["node.kubernetes.io/instance-type"]; ok {
-		nodePool["machine_type"] = machineType
-	}
-
-	// Check if preemptible
-	preemptible := false
-	if val, ok := node.Labels["cloud.google.com/gke-preemptible"]; ok && val == "true" {
-		preemptible = true
-	}
-	nodePool["preemptible"] = preemptible
-
-	// Store in cache for future use
-	p.nodePools[poolName] = nodePool
-
-	return nodePool, nil
+	return GKE_Regular
 }
 
 // Helper functions
