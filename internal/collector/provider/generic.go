@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
@@ -15,15 +16,19 @@ import (
 
 // GenericProvider implements a fallback provider for when cloud detection fails
 type GenericProvider struct {
-	logger    logr.Logger
-	k8sClient kubernetes.Interface
+	sync.Mutex
+
+	logger     logr.Logger
+	k8sClient  kubernetes.Interface
+	nodeGroups map[NodePoolName]map[string][]string
 }
 
 // NewGenericProvider creates a new generic provider
 func NewGenericProvider(logger logr.Logger, k8sClient kubernetes.Interface) *GenericProvider {
 	return &GenericProvider{
-		logger:    logger.WithName("generic-provider"),
-		k8sClient: k8sClient,
+		logger:     logger.WithName("generic-provider"),
+		k8sClient:  k8sClient,
+		nodeGroups: make(map[NodePoolName]map[string][]string),
 	}
 }
 
@@ -100,46 +105,116 @@ func (p *GenericProvider) GetClusterMetadata(ctx context.Context) (map[string]in
 	return metadata, nil
 }
 
-// GetNodeGroupForNode attempts to group nodes by common characteristics
-func (p *GenericProvider) GetNodeGroupForNode(nodeName string) (map[string]interface{}, error) {
-	// Try to get node details from K8s API
-	node, err := p.k8sClient.CoreV1().Nodes().Get(context.Background(), nodeName, metav1.GetOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("getting node %s: %w", nodeName, err)
+func (p *GenericProvider) GetNodeGroupMetadata(ctx context.Context) map[string]map[string][]string {
+	nodeList, err := p.k8sClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
+	if err != nil { // failed to call K8s API
+		// return cached info, if available
+		return genericTypesToGeneric(p.nodeGroups)
 	}
 
-	// Try to find a label that indicates a node group
-	nodeGroupName := "unknown"
+	refreshedNodeGroupMetadata := getGenericNodeGroupMetadata(nodeList)
+	p.Lock()
+	p.nodeGroups = refreshedNodeGroupMetadata
+	p.Unlock()
 
-	// Common node group label candidates
-	groupLabelCandidates := []string{
+	return genericTypesToGeneric(p.nodeGroups)
+}
+
+const (
+	NodeTypeRegular = "Regular"
+	NodeTypeSpot    = "Spot"
+)
+
+func getGenericNodeGroupMetadata(nodeList *corev1.NodeList) map[NodePoolName]map[string][]string {
+	nodeGroupInfo := make(map[NodePoolName]map[string][]string)
+	if nodeList == nil {
+		return nodeGroupInfo
+	}
+
+	for _, node := range nodeList.Items {
+		nodePoolLabel := getGenericNodePoolLabel(&node)
+		nodeType := getGenericNodeType(node)
+
+		if _, ok := nodeGroupInfo[nodePoolLabel]; !ok {
+			nodeGroupInfo[nodePoolLabel] = make(map[string][]string)
+		}
+
+		if _, ok := nodeGroupInfo[nodePoolLabel][nodeType]; !ok {
+			nodeGroupInfo[nodePoolLabel][nodeType] = []string{}
+		}
+		nodeGroupInfo[nodePoolLabel][nodeType] = append(nodeGroupInfo[nodePoolLabel][nodeType], node.Name)
+	}
+	return nodeGroupInfo
+}
+
+func getGenericNodePoolLabel(node *corev1.Node) NodePoolName {
+	// In generic there is not consistent node group label unlike providers
+	// Try to determine a meaningful node group name from various common labels
+	// Order by preference: explicit role labels, instance type, zone
+
+	// Check for common role labels (not sure if all common role labels are inclusded)
+	roleLabelCandidates := []string{
 		"node-role.kubernetes.io/worker",
+		"node-role.kubernetes.io/master",
 		"kubernetes.io/role",
 		"node.kubernetes.io/instance-group",
-		"beta.kubernetes.io/instance-type",
-		"node.kubernetes.io/instance-type",
+		"node-group",
 	}
 
-	for _, labelKey := range groupLabelCandidates {
-		if val, ok := node.Labels[labelKey]; ok {
-			nodeGroupName = val
-			break
+	for _, labelKey := range roleLabelCandidates {
+		if val, ok := node.Labels[labelKey]; ok && val != "" {
+			return NodePoolName(val)
 		}
 	}
 
-	// Create a basic node group
-	nodeGroup := map[string]interface{}{
-		"name": nodeGroupName,
-	}
-
-	// Try to extract instance type
 	if instanceType, ok := node.Labels["node.kubernetes.io/instance-type"]; ok {
-		nodeGroup["instance_type"] = instanceType
+		return NodePoolName(instanceType)
 	} else if instanceType, ok := node.Labels["beta.kubernetes.io/instance-type"]; ok {
-		nodeGroup["instance_type"] = instanceType
+		return NodePoolName(instanceType)
 	}
 
-	return nodeGroup, nil
+	if zone, ok := node.Labels["topology.kubernetes.io/zone"]; ok {
+		return NodePoolName("zone-" + zone)
+	} else if zone, ok := node.Labels["failure-domain.beta.kubernetes.io/zone"]; ok {
+		return NodePoolName("zone-" + zone)
+	}
+
+	return NodePoolName("default-pool")
+}
+
+func getGenericNodeType(node corev1.Node) string {
+	// Check for common spot/preemptible labels across different providers
+	spotLabelCandidates := []string{
+		"node.kubernetes.io/instance-lifecycle",
+		"kubernetes.azure.com/scalesetpriority",
+		"eks.amazonaws.com/capacityType",
+		"cloud.google.com/gke-spot",
+	}
+
+	for _, labelKey := range spotLabelCandidates {
+		if val, ok := node.Labels[labelKey]; ok {
+			if val == "spot" || val == "Spot" || val == "SPOT" || val == "true" {
+				return NodeTypeSpot
+			}
+		}
+	}
+
+	return NodeTypeRegular
+}
+
+func genericTypesToGeneric(metadata map[NodePoolName]map[string][]string) map[string]map[string][]string {
+	result := make(map[string]map[string][]string)
+	if metadata == nil {
+		return result
+	}
+
+	for nodePool, nodePoolTypeToNodeList := range metadata {
+		result[string(nodePool)] = make(map[string][]string)
+		for nodePoolType, nodeList := range nodePoolTypeToNodeList {
+			result[string(nodePool)][nodePoolType] = nodeList
+		}
+	}
+	return result
 }
 
 // discoverClusterName attempts to determine a cluster name
@@ -214,8 +289,4 @@ func (p *GenericProvider) guessProviderFromNodes(nodes []corev1.Node) string {
 	}
 
 	return ""
-}
-
-func (p *GenericProvider) GetNodeGroupMetadata(context.Context) map[string]map[string][]string {
-	return nil
 }

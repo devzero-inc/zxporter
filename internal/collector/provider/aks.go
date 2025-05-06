@@ -21,6 +21,15 @@ const (
 	// Azure metadata server endpoint
 	azureMetadataEndpoint = "http://169.254.169.254/metadata/instance"
 
+	// Azure agent pool label
+	azureAgentPoolLabel = "kubernetes.azure.com/agentpool"
+
+	// Azure scale priority label
+	azureScalePriorityLabel = "kubernetes.azure.com/scalesetpriority"
+
+	// Azure cluster label
+	azureClusterLbel = "kubernetes.azure.com/cluster"
+
 	// todo move some of the strings into consts
 )
 
@@ -163,7 +172,7 @@ func (p *AzureProvider) GetNodeGroupMetadata(ctx context.Context) map[string]map
 }
 
 func getAKSNodePoolMetadata(nodeList *corev1.NodeList) map[NodePoolName]map[armcontainerservice.ScaleSetPriority][]string {
-	var nodePoolInfo map[NodePoolName]map[armcontainerservice.ScaleSetPriority][]string
+	nodePoolInfo := make(map[NodePoolName]map[armcontainerservice.ScaleSetPriority][]string)
 	if nodeList == nil {
 		return nodePoolInfo
 	}
@@ -185,7 +194,7 @@ func getAKSNodePoolMetadata(nodeList *corev1.NodeList) map[NodePoolName]map[armc
 }
 
 func azureTypesToGeneric(metadata map[NodePoolName]map[armcontainerservice.ScaleSetPriority][]string) map[string]map[string][]string {
-	var m map[string]map[string][]string
+	m := make(map[string]map[string][]string)
 	if metadata == nil {
 		return m
 	}
@@ -209,7 +218,7 @@ func (p *AzureProvider) discoverClusterName(ctx context.Context) (string, error)
 
 	for _, node := range nodes.Items {
 		// Check for cluster name label
-		if resourceGroupName, ok := node.Labels["kubernetes.azure.com/cluster"]; ok {
+		if resourceGroupName, ok := node.Labels[azureClusterLbel]; ok {
 			aksMetadata, err := parseAKSResourceGroupName(resourceGroupName)
 			if err != nil {
 				// TODO maybe log?
@@ -243,14 +252,14 @@ func getAKSNodePoolLabel(node *corev1.Node) NodePoolName {
 	if val, ok := node.Labels["agentpool"]; ok {
 		return NodePoolName(val)
 	}
-	if val, ok := node.Labels["kubernetes.azure.com/agentpool"]; ok {
+	if val, ok := node.Labels[azureAgentPoolLabel]; ok {
 		return NodePoolName(val)
 	}
 	return NodePoolName("unknown")
 }
 
 func getNodePoolScaleSetPriority(node corev1.Node) armcontainerservice.ScaleSetPriority {
-	if val, ok := node.Labels["kubernetes.azure.com/scalesetpriority"]; ok {
+	if val, ok := node.Labels[azureScalePriorityLabel]; ok {
 		return armcontainerservice.ScaleSetPriority(val) // usually this will be armcontainerservice.ScaleSetPrioritySpot => "Spot"
 	}
 	return armcontainerservice.ScaleSetPriorityRegular // "Regular"

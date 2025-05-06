@@ -25,6 +25,12 @@ const (
 
 	// GKE node label for node pools
 	gkeNodePoolLabel = "cloud.google.com/gke-nodepool"
+
+	// GKE node label for SOPT instance
+	gkeSpotLabel = "cloud.google.com/gke-spot"
+
+	// GKE node label for provisioning instance
+	gkeProvisioningLabel = "cloud.google.com/gke-provisioning"
 )
 
 // GCPProvider implements provider interface for GCP GKE
@@ -281,7 +287,7 @@ func (p *GCPProvider) GetNodeGroupMetadata(ctx context.Context) map[string]map[s
 }
 
 func gkeTypesToGeneric(metadata map[NodePoolName]map[GKENodePoolType][]string) map[string]map[string][]string {
-	var m map[string]map[string][]string
+	m := make(map[string]map[string][]string)
 	if metadata == nil {
 		return m
 	}
@@ -296,7 +302,7 @@ func gkeTypesToGeneric(metadata map[NodePoolName]map[GKENodePoolType][]string) m
 }
 
 func getGKENodePoolMetadata(nodeList *corev1.NodeList) map[NodePoolName]map[GKENodePoolType][]string {
-	var nodePoolInfo map[NodePoolName]map[GKENodePoolType][]string
+	nodePoolInfo := make(map[NodePoolName]map[GKENodePoolType][]string)
 	if nodeList == nil {
 		return nodePoolInfo
 	}
@@ -319,7 +325,7 @@ func getGKENodePoolMetadata(nodeList *corev1.NodeList) map[NodePoolName]map[GKEN
 
 func getGKENodePoolLabel(node *corev1.Node) NodePoolName {
 	// https://cloud.google.com/kubernetes-engine/docs/how-to/creating-managing-labels#automatically-applied-labels
-	if val, ok := node.Labels["cloud.google.com/gke-nodepool"]; ok {
+	if val, ok := node.Labels[gkeNodePoolLabel]; ok {
 		return NodePoolName(val)
 	}
 	return NodePoolName("unknown")
@@ -336,12 +342,12 @@ const (
 
 func getGKENodePoolType(node corev1.Node) GKENodePoolType {
 	// https://cloud.google.com/kubernetes-engine/docs/concepts/spot-vms
-	if val, ok := node.Labels["cloud.google.com/gke-spot"]; ok {
+	if val, ok := node.Labels[gkeSpotLabel]; ok {
 		if strings.EqualFold(val, "true") {
 			return GKE_Spot
 		}
 	}
-	if val, ok := node.Labels["cloud.google.com/gke-provisioning"]; ok {
+	if val, ok := node.Labels[gkeProvisioningLabel]; ok {
 		if strings.EqualFold(val, "spot") {
 			return GKE_Spot
 		}

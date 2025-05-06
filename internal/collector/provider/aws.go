@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/ec2metadata"
@@ -22,6 +21,12 @@ const (
 	tagEKSK8sCluster        = "k8s.io/cluster/"
 	tagEKSKubernetesCluster = "kubernetes.io/cluster/"
 	owned                   = "owned"
+
+	// AWS capacity type label
+	awsCapacityTypeLabel = "eks.amazonaws.com/capacityType"
+
+	// AWS node group label
+	awsNodeGroupLabel = "eks.amazonaws.com/nodegroup"
 )
 
 // AWSProvider implements provider interface for AWS EKS
@@ -200,7 +205,7 @@ func (p *AWSProvider) GetNodeGroupMetadata(ctx context.Context) map[string]map[s
 }
 
 func getAWSNodeGroupMetadata(nodeList *corev1.NodeList) map[NodePoolName]map[AWSNodeGroupType][]string {
-	var nodeGroupInfo map[NodePoolName]map[AWSNodeGroupType][]string
+	nodeGroupInfo := make(map[NodePoolName]map[AWSNodeGroupType][]string)
 	if nodeList == nil {
 		return nodeGroupInfo
 	}
@@ -222,21 +227,21 @@ func getAWSNodeGroupMetadata(nodeList *corev1.NodeList) map[NodePoolName]map[AWS
 }
 
 func getAWSNodePoolLabel(node *corev1.Node) NodePoolName {
-	if val, ok := node.Labels["eks.amazonaws.com/nodegroup"]; ok {
+	if val, ok := node.Labels[awsCapacityTypeLabel]; ok {
 		return NodePoolName(val)
 	}
 	return NodePoolName("unknown")
 }
 
 func getAWSNodeGroupType(node corev1.Node) AWSNodeGroupType {
-	if val, ok := node.Labels["eks.amazonaws.com/capacityType"]; ok {
+	if val, ok := node.Labels[awsNodeGroupLabel]; ok {
 		return AWSNodeGroupType(val)
 	}
 	return eks.CapacityTypesOnDemand // "on-demand"
 }
 
 func awsTypesToGeneric(metadata map[NodePoolName]map[AWSNodeGroupType][]string) map[string]map[string][]string {
-	var m map[string]map[string][]string
+	m := make(map[string]map[string][]string)
 	if metadata == nil {
 		return m
 	}
@@ -248,26 +253,4 @@ func awsTypesToGeneric(metadata map[NodePoolName]map[AWSNodeGroupType][]string) 
 		}
 	}
 	return m
-}
-
-// Helper functions
-func pointerToString(s *string) string {
-	if s == nil {
-		return ""
-	}
-	return *s
-}
-
-func pointerToInt(i *int64) int64 {
-	if i == nil {
-		return 0
-	}
-	return *i
-}
-
-func ngTimeToUnix(t *time.Time) int64 {
-	if t == nil {
-		return 0
-	}
-	return t.Unix()
 }
