@@ -12,6 +12,36 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
+const (
+	// Common role labels
+	nodeRoleWorkerLabel    = "node-role.kubernetes.io/worker"
+	nodeRoleMasterLabel    = "node-role.kubernetes.io/master"
+	kubernetesRoleLabel    = "kubernetes.io/role"
+	nodeInstanceGroupLabel = "node.kubernetes.io/instance-group"
+	nodeGroupLabel         = "node-group"
+
+	// Instance type labels
+	nodeInstanceTypeLabel     = "node.kubernetes.io/instance-type"
+	nodeBetaInstanceTypeLabel = "beta.kubernetes.io/instance-type"
+
+	// Zone labels
+	topologyZoneLabel      = "topology.kubernetes.io/zone"
+	failureDomainZoneLabel = "failure-domain.beta.kubernetes.io/zone"
+
+	// Region labels
+	topologyRegionLabel      = "topology.kubernetes.io/region"
+	failureDomainRegionLabel = "failure-domain.beta.kubernetes.io/region"
+
+	// Spot/preemptible instance labels
+	nodeInstanceLifecycleLabel = "node.kubernetes.io/instance-lifecycle"
+)
+
+// Node type constants
+const (
+	NodeTypeRegular = "Regular"
+	NodeTypeSpot    = "Spot"
+)
+
 // TODO: for generic provider we can process node level data to dakr
 
 // GenericProvider implements a fallback provider for when cloud detection fails
@@ -69,15 +99,15 @@ func (p *GenericProvider) GetClusterMetadata(ctx context.Context) (map[string]in
 
 		for _, node := range nodes.Items {
 			// Check common region/zone labels
-			if region, ok := node.Labels["topology.kubernetes.io/region"]; ok {
+			if region, ok := node.Labels[topologyRegionLabel]; ok {
 				regions[region] = true
-			} else if region, ok := node.Labels["failure-domain.beta.kubernetes.io/region"]; ok {
+			} else if region, ok := node.Labels[failureDomainRegionLabel]; ok {
 				regions[region] = true
 			}
 
-			if zone, ok := node.Labels["topology.kubernetes.io/zone"]; ok {
+			if zone, ok := node.Labels[topologyZoneLabel]; ok {
 				zones[zone] = true
-			} else if zone, ok := node.Labels["failure-domain.beta.kubernetes.io/zone"]; ok {
+			} else if zone, ok := node.Labels[failureDomainZoneLabel]; ok {
 				zones[zone] = true
 			}
 		}
@@ -120,11 +150,6 @@ func (p *GenericProvider) GetNodeGroupMetadata(ctx context.Context) map[string]m
 	return genericTypesToGeneric(p.nodeGroups)
 }
 
-const (
-	NodeTypeRegular = "Regular"
-	NodeTypeSpot    = "Spot"
-)
-
 func getGenericNodeGroupMetadata(nodeList *corev1.NodeList) map[NodePoolName]map[string][]string {
 	nodeGroupInfo := make(map[NodePoolName]map[string][]string)
 	if nodeList == nil {
@@ -152,13 +177,13 @@ func getGenericNodePoolLabel(node *corev1.Node) NodePoolName {
 	// Try to determine a meaningful node group name from various common labels
 	// Order by preference: explicit role labels, instance type, zone
 
-	// Check for common role labels (not sure if all common role labels are inclusded)
+	// Check for common role labels
 	roleLabelCandidates := []string{
-		"node-role.kubernetes.io/worker",
-		"node-role.kubernetes.io/master",
-		"kubernetes.io/role",
-		"node.kubernetes.io/instance-group",
-		"node-group",
+		nodeRoleWorkerLabel,
+		nodeRoleMasterLabel,
+		kubernetesRoleLabel,
+		nodeInstanceGroupLabel,
+		nodeGroupLabel,
 	}
 
 	for _, labelKey := range roleLabelCandidates {
@@ -167,15 +192,15 @@ func getGenericNodePoolLabel(node *corev1.Node) NodePoolName {
 		}
 	}
 
-	if instanceType, ok := node.Labels["node.kubernetes.io/instance-type"]; ok {
+	if instanceType, ok := node.Labels[nodeInstanceTypeLabel]; ok {
 		return NodePoolName(instanceType)
-	} else if instanceType, ok := node.Labels["beta.kubernetes.io/instance-type"]; ok {
+	} else if instanceType, ok := node.Labels[nodeBetaInstanceTypeLabel]; ok {
 		return NodePoolName(instanceType)
 	}
 
-	if zone, ok := node.Labels["topology.kubernetes.io/zone"]; ok {
+	if zone, ok := node.Labels[topologyZoneLabel]; ok {
 		return NodePoolName("zone-" + zone)
-	} else if zone, ok := node.Labels["failure-domain.beta.kubernetes.io/zone"]; ok {
+	} else if zone, ok := node.Labels[failureDomainZoneLabel]; ok {
 		return NodePoolName("zone-" + zone)
 	}
 
@@ -185,10 +210,10 @@ func getGenericNodePoolLabel(node *corev1.Node) NodePoolName {
 func getGenericNodeType(node corev1.Node) string {
 	// Check for common spot/preemptible labels across different providers
 	spotLabelCandidates := []string{
-		"node.kubernetes.io/instance-lifecycle",
-		"kubernetes.azure.com/scalesetpriority",
-		"eks.amazonaws.com/capacityType",
-		"cloud.google.com/gke-spot",
+		nodeInstanceLifecycleLabel,
+		azureScalePriorityLabel,
+		awsCapacityTypeLabel,
+		gkeSpotLabel,
 	}
 
 	for _, labelKey := range spotLabelCandidates {
@@ -273,17 +298,17 @@ func (p *GenericProvider) guessProviderFromNodes(nodes []corev1.Node) string {
 	// Check for common provider-specific labels
 	for _, node := range nodes {
 		// AWS EKS specific labels
-		if _, ok := node.Labels["eks.amazonaws.com/nodegroup"]; ok {
+		if _, ok := node.Labels[awsNodeGroupLabel]; ok {
 			return "aws"
 		}
 
 		// GCP GKE specific labels
-		if _, ok := node.Labels["cloud.google.com/gke-nodepool"]; ok {
+		if _, ok := node.Labels[gkeNodePoolLabel]; ok {
 			return "gcp"
 		}
 
 		// Azure AKS specific labels
-		if _, ok := node.Labels["kubernetes.azure.com/cluster"]; ok {
+		if _, ok := node.Labels[azureClusterLbel]; ok {
 			return "azure"
 		}
 	}
