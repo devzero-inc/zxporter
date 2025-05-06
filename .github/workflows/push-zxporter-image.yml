@@ -2,6 +2,9 @@ name: 'Push zxporter to Docker Hub'
 
 on:
   workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
 
 permissions:
   contents: write
@@ -11,10 +14,29 @@ jobs:
   package-and-push:
     name: Package & Push Docker image
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout Code Repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract Version Info
+        id: version
+        run: |
+          GITVERSION=$(git describe --tags --always || echo "v0.0.0-$(git rev-parse --short HEAD)")
+          echo "GITVERSION=${GITVERSION}" >> $GITHUB_ENV
+          if [[ "$GITVERSION" =~ ^v([0-9]+)\.([0-9]+)\.(.+)$ ]]; then
+            echo "MAJOR=${BASH_REMATCH[1]}" >> $GITHUB_ENV
+            echo "MINOR=${BASH_REMATCH[2]}" >> $GITHUB_ENV
+            echo "PATCH=${BASH_REMATCH[3]}" >> $GITHUB_ENV
+            echo "IS_RELEASE=true" >> $GITHUB_ENV
+          else
+            echo "MAJOR=0" >> $GITHUB_ENV
+            echo "MINOR=0" >> $GITHUB_ENV
+            echo "PATCH=0" >> $GITHUB_ENV
+            echo "IS_RELEASE=false" >> $GITHUB_ENV
+          fi
 
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
@@ -22,10 +44,16 @@ jobs:
           username: ${{ secrets.DOCKERHUB_ZXPORTER_BALANCE_USERNAME }}
           password: ${{ secrets.DOCKERHUB_ZXPORTER_BALANCE_TOKEN }}
 
-      - name: Build and push
-        shell: bash
+      - name: Build and push Docker images
         run: |
           make docker-build docker-push IMG=devzeroinc/zxporter:latest
-          
+
           GIT_SHA=$(git rev-parse --short HEAD)
           make docker-build docker-push IMG=devzeroinc/zxporter:$GIT_SHA
+          make docker-build docker-push IMG=devzeroinc/zxporter:$GITVERSION
+
+          if [[ "$IS_RELEASE" == "true" ]]; then
+            make docker-build docker-push IMG=devzeroinc/zxporter:${{ env.MAJOR }}.${{ env.MINOR }}.${{ env.PATCH }}
+            make docker-build docker-push IMG=devzeroinc/zxporter:${{ env.MAJOR }}.${{ env.MINOR }}
+            make docker-build docker-push IMG=devzeroinc/zxporter:${{ env.MAJOR }}
+          fi
