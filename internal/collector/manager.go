@@ -91,8 +91,10 @@ func (m *CollectionManager) RegisterCollector(collector ResourceCollector) error
 
 // DeregisterCollector stops and removes a specific collector
 func (m *CollectionManager) DeregisterCollector(collectorType string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
-	err := m.StopCollector(collectorType)
+	err := m.StopCollectorInternal(collectorType)
 	if err != nil {
 		m.logger.Error(err, "Error stopping collector during deregistration", "type", collectorType)
 	}
@@ -103,11 +105,8 @@ func (m *CollectionManager) DeregisterCollector(collectorType string) error {
 	return nil
 }
 
-// StopCollector stops a specific collector
-func (m *CollectionManager) StopCollector(collectorType string) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
+// StopCollectorInternal stops a specific collector and cleans up resources
+func (m *CollectionManager) StopCollectorInternal(collectorType string) error {
 	collector, exists := m.collectors[collectorType]
 	if !exists {
 		return fmt.Errorf("collector for type %s not registered", collectorType)
@@ -150,6 +149,14 @@ func (m *CollectionManager) StopCollector(collectorType string) error {
 	delete(m.collectors, collectorType)
 
 	return nil
+}
+
+// StopCollector stops a specific collector
+func (m *CollectionManager) StopCollector(collectorType string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.StopCollectorInternal(collectorType)
+
 }
 
 // StartAll starts all registered collectors
