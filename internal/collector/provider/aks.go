@@ -79,8 +79,9 @@ func NewAzureProvider(logger logr.Logger, k8sClient kubernetes.Interface) (*Azur
 
 	aksMetadata, err := parseAKSResourceGroupName(metadata.Compute.ResourceGroupName)
 	if err != nil {
-		logger.Error(err, "[NewAzureProvider] could not parse resource groupname... continuing on to best effort",
+		logger.Error(err, "[NewAzureProvider] could not parse resource groupname",
 			"resourceGroupName", metadata.Compute.ResourceGroupName)
+		return nil, fmt.Errorf("[NewAzureProvider] resource grouped name could not be parsed: %w", err)
 	}
 
 	// Initialize provider
@@ -322,6 +323,8 @@ func getAzureMetadata(client *http.Client) (*AzureMetadata, error) {
 }
 
 func parseAKSResourceGroupName(resourceGroupName string) (*AKSMetadata, error) {
+	// https://learn.microsoft.com/en-us/azure/aks/faq#why-are-two-resource-groups-created-with-aks-
+	// pattern is expected to be: MC_myResourceGroup_myAKSCluster_eastus
 	parts := strings.Split(resourceGroupName, "_")
 	if len(parts) != 4 || !strings.EqualFold(parts[0], "mc") {
 		return nil, fmt.Errorf("unexpected format: %s", resourceGroupName)
