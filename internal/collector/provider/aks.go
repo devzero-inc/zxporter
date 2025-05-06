@@ -73,8 +73,8 @@ func NewAzureProvider(logger logr.Logger, k8sClient kubernetes.Interface) (*Azur
 
 	// Get Azure instance metadata (test to see if azure or not)
 	metadata, err := getAzureMetadata(httpClient)
-	if err != nil {
-		return nil, fmt.Errorf("getting Azure metadata: %w", err)
+	if err != nil || metadata == nil {
+		return nil, fmt.Errorf("[NewAzureProvider] failed while getting Azure metadata: %w", err)
 	}
 
 	aksMetadata, err := parseAKSResourceGroupName(metadata.Compute.ResourceGroupName)
