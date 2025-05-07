@@ -302,6 +302,9 @@ jobs:
           # Save the stats response to a file
           echo "$STATS_RESPONSE" > stats.json
           
+          # shorter commit SHA for zxporter version check test
+          COMMIT_SHORT=$(echo "${{ github.sha }}" | cut -c1-7)
+
           # Create the expected.json file with the expected pod resource usage
           cat <<EOF > expected.json
           {
@@ -326,7 +329,7 @@ jobs:
             "usage_report_cluster": {
               "provider": "generic",
               "version": "${{ matrix.k8s-version }}",
-              "zxporter_git_commit": "${{ github.sha }}"
+              "zxporter_git_commit": "${COMMIT_SHORT}"
             }
           }
           EOF
