@@ -144,9 +144,9 @@ spec:
 
 The operator is configured through the `CollectionPolicy` Custom Resource. Key configuration options include:
 
-- `targetSelector`: Define which namespaces to collect from
-- `exclusions`: Specify namespaces to exclude
-- `policies`: Configure collection frequency and buffer size
+- `targetSelector`: Define which namespaces to collect from (empty = collect from all namespaces)
+- `exclusions`: Specify namespaces to exclude (default: `[]`)
+- `policies`: Configure collection frequency (default: `10s`) and buffer size (default: `1000`)
 
 ### Advanced Configuration
 
