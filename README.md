@@ -2,6 +2,26 @@
 
 ZXporter is a Kubernetes operator that collects and exports various Kubernetes resources for monitoring and observability purposes. It provides a comprehensive solution for gathering metrics and data from different types of Kubernetes resources across your cluster.
 
+## Overview
+
+ZXporter is designed to help you monitor and observe your Kubernetes cluster by collecting data from various resources and making it available for analysis. It's particularly useful for:
+- Monitoring cluster health and performance
+- Collecting resource utilization metrics
+- Tracking configuration changes
+- Gathering security-related information
+- Supporting compliance and auditing requirements
+
+## Architecture
+
+ZXporter operates as a Kubernetes operator with the following components:
+
+- **Controller**: Manages the lifecycle of collection policies and coordinates data collection
+- **Collectors**: Specialized components for different resource types
+- **Storage**: Temporary buffer for collected data
+- **Exporters**: Components that make the collected data available to external systems
+
+The operator uses a modular design that allows for easy extension and customization.
+
 ## Features
 
 ### Core Resources
@@ -128,6 +148,93 @@ The operator is configured through the `CollectionPolicy` Custom Resource. Key c
 - `exclusions`: Specify namespaces to exclude
 - `policies`: Configure collection frequency and buffer size
 
+### Advanced Configuration
+
+```yaml
+apiVersion: devzero.io/v1
+kind: CollectionPolicy
+metadata:
+  name: advanced-policy
+  namespace: devzero-zxporter
+spec:
+  targetSelector:
+    namespaces: ["app1", "app2"]
+    labelSelector:
+      matchLabels:
+        environment: production
+  exclusions:
+    excludedNamespaces:
+      - kube-system
+      - kube-public
+    excludedResources:
+      - secrets
+      - configmaps
+  policies:
+    frequency: "30s"
+    bufferSize: 1000
+    retentionPeriod: "24h"
+    exportFormat: "prometheus"
+```
+
+## Troubleshooting
+
+### Common Issues
+
+1. **RBAC Permission Errors**
+   ```sh
+   Error: failed to create resource: the server does not allow access to the requested resource
+   ```
+   Solution: Ensure the operator has the necessary RBAC permissions:
+   ```sh
+   kubectl create clusterrolebinding zxporter-admin --clusterrole=cluster-admin --serviceaccount=devzero-zxporter:zxporter-controller-manager
+   ```
+
+2. **Collection Policy Not Applied**
+   ```sh
+   Error: no collection policy found in namespace
+   ```
+   Solution: Verify the CollectionPolicy CR is properly created:
+   ```sh
+   kubectl get collectionpolicy -n devzero-zxporter
+   ```
+
+3. **High Resource Usage**
+   If the operator is consuming too many resources, adjust the collection frequency and buffer size in the policy.
+
+### Logs and Debugging
+
+View operator logs:
+```sh
+kubectl logs -n devzero-zxporter deployment/zxporter-controller-manager
+```
+
+Enable debug logging:
+```yaml
+apiVersion: devzero.io/v1
+kind: CollectionPolicy
+metadata:
+  name: debug-policy
+spec:
+  policies:
+    logLevel: "debug"
+```
+
+## Security Considerations
+
+- The operator requires cluster-wide permissions to collect data
+- Sensitive data (like Secrets) are excluded from collection
+- Network communication is secured using TLS
+- RBAC policies should be carefully configured
+
+## Performance Tuning
+
+For optimal performance:
+
+1. Adjust collection frequency based on your needs
+2. Configure appropriate buffer sizes
+3. Use namespace selectors to limit collection scope
+4. Monitor resource usage and adjust accordingly
+
 ## Uninstallation
 
 1. Remove CR instances:
@@ -163,6 +270,32 @@ kubectl apply -f https://raw.githubusercontent.com/<org>/zxporter/<tag>/dist/ins
 ## Contributing
 
 We welcome contributions! Please see our contributing guidelines for more information.
+
+### Development Setup
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Run tests: `make test`
+5. Submit a pull request
+
+### Testing
+
+Run the test suite:
+```sh
+make test
+```
+
+Run specific tests:
+```sh
+go test ./... -run TestName
+```
+
+## Support
+
+- GitHub Issues: [Report bugs or request features](https://github.com/devzero-inc/zxporter/issues)
+- Documentation: [Detailed documentation](https://github.com/devzero-inc/zxporter/docs)
+- Community: [Join our community](https://github.com/devzero-inc/zxporter/discussions)
 
 ## License
 
