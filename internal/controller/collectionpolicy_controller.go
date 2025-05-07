@@ -40,7 +40,6 @@ import (
 	"github.com/devzero-inc/zxporter/internal/collector/provider"
 	"github.com/devzero-inc/zxporter/internal/transport"
 	"github.com/devzero-inc/zxporter/internal/util"
-	"github.com/devzero-inc/zxporter/internal/version"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
@@ -1066,10 +1065,6 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 func (r *CollectionPolicyReconciler) initializeCollectors(ctx context.Context, config *PolicyConfig) (ctrl.Result, error) {
 	logger := r.Log.WithName("initialize")
 	logger.Info("Initializing collectors", "config", fmt.Sprintf("%+v", config))
-
-	// Create or update the ConfigMap for zxporter version
-	versionLogger := r.Log.WithName("version")
-	version.CreateVersionConfigMap(versionLogger, ctx, r.K8sClient)
 
 	// Check if Prometheus is available if URL is configured
 	if config.PrometheusURL != "" {
