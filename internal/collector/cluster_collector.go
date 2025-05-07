@@ -14,6 +14,7 @@ import (
 	metricsv1 "k8s.io/metrics/pkg/client/clientset/versioned"
 
 	"github.com/devzero-inc/zxporter/internal/collector/provider"
+	"github.com/devzero-inc/zxporter/internal/version"
 )
 
 const (
@@ -143,12 +144,17 @@ func (c *ClusterCollector) collectClusterData(ctx context.Context) error {
 	// 9. Get cluster API endpoint (usually from kubeadm ConfigMap)
 	clusterAPI := c.getClusterAPIEndpoint(ctx)
 
+	versionInfo := version.Get()
+
 	// 10. Create the cluster data object
 	clusterData := map[string]interface{}{
 		"id":                    fmt.Sprintf("%s-%s", providerData["cluster_name"], providerData["region"]),
 		"name":                  providerData["cluster_name"],
 		"cluster_api":           clusterAPI,
 		"version":               k8sVersion,
+		"zxporter_version":      versionInfo.String(),
+		"zxporter_git_commit":   versionInfo.GitCommit,
+		"zxporter_build_date":   versionInfo.BuildDate,
 		"cni_plugins":           cniPlugins,
 		"node_group_metadata":   nodeGroupMetadata,
 		"provider_specific":     providerData,

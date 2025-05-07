@@ -167,6 +167,54 @@ func validatePods(actual, expected map[string]stats.PodResourceUsage, tolerance 
 	return valid, errors
 }
 
+// validateCluster validates the actual cluster resource data against expected cluster resource data
+func validateCluster(actual map[string]stats.ClusterResourceUsage, expected stats.ClusterResourceUsage) (bool, []string) {
+	var errors []string
+	valid := true
+
+	// note - testing this for multiple clusters is probably going to be a bit hard if cluster names are ephemeral
+	for clusterName, clusterData := range actual {
+		// cluster name is kinda ephemeral cuz Kind - so we're gonna not depend on the expected vals for this one
+		if !strings.EqualFold(clusterData.Name, clusterName) {
+			valid = false
+			errors = append(errors, fmt.Sprintf("Cluster name actual: %s; cluster name reported: %s", clusterName, clusterData.Name))
+			continue // no point going on cuz cluster name is super important for the rest of the tests to work fine
+		}
+
+		// zxporter version check
+		if !strings.EqualFold(actual[clusterName].ZxporterGitCommit, expected.ZxporterGitCommit) {
+			valid = false
+			errors = append(errors,
+				fmt.Sprintf("Zxporter git commit actual: %s; Zxporter git commit expected: %s",
+					actual[clusterName].ZxporterGitCommit,
+					expected.ZxporterGitCommit))
+			continue
+		}
+
+		// k8s version check
+		if !strings.EqualFold(actual[clusterName].Version, expected.Version) {
+			valid = false
+			errors = append(errors,
+				fmt.Sprintf("K8s version actual: %s; K8s version expected: %s",
+					actual[clusterName].Version,
+					expected.Version))
+			continue
+		}
+
+		// provider check
+		if !strings.EqualFold(actual[clusterName].Provider, expected.Provider) {
+			valid = false
+			errors = append(errors,
+				fmt.Sprintf("K8s provider actual: %s; K8s version expected: %s",
+					actual[clusterName].Provider,
+					expected.Provider))
+			continue
+		}
+	}
+
+	return valid, errors
+}
+
 func main() {
 	// Define command-line flags
 	statsFile := flag.String("stats", "", "Path to the stats JSON file")
@@ -205,7 +253,7 @@ func main() {
 	}
 
 	// Parse expected JSON
-	var expectedObj stats.ExpectedPods
+	var expectedObj stats.Expected
 	if err := json.Unmarshal(expectedData, &expectedObj); err != nil {
 		fmt.Printf("Error parsing expected JSON: %v\n", err)
 		os.Exit(1)
@@ -214,9 +262,19 @@ func main() {
 	fmt.Printf("Validating pod resource usage with tolerance: %.2f%%\n", *tolerance)
 
 	// Validate pods
-	valid, errors := validatePods(statsObj.UsageReportPods, expectedObj.UsageReportPods, *tolerance)
-	if !valid {
-		fmt.Println("\n❌ Validation failed with the following errors:")
+	validPods, errors := validatePods(statsObj.UsageReportPods, expectedObj.UsageReportPods, *tolerance)
+	if !validPods {
+		fmt.Println("\n❌ Pod Resource Validation failed with the following errors:")
+		for _, err := range errors {
+			fmt.Printf("  - %s\n", err)
+		}
+		os.Exit(1)
+	}
+
+	// validate cluster
+	validCluster, errors := validateCluster(statsObj.UsageReportCluster, expectedObj.UsageReportCluster)
+	if !validCluster {
+		fmt.Println("\n❌ Cluster Resource Validation failed with the following errors:")
 		for _, err := range errors {
 			fmt.Printf("  - %s\n", err)
 		}

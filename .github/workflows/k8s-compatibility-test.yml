@@ -20,9 +20,15 @@ jobs:
           ZXPORTER_IMG="ttl.sh/$(uuidgen):2h"
           TESTSERVER_IMG="ttl.sh/$(uuidgen):2h"
           STRESS_IMG="ttl.sh/$(uuidgen):2h"
+          MAJOR="0"
+          MINOR="0"
+          PATCH="1-compatibility-test"
           echo "ZXPORTER_IMG=$ZXPORTER_IMG" >> $GITHUB_ENV
           echo "TESTSERVER_IMG=$TESTSERVER_IMG" >> $GITHUB_ENV
           echo "STRESS_IMG=$STRESS_IMG" >> $GITHUB_ENV
+          echo "MAJOR=$MAJOR" >> $GITHUB_ENV
+          echo "MINOR=$MINOR" >> $GITHUB_ENV
+          echo "PATCH=$PATCH" >> $GITHUB_ENV
           echo "image=$ZXPORTER_IMG" >> $GITHUB_OUTPUT
           echo "testserver_img=$TESTSERVER_IMG" >> $GITHUB_OUTPUT
           echo "stress_img=$STRESS_IMG" >> $GITHUB_OUTPUT
@@ -296,6 +302,9 @@ jobs:
           # Save the stats response to a file
           echo "$STATS_RESPONSE" > stats.json
           
+          # shorter commit SHA for zxporter version check test
+          COMMIT_SHORT=$(echo "${{ github.sha }}" | cut -c1-7)
+
           # Create the expected.json file with the expected pod resource usage
           cat <<EOF > expected.json
           {
@@ -316,6 +325,11 @@ jobs:
                   }
                 }
               }
+            },
+            "usage_report_cluster": {
+              "provider": "generic",
+              "version": "${{ matrix.k8s-version }}",
+              "zxporter_git_commit": "${COMMIT_SHORT}"
             }
           }
           EOF

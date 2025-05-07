@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	apiv1 "github.com/devzero-inc/zxporter/gen/api/v1"
@@ -73,6 +74,8 @@ func (s *MetricsServer) processResourceItem(resource *apiv1.ResourceItem) {
 			s.extractContainerResourceInfo(resource.Data)
 		case apiv1.ResourceType_RESOURCE_TYPE_NODE_RESOURCE:
 			s.extractNodeResourceInfo(resource.Key, resource.Data)
+		case apiv1.ResourceType_RESOURCE_TYPE_CLUSTER:
+			s.extractClusterResourceInfo(resource.Key, resource.Data)
 		}
 	}
 }
@@ -380,6 +383,50 @@ func (s *MetricsServer) extractNodeResourceInfo(key string, data *structpb.Struc
 	}
 }
 
+// extractClusterResourceInfo extracts resource information from a cluster resource message
+func (s *MetricsServer) extractClusterResourceInfo(key string, data *structpb.Struct) {
+	if data == nil {
+		return
+	}
+
+	clusterData := data.GetFields()
+	if clusterData == nil {
+		return
+	}
+
+	// Initialize cluster resource usage if not exists
+	// Initialize if not exists
+	if _, exists := s.stats.UsageReportCluster[key]; !exists {
+		s.stats.UsageReportCluster[key] = stats.ClusterResourceUsage{}
+	}
+
+	// Extract and update cluster resource data
+	entry := s.stats.UsageReportCluster[key]
+	entry.FullDump = protojson.Format(&structpb.Struct{Fields: clusterData})
+
+	if zxporterVersion, ok := clusterData["zxporter_version"]; ok {
+		entry.ZxporterVersion = zxporterVersion.GetStringValue()
+	}
+	if zxporterGitCommit, ok := clusterData["zxporter_git_commit"]; ok {
+		entry.ZxporterGitCommit = zxporterGitCommit.GetStringValue()
+	}
+	if zxporterBuildDate, ok := clusterData["zxporter_build_date"]; ok {
+		entry.ZxporterBuildDate = zxporterBuildDate.GetStringValue()
+	}
+	if version, ok := clusterData["version"]; ok {
+		entry.Version = version.GetStringValue()
+	}
+	if name, ok := clusterData["name"]; ok {
+		entry.Name = name.GetStringValue()
+	}
+	if provider, ok := clusterData["provider"]; ok {
+		entry.Provider = provider.GetStringValue()
+	}
+
+	// Save the modified struct back into the map
+	s.stats.UsageReportCluster[key] = entry
+}
+
 func main() {
 	// Define command-line flags
 	outputFile := flag.String("output", "requests.json", "Path to the output file for request data")
@@ -402,10 +449,11 @@ func main() {
 	server := &MetricsServer{
 		outputFile: *outputFile,
 		stats: stats.Stats{
-			MessagesByType:   make(map[string]int),
-			UniqueResources:  make(map[string]int),
-			UsageReportPods:  make(map[string]stats.PodResourceUsage),
-			UsageReportNodes: make(map[string]stats.NodeResourceUsage),
+			MessagesByType:     make(map[string]int),
+			UniqueResources:    make(map[string]int),
+			UsageReportPods:    make(map[string]stats.PodResourceUsage),
+			UsageReportNodes:   make(map[string]stats.NodeResourceUsage),
+			UsageReportCluster: make(map[string]stats.ClusterResourceUsage),
 		},
 		seenResources: make(map[string]bool),
 	}
