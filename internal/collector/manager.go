@@ -94,7 +94,7 @@ func (m *CollectionManager) DeregisterCollector(collectorType string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	err := m.StopCollectorInternal(collectorType)
+	err := m.stopCollectorInternal(collectorType)
 	if err != nil {
 		m.logger.Error(err, "Error stopping collector during deregistration", "type", collectorType)
 	}
@@ -105,8 +105,8 @@ func (m *CollectionManager) DeregisterCollector(collectorType string) error {
 	return nil
 }
 
-// StopCollectorInternal stops a specific collector and cleans up resources
-func (m *CollectionManager) StopCollectorInternal(collectorType string) error {
+// stopCollectorInternal stops a specific collector and cleans up resources. Should be called with the mutex held.
+func (m *CollectionManager) stopCollectorInternal(collectorType string) error {
 	collector, exists := m.collectors[collectorType]
 	if !exists {
 		return fmt.Errorf("collector for type %s not registered", collectorType)
@@ -155,7 +155,7 @@ func (m *CollectionManager) StopCollectorInternal(collectorType string) error {
 func (m *CollectionManager) StopCollector(collectorType string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return m.StopCollectorInternal(collectorType)
+	return m.stopCollectorInternal(collectorType)
 
 }
 
