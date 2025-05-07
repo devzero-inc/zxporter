@@ -1,0 +1,491 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: devzero-zxporter
+    control-plane: controller-manager
+  name: devzero-zxporter
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: devzero-zxporter
+  name: devzero-zxporter-controller-manager
+  namespace: devzero-zxporter
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: devzero-zxporter
+  name: devzero-zxporter-leader-election-role
+  namespace: devzero-zxporter
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: devzero-zxporter
+  name: devzero-zxporter-collectionpolicy-editor-role
+rules:
+- apiGroups:
+  - devzero.io
+  resources:
+  - collectionpolicies
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - devzero.io
+  resources:
+  - collectionpolicies/status
+  verbs:
+  - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: devzero-zxporter
+  name: devzero-zxporter-collectionpolicy-viewer-role
+rules:
+- apiGroups:
+  - devzero.io
+  resources:
+  - collectionpolicies
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - devzero.io
+  resources:
+  - collectionpolicies/status
+  verbs:
+  - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: devzero-zxporter-manager-role
+rules:
+- apiGroups:
+  - apps
+  resources:
+  - daemonsets
+  - deployments
+  - replicasets
+  - statefulsets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - argoproj.io
+  resources:
+  - rollouts
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - autoscaling
+  resources:
+  - horizontalpodautoscalers
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - autoscaling.k8s.io
+  resources:
+  - verticalpodautoscalers
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - batch
+  resources:
+  - cronjobs
+  - jobs
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - endpoints
+  - events
+  - limitranges
+  - namespaces
+  - nodes
+  - persistentvolumeclaims
+  - persistentvolumes
+  - pods
+  - replicationcontrollers
+  - resourcequotas
+  - serviceaccounts
+  - services
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - nodes/status
+  - pods/status
+  verbs:
+  - get
+- apiGroups:
+  - datadoghq.com
+  resources:
+  - extendeddaemonsetreplicasets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - devzero.io
+  resources:
+  - collectionpolicies
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - devzero.io
+  resources:
+  - collectionpolicies/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - devzero.io
+  resources:
+  - collectionpolicies/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - karpenter.k8s.aws
+  resources:
+  - awsnodetemplates
+  - ec2nodeclasses
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - karpenter.sh
+  resources:
+  - machines
+  - nodeclaims
+  - nodepools
+  - provisioners
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - metrics.k8s.io
+  resources:
+  - nodes
+  - pods
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingressclasses
+  - ingresses
+  - networkpolicies
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - policy
+  resources:
+  - poddisruptionbudgets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - clusterrolebindings
+  - clusterroles
+  - rolebindings
+  - roles
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - storage.k8s.io
+  resources:
+  - csinodes
+  - storageclasses
+  verbs:
+  - get
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: devzero-zxporter-metrics-auth-role
+rules:
+- apiGroups:
+  - authentication.k8s.io
+  resources:
+  - tokenreviews
+  verbs:
+  - create
+- apiGroups:
+  - authorization.k8s.io
+  resources:
+  - subjectaccessreviews
+  verbs:
+  - create
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: devzero-zxporter-metrics-reader
+rules:
+- nonResourceURLs:
+  - /metrics
+  verbs:
+  - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: devzero-zxporter
+  name: devzero-zxporter-leader-election-rolebinding
+  namespace: devzero-zxporter
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: devzero-zxporter-leader-election-role
+subjects:
+- kind: ServiceAccount
+  name: devzero-zxporter-controller-manager
+  namespace: devzero-zxporter
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: devzero-zxporter
+  name: devzero-zxporter-manager-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: devzero-zxporter-manager-role
+subjects:
+- kind: ServiceAccount
+  name: devzero-zxporter-controller-manager
+  namespace: devzero-zxporter
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: devzero-zxporter-metrics-auth-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: devzero-zxporter-metrics-auth-role
+subjects:
+- kind: ServiceAccount
+  name: devzero-zxporter-controller-manager
+  namespace: devzero-zxporter
+---
+apiVersion: v1
+data:
+  BUFFER_SIZE: ""
+  CLUSTER_TOKEN: '{{ .cluster_token }}'
+  COLLECTION_FREQUENCY: ""
+  DAKR_URL: https://api.devzero.io/dakr
+  DISABLE_NETWORK_IO_METRICS: ""
+  DISABLED_COLLECTORS: ""
+  EXCLUDED_CLUSTERROLEBINDINGS: ""
+  EXCLUDED_CLUSTERROLES: ""
+  EXCLUDED_CRDGROUPS: ""
+  EXCLUDED_CRDS: ""
+  EXCLUDED_CRONJOBS: ""
+  EXCLUDED_DAEMONSETS: ""
+  EXCLUDED_DEPLOYMENTS: ""
+  EXCLUDED_ENDPOINTS: ""
+  EXCLUDED_EVENTS: ""
+  EXCLUDED_HPAS: ""
+  EXCLUDED_INGRESSCLASSES: ""
+  EXCLUDED_INGRESSES: ""
+  EXCLUDED_JOBS: ""
+  EXCLUDED_LIMITRANGES: ""
+  EXCLUDED_NAMESPACES: ""
+  EXCLUDED_NETWORKPOLICIES: ""
+  EXCLUDED_NODES: ""
+  EXCLUDED_PDBS: ""
+  EXCLUDED_PODS: ""
+  EXCLUDED_PSPS: ""
+  EXCLUDED_PVCS: ""
+  EXCLUDED_PVS: ""
+  EXCLUDED_REPLICATIONCONTROLLERS: ""
+  EXCLUDED_RESOURCEQUOTAS: ""
+  EXCLUDED_ROLEBINDINGS: ""
+  EXCLUDED_ROLES: ""
+  EXCLUDED_SERVICEACCOUNTS: ""
+  EXCLUDED_SERVICES: ""
+  EXCLUDED_STATEFULSETS: ""
+  EXCLUDED_STORAGECLASSES: ""
+  EXCLUDED_VPAS: ""
+  K8S_PROVIDER: '{{ .k8s_provider }}'
+  MASK_SECRET_DATA: ""
+  NODE_METRICS_INTERVAL: ""
+  PROMETHEUS_URL: http://prometheus-server.devzero-zxporter.svc.cluster.local:80
+  TARGET_NAMESPACES: ""
+  WATCHED_CRDS: ""
+kind: ConfigMap
+metadata:
+  name: devzero-zxporter-env-config
+  namespace: devzero-zxporter
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: devzero-zxporter
+    control-plane: controller-manager
+  name: devzero-zxporter-controller-manager-metrics-service
+  namespace: devzero-zxporter
+spec:
+  ports:
+  - name: https
+    port: 8443
+    protocol: TCP
+    targetPort: 8443
+  selector:
+    control-plane: controller-manager
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: devzero-zxporter
+    control-plane: controller-manager
+  name: devzero-zxporter-controller-manager
+  namespace: devzero-zxporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      control-plane: controller-manager
+  template:
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/default-container: manager
+      labels:
+        control-plane: controller-manager
+    spec:
+      containers:
+      - args:
+        - --metrics-bind-address=:8443
+        - --leader-elect
+        - --health-probe-bind-address=:8081
+        command:
+        - /manager
+        image: ttl.sh/zxporter:latest
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8081
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        name: manager
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8081
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          requests:
+            cpu: "1"
+            memory: 1024Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+        volumeMounts:
+        - mountPath: /etc/zxporter/config
+          name: config-volume
+          readOnly: true
+      securityContext:
+        runAsNonRoot: true
+      serviceAccountName: devzero-zxporter-controller-manager
+      terminationGracePeriodSeconds: 10
+      volumes:
+      - configMap:
+          name: devzero-zxporter-env-config
+        name: config-volume
