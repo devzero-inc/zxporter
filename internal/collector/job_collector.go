@@ -30,12 +30,6 @@ type JobCollector struct {
 	mu              sync.RWMutex
 }
 
-// ExcludedJob defines a job to exclude from collection
-type ExcludedJob struct {
-	Namespace string
-	Name      string
-}
-
 // NewJobCollector creates a new collector for job resources
 func NewJobCollector(
 	client kubernetes.Interface,

@@ -31,12 +31,6 @@ type RoleBindingCollector struct {
 	mu                   sync.RWMutex
 }
 
-// ExcludedRoleBinding defines a RoleBinding to exclude from collection
-type ExcludedRoleBinding struct {
-	Namespace string
-	Name      string
-}
-
 // NewRoleBindingCollector creates a new collector for RoleBinding resources
 func NewRoleBindingCollector(
 	client kubernetes.Interface,

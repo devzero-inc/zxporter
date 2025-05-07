@@ -30,12 +30,6 @@ type ReplicationControllerCollector struct {
 	mu                             sync.RWMutex
 }
 
-// ExcludedReplicationController defines a replicationcontroller to exclude from collection
-type ExcludedReplicationController struct {
-	Namespace string
-	Name      string
-}
-
 // NewReplicationControllerCollector creates a new collector for replicationcontroller resources
 func NewReplicationControllerCollector(
 	client kubernetes.Interface,

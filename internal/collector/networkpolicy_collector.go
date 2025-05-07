@@ -33,12 +33,6 @@ type NetworkPolicyCollector struct {
 	mu                      sync.RWMutex
 }
 
-// ExcludedNetworkPolicy defines a networkpolicy to exclude from collection
-type ExcludedNetworkPolicy struct {
-	Namespace string
-	Name      string
-}
-
 // NewNetworkPolicyCollector creates a new collector for networkpolicy resources
 func NewNetworkPolicyCollector(
 	client kubernetes.Interface,

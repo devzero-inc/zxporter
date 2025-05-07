@@ -31,12 +31,6 @@ type EndpointCollector struct {
 	mu                sync.RWMutex
 }
 
-// ExcludedEndpoint defines an endpoints resource to exclude from collection
-type ExcludedEndpoint struct {
-	Namespace string
-	Name      string
-}
-
 // NewEndpointCollector creates a new collector for endpoints resources
 func NewEndpointCollector(
 	client kubernetes.Interface,

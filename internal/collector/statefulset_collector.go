@@ -30,12 +30,6 @@ type StatefulSetCollector struct {
 	mu                   sync.RWMutex
 }
 
-// ExcludedStatefulSet defines a statefulset to exclude from collection
-type ExcludedStatefulSet struct {
-	Namespace string
-	Name      string
-}
-
 // NewStatefulSetCollector creates a new collector for statefulset resources
 func NewStatefulSetCollector(
 	client kubernetes.Interface,

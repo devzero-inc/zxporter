@@ -31,12 +31,6 @@ type LimitRangeCollector struct {
 	mu                  sync.RWMutex
 }
 
-// ExcludedLimitRange defines a limitrange to exclude from collection
-type ExcludedLimitRange struct {
-	Namespace string
-	Name      string
-}
-
 // NewLimitRangeCollector creates a new collector for limitrange resources
 func NewLimitRangeCollector(
 	client kubernetes.Interface,

@@ -32,12 +32,6 @@ type ReplicaSetCollector struct {
 	mu                  sync.RWMutex
 }
 
-// ExcludedReplicaSet defines a replicaset to exclude from collection
-type ExcludedReplicaSet struct {
-	Namespace string
-	Name      string
-}
-
 // NewReplicaSetCollector creates a new collector for replicaset resources
 func NewReplicaSetCollector(
 	client kubernetes.Interface,

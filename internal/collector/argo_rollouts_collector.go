@@ -17,15 +17,6 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
-// ExcludedArgoRollout identifies an Argo Rollout to exclude
-type ExcludedArgoRollout struct {
-	// Namespace is the Argo Rollout's namespace
-	Namespace string `json:"namespace"`
-
-	// Name is the Argo Rollout's name
-	Name string `json:"name"`
-}
-
 // ArgoRolloutsCollector watches for Argo Rollouts resources
 type ArgoRolloutsCollector struct {
 	dynamicClient    dynamic.Interface

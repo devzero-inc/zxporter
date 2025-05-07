@@ -30,12 +30,6 @@ type PodCollector struct {
 	mu              sync.RWMutex
 }
 
-// ExcludedPod identifies a pod to exclude from collection
-type ExcludedPod struct {
-	Namespace string
-	Name      string
-}
-
 // NewPodCollector creates a new collector for pod resources
 func NewPodCollector(
 	client kubernetes.Interface,
