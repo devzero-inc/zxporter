@@ -518,20 +518,6 @@ func (c *ContainerResourceCollector) collectContainerIOMetrics(ctx context.Conte
 	return metrics, nil
 }
 
-// humanizeBytes converts bytes to a human-readable format (KB, MB, GB, etc.)
-func humanizeBytes(bytes float64) string {
-	const unit = 1024.0
-	if bytes < unit {
-		return fmt.Sprintf("%.2f B", bytes)
-	}
-	div, exp := unit, 0
-	for n := bytes / unit; n >= unit; n /= unit {
-		div *= unit
-		exp++
-	}
-	return fmt.Sprintf("%.2f %ciB", bytes/div, "KMGTPE"[exp])
-}
-
 // getPodFromCache retrieves a pod from the informer cache
 func (c *ContainerResourceCollector) getPodFromCache(namespace, name string) (*corev1.Pod, error) {
 	return c.informerFactory.Core().V1().Pods().Lister().Pods(namespace).Get(name)

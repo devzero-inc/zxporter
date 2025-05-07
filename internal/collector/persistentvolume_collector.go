@@ -245,72 +245,6 @@ func claimReferenceEqual(ref1, ref2 *corev1.ObjectReference) bool {
 		ref1.UID == ref2.UID
 }
 
-// nodeAffinityEqual compares two node affinities for equality
-func nodeAffinityEqual(affinity1, affinity2 *corev1.VolumeNodeAffinity) bool {
-	if affinity1 == nil && affinity2 == nil {
-		return true
-	}
-
-	if affinity1 == nil || affinity2 == nil {
-		return false
-	}
-
-	// If there's no required field, they're equal
-	if affinity1.Required == nil && affinity2.Required == nil {
-		return true
-	}
-
-	if affinity1.Required == nil || affinity2.Required == nil {
-		return false
-	}
-
-	// Compare the node selector terms
-	terms1 := affinity1.Required.NodeSelectorTerms
-	terms2 := affinity2.Required.NodeSelectorTerms
-
-	if len(terms1) != len(terms2) {
-		return false
-	}
-
-	// This is a simplistic comparison that assumes the order of terms matters
-	// A more robust implementation would handle reordering of equivalent terms
-	for i, term1 := range terms1 {
-		term2 := terms2[i]
-
-		// Compare match expressions
-		if len(term1.MatchExpressions) != len(term2.MatchExpressions) {
-			return false
-		}
-
-		for j, expr1 := range term1.MatchExpressions {
-			expr2 := term2.MatchExpressions[j]
-
-			if expr1.Key != expr2.Key ||
-				expr1.Operator != expr2.Operator ||
-				!stringSlicesEqual(expr1.Values, expr2.Values) {
-				return false
-			}
-		}
-
-		// Compare match fields
-		if len(term1.MatchFields) != len(term2.MatchFields) {
-			return false
-		}
-
-		for j, field1 := range term1.MatchFields {
-			field2 := term2.MatchFields[j]
-
-			if field1.Key != field2.Key ||
-				field1.Operator != field2.Operator ||
-				!stringSlicesEqual(field1.Values, field2.Values) {
-				return false
-			}
-		}
-	}
-
-	return true
-}
-
 // accessModesEqual compares two access mode slices for equality
 func accessModesEqual(modes1, modes2 []corev1.PersistentVolumeAccessMode) bool {
 	if len(modes1) != len(modes2) {
@@ -338,40 +272,6 @@ func accessModesEqual(modes1, modes2 []corev1.PersistentVolumeAccessMode) bool {
 
 	for mode := range modesMap2 {
 		if !modesMap1[mode] {
-			return false
-		}
-	}
-
-	return true
-}
-
-// stringSlicesEqual compares two string slices for equality
-func stringSlicesEqual(s1, s2 []string) bool {
-	if len(s1) != len(s2) {
-		return false
-	}
-
-	// Create maps for efficient lookup
-	map1 := make(map[string]bool)
-	map2 := make(map[string]bool)
-
-	for _, s := range s1 {
-		map1[s] = true
-	}
-
-	for _, s := range s2 {
-		map2[s] = true
-	}
-
-	// Compare the maps
-	for s := range map1 {
-		if !map2[s] {
-			return false
-		}
-	}
-
-	for s := range map2 {
-		if !map1[s] {
 			return false
 		}
 	}

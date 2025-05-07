@@ -246,21 +246,6 @@ func (c *NamespaceCollector) GetType() string {
 	return "namespace"
 }
 
-// finalizerSlicesEqual compares two FinalizerName slices for equality
-func finalizerSlicesEqual(s1, s2 []corev1.FinalizerName) bool {
-	if len(s1) != len(s2) {
-		return false
-	}
-
-	for i := range s1 {
-		if s1[i] != s2[i] {
-			return false
-		}
-	}
-
-	return true
-}
-
 // IsAvailable checks if Namespace resources can be accessed in the cluster
 func (c *NamespaceCollector) IsAvailable(ctx context.Context) bool {
 	return true

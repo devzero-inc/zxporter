@@ -226,21 +226,6 @@ func (c *ServiceCollector) serviceChanged(oldService, newService *corev1.Service
 	return false
 }
 
-// mapsEqual compares two maps for equality
-func mapsEqual(m1, m2 map[string]string) bool {
-	if len(m1) != len(m2) {
-		return false
-	}
-
-	for k, v1 := range m1 {
-		if v2, ok := m2[k]; !ok || v1 != v2 {
-			return false
-		}
-	}
-
-	return true
-}
-
 // isExcluded checks if a service should be excluded from collection
 func (c *ServiceCollector) isExcluded(service *corev1.Service) bool {
 	// Check if monitoring specific namespaces and this service isn't in them

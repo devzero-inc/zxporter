@@ -221,53 +221,6 @@ func (c *CronJobCollector) cronJobChanged(oldCronJob, newCronJob *batchv1.CronJo
 	return false
 }
 
-// timePointerEqual safely compares two time.Time pointers
-func timePointerEqual(t1, t2 *metav1.Time) bool {
-	if t1 == nil && t2 == nil {
-		return true
-	}
-
-	if t1 == nil || t2 == nil {
-		return false
-	}
-
-	return t1.Equal(t2)
-}
-
-// int64PointerEqual safely compares two int64 pointers
-func int64PointerEqual(i1, i2 *int64) bool {
-	if i1 == nil && i2 == nil {
-		return true
-	}
-
-	if i1 == nil || i2 == nil {
-		return false
-	}
-
-	return *i1 == *i2
-}
-
-// int32PointerEqual safely compares two int32 pointers
-func int32PointerEqual(i1, i2 *int32) bool {
-	if i1 == nil && i2 == nil {
-		return true
-	}
-
-	if i1 == nil || i2 == nil {
-		return false
-	}
-
-	return *i1 == *i2
-}
-
-// getBoolValue safely gets the value of a bool pointer
-func getBoolValue(b *bool) bool {
-	if b == nil {
-		return false
-	}
-	return *b
-}
-
 // isExcluded checks if a cronjob should be excluded from collection
 func (c *CronJobCollector) isExcluded(cronJob *batchv1.CronJob) bool {
 	// Check if monitoring specific namespaces and this cronjob isn't in them

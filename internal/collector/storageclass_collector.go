@@ -234,19 +234,6 @@ func volumeBindingModeEqual(mode1, mode2 *storagev1.VolumeBindingMode) bool {
 	return *mode1 == *mode2
 }
 
-// boolPointerEqual compares two bool pointers for equality
-func boolPointerEqual(b1, b2 *bool) bool {
-	if b1 == nil && b2 == nil {
-		return true
-	}
-
-	if b1 == nil || b2 == nil {
-		return false
-	}
-
-	return *b1 == *b2
-}
-
 // allowedTopologiesEqual compares two allowed topology slices for equality
 func allowedTopologiesEqual(topologies1, topologies2 []corev1.TopologySelectorTerm) bool {
 	if len(topologies1) != len(topologies2) {
