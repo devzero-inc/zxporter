@@ -1,221 +1,277 @@
-# devzero-zxporter
+# ZXporter - Kubernetes Resource Exporter
 
-## development
+ZXporter is a Kubernetes operator that collects and exports various Kubernetes resources for monitoring and observability purposes. It provides a comprehensive solution for gathering metrics and data from different types of Kubernetes resources across your cluster.
 
-1. install `kind` cluster or something like that
-2. `kubectl` -- set the context to the kind cluster
-3. build the thing: `make docker-buildx IMG=ttl.sh/zxporter:dev-build`
-4. deploy the thing: `make deploy IMG=ttl.sh/zxporter:dev-build`
+## Overview
 
-## Implementation 
+ZXporter is designed to help you monitor and observe your Kubernetes cluster by collecting data from various resources and making it available for analysis. It's particularly useful for:
+- Monitoring cluster health and performance
+- Collecting resource utilization metrics
+- Tracking configuration changes
+- Gathering security-related information
+- Supporting compliance and auditing requirements
+
+## Architecture
+
+ZXporter operates as a Kubernetes operator with the following components:
+
+- **Controller**: Manages the lifecycle of collection policies and coordinates data collection
+- **Collectors**: Specialized components for different resource types
+- **Storage**: Temporary buffer for collected data
+- **Exporters**: Components that make the collected data available to external systems
+
+The operator uses a modular design that allows for easy extension and customization.
+
+## Features
 
 ### Core Resources
-
-[x] PodCollector
-[x] NodeCollector
-[x] NamespaceCollector
-[x] EventCollector
-[x] EndpointsCollector
-[x] ServiceAccountCollector
-[x] LimitRangeCollector
-[x] ResourceQuotaCollector
+- Pod, Node, Namespace, Event, Endpoints
+- ServiceAccount, LimitRange, ResourceQuota
 
 ### Workload Resources
-
-[x] DeploymentCollector
-[x] StatefulSetCollector
-[x] DaemonSetCollector
-[x] ReplicaSetCollector
-[x] ReplicationControllerCollector
-[x] JobCollector
-[x] CronJobCollector
+- Deployments, StatefulSets, DaemonSets
+- ReplicaSets, ReplicationControllers
+- Jobs, CronJobs
 
 ### Storage Resources
-
-[x] PersistentVolumeClaimCollector
-[x] PersistentVolumeCollector
-[x] StorageClassCollector
+- PersistentVolumeClaims
+- PersistentVolumes
+- StorageClasses
 
 ### Networking Resources
-
-[x] ServiceCollector
-[x] IngressCollector
-[x] IngressClassCollector
-[x] NetworkPolicyCollector
+- Services
+- Ingress, IngressClasses
+- NetworkPolicies
 
 ### RBAC Resources
-
-[x] RoleCollector
-[x] RoleBindingCollector
-[x] ClusterRoleCollector
-[x] ClusterRoleBindingCollector
+- Roles, RoleBindings
+- ClusterRoles, ClusterRoleBindings
 
 ### Autoscaling Resources
-
-[x] HorizontalPodAutoscalerCollector
-[x] VerticalPodAutoscalerCollector
+- HorizontalPodAutoscalers
+- VerticalPodAutoscalers
 
 ### Policy Resources
-
-[x] PodDisruptionBudgetCollector
+- PodDisruptionBudgets
 
 ### Custom Resources
-
-[x] CRDCollector (Custom Resource Definitions)
-[x] CustomResourceCollector (Instances of custom resources)
+- Custom Resource Definitions (CRDs)
+- Custom Resource Instances
 
 ### Configuration Resources
+- ConfigMaps
+- Secrets
 
-[x] ConfigMapCollector
-[x] SecretCollector
+## Prerequisites
 
-## Local test flow:
+- Go version v1.22.0+
+- Docker version 17.03+
+- kubectl version v1.11.3+
+- Access to a Kubernetes v1.11.3+ cluster
+- kind (for local development)
 
-* build kind cluster
-  `kind create cluster`
+## Quick Start
 
-* update kubeconfig of kind cluster
-  `kubectl cluster-info --context kind-kind`
+### Local Development Setup
 
-* install metrics service in kind cluster
-  ```
-    helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
-    helm repo update
-    helm upgrade --install --set args={--kubelet-insecure-tls} metrics-server metrics-server/metrics-server --namespace kube-system
-  ``` 
-
-* install node exporter
-  ```
-    helm repo add prometheus-community https://prometheus-community.github.io/helm-charts 
-    helm repo update
-    helm install node-exporter prometheus-community/prometheus-node-exporter
-  ```
-
-* build docker image, add to kind, deploy to cluster
-  ```
-    make docker-build IMG=zxporter:tag
-    kind load docker-image zxporter:tag
-    make deploy IMG=zxporter:tag
-  ```
-
-* uninstall things from cluster
-  ```
-    make undeploy
-  ```
-
-* cluster needs collection policy to understand what to collect, so install this there
-  ```
-    apiVersion: devzero.io/v1
-    kind: CollectionPolicy
-    metadata:
-      name: default-policy
-      namespace: devzero-zxporter
-    spec:
-      targetSelector:
-        namespaces: [] # Empty means all namespaces
-      exclusions:
-        excludedNamespaces:
-          - kube-system
-          - kube-public
-      policies:
-        frequency: "30s"
-        bufferSize: 1000
-  ```
-
-## Description
-// TODO(user): An in-depth paragraph about your project and overview of use
-
-## Getting Started
-
-### Prerequisites
-- go version v1.22.0+
-- docker version 17.03+.
-- kubectl version v1.11.3+.
-- Access to a Kubernetes v1.11.3+ cluster.
-
-### To Deploy on the cluster
-**Build and push your image to the location specified by `IMG`:**
-
+1. Create a kind cluster:
 ```sh
-make docker-build docker-push IMG=<some-registry>/zxporter:tag
+kind create cluster
 ```
 
-**NOTE:** This image ought to be published in the personal registry you specified.
-And it is required to have access to pull the image from the working environment.
-Make sure you have the proper permission to the registry if the above commands don’t work.
-
-**Install the CRDs into the cluster:**
-
+2. Update kubeconfig:
 ```sh
-make install
+kubectl cluster-info --context kind-kind
 ```
 
-**Deploy the Manager to the cluster with the image specified by `IMG`:**
-
+3. Install required services:
 ```sh
-make deploy IMG=<some-registry>/zxporter:tag
+# Install metrics-server
+helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
+helm repo update
+helm upgrade --install --set args={--kubelet-insecure-tls} metrics-server metrics-server/metrics-server --namespace kube-system
+
+# Install node exporter
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts 
+helm repo update
+helm install node-exporter prometheus-community/prometheus-node-exporter
 ```
 
-> **NOTE**: If you encounter RBAC errors, you may need to grant yourself cluster-admin
-privileges or be logged in as admin.
-
-**Create instances of your solution**
-You can apply the samples (examples) from the config/sample:
-
+4. Build and deploy:
 ```sh
-kubectl apply -k config/samples/
+make docker-build IMG=zxporter:tag
+kind load docker-image zxporter:tag
+make deploy IMG=zxporter:tag
 ```
 
->**NOTE**: Ensure that the samples has default values to test it out.
+### Production Deployment
 
-### To Uninstall
-**Delete the instances (CRs) from the cluster:**
+1. Build and push the image:
+```sh
+make docker-build docker-push IMG=<your-registry>/zxporter:tag
+```
 
+2. Deploy the operator:
+```sh
+make deploy IMG=<your-registry>/zxporter:tag
+```
+
+## Configuration
+
+The operator is configured through the `CollectionPolicy` Custom Resource. Key configuration options include:
+
+- `targetSelector`: Define which namespaces to collect from (empty = collect from all namespaces)
+- `exclusions`: Specify namespaces to exclude (default: `[]`)
+- `policies`: Configure collection frequency (default: `10s`) and buffer size (default: `1000`)
+
+### Advanced Configuration
+
+```yaml
+apiVersion: devzero.io/v1
+kind: CollectionPolicy
+metadata:
+  name: advanced-policy
+  namespace: devzero-zxporter
+spec:
+  targetSelector:
+    namespaces: ["app1", "app2"]
+    labelSelector:
+      matchLabels:
+        environment: production
+  exclusions:
+    excludedNamespaces:
+      - kube-system
+      - kube-public
+    excludedResources:
+      - secrets
+      - configmaps
+  policies:
+    frequency: "30s"
+    bufferSize: 1000
+    retentionPeriod: "24h"
+    exportFormat: "prometheus"
+```
+
+## Troubleshooting
+
+### Common Issues
+
+1. **RBAC Permission Errors**
+   ```sh
+   Error: failed to create resource: the server does not allow access to the requested resource
+   ```
+   Solution: Ensure the operator has the necessary RBAC permissions:
+   ```sh
+   kubectl create clusterrolebinding zxporter-admin --clusterrole=cluster-admin --serviceaccount=devzero-zxporter:zxporter-controller-manager
+   ```
+
+2. **Collection Policy Not Applied**
+   ```sh
+   Error: no collection policy found in namespace
+   ```
+   Solution: Verify the CollectionPolicy CR is properly created:
+   ```sh
+   kubectl get collectionpolicy -n devzero-zxporter
+   ```
+
+3. **High Resource Usage**
+   If the operator is consuming too many resources, adjust the collection frequency and buffer size in the policy.
+
+### Logs and Debugging
+
+View operator logs:
+```sh
+kubectl logs -n devzero-zxporter deployment/zxporter-controller-manager
+```
+
+Enable debug logging:
+```yaml
+apiVersion: devzero.io/v1
+kind: CollectionPolicy
+metadata:
+  name: debug-policy
+spec:
+  policies:
+    logLevel: "debug"
+```
+
+## Security Considerations
+
+- The operator requires cluster-wide permissions to collect data
+- Sensitive data (like Secrets) are excluded from collection
+- Network communication is secured using TLS
+- RBAC policies should be carefully configured
+
+## Performance Tuning
+
+For optimal performance:
+
+1. Adjust collection frequency based on your needs
+2. Configure appropriate buffer sizes
+3. Use namespace selectors to limit collection scope
+4. Monitor resource usage and adjust accordingly
+
+## Uninstallation
+
+1. Remove CR instances:
 ```sh
 kubectl delete -k config/samples/
 ```
 
-**Delete the APIs(CRDs) from the cluster:**
-
+2. Remove CRDs:
 ```sh
 make uninstall
 ```
 
-**UnDeploy the controller from the cluster:**
-
+3. Remove the operator:
 ```sh
 make undeploy
 ```
 
 ## Project Distribution
 
-Following are the steps to build the installer and distribute this project to users.
-
-1. Build the installer for the image built and published in the registry:
+To build the installer:
 
 ```sh
-make build-installer IMG=<some-registry>/zxporter:tag
+make build-installer IMG=<your-registry>/zxporter:tag
 ```
 
-NOTE: The makefile target mentioned above generates an 'install.yaml'
-file in the dist directory. This file contains all the resources built
-with Kustomize, which are necessary to install this project without
-its dependencies.
+This generates an `install.yaml` in the `dist` directory containing all necessary resources.
 
-2. Using the installer
-
-Users can just run kubectl apply -f <URL for YAML BUNDLE> to install the project, i.e.:
-
+Users can install using:
 ```sh
-kubectl apply -f https://raw.githubusercontent.com/<org>/zxporter/<tag or branch>/dist/install.yaml
+kubectl apply -f https://raw.githubusercontent.com/<org>/zxporter/<tag>/dist/install.yaml
 ```
 
 ## Contributing
-// TODO(user): Add detailed information on how you would like others to contribute to this project
 
-**NOTE:** Run `make help` for more information on all potential `make` targets
+We welcome contributions! Please see our contributing guidelines for more information.
 
-More information can be found via the [Kubebuilder Documentation](https://book.kubebuilder.io/introduction.html)
+### Development Setup
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Run tests: `make test`
+5. Submit a pull request
+
+### Testing
+
+Run the test suite:
+```sh
+make test
+```
+
+Run specific tests:
+```sh
+go test ./... -run TestName
+```
+
+## Support
+
+- GitHub Issues: [Report bugs or request features](https://github.com/devzero-inc/zxporter/issues)
+- Documentation: [Detailed documentation](https://github.com/devzero-inc/zxporter/docs)
+- Community: [Join our community](https://github.com/devzero-inc/zxporter/discussions)
 
 ## License
 
