@@ -409,15 +409,3 @@ func (c *ClusterCollector) GetType() string {
 func (c *ClusterCollector) IsAvailable(ctx context.Context) bool {
 	return true
 }
-
-// Helper functions
-func calculatePercentage(used, total int64) float64 {
-	if total == 0 {
-		return 0
-	}
-	return float64(used) / float64(total) * 100
-}
-
-func containsString(s, substr string) bool {
-	return strings.Contains(strings.ToLower(s), strings.ToLower(substr))
-}

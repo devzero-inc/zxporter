@@ -4,13 +4,11 @@ package collector
 import (
 	"context"
 	"fmt"
-	"sort"
 	"sync"
 	"time"
 
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
@@ -230,53 +228,6 @@ func (c *ReplicaSetCollector) replicaSetChanged(oldReplicaSet, newReplicaSet *ap
 
 	// No significant changes detected
 	return false
-}
-
-// metaLabelsEqual compares two label selectors for equality
-func metaLabelsEqual(s1, s2 *metav1.LabelSelector) bool {
-	if s1 == nil && s2 == nil {
-		return true
-	}
-
-	if s1 == nil || s2 == nil {
-		return false
-	}
-
-	// Check match labels
-	if !mapsEqual(s1.MatchLabels, s2.MatchLabels) {
-		return false
-	}
-
-	// Check match expressions
-	if len(s1.MatchExpressions) != len(s2.MatchExpressions) {
-		return false
-	}
-
-	// Create a string representation of each expression for comparison
-	// This is simpler than comparing each field individually
-	expr1 := make([]string, len(s1.MatchExpressions))
-	expr2 := make([]string, len(s2.MatchExpressions))
-
-	for i, exp := range s1.MatchExpressions {
-		expr1[i] = fmt.Sprintf("%s-%s-%v", exp.Key, exp.Operator, exp.Values)
-	}
-
-	for i, exp := range s2.MatchExpressions {
-		expr2[i] = fmt.Sprintf("%s-%s-%v", exp.Key, exp.Operator, exp.Values)
-	}
-
-	// Sort both slices to ensure consistent comparison
-	sort.Strings(expr1)
-	sort.Strings(expr2)
-
-	// Compare the sorted expressions
-	for i := range expr1 {
-		if expr1[i] != expr2[i] {
-			return false
-		}
-	}
-
-	return true
 }
 
 // isExcluded checks if a replicaset should be excluded from collection

@@ -199,42 +199,6 @@ func (c *ServiceAccountCollector) serviceAccountChanged(oldSA, newSA *corev1.Ser
 	return false
 }
 
-// objectReferencesEqual compares two slices of object references for equality
-func objectReferencesEqual(refs1, refs2 []corev1.ObjectReference) bool {
-	if len(refs1) != len(refs2) {
-		return false
-	}
-
-	// Create maps for efficient lookup
-	refsMap1 := make(map[string]bool)
-	refsMap2 := make(map[string]bool)
-
-	for _, ref := range refs1 {
-		key := fmt.Sprintf("%s/%s", ref.Namespace, ref.Name)
-		refsMap1[key] = true
-	}
-
-	for _, ref := range refs2 {
-		key := fmt.Sprintf("%s/%s", ref.Namespace, ref.Name)
-		refsMap2[key] = true
-	}
-
-	// Compare maps
-	for key := range refsMap1 {
-		if !refsMap2[key] {
-			return false
-		}
-	}
-
-	for key := range refsMap2 {
-		if !refsMap1[key] {
-			return false
-		}
-	}
-
-	return true
-}
-
 // isExcluded checks if a serviceaccount should be excluded from collection
 func (c *ServiceAccountCollector) isExcluded(sa *corev1.ServiceAccount) bool {
 	// Check if monitoring specific namespaces and this serviceaccount isn't in them
