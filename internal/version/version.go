@@ -33,15 +33,23 @@ func (info Info) String() string {
 	return fmt.Sprintf("%s.%s.%s", info.Major, info.Minor, info.Patch)
 }
 
+var (
+	major        string
+	minor        string
+	patch        string
+	gitCommit    string
+	gitTreeState string
+	buildDate    string
+)
+
 var Get = func() Info {
-	// These variables will be set by the build system
 	return Info{
-		Major:        "",
-		Minor:        "",
-		Patch:        "",
-		GitCommit:    "",
-		GitTreeState: "",
-		BuildDate:    "",
+		Major:        major,
+		Minor:        minor,
+		Patch:        patch,
+		GitCommit:    gitCommit,
+		GitTreeState: gitTreeState,
+		BuildDate:    buildDate,
 		GoVersion:    runtime.Version(),
 		Compiler:     runtime.Compiler,
 		Platform:     fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH),

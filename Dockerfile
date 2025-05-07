@@ -25,14 +25,25 @@ ARG COMMIT_HASH=unknown
 ARG GIT_TREE_STATE=unknown
 ARG BUILD_DATE=unknown
 ARG GO_VERSION=unknown
+
+RUN echo "MAJOR: ${MAJOR}"
+RUN echo "MINOR: ${MINOR}"
+RUN echo "PATCH: ${PATCH}"
+RUN echo "GITVERSION: ${GITVERSION}"
+RUN echo "COMMIT_HASH: ${COMMIT_HASH}"
+RUN echo "GIT_TREE_STATE: ${GIT_TREE_STATE}"
+RUN echo "BUILD_DATE: ${BUILD_DATE}"
+RUN echo "GO_VERSION: ${GO_VERSION}"
+RUN echo "TARGETOS: ${TARGETOS:-linux}"
+RUN echo "TARGETARCH: ${TARGETARCH}"
+
 # Build
 # the GOARCH has not a default value to allow the binary be built according to the host where the command
 # was called. For example, if we call make docker-build in a local env which has the Apple Silicon M1 SO
 # the docker BUILDPLATFORM arg will be linux/arm64 when for Apple x86 it will be linux/amd64. Therefore,
 # by leaving it empty we can ensure that the container and binary shipped on it will have the same platform.
 RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build \
-    -ldflags "-X github.com/devzero-inc/zxporter/internal/version.Get=*github.com/devzero-inc/zxporter/internal/version.Info \
-    -X github.com/devzero-inc/zxporter/internal/version.Get.Major=${MAJOR} \
+    -ldflags "-X github.com/devzero-inc/zxporter/internal/version.Get.Major=${MAJOR} \
     -X github.com/devzero-inc/zxporter/internal/version.Get.Minor=${MINOR} \
     -X github.com/devzero-inc/zxporter/internal/version.Get.Patch=${PATCH} \
     -X github.com/devzero-inc/zxporter/internal/version.Get.GitCommit=${COMMIT_HASH} \

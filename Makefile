@@ -161,30 +161,14 @@ lint-fix: golangci-lint ## Run golangci-lint linter and perform fixes
 
 GITVERSION ?= $(shell git describe --tags 2>/dev/null || echo "v0.0.0-$(shell git rev-parse --short HEAD)")
 
-# Extract version components if not explicitly provided
-ifeq ($(origin MAJOR),default)
-  # Extract major from GITVERSION if it matches vX.Y.Z format
-  ifneq ($(shell echo $(GITVERSION) | grep -E "^v[0-9]+\.[0-9]+\.[0-9]+"),)
-    MAJOR := $(shell echo $(GITVERSION) | sed -E 's/^v([0-9]+)\..*/\1/')
-  else
-    MAJOR := 0
-  endif
-endif
-
-ifeq ($(origin MINOR),default)
-  ifneq ($(shell echo $(GITVERSION) | grep -E "^v[0-9]+\.[0-9]+\.[0-9]+"),)
-    MINOR := $(shell echo $(GITVERSION) | sed -E 's/^v[0-9]+\.([0-9]+)\..*/\1/')
-  else
-    MINOR := 0
-  endif
-endif
-
-ifeq ($(origin PATCH),default)
-  ifneq ($(shell echo $(GITVERSION) | grep -E "^v[0-9]+\.[0-9]+\.[0-9]+"),)
-    PATCH := $(shell echo $(GITVERSION) | sed -E 's/^v[0-9]+\.[0-9]+\.(.*)/\1/')
-  else
-    PATCH := 1
-  endif
+ifeq ($(shell echo $(GITVERSION) | grep -E "^v[0-9]+\.[0-9]+\.[0-9]+"),)
+  MAJOR := 0
+  MINOR := 0
+  PATCH := 1
+else
+  MAJOR := $(shell echo $(GITVERSION) | sed -E 's/^v([0-9]+)\..*/\1/')
+  MINOR := $(shell echo $(GITVERSION) | sed -E 's/^v[0-9]+\.([0-9]+)\..*/\1/')
+  PATCH := $(shell echo $(GITVERSION) | sed -E 's/^v[0-9]+\.[0-9]+\.(.*)/\1/')
 endif
 
 GITVERSION ?= $(shell git describe --tags 2>/dev/null || echo "v0.0.0-$(shell git rev-parse --short HEAD)")
@@ -192,7 +176,7 @@ COMMIT_HASH ?= $(shell git rev-parse --short HEAD 2>/dev/null)
 GIT_TREE_STATE ?= $(if $(shell git status --porcelain),dirty,clean)
 BUILD_DATE ?= $(shell date -u +'%Y-%m-%dT%H:%M:%SZ')
 
-GO_VERSION = $(shell go version | awk '{print $3}')
+GO_VERSION = $(shell go version | awk '{print $$3}')
 
 LDFLAGS += -X github.com/devzero-inc/zxporter/internal/version.Get=*github.com/devzero-inc/zxporter/internal/version.Info
 LDFLAGS += -X github.com/devzero-inc/zxporter/internal/version.Get.Major=$(MAJOR)
@@ -218,15 +202,16 @@ run: manifests generate fmt vet ## Run a controller from your host.
 # More info: https://docs.docker.com/develop/develop-images/build_enhancements/
 .PHONY: docker-build
 docker-build: ## Build docker image with the manager.
-	$(CONTAINER_TOOL) build \
-		--build-arg MAJOR=$(MAJOR) \
-		--build-arg MINOR=$(MINOR) \
-		--build-arg PATCH=$(PATCH) \
-		--build-arg COMMIT_HASH=$(COMMIT_HASH) \
-		--build-arg GIT_TREE_STATE=$(GIT_TREE_STATE) \
-		--build-arg BUILD_DATE=$(BUILD_DATE) \
-		--build-arg GO_VERSION=$(GO_VERSION) \
-		-t ${IMG} .
+	echo "for debug -> $(GO_VERSION), major  $(MAJOR), minor  $(MINOR), patch  $(PATCH)"
+	$(CONTAINER_TOOL) build --load \
+			--build-arg MAJOR=$(MAJOR) \
+			--build-arg MINOR=$(MINOR) \
+			--build-arg PATCH=$(PATCH) \
+			--build-arg COMMIT_HASH=$(COMMIT_HASH) \
+			--build-arg GIT_TREE_STATE=$(GIT_TREE_STATE) \
+			--build-arg BUILD_DATE=$(BUILD_DATE) \
+			--build-arg GO_VERSION="$(GO_VERSION)" \
+			-t ${IMG} .
 
 .PHONY: docker-push
 docker-push: ## Push docker image with the manager.

@@ -20,9 +20,15 @@ jobs:
           ZXPORTER_IMG="ttl.sh/$(uuidgen):2h"
           TESTSERVER_IMG="ttl.sh/$(uuidgen):2h"
           STRESS_IMG="ttl.sh/$(uuidgen):2h"
+          MAJOR="0"
+          MINOR="0"
+          PATCH="1-compatibility-test"
           echo "ZXPORTER_IMG=$ZXPORTER_IMG" >> $GITHUB_ENV
           echo "TESTSERVER_IMG=$TESTSERVER_IMG" >> $GITHUB_ENV
           echo "STRESS_IMG=$STRESS_IMG" >> $GITHUB_ENV
+          echo "MAJOR=$MAJOR" >> $GITHUB_ENV
+          echo "MINOR=$MINOR" >> $GITHUB_ENV
+          echo "PATCH=$PATCH" >> $GITHUB_ENV
           echo "image=$ZXPORTER_IMG" >> $GITHUB_OUTPUT
           echo "testserver_img=$TESTSERVER_IMG" >> $GITHUB_OUTPUT
           echo "stress_img=$STRESS_IMG" >> $GITHUB_OUTPUT
