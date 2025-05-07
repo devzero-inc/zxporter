@@ -1826,6 +1826,9 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 			var replacedCollector collector.ResourceCollector
 
 			switch collectorType {
+			//////////////////////////////////////////////////////////////////////////////////
+			/// Namespaced resources
+			//////////////////////////////////////////////////////////////////////////////////
 			case "pod":
 				replacedCollector = collector.NewPodCollector(
 					r.K8sClient,
@@ -1896,34 +1899,11 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					newConfig.UpdateInterval,
 					logger,
 				)
-			case "node":
-				replacedCollector = collector.NewNodeCollector(
-					r.K8sClient,
-					metricsClient,
-					collector.NodeCollectorConfig{
-						PrometheusURL:           newConfig.PrometheusURL,
-						UpdateInterval:          newConfig.UpdateInterval,
-						QueryTimeout:            10 * time.Second,
-						DisableNetworkIOMetrics: newConfig.DisableNetworkIOMetrics,
-					},
-					newConfig.ExcludedNodes,
-					collector.DefaultMaxBatchSize,
-					newConfig.UpdateInterval,
-					logger,
-				)
 			case "persistent_volume_claim":
 				replacedCollector = collector.NewPersistentVolumeClaimCollector(
 					r.K8sClient,
 					newConfig.TargetNamespaces,
 					newConfig.ExcludedPVCs,
-					collector.DefaultMaxBatchSize,
-					collector.DefaultMaxBatchTime,
-					logger,
-				)
-			case "persistent_volume":
-				replacedCollector = collector.NewPersistentVolumeCollector(
-					r.K8sClient,
-					newConfig.ExcludedPVs,
 					collector.DefaultMaxBatchSize,
 					collector.DefaultMaxBatchTime,
 					logger,
@@ -1971,14 +1951,6 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					r.K8sClient,
 					newConfig.TargetNamespaces,
 					newConfig.ExcludedIngresses,
-					collector.DefaultMaxBatchSize,
-					collector.DefaultMaxBatchTime,
-					logger,
-				)
-			case "ingress_class":
-				replacedCollector = collector.NewIngressClassCollector(
-					r.K8sClient,
-					newConfig.ExcludedIngressClasses,
 					collector.DefaultMaxBatchSize,
 					collector.DefaultMaxBatchTime,
 					logger,
@@ -2064,6 +2036,67 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					collector.DefaultMaxBatchTime,
 					logger,
 				)
+			case "pod_disruption_budget":
+				replacedCollector = collector.NewPodDisruptionBudgetCollector(
+					r.K8sClient,
+					newConfig.TargetNamespaces,
+					newConfig.ExcludedPDBs,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+				)
+			case "datadog":
+				replacedCollector = collector.NewDatadogCollector(
+					r.DynamicClient,
+					newConfig.TargetNamespaces,
+					newConfig.ExcludedDatadogReplicaSets,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+				)
+			case "argo_rollouts":
+				replacedCollector = collector.NewArgoRolloutsCollector(
+					r.DynamicClient,
+					newConfig.TargetNamespaces,
+					newConfig.ExcludedArgoRollouts,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+				)
+			//////////////////////////////////////////////////////////////////////////////////
+			/// Cluster wide resources
+			//////////////////////////////////////////////////////////////////////////////////
+			case "node":
+				replacedCollector = collector.NewNodeCollector(
+					r.K8sClient,
+					metricsClient,
+					collector.NodeCollectorConfig{
+						PrometheusURL:           newConfig.PrometheusURL,
+						UpdateInterval:          newConfig.UpdateInterval,
+						QueryTimeout:            10 * time.Second,
+						DisableNetworkIOMetrics: newConfig.DisableNetworkIOMetrics,
+					},
+					newConfig.ExcludedNodes,
+					collector.DefaultMaxBatchSize,
+					newConfig.UpdateInterval,
+					logger,
+				)
+			case "persistent_volume":
+				replacedCollector = collector.NewPersistentVolumeCollector(
+					r.K8sClient,
+					newConfig.ExcludedPVs,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+				)
+			case "ingress_class":
+				replacedCollector = collector.NewIngressClassCollector(
+					r.K8sClient,
+					newConfig.ExcludedIngressClasses,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+				)
 			case "cluster_role":
 				replacedCollector = collector.NewClusterRoleCollector(
 					r.K8sClient,
@@ -2076,15 +2109,6 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 				replacedCollector = collector.NewClusterRoleBindingCollector(
 					r.K8sClient,
 					newConfig.ExcludedClusterRoleBindings,
-					collector.DefaultMaxBatchSize,
-					collector.DefaultMaxBatchTime,
-					logger,
-				)
-			case "pod_disruption_budget":
-				replacedCollector = collector.NewPodDisruptionBudgetCollector(
-					r.K8sClient,
-					newConfig.TargetNamespaces,
-					newConfig.ExcludedPDBs,
 					collector.DefaultMaxBatchSize,
 					collector.DefaultMaxBatchTime,
 					logger,
@@ -2116,24 +2140,6 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 			case "karpenter":
 				replacedCollector = collector.NewKarpenterCollector(
 					r.DynamicClient,
-					collector.DefaultMaxBatchSize,
-					collector.DefaultMaxBatchTime,
-					logger,
-				)
-			case "datadog":
-				replacedCollector = collector.NewDatadogCollector(
-					r.DynamicClient,
-					newConfig.TargetNamespaces,
-					newConfig.ExcludedDatadogReplicaSets,
-					collector.DefaultMaxBatchSize,
-					collector.DefaultMaxBatchTime,
-					logger,
-				)
-			case "argo_rollouts":
-				replacedCollector = collector.NewArgoRolloutsCollector(
-					r.DynamicClient,
-					newConfig.TargetNamespaces,
-					newConfig.ExcludedArgoRollouts,
 					collector.DefaultMaxBatchSize,
 					collector.DefaultMaxBatchTime,
 					logger,
