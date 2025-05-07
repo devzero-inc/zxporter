@@ -30,12 +30,6 @@ type PersistentVolumeClaimCollector struct {
 	mu              sync.RWMutex
 }
 
-// ExcludedPVC defines a PVC to exclude from collection
-type ExcludedPVC struct {
-	Namespace string
-	Name      string
-}
-
 // NewPersistentVolumeClaimCollector creates a new collector for PVC resources
 func NewPersistentVolumeClaimCollector(
 	client kubernetes.Interface,

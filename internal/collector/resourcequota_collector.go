@@ -31,12 +31,6 @@ type ResourceQuotaCollector struct {
 	mu                     sync.RWMutex
 }
 
-// ExcludedResourceQuota defines a resourcequota to exclude from collection
-type ExcludedResourceQuota struct {
-	Namespace string
-	Name      string
-}
-
 // NewResourceQuotaCollector creates a new collector for resourcequota resources
 func NewResourceQuotaCollector(
 	client kubernetes.Interface,

@@ -30,12 +30,6 @@ type DeploymentCollector struct {
 	mu                  sync.RWMutex
 }
 
-// ExcludedDeployment defines a deployment to exclude from collection
-type ExcludedDeployment struct {
-	Namespace string
-	Name      string
-}
-
 // NewDeploymentCollector creates a new collector for deployment resources
 func NewDeploymentCollector(
 	client kubernetes.Interface,

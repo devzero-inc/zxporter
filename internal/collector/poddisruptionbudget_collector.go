@@ -31,12 +31,6 @@ type PodDisruptionBudgetCollector struct {
 	mu              sync.RWMutex
 }
 
-// ExcludedPDB defines a PodDisruptionBudget to exclude from collection
-type ExcludedPDB struct {
-	Namespace string
-	Name      string
-}
-
 // NewPodDisruptionBudgetCollector creates a new collector for PDB resources
 func NewPodDisruptionBudgetCollector(
 	client kubernetes.Interface,

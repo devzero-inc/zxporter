@@ -33,12 +33,6 @@ type EventCollector struct {
 	mu               sync.RWMutex
 }
 
-// ExcludedEvent defines an event to exclude from collection
-type ExcludedEvent struct {
-	Namespace string
-	Name      string
-}
-
 // NewEventCollector creates a new collector for event resources
 func NewEventCollector(
 	client kubernetes.Interface,

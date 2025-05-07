@@ -30,12 +30,6 @@ type ServiceCollector struct {
 	mu               sync.RWMutex
 }
 
-// ExcludedService defines a service to exclude from collection
-type ExcludedService struct {
-	Namespace string
-	Name      string
-}
-
 // NewServiceCollector creates a new collector for service resources
 func NewServiceCollector(
 	client kubernetes.Interface,

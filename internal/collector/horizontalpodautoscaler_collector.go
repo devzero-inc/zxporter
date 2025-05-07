@@ -33,12 +33,6 @@ type HorizontalPodAutoscalerCollector struct {
 	mu                              sync.RWMutex
 }
 
-// ExcludedHPA defines a HPA to exclude from collection
-type ExcludedHPA struct {
-	Namespace string
-	Name      string
-}
-
 // NewHorizontalPodAutoscalerCollector creates a new collector for HPA resources
 func NewHorizontalPodAutoscalerCollector(
 	client kubernetes.Interface,

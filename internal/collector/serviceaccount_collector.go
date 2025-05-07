@@ -30,12 +30,6 @@ type ServiceAccountCollector struct {
 	mu                      sync.RWMutex
 }
 
-// ExcludedServiceAccount defines a serviceaccount to exclude from collection
-type ExcludedServiceAccount struct {
-	Namespace string
-	Name      string
-}
-
 // NewServiceAccountCollector creates a new collector for serviceaccount resources
 func NewServiceAccountCollector(
 	client kubernetes.Interface,

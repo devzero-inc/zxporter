@@ -32,12 +32,6 @@ type CronJobCollector struct {
 	mu               sync.RWMutex
 }
 
-// ExcludedCronJob defines a cronjob to exclude from collection
-type ExcludedCronJob struct {
-	Namespace string
-	Name      string
-}
-
 // NewCronJobCollector creates a new collector for cronjob resources
 func NewCronJobCollector(
 	client kubernetes.Interface,

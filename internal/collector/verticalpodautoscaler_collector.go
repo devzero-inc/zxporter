@@ -33,12 +33,6 @@ type VerticalPodAutoscalerCollector struct {
 	mu              sync.RWMutex
 }
 
-// ExcludedVPA defines a VPA to exclude from collection
-type ExcludedVPA struct {
-	Namespace string
-	Name      string
-}
-
 // VPA resource identifier
 var vpaGVR = schema.GroupVersionResource{
 	Group:    "autoscaling.k8s.io",

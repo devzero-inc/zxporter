@@ -30,12 +30,6 @@ type DaemonSetCollector struct {
 	mu                 sync.RWMutex
 }
 
-// ExcludedDaemonSet defines a daemonset to exclude from collection
-type ExcludedDaemonSet struct {
-	Namespace string
-	Name      string
-}
-
 // NewDaemonSetCollector creates a new collector for daemonset resources
 func NewDaemonSetCollector(
 	client kubernetes.Interface,

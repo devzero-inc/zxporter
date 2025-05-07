@@ -17,15 +17,6 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
-// ExcludedDatadogExtendedDaemonSetReplicaSet identifies an ExtendedDaemonSetReplicaSet to exclude
-type ExcludedDatadogExtendedDaemonSetReplicaSet struct {
-	// Namespace is the ExtendedDaemonSetReplicaSet's namespace
-	Namespace string `json:"namespace"`
-
-	// Name is the ExtendedDaemonSetReplicaSet's name
-	Name string `json:"name"`
-}
-
 // DatadogCollector watches for DataDog custom resources
 type DatadogCollector struct {
 	dynamicClient       dynamic.Interface

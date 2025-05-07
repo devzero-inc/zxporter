@@ -32,12 +32,6 @@ type IngressCollector struct {
 	mu                sync.RWMutex
 }
 
-// ExcludedIngress defines an ingress to exclude from collection
-type ExcludedIngress struct {
-	Namespace string
-	Name      string
-}
-
 // NewIngressCollector creates a new collector for ingress resources
 func NewIngressCollector(
 	client kubernetes.Interface,
