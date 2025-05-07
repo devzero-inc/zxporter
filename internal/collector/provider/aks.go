@@ -126,7 +126,7 @@ func (p *AzureProvider) GetClusterMetadata(ctx context.Context) (map[string]inte
 		"provider":        "aks",
 		"subscription_id": p.subscriptionID,
 		"resource_group":  p.resourceGroup,
-		"location":        p.location,
+		"region":          p.location,
 		"cluster_name":    p.clusterName,
 	}
 
@@ -152,7 +152,7 @@ func (p *AzureProvider) GetClusterMetadata(ctx context.Context) (map[string]inte
 	p.logger.Info("Collected AKS cluster metadata",
 		"subscription", p.subscriptionID,
 		"resourceGroup", p.resourceGroup,
-		"location", p.location,
+		"region", p.location,
 		"cluster", p.clusterName,
 		"metadata", metadata,
 	)

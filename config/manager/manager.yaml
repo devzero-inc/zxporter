@@ -89,8 +89,8 @@ spec:
           #  cpu: 500m
           #  memory: 128Mi
           requests:
-            cpu: "1"
-            memory: 1024Mi
+            cpu: 200m
+            memory: 128Mi
         volumeMounts:
         - name: config-volume
           mountPath: /etc/zxporter/config
