@@ -43,13 +43,13 @@ RUN echo "TARGETARCH: ${TARGETARCH}"
 # the docker BUILDPLATFORM arg will be linux/arm64 when for Apple x86 it will be linux/amd64. Therefore,
 # by leaving it empty we can ensure that the container and binary shipped on it will have the same platform.
 RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build \
-    -ldflags "-X github.com/devzero-inc/zxporter/internal/version.Get.Major=${MAJOR} \
-    -X github.com/devzero-inc/zxporter/internal/version.Get.Minor=${MINOR} \
-    -X github.com/devzero-inc/zxporter/internal/version.Get.Patch=${PATCH} \
-    -X github.com/devzero-inc/zxporter/internal/version.Get.GitCommit=${COMMIT_HASH} \
-    -X github.com/devzero-inc/zxporter/internal/version.Get.GitTreeState=${GIT_TREE_STATE} \
-    -X github.com/devzero-inc/zxporter/internal/version.Get.BuildDate=${BUILD_DATE} \
-    -X github.com/devzero-inc/zxporter/internal/version.Get.GoVersion=${GO_VERSION}" \
+    -ldflags "-X github.com/devzero-inc/zxporter/internal/version.major=${MAJOR} \
+    -X github.com/devzero-inc/zxporter/internal/version.minor=${MINOR} \
+    -X github.com/devzero-inc/zxporter/internal/version.patch=${PATCH} \
+    -X github.com/devzero-inc/zxporter/internal/version.gitCommit=${COMMIT_HASH} \
+    -X github.com/devzero-inc/zxporter/internal/version.gitTreeState=${GIT_TREE_STATE} \
+    -X github.com/devzero-inc/zxporter/internal/version.buildDate=${BUILD_DATE} \
+    -X github.com/devzero-inc/zxporter/internal/version.goVersion=${GO_VERSION}" \
     -a -o manager cmd/main.go
 
 # Use distroless as minimal base image to package the manager binary
