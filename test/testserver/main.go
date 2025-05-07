@@ -395,45 +395,36 @@ func (s *MetricsServer) extractClusterResourceInfo(key string, data *structpb.St
 	}
 
 	// Initialize cluster resource usage if not exists
+	// Initialize if not exists
 	if _, exists := s.stats.UsageReportCluster[key]; !exists {
-		s.stats.UsageReportCluster[key] = stats.ClusterResourceUsage{
-			FullDump: protojson.Format(&structpb.Struct{Fields: clusterData}),
-		}
+		s.stats.UsageReportCluster[key] = stats.ClusterResourceUsage{}
 	}
 
-	// Extract cluster resource data
+	// Extract and update cluster resource data
+	entry := s.stats.UsageReportCluster[key]
+	entry.FullDump = protojson.Format(&structpb.Struct{Fields: clusterData})
+
 	if zxporterVersion, ok := clusterData["zxporter_version"]; ok {
-		entry := s.stats.UsageReportCluster[key]
 		entry.ZxporterVersion = zxporterVersion.GetStringValue()
 	}
 	if zxporterGitCommit, ok := clusterData["zxporter_git_commit"]; ok {
-		entry := s.stats.UsageReportCluster[key]
 		entry.ZxporterGitCommit = zxporterGitCommit.GetStringValue()
 	}
 	if zxporterBuildDate, ok := clusterData["zxporter_build_date"]; ok {
-		entry := s.stats.UsageReportCluster[key]
 		entry.ZxporterBuildDate = zxporterBuildDate.GetStringValue()
 	}
-	if clusterAPI, ok := clusterData["cluster_api"]; ok {
-		entry := s.stats.UsageReportCluster[key]
-		entry.ClusterAPI = clusterAPI.GetStringValue()
-	}
 	if version, ok := clusterData["version"]; ok {
-		entry := s.stats.UsageReportCluster[key]
 		entry.Version = version.GetStringValue()
 	}
 	if name, ok := clusterData["name"]; ok {
-		entry := s.stats.UsageReportCluster[key]
 		entry.Name = name.GetStringValue()
 	}
-	if providerSpecific, ok := clusterData["provider_specific"]; ok {
-		entry := s.stats.UsageReportCluster[key]
-		entry.ProviderSpecific = providerSpecific.GetStringValue()
-	}
 	if provider, ok := clusterData["provider"]; ok {
-		entry := s.stats.UsageReportCluster[key]
 		entry.Provider = provider.GetStringValue()
 	}
+
+	// Save the modified struct back into the map
+	s.stats.UsageReportCluster[key] = entry
 }
 
 func main() {

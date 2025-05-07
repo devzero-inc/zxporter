@@ -322,6 +322,11 @@ jobs:
                   }
                 }
               }
+            },
+            "usage_report_cluster": {
+              "provider": "generic",
+              "version": "${{ matrix.k8s-version }}",
+              "zxporter_git_commit": "${{ github.sha }}"
             }
           }
           EOF

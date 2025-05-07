@@ -19,9 +19,7 @@ type NodeResourceUsage struct {
 }
 
 type ClusterResourceUsage struct {
-	ClusterAPI        string `json:"cluster_api,omitempty"`
 	Provider          string `json:"provider,omitempty"`
-	ProviderSpecific  string `json:"provider_specific,omitempty"`
 	Name              string `json:"name,omitempty"`
 	NodeCount         string `json:"node_count,omitempty"`
 	Version           string `json:"version,omitempty"`
@@ -43,7 +41,8 @@ type Stats struct {
 	UsageReportCluster map[string]ClusterResourceUsage `json:"usage_report_cluster,omitempty"`
 }
 
-// ExpectedPods represents the expected pod resource usage
-type ExpectedPods struct {
-	UsageReportPods map[string]PodResourceUsage `json:"usage_report_pods"`
+// Expected represents the expected resource usages
+type Expected struct {
+	UsageReportPods    map[string]PodResourceUsage `json:"usage_report_pods"`
+	UsageReportCluster ClusterResourceUsage        `json:"usage_report_cluster"`
 }
