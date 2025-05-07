@@ -111,33 +111,9 @@ make deploy IMG=zxporter:tag
 make docker-build docker-push IMG=<your-registry>/zxporter:tag
 ```
 
-2. Install CRDs:
-```sh
-make install
-```
-
-3. Deploy the operator:
+2. Deploy the operator:
 ```sh
 make deploy IMG=<your-registry>/zxporter:tag
-```
-
-4. Apply the collection policy:
-```yaml
-apiVersion: devzero.io/v1
-kind: CollectionPolicy
-metadata:
-  name: default-policy
-  namespace: devzero-zxporter
-spec:
-  targetSelector:
-    namespaces: [] # Empty means all namespaces
-  exclusions:
-    excludedNamespaces:
-      - kube-system
-      - kube-public
-  policies:
-    frequency: "30s"
-    bufferSize: 1000
 ```
 
 ## Configuration
