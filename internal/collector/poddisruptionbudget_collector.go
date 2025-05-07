@@ -29,6 +29,7 @@ type PodDisruptionBudgetCollector struct {
 	excludedPDBs    map[types.NamespacedName]bool
 	logger          logr.Logger
 	mu              sync.RWMutex
+	cDHelper        ChangeDetectionHelper
 }
 
 // NewPodDisruptionBudgetCollector creates a new collector for PDB resources
@@ -62,6 +63,7 @@ func NewPodDisruptionBudgetCollector(
 		logger,
 	)
 
+	newLogger := logger.WithName("pdb-collector")
 	return &PodDisruptionBudgetCollector{
 		client:       client,
 		batchChan:    batchChan,
@@ -70,8 +72,8 @@ func NewPodDisruptionBudgetCollector(
 		stopCh:       make(chan struct{}),
 		namespaces:   namespaces,
 		excludedPDBs: excludedPDBsMap,
-		logger:       logger.WithName("pdb-collector"),
-	}
+		logger:       newLogger,
+		cDHelper:     ChangeDetectionHelper{logger: newLogger}}
 }
 
 // Start begins the PDB collection process
@@ -169,9 +171,14 @@ func (c *PodDisruptionBudgetCollector) handlePDBEvent(pdb *policyv1.PodDisruptio
 
 // pdbChanged detects meaningful changes in a PDB
 func (c *PodDisruptionBudgetCollector) pdbChanged(oldPDB, newPDB *policyv1.PodDisruptionBudget) bool {
-	// Ignore changes to ResourceVersion, which always changes even for irrelevant updates
-	if oldPDB.ResourceVersion == newPDB.ResourceVersion {
-		return false
+	changed := c.cDHelper.objectMetaChanged(
+		c.GetType(),
+		oldPDB.Name,
+		oldPDB.ObjectMeta,
+		newPDB.ObjectMeta,
+	)
+	if changed != IgnoreChanges {
+		return changed == PushChanges
 	}
 
 	// Check for spec changes
@@ -189,16 +196,6 @@ func (c *PodDisruptionBudgetCollector) pdbChanged(oldPDB, newPDB *policyv1.PodDi
 
 	// Check for condition changes
 	if !reflect.DeepEqual(oldPDB.Status.Conditions, newPDB.Status.Conditions) {
-		return true
-	}
-
-	// Check for label changes
-	if !mapsEqual(oldPDB.Labels, newPDB.Labels) {
-		return true
-	}
-
-	// Check for annotation changes
-	if !mapsEqual(oldPDB.Annotations, newPDB.Annotations) {
 		return true
 	}
 

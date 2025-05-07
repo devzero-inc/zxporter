@@ -28,6 +28,7 @@ type StatefulSetCollector struct {
 	excludedStatefulSets map[types.NamespacedName]bool
 	logger               logr.Logger
 	mu                   sync.RWMutex
+	cDHelper             ChangeDetectionHelper
 }
 
 // NewStatefulSetCollector creates a new collector for statefulset resources
@@ -61,6 +62,7 @@ func NewStatefulSetCollector(
 		logger,
 	)
 
+	newLogger := logger.WithName("statefulset-collector")
 	return &StatefulSetCollector{
 		client:               client,
 		batchChan:            batchChan,
@@ -69,8 +71,8 @@ func NewStatefulSetCollector(
 		stopCh:               make(chan struct{}),
 		namespaces:           namespaces,
 		excludedStatefulSets: excludedStatefulSetsMap,
-		logger:               logger.WithName("statefulset-collector"),
-	}
+		logger:               newLogger,
+		cDHelper:             ChangeDetectionHelper{logger: newLogger}}
 }
 
 // Start begins the statefulset collection process
@@ -168,9 +170,14 @@ func (c *StatefulSetCollector) handleStatefulSetEvent(statefulset *appsv1.Statef
 
 // statefulSetChanged detects meaningful changes in a statefulset
 func (c *StatefulSetCollector) statefulSetChanged(oldStatefulSet, newStatefulSet *appsv1.StatefulSet) bool {
-	// Ignore changes to ResourceVersion, which always changes even for irrelevant updates
-	if oldStatefulSet.ResourceVersion == newStatefulSet.ResourceVersion {
-		return false
+	changed := c.cDHelper.objectMetaChanged(
+		c.GetType(),
+		oldStatefulSet.Name,
+		oldStatefulSet.ObjectMeta,
+		newStatefulSet.ObjectMeta,
+	)
+	if changed != IgnoreChanges {
+		return changed == PushChanges
 	}
 
 	// Check for spec changes

@@ -27,6 +27,7 @@ type StorageClassCollector struct {
 	excludedStorageClasses map[string]bool
 	logger                 logr.Logger
 	mu                     sync.RWMutex
+	cDHelper               ChangeDetectionHelper
 }
 
 // NewStorageClassCollector creates a new collector for StorageClass resources
@@ -56,6 +57,7 @@ func NewStorageClassCollector(
 		logger,
 	)
 
+	newLogger := logger.WithName("storageclass-collector")
 	return &StorageClassCollector{
 		client:                 client,
 		batchChan:              batchChan,
@@ -63,8 +65,8 @@ func NewStorageClassCollector(
 		batcher:                batcher,
 		stopCh:                 make(chan struct{}),
 		excludedStorageClasses: excludedStorageClassesMap,
-		logger:                 logger.WithName("storageclass-collector"),
-	}
+		logger:                 newLogger,
+		cDHelper:               ChangeDetectionHelper{logger: newLogger}}
 }
 
 // Start begins the StorageClass collection process
@@ -152,9 +154,14 @@ func (c *StorageClassCollector) handleStorageClassEvent(sc *storagev1.StorageCla
 
 // storageClassChanged detects meaningful changes in a StorageClass
 func (c *StorageClassCollector) storageClassChanged(oldSC, newSC *storagev1.StorageClass) bool {
-	// Ignore changes to ResourceVersion, which always changes even for irrelevant updates
-	if oldSC.ResourceVersion == newSC.ResourceVersion {
-		return false
+	changed := c.cDHelper.objectMetaChanged(
+		c.GetType(),
+		oldSC.Name,
+		oldSC.ObjectMeta,
+		newSC.ObjectMeta,
+	)
+	if changed != IgnoreChanges {
+		return changed == PushChanges
 	}
 
 	// Check for provisioner changes
@@ -189,18 +196,6 @@ func (c *StorageClassCollector) storageClassChanged(oldSC, newSC *storagev1.Stor
 
 	// Check for allowed topologies changes
 	if !allowedTopologiesEqual(oldSC.AllowedTopologies, newSC.AllowedTopologies) {
-		return true
-	}
-
-	// Check for annotation changes
-	if !mapsEqual(oldSC.Annotations, newSC.Annotations) {
-		return true
-	}
-
-	// Check for default class annotation specifically
-	oldDefault := oldSC.Annotations["storageclass.kubernetes.io/is-default-class"] == "true"
-	newDefault := newSC.Annotations["storageclass.kubernetes.io/is-default-class"] == "true"
-	if oldDefault != newDefault {
 		return true
 	}
 

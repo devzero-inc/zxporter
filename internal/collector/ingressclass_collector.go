@@ -28,6 +28,7 @@ type IngressClassCollector struct {
 	excludedIngressClasses map[string]bool
 	logger                 logr.Logger
 	mu                     sync.RWMutex
+	cDHelper               ChangeDetectionHelper
 }
 
 // NewIngressClassCollector creates a new collector for IngressClass resources
@@ -57,6 +58,7 @@ func NewIngressClassCollector(
 		logger,
 	)
 
+	newLogger := logger.WithName("ingressclass-collector")
 	return &IngressClassCollector{
 		client:                 client,
 		batchChan:              batchChan,
@@ -64,7 +66,8 @@ func NewIngressClassCollector(
 		batcher:                batcher,
 		stopCh:                 make(chan struct{}),
 		excludedIngressClasses: excludedIngressClassesMap,
-		logger:                 logger.WithName("ingressclass-collector"),
+		logger:                 newLogger,
+		cDHelper:               ChangeDetectionHelper{logger: newLogger},
 	}
 }
 
@@ -153,9 +156,14 @@ func (c *IngressClassCollector) handleIngressClassEvent(ingressClass *networking
 
 // ingressClassChanged detects meaningful changes in an IngressClass
 func (c *IngressClassCollector) ingressClassChanged(oldIngressClass, newIngressClass *networkingv1.IngressClass) bool {
-	// Ignore changes to ResourceVersion, which always changes even for irrelevant updates
-	if oldIngressClass.ResourceVersion == newIngressClass.ResourceVersion {
-		return false
+	changed := c.cDHelper.objectMetaChanged(
+		c.GetType(),
+		oldIngressClass.Name,
+		oldIngressClass.ObjectMeta,
+		newIngressClass.ObjectMeta,
+	)
+	if changed != IgnoreChanges {
+		return changed == PushChanges
 	}
 
 	// Check for controller changes
@@ -175,23 +183,6 @@ func (c *IngressClassCollector) ingressClassChanged(oldIngressClass, newIngressC
 			oldIngressClass.Spec.Parameters.Namespace != newIngressClass.Spec.Parameters.Namespace {
 			return true
 		}
-	}
-
-	// Check for annotation changes
-	if !mapsEqual(oldIngressClass.Annotations, newIngressClass.Annotations) {
-		return true
-	}
-
-	// Check for label changes
-	if !mapsEqual(oldIngressClass.Labels, newIngressClass.Labels) {
-		return true
-	}
-
-	// Check default class annotation
-	oldDefault := oldIngressClass.Annotations["ingressclass.kubernetes.io/is-default-class"] == "true"
-	newDefault := newIngressClass.Annotations["ingressclass.kubernetes.io/is-default-class"] == "true"
-	if oldDefault != newDefault {
-		return true
 	}
 
 	// No significant changes detected

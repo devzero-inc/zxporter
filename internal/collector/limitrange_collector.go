@@ -29,6 +29,7 @@ type LimitRangeCollector struct {
 	excludedLimitRanges map[types.NamespacedName]bool
 	logger              logr.Logger
 	mu                  sync.RWMutex
+	cDHelper            ChangeDetectionHelper
 }
 
 // NewLimitRangeCollector creates a new collector for limitrange resources
@@ -62,6 +63,7 @@ func NewLimitRangeCollector(
 		logger,
 	)
 
+	newLogger := logger.WithName("limitrange-collector")
 	return &LimitRangeCollector{
 		client:              client,
 		batchChan:           batchChan,
@@ -70,7 +72,8 @@ func NewLimitRangeCollector(
 		stopCh:              make(chan struct{}),
 		namespaces:          namespaces,
 		excludedLimitRanges: excludedLimitRangesMap,
-		logger:              logger.WithName("limitrange-collector"),
+		logger:              newLogger,
+		cDHelper:            ChangeDetectionHelper{logger: newLogger},
 	}
 }
 
@@ -169,23 +172,18 @@ func (c *LimitRangeCollector) handleLimitRangeEvent(lr *corev1.LimitRange, event
 
 // limitRangeChanged detects meaningful changes in a limitrange
 func (c *LimitRangeCollector) limitRangeChanged(oldLR, newLR *corev1.LimitRange) bool {
-	// Ignore changes to ResourceVersion, which always changes even for irrelevant updates
-	if oldLR.ResourceVersion == newLR.ResourceVersion {
-		return false
+	changed := c.cDHelper.objectMetaChanged(
+		c.GetType(),
+		oldLR.Name,
+		oldLR.ObjectMeta,
+		newLR.ObjectMeta,
+	)
+	if changed != IgnoreChanges {
+		return changed == PushChanges
 	}
 
 	// Check for limit changes
 	if !reflect.DeepEqual(oldLR.Spec.Limits, newLR.Spec.Limits) {
-		return true
-	}
-
-	// Check for label changes
-	if !mapsEqual(oldLR.Labels, newLR.Labels) {
-		return true
-	}
-
-	// Check for annotation changes
-	if !mapsEqual(oldLR.Annotations, newLR.Annotations) {
 		return true
 	}
 

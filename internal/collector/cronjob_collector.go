@@ -30,6 +30,7 @@ type CronJobCollector struct {
 	excludedCronJobs map[types.NamespacedName]bool
 	logger           logr.Logger
 	mu               sync.RWMutex
+	cDHelper         ChangeDetectionHelper
 }
 
 // NewCronJobCollector creates a new collector for cronjob resources
@@ -63,6 +64,7 @@ func NewCronJobCollector(
 		logger,
 	)
 
+	newLogger := logger.WithName("cronjob-collector")
 	return &CronJobCollector{
 		client:           client,
 		batchChan:        batchChan,
@@ -71,7 +73,8 @@ func NewCronJobCollector(
 		stopCh:           make(chan struct{}),
 		namespaces:       namespaces,
 		excludedCronJobs: excludedCronJobsMap,
-		logger:           logger.WithName("cronjob-collector"),
+		logger:           newLogger,
+		cDHelper:         ChangeDetectionHelper{logger: newLogger},
 	}
 }
 
@@ -171,9 +174,15 @@ func (c *CronJobCollector) handleCronJobEvent(cronJob *batchv1.CronJob, eventTyp
 
 // cronJobChanged detects meaningful changes in a cronjob
 func (c *CronJobCollector) cronJobChanged(oldCronJob, newCronJob *batchv1.CronJob) bool {
-	// Ignore changes to ResourceVersion, which always changes even for irrelevant updates
-	if oldCronJob.ResourceVersion == newCronJob.ResourceVersion {
-		return false
+
+	changed := c.cDHelper.objectMetaChanged(
+		c.GetType(),
+		oldCronJob.Name,
+		oldCronJob.ObjectMeta,
+		newCronJob.ObjectMeta,
+	)
+	if changed != IgnoreChanges {
+		return changed == PushChanges
 	}
 
 	// Check for schedule changes

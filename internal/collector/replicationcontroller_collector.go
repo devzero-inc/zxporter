@@ -28,6 +28,7 @@ type ReplicationControllerCollector struct {
 	excludedReplicationControllers map[types.NamespacedName]bool
 	logger                         logr.Logger
 	mu                             sync.RWMutex
+	cDHelper                       ChangeDetectionHelper
 }
 
 // NewReplicationControllerCollector creates a new collector for replicationcontroller resources
@@ -61,6 +62,7 @@ func NewReplicationControllerCollector(
 		logger,
 	)
 
+	newLogger := logger.WithName("replicationcontroller-collector")
 	return &ReplicationControllerCollector{
 		client:                         client,
 		batchChan:                      batchChan,
@@ -69,8 +71,8 @@ func NewReplicationControllerCollector(
 		stopCh:                         make(chan struct{}),
 		namespaces:                     namespaces,
 		excludedReplicationControllers: excludedReplicationControllersMap,
-		logger:                         logger.WithName("replicationcontroller-collector"),
-	}
+		logger:                         newLogger,
+		cDHelper:                       ChangeDetectionHelper{logger: newLogger}}
 }
 
 // Start begins the replicationcontroller collection process
@@ -168,9 +170,14 @@ func (c *ReplicationControllerCollector) handleReplicationControllerEvent(rc *co
 
 // replicationControllerChanged detects meaningful changes in a replicationcontroller
 func (c *ReplicationControllerCollector) replicationControllerChanged(oldRC, newRC *corev1.ReplicationController) bool {
-	// Ignore changes to ResourceVersion, which always changes even for irrelevant updates
-	if oldRC.ResourceVersion == newRC.ResourceVersion {
-		return false
+	changed := c.cDHelper.objectMetaChanged(
+		c.GetType(),
+		oldRC.Name,
+		oldRC.ObjectMeta,
+		newRC.ObjectMeta,
+	)
+	if changed != IgnoreChanges {
+		return changed == PushChanges
 	}
 
 	// Check if replicas changed
@@ -197,11 +204,6 @@ func (c *ReplicationControllerCollector) replicationControllerChanged(oldRC, new
 
 	// Check for generation changes
 	if oldRC.Generation != newRC.Generation {
-		return true
-	}
-
-	// Check for label changes
-	if !mapsEqual(oldRC.Labels, newRC.Labels) {
 		return true
 	}
 

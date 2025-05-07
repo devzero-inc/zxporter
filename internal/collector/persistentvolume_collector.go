@@ -26,6 +26,7 @@ type PersistentVolumeCollector struct {
 	excludedPVs     map[string]bool
 	logger          logr.Logger
 	mu              sync.RWMutex
+	cDHelper        ChangeDetectionHelper
 }
 
 // NewPersistentVolumeCollector creates a new collector for PV resources
@@ -55,6 +56,7 @@ func NewPersistentVolumeCollector(
 		logger,
 	)
 
+	newLogger := logger.WithName("persistentvolume-collector")
 	return &PersistentVolumeCollector{
 		client:       client,
 		batchChan:    batchChan,
@@ -62,8 +64,8 @@ func NewPersistentVolumeCollector(
 		batcher:      batcher,
 		stopCh:       make(chan struct{}),
 		excludedPVs:  excludedPVsMap,
-		logger:       logger.WithName("persistentvolume-collector"),
-	}
+		logger:       newLogger,
+		cDHelper:     ChangeDetectionHelper{logger: newLogger}}
 }
 
 // Start begins the PV collection process
@@ -151,9 +153,14 @@ func (c *PersistentVolumeCollector) handlePVEvent(pv *corev1.PersistentVolume, e
 
 // pvChanged detects meaningful changes in a PV
 func (c *PersistentVolumeCollector) pvChanged(oldPV, newPV *corev1.PersistentVolume) bool {
-	// Ignore changes to ResourceVersion, which always changes even for irrelevant updates
-	if oldPV.ResourceVersion == newPV.ResourceVersion {
-		return false
+	changed := c.cDHelper.objectMetaChanged(
+		c.GetType(),
+		oldPV.Name,
+		oldPV.ObjectMeta,
+		newPV.ObjectMeta,
+	)
+	if changed != IgnoreChanges {
+		return changed == PushChanges
 	}
 
 	// Check for phase changes

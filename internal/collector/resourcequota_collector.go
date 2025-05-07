@@ -29,6 +29,7 @@ type ResourceQuotaCollector struct {
 	excludedResourceQuotas map[types.NamespacedName]bool
 	logger                 logr.Logger
 	mu                     sync.RWMutex
+	cDHelper               ChangeDetectionHelper
 }
 
 // NewResourceQuotaCollector creates a new collector for resourcequota resources
@@ -62,6 +63,7 @@ func NewResourceQuotaCollector(
 		logger,
 	)
 
+	newLogger := logger.WithName("resourcequota-collector")
 	return &ResourceQuotaCollector{
 		client:                 client,
 		batchChan:              batchChan,
@@ -70,8 +72,8 @@ func NewResourceQuotaCollector(
 		stopCh:                 make(chan struct{}),
 		namespaces:             namespaces,
 		excludedResourceQuotas: excludedResourceQuotasMap,
-		logger:                 logger.WithName("resourcequota-collector"),
-	}
+		logger:                 newLogger,
+		cDHelper:               ChangeDetectionHelper{logger: newLogger}}
 }
 
 // Start begins the resourcequota collection process
@@ -169,9 +171,14 @@ func (c *ResourceQuotaCollector) handleResourceQuotaEvent(rq *corev1.ResourceQuo
 
 // resourceQuotaChanged detects meaningful changes in a resourcequota
 func (c *ResourceQuotaCollector) resourceQuotaChanged(oldRQ, newRQ *corev1.ResourceQuota) bool {
-	// Ignore changes to ResourceVersion, which always changes even for irrelevant updates
-	if oldRQ.ResourceVersion == newRQ.ResourceVersion {
-		return false
+	changed := c.cDHelper.objectMetaChanged(
+		c.GetType(),
+		oldRQ.Name,
+		oldRQ.ObjectMeta,
+		newRQ.ObjectMeta,
+	)
+	if changed != IgnoreChanges {
+		return changed == PushChanges
 	}
 
 	// Check for spec resource changes
@@ -192,16 +199,6 @@ func (c *ResourceQuotaCollector) resourceQuotaChanged(oldRQ, newRQ *corev1.Resou
 	// Check for status changes
 	if !reflect.DeepEqual(oldRQ.Status.Hard, newRQ.Status.Hard) ||
 		!reflect.DeepEqual(oldRQ.Status.Used, newRQ.Status.Used) {
-		return true
-	}
-
-	// Check for label changes
-	if !mapsEqual(oldRQ.Labels, newRQ.Labels) {
-		return true
-	}
-
-	// Check for annotation changes
-	if !mapsEqual(oldRQ.Annotations, newRQ.Annotations) {
 		return true
 	}
 

@@ -28,6 +28,7 @@ type ServiceCollector struct {
 	excludedServices map[types.NamespacedName]bool
 	logger           logr.Logger
 	mu               sync.RWMutex
+	cDHelper         ChangeDetectionHelper
 }
 
 // NewServiceCollector creates a new collector for service resources
@@ -61,6 +62,7 @@ func NewServiceCollector(
 		logger,
 	)
 
+	newLogger := logger.WithName("service-collector")
 	return &ServiceCollector{
 		client:           client,
 		batchChan:        batchChan,
@@ -69,8 +71,8 @@ func NewServiceCollector(
 		stopCh:           make(chan struct{}),
 		namespaces:       namespaces,
 		excludedServices: excludedServicesMap,
-		logger:           logger.WithName("service-collector"),
-	}
+		logger:           newLogger,
+		cDHelper:         ChangeDetectionHelper{logger: newLogger}}
 }
 
 // Start begins the service collection process
@@ -168,9 +170,14 @@ func (c *ServiceCollector) handleServiceEvent(service *corev1.Service, eventType
 
 // serviceChanged detects meaningful changes in a service
 func (c *ServiceCollector) serviceChanged(oldService, newService *corev1.Service) bool {
-	// Ignore changes to ResourceVersion, which always changes even for irrelevant updates
-	if oldService.ResourceVersion == newService.ResourceVersion {
-		return false
+	changed := c.cDHelper.objectMetaChanged(
+		c.GetType(),
+		oldService.Name,
+		oldService.ObjectMeta,
+		newService.ObjectMeta,
+	)
+	if changed != IgnoreChanges {
+		return changed == PushChanges
 	}
 
 	// Check for spec changes

@@ -31,6 +31,7 @@ type NetworkPolicyCollector struct {
 	excludedNetworkPolicies map[types.NamespacedName]bool
 	logger                  logr.Logger
 	mu                      sync.RWMutex
+	cDHelper                ChangeDetectionHelper
 }
 
 // NewNetworkPolicyCollector creates a new collector for networkpolicy resources
@@ -64,6 +65,7 @@ func NewNetworkPolicyCollector(
 		logger,
 	)
 
+	newLogger := logger.WithName("networkpolicy-collector")
 	return &NetworkPolicyCollector{
 		client:                  client,
 		batchChan:               batchChan,
@@ -72,8 +74,8 @@ func NewNetworkPolicyCollector(
 		stopCh:                  make(chan struct{}),
 		namespaces:              namespaces,
 		excludedNetworkPolicies: excludedNetworkPoliciesMap,
-		logger:                  logger.WithName("networkpolicy-collector"),
-	}
+		logger:                  newLogger,
+		cDHelper:                ChangeDetectionHelper{logger: newLogger}}
 }
 
 // Start begins the networkpolicy collection process
@@ -171,9 +173,14 @@ func (c *NetworkPolicyCollector) handleNetworkPolicyEvent(networkPolicy *network
 
 // networkPolicyChanged detects meaningful changes in a networkpolicy
 func (c *NetworkPolicyCollector) networkPolicyChanged(oldNetworkPolicy, newNetworkPolicy *networkingv1.NetworkPolicy) bool {
-	// Ignore changes to ResourceVersion, which always changes even for irrelevant updates
-	if oldNetworkPolicy.ResourceVersion == newNetworkPolicy.ResourceVersion {
-		return false
+	changed := c.cDHelper.objectMetaChanged(
+		c.GetType(),
+		oldNetworkPolicy.Name,
+		oldNetworkPolicy.ObjectMeta,
+		newNetworkPolicy.ObjectMeta,
+	)
+	if changed != IgnoreChanges {
+		return changed == PushChanges
 	}
 
 	// Check for pod selector changes
@@ -193,16 +200,6 @@ func (c *NetworkPolicyCollector) networkPolicyChanged(oldNetworkPolicy, newNetwo
 
 	// Check for egress rules changes
 	if !reflect.DeepEqual(oldNetworkPolicy.Spec.Egress, newNetworkPolicy.Spec.Egress) {
-		return true
-	}
-
-	// Check for label changes
-	if !mapsEqual(oldNetworkPolicy.Labels, newNetworkPolicy.Labels) {
-		return true
-	}
-
-	// Check for annotation changes
-	if !mapsEqual(oldNetworkPolicy.Annotations, newNetworkPolicy.Annotations) {
 		return true
 	}
 

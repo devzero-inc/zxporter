@@ -29,6 +29,7 @@ type RoleCollector struct {
 	excludedRoles   map[types.NamespacedName]bool
 	logger          logr.Logger
 	mu              sync.RWMutex
+	cDHelper        ChangeDetectionHelper
 }
 
 // NewRoleCollector creates a new collector for Role resources
@@ -62,6 +63,7 @@ func NewRoleCollector(
 		logger,
 	)
 
+	newLogger := logger.WithName("role-collector")
 	return &RoleCollector{
 		client:        client,
 		batchChan:     batchChan,
@@ -70,8 +72,8 @@ func NewRoleCollector(
 		stopCh:        make(chan struct{}),
 		namespaces:    namespaces,
 		excludedRoles: excludedRolesMap,
-		logger:        logger.WithName("role-collector"),
-	}
+		logger:        newLogger,
+		cDHelper:      ChangeDetectionHelper{logger: newLogger}}
 }
 
 // Start begins the Role collection process
@@ -169,23 +171,18 @@ func (c *RoleCollector) handleRoleEvent(role *rbacv1.Role, eventType EventType) 
 
 // roleChanged detects meaningful changes in a Role
 func (c *RoleCollector) roleChanged(oldRole, newRole *rbacv1.Role) bool {
-	// Ignore changes to ResourceVersion, which always changes even for irrelevant updates
-	if oldRole.ResourceVersion == newRole.ResourceVersion {
-		return false
+	changed := c.cDHelper.objectMetaChanged(
+		c.GetType(),
+		oldRole.Name,
+		oldRole.ObjectMeta,
+		newRole.ObjectMeta,
+	)
+	if changed != IgnoreChanges {
+		return changed == PushChanges
 	}
 
 	// Check for rules changes
 	if !reflect.DeepEqual(oldRole.Rules, newRole.Rules) {
-		return true
-	}
-
-	// Check for label changes
-	if !mapsEqual(oldRole.Labels, newRole.Labels) {
-		return true
-	}
-
-	// Check for annotation changes
-	if !mapsEqual(oldRole.Annotations, newRole.Annotations) {
 		return true
 	}
 
