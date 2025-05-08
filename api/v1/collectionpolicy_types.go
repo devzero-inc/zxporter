@@ -357,6 +357,12 @@ type Policies struct {
 	// +optional
 	DisableNetworkIOMetrics bool `json:"disableNetworkIOMetrics,omitempty"`
 
+	// DisableGpuMetrics disables collection of GPU metrics from Prometheus
+	// These metrics include GPU utilization, memory usage, and temperature
+	// Default is false, meaning metrics are collected by default
+	// +optional
+	DisableGPUMetrics bool `json:"disableGpuMetrics,omitempty"`
+
 	// Frequency is how often to collect resource usage metrics
 	Frequency string `json:"frequency,omitempty"`
 
