@@ -283,8 +283,10 @@ generate-monitoring-manifests: helm ## Generate monitoring manifests for Prometh
 	@echo "[INFO] Generate Metrics Server manifest"
 	@$(HELM) template metrics-server metrics-server/metrics-server \
 		--version $(METRICS_SERVER_CHART_VERSION) \
-		--namespace kube-system \
+		--namespace devzero-zxporter \
 		--set args="{--kubelet-insecure-tls}" \
+		--set nameOverride="dz-metrics-server" \
+		--set fullnameOverride="dz-metrics-server" \
 		> $(METRICS_SERVER)
 
 
