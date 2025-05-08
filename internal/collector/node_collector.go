@@ -419,6 +419,9 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 				// Continue with other metrics
 				gpuMetrics = make(map[string]interface{})
 			}
+			c.logger.Info("GPU metrics",
+				"node", node.Name,
+				"resourceData", gpuMetrics)
 		}
 
 		// Create resource data
@@ -503,6 +506,10 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 			resourceData["gpuModels"] = gpuMetrics["GPUModels"]
 			resourceData["gpuUUIDs"] = gpuMetrics["GPUUUIDs"]
 		}
+
+		c.logger.Info("GPU metrics",
+			"node", node.Name,
+			"resourceData", resourceData)
 
 		// Send node resource metrics to the batch channel for batching
 		c.batchChan <- CollectedResource{
