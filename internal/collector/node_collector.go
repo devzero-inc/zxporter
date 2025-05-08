@@ -668,8 +668,8 @@ func (c *NodeCollector) collectNodeGPUMetrics(ctx context.Context, nodeName stri
 		return metrics, nil
 	}
 
-	// Get GPU models on this node - this requires a specific query and parsing
-	modelQuery := fmt.Sprintf(`DCGM_FI_DEV_GPU_UTIL{nodeName="%s"}`, nodeName)
+	// Get GPU models on this node - this requires a specific query and parsing (not sure if parsing is working or not :))
+	modelQuery := fmt.Sprintf(`DCGM_FI_DEV_GPU_UTIL{node="%s"}`, nodeName)
 	result, _, err = c.prometheusAPI.Query(ctx, modelQuery, time.Now())
 	if err == nil && result.Type() == model.ValVector {
 		vector := result.(model.Vector)
