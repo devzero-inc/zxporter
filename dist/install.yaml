@@ -1279,7 +1279,6 @@ spec:
             path: /
 # ----- END PROM NODE EXPORTER -----
 # ----- START METRICS SERVER -----
-# Note: Comment out this section if metrics-server is already installed
 ---
 # Source: metrics-server/templates/serviceaccount.yaml
 apiVersion: v1

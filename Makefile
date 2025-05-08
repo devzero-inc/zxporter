@@ -77,6 +77,7 @@ DIST_DIR ?= dist
 DIST_INSTALL_BUNDLE ?= $(DIST_DIR)/install.yaml
 DIST_ZXPORTER_BUNDLE ?= $(DIST_DIR)/zxporter.yaml
 DIST_PROMETHEUS_BUNDLE ?= $(DIST_DIR)/prometheus.yaml
+DIST_NODE_EXPORTER_BUNDLE ?= $(DIST_DIR)/node-exporter.yaml
 METRICS_SERVER ?= $(DIST_DIR)/metrics-server.yaml
 
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
