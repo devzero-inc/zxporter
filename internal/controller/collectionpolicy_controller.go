@@ -56,6 +56,7 @@ type CollectionPolicyReconciler struct {
 	ApiExtensions     *apiextensionsclientset.Clientset
 	CollectionManager *collector.CollectionManager
 	Sender            transport.DirectSender
+	PrometheusMetrics *collector.PrometheusMetrics
 	IsRunning         bool
 	CurrentPolicyHash string
 	CurrentConfig     *PolicyConfig
@@ -811,6 +812,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				collector.DefaultMaxBatchSize,
 				newConfig.UpdateInterval,
 				logger,
+				r.PrometheusMetrics,
 			)
 		case "node":
 			replacedCollector = collector.NewNodeCollector(
@@ -827,6 +829,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				collector.DefaultMaxBatchSize,
 				newConfig.UpdateInterval,
 				logger,
+				r.PrometheusMetrics,
 			)
 		case "persistent_volume_claim":
 			replacedCollector = collector.NewPersistentVolumeClaimCollector(
@@ -1346,6 +1349,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 	config *PolicyConfig,
 	metricsClient *metricsv1.Clientset,
 ) error {
+	// Use the shared Prometheus metrics instance from the reconciler
 
 	disabledCollectorsMap := make(map[string]bool)
 	for _, collectorType := range config.DisabledCollectors {
@@ -1581,6 +1585,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				collector.DefaultMaxBatchSize,
 				config.UpdateInterval,
 				logger,
+				r.PrometheusMetrics,
 			),
 			name: collector.ContainerResource,
 		},
@@ -1599,6 +1604,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				collector.DefaultMaxBatchSize,
 				config.UpdateInterval,
 				logger,
+				r.PrometheusMetrics,
 			),
 			name: collector.Node,
 		},
@@ -1901,6 +1907,8 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					logger,
 				)
 			case "container_resource":
+				// Use the reconciler's shared Prometheus metrics instance
+
 				replacedCollector = collector.NewContainerResourceCollector(
 					r.K8sClient,
 					metricsClient,
@@ -1916,6 +1924,7 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					collector.DefaultMaxBatchSize,
 					newConfig.UpdateInterval,
 					logger,
+					r.PrometheusMetrics,
 				)
 			case "persistent_volume_claim":
 				replacedCollector = collector.NewPersistentVolumeClaimCollector(
@@ -2085,6 +2094,8 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 			/// Cluster wide resources
 			//////////////////////////////////////////////////////////////////////////////////
 			case "node":
+				// Use the reconciler's shared Prometheus metrics instance
+
 				replacedCollector = collector.NewNodeCollector(
 					r.K8sClient,
 					metricsClient,
@@ -2099,6 +2110,7 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					collector.DefaultMaxBatchSize,
 					newConfig.UpdateInterval,
 					logger,
+					r.PrometheusMetrics,
 				)
 			case "persistent_volume":
 				replacedCollector = collector.NewPersistentVolumeCollector(
