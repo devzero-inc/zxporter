@@ -603,7 +603,7 @@ func (c *NodeCollector) collectNodeGPUMetrics(ctx context.Context, nodeName stri
 	metrics := make(map[string]interface{})
 
 	// First query to check if this node has any GPUs
-	nodeGPUQuery := fmt.Sprintf(`count(DCGM_FI_DEV_GPU_UTIL{nodeName="%s"})`, nodeName)
+	nodeGPUQuery := fmt.Sprintf(`count(DCGM_FI_DEV_GPU_UTIL{node="%s"})`, nodeName)
 
 	result, _, err := c.prometheusAPI.Query(ctx, nodeGPUQuery, time.Now())
 	if err != nil {
