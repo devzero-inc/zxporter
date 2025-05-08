@@ -2084,6 +2084,7 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 						UpdateInterval:          newConfig.UpdateInterval,
 						QueryTimeout:            10 * time.Second,
 						DisableNetworkIOMetrics: newConfig.DisableNetworkIOMetrics,
+						DisableGPUMetrics:       newConfig.DisableGPUMetrics,
 					},
 					newConfig.ExcludedNodes,
 					collector.DefaultMaxBatchSize,
