@@ -62,4 +62,7 @@ WORKDIR /
 COPY --from=builder /workspace/manager .
 USER 65532:65532
 
-ENTRYPOINT ["/manager"]
+COPY ./dist/metrics-server.yaml /metrics-server.yaml
+COPY ./entrypoint.sh /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh", "/manager"]
