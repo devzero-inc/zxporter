@@ -19,7 +19,6 @@ type ChangeDetectionHelper struct {
 }
 
 func (c *ChangeDetectionHelper) objectMetaChanged(
-
 	kind string,
 	resourceName string,
 	old v1.ObjectMeta,
