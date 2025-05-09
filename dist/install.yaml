@@ -1278,6 +1278,7 @@ spec:
           hostPath:
             path: /
 # ----- END PROM NODE EXPORTER -----
+---
 apiVersion: v1
 kind: Namespace
 metadata:
