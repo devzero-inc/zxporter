@@ -277,7 +277,7 @@ generate-monitoring-manifests: helm ## Generate monitoring manifests for Prometh
 		--version $(PROMETHEUS_CHART_VERSION) \
 		--namespace $(DEVZERO_MONITORING_NAMESPACE) \
 		--create-namespace \
-		--values config/prometheus/hack.values.yaml \
+		--values config/prometheus/hack.prometheus.values.yaml \
 		> $(DIST_PROMETHEUS_BUNDLE)
 
 	@echo "[INFO] Generate Node Exporter manifest"
@@ -285,6 +285,7 @@ generate-monitoring-manifests: helm ## Generate monitoring manifests for Prometh
 		--version $(NODE_EXPORTER_CHART_VERSION) \
 		--namespace $(DEVZERO_MONITORING_NAMESPACE) \
 		--create-namespace \
+		--values config/prometheus/hack.node-exporter.values.yaml \
 		> $(DIST_NODE_EXPORTER_BUNDLE)
 
 

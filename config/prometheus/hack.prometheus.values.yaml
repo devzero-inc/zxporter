@@ -8,6 +8,9 @@ alertmanager:
 pushgateway:
   enabled: false
 
+prometheus-node-exporter:
+  enabled: false
+
 serverFiles:
   prometheus.yml:
     scrape_configs:

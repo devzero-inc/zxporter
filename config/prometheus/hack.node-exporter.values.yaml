@@ -1,0 +1,5 @@
+rbac:
+  pspEnabled: false
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
