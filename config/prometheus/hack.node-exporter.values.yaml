@@ -6,3 +6,7 @@ rbac:
 
 containerSecurityContext:
   allowPrivilegeEscalation: false
+
+service:
+  port: 9101
+  targetPort: 9101
