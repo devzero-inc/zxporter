@@ -24,7 +24,6 @@ func (c *ChangeDetectionHelper) objectMetaChanged(
 	old v1.ObjectMeta,
 	new v1.ObjectMeta,
 ) ChangeDetectionStatus {
-
 	if old.ResourceVersion == new.ResourceVersion {
 		c.logger.V(3).Info(fmt.Sprintf("Ignoring %s update with same resource version", kind), kind, resourceName)
 		return IgnoreChanges

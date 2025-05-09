@@ -154,7 +154,6 @@ func (c *ClusterRoleCollector) handleClusterRoleEvent(role *rbacv1.ClusterRole, 
 
 // clusterRoleChanged detects meaningful changes in a ClusterRole
 func (c *ClusterRoleCollector) clusterRoleChanged(oldRole, newRole *rbacv1.ClusterRole) bool {
-
 	changed := c.cDHelper.objectMetaChanged(
 		c.GetType(),
 		oldRole.Name,

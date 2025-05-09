@@ -174,7 +174,6 @@ func (c *CronJobCollector) handleCronJobEvent(cronJob *batchv1.CronJob, eventTyp
 
 // cronJobChanged detects meaningful changes in a cronjob
 func (c *CronJobCollector) cronJobChanged(oldCronJob, newCronJob *batchv1.CronJob) bool {
-
 	changed := c.cDHelper.objectMetaChanged(
 		c.GetType(),
 		oldCronJob.Name,
