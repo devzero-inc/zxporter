@@ -202,7 +202,7 @@ run: manifests generate fmt vet ## Run a controller from your host.
 # (i.e. docker build --platform linux/arm64). However, you must enable docker buildKit for it.
 # More info: https://docs.docker.com/develop/develop-images/build_enhancements/
 .PHONY: docker-build
-docker-build: ## Build docker image with the manager.
+docker-build: helm ## Build docker image with the manager.
 	@echo "[INFO] Adding Metrics Server repo"
 	@$(HELM) repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/ >> /dev/null || true
 	@echo "[INFO] Fetching Metrics Server repo data"
