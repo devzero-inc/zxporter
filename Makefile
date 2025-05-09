@@ -218,6 +218,7 @@ docker-build: helm ## Build docker image with the manager.
 		> $(METRICS_SERVER)
 
 	@echo "[INFO] For debug -> $(GO_VERSION), major  $(MAJOR), minor  $(MINOR), patch  $(PATCH)"
+	$(CONTAINER_TOOL) build --load \
 			--build-arg MAJOR=$(MAJOR) \
 			--build-arg MINOR=$(MINOR) \
 			--build-arg PATCH=$(PATCH) \
