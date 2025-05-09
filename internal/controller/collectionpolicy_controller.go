@@ -108,6 +108,7 @@ type PolicyConfig struct {
 	ClusterToken            string
 	PrometheusURL           string
 	DisableNetworkIOMetrics bool
+	DisableGPUMetrics       bool
 	UpdateInterval          time.Duration
 	NodeMetricsInterval     time.Duration
 	BufferSize              int
@@ -230,6 +231,7 @@ func (r *CollectionPolicyReconciler) createNewConfig(envSpec *monitoringv1.Colle
 		ClusterToken:            envSpec.Policies.ClusterToken,
 		PrometheusURL:           envSpec.Policies.PrometheusURL,
 		DisableNetworkIOMetrics: envSpec.Policies.DisableNetworkIOMetrics,
+		DisableGPUMetrics:       envSpec.Policies.DisableGPUMetrics,
 		MaskSecretData:          envSpec.Policies.MaskSecretData,
 		DisabledCollectors:      envSpec.Policies.DisabledCollectors,
 		BufferSize:              envSpec.Policies.BufferSize,
@@ -614,7 +616,8 @@ func (r *CollectionPolicyReconciler) identifyAffectedCollectors(oldConfig, newCo
 	// Check if the special node collectors are affected by the update interval change
 	if oldConfig.UpdateInterval != newConfig.UpdateInterval ||
 		oldConfig.PrometheusURL != newConfig.PrometheusURL ||
-		oldConfig.DisableNetworkIOMetrics != newConfig.DisableNetworkIOMetrics {
+		oldConfig.DisableNetworkIOMetrics != newConfig.DisableNetworkIOMetrics ||
+		oldConfig.DisableGPUMetrics != newConfig.DisableGPUMetrics {
 		affectedCollectors["node"] = true
 		affectedCollectors["container_resource"] = true
 	}
@@ -639,7 +642,8 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 	// Check Prometheus availability if URL changed or metrics configuration changed
 	if newConfig.PrometheusURL != "" &&
 		(r.CurrentConfig.PrometheusURL != newConfig.PrometheusURL ||
-			r.CurrentConfig.DisableNetworkIOMetrics != newConfig.DisableNetworkIOMetrics) {
+			r.CurrentConfig.DisableNetworkIOMetrics != newConfig.DisableNetworkIOMetrics ||
+			r.CurrentConfig.DisableGPUMetrics != newConfig.DisableGPUMetrics) {
 		logger.Info("Prometheus configuration changed, checking availability", "url", newConfig.PrometheusURL)
 		prometheusAvailable := r.waitForPrometheusAvailability(ctx, newConfig.PrometheusURL)
 		if !prometheusAvailable {
@@ -791,6 +795,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 					UpdateInterval:          newConfig.UpdateInterval,
 					QueryTimeout:            10 * time.Second,
 					DisableNetworkIOMetrics: newConfig.DisableNetworkIOMetrics,
+					DisableGPUMetrics:       newConfig.DisableGPUMetrics,
 				},
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedPods,
@@ -807,6 +812,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 					UpdateInterval:          newConfig.UpdateInterval,
 					QueryTimeout:            10 * time.Second,
 					DisableNetworkIOMetrics: newConfig.DisableNetworkIOMetrics,
+					DisableGPUMetrics:       newConfig.DisableGPUMetrics,
 				},
 				newConfig.ExcludedNodes,
 				collector.DefaultMaxBatchSize,
@@ -1559,6 +1565,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 					UpdateInterval:          config.UpdateInterval,
 					QueryTimeout:            10 * time.Second,
 					DisableNetworkIOMetrics: config.DisableNetworkIOMetrics,
+					DisableGPUMetrics:       config.DisableGPUMetrics,
 				},
 				config.TargetNamespaces,
 				config.ExcludedPods,
@@ -1577,6 +1584,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 					UpdateInterval:          config.UpdateInterval,
 					QueryTimeout:            10 * time.Second,
 					DisableNetworkIOMetrics: config.DisableNetworkIOMetrics,
+					DisableGPUMetrics:       config.DisableGPUMetrics,
 				},
 				config.ExcludedNodes,
 				collector.DefaultMaxBatchSize,
@@ -1892,6 +1900,7 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 						UpdateInterval:          newConfig.UpdateInterval,
 						QueryTimeout:            10 * time.Second,
 						DisableNetworkIOMetrics: newConfig.DisableNetworkIOMetrics,
+						DisableGPUMetrics:       newConfig.DisableGPUMetrics,
 					},
 					newConfig.TargetNamespaces,
 					newConfig.ExcludedPods,
@@ -2075,6 +2084,7 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 						UpdateInterval:          newConfig.UpdateInterval,
 						QueryTimeout:            10 * time.Second,
 						DisableNetworkIOMetrics: newConfig.DisableNetworkIOMetrics,
+						DisableGPUMetrics:       newConfig.DisableGPUMetrics,
 					},
 					newConfig.ExcludedNodes,
 					collector.DefaultMaxBatchSize,
