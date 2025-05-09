@@ -1,3 +1,6 @@
+nameOverride: dz-prometheus
+fullnameOverride: dz-prometheus
+
 server:
   persistentVolume:
     enabled: false

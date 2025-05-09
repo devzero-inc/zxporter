@@ -37,13 +37,13 @@ kind: ServiceAccount
 metadata:
   labels:
     app.kubernetes.io/component: server
-    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/name: dz-prometheus
     app.kubernetes.io/instance: prometheus
     app.kubernetes.io/version: v2.48.0
     helm.sh/chart: prometheus-25.8.0
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/part-of: prometheus
-  name: prometheus-server
+    app.kubernetes.io/part-of: dz-prometheus
+  name: prometheus-dz-prometheus-server
   namespace: devzero-zxporter
   annotations:
     {}
@@ -54,13 +54,13 @@ kind: ConfigMap
 metadata:
   labels:
     app.kubernetes.io/component: server
-    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/name: dz-prometheus
     app.kubernetes.io/instance: prometheus
     app.kubernetes.io/version: v2.48.0
     helm.sh/chart: prometheus-25.8.0
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/part-of: prometheus
-  name: prometheus-server
+    app.kubernetes.io/part-of: dz-prometheus
+  name: prometheus-dz-prometheus-server
   namespace: devzero-zxporter
 data:
   allow-snippet-annotations: "false"
@@ -283,13 +283,13 @@ kind: ClusterRole
 metadata:
   labels:
     app.kubernetes.io/component: server
-    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/name: dz-prometheus
     app.kubernetes.io/instance: prometheus
     app.kubernetes.io/version: v2.48.0
     helm.sh/chart: prometheus-25.8.0
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/part-of: prometheus
-  name: prometheus-server
+    app.kubernetes.io/part-of: dz-prometheus
+  name: prometheus-dz-prometheus-server
 rules:
   - apiGroups:
       - ""
@@ -357,21 +357,21 @@ kind: ClusterRoleBinding
 metadata:
   labels:
     app.kubernetes.io/component: server
-    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/name: dz-prometheus
     app.kubernetes.io/instance: prometheus
     app.kubernetes.io/version: v2.48.0
     helm.sh/chart: prometheus-25.8.0
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/part-of: prometheus
-  name: prometheus-server
+    app.kubernetes.io/part-of: dz-prometheus
+  name: prometheus-dz-prometheus-server
 subjects:
   - kind: ServiceAccount
-    name: prometheus-server
+    name: prometheus-dz-prometheus-server
     namespace: devzero-zxporter
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: prometheus-server
+  name: prometheus-dz-prometheus-server
 ---
 # Source: prometheus/charts/kube-state-metrics/templates/service.yaml
 apiVersion: v1
@@ -407,13 +407,13 @@ kind: Service
 metadata:
   labels:
     app.kubernetes.io/component: server
-    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/name: dz-prometheus
     app.kubernetes.io/instance: prometheus
     app.kubernetes.io/version: v2.48.0
     helm.sh/chart: prometheus-25.8.0
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/part-of: prometheus
-  name: prometheus-server
+    app.kubernetes.io/part-of: dz-prometheus
+  name: prometheus-dz-prometheus-server
   namespace: devzero-zxporter
 spec:
   ports:
@@ -423,7 +423,7 @@ spec:
       targetPort: 9090
   selector:
     app.kubernetes.io/component: server
-    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/name: dz-prometheus
     app.kubernetes.io/instance: prometheus
   sessionAffinity: None
   type: "ClusterIP"
@@ -505,19 +505,19 @@ kind: Deployment
 metadata:
   labels:
     app.kubernetes.io/component: server
-    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/name: dz-prometheus
     app.kubernetes.io/instance: prometheus
     app.kubernetes.io/version: v2.48.0
     helm.sh/chart: prometheus-25.8.0
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/part-of: prometheus
-  name: prometheus-server
+    app.kubernetes.io/part-of: dz-prometheus
+  name: prometheus-dz-prometheus-server
   namespace: devzero-zxporter
 spec:
   selector:
     matchLabels:
       app.kubernetes.io/component: server
-      app.kubernetes.io/name: prometheus
+      app.kubernetes.io/name: dz-prometheus
       app.kubernetes.io/instance: prometheus
   replicas: 1
   revisionHistoryLimit: 10
@@ -528,17 +528,17 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/component: server
-        app.kubernetes.io/name: prometheus
+        app.kubernetes.io/name: dz-prometheus
         app.kubernetes.io/instance: prometheus
         app.kubernetes.io/version: v2.48.0
         helm.sh/chart: prometheus-25.8.0
         app.kubernetes.io/managed-by: Helm
-        app.kubernetes.io/part-of: prometheus
+        app.kubernetes.io/part-of: dz-prometheus
     spec:
       enableServiceLinks: true
-      serviceAccountName: prometheus-server
+      serviceAccountName: prometheus-dz-prometheus-server
       containers:
-        - name: prometheus-server-configmap-reload
+        - name: dz-prometheus-server-configmap-reload
           image: "quay.io/prometheus-operator/prometheus-config-reloader:v0.67.0"
           imagePullPolicy: "IfNotPresent"
           args:
@@ -549,7 +549,7 @@ spec:
               mountPath: /etc/config
               readOnly: true
 
-        - name: prometheus-server
+        - name: dz-prometheus-server
           image: "quay.io/prometheus/prometheus:v2.48.0"
           imagePullPolicy: "IfNotPresent"
           args:
@@ -597,7 +597,7 @@ spec:
       volumes:
         - name: config-volume
           configMap:
-            name: prometheus-server
+            name: prometheus-dz-prometheus-server
         - name: storage-volume
           emptyDir:
             {}
@@ -608,14 +608,14 @@ spec:
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: node-exporter-prometheus-node-exporter
+  name: dz-prometheus-node-exporter
   namespace: devzero-zxporter
   labels:
     helm.sh/chart: prometheus-node-exporter-4.24.0
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: metrics
-    app.kubernetes.io/part-of: prometheus-node-exporter
-    app.kubernetes.io/name: prometheus-node-exporter
+    app.kubernetes.io/part-of: dz-prometheus-node-exporter
+    app.kubernetes.io/name: dz-prometheus-node-exporter
     app.kubernetes.io/instance: node-exporter
     app.kubernetes.io/version: "1.7.0"
 ---
@@ -623,14 +623,14 @@ metadata:
 apiVersion: v1
 kind: Service
 metadata:
-  name: node-exporter-prometheus-node-exporter
+  name: dz-prometheus-node-exporter
   namespace: devzero-zxporter
   labels:
     helm.sh/chart: prometheus-node-exporter-4.24.0
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: metrics
-    app.kubernetes.io/part-of: prometheus-node-exporter
-    app.kubernetes.io/name: prometheus-node-exporter
+    app.kubernetes.io/part-of: dz-prometheus-node-exporter
+    app.kubernetes.io/name: dz-prometheus-node-exporter
     app.kubernetes.io/instance: node-exporter
     app.kubernetes.io/version: "1.7.0"
   annotations:
@@ -643,27 +643,27 @@ spec:
       protocol: TCP
       name: metrics
   selector:
-    app.kubernetes.io/name: prometheus-node-exporter
+    app.kubernetes.io/name: dz-prometheus-node-exporter
     app.kubernetes.io/instance: node-exporter
 ---
 # Source: prometheus-node-exporter/templates/daemonset.yaml
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: node-exporter-prometheus-node-exporter
+  name: dz-prometheus-node-exporter
   namespace: devzero-zxporter
   labels:
     helm.sh/chart: prometheus-node-exporter-4.24.0
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: metrics
-    app.kubernetes.io/part-of: prometheus-node-exporter
-    app.kubernetes.io/name: prometheus-node-exporter
+    app.kubernetes.io/part-of: dz-prometheus-node-exporter
+    app.kubernetes.io/name: dz-prometheus-node-exporter
     app.kubernetes.io/instance: node-exporter
     app.kubernetes.io/version: "1.7.0"
 spec:
   selector:
     matchLabels:
-      app.kubernetes.io/name: prometheus-node-exporter
+      app.kubernetes.io/name: dz-prometheus-node-exporter
       app.kubernetes.io/instance: node-exporter
   revisionHistoryLimit: 10
   updateStrategy:
@@ -678,8 +678,8 @@ spec:
         helm.sh/chart: prometheus-node-exporter-4.24.0
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/component: metrics
-        app.kubernetes.io/part-of: prometheus-node-exporter
-        app.kubernetes.io/name: prometheus-node-exporter
+        app.kubernetes.io/part-of: dz-prometheus-node-exporter
+        app.kubernetes.io/name: dz-prometheus-node-exporter
         app.kubernetes.io/instance: node-exporter
         app.kubernetes.io/version: "1.7.0"
     spec:
@@ -689,7 +689,7 @@ spec:
         runAsGroup: 65534
         runAsNonRoot: true
         runAsUser: 65534
-      serviceAccountName: node-exporter-prometheus-node-exporter
+      serviceAccountName: dz-prometheus-node-exporter
       containers:
         - name: node-exporter
           image: quay.io/prometheus/node-exporter:v1.7.0

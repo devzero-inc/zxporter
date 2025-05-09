@@ -1,3 +1,6 @@
+nameOverride: dz-prometheus-node-exporter
+fullnameOverride: dz-prometheus-node-exporter
+
 rbac:
   pspEnabled: false
 
