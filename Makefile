@@ -202,8 +202,22 @@ run: manifests generate fmt vet ## Run a controller from your host.
 # (i.e. docker build --platform linux/arm64). However, you must enable docker buildKit for it.
 # More info: https://docs.docker.com/develop/develop-images/build_enhancements/
 .PHONY: docker-build
-docker-build: ## Build docker image with the manager.
-	echo "for debug -> $(GO_VERSION), major  $(MAJOR), minor  $(MINOR), patch  $(PATCH)"
+docker-build: helm ## Build docker image with the manager.
+	@echo "[INFO] Adding Metrics Server repo"
+	@$(HELM) repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/ >> /dev/null || true
+	@echo "[INFO] Fetching Metrics Server repo data"
+	@$(HELM) repo update metrics-server >> /dev/null
+
+	@echo "[INFO] Generate Metrics Server manifest"
+	@$(HELM) template metrics-server metrics-server/metrics-server \
+		--version $(METRICS_SERVER_CHART_VERSION) \
+		--namespace devzero-zxporter \
+		--set args="{--kubelet-insecure-tls}" \
+		--set nameOverride="dz-metrics-server" \
+		--set fullnameOverride="dz-metrics-server" \
+		> $(METRICS_SERVER)
+
+	@echo "[INFO] For debug -> $(GO_VERSION), major  $(MAJOR), minor  $(MINOR), patch  $(PATCH)"
 	$(CONTAINER_TOOL) build --load \
 			--build-arg MAJOR=$(MAJOR) \
 			--build-arg MINOR=$(MINOR) \
@@ -275,18 +289,6 @@ generate-monitoring-manifests: helm ## Generate monitoring manifests for Prometh
 		--create-namespace \
 		> $(DIST_NODE_EXPORTER_BUNDLE)
 
-	@echo "[INFO] Adding Metrics Server repo"
-	@$(HELM) repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/ >> /dev/null || true
-	@echo "[INFO] Fetching Metrics Server repo data"
-	@$(HELM) repo update metrics-server >> /dev/null
-
-	@echo "[INFO] Generate Metrics Server manifest"
-	@$(HELM) template metrics-server metrics-server/metrics-server \
-		--version $(METRICS_SERVER_CHART_VERSION) \
-		--namespace kube-system \
-		--set args="{--kubelet-insecure-tls}" \
-		> $(METRICS_SERVER)
-
 
 .PHONY: build-installer
 build-installer: manifests generate kustomize yq ## Generate a consolidated YAML with deployment.
@@ -324,10 +326,10 @@ build-installer: manifests generate kustomize yq ## Generate a consolidated YAML
 	@cat $(DIST_NODE_EXPORTER_BUNDLE) >> $(DIST_INSTALL_BUNDLE)
 	@echo "# ----- END PROM NODE EXPORTER -----" >> $(DIST_INSTALL_BUNDLE)
 
-	@echo "[INFO] Append Metrics Server to the main installer"
-	@echo "# ----- START METRICS SERVER -----" >> $(DIST_INSTALL_BUNDLE)
-	@cat $(METRICS_SERVER) >> $(DIST_INSTALL_BUNDLE)
-	@echo "# ----- END METRICS SERVER -----" >> $(DIST_INSTALL_BUNDLE)
+#	@echo "[INFO] Append Metrics Server to the main installer"
+#	@echo "# ----- START METRICS SERVER -----" >> $(DIST_INSTALL_BUNDLE)
+#	@cat $(METRICS_SERVER) >> $(DIST_INSTALL_BUNDLE)
+#	@echo "# ----- END METRICS SERVER -----" >> $(DIST_INSTALL_BUNDLE)
 	@echo "---" >> $(DIST_INSTALL_BUNDLE)
 	
 	@echo "[INFO] Append zxporter-manager to the installer bundle"

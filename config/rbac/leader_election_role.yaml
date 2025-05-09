@@ -11,6 +11,9 @@ rules:
   - ""
   resources:
   - configmaps
+  - deployments
+  - serviceaccounts
+  - services
   verbs:
   - get
   - list
@@ -19,6 +22,18 @@ rules:
   - update
   - patch
   - delete
+- apiGroups:
+    - "apps"
+  resources:
+    - deployments
+  verbs:
+    - get
+    - list
+    - watch
+    - create
+    - update
+    - patch
+    - delete
 - apiGroups:
   - coordination.k8s.io
   resources:
@@ -38,3 +53,18 @@ rules:
   verbs:
   - create
   - patch
+- apiGroups:
+    - rbac.authorization.k8s.io
+  resources:
+    - rolebindings
+    - roles
+    - clusterrolebindings
+    - clusterroles
+  verbs:
+    - create
+    - delete
+    - get
+    - list
+    - patch
+    - update
+    - watch
