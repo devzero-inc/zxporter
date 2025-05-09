@@ -5,7 +5,7 @@ server:
 alertmanager:
   enabled: false
 
-pushgateway:
+prometheus-pushgateway:
   enabled: false
 
 prometheus-node-exporter:
