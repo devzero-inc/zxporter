@@ -14,6 +14,42 @@ prometheus-pushgateway:
 prometheus-node-exporter:
   enabled: false
 
+kube-state-metrics:
+  enabled: true
+  collectors:
+    # - certificatesigningrequests
+    # - configmaps
+    # - cronjobs
+    # - daemonsets
+    # - deployments
+    # - endpoints
+    # - horizontalpodautoscalers
+    # - ingresses
+    # - jobs
+    # - leases
+    # - limitranges
+    # - mutatingwebhookconfigurations
+    # - namespaces
+    # - networkpolicies
+    - nodes
+    # - persistentvolumeclaims
+    # - persistentvolumes
+    # - poddisruptionbudgets
+    # - pods
+    # - replicasets
+    # - replicationcontrollers
+    # - resourcequotas
+    # - secrets
+    # - services
+    # - statefulsets
+    # - storageclasses
+    # - validatingwebhookconfigurations
+    # - volumeattachments
+    # - ingressclasses
+    # - clusterrolebindings
+    # - clusterroles
+    # - roles
+
 serverFiles:
   prometheus.yml:
     scrape_configs:
