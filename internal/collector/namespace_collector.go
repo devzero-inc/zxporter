@@ -26,6 +26,7 @@ type NamespaceCollector struct {
 	excludedNamespaces map[string]bool
 	logger             logr.Logger
 	mu                 sync.RWMutex
+	cDHelper           ChangeDetectionHelper
 }
 
 // NewNamespaceCollector creates a new collector for namespace resources
@@ -55,6 +56,7 @@ func NewNamespaceCollector(
 		logger,
 	)
 
+	newLogger := logger.WithName("namespace-collector")
 	return &NamespaceCollector{
 		client:             client,
 		batchChan:          batchChan,
@@ -62,7 +64,8 @@ func NewNamespaceCollector(
 		batcher:            batcher,
 		stopCh:             make(chan struct{}),
 		excludedNamespaces: excludedNamespacesMap,
-		logger:             logger.WithName("namespace-collector"),
+		logger:             newLogger,
+		cDHelper:           ChangeDetectionHelper{logger: newLogger},
 	}
 }
 
@@ -150,23 +153,18 @@ func (c *NamespaceCollector) handleNamespaceEvent(namespace *corev1.Namespace, e
 
 // namespaceChanged detects meaningful changes in a namespace
 func (c *NamespaceCollector) namespaceChanged(oldNamespace, newNamespace *corev1.Namespace) bool {
-	// Ignore changes to ResourceVersion, which always changes even for irrelevant updates
-	if oldNamespace.ResourceVersion == newNamespace.ResourceVersion {
-		return false
+	changed := c.cDHelper.objectMetaChanged(
+		c.GetType(),
+		oldNamespace.Name,
+		oldNamespace.ObjectMeta,
+		newNamespace.ObjectMeta,
+	)
+	if changed != IgnoreChanges {
+		return changed == PushChanges
 	}
 
 	// Check for status phase changes
 	if oldNamespace.Status.Phase != newNamespace.Status.Phase {
-		return true
-	}
-
-	// Check for label changes
-	if !mapsEqual(oldNamespace.Labels, newNamespace.Labels) {
-		return true
-	}
-
-	// Check for annotation changes
-	if !mapsEqual(oldNamespace.Annotations, newNamespace.Annotations) {
 		return true
 	}
 

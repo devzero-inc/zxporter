@@ -19,6 +19,8 @@ go.work
 # Kubernetes Generated files - skip generated files, except for vendored files
 !vendor/**/zz_generated.*
 
+# Kustomize downloaded charts
+config/**/charts
 # editor and IDE paraphernalia
 .idea
 .vscode

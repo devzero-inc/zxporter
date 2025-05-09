@@ -28,6 +28,7 @@ type ReplicaSetCollector struct {
 	excludedReplicaSets map[types.NamespacedName]bool
 	logger              logr.Logger
 	mu                  sync.RWMutex
+	cDHelper            ChangeDetectionHelper
 }
 
 // NewReplicaSetCollector creates a new collector for replicaset resources
@@ -61,6 +62,7 @@ func NewReplicaSetCollector(
 		logger,
 	)
 
+	newLogger := logger.WithName("replicaset-collector")
 	return &ReplicaSetCollector{
 		client:              client,
 		batchChan:           batchChan,
@@ -69,8 +71,8 @@ func NewReplicaSetCollector(
 		stopCh:              make(chan struct{}),
 		namespaces:          namespaces,
 		excludedReplicaSets: excludedReplicaSetsMap,
-		logger:              logger.WithName("replicaset-collector"),
-	}
+		logger:              newLogger,
+		cDHelper:            ChangeDetectionHelper{logger: newLogger}}
 }
 
 // Start begins the replicaset collection process
@@ -168,9 +170,14 @@ func (c *ReplicaSetCollector) handleReplicaSetEvent(replicaset *appsv1.ReplicaSe
 
 // replicaSetChanged detects meaningful changes in a replicaset
 func (c *ReplicaSetCollector) replicaSetChanged(oldReplicaSet, newReplicaSet *appsv1.ReplicaSet) bool {
-	// Ignore changes to ResourceVersion, which always changes even for irrelevant updates
-	if oldReplicaSet.ResourceVersion == newReplicaSet.ResourceVersion {
-		return false
+	changed := c.cDHelper.objectMetaChanged(
+		c.GetType(),
+		oldReplicaSet.Name,
+		oldReplicaSet.ObjectMeta,
+		newReplicaSet.ObjectMeta,
+	)
+	if changed != IgnoreChanges {
+		return changed == PushChanges
 	}
 
 	// Check if replicas changed
@@ -215,12 +222,7 @@ func (c *ReplicaSetCollector) replicaSetChanged(oldReplicaSet, newReplicaSet *ap
 			return true
 		}
 	}
-
-	// Check for label changes which could affect pod selection
-	if !mapsEqual(oldReplicaSet.Labels, newReplicaSet.Labels) {
-		return true
-	}
-
+	
 	// Check for selector changes
 	if !metaLabelsEqual(oldReplicaSet.Spec.Selector, newReplicaSet.Spec.Selector) {
 		return true

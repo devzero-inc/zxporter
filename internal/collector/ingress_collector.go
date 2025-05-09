@@ -30,6 +30,7 @@ type IngressCollector struct {
 	excludedIngresses map[types.NamespacedName]bool
 	logger            logr.Logger
 	mu                sync.RWMutex
+	cDHelper          ChangeDetectionHelper
 }
 
 // NewIngressCollector creates a new collector for ingress resources
@@ -63,6 +64,7 @@ func NewIngressCollector(
 		logger,
 	)
 
+	newLogger := logger.WithName("ingress-collector")
 	return &IngressCollector{
 		client:            client,
 		batchChan:         batchChan,
@@ -71,7 +73,8 @@ func NewIngressCollector(
 		stopCh:            make(chan struct{}),
 		namespaces:        namespaces,
 		excludedIngresses: excludedIngressesMap,
-		logger:            logger.WithName("ingress-collector"),
+		logger:            newLogger,
+		cDHelper:          ChangeDetectionHelper{logger: newLogger},
 	}
 }
 
@@ -170,9 +173,14 @@ func (c *IngressCollector) handleIngressEvent(ingress *networkingv1.Ingress, eve
 
 // ingressChanged detects meaningful changes in an ingress
 func (c *IngressCollector) ingressChanged(oldIngress, newIngress *networkingv1.Ingress) bool {
-	// Ignore changes to ResourceVersion, which always changes even for irrelevant updates
-	if oldIngress.ResourceVersion == newIngress.ResourceVersion {
-		return false
+	changed := c.cDHelper.objectMetaChanged(
+		c.GetType(),
+		oldIngress.Name,
+		oldIngress.ObjectMeta,
+		newIngress.ObjectMeta,
+	)
+	if changed != IgnoreChanges {
+		return changed == PushChanges
 	}
 
 	// Check for ingress class changes
@@ -199,11 +207,6 @@ func (c *IngressCollector) ingressChanged(oldIngress, newIngress *networkingv1.I
 		if !ingressBackendEqual(oldIngress.Spec.DefaultBackend, newIngress.Spec.DefaultBackend) {
 			return true
 		}
-	}
-
-	// Check for annotation changes
-	if !mapsEqual(oldIngress.Annotations, newIngress.Annotations) {
-		return true
 	}
 
 	// Check for load balancer status changes

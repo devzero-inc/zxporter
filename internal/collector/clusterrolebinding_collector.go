@@ -27,6 +27,7 @@ type ClusterRoleBindingCollector struct {
 	excludedClusterRoleBindings map[string]bool
 	logger                      logr.Logger
 	mu                          sync.RWMutex
+	cDHelper                    ChangeDetectionHelper
 }
 
 // NewClusterRoleBindingCollector creates a new collector for ClusterRoleBinding resources
@@ -56,6 +57,7 @@ func NewClusterRoleBindingCollector(
 		logger,
 	)
 
+	newLogger := logger.WithName("clusterrolebinding-collector")
 	return &ClusterRoleBindingCollector{
 		client:                      client,
 		batchChan:                   batchChan,
@@ -63,7 +65,8 @@ func NewClusterRoleBindingCollector(
 		batcher:                     batcher,
 		stopCh:                      make(chan struct{}),
 		excludedClusterRoleBindings: excludedClusterRoleBindingsMap,
-		logger:                      logger.WithName("clusterrolebinding-collector"),
+		logger:                      newLogger,
+		cDHelper:                    ChangeDetectionHelper{logger: newLogger},
 	}
 }
 
@@ -151,11 +154,16 @@ func (c *ClusterRoleBindingCollector) handleClusterRoleBindingEvent(crb *rbacv1.
 
 // clusterRoleBindingChanged detects meaningful changes in a ClusterRoleBinding
 func (c *ClusterRoleBindingCollector) clusterRoleBindingChanged(oldCRB, newCRB *rbacv1.ClusterRoleBinding) bool {
-	// Ignore changes to ResourceVersion, which always changes even for irrelevant updates
-	if oldCRB.ResourceVersion == newCRB.ResourceVersion {
-		return false
-	}
 
+	changed := c.cDHelper.objectMetaChanged(
+		c.GetType(),
+		oldCRB.Name,
+		oldCRB.ObjectMeta,
+		newCRB.ObjectMeta,
+	)
+	if changed != IgnoreChanges {
+		return changed == PushChanges
+	}
 	// Check for role reference changes
 	if oldCRB.RoleRef.Kind != newCRB.RoleRef.Kind ||
 		oldCRB.RoleRef.Name != newCRB.RoleRef.Name ||
@@ -165,16 +173,6 @@ func (c *ClusterRoleBindingCollector) clusterRoleBindingChanged(oldCRB, newCRB *
 
 	// Check for subjects changes
 	if !reflect.DeepEqual(oldCRB.Subjects, newCRB.Subjects) {
-		return true
-	}
-
-	// Check for label changes
-	if !mapsEqual(oldCRB.Labels, newCRB.Labels) {
-		return true
-	}
-
-	// Check for annotation changes
-	if !mapsEqual(oldCRB.Annotations, newCRB.Annotations) {
 		return true
 	}
 

@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	gpuconst "github.com/NVIDIA/KAI-scheduler/pkg/common/constants"
 	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/api"
 	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
@@ -36,6 +37,10 @@ type ContainerResourceCollectorConfig struct {
 	// DisableNetworkIOMetrics determines whether to disable network and I/O metrics collection
 	// Default is false, so metrics are collected by default
 	DisableNetworkIOMetrics bool
+
+	// DisableGPUMetrics determines whether to disable GPU metrics collection
+	// Default is false, so metrics are collected by default
+	DisableGPUMetrics bool
 }
 
 // ContainerResourceCollector collects container resource usage metrics
@@ -124,7 +129,8 @@ func (c *ContainerResourceCollector) Start(ctx context.Context) error {
 	c.logger.Info("Starting container resource collector",
 		"namespaces", c.namespaces,
 		"updateInterval", c.config.UpdateInterval,
-		"disableNetworkIOMetrics", c.config.DisableNetworkIOMetrics)
+		"disableNetworkIOMetrics", c.config.DisableNetworkIOMetrics,
+		"disableGPUMetrics", c.config.DisableGPUMetrics)
 
 	// Check if metrics client is available
 	if c.metricsClient == nil {
@@ -132,19 +138,19 @@ func (c *ContainerResourceCollector) Start(ctx context.Context) error {
 	}
 
 	// Initialize Prometheus client if network/IO metrics are not disabled
-	if !c.config.DisableNetworkIOMetrics {
-		c.logger.Info("Initializing Prometheus client for network and I/O metrics",
+	if !c.config.DisableNetworkIOMetrics && !c.config.DisableGPUMetrics {
+		c.logger.Info("Initializing Prometheus client for network/IO or GPU metrics",
 			"prometheusURL", c.config.PrometheusURL)
 		client, err := api.NewClient(api.Config{
 			Address: c.config.PrometheusURL,
 		})
 		if err != nil {
-			c.logger.Error(err, "Failed to create Prometheus client, network and I/O metrics will be disabled")
+			c.logger.Error(err, "Failed to create Prometheus client, network/IO and GPU metrics will be disabled")
 		} else {
 			c.prometheusAPI = v1.NewAPI(client)
 		}
 	} else {
-		c.logger.Info("Network and I/O metrics collection is disabled")
+		c.logger.Info("Network, I/O and GPU metrics collection is disabled")
 	}
 
 	// Create informer factory based on namespace configuration
@@ -237,7 +243,7 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 	// Create a context with timeout for Prometheus queries if needed
 	var queryCtx context.Context
 	var cancel context.CancelFunc
-	if !c.config.DisableNetworkIOMetrics && c.prometheusAPI != nil {
+	if c.prometheusAPI != nil {
 		queryCtx, cancel = context.WithTimeout(ctx, c.config.QueryTimeout)
 		defer cancel()
 	}
@@ -260,7 +266,7 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 
 		// Fetch network metrics
 		var networkMetrics map[string]float64
-		if c.prometheusAPI != nil && queryCtx != nil {
+		if !c.config.DisableNetworkIOMetrics && c.prometheusAPI != nil && queryCtx != nil {
 			networkMetrics, err = c.collectPodNetworkMetrics(queryCtx, pod)
 			if err != nil {
 				c.logger.Error(err, "Failed to collect network metrics",
@@ -287,8 +293,27 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 				}
 			}
 
+			// Add GPU metrics collection if enabled
+			var gpuMetrics map[string]interface{}
+			if !c.config.DisableGPUMetrics && c.prometheusAPI != nil && queryCtx != nil {
+				gpuMetrics, err = c.collectContainerGPUMetrics(queryCtx, pod, containerMetrics.Name)
+				if err != nil {
+					c.logger.Error(err, "Failed to collect GPU metrics",
+						"namespace", podMetrics.Namespace,
+						"pod", podMetrics.Name,
+						"container", containerMetrics.Name)
+					// Continue with other metrics
+					gpuMetrics = make(map[string]interface{})
+				}
+				c.logger.Info("GPU metrics",
+					"namespace", podMetrics.Namespace,
+					"pod", podMetrics.Name,
+					"container", containerMetrics.Name,
+					"gpuMetrics", gpuMetrics)
+			}
+
 			// Process the container metrics with optional network/IO data
-			c.processContainerMetrics(pod, containerMetrics, networkMetrics, ioMetrics)
+			c.processContainerMetrics(pod, containerMetrics, networkMetrics, ioMetrics, gpuMetrics)
 		}
 	}
 }
@@ -314,6 +339,7 @@ func (c *ContainerResourceCollector) processContainerMetrics(
 	containerMetrics metricsv1beta1.ContainerMetrics,
 	networkMetrics map[string]float64,
 	ioMetrics map[string]float64,
+	gpuMetrics map[string]interface{},
 ) {
 	podCloned := pod.DeepCopy()
 
@@ -412,7 +438,7 @@ func (c *ContainerResourceCollector) processContainerMetrics(
 	}
 
 	// Add network metrics if available
-	if networkMetrics != nil {
+	if len(networkMetrics) > 0 {
 		resourceData["networkReceiveBytes"] = networkMetrics["NetworkReceiveBytes"]
 		resourceData["networkTransmitBytes"] = networkMetrics["NetworkTransmitBytes"]
 		resourceData["networkReceivePackets"] = networkMetrics["NetworkReceivePackets"]
@@ -424,12 +450,33 @@ func (c *ContainerResourceCollector) processContainerMetrics(
 	}
 
 	// Add I/O metrics if available
-	if ioMetrics != nil {
+	if len(ioMetrics) > 0 {
 		resourceData["fsReadBytes"] = ioMetrics["FSReadBytes"]
 		resourceData["fsWriteBytes"] = ioMetrics["FSWriteBytes"]
 		resourceData["fsReads"] = ioMetrics["FSReads"]
 		resourceData["fsWrites"] = ioMetrics["FSWrites"]
 	}
+
+	if len(gpuMetrics) > 0 {
+		resourceData["gPUUtilizationPercentage"] = gpuMetrics["GPUUtilizationPercentage"]
+		resourceData["gPUMemoryUsedMb"] = gpuMetrics["GPUMemoryUsedMb"]
+		resourceData["gPUMemoryFreeMb"] = gpuMetrics["GPUMemoryFreeMb"]
+		resourceData["gPUPowerUsageWatts"] = gpuMetrics["GPUPowerUsageWatts"]
+		resourceData["gPUTemperatureCelsius"] = gpuMetrics["GPUTemperatureCelsius"]
+		resourceData["gPUSMClockMHz"] = gpuMetrics["GPUSMClockMHz"]
+		resourceData["gPUMemClockMHz"] = gpuMetrics["GPUMemClockMHz"]
+		resourceData["gpuModel"] = gpuMetrics["GPUModel"]
+		resourceData["gpuUUID"] = gpuMetrics["GPUUUID"]
+		resourceData["gpuRequestCount"] = gpuMetrics["GPURequestCount"]
+		resourceData["gpuLimitCount"] = gpuMetrics["GPULimitCount"]
+		resourceData["gPUTotalMemoryMb"] = gpuMetrics["GPUTotalMemoryMb"]
+	}
+
+	c.logger.Info("GPU metrics",
+		"namespace", podCloned.Namespace,
+		"pod", podCloned.Name,
+		"container", containerMetrics.Name,
+		"resourceData", resourceData)
 
 	// Send the resource usage data to the batch channel
 	c.batchChan <- CollectedResource{
@@ -512,6 +559,112 @@ func (c *ContainerResourceCollector) collectContainerIOMetrics(ctx context.Conte
 			if len(vector) > 0 {
 				metrics[metricName] = float64(vector[0].Value)
 			}
+		}
+	}
+
+	return metrics, nil
+}
+
+// collectContainerGPUMetrics collects GPU metrics for a container using Prometheus queries
+func (c *ContainerResourceCollector) collectContainerGPUMetrics(ctx context.Context, pod *corev1.Pod, containerName string) (map[string]interface{}, error) {
+	metrics := make(map[string]interface{})
+
+	// First query to check if this container uses GPU
+	// This query checks if any DCGM metrics exist for this container/pod
+	containerQuery := fmt.Sprintf(`count(DCGM_FI_DEV_GPU_UTIL{namespace="%s", pod="%s", container="%s"})`,
+		pod.Namespace, pod.Name, containerName)
+
+	result, _, err := c.prometheusAPI.Query(ctx, containerQuery, time.Now())
+	if err != nil {
+		return nil, fmt.Errorf("error querying GPU availability: %w", err)
+	}
+
+	// Check if container has GPU metrics
+	hasGPU := false
+	if result.Type() == model.ValVector {
+		vector := result.(model.Vector)
+		if len(vector) > 0 && float64(vector[0].Value) > 0 {
+			hasGPU = true
+		}
+	}
+
+	if !hasGPU {
+		// Return empty metrics if no GPU is used by this container
+		return metrics, nil
+	}
+
+	// Container uses GPU, collect metrics
+	// Define queries for GPU metrics
+	queries := map[string]string{
+		"GPUUtilizationPercentage": fmt.Sprintf(`DCGM_FI_DEV_GPU_UTIL{namespace="%s", pod="%s", container="%s"}`, pod.Namespace, pod.Name, containerName),
+		"GPUMemoryUsedMb":          fmt.Sprintf(`DCGM_FI_DEV_FB_USED{namespace="%s", pod="%s", container="%s"}`, pod.Namespace, pod.Name, containerName),
+		"GPUMemoryFreeMb":          fmt.Sprintf(`DCGM_FI_DEV_FB_FREE{namespace="%s", pod="%s", container="%s"}`, pod.Namespace, pod.Name, containerName),
+		"GPUPowerUsageWatts":       fmt.Sprintf(`DCGM_FI_DEV_POWER_USAGE{namespace="%s", pod="%s", container="%s"}`, pod.Namespace, pod.Name, containerName),
+		"GPUTemperatureCelsius":    fmt.Sprintf(`DCGM_FI_DEV_GPU_TEMP{namespace="%s", pod="%s", container="%s"}`, pod.Namespace, pod.Name, containerName),
+		"GPUSMClockMHz":            fmt.Sprintf(`DCGM_FI_DEV_SM_CLOCK{namespace="%s", pod="%s", container="%s"}`, pod.Namespace, pod.Name, containerName),
+		"GPUMemClockMHz":           fmt.Sprintf(`DCGM_FI_DEV_MEM_CLOCK{namespace="%s", pod="%s", container="%s"}`, pod.Namespace, pod.Name, containerName),
+	}
+
+	// Execute each query and store the result
+	for metricName, query := range queries {
+		result, _, err := c.prometheusAPI.Query(ctx, query, time.Now())
+		if err != nil {
+			c.logger.Error(err, "Error querying Prometheus for GPU metrics",
+				"metric", metricName,
+				"query", query,
+				"container", containerName)
+			continue
+		}
+
+		// Extract value from result (if any)
+		if result.Type() == model.ValVector {
+			vector := result.(model.Vector)
+			if len(vector) > 0 {
+				metrics[metricName] = float64(vector[0].Value)
+
+				// Extract model name and UUID from GPU metrics
+				if metricName == "GPUUtilizationPercentage" && len(vector) > 0 {
+					for k, v := range vector[0].Metric {
+						if k == "modelName" {
+							metrics["GPUModel"] = string(v)
+						} else if k == "UUID" {
+							metrics["GPUUUID"] = string(v)
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// If we dont have any gpu metrics then sent nil from here
+	if len(metrics) == 0 {
+		return metrics, nil
+	}
+
+	// Extract resource requests and limits for GPU
+	for i := range pod.Spec.Containers {
+		if pod.Spec.Containers[i].Name == containerName {
+			// Check for NVIDIA GPU resource requests/limits
+			requests := pod.Spec.Containers[i].Resources.Requests
+			limits := pod.Spec.Containers[i].Resources.Limits
+
+			// Check for nvidia.com/gpu resource
+			if gpuReq, ok := requests[gpuconst.GpuResource]; ok {
+				metrics["GPURequestCount"] = gpuReq.Value()
+			}
+
+			if gpuLim, ok := limits[gpuconst.GpuResource]; ok {
+				metrics["GPULimitCount"] = gpuLim.Value()
+			}
+
+			break
+		}
+	}
+
+	// Calculate total GPU memory
+	if memUsed, ok := metrics["GPUMemoryUsed"].(float64); ok {
+		if memFree, ok := metrics["GPUMemoryFree"].(float64); ok {
+			metrics["GPUTotalMemoryMb"] = memUsed + memFree
 		}
 	}
 
@@ -614,10 +767,10 @@ func (c *ContainerResourceCollector) IsAvailable(ctx context.Context) bool {
 		return false
 	}
 
-	// If network/IO metrics are not disabled, also check Prometheus availability
-	if !c.config.DisableNetworkIOMetrics {
+	// If network/IO and GPU metrics are not disabled, also check Prometheus availability
+	if !c.config.DisableNetworkIOMetrics && !c.config.DisableGPUMetrics {
 		if c.prometheusAPI == nil {
-			c.logger.Info("Network and I/O metrics are enabled but Prometheus client is not available")
+			c.logger.Info("Prometheus client is not available for network/IO or GPU metrics")
 			// Still return true since the main metrics are available
 			return true
 		}

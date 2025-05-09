@@ -28,6 +28,7 @@ type PersistentVolumeClaimCollector struct {
 	excludedPVCs    map[types.NamespacedName]bool
 	logger          logr.Logger
 	mu              sync.RWMutex
+	cDHelper        ChangeDetectionHelper
 }
 
 // NewPersistentVolumeClaimCollector creates a new collector for PVC resources
@@ -61,6 +62,7 @@ func NewPersistentVolumeClaimCollector(
 		logger,
 	)
 
+	newLogger := logger.WithName("pvc-collector")
 	return &PersistentVolumeClaimCollector{
 		client:       client,
 		batchChan:    batchChan,
@@ -69,8 +71,8 @@ func NewPersistentVolumeClaimCollector(
 		stopCh:       make(chan struct{}),
 		namespaces:   namespaces,
 		excludedPVCs: excludedPVCsMap,
-		logger:       logger.WithName("pvc-collector"),
-	}
+		logger:       newLogger,
+		cDHelper:     ChangeDetectionHelper{logger: newLogger}}
 }
 
 // Start begins the PVC collection process
@@ -168,9 +170,14 @@ func (c *PersistentVolumeClaimCollector) handlePVCEvent(pvc *corev1.PersistentVo
 
 // pvcChanged detects meaningful changes in a PVC
 func (c *PersistentVolumeClaimCollector) pvcChanged(oldPVC, newPVC *corev1.PersistentVolumeClaim) bool {
-	// Ignore changes to ResourceVersion, which always changes even for irrelevant updates
-	if oldPVC.ResourceVersion == newPVC.ResourceVersion {
-		return false
+	changed := c.cDHelper.objectMetaChanged(
+		c.GetType(),
+		oldPVC.Name,
+		oldPVC.ObjectMeta,
+		newPVC.ObjectMeta,
+	)
+	if changed != IgnoreChanges {
+		return changed == PushChanges
 	}
 
 	// Check for status phase changes

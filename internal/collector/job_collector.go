@@ -28,6 +28,7 @@ type JobCollector struct {
 	excludedJobs    map[types.NamespacedName]bool
 	logger          logr.Logger
 	mu              sync.RWMutex
+	cDHelper        ChangeDetectionHelper
 }
 
 // NewJobCollector creates a new collector for job resources
@@ -61,6 +62,7 @@ func NewJobCollector(
 		logger,
 	)
 
+	newLogger := logger.WithName("job-collector")
 	return &JobCollector{
 		client:       client,
 		batchChan:    batchChan,
@@ -69,7 +71,8 @@ func NewJobCollector(
 		stopCh:       make(chan struct{}),
 		namespaces:   namespaces,
 		excludedJobs: excludedJobsMap,
-		logger:       logger.WithName("job-collector"),
+		logger:       newLogger,
+		cDHelper:     ChangeDetectionHelper{logger: newLogger},
 	}
 }
 
@@ -168,9 +171,14 @@ func (c *JobCollector) handleJobEvent(job *batchv1.Job, eventType EventType) {
 
 // jobChanged detects meaningful changes in a job
 func (c *JobCollector) jobChanged(oldJob, newJob *batchv1.Job) bool {
-	// Ignore changes to ResourceVersion, which always changes even for irrelevant updates
-	if oldJob.ResourceVersion == newJob.ResourceVersion {
-		return false
+	changed := c.cDHelper.objectMetaChanged(
+		c.GetType(),
+		oldJob.Name,
+		oldJob.ObjectMeta,
+		newJob.ObjectMeta,
+	)
+	if changed != IgnoreChanges {
+		return changed == PushChanges
 	}
 
 	// Check for status changes

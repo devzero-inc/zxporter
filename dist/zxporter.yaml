@@ -29,6 +29,21 @@ rules:
   - ""
   resources:
   - configmaps
+  - deployments
+  - serviceaccounts
+  - services
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - apps
+  resources:
+  - deployments
   verbs:
   - get
   - list
@@ -56,6 +71,21 @@ rules:
   verbs:
   - create
   - patch
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - rolebindings
+  - roles
+  - clusterrolebindings
+  - clusterroles
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -113,6 +143,17 @@ metadata:
   name: devzero-zxporter-manager-role
 rules:
 - apiGroups:
+  - apiregistration.k8s.io
+  resources:
+  - apiservices
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+- apiGroups:
   - apps
   resources:
   - daemonsets
@@ -159,6 +200,7 @@ rules:
 - apiGroups:
   - ""
   resources:
+  - configmaps
   - endpoints
   - events
   - limitranges
@@ -178,6 +220,7 @@ rules:
 - apiGroups:
   - ""
   resources:
+  - nodes/metrics
   - nodes/status
   - pods/status
   verbs:
@@ -268,7 +311,19 @@ rules:
   resources:
   - clusterrolebindings
   - clusterroles
+  - role
   - rolebindings
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
   - roles
   verbs:
   - get
@@ -452,8 +507,6 @@ spec:
         - --metrics-bind-address=:8443
         - --leader-elect
         - --health-probe-bind-address=:8081
-        command:
-        - /manager
         image: ttl.sh/zxporter:latest
         livenessProbe:
           httpGet:

@@ -27,6 +27,7 @@ type ClusterRoleCollector struct {
 	excludedClusterRoles map[string]bool
 	logger               logr.Logger
 	mu                   sync.RWMutex
+	cDHelper             ChangeDetectionHelper
 }
 
 // NewClusterRoleCollector creates a new collector for ClusterRole resources
@@ -56,6 +57,7 @@ func NewClusterRoleCollector(
 		logger,
 	)
 
+	newLogger := logger.WithName("clusterrole-collector")
 	return &ClusterRoleCollector{
 		client:               client,
 		batchChan:            batchChan,
@@ -63,7 +65,8 @@ func NewClusterRoleCollector(
 		batcher:              batcher,
 		stopCh:               make(chan struct{}),
 		excludedClusterRoles: excludedClusterRolesMap,
-		logger:               logger.WithName("clusterrole-collector"),
+		logger:               newLogger,
+		cDHelper:             ChangeDetectionHelper{logger: newLogger},
 	}
 }
 
@@ -151,9 +154,14 @@ func (c *ClusterRoleCollector) handleClusterRoleEvent(role *rbacv1.ClusterRole, 
 
 // clusterRoleChanged detects meaningful changes in a ClusterRole
 func (c *ClusterRoleCollector) clusterRoleChanged(oldRole, newRole *rbacv1.ClusterRole) bool {
-	// Ignore changes to ResourceVersion, which always changes even for irrelevant updates
-	if oldRole.ResourceVersion == newRole.ResourceVersion {
-		return false
+	changed := c.cDHelper.objectMetaChanged(
+		c.GetType(),
+		oldRole.Name,
+		oldRole.ObjectMeta,
+		newRole.ObjectMeta,
+	)
+	if changed != IgnoreChanges {
+		return changed == PushChanges
 	}
 
 	// Check for rules changes
@@ -165,17 +173,7 @@ func (c *ClusterRoleCollector) clusterRoleChanged(oldRole, newRole *rbacv1.Clust
 	if !reflect.DeepEqual(oldRole.AggregationRule, newRole.AggregationRule) {
 		return true
 	}
-
-	// Check for label changes
-	if !mapsEqual(oldRole.Labels, newRole.Labels) {
-		return true
-	}
-
-	// Check for annotation changes
-	if !mapsEqual(oldRole.Annotations, newRole.Annotations) {
-		return true
-	}
-
+	
 	// No significant changes detected
 	return false
 }

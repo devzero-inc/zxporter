@@ -28,6 +28,7 @@ type DeploymentCollector struct {
 	excludedDeployments map[types.NamespacedName]bool
 	logger              logr.Logger
 	mu                  sync.RWMutex
+	cDHelper            ChangeDetectionHelper
 }
 
 // NewDeploymentCollector creates a new collector for deployment resources
@@ -61,6 +62,7 @@ func NewDeploymentCollector(
 		logger,
 	)
 
+	newLogger := logger.WithName("deployment-collector")
 	return &DeploymentCollector{
 		client:              client,
 		batchChan:           batchChan,
@@ -69,7 +71,8 @@ func NewDeploymentCollector(
 		stopCh:              make(chan struct{}),
 		namespaces:          namespaces,
 		excludedDeployments: excludedDeploymentsMap,
-		logger:              logger.WithName("deployment-collector"),
+		logger:              newLogger,
+		cDHelper:            ChangeDetectionHelper{logger: newLogger},
 	}
 }
 
@@ -168,11 +171,17 @@ func (c *DeploymentCollector) handleDeploymentEvent(deployment *appsv1.Deploymen
 
 // deploymentChanged detects meaningful changes in a deployment
 func (c *DeploymentCollector) deploymentChanged(oldDeployment, newDeployment *appsv1.Deployment) bool {
-	// Ignore changes to ResourceVersion, which always changes even for irrelevant updates
-	if oldDeployment.ResourceVersion == newDeployment.ResourceVersion {
-		return false
-	}
 
+	changed := c.cDHelper.objectMetaChanged(
+		c.GetType(),
+		oldDeployment.Name,
+		oldDeployment.ObjectMeta,
+		newDeployment.ObjectMeta,
+	)
+	if changed != IgnoreChanges {
+		return changed == PushChanges
+	}
+	
 	// Check for spec changes
 	if oldDeployment.Spec.Replicas == nil || newDeployment.Spec.Replicas == nil {
 		return true
