@@ -31,6 +31,7 @@ type HorizontalPodAutoscalerCollector struct {
 	excludedHPAs                    map[types.NamespacedName]bool
 	logger                          logr.Logger
 	mu                              sync.RWMutex
+	cDHelper                        ChangeDetectionHelper
 }
 
 // NewHorizontalPodAutoscalerCollector creates a new collector for HPA resources
@@ -64,6 +65,7 @@ func NewHorizontalPodAutoscalerCollector(
 		logger,
 	)
 
+	newLogger := logger.WithName("hpa-collector")
 	return &HorizontalPodAutoscalerCollector{
 		client:       client,
 		batchChan:    batchChan,
@@ -72,7 +74,8 @@ func NewHorizontalPodAutoscalerCollector(
 		stopCh:       make(chan struct{}),
 		namespaces:   namespaces,
 		excludedHPAs: excludedHPAsMap,
-		logger:       logger.WithName("hpa-collector"),
+		logger:       newLogger,
+		cDHelper:     ChangeDetectionHelper{logger: newLogger},
 	}
 }
 
@@ -171,9 +174,14 @@ func (c *HorizontalPodAutoscalerCollector) handleHPAEvent(hpa *autoscalingv2.Hor
 
 // hpaChanged detects meaningful changes in a HPA
 func (c *HorizontalPodAutoscalerCollector) hpaChanged(oldHPA, newHPA *autoscalingv2.HorizontalPodAutoscaler) bool {
-	// Ignore changes to ResourceVersion, which always changes even for irrelevant updates
-	if oldHPA.ResourceVersion == newHPA.ResourceVersion {
-		return false
+	changed := c.cDHelper.objectMetaChanged(
+		c.GetType(),
+		oldHPA.Name,
+		oldHPA.ObjectMeta,
+		newHPA.ObjectMeta,
+	)
+	if changed != IgnoreChanges {
+		return changed == PushChanges
 	}
 
 	// Check for min/max replicas changes
@@ -212,16 +220,6 @@ func (c *HorizontalPodAutoscalerCollector) hpaChanged(oldHPA, newHPA *autoscalin
 
 	// Check for condition changes
 	if !reflect.DeepEqual(oldHPA.Status.Conditions, newHPA.Status.Conditions) {
-		return true
-	}
-
-	// Check for label changes
-	if !mapsEqual(oldHPA.Labels, newHPA.Labels) {
-		return true
-	}
-
-	// Check for annotation changes
-	if !mapsEqual(oldHPA.Annotations, newHPA.Annotations) {
 		return true
 	}
 

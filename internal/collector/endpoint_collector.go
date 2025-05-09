@@ -29,6 +29,7 @@ type EndpointCollector struct {
 	excludedEndpoints map[types.NamespacedName]bool
 	logger            logr.Logger
 	mu                sync.RWMutex
+	cDHelper          ChangeDetectionHelper
 }
 
 // NewEndpointCollector creates a new collector for endpoints resources
@@ -62,6 +63,7 @@ func NewEndpointCollector(
 		logger,
 	)
 
+	newLogger := logger.WithName("endpoints-collector")
 	return &EndpointCollector{
 		client:            client,
 		batchChan:         batchChan,
@@ -70,7 +72,8 @@ func NewEndpointCollector(
 		stopCh:            make(chan struct{}),
 		namespaces:        namespaces,
 		excludedEndpoints: excludedEndpointsMap,
-		logger:            logger.WithName("endpoints-collector"),
+		logger:            newLogger,
+		cDHelper:          ChangeDetectionHelper{logger: newLogger},
 	}
 }
 
@@ -169,23 +172,18 @@ func (c *EndpointCollector) handleEndpointsEvent(endpoints *corev1.Endpoints, ev
 
 // endpointsChanged detects meaningful changes in an endpoints object
 func (c *EndpointCollector) endpointsChanged(oldEndpoints, newEndpoints *corev1.Endpoints) bool {
-	// Ignore changes to ResourceVersion, which always changes even for irrelevant updates
-	if oldEndpoints.ResourceVersion == newEndpoints.ResourceVersion {
-		return false
+	changed := c.cDHelper.objectMetaChanged(
+		c.GetType(),
+		oldEndpoints.Name,
+		oldEndpoints.ObjectMeta,
+		newEndpoints.ObjectMeta,
+	)
+	if changed != IgnoreChanges {
+		return changed == PushChanges
 	}
 
 	// Check for changes in subsets
 	if !reflect.DeepEqual(oldEndpoints.Subsets, newEndpoints.Subsets) {
-		return true
-	}
-
-	// Check for label changes
-	if !mapsEqual(oldEndpoints.Labels, newEndpoints.Labels) {
-		return true
-	}
-
-	// Check for annotation changes
-	if !mapsEqual(oldEndpoints.Annotations, newEndpoints.Annotations) {
 		return true
 	}
 

@@ -31,6 +31,7 @@ type EventCollector struct {
 	retentionPeriod  time.Duration  // How long to keep events in memory
 	logger           logr.Logger
 	mu               sync.RWMutex
+	cDHelper         ChangeDetectionHelper
 }
 
 // NewEventCollector creates a new collector for event resources
@@ -75,6 +76,7 @@ func NewEventCollector(
 		logger,
 	)
 
+	newLogger := logger.WithName("event-collector")
 	return &EventCollector{
 		client:           client,
 		batchChan:        batchChan,
@@ -86,7 +88,8 @@ func NewEventCollector(
 		maxEventsPerType: maxEventsPerType,
 		eventCounts:      make(map[string]int),
 		retentionPeriod:  retentionPeriod,
-		logger:           logger.WithName("event-collector"),
+		logger:           newLogger,
+		cDHelper:         ChangeDetectionHelper{logger: newLogger},
 	}
 }
 
@@ -211,9 +214,14 @@ func (c *EventCollector) handleEvent(event *corev1.Event, eventType EventType) {
 
 // eventChanged detects meaningful changes in an event
 func (c *EventCollector) eventChanged(oldEvent, newEvent *corev1.Event) bool {
-	// Ignore changes to ResourceVersion, which always changes even for irrelevant updates
-	if oldEvent.ResourceVersion == newEvent.ResourceVersion {
-		return false
+	changed := c.cDHelper.objectMetaChanged(
+		c.GetType(),
+		oldEvent.Name,
+		oldEvent.ObjectMeta,
+		newEvent.ObjectMeta,
+	)
+	if changed != IgnoreChanges {
+		return changed == PushChanges
 	}
 
 	// Check for count changes

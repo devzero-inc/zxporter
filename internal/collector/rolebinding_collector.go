@@ -29,6 +29,7 @@ type RoleBindingCollector struct {
 	excludedRoleBindings map[types.NamespacedName]bool
 	logger               logr.Logger
 	mu                   sync.RWMutex
+	cDHelper             ChangeDetectionHelper
 }
 
 // NewRoleBindingCollector creates a new collector for RoleBinding resources
@@ -62,6 +63,7 @@ func NewRoleBindingCollector(
 		logger,
 	)
 
+	newLogger := logger.WithName("rolebinding-collector")
 	return &RoleBindingCollector{
 		client:               client,
 		batchChan:            batchChan,
@@ -70,8 +72,8 @@ func NewRoleBindingCollector(
 		stopCh:               make(chan struct{}),
 		namespaces:           namespaces,
 		excludedRoleBindings: excludedRoleBindingsMap,
-		logger:               logger.WithName("rolebinding-collector"),
-	}
+		logger:               newLogger,
+		cDHelper:             ChangeDetectionHelper{logger: newLogger}}
 }
 
 // Start begins the RoleBinding collection process
@@ -169,9 +171,14 @@ func (c *RoleBindingCollector) handleRoleBindingEvent(rb *rbacv1.RoleBinding, ev
 
 // roleBindingChanged detects meaningful changes in a RoleBinding
 func (c *RoleBindingCollector) roleBindingChanged(oldRB, newRB *rbacv1.RoleBinding) bool {
-	// Ignore changes to ResourceVersion, which always changes even for irrelevant updates
-	if oldRB.ResourceVersion == newRB.ResourceVersion {
-		return false
+	changed := c.cDHelper.objectMetaChanged(
+		c.GetType(),
+		oldRB.Name,
+		oldRB.ObjectMeta,
+		newRB.ObjectMeta,
+	)
+	if changed != IgnoreChanges {
+		return changed == PushChanges
 	}
 
 	// Check for role reference changes
@@ -183,16 +190,6 @@ func (c *RoleBindingCollector) roleBindingChanged(oldRB, newRB *rbacv1.RoleBindi
 
 	// Check for subjects changes
 	if !reflect.DeepEqual(oldRB.Subjects, newRB.Subjects) {
-		return true
-	}
-
-	// Check for label changes
-	if !mapsEqual(oldRB.Labels, newRB.Labels) {
-		return true
-	}
-
-	// Check for annotation changes
-	if !mapsEqual(oldRB.Annotations, newRB.Annotations) {
 		return true
 	}
 

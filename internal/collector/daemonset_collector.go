@@ -28,6 +28,7 @@ type DaemonSetCollector struct {
 	excludedDaemonSets map[types.NamespacedName]bool
 	logger             logr.Logger
 	mu                 sync.RWMutex
+	cDHelper           ChangeDetectionHelper
 }
 
 // NewDaemonSetCollector creates a new collector for daemonset resources
@@ -61,6 +62,7 @@ func NewDaemonSetCollector(
 		logger,
 	)
 
+	newLogger := logger.WithName("daemonset-collector")
 	return &DaemonSetCollector{
 		client:             client,
 		batchChan:          batchChan,
@@ -69,7 +71,8 @@ func NewDaemonSetCollector(
 		stopCh:             make(chan struct{}),
 		namespaces:         namespaces,
 		excludedDaemonSets: excludedDaemonSetsMap,
-		logger:             logger.WithName("daemonset-collector"),
+		logger:             newLogger,
+		cDHelper:           ChangeDetectionHelper{logger: newLogger},
 	}
 }
 
@@ -168,11 +171,17 @@ func (c *DaemonSetCollector) handleDaemonSetEvent(daemonset *appsv1.DaemonSet, e
 
 // daemonSetChanged detects meaningful changes in a daemonset
 func (c *DaemonSetCollector) daemonSetChanged(oldDaemonSet, newDaemonSet *appsv1.DaemonSet) bool {
-	// Ignore changes to ResourceVersion, which always changes even for irrelevant updates
-	if oldDaemonSet.ResourceVersion == newDaemonSet.ResourceVersion {
-		return false
-	}
 
+	changed := c.cDHelper.objectMetaChanged(
+		c.GetType(),
+		oldDaemonSet.Name,
+		oldDaemonSet.ObjectMeta,
+		newDaemonSet.ObjectMeta,
+	)
+	if changed != IgnoreChanges {
+		return changed == PushChanges
+	}
+	
 	// Check for status changes
 	if oldDaemonSet.Status.CurrentNumberScheduled != newDaemonSet.Status.CurrentNumberScheduled ||
 		oldDaemonSet.Status.DesiredNumberScheduled != newDaemonSet.Status.DesiredNumberScheduled ||

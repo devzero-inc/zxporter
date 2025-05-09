@@ -28,6 +28,7 @@ type ServiceAccountCollector struct {
 	excludedServiceAccounts map[types.NamespacedName]bool
 	logger                  logr.Logger
 	mu                      sync.RWMutex
+	cDHelper                ChangeDetectionHelper
 }
 
 // NewServiceAccountCollector creates a new collector for serviceaccount resources
@@ -63,6 +64,7 @@ func NewServiceAccountCollector(
 		logger,
 	)
 
+	newLogger := logger.WithName("serviceaccount-collector")
 	return &ServiceAccountCollector{
 		client:                  client,
 		batchChan:               batchChan,
@@ -71,8 +73,8 @@ func NewServiceAccountCollector(
 		stopCh:                  make(chan struct{}),
 		namespaces:              namespaces,
 		excludedServiceAccounts: excludedServiceAccountsMap,
-		logger:                  logger.WithName("serviceaccount-collector"),
-	}
+		logger:                  newLogger,
+		cDHelper:                ChangeDetectionHelper{logger: newLogger}}
 }
 
 // Start begins the serviceaccount collection process
@@ -170,9 +172,14 @@ func (c *ServiceAccountCollector) handleServiceAccountEvent(sa *corev1.ServiceAc
 
 // serviceAccountChanged detects meaningful changes in a serviceaccount
 func (c *ServiceAccountCollector) serviceAccountChanged(oldSA, newSA *corev1.ServiceAccount) bool {
-	// Ignore changes to ResourceVersion, which always changes even for irrelevant updates
-	if oldSA.ResourceVersion == newSA.ResourceVersion {
-		return false
+	changed := c.cDHelper.objectMetaChanged(
+		c.GetType(),
+		oldSA.Name,
+		oldSA.ObjectMeta,
+		newSA.ObjectMeta,
+	)
+	if changed != IgnoreChanges {
+		return changed == PushChanges
 	}
 
 	// Check for secret reference changes
@@ -182,16 +189,6 @@ func (c *ServiceAccountCollector) serviceAccountChanged(oldSA, newSA *corev1.Ser
 
 	// Check for automount service account token changes
 	if !boolPointerEqual(oldSA.AutomountServiceAccountToken, newSA.AutomountServiceAccountToken) {
-		return true
-	}
-
-	// Check for label changes
-	if !mapsEqual(oldSA.Labels, newSA.Labels) {
-		return true
-	}
-
-	// Check for annotation changes
-	if !mapsEqual(oldSA.Annotations, newSA.Annotations) {
 		return true
 	}
 
