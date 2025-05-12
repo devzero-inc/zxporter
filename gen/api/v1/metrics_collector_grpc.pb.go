@@ -19,8 +19,9 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	MetricsCollectorService_SendResource_FullMethodName      = "/api.v1.MetricsCollectorService/SendResource"
-	MetricsCollectorService_SendResourceBatch_FullMethodName = "/api.v1.MetricsCollectorService/SendResourceBatch"
+	MetricsCollectorService_SendResource_FullMethodName         = "/api.v1.MetricsCollectorService/SendResource"
+	MetricsCollectorService_SendResourceBatch_FullMethodName    = "/api.v1.MetricsCollectorService/SendResourceBatch"
+	MetricsCollectorService_SendTelemetryMetrics_FullMethodName = "/api.v1.MetricsCollectorService/SendTelemetryMetrics"
 )
 
 // MetricsCollectorServiceClient is the client API for MetricsCollectorService service.
@@ -31,6 +32,8 @@ type MetricsCollectorServiceClient interface {
 	SendResource(ctx context.Context, in *SendResourceRequest, opts ...grpc.CallOption) (*SendResourceResponse, error)
 	// SendResourceBatch pushes multiple metrics for resources of the same type.
 	SendResourceBatch(ctx context.Context, in *SendResourceBatchRequest, opts ...grpc.CallOption) (*SendResourceBatchResponse, error)
+	// SendTelemetryMetrics pushes a batch of telemetry metrics (gauges, counters, histograms) from a cluster.
+	SendTelemetryMetrics(ctx context.Context, in *SendTelemetryMetricsRequest, opts ...grpc.CallOption) (*SendTelemetryMetricsResponse, error)
 }
 
 type metricsCollectorServiceClient struct {
@@ -59,6 +62,15 @@ func (c *metricsCollectorServiceClient) SendResourceBatch(ctx context.Context, i
 	return out, nil
 }
 
+func (c *metricsCollectorServiceClient) SendTelemetryMetrics(ctx context.Context, in *SendTelemetryMetricsRequest, opts ...grpc.CallOption) (*SendTelemetryMetricsResponse, error) {
+	out := new(SendTelemetryMetricsResponse)
+	err := c.cc.Invoke(ctx, MetricsCollectorService_SendTelemetryMetrics_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // MetricsCollectorServiceServer is the server API for MetricsCollectorService service.
 // All implementations must embed UnimplementedMetricsCollectorServiceServer
 // for forward compatibility
@@ -67,6 +79,8 @@ type MetricsCollectorServiceServer interface {
 	SendResource(context.Context, *SendResourceRequest) (*SendResourceResponse, error)
 	// SendResourceBatch pushes multiple metrics for resources of the same type.
 	SendResourceBatch(context.Context, *SendResourceBatchRequest) (*SendResourceBatchResponse, error)
+	// SendTelemetryMetrics pushes a batch of telemetry metrics (gauges, counters, histograms) from a cluster.
+	SendTelemetryMetrics(context.Context, *SendTelemetryMetricsRequest) (*SendTelemetryMetricsResponse, error)
 	mustEmbedUnimplementedMetricsCollectorServiceServer()
 }
 
@@ -79,6 +93,9 @@ func (UnimplementedMetricsCollectorServiceServer) SendResource(context.Context, 
 }
 func (UnimplementedMetricsCollectorServiceServer) SendResourceBatch(context.Context, *SendResourceBatchRequest) (*SendResourceBatchResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SendResourceBatch not implemented")
+}
+func (UnimplementedMetricsCollectorServiceServer) SendTelemetryMetrics(context.Context, *SendTelemetryMetricsRequest) (*SendTelemetryMetricsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SendTelemetryMetrics not implemented")
 }
 func (UnimplementedMetricsCollectorServiceServer) mustEmbedUnimplementedMetricsCollectorServiceServer() {
 }
@@ -130,6 +147,24 @@ func _MetricsCollectorService_SendResourceBatch_Handler(srv interface{}, ctx con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _MetricsCollectorService_SendTelemetryMetrics_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SendTelemetryMetricsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MetricsCollectorServiceServer).SendTelemetryMetrics(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MetricsCollectorService_SendTelemetryMetrics_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MetricsCollectorServiceServer).SendTelemetryMetrics(ctx, req.(*SendTelemetryMetricsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // MetricsCollectorService_ServiceDesc is the grpc.ServiceDesc for MetricsCollectorService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -144,6 +179,10 @@ var MetricsCollectorService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SendResourceBatch",
 			Handler:    _MetricsCollectorService_SendResourceBatch_Handler,
+		},
+		{
+			MethodName: "SendTelemetryMetrics",
+			Handler:    _MetricsCollectorService_SendTelemetryMetrics_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
