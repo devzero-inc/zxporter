@@ -27,6 +27,11 @@ type MetricsServer struct {
 	seenResources map[string]bool // Track unique resources by type+key
 }
 
+// SendTelemetryMetrics implements apiv1connect.MetricsCollectorServiceHandler.
+func (s *MetricsServer) SendTelemetryMetrics(context.Context, *connect.Request[apiv1.SendTelemetryMetricsRequest]) (*connect.Response[apiv1.SendTelemetryMetricsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, fmt.Errorf("unimplemented"))
+}
+
 // processResourceItem handles the statistics update and data extraction for a single resource item.
 // NOTE: This function assumes the caller holds the mutex (s.mu).
 func (s *MetricsServer) processResourceItem(resource *apiv1.ResourceItem) {
