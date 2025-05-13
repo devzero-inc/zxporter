@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	"go.uber.org/zap"
 	apiextensionsclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -1262,6 +1263,19 @@ func (r *CollectionPolicyReconciler) monitorClusterRegistration(
 				close(clusterRegisteredCh)
 				return
 			}
+		} else {
+			rLength := len(resources)
+			rType := collector.Unknown
+			if rLength == 1 {
+				rType = resources[0].ResourceType
+			}
+			logger.Error(fmt.Errorf("non cluster resource received"),
+				"unexpected resource encountered when expecting single cluster resource",
+				zap.String("resource_type", rType.String()),
+				zap.Int("resources_length", rLength),
+			)
+			close(clusterFailedCh)
+			return
 		}
 
 	case <-ctx.Done():
