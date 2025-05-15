@@ -91,6 +91,7 @@ func (p *GenericProvider) GetClusterMetadata(ctx context.Context) (map[string]in
 		provider := p.guessProviderFromNodes(nodes.Items)
 		if provider != "" {
 			metadata["detected_infrastructure"] = provider
+			metadata["provider"] = provider
 		}
 
 		// Extract region/zone hints if available
@@ -119,6 +120,7 @@ func (p *GenericProvider) GetClusterMetadata(ctx context.Context) (map[string]in
 				regionList = append(regionList, region)
 			}
 			metadata["regions"] = regionList
+			metadata["region"] = regionList[0]
 		}
 
 		if len(zones) > 0 {
