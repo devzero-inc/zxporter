@@ -240,14 +240,6 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 		return
 	}
 
-	// Create a context with timeout for Prometheus queries if needed
-	var queryCtx context.Context
-	var cancel context.CancelFunc
-	if c.prometheusAPI != nil {
-		queryCtx, cancel = context.WithTimeout(ctx, c.config.QueryTimeout)
-		defer cancel()
-	}
-
 	// Process each pod's metrics
 	for _, podMetrics := range podMetricsList.Items {
 		// Skip excluded pods
@@ -262,6 +254,14 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 				"namespace", podMetrics.Namespace,
 				"name", podMetrics.Name)
 			continue
+		}
+
+		// Create a context with timeout for Prometheus queries if needed
+		var queryCtx context.Context
+		var cancel context.CancelFunc
+		if c.prometheusAPI != nil {
+			queryCtx, cancel = context.WithTimeout(ctx, c.config.QueryTimeout)
+			defer cancel()
 		}
 
 		// Fetch network metrics
