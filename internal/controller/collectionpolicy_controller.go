@@ -105,6 +105,7 @@ type PolicyConfig struct {
 
 	DisabledCollectors []string
 
+	KubeContextName         string
 	DakrURL                 string
 	ClusterToken            string
 	PrometheusURL           string
@@ -237,6 +238,7 @@ func (r *CollectionPolicyReconciler) createNewConfig(envSpec *monitoringv1.Colle
 		ExcludedCSINodes:   envSpec.Exclusions.ExcludedNodes, // Same as nodes
 
 		// Policies
+		KubeContextName:         envSpec.Policies.KubeContextName,
 		DakrURL:                 envSpec.Policies.DakrURL,
 		ClusterToken:            envSpec.Policies.ClusterToken,
 		PrometheusURL:           envSpec.Policies.PrometheusURL,
@@ -1173,7 +1175,7 @@ func (r *CollectionPolicyReconciler) setupClusterCollector(ctx context.Context, 
 	}
 
 	// Create and register cluster collector with provider detection
-	providerDetector := provider.NewDetector(logger, r.K8sClient)
+	providerDetector := provider.NewDetector(logger, r.K8sClient, provider.WithKubeContextName(config.KubeContextName))
 	detectedProvider, err := providerDetector.DetectProvider(ctx)
 	if err != nil {
 		logger.Error(err, "Failed to detect cloud provider, collector will have limited functionality")

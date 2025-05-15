@@ -101,7 +101,6 @@ func (c *ClusterCollector) collectLoop(ctx context.Context) {
 func (c *ClusterCollector) collectClusterData(ctx context.Context) error {
 	c.logger.Info("Collecting cluster data")
 
-	// 1. Get provider-specific info
 	providerData, err := c.provider.GetClusterMetadata(ctx)
 	if err != nil {
 		c.logger.Error(err, "Failed to get provider-specific cluster metadata")
@@ -111,66 +110,25 @@ func (c *ClusterCollector) collectClusterData(ctx context.Context) error {
 		}
 	}
 
-	// 2. Get Kubernetes version
 	k8sVersion := c.getKubernetesVersion(ctx)
 
-	// 3. Get all nodes
-	nodes, err := c.k8sClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
-	if err != nil {
-		return fmt.Errorf("listing nodes: %w", err)
-	}
-
-	// 4. Get node groups and map nodes to node groups
-	nodeGroupMetadata := c.provider.GetNodeGroupMetadata(ctx)
-
-	// 5. Get namespaces count
-	namespaces, err := c.k8sClient.CoreV1().Namespaces().List(ctx, metav1.ListOptions{})
-	if err != nil {
-		return fmt.Errorf("listing namespaces: %w", err)
-	}
-
-	// 6. Get resource capacity and usage
-	totalCPUCapacity, totalMemoryCapacity, cpuUsage, memoryUsage := int64(0), int64(0), int64(0), int64(0)
-	if c.metricsClient == nil {
-		totalCPUCapacity, totalMemoryCapacity, cpuUsage, memoryUsage = c.getResourceMetrics(ctx, nodes.Items)
-	}
-
-	// 7. Get workload counts across all namespaces
-	workloadCount := c.getWorkloadCount(ctx)
-
-	// 8. Get CNI plugins (from annotations, configmaps, etc.)
 	cniPlugins := c.detectCNIPlugins(ctx)
 
-	// 9. Get cluster API endpoint (usually from kubeadm ConfigMap)
 	clusterAPI := c.getClusterAPIEndpoint(ctx)
 
 	versionInfo := version.Get()
 
 	// 10. Create the cluster data object
 	clusterData := map[string]interface{}{
-		"id":                    fmt.Sprintf("%s-%s", providerData["cluster_name"], providerData["region"]),
-		"name":                  providerData["cluster_name"],
-		"cluster_api":           clusterAPI,
-		"version":               k8sVersion,
-		"zxporter_version":      versionInfo.String(),
-		"zxporter_git_commit":   versionInfo.GitCommit,
-		"zxporter_build_date":   versionInfo.BuildDate,
-		"cni_plugins":           cniPlugins,
-		"node_group_metadata":   nodeGroupMetadata,
-		"provider_specific":     providerData,
-		"node_count":            len(nodes.Items),
-		"namespace_count":       len(namespaces.Items),
-		"workload_count":        workloadCount,
-		"provider":              providerData["provider"],
-		"region":                providerData["region"],
-		"total_cpu_capacity":    totalCPUCapacity,
-		"total_memory_capacity": totalMemoryCapacity,
-		"cpu_usage":             cpuUsage,
-		"memory_usage":          memoryUsage,
-		"cpu_utilization":       calculatePercentage(cpuUsage, totalCPUCapacity),
-		"memory_utilization":    calculatePercentage(memoryUsage, totalMemoryCapacity),
-		"created_at":            time.Now().Unix(),
-		"updated_at":            time.Now().Unix(),
+		"name":                providerData["cluster_name"],
+		"cluster_api":         clusterAPI,
+		"version":             k8sVersion,
+		"zxporter_version":    versionInfo.String(),
+		"zxporter_git_commit": versionInfo.GitCommit,
+		"zxporter_build_date": versionInfo.BuildDate,
+		"cni_plugins":         cniPlugins,
+		"provider":            providerData["provider"],
+		"region":              providerData["region"],
 	}
 
 	// 11. Send the data through the channel as a slice
@@ -179,15 +137,13 @@ func (c *ClusterCollector) collectClusterData(ctx context.Context) error {
 		Object:       clusterData,
 		Timestamp:    time.Now(),
 		EventType:    EventTypeMetadata,
-		Key:          fmt.Sprintf("%s", providerData["cluster_name"]),
+		Key:          fmt.Sprintf("cluster-%s", providerData["cluster_name"]),
 	}}
 
 	c.logger.Info("Cluster data collected successfully",
 		"cluster", providerData["cluster_name"],
 		"provider", providerData["provider"],
 		"region", providerData["region"],
-		"nodes", len(nodes.Items),
-		"namespaces", len(namespaces.Items),
 		"all_data", clusterData)
 
 	return nil
@@ -201,59 +157,6 @@ func (c *ClusterCollector) getKubernetesVersion(ctx context.Context) string {
 		return "unknown"
 	}
 	return serverVersion.String()
-}
-
-// getResourceMetrics calculates cluster-wide resource usage metrics
-func (c *ClusterCollector) getResourceMetrics(ctx context.Context, nodes []corev1.Node) (int64, int64, int64, int64) {
-	var totalCPUCapacity, totalMemoryCapacity int64
-
-	// Calculate total capacity
-	for _, node := range nodes {
-		if !node.Spec.Unschedulable {
-			totalCPUCapacity += node.Status.Allocatable.Cpu().MilliValue()
-			totalMemoryCapacity += node.Status.Allocatable.Memory().Value()
-		}
-	}
-
-	var cpuUsage, memoryUsage int64
-
-	// Get metrics for nodes
-	nodeMetrics, err := c.metricsClient.MetricsV1beta1().NodeMetricses().List(ctx, metav1.ListOptions{})
-	if err != nil {
-		c.logger.Error(err, "Failed to get node metrics")
-	} else {
-		for _, metric := range nodeMetrics.Items {
-			cpuUsage += metric.Usage.Cpu().MilliValue()
-			memoryUsage += metric.Usage.Memory().Value()
-		}
-	}
-
-	return totalCPUCapacity, totalMemoryCapacity, cpuUsage, memoryUsage
-}
-
-// getWorkloadCount counts the total number of workloads across all namespaces
-func (c *ClusterCollector) getWorkloadCount(ctx context.Context) int {
-	deployments, err := c.k8sClient.AppsV1().Deployments("").List(ctx, metav1.ListOptions{})
-	if err != nil {
-		c.logger.Error(err, "Failed to count deployments")
-	}
-
-	statefulSets, err := c.k8sClient.AppsV1().StatefulSets("").List(ctx, metav1.ListOptions{})
-	if err != nil {
-		c.logger.Error(err, "Failed to count statefulsets")
-	}
-
-	daemonSets, err := c.k8sClient.AppsV1().DaemonSets("").List(ctx, metav1.ListOptions{})
-	if err != nil {
-		c.logger.Error(err, "Failed to count daemonsets")
-	}
-
-	cronJobs, err := c.k8sClient.BatchV1().CronJobs("").List(ctx, metav1.ListOptions{})
-	if err != nil {
-		c.logger.Error(err, "Failed to count cronjobs")
-	}
-
-	return len(deployments.Items) + len(statefulSets.Items) + len(daemonSets.Items) + len(cronJobs.Items)
 }
 
 // detectCNIPlugins attempts to identify CNI plugins used in the cluster

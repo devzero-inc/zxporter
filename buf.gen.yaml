@@ -16,3 +16,4 @@ plugins:
   - plugin: buf.build/connectrpc/go:v1.12.0
     out: gen
     opt: paths=source_relative
+
