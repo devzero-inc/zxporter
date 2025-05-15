@@ -69,7 +69,7 @@ func NewContainerResourceCollector(
 	config ContainerResourceCollectorConfig,
 	namespaces []string,
 	excludedPods []ExcludedPod,
-	maxBatchSize int, // Added parameter
+	maxBatchSize int,           // Added parameter
 	maxBatchTime time.Duration, // Added parameter
 	logger logr.Logger,
 ) *ContainerResourceCollector {
@@ -298,14 +298,20 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 			if !c.config.DisableGPUMetrics && c.prometheusAPI != nil && queryCtx != nil {
 				gpuMetrics, err = c.collectContainerGPUMetrics(queryCtx, pod, containerMetrics.Name)
 				if err != nil {
-					c.logger.Error(err, "Failed to collect GPU metrics. If you are not using GPU, this is expected. To disable GPU metrics, set DISABLE_GPU_METRICS environment variable to true",
+					c.logger.Error(err, "Failed to collect container GPU metrics. If you are not using GPU, this is expected. To disable GPU metrics, set DISABLE_GPU_METRICS environment variable to true",
 						"namespace", podMetrics.Namespace,
 						"pod", podMetrics.Name,
 						"container", containerMetrics.Name)
 					// Continue with other metrics
 					gpuMetrics = make(map[string]interface{})
 				}
-				c.logger.Info("GPU metrics",
+				c.logger.Info("Successfully collected GPU metrics for container",
+					"namespace", podMetrics.Namespace,
+					"pod", podMetrics.Name,
+					"container", containerMetrics.Name,
+					"count", len(gpuMetrics))
+
+				c.logger.V(c.logger.GetV()+2).Info("GPU metrics collected for container",
 					"namespace", podMetrics.Namespace,
 					"pod", podMetrics.Name,
 					"container", containerMetrics.Name,
@@ -471,12 +477,6 @@ func (c *ContainerResourceCollector) processContainerMetrics(
 		resourceData["gpuLimitCount"] = gpuMetrics["GPULimitCount"]
 		resourceData["gPUTotalMemoryMb"] = gpuMetrics["GPUTotalMemoryMb"]
 	}
-
-	c.logger.Info("GPU metrics",
-		"namespace", podCloned.Namespace,
-		"pod", podCloned.Name,
-		"container", containerMetrics.Name,
-		"resourceData", resourceData)
 
 	// Send the resource usage data to the batch channel
 	c.batchChan <- CollectedResource{

@@ -418,7 +418,7 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 					c.logger.Error(queryCtx.Err(), "Query context for node GPU metrics failed", "node", node.Name)
 				}
 				if err != nil {
-					c.logger.Error(err, "Failed to collect node GPU metrics",
+					c.logger.Error(err, "Failed to collect node GPU metrics. If you are not using GPU, this is expected. To disable GPU metrics, set DISABLE_GPU_METRICS environment variable to true",
 						"name", node.Name)
 					// Continue with other metrics
 					gpuMetrics = make(map[string]interface{})
