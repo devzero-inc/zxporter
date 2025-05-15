@@ -332,14 +332,6 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 		return
 	}
 
-	// Create a context with timeout for Prometheus queries if needed
-	var queryCtx context.Context
-	var cancel context.CancelFunc
-	if !c.config.DisableNetworkIOMetrics && !c.config.DisableGPUMetrics && c.prometheusAPI != nil {
-		queryCtx, cancel = context.WithTimeout(ctx, c.config.QueryTimeout)
-		defer cancel()
-	}
-
 	// Process each node's metrics
 	for _, nodeMetrics := range nodeMetricsList.Items {
 		// Skip excluded nodes
@@ -389,7 +381,15 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 		var gpuMetrics map[string]interface{}
 
 		// If there are no prometheus, don't even bother on checking metrics
-		if c.prometheusAPI != nil && queryCtx != nil {
+		if c.prometheusAPI != nil {
+
+			// Create a context with timeout for Prometheus only when needed
+			var queryCtx context.Context
+			var cancel context.CancelFunc
+
+			queryCtx, cancel = context.WithTimeout(ctx, c.config.QueryTimeout)
+			defer cancel()
+
 			// Fetch network metrics for the node if enabled
 			if !c.config.DisableNetworkIOMetrics {
 				networkMetrics, err = c.collectNodeNetworkIOMetrics(queryCtx, node.Name)
