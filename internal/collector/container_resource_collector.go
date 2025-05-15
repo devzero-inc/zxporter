@@ -295,6 +295,17 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 						// Continue with CPU/memory metrics
 						ioMetrics = make(map[string]float64)
 					}
+					c.logger.Info("Successfully collected IO metrics for container",
+						"namespace", podMetrics.Namespace,
+						"pod", podMetrics.Name,
+						"container", containerMetrics.Name,
+						"count", len(ioMetrics))
+
+					c.logger.V(c.logger.GetV()+2).Info("IO metrics collected for container",
+						"namespace", podMetrics.Namespace,
+						"pod", podMetrics.Name,
+						"container", containerMetrics.Name,
+						"ioMetrics", ioMetrics)
 				}
 
 				// Add GPU metrics collection if enabled
