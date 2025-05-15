@@ -101,7 +101,7 @@ func (p *GenericProvider) GetClusterMetadata(ctx context.Context) (map[string]in
 	p.logger.Info("Collected generic cluster metadata ",
 		" cluster_name:", clusterName,
 		" provider:", infraProvider,
-		" region", infraRegion,
+		" region:", infraRegion,
 	)
 
 	metadata["provider"] = infraProvider
