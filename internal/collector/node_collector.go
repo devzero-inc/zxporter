@@ -535,6 +535,7 @@ func (c *NodeCollector) collectNodeNetworkIOMetrics(ctx context.Context, nodeNam
 
 	// Execute each query and store the result
 	for metricName, query := range queries {
+		c.logger.V(2).Info("Querying node network and IO metric: ", "metric_name", metricName)
 		metrics[metricName] = 0 // Default to 0 for all metrics
 
 		result, _, err := c.prometheusAPI.Query(ctx, query, time.Now())
@@ -604,6 +605,7 @@ func (c *NodeCollector) collectNodeGPUMetrics(ctx context.Context, nodeName stri
 
 	// Execute each query and store the result
 	for metricName, query := range queries {
+		c.logger.V(2).Info("Querying node GPU metric: ", "metric_name", metricName)
 		result, _, err := c.prometheusAPI.Query(ctx, query, time.Now())
 		if err != nil {
 			c.logger.Error(err, "Error querying Prometheus for GPU metrics",
