@@ -388,7 +388,7 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 		// Fetch network metrics for the node if enabled
 		var networkMetrics map[string]float64
 		if !c.config.DisableNetworkIOMetrics && c.prometheusAPI != nil && queryCtx != nil {
-			networkMetrics, err = c.collectNodeNetworkMetrics(queryCtx, node.Name)
+			networkMetrics, err = c.collectNodeNetworkIOMetrics(queryCtx, node.Name)
 			if queryCtx.Err() != nil {
 				c.logger.Error(queryCtx.Err(), "Query context for node network metrics failed", "node", node.Name)
 			}
@@ -397,21 +397,6 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 					"name", node.Name)
 				// Continue with basic metrics
 				networkMetrics = make(map[string]float64)
-			}
-		}
-
-		// Fetch I/O metrics for the node if enabled
-		var ioMetrics map[string]float64
-		if !c.config.DisableNetworkIOMetrics && c.prometheusAPI != nil && queryCtx != nil {
-			ioMetrics, err = c.collectNodeIOMetrics(queryCtx, node.Name)
-			if queryCtx.Err() != nil {
-				c.logger.Error(queryCtx.Err(), "Query context for node IO metrics failed", "node", node.Name)
-			}
-			if err != nil {
-				c.logger.Error(err, "Failed to collect node I/O metrics",
-					"name", node.Name)
-				// Continue with basic metrics
-				ioMetrics = make(map[string]float64)
 			}
 		}
 
@@ -473,14 +458,10 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 			resourceData["networkTransmitErrors"] = networkMetrics["NetworkTransmitErrors"]
 			resourceData["networkReceiveDropped"] = networkMetrics["NetworkReceiveDropped"]
 			resourceData["networkTransmitDropped"] = networkMetrics["NetworkTransmitDropped"]
-		}
-
-		// Add I/O metrics if available
-		if len(ioMetrics) > 0 {
-			resourceData["fsReadBytes"] = ioMetrics["FSReadBytes"]
-			resourceData["fsWriteBytes"] = ioMetrics["FSWriteBytes"]
-			resourceData["fsReads"] = ioMetrics["FSReads"]
-			resourceData["fsWrites"] = ioMetrics["FSWrites"]
+			resourceData["fsReadBytes"] = networkMetrics["FSReadBytes"]
+			resourceData["fsWriteBytes"] = networkMetrics["FSWriteBytes"]
+			resourceData["fsReads"] = networkMetrics["FSReads"]
+			resourceData["fsWrites"] = networkMetrics["FSWrites"]
 		}
 
 		// Add GPU metrics if available
@@ -531,12 +512,12 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 	}
 }
 
-// collectNodeNetworkMetrics collects network metrics for a node using Prometheus queries
-func (c *NodeCollector) collectNodeNetworkMetrics(ctx context.Context, nodeName string) (map[string]float64, error) {
+// collectNodeNetworkIOMetrics collects network metrics for a node using Prometheus queries
+func (c *NodeCollector) collectNodeNetworkIOMetrics(ctx context.Context, nodeName string) (map[string]float64, error) {
 	metrics := make(map[string]float64)
 
-	// Define queries for network metrics
 	queries := map[string]string{
+		// Define queries for network metrics
 		"NetworkReceiveBytes":    fmt.Sprintf(`sum(rate(node_network_receive_bytes_total{instance=~"%s:.*"}[5m]))`, nodeName),
 		"NetworkTransmitBytes":   fmt.Sprintf(`sum(rate(node_network_transmit_bytes_total{instance=~"%s:.*"}[5m]))`, nodeName),
 		"NetworkReceivePackets":  fmt.Sprintf(`sum(rate(node_network_receive_packets_total{instance=~"%s:.*"}[5m]))`, nodeName),
@@ -545,38 +526,7 @@ func (c *NodeCollector) collectNodeNetworkMetrics(ctx context.Context, nodeName 
 		"NetworkTransmitErrors":  fmt.Sprintf(`sum(rate(node_network_transmit_errs_total{instance=~"%s:.*"}[5m]))`, nodeName),
 		"NetworkReceiveDropped":  fmt.Sprintf(`sum(rate(node_network_receive_drop_total{instance=~"%s:.*"}[5m]))`, nodeName),
 		"NetworkTransmitDropped": fmt.Sprintf(`sum(rate(node_network_transmit_drop_total{instance=~"%s:.*"}[5m]))`, nodeName),
-	}
-
-	// Execute each query and store the result
-	for metricName, query := range queries {
-		metrics[metricName] = 0 // Default to 0 for all metrics
-
-		result, _, err := c.prometheusAPI.Query(ctx, query, time.Now())
-		if err != nil {
-			c.logger.Error(err, "Error querying Prometheus",
-				"metric", metricName,
-				"query", query)
-			continue
-		}
-
-		// Extract value from result (if any)
-		if result.Type() == model.ValVector {
-			vector := result.(model.Vector)
-			if len(vector) > 0 {
-				metrics[metricName] = float64(vector[0].Value)
-			}
-		}
-	}
-
-	return metrics, nil
-}
-
-// collectNodeIOMetrics collects I/O metrics for a node using Prometheus queries
-func (c *NodeCollector) collectNodeIOMetrics(ctx context.Context, nodeName string) (map[string]float64, error) {
-	metrics := make(map[string]float64)
-
-	// Define queries for I/O metrics
-	queries := map[string]string{
+		// Define queries for I/O metrics
 		"FSReadBytes":  fmt.Sprintf(`sum(rate(node_disk_read_bytes_total{instance=~"%s:.*"}[5m]))`, nodeName),
 		"FSWriteBytes": fmt.Sprintf(`sum(rate(node_disk_written_bytes_total{instance=~"%s:.*"}[5m]))`, nodeName),
 		"FSReads":      fmt.Sprintf(`sum(rate(node_disk_reads_completed_total{instance=~"%s:.*"}[5m]))`, nodeName),
