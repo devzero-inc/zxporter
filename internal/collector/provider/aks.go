@@ -329,12 +329,24 @@ func parseAKSResourceGroupName(resourceGroupName string) (*AKSMetadata, error) {
 	// https://learn.microsoft.com/en-us/azure/aks/faq#why-are-two-resource-groups-created-with-aks-
 	// pattern is expected to be: MC_myResourceGroup_myAKSCluster_eastus
 	parts := strings.Split(resourceGroupName, "_")
-	if len(parts) != 4 || !strings.EqualFold(parts[0], "mc") {
+	// per spec, we know first part is supposed to be mc and last part is location
+	// we also know that there must be at least 3 underscores, therefore, at least 4 parts in this string
+	if len(parts) < 4 || !strings.EqualFold(parts[0], "mc") {
 		return nil, fmt.Errorf("unexpected format: %s", resourceGroupName)
 	}
-	return &AKSMetadata{
-		ResourceGroup: parts[1],
-		ClusterName:   parts[2],
-		Region:        parts[3],
-	}, nil
+
+	meta := AKSMetadata{Region: parts[len(parts)-1]}
+
+	// if the either "resource group name" or "cluster name" contains no underscores, they must be at locations 1 and 2 in a 4-part array
+	if len(parts) == 4 {
+		meta.ResourceGroup = parts[1]
+		meta.ClusterName = parts[2]
+		return &meta, nil
+	}
+
+	// now, there must be more parts than 4
+	// if so, lets prioritize name the cluster over the resource group for now since we dont really have that great a need for resource group name
+	meta.ClusterName = strings.Join(parts[1:len(parts)-1], "_")
+
+	return &meta, nil
 }

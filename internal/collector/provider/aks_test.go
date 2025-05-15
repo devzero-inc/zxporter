@@ -30,6 +30,15 @@ func TestParseAKSResourceGroupName_Valid(t *testing.T) {
 				Region:        "westus2",
 			},
 		},
+		{
+			name:  "weird name thats valid",
+			input: "MC_kevin-amd01_group_kevin-amd-1_centralus",
+			expected: AKSMetadata{
+				ResourceGroup: "",
+				ClusterName:   "kevin-amd01_group_kevin-amd-1",
+				Region:        "centralus",
+			},
+		},
 	}
 
 	for _, tt := range tests {
