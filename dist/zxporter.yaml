@@ -453,6 +453,7 @@ data:
   EXCLUDED_STORAGECLASSES: ""
   EXCLUDED_VPAS: ""
   K8S_PROVIDER: '{{ .k8s_provider }}'
+  KUBE_CONTEXT_NAME: '{{ .kube_context_name }}'
   MASK_SECRET_DATA: ""
   NODE_METRICS_INTERVAL: ""
   PROMETHEUS_URL: http://prometheus-server.devzero-zxporter.svc.cluster.local:80

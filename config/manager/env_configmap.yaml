@@ -5,6 +5,7 @@ metadata:
   namespace: system
 data:
   CLUSTER_TOKEN: "{{ .cluster_token }}"
+  KUBE_CONTEXT_NAME: '{{ .kube_context_name }}'
   DAKR_URL: "https://api.devzero.io/dakr"
   PROMETHEUS_URL: "http://prometheus-server.devzero-zxporter.svc.cluster.local:80"
   K8S_PROVIDER: "{{ .k8s_provider }}"
