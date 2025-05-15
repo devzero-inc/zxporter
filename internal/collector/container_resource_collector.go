@@ -279,45 +279,48 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 
 		// Process each container's metrics
 		for _, containerMetrics := range podMetrics.Containers {
-			// Fetch I/O metrics for this container
+
 			var ioMetrics map[string]float64
-			if !c.config.DisableNetworkIOMetrics && c.prometheusAPI != nil && queryCtx != nil {
-				ioMetrics, err = c.collectContainerIOMetrics(queryCtx, pod, containerMetrics.Name)
-				if err != nil {
-					c.logger.Error(err, "Failed to collect I/O metrics",
-						"namespace", podMetrics.Namespace,
-						"pod", podMetrics.Name,
-						"container", containerMetrics.Name)
-					// Continue with CPU/memory metrics
-					ioMetrics = make(map[string]float64)
-				}
-			}
-
-			// Add GPU metrics collection if enabled
 			var gpuMetrics map[string]interface{}
-			if !c.config.DisableGPUMetrics && c.prometheusAPI != nil && queryCtx != nil {
-				gpuMetrics, err = c.collectContainerGPUMetrics(queryCtx, pod, containerMetrics.Name)
-				if err != nil {
-					c.logger.Error(err, "Failed to collect container GPU metrics. If you are not using GPU, this is expected. To disable GPU metrics, set DISABLE_GPU_METRICS environment variable to true",
+			if c.prometheusAPI != nil && queryCtx != nil {
+
+				// Fetch I/O metrics for this container
+				if !c.config.DisableNetworkIOMetrics {
+					ioMetrics, err = c.collectContainerIOMetrics(queryCtx, pod, containerMetrics.Name)
+					if err != nil {
+						c.logger.Error(err, "Failed to collect I/O metrics",
+							"namespace", podMetrics.Namespace,
+							"pod", podMetrics.Name,
+							"container", containerMetrics.Name)
+						// Continue with CPU/memory metrics
+						ioMetrics = make(map[string]float64)
+					}
+				}
+
+				// Add GPU metrics collection if enabled
+				if !c.config.DisableGPUMetrics {
+					gpuMetrics, err = c.collectContainerGPUMetrics(queryCtx, pod, containerMetrics.Name)
+					if err != nil {
+						c.logger.Error(err, "Failed to collect container GPU metrics. If you are not using GPU, this is expected. To disable GPU metrics, set DISABLE_GPU_METRICS environment variable to true",
+							"namespace", podMetrics.Namespace,
+							"pod", podMetrics.Name,
+							"container", containerMetrics.Name)
+						// Continue with other metrics
+						gpuMetrics = make(map[string]interface{})
+					}
+					c.logger.Info("Successfully collected GPU metrics for container",
 						"namespace", podMetrics.Namespace,
 						"pod", podMetrics.Name,
-						"container", containerMetrics.Name)
-					// Continue with other metrics
-					gpuMetrics = make(map[string]interface{})
+						"container", containerMetrics.Name,
+						"count", len(gpuMetrics))
+
+					c.logger.V(c.logger.GetV()+2).Info("GPU metrics collected for container",
+						"namespace", podMetrics.Namespace,
+						"pod", podMetrics.Name,
+						"container", containerMetrics.Name,
+						"gpuMetrics", gpuMetrics)
 				}
-				c.logger.Info("Successfully collected GPU metrics for container",
-					"namespace", podMetrics.Namespace,
-					"pod", podMetrics.Name,
-					"container", containerMetrics.Name,
-					"count", len(gpuMetrics))
-
-				c.logger.V(c.logger.GetV()+2).Info("GPU metrics collected for container",
-					"namespace", podMetrics.Namespace,
-					"pod", podMetrics.Name,
-					"container", containerMetrics.Name,
-					"gpuMetrics", gpuMetrics)
 			}
-
 			// Process the container metrics with optional network/IO data
 			c.processContainerMetrics(pod, containerMetrics, networkMetrics, ioMetrics, gpuMetrics)
 		}
