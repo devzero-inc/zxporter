@@ -533,6 +533,10 @@ spec:
                     description: Frequency is how often to collect resource usage
                       metrics
                     type: string
+                  kubeContextName:
+                    description: KubeContextName is the name of the current context
+                      being used to apply the installation yaml
+                    type: string
                   maskSecretData:
                     description: MaskSecretData determines whether to redact secret
                       values
