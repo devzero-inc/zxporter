@@ -389,6 +389,9 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 		var networkMetrics map[string]float64
 		if !c.config.DisableNetworkIOMetrics && c.prometheusAPI != nil && queryCtx != nil {
 			networkMetrics, err = c.collectNodeNetworkMetrics(queryCtx, node.Name)
+			if queryCtx.Err() != nil {
+				c.logger.Error(queryCtx.Err(), "Query context for node network metrics failed", "node", node.Name)
+			}
 			if err != nil {
 				c.logger.Error(err, "Failed to collect node network metrics",
 					"name", node.Name)
@@ -401,6 +404,9 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 		var ioMetrics map[string]float64
 		if !c.config.DisableNetworkIOMetrics && c.prometheusAPI != nil && queryCtx != nil {
 			ioMetrics, err = c.collectNodeIOMetrics(queryCtx, node.Name)
+			if queryCtx.Err() != nil {
+				c.logger.Error(queryCtx.Err(), "Query context for node IO metrics failed", "node", node.Name)
+			}
 			if err != nil {
 				c.logger.Error(err, "Failed to collect node I/O metrics",
 					"name", node.Name)
@@ -413,6 +419,9 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 		var gpuMetrics map[string]interface{}
 		if !c.config.DisableGPUMetrics && c.prometheusAPI != nil && queryCtx != nil {
 			gpuMetrics, err = c.collectNodeGPUMetrics(queryCtx, node.Name)
+			if queryCtx.Err() != nil {
+				c.logger.Error(queryCtx.Err(), "Query context for node GPU metrics failed", "node", node.Name)
+			}
 			if err != nil {
 				c.logger.Error(err, "Failed to collect node GPU metrics",
 					"name", node.Name)
