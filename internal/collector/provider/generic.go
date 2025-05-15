@@ -7,7 +7,6 @@ import (
 	"sync"
 
 	"github.com/go-logr/logr"
-	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -99,10 +98,10 @@ func (p *GenericProvider) GetClusterMetadata(ctx context.Context) (map[string]in
 		}
 	}
 
-	p.logger.Info("Collected generic cluster metadata",
-		zap.String("cluster_name", clusterName),
-		zap.String("provider", infraProvider),
-		zap.String("region", infraRegion),
+	p.logger.Info("Collected generic cluster metadata ",
+		" cluster_name:", clusterName,
+		" provider:", infraProvider,
+		" region", infraRegion,
 	)
 
 	metadata["provider"] = infraProvider
