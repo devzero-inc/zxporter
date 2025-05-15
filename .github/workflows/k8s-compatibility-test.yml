@@ -229,20 +229,20 @@ jobs:
           echo "Getting pod logs (if any)..."
           POD_NAME=$(kubectl get pods -n devzero-zxporter -l control-plane=controller-manager -o jsonpath='{.items[0].metadata.name}')
           kubectl logs $POD_NAME -n devzero-zxporter --tail=100 || echo "No logs available"
-          kubectl logs -n devzero-zxporter -l app.kubernetes.io/name=prometheus --all-containers
+          kubectl logs -n devzero-zxporter -l app.kubernetes.io/name=dz-prometheus --all-containers
 
 
       - name: Debug Prometheus status and logs
         run: |
-          PROM_POD=$(kubectl get pod -n devzero-zxporter -l app.kubernetes.io/name=prometheus,app.kubernetes.io/component=server -o jsonpath='{.items[0].metadata.name}')
+          PROM_POD=$(kubectl get pod -n devzero-zxporter -l app.kubernetes.io/name=dz-prometheus,app.kubernetes.io/component=server -o jsonpath='{.items[0].metadata.name}')
           echo "Prometheus Pod: $PROM_POD"
         
           echo "Describing Prometheus pod..."
           kubectl describe pod $PROM_POD -n devzero-zxporter || echo "Describe failed"
         
           echo "Getting logs from Prometheus containers..."
-          kubectl logs $PROM_POD -n devzero-zxporter -c prometheus-server || echo "No prometheus-server logs"
-          kubectl logs $PROM_POD -n devzero-zxporter -c prometheus-server-configmap-reload || echo "No configmap-reload logs"
+          kubectl logs $PROM_POD -n devzero-zxporter -c dz-prometheus-server || echo "No prometheus-server logs"
+          kubectl logs $PROM_POD -n devzero-zxporter -c dz-prometheus-server-configmap-reload || echo "No configmap-reload logs"
         
           echo "Spawning debug pod to test Prometheus readiness endpoint..."
 
@@ -258,13 +258,13 @@ jobs:
 
           # Run curl against the Prometheus /-/ready endpoint
           kubectl exec -n devzero-zxporter curlbox -- \
-            curl -v http://prometheus-server.devzero-zxporter.svc.cluster.local:80/-/ready || echo "Prometheus not responding to /-/ready"
+            curl -v http://prometheus-dz-prometheus-server.devzero-zxporter.svc.cluster.local:80/-/ready || echo "Prometheus not responding to /-/ready"
 
           # Clean up
           kubectl delete pod curlbox -n devzero-zxporter --ignore-not-found
 
           echo "Checking Prometheus config mounted in pod..."
-          kubectl exec -n devzero-zxporter $PROM_POD -c prometheus-server -- cat /etc/config/prometheus.yml || echo "Could not read prometheus.yml"        
+          kubectl exec -n devzero-zxporter $PROM_POD -c dz-prometheus-server -- cat /etc/config/prometheus.yml || echo "Could not read prometheus.yml"        
         
       - name: Check testserver stats and validate resource usage
         run: |
