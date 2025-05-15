@@ -385,37 +385,52 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 		cpuUtilizationPercent := float64(cpuUsage) / float64(cpuAllocatable) * 100
 		memoryUtilizationPercent := float64(memoryUsage) / float64(memoryAllocatable) * 100
 
-		// Fetch network metrics for the node if enabled
 		var networkMetrics map[string]float64
-		if !c.config.DisableNetworkIOMetrics && c.prometheusAPI != nil && queryCtx != nil {
-			networkMetrics, err = c.collectNodeNetworkIOMetrics(queryCtx, node.Name)
-			if queryCtx.Err() != nil {
-				c.logger.Error(queryCtx.Err(), "Query context for node network metrics failed", "node", node.Name)
-			}
-			if err != nil {
-				c.logger.Error(err, "Failed to collect node network metrics",
-					"name", node.Name)
-				// Continue with basic metrics
-				networkMetrics = make(map[string]float64)
-			}
-		}
-
-		// Fetch GPU metrics for the node if enabled
 		var gpuMetrics map[string]interface{}
-		if !c.config.DisableGPUMetrics && c.prometheusAPI != nil && queryCtx != nil {
-			gpuMetrics, err = c.collectNodeGPUMetrics(queryCtx, node.Name)
-			if queryCtx.Err() != nil {
-				c.logger.Error(queryCtx.Err(), "Query context for node GPU metrics failed", "node", node.Name)
+
+		// If there are no prometheus, don't even bother on checking metrics
+		if c.prometheusAPI != nil && queryCtx != nil {
+			// Fetch network metrics for the node if enabled
+			if !c.config.DisableNetworkIOMetrics {
+				networkMetrics, err = c.collectNodeNetworkIOMetrics(queryCtx, node.Name)
+				if queryCtx.Err() != nil {
+					c.logger.Error(queryCtx.Err(), "Query context for node network metrics failed", "node", node.Name)
+				}
+				if err != nil {
+					c.logger.Error(err, "Failed to collect node network and io metrics",
+						"name", node.Name)
+					// Continue with basic metrics
+					networkMetrics = make(map[string]float64)
+				}
+
+				c.logger.Info("Successfully collected network and IO metrics for node",
+					"node", node.Name,
+					"count", len(networkMetrics))
+				c.logger.V(c.logger.GetV()+2).Info("Network and IO metrics collected for node",
+					"node", node.Name,
+					"resourceData", gpuMetrics)
 			}
-			if err != nil {
-				c.logger.Error(err, "Failed to collect node GPU metrics",
-					"name", node.Name)
-				// Continue with other metrics
-				gpuMetrics = make(map[string]interface{})
+
+			// Fetch GPU metrics for the node if enabled
+			if !c.config.DisableGPUMetrics {
+				gpuMetrics, err = c.collectNodeGPUMetrics(queryCtx, node.Name)
+				if queryCtx.Err() != nil {
+					c.logger.Error(queryCtx.Err(), "Query context for node GPU metrics failed", "node", node.Name)
+				}
+				if err != nil {
+					c.logger.Error(err, "Failed to collect node GPU metrics",
+						"name", node.Name)
+					// Continue with other metrics
+					gpuMetrics = make(map[string]interface{})
+				}
+				c.logger.Info("Successfully collected GPU metrics for node",
+					"node", node.Name,
+					"count", len(gpuMetrics))
+				c.logger.V(c.logger.GetV()+2).Info("GPU metrics collected for node",
+					"node", node.Name,
+					"resourceData", gpuMetrics)
 			}
-			c.logger.Info("GPU metrics",
-				"node", node.Name,
-				"resourceData", gpuMetrics)
+
 		}
 
 		// Create resource data
@@ -496,10 +511,6 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 			resourceData["gpuModels"] = gpuMetrics["GPUModels"]
 			resourceData["gpuUUIDs"] = gpuMetrics["GPUUUIDs"]
 		}
-
-		c.logger.Info("GPU metrics",
-			"node", node.Name,
-			"resourceData", resourceData)
 
 		// Send node resource metrics to the batch channel for batching
 		c.batchChan <- CollectedResource{

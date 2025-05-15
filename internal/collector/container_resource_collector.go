@@ -298,7 +298,7 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 			if !c.config.DisableGPUMetrics && c.prometheusAPI != nil && queryCtx != nil {
 				gpuMetrics, err = c.collectContainerGPUMetrics(queryCtx, pod, containerMetrics.Name)
 				if err != nil {
-					c.logger.Error(err, "Failed to collect GPU metrics",
+					c.logger.Error(err, "Failed to collect GPU metrics. If you are not using GPU, this is expected. To disable GPU metrics, set DISABLE_GPU_METRICS environment variable to true",
 						"namespace", podMetrics.Namespace,
 						"pod", podMetrics.Name,
 						"container", containerMetrics.Name)
