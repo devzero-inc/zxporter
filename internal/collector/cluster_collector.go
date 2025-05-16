@@ -137,7 +137,7 @@ func (c *ClusterCollector) collectClusterData(ctx context.Context) error {
 		Object:       clusterData,
 		Timestamp:    time.Now(),
 		EventType:    EventTypeMetadata,
-		Key:          fmt.Sprintf("cluster-%s", providerData["cluster_name"]),
+		Key:          fmt.Sprintf("%s", providerData["cluster_name"]),
 	}}
 
 	c.logger.Info("Cluster data collected successfully",
