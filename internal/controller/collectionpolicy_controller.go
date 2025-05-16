@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	"go.uber.org/zap"
 	apiextensionsclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -104,6 +105,7 @@ type PolicyConfig struct {
 
 	DisabledCollectors []string
 
+	KubeContextName         string
 	DakrURL                 string
 	ClusterToken            string
 	PrometheusURL           string
@@ -236,6 +238,7 @@ func (r *CollectionPolicyReconciler) createNewConfig(envSpec *monitoringv1.Colle
 		ExcludedCSINodes:   envSpec.Exclusions.ExcludedNodes, // Same as nodes
 
 		// Policies
+		KubeContextName:         envSpec.Policies.KubeContextName,
 		DakrURL:                 envSpec.Policies.DakrURL,
 		ClusterToken:            envSpec.Policies.ClusterToken,
 		PrometheusURL:           envSpec.Policies.PrometheusURL,
@@ -1172,7 +1175,7 @@ func (r *CollectionPolicyReconciler) setupClusterCollector(ctx context.Context, 
 	}
 
 	// Create and register cluster collector with provider detection
-	providerDetector := provider.NewDetector(logger, r.K8sClient)
+	providerDetector := provider.NewDetector(logger, r.K8sClient, provider.WithKubeContextName(config.KubeContextName))
 	detectedProvider, err := providerDetector.DetectProvider(ctx)
 	if err != nil {
 		logger.Error(err, "Failed to detect cloud provider, collector will have limited functionality")
@@ -1239,52 +1242,48 @@ func (r *CollectionPolicyReconciler) monitorClusterRegistration(
 	logger.Info("Waiting for cluster data to be sent to Dakr")
 	resourceChan := r.CollectionManager.GetCombinedChannel()
 
-	attemptCount := 0
-	maxAttempts := 5 // Max attempts before failing
-
-	for {
-		select {
-		case resources, ok := <-resourceChan:
-			if !ok {
-				// Channel closed unexpectedly
-				logger.Error(nil, "Resource channel closed while waiting for cluster data")
-				close(clusterFailedCh)
-				return
-			}
-
-			// Only process cluster resources at this stage
-			if len(resources) == 1 && resources[0].ResourceType == collector.Cluster {
-				attemptCount++
-				logger.Info("Received cluster data, sending to Dakr",
-					"key", resources[0].Key,
-					"attempt", attemptCount)
-
-				// Send the cluster data to Dakr
-				_, err := r.Sender.Send(ctx, resources[0])
-				if err != nil {
-					logger.Error(err, "Failed to send cluster data to Dakr",
-						"attempt", attemptCount)
-
-					if attemptCount >= maxAttempts {
-						logger.Error(nil, "Failed to send cluster data after maximum attempts",
-							"maxAttempts", maxAttempts)
-						close(clusterFailedCh)
-						return
-					}
-					// Continue waiting for next attempt
-				} else {
-					logger.Info("Successfully sent cluster data to Dakr")
-					// Signal that cluster registration is complete
-					close(clusterRegisteredCh)
-					return
-				}
-			}
-
-		case <-ctx.Done():
-			logger.Info("Context cancelled while monitoring cluster registration")
+	select {
+	case resources, ok := <-resourceChan:
+		if !ok {
+			// Channel closed unexpectedly
+			logger.Error(nil, "Resource channel closed while waiting for cluster data")
 			close(clusterFailedCh)
 			return
 		}
+
+		// Only process cluster resources at this stage
+		if len(resources) == 1 && resources[0].ResourceType == collector.Cluster {
+			// Send the cluster data to Dakr
+			_, err := r.Sender.Send(ctx, resources[0])
+			if err != nil {
+				logger.Error(err, "Failed to send cluster data")
+				close(clusterFailedCh)
+				return
+				// Continue waiting for next attempt
+			} else {
+				logger.Info("Successfully sent cluster data to Dakr")
+				close(clusterRegisteredCh)
+				return
+			}
+		} else {
+			rLength := len(resources)
+			rType := collector.Unknown
+			if rLength == 1 {
+				rType = resources[0].ResourceType
+			}
+			logger.Error(fmt.Errorf("non cluster resource received"),
+				"unexpected resource encountered when expecting single cluster resource",
+				zap.String("resource_type", rType.String()),
+				zap.Int("resources_length", rLength),
+			)
+			close(clusterFailedCh)
+			return
+		}
+
+	case <-ctx.Done():
+		logger.Info("Context cancelled while monitoring cluster registration")
+		close(clusterFailedCh)
+		return
 	}
 }
 

@@ -13,6 +13,10 @@ import (
 
 // Configuration environment variables
 const (
+	// KUBE_CONTEXT_NAME is the name of the current context being used to apply the installation yaml
+	// Default value: ""
+	_ENV_KUBE_CONTEXT_NAME = "KUBE_CONTEXT_NAME"
+
 	// CLUSTER_TOKEN is the cluster token used to authenticate as a cluster
 	// Default value: ""
 	_ENV_CLUSTER_TOKEN = "CLUSTER_TOKEN"
@@ -464,6 +468,9 @@ func LoadCollectionPolicySpecFromEnv() (v1.CollectionPolicySpec, error) {
 	}
 
 	// === Policies ===
+	if v := getEnv(_ENV_KUBE_CONTEXT_NAME); v != "" {
+		newSpec.Policies.KubeContextName = v
+	}
 	if v := getEnv(_ENV_CLUSTER_TOKEN); v != "" {
 		newSpec.Policies.ClusterToken = v
 	}

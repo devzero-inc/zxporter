@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	"connectrpc.com/connect"
 	"github.com/devzero-inc/zxporter/internal/collector"
@@ -17,6 +18,14 @@ import (
 	genconnect "github.com/devzero-inc/zxporter/gen/api/v1/apiv1connect"
 )
 
+// RetryPolicy defines the parameters for retrying.
+type RetryPolicy struct {
+	MaxAttempts    int
+	InitialBackoff time.Duration
+	MaxBackoff     time.Duration
+	IsRetryable    func(err error) bool
+}
+
 // RealDakrClient implements communication with Dakr service
 type RealDakrClient struct {
 	logger       logr.Logger
@@ -26,11 +35,79 @@ type RealDakrClient struct {
 
 // NewDakrClient creates a new client for Dakr service
 func NewDakrClient(dakrBaseURL string, clusterToken string, logger logr.Logger) DakrClient {
+	// Define the retry policy
+	retryPolicy := RetryPolicy{
+		MaxAttempts:    3,
+		InitialBackoff: 250 * time.Millisecond,
+		MaxBackoff:     3 * time.Second,
+		IsRetryable: func(err error) bool {
+			code := connect.CodeOf(err)
+			return code == connect.CodeUnavailable ||
+				code == connect.CodeDeadlineExceeded ||
+				code == connect.CodeResourceExhausted ||
+				code == connect.CodeUnknown ||
+				code == connect.CodeCanceled ||
+				code == connect.CodeAborted
+		},
+	}
+
+	// Create the retry interceptor directly using connect.UnaryInterceptorFunc
+	retryLog := logger.WithName("retry-interceptor")
+	retryInterceptor := connect.UnaryInterceptorFunc(func(next connect.UnaryFunc) connect.UnaryFunc {
+		return connect.UnaryFunc(func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
+			var lastErr error
+			for currentAttempt := 0; currentAttempt < retryPolicy.MaxAttempts; currentAttempt++ {
+				if currentAttempt > 0 { // Backoff only for retries
+					multiplier := time.Duration(1 << (currentAttempt - 1))
+					backoffDuration := retryPolicy.InitialBackoff * multiplier
+					if backoffDuration > retryPolicy.MaxBackoff {
+						backoffDuration = retryPolicy.MaxBackoff
+					}
+					retryLog.V(1).Info("Retrying request",
+						"attempt", currentAttempt,
+						"procedure", req.Spec().Procedure,
+						"delay", backoffDuration.String(),
+						"error", lastErr)
+					select {
+					case <-time.After(backoffDuration):
+					case <-ctx.Done():
+						retryLog.Info("Context cancelled during backoff", "procedure", req.Spec().Procedure, "error", ctx.Err())
+						return nil, ctx.Err()
+					}
+				}
+
+				resp, err := next(ctx, req)
+				if err == nil {
+					return resp, nil
+				}
+				lastErr = err
+
+				if retryPolicy.IsRetryable != nil && retryPolicy.IsRetryable(err) {
+					if currentAttempt == retryPolicy.MaxAttempts-1 { // Last attempt, don't retry further
+						retryLog.Info("Max retry attempts reached",
+							"procedure", req.Spec().Procedure,
+							"attempts", retryPolicy.MaxAttempts,
+							"error", lastErr)
+						break
+					}
+					continue // Continue to next attempt in the loop
+				} else { // Non-retryable error
+					retryLog.V(1).Info("Non-retryable error or IsRetryable not defined",
+						"procedure", req.Spec().Procedure,
+						"error", lastErr)
+					break // Exit loop for non-retryable errors
+				}
+			}
+			return nil, lastErr // Return the last error encountered
+		})
+	})
+
 	// We're using the connect client for the Dakr service
 	client := genconnect.NewMetricsCollectorServiceClient(
 		http.DefaultClient,
 		dakrBaseURL,
 		connect.WithGRPC(),
+		connect.WithInterceptors(retryInterceptor),
 	)
 
 	return &RealDakrClient{

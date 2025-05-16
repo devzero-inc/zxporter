@@ -340,6 +340,9 @@ type ExcludedEvent struct {
 
 // Policies defines collection behavior
 type Policies struct {
+	// KubeContextName is the name of the current context being used to apply the installation yaml
+	KubeContextName string `json:"kubeContextName,omitempty"`
+
 	// DakrURL is the URL of the Dakr service
 	DakrURL string `json:"dakrURL,omitempty"`
 
