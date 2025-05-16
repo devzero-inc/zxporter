@@ -224,6 +224,9 @@ const (
 const configVolumeMountPath = "/etc/zxporter/config"
 
 func getEnv(key string) string {
+	if data := os.Getenv(key); data != "" {
+		return data
+	}
 	// Fallback to reading from file mounted at /etc/zxporter/config/<key>
 	filePath := fmt.Sprintf("%s/%s", configVolumeMountPath, key)
 	if data, err := os.ReadFile(filePath); err == nil {
