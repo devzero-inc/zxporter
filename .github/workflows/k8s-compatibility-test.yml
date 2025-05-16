@@ -350,8 +350,6 @@ jobs:
             echo "✅ Pod resource usage information is available in the stats"
           else
             echo "⚠️ No pod resource usage information found"
-            echo "ZXporter logs:"
-            kubectl logs deploy/devzero-zxporter-controller-manager
             exit 1
           fi
           
