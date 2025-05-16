@@ -75,7 +75,7 @@ func (p *GenericProvider) GetClusterMetadata(ctx context.Context) (map[string]in
 	}
 
 	infraRegion := ""
-	infraProvider := ""
+	infraProvider := "generic"
 
 	// Get nodes to determine various cloud metadata
 	nodes, err := p.k8sClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
