@@ -69,7 +69,7 @@ func NewContainerResourceCollector(
 	config ContainerResourceCollectorConfig,
 	namespaces []string,
 	excludedPods []ExcludedPod,
-	maxBatchSize int, // Added parameter
+	maxBatchSize int,           // Added parameter
 	maxBatchTime time.Duration, // Added parameter
 	logger logr.Logger,
 ) *ContainerResourceCollector {
@@ -240,14 +240,6 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 		return
 	}
 
-	// Create a context with timeout for Prometheus queries if needed
-	var queryCtx context.Context
-	var cancel context.CancelFunc
-	if c.prometheusAPI != nil {
-		queryCtx, cancel = context.WithTimeout(ctx, c.config.QueryTimeout)
-		defer cancel()
-	}
-
 	// Process each pod's metrics
 	for _, podMetrics := range podMetricsList.Items {
 		// Skip excluded pods
@@ -262,6 +254,14 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 				"namespace", podMetrics.Namespace,
 				"name", podMetrics.Name)
 			continue
+		}
+
+		// Create a context with timeout for Prometheus queries if needed
+		var queryCtx context.Context
+		var cancel context.CancelFunc
+		if c.prometheusAPI != nil {
+			queryCtx, cancel = context.WithTimeout(ctx, c.config.QueryTimeout)
+			defer cancel()
 		}
 
 		// Fetch network metrics
@@ -279,39 +279,59 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 
 		// Process each container's metrics
 		for _, containerMetrics := range podMetrics.Containers {
-			// Fetch I/O metrics for this container
+
 			var ioMetrics map[string]float64
-			if !c.config.DisableNetworkIOMetrics && c.prometheusAPI != nil && queryCtx != nil {
-				ioMetrics, err = c.collectContainerIOMetrics(queryCtx, pod, containerMetrics.Name)
-				if err != nil {
-					c.logger.Error(err, "Failed to collect I/O metrics",
-						"namespace", podMetrics.Namespace,
-						"pod", podMetrics.Name,
-						"container", containerMetrics.Name)
-					// Continue with CPU/memory metrics
-					ioMetrics = make(map[string]float64)
-				}
-			}
-
-			// Add GPU metrics collection if enabled
 			var gpuMetrics map[string]interface{}
-			if !c.config.DisableGPUMetrics && c.prometheusAPI != nil && queryCtx != nil {
-				gpuMetrics, err = c.collectContainerGPUMetrics(queryCtx, pod, containerMetrics.Name)
-				if err != nil {
-					c.logger.Error(err, "Failed to collect GPU metrics",
+			if c.prometheusAPI != nil && queryCtx != nil {
+
+				// Fetch I/O metrics for this container
+				if !c.config.DisableNetworkIOMetrics {
+					ioMetrics, err = c.collectContainerIOMetrics(queryCtx, pod, containerMetrics.Name)
+					if err != nil {
+						c.logger.Error(err, "Failed to collect I/O metrics",
+							"namespace", podMetrics.Namespace,
+							"pod", podMetrics.Name,
+							"container", containerMetrics.Name)
+						// Continue with CPU/memory metrics
+						ioMetrics = make(map[string]float64)
+					}
+					c.logger.Info("Successfully collected IO metrics for container",
 						"namespace", podMetrics.Namespace,
 						"pod", podMetrics.Name,
-						"container", containerMetrics.Name)
-					// Continue with other metrics
-					gpuMetrics = make(map[string]interface{})
-				}
-				c.logger.Info("GPU metrics",
-					"namespace", podMetrics.Namespace,
-					"pod", podMetrics.Name,
-					"container", containerMetrics.Name,
-					"gpuMetrics", gpuMetrics)
-			}
+						"container", containerMetrics.Name,
+						"count", len(ioMetrics))
 
+					c.logger.V(c.logger.GetV()+2).Info("IO metrics collected for container",
+						"namespace", podMetrics.Namespace,
+						"pod", podMetrics.Name,
+						"container", containerMetrics.Name,
+						"ioMetrics", ioMetrics)
+				}
+
+				// Add GPU metrics collection if enabled
+				if !c.config.DisableGPUMetrics {
+					gpuMetrics, err = c.collectContainerGPUMetrics(queryCtx, pod, containerMetrics.Name)
+					if err != nil {
+						c.logger.Error(err, "Failed to collect container GPU metrics. If you are not using GPU, this is expected. To disable GPU metrics, set DISABLE_GPU_METRICS environment variable to true",
+							"namespace", podMetrics.Namespace,
+							"pod", podMetrics.Name,
+							"container", containerMetrics.Name)
+						// Continue with other metrics
+						gpuMetrics = make(map[string]interface{})
+					}
+					c.logger.Info("Successfully collected GPU metrics for container",
+						"namespace", podMetrics.Namespace,
+						"pod", podMetrics.Name,
+						"container", containerMetrics.Name,
+						"count", len(gpuMetrics))
+
+					c.logger.V(c.logger.GetV()+2).Info("GPU metrics collected for container",
+						"namespace", podMetrics.Namespace,
+						"pod", podMetrics.Name,
+						"container", containerMetrics.Name,
+						"gpuMetrics", gpuMetrics)
+				}
+			}
 			// Process the container metrics with optional network/IO data
 			c.processContainerMetrics(pod, containerMetrics, networkMetrics, ioMetrics, gpuMetrics)
 		}
@@ -471,12 +491,6 @@ func (c *ContainerResourceCollector) processContainerMetrics(
 		resourceData["gpuLimitCount"] = gpuMetrics["GPULimitCount"]
 		resourceData["gPUTotalMemoryMb"] = gpuMetrics["GPUTotalMemoryMb"]
 	}
-
-	c.logger.Info("GPU metrics",
-		"namespace", podCloned.Namespace,
-		"pod", podCloned.Name,
-		"container", containerMetrics.Name,
-		"resourceData", resourceData)
 
 	// Send the resource usage data to the batch channel
 	c.batchChan <- CollectedResource{

@@ -456,7 +456,7 @@ data:
   KUBE_CONTEXT_NAME: '{{ .kube_context_name }}'
   MASK_SECRET_DATA: ""
   NODE_METRICS_INTERVAL: ""
-  PROMETHEUS_URL: http://prometheus-server.devzero-zxporter.svc.cluster.local:80
+  PROMETHEUS_URL: http://prometheus-dz-prometheus-server.devzero-zxporter.svc.cluster.local:80
   TARGET_NAMESPACES: ""
   WATCHED_CRDS: ""
 kind: ConfigMap

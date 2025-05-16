@@ -58,7 +58,7 @@ STRESS_IMG ?= ttl.sh/zxporter-stress:latest
 # DAKR URL to use for deployment
 DAKR_URL ?= https://api.devzero.io/dakr
 # PROMETHEUS URL for metrics collection
-PROMETHEUS_URL ?= http://prometheus-server.$(DEVZERO_MONITORING_NAMESPACE).svc.cluster.local:80
+PROMETHEUS_URL ?= http://prometheus-dz-prometheus-server.$(DEVZERO_MONITORING_NAMESPACE).svc.cluster.local:80
 # TARGET_NAMESPACES for limiting collection to specific namespaces (comma-separated)
 TARGET_NAMESPACES ?= 
 # COLLECTION_FILE is used to control the collectionpolicies.
@@ -277,9 +277,7 @@ generate-monitoring-manifests: helm ## Generate monitoring manifests for Prometh
 		--version $(PROMETHEUS_CHART_VERSION) \
 		--namespace $(DEVZERO_MONITORING_NAMESPACE) \
 		--create-namespace \
-		--set server.persistentVolume.enabled=false \
-		--set alertmanager.enabled=false \
-		--set pushgateway.enabled=false \
+		--values config/prometheus/hack.prometheus.values.yaml \
 		> $(DIST_PROMETHEUS_BUNDLE)
 
 	@echo "[INFO] Generate Node Exporter manifest"
@@ -287,6 +285,7 @@ generate-monitoring-manifests: helm ## Generate monitoring manifests for Prometh
 		--version $(NODE_EXPORTER_CHART_VERSION) \
 		--namespace $(DEVZERO_MONITORING_NAMESPACE) \
 		--create-namespace \
+		--values config/prometheus/hack.node-exporter.values.yaml \
 		> $(DIST_NODE_EXPORTER_BUNDLE)
 
 

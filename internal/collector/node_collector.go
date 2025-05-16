@@ -332,14 +332,6 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 		return
 	}
 
-	// Create a context with timeout for Prometheus queries if needed
-	var queryCtx context.Context
-	var cancel context.CancelFunc
-	if !c.config.DisableNetworkIOMetrics && !c.config.DisableGPUMetrics && c.prometheusAPI != nil {
-		queryCtx, cancel = context.WithTimeout(ctx, c.config.QueryTimeout)
-		defer cancel()
-	}
-
 	// Process each node's metrics
 	for _, nodeMetrics := range nodeMetricsList.Items {
 		// Skip excluded nodes
@@ -385,43 +377,60 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 		cpuUtilizationPercent := float64(cpuUsage) / float64(cpuAllocatable) * 100
 		memoryUtilizationPercent := float64(memoryUsage) / float64(memoryAllocatable) * 100
 
-		// Fetch network metrics for the node if enabled
 		var networkMetrics map[string]float64
-		if !c.config.DisableNetworkIOMetrics && c.prometheusAPI != nil && queryCtx != nil {
-			networkMetrics, err = c.collectNodeNetworkMetrics(queryCtx, node.Name)
-			if err != nil {
-				c.logger.Error(err, "Failed to collect node network metrics",
-					"name", node.Name)
-				// Continue with basic metrics
-				networkMetrics = make(map[string]float64)
-			}
-		}
-
-		// Fetch I/O metrics for the node if enabled
-		var ioMetrics map[string]float64
-		if !c.config.DisableNetworkIOMetrics && c.prometheusAPI != nil && queryCtx != nil {
-			ioMetrics, err = c.collectNodeIOMetrics(queryCtx, node.Name)
-			if err != nil {
-				c.logger.Error(err, "Failed to collect node I/O metrics",
-					"name", node.Name)
-				// Continue with basic metrics
-				ioMetrics = make(map[string]float64)
-			}
-		}
-
-		// Fetch GPU metrics for the node if enabled
 		var gpuMetrics map[string]interface{}
-		if !c.config.DisableGPUMetrics && c.prometheusAPI != nil && queryCtx != nil {
-			gpuMetrics, err = c.collectNodeGPUMetrics(queryCtx, node.Name)
-			if err != nil {
-				c.logger.Error(err, "Failed to collect node GPU metrics",
-					"name", node.Name)
-				// Continue with other metrics
-				gpuMetrics = make(map[string]interface{})
+
+		// If there are no prometheus, don't even bother on checking metrics
+		if c.prometheusAPI != nil {
+
+			// Create a context with timeout for Prometheus only when needed
+			var queryCtx context.Context
+			var cancel context.CancelFunc
+
+			queryCtx, cancel = context.WithTimeout(ctx, c.config.QueryTimeout)
+			defer cancel()
+
+			// Fetch network metrics for the node if enabled
+			if !c.config.DisableNetworkIOMetrics {
+				networkMetrics, err = c.collectNodeNetworkIOMetrics(queryCtx, node.Name)
+				if queryCtx.Err() != nil {
+					c.logger.Error(queryCtx.Err(), "Query context for node network metrics failed", "node", node.Name)
+				}
+				if err != nil {
+					c.logger.Error(err, "Failed to collect node network and io metrics",
+						"name", node.Name)
+					// Continue with basic metrics
+					networkMetrics = make(map[string]float64)
+				}
+
+				c.logger.Info("Successfully collected network and IO metrics for node",
+					"node", node.Name,
+					"count", len(networkMetrics))
+				c.logger.V(c.logger.GetV()+2).Info("Network and IO metrics collected for node",
+					"node", node.Name,
+					"resourceData", gpuMetrics)
 			}
-			c.logger.Info("GPU metrics",
-				"node", node.Name,
-				"resourceData", gpuMetrics)
+
+			// Fetch GPU metrics for the node if enabled
+			if !c.config.DisableGPUMetrics {
+				gpuMetrics, err = c.collectNodeGPUMetrics(queryCtx, node.Name)
+				if queryCtx.Err() != nil {
+					c.logger.Error(queryCtx.Err(), "Query context for node GPU metrics failed", "node", node.Name)
+				}
+				if err != nil {
+					c.logger.Error(err, "Failed to collect node GPU metrics. If you are not using GPU, this is expected. To disable GPU metrics, set DISABLE_GPU_METRICS environment variable to true",
+						"name", node.Name)
+					// Continue with other metrics
+					gpuMetrics = make(map[string]interface{})
+				}
+				c.logger.Info("Successfully collected GPU metrics for node",
+					"node", node.Name,
+					"count", len(gpuMetrics))
+				c.logger.V(c.logger.GetV()+2).Info("GPU metrics collected for node",
+					"node", node.Name,
+					"resourceData", gpuMetrics)
+			}
+
 		}
 
 		// Create resource data
@@ -464,14 +473,10 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 			resourceData["networkTransmitErrors"] = networkMetrics["NetworkTransmitErrors"]
 			resourceData["networkReceiveDropped"] = networkMetrics["NetworkReceiveDropped"]
 			resourceData["networkTransmitDropped"] = networkMetrics["NetworkTransmitDropped"]
-		}
-
-		// Add I/O metrics if available
-		if len(ioMetrics) > 0 {
-			resourceData["fsReadBytes"] = ioMetrics["FSReadBytes"]
-			resourceData["fsWriteBytes"] = ioMetrics["FSWriteBytes"]
-			resourceData["fsReads"] = ioMetrics["FSReads"]
-			resourceData["fsWrites"] = ioMetrics["FSWrites"]
+			resourceData["fsReadBytes"] = networkMetrics["FSReadBytes"]
+			resourceData["fsWriteBytes"] = networkMetrics["FSWriteBytes"]
+			resourceData["fsReads"] = networkMetrics["FSReads"]
+			resourceData["fsWrites"] = networkMetrics["FSWrites"]
 		}
 
 		// Add GPU metrics if available
@@ -507,10 +512,6 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 			resourceData["gpuUUIDs"] = gpuMetrics["GPUUUIDs"]
 		}
 
-		c.logger.Info("GPU metrics",
-			"node", node.Name,
-			"resourceData", resourceData)
-
 		// Send node resource metrics to the batch channel for batching
 		c.batchChan <- CollectedResource{
 			ResourceType: NodeResource,
@@ -522,12 +523,12 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 	}
 }
 
-// collectNodeNetworkMetrics collects network metrics for a node using Prometheus queries
-func (c *NodeCollector) collectNodeNetworkMetrics(ctx context.Context, nodeName string) (map[string]float64, error) {
+// collectNodeNetworkIOMetrics collects network metrics for a node using Prometheus queries
+func (c *NodeCollector) collectNodeNetworkIOMetrics(ctx context.Context, nodeName string) (map[string]float64, error) {
 	metrics := make(map[string]float64)
 
-	// Define queries for network metrics
 	queries := map[string]string{
+		// Define queries for network metrics
 		"NetworkReceiveBytes":    fmt.Sprintf(`sum(rate(node_network_receive_bytes_total{instance=~"%s:.*"}[5m]))`, nodeName),
 		"NetworkTransmitBytes":   fmt.Sprintf(`sum(rate(node_network_transmit_bytes_total{instance=~"%s:.*"}[5m]))`, nodeName),
 		"NetworkReceivePackets":  fmt.Sprintf(`sum(rate(node_network_receive_packets_total{instance=~"%s:.*"}[5m]))`, nodeName),
@@ -536,38 +537,7 @@ func (c *NodeCollector) collectNodeNetworkMetrics(ctx context.Context, nodeName 
 		"NetworkTransmitErrors":  fmt.Sprintf(`sum(rate(node_network_transmit_errs_total{instance=~"%s:.*"}[5m]))`, nodeName),
 		"NetworkReceiveDropped":  fmt.Sprintf(`sum(rate(node_network_receive_drop_total{instance=~"%s:.*"}[5m]))`, nodeName),
 		"NetworkTransmitDropped": fmt.Sprintf(`sum(rate(node_network_transmit_drop_total{instance=~"%s:.*"}[5m]))`, nodeName),
-	}
-
-	// Execute each query and store the result
-	for metricName, query := range queries {
-		metrics[metricName] = 0 // Default to 0 for all metrics
-
-		result, _, err := c.prometheusAPI.Query(ctx, query, time.Now())
-		if err != nil {
-			c.logger.Error(err, "Error querying Prometheus",
-				"metric", metricName,
-				"query", query)
-			continue
-		}
-
-		// Extract value from result (if any)
-		if result.Type() == model.ValVector {
-			vector := result.(model.Vector)
-			if len(vector) > 0 {
-				metrics[metricName] = float64(vector[0].Value)
-			}
-		}
-	}
-
-	return metrics, nil
-}
-
-// collectNodeIOMetrics collects I/O metrics for a node using Prometheus queries
-func (c *NodeCollector) collectNodeIOMetrics(ctx context.Context, nodeName string) (map[string]float64, error) {
-	metrics := make(map[string]float64)
-
-	// Define queries for I/O metrics
-	queries := map[string]string{
+		// Define queries for I/O metrics
 		"FSReadBytes":  fmt.Sprintf(`sum(rate(node_disk_read_bytes_total{instance=~"%s:.*"}[5m]))`, nodeName),
 		"FSWriteBytes": fmt.Sprintf(`sum(rate(node_disk_written_bytes_total{instance=~"%s:.*"}[5m]))`, nodeName),
 		"FSReads":      fmt.Sprintf(`sum(rate(node_disk_reads_completed_total{instance=~"%s:.*"}[5m]))`, nodeName),
@@ -576,6 +546,7 @@ func (c *NodeCollector) collectNodeIOMetrics(ctx context.Context, nodeName strin
 
 	// Execute each query and store the result
 	for metricName, query := range queries {
+		c.logger.V(2).Info("Querying node network and IO metric: ", "metric_name", metricName)
 		metrics[metricName] = 0 // Default to 0 for all metrics
 
 		result, _, err := c.prometheusAPI.Query(ctx, query, time.Now())
@@ -645,6 +616,7 @@ func (c *NodeCollector) collectNodeGPUMetrics(ctx context.Context, nodeName stri
 
 	// Execute each query and store the result
 	for metricName, query := range queries {
+		c.logger.V(2).Info("Querying node GPU metric: ", "metric_name", metricName)
 		result, _, err := c.prometheusAPI.Query(ctx, query, time.Now())
 		if err != nil {
 			c.logger.Error(err, "Error querying Prometheus for GPU metrics",
