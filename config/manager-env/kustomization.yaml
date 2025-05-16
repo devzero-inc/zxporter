@@ -3,4 +3,4 @@ namespace: devzero-zxporter
 namePrefix: devzero-zxporter-
 
 resources:
-  - env_configmap.yaml
+  - ../manager-env-base

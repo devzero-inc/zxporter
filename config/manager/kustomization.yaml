@@ -1,6 +1,6 @@
 resources:
 - manager.yaml
-- ../manager-env/
+- ../manager-env-base/
 # patches:
 # - path: env-patch.yaml
 #   target:
