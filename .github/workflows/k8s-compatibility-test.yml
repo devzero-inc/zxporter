@@ -101,6 +101,14 @@ jobs:
           helm repo update
           helm upgrade --install --set args={--kubelet-insecure-tls} metrics-server metrics-server/metrics-server --namespace kube-system
 
+      - name: Ensure metrics server is properly registered
+        run: |
+          if ! kubectl get apiservice v1beta1.metrics.k8s.io &>/dev/null; then
+            echo "Metrics API service not found, showing registered services and exiting..."
+            kubectl get apiservices
+            exit 1
+          end
+
       - name: Install Node Exporter
         run: |
           helm repo add prometheus-community https://prometheus-community.github.io/helm-charts 
