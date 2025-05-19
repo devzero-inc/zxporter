@@ -1,0 +1,37 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "chart.fullname" . }}-prometheus-dz-prometheus-server
+  labels:
+    app.kubernetes.io/component: server
+    app.kubernetes.io/part-of: dz-prometheus
+  {{- include "chart.labels" . | nindent 4 }}
+data:
+  alerting_rules.yml: {{ .Values.prometheusDzPrometheusServer.alertingRulesYml |
+    toYaml | indent 1 }}
+  alerts: {{ .Values.prometheusDzPrometheusServer.alerts | toYaml | indent 1 }}
+  allow-snippet-annotations: {{ .Values.prometheusDzPrometheusServer.allowSnippetAnnotations
+    | quote }}
+  prometheus.yml: {{ .Values.prometheusDzPrometheusServer.prometheusYml | toYaml
+    | indent 1 }}
+  recording_rules.yml: {{ .Values.prometheusDzPrometheusServer.recordingRulesYml
+    | toYaml | indent 1 }}
+  rules: {{ .Values.prometheusDzPrometheusServer.rules | toYaml | indent 1 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "chart.fullname" . }}-prometheus-dz-prometheus-server
+  labels:
+    app.kubernetes.io/component: server
+    app.kubernetes.io/part-of: dz-prometheus
+  {{- include "chart.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.prometheusDzPrometheusServer.type }}
+  selector:
+    app.kubernetes.io/component: server
+    app.kubernetes.io/instance: prometheus
+    app.kubernetes.io/name: dz-prometheus
+    {{- include "chart.selectorLabels" . | nindent 4 }}
+  ports:
+  {{- .Values.prometheusDzPrometheusServer.ports | toYaml | nindent 2 }}

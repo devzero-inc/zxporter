@@ -45,3 +45,13 @@ jobs:
           else
             echo "No uncommitted changes detected in dist/install.yaml. The file is properly committed."
           fi
+
+          if [[ -n $(git status --porcelain chart/) ]]; then
+            echo "::error::Running 'make build-chart' produced changes to chart/ that aren't committed to the repository."
+            echo "Please run 'make build-chart' locally and commit the changes to chart/ before pushing."
+            git status chart/
+            git diff chart
+            exit 1
+          else
+            echo "No uncommitted changes detected in chart/. The dir is properly committed."
+          fi

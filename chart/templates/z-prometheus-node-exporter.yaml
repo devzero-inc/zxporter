@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "chart.fullname" . }}-z-prometheus-node-exporter
+  labels:
+    app.kubernetes.io/component: metrics
+    app.kubernetes.io/part-of: dz-prometheus-node-exporter
+  {{- include "chart.labels" . | nindent 4 }}
+  annotations:
+    prometheus.io/scrape: "true"
+spec:
+  type: {{ .Values.zPrometheusNodeExporter.type }}
+  selector:
+    app.kubernetes.io/instance: node-exporter
+    app.kubernetes.io/name: dz-prometheus-node-exporter
+    {{- include "chart.selectorLabels" . | nindent 4 }}
+  ports:
+  {{- .Values.zPrometheusNodeExporter.ports | toYaml | nindent 2 }}
