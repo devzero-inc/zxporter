@@ -107,7 +107,7 @@ jobs:
             echo "Metrics API service not found, showing registered services and exiting..."
             kubectl get apiservices
             exit 1
-          end
+          fi
 
       - name: Install Node Exporter
         run: |
