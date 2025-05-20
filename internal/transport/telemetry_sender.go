@@ -116,7 +116,7 @@ func (s *TelemetrySender) sendMetrics(ctx context.Context) error {
 }
 
 // collectAndResetTelemetryMetrics gathers metrics from the Prometheus registry and converts them to TelemetryMetric objects
-func (s *TelemetrySender) collectAndResetTelemetryMetrics(metrics []prometheus.Collector) ([]*dto.MetricFamily, error) {
+func (s *TelemetrySender) collectAndResetTelemetryMetrics(metrics []collector.ResettableCollector) ([]*dto.MetricFamily, error) {
 	var telemetryMetrics []*dto.MetricFamily
 
 	// Check if metrics are available
@@ -136,26 +136,11 @@ func (s *TelemetrySender) collectAndResetTelemetryMetrics(metrics []prometheus.C
 			close(metricCh)
 		}(metric)
 
-		if metric, ok := metric.(collector.Resettable); ok {
-			// Reset the metric after collection
-			metric.Reset()
-		}
-
 		// Process each collected metric
 		for m := range metricCh {
 			dtoMetric := &dto.Metric{}
 			m.Write(dtoMetric)
-			descStr := m.Desc().String()
-			var metricName string
-			// Simple parsing to extract fqName (metric name)
-			// Not robust, but works for standard Desc.String() output
-			if i := strings.Index(descStr, `fqName: "`); i != -1 {
-				rest := descStr[i+len(`fqName: "`):]
-				if j := strings.Index(rest, `"`); j != -1 {
-					metricName = rest[:j]
-					break
-				}
-			}
+			metricName := getMetricName(m.Desc().String())
 			telemetryMetrics = append(telemetryMetrics,
 				&dto.MetricFamily{
 					Name:   &metricName,
@@ -163,7 +148,23 @@ func (s *TelemetrySender) collectAndResetTelemetryMetrics(metrics []prometheus.C
 				},
 			)
 		}
+
+		// Reset the metric after collection
+		metric.Reset()
 	}
 	s.logger.Info("Collected telemetry metrics", "count", len(telemetryMetrics))
 	return telemetryMetrics, nil
+}
+
+func getMetricName(descStr string) string {
+	var metricName string
+	// Simple parsing to extract fqName (metric name)
+	// Not robust, but works for standard Desc.String() output
+	if i := strings.Index(descStr, `fqName: "`); i != -1 {
+		rest := descStr[i+len(`fqName: "`):]
+		if j := strings.Index(rest, `"`); j != -1 {
+			metricName = rest[:j]
+		}
+	}
+	return metricName
 }

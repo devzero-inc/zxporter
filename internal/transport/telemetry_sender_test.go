@@ -5,13 +5,18 @@ import (
 
 	"github.com/devzero-inc/zxporter/internal/collector"
 	"github.com/go-logr/logr"
+	"github.com/go-logr/zapr"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap/zaptest"
 )
 
 func TestCollectAndResetTelemetryMetrics(t *testing.T) {
-	// Create a logger
-	logger := logr.Discard()
+	// Create a zap test logger that will log to the test's output
+	zapLogger := zaptest.NewLogger(t)
+
+	// Convert the zap logger to a logr.Logger
+	logger := zapr.NewLogger(zapLogger)
 
 	// Create a counter metric
 	counter := prometheus.NewCounterVec(prometheus.CounterOpts{
@@ -24,12 +29,12 @@ func TestCollectAndResetTelemetryMetrics(t *testing.T) {
 	sender := &TelemetrySender{
 		logger: logger,
 		metrics: &collector.TelemetryMetrics{
-			AllMetrics: []prometheus.Collector{counter},
+			AllMetrics: []collector.ResettableCollector{counter},
 		},
 	}
 
 	// Call the function being tested
-	metricFamilies, err := sender.collectAndResetTelemetryMetrics([]prometheus.Collector{counter})
+	metricFamilies, err := sender.collectAndResetTelemetryMetrics([]collector.ResettableCollector{counter})
 
 	// Assertions
 	assert.NoError(t, err)
@@ -48,12 +53,12 @@ func TestCollectAndResetTelemetryMetricsEmpty(t *testing.T) {
 	sender := &TelemetrySender{
 		logger: logger,
 		metrics: &collector.TelemetryMetrics{
-			AllMetrics: []prometheus.Collector{},
+			AllMetrics: []collector.ResettableCollector{},
 		},
 	}
 
 	// Call the function being tested with empty metrics
-	metricFamilies, err := sender.collectAndResetTelemetryMetrics([]prometheus.Collector{})
+	metricFamilies, err := sender.collectAndResetTelemetryMetrics([]collector.ResettableCollector{})
 
 	// Assertions
 	assert.NoError(t, err)
@@ -84,12 +89,12 @@ func TestCollectAndResetTelemetryMetricsMultiple(t *testing.T) {
 	sender := &TelemetrySender{
 		logger: logger,
 		metrics: &collector.TelemetryMetrics{
-			AllMetrics: []prometheus.Collector{counter1, counter2},
+			AllMetrics: []collector.ResettableCollector{counter1, counter2},
 		},
 	}
 
 	// Call the function being tested
-	metricFamilies, err := sender.collectAndResetTelemetryMetrics([]prometheus.Collector{counter1, counter2})
+	metricFamilies, err := sender.collectAndResetTelemetryMetrics([]collector.ResettableCollector{counter1, counter2})
 
 	// Assertions
 	assert.NoError(t, err)
