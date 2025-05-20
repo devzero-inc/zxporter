@@ -4,6 +4,7 @@ package transport
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -119,6 +120,8 @@ func (s *TelemetrySender) sendMetrics(ctx context.Context) error {
 func (s *TelemetrySender) collectAndResetTelemetryMetrics() ([]*dto.MetricFamily, error) {
 	var telemetryMetrics []*dto.MetricFamily
 
+	s.metrics.RequestDuration.WithLabelValues(strconv.Itoa(300)).Observe(10)
+
 	// Check if metrics are available
 	if s.metrics == nil || len(s.metrics.AllMetrics) == 0 {
 		s.logger.Info("No metrics available to collect")
@@ -129,6 +132,8 @@ func (s *TelemetrySender) collectAndResetTelemetryMetrics() ([]*dto.MetricFamily
 	for _, metric := range s.metrics.AllMetrics {
 		// Create a channel to receive metrics
 		metricCh := make(chan prometheus.Metric, 1024)
+
+		s.logger.Info("Collecting telemetry metric")
 
 		// Collect metrics into the channel
 		go func(m prometheus.Collector) {
@@ -143,6 +148,7 @@ func (s *TelemetrySender) collectAndResetTelemetryMetrics() ([]*dto.MetricFamily
 
 		// Process each collected metric
 		for m := range metricCh {
+			s.logger.Info("Got a metric", "metric", m.Desc().String())
 			dtoMetric := &dto.Metric{}
 			m.Write(dtoMetric)
 			descStr := m.Desc().String()
