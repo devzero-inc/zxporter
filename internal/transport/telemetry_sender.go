@@ -4,7 +4,6 @@ package transport
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -94,7 +93,7 @@ func (s *TelemetrySender) run(ctx context.Context) {
 // sendMetrics collects and sends metrics to the DAKR server
 func (s *TelemetrySender) sendMetrics(ctx context.Context) error {
 	// Collect telemetry metrics from the Prometheus registry
-	telemetryMetrics, err := s.collectAndResetTelemetryMetrics()
+	telemetryMetrics, err := s.collectAndResetTelemetryMetrics(s.metrics.AllMetrics)
 	if err != nil {
 		return fmt.Errorf("failed to collect metrics: %w", err)
 	}
@@ -117,23 +116,19 @@ func (s *TelemetrySender) sendMetrics(ctx context.Context) error {
 }
 
 // collectAndResetTelemetryMetrics gathers metrics from the Prometheus registry and converts them to TelemetryMetric objects
-func (s *TelemetrySender) collectAndResetTelemetryMetrics() ([]*dto.MetricFamily, error) {
+func (s *TelemetrySender) collectAndResetTelemetryMetrics(metrics []prometheus.Collector) ([]*dto.MetricFamily, error) {
 	var telemetryMetrics []*dto.MetricFamily
 
-	s.metrics.RequestDuration.WithLabelValues(strconv.Itoa(300)).Observe(10)
-
 	// Check if metrics are available
-	if s.metrics == nil || len(s.metrics.AllMetrics) == 0 {
+	if len(metrics) == 0 {
 		s.logger.Info("No metrics available to collect")
 		return telemetryMetrics, nil
 	}
 
 	// Process each metric in AllMetrics
-	for _, metric := range s.metrics.AllMetrics {
+	for _, metric := range metrics {
 		// Create a channel to receive metrics
 		metricCh := make(chan prometheus.Metric, 1024)
-
-		s.logger.Info("Collecting telemetry metric")
 
 		// Collect metrics into the channel
 		go func(m prometheus.Collector) {
@@ -148,7 +143,6 @@ func (s *TelemetrySender) collectAndResetTelemetryMetrics() ([]*dto.MetricFamily
 
 		// Process each collected metric
 		for m := range metricCh {
-			s.logger.Info("Got a metric", "metric", m.Desc().String())
 			dtoMetric := &dto.Metric{}
 			m.Write(dtoMetric)
 			descStr := m.Desc().String()
