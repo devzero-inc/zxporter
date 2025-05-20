@@ -16,6 +16,7 @@ import (
 
 	gen "github.com/devzero-inc/zxporter/gen/api/v1"
 	genconnect "github.com/devzero-inc/zxporter/gen/api/v1/apiv1connect"
+	dto "github.com/prometheus/client_model/go"
 )
 
 // RetryPolicy defines the parameters for retrying.
@@ -250,6 +251,38 @@ func (c *RealDakrClient) SendResourceBatch(ctx context.Context, resources []coll
 
 	c.logger.Info("Successfully sent resource batch to Dakr", "type", resourceType, "count", len(resourceItems))
 	return resp.Msg.ClusterIdentifier, nil
+}
+
+// SendTelemetryMetrics sends telemetry metrics to Dakr
+func (c *RealDakrClient) SendTelemetryMetrics(ctx context.Context, metrics []*dto.MetricFamily) (int32, error) {
+	c.logger.Info("Sending telemetry metrics to Dakr", "count", len(metrics))
+
+	// Create the request
+	telemetryReq := &gen.SendTelemetryMetricsRequest{
+		MetricFamilies: metrics,
+	}
+
+	// Set cluster ID if available in context
+	if ctx.Value("cluster_id") != nil {
+		clusterString, _ := ctx.Value("cluster_id").(string)
+		telemetryReq.ClusterId = clusterString
+	}
+
+	req := connect.NewRequest(telemetryReq)
+	attachClusterToken(req, c.clusterToken)
+
+	// Send to Dakr
+	resp, err := c.client.SendTelemetryMetrics(ctx, req)
+	if err != nil {
+		c.logger.Error(err, "Failed to send telemetry metrics to Dakr")
+		return 0, fmt.Errorf("failed to send telemetry metrics to Dakr: %w", err)
+	}
+
+	c.logger.Info("Successfully sent telemetry metrics to Dakr",
+		"count", len(metrics),
+		"processed", resp.Msg.ProcessedCount)
+
+	return resp.Msg.ProcessedCount, nil
 }
 
 func attachClusterToken[T any](req *connect.Request[T], clusterToken string) {

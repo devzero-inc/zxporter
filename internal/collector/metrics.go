@@ -14,19 +14,23 @@ import (
 type TelemetryMetrics struct {
 	// RequestDuration captures the duration of Prometheus API calls
 	RequestDuration *prometheus.HistogramVec
+	AllMetrics      []prometheus.Collector
 }
 
 // NewTelemetryMetrics creates and registers Prometheus metrics
 func NewTelemetryMetrics() *TelemetryMetrics {
+
+	requestDuration := promauto.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "prometheus_request_duration_seconds",
+			Help:    "Duration of Prometheus API requests in seconds",
+			Buckets: prometheus.DefBuckets,
+		},
+		[]string{"status"},
+	)
 	return &TelemetryMetrics{
-		RequestDuration: promauto.NewHistogramVec(
-			prometheus.HistogramOpts{
-				Name:    "prometheus_request_duration_seconds",
-				Help:    "Duration of Prometheus API requests in seconds",
-				Buckets: prometheus.DefBuckets,
-			},
-			[]string{"status"},
-		),
+		RequestDuration: requestDuration,
+		AllMetrics:      []prometheus.Collector{requestDuration},
 	}
 }
 

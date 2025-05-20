@@ -75,7 +75,7 @@ func NewEnvBasedController(mgr ctrl.Manager, reconcileInterval time.Duration) (*
 		return nil, fmt.Errorf("failed to create apiextensions client: %w", err)
 	}
 
-	// Create a shared Prometheus metrics instance
+	// Create a shared Telemetry metrics instance
 	sharedTelemetryMetrics := collector.NewTelemetryMetrics()
 
 	// Create the reconciler

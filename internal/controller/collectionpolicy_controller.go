@@ -57,6 +57,7 @@ type CollectionPolicyReconciler struct {
 	ApiExtensions     *apiextensionsclientset.Clientset
 	CollectionManager *collector.CollectionManager
 	Sender            transport.DirectSender
+	TelemetrySender   *transport.TelemetrySender
 	TelemetryMetrics  *collector.TelemetryMetrics
 	IsRunning         bool
 	CurrentPolicyHash string
@@ -732,6 +733,28 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 	// Update the current config
 	r.CurrentConfig = newConfig
 
+	// Restart the telemetry sender if it exists
+	if r.TelemetrySender != nil {
+		logger.Info("Stopping telemetry sender for restart")
+		if err := r.TelemetrySender.Stop(); err != nil {
+			logger.Error(err, "Error stopping telemetry sender")
+		}
+
+		// Create a new telemetry sender
+		r.TelemetrySender = transport.NewTelemetrySender(
+			logger.WithName("telemetry"),
+			r.Sender.(transport.DakrClient),
+			r.TelemetryMetrics,
+			15*time.Second, // Send metrics every 15 seconds
+		)
+
+		if err := r.TelemetrySender.Start(ctx); err != nil {
+			logger.Error(err, "Failed to restart telemetry sender")
+		} else {
+			logger.Info("Successfully restarted telemetry sender")
+		}
+	}
+
 	// Now recreate and restart the affected collectors
 	clientConfig := ctrl.GetConfigOrDie()
 	metricsClient, err := metricsv1.NewForConfig(clientConfig)
@@ -1163,6 +1186,21 @@ func (r *CollectionPolicyReconciler) setupCollectionManager(ctx context.Context,
 
 	r.Sender = transport.NewDirectSender(dakrClient, logger)
 
+	// Create and start the telemetry sender
+	r.TelemetrySender = transport.NewTelemetrySender(
+		logger.WithName("telemetry"),
+		dakrClient, // Use the dakrClient directly
+		r.TelemetryMetrics,
+		15*time.Second, // Send metrics every 15 seconds
+	)
+
+	if err := r.TelemetrySender.Start(ctx); err != nil {
+		logger.Error(err, "Failed to start telemetry sender")
+		// Continue even if telemetry sender fails to start
+	} else {
+		logger.Info("Started telemetry sender")
+	}
+
 	return nil
 }
 
@@ -1297,6 +1335,14 @@ func (r *CollectionPolicyReconciler) cleanupOnFailure(logger logr.Logger) {
 		if err := r.CollectionManager.StopAll(); err != nil {
 			logger.Error(err, "Error stopping collection manager during failure")
 		}
+	}
+
+	// Stop telemetry sender if it's running
+	if r.TelemetrySender != nil {
+		if err := r.TelemetrySender.Stop(); err != nil {
+			logger.Error(err, "Error stopping telemetry sender during failure")
+		}
+		r.TelemetrySender = nil
 	}
 
 	// Reset state
