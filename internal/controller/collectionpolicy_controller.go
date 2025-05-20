@@ -57,7 +57,7 @@ type CollectionPolicyReconciler struct {
 	ApiExtensions     *apiextensionsclientset.Clientset
 	CollectionManager *collector.CollectionManager
 	Sender            transport.DirectSender
-	PrometheusMetrics *collector.PrometheusMetrics
+	TelemetryMetrics  *collector.TelemetryMetrics
 	IsRunning         bool
 	CurrentPolicyHash string
 	CurrentConfig     *PolicyConfig
@@ -815,7 +815,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				collector.DefaultMaxBatchSize,
 				newConfig.UpdateInterval,
 				logger,
-				r.PrometheusMetrics,
+				r.TelemetryMetrics,
 			)
 		case "node":
 			replacedCollector = collector.NewNodeCollector(
@@ -832,7 +832,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				collector.DefaultMaxBatchSize,
 				newConfig.UpdateInterval,
 				logger,
-				r.PrometheusMetrics,
+				r.TelemetryMetrics,
 			)
 		case "persistent_volume_claim":
 			replacedCollector = collector.NewPersistentVolumeClaimCollector(
@@ -1584,7 +1584,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				collector.DefaultMaxBatchSize,
 				config.UpdateInterval,
 				logger,
-				r.PrometheusMetrics,
+				r.TelemetryMetrics,
 			),
 			name: collector.ContainerResource,
 		},
@@ -1603,7 +1603,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				collector.DefaultMaxBatchSize,
 				config.UpdateInterval,
 				logger,
-				r.PrometheusMetrics,
+				r.TelemetryMetrics,
 			),
 			name: collector.Node,
 		},
@@ -1923,7 +1923,7 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					collector.DefaultMaxBatchSize,
 					newConfig.UpdateInterval,
 					logger,
-					r.PrometheusMetrics,
+					r.TelemetryMetrics,
 				)
 			case "persistent_volume_claim":
 				replacedCollector = collector.NewPersistentVolumeClaimCollector(
@@ -2109,7 +2109,7 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					collector.DefaultMaxBatchSize,
 					newConfig.UpdateInterval,
 					logger,
-					r.PrometheusMetrics,
+					r.TelemetryMetrics,
 				)
 			case "persistent_volume":
 				replacedCollector = collector.NewPersistentVolumeCollector(

@@ -59,7 +59,7 @@ type ContainerResourceCollector struct {
 	namespaces      []string
 	excludedPods    map[types.NamespacedName]bool
 	logger          logr.Logger
-	metrics         *PrometheusMetrics
+	metrics         *TelemetryMetrics
 	mu              sync.RWMutex
 }
 
@@ -70,10 +70,10 @@ func NewContainerResourceCollector(
 	config ContainerResourceCollectorConfig,
 	namespaces []string,
 	excludedPods []ExcludedPod,
-	maxBatchSize int,           // Added parameter
+	maxBatchSize int, // Added parameter
 	maxBatchTime time.Duration, // Added parameter
 	logger logr.Logger,
-	metrics *PrometheusMetrics,
+	metrics *TelemetryMetrics,
 ) *ContainerResourceCollector {
 	// Convert excluded pods to a map for quicker lookups
 	excludedPodsMap := make(map[types.NamespacedName]bool)

@@ -10,15 +10,15 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
-// PrometheusMetrics holds Prometheus metrics for the collector
-type PrometheusMetrics struct {
+// TelemetryMetrics holds Prometheus metrics for the collector
+type TelemetryMetrics struct {
 	// RequestDuration captures the duration of Prometheus API calls
 	RequestDuration *prometheus.HistogramVec
 }
 
-// NewPrometheusMetrics creates and registers Prometheus metrics
-func NewPrometheusMetrics() *PrometheusMetrics {
-	return &PrometheusMetrics{
+// NewTelemetryMetrics creates and registers Prometheus metrics
+func NewTelemetryMetrics() *TelemetryMetrics {
+	return &TelemetryMetrics{
 		RequestDuration: promauto.NewHistogramVec(
 			prometheus.HistogramOpts{
 				Name:    "prometheus_request_duration_seconds",
@@ -33,11 +33,11 @@ func NewPrometheusMetrics() *PrometheusMetrics {
 // PrometheusRoundTripper is an http.RoundTripper that captures metrics about requests
 type PrometheusRoundTripper struct {
 	next    http.RoundTripper
-	metrics *PrometheusMetrics
+	metrics *TelemetryMetrics
 }
 
 // NewPrometheusRoundTripper creates a new round tripper that captures metrics
-func NewPrometheusRoundTripper(next http.RoundTripper, metrics *PrometheusMetrics) *PrometheusRoundTripper {
+func NewPrometheusRoundTripper(next http.RoundTripper, metrics *TelemetryMetrics) *PrometheusRoundTripper {
 	if next == nil {
 		next = http.DefaultTransport
 	}
@@ -73,7 +73,7 @@ func (rt *PrometheusRoundTripper) RoundTrip(req *http.Request) (*http.Response, 
 }
 
 // NewPrometheusClient creates a new Prometheus HTTP client with metrics
-func NewPrometheusClient(metrics *PrometheusMetrics) *http.Client {
+func NewPrometheusClient(metrics *TelemetryMetrics) *http.Client {
 	return &http.Client{
 		Transport: NewPrometheusRoundTripper(http.DefaultTransport, metrics),
 	}

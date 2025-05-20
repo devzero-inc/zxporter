@@ -56,7 +56,7 @@ type NodeCollector struct {
 	config          NodeCollectorConfig
 	excludedNodes   map[string]bool
 	logger          logr.Logger
-	metrics         *PrometheusMetrics
+	metrics         *TelemetryMetrics
 	mu              sync.RWMutex
 }
 
@@ -69,7 +69,7 @@ func NewNodeCollector(
 	maxBatchSize int,
 	maxBatchTime time.Duration,
 	logger logr.Logger,
-	metrics *PrometheusMetrics,
+	metrics *TelemetryMetrics,
 ) *NodeCollector {
 	// Convert excluded nodes to a map for quicker lookups
 	excludedNodesMap := make(map[string]bool)

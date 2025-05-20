@@ -76,7 +76,7 @@ func NewEnvBasedController(mgr ctrl.Manager, reconcileInterval time.Duration) (*
 	}
 
 	// Create a shared Prometheus metrics instance
-	sharedPrometheusMetrics := collector.NewPrometheusMetrics()
+	sharedTelemetryMetrics := collector.NewTelemetryMetrics()
 
 	// Create the reconciler
 	reconciler := &CollectionPolicyReconciler{
@@ -87,7 +87,7 @@ func NewEnvBasedController(mgr ctrl.Manager, reconcileInterval time.Duration) (*
 		DynamicClient:     dynamicClient,
 		DiscoveryClient:   discoveryClient,
 		ApiExtensions:     apiExtensionClient,
-		PrometheusMetrics: sharedPrometheusMetrics,
+		TelemetryMetrics:  sharedTelemetryMetrics,
 		IsRunning:         false,
 		RestartInProgress: false,
 	}
