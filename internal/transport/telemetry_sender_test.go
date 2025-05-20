@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/devzero-inc/zxporter/internal/collector"
-	"github.com/go-logr/logr"
 	"github.com/go-logr/zapr"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
@@ -46,8 +45,11 @@ func TestCollectAndResetTelemetryMetrics(t *testing.T) {
 
 // Test with empty metrics
 func TestCollectAndResetTelemetryMetricsEmpty(t *testing.T) {
-	// Create a logger
-	logger := logr.Discard()
+	// Create a zap test logger that will log to the test's output
+	zapLogger := zaptest.NewLogger(t)
+
+	// Convert the zap logger to a logr.Logger
+	logger := zapr.NewLogger(zapLogger)
 
 	// Create a TelemetrySender with no metrics
 	sender := &TelemetrySender{
@@ -67,8 +69,11 @@ func TestCollectAndResetTelemetryMetricsEmpty(t *testing.T) {
 
 // Test with multiple metrics
 func TestCollectAndResetTelemetryMetricsMultiple(t *testing.T) {
-	// Create a logger
-	logger := logr.Discard()
+	// Create a zap test logger that will log to the test's output
+	zapLogger := zaptest.NewLogger(t)
+
+	// Convert the zap logger to a logr.Logger
+	logger := zapr.NewLogger(zapLogger)
 
 	// Create metrics
 	// Create a counter metric

@@ -99,6 +99,12 @@ func (c *ClusterCollector) collectLoop(ctx context.Context) {
 
 // collectClusterData gathers comprehensive information about the cluster
 func (c *ClusterCollector) collectClusterData(ctx context.Context) error {
+	defer func() {
+		if r := recover(); r != nil {
+			c.logger.Error(fmt.Errorf("panic: %v", r), "Recovered from panic in collectClusterData")
+		}
+	}()
+
 	c.logger.Info("Collecting cluster data")
 
 	providerData, err := c.provider.GetClusterMetadata(ctx)

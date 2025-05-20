@@ -173,7 +173,7 @@ func (c *ClusterRoleCollector) clusterRoleChanged(oldRole, newRole *rbacv1.Clust
 	if !reflect.DeepEqual(oldRole.AggregationRule, newRole.AggregationRule) {
 		return true
 	}
-	
+
 	// No significant changes detected
 	return false
 }

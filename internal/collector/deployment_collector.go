@@ -181,7 +181,7 @@ func (c *DeploymentCollector) deploymentChanged(oldDeployment, newDeployment *ap
 	if changed != IgnoreChanges {
 		return changed == PushChanges
 	}
-	
+
 	// Check for spec changes
 	if oldDeployment.Spec.Replicas == nil || newDeployment.Spec.Replicas == nil {
 		return true
