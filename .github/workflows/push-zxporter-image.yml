@@ -44,16 +44,25 @@ jobs:
           username: ${{ secrets.DOCKERHUB_ZXPORTER_BALANCE_USERNAME }}
           password: ${{ secrets.DOCKERHUB_ZXPORTER_BALANCE_TOKEN }}
 
-      - name: Build and push Docker images
-        run: |
-          make docker-build docker-push IMG=devzeroinc/zxporter:latest
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-          GIT_SHA=$(git rev-parse --short HEAD)
-          make docker-build docker-push IMG=devzeroinc/zxporter:$GIT_SHA
-          make docker-build docker-push IMG=devzeroinc/zxporter:$GITVERSION
+      - name: Build and push multi-arch images
+        run: |
+          docker buildx create --use --name zxporter-builder || docker buildx use zxporter-builder
+
+          echo "Building and pushing multi-arch images..."
+
+          TAGS=("latest" "$(git rev-parse --short HEAD)" "$GITVERSION")
 
           if [[ "$IS_RELEASE" == "true" ]]; then
-            make docker-build docker-push IMG=devzeroinc/zxporter:${{ env.MAJOR }}.${{ env.MINOR }}.${{ env.PATCH }}
-            make docker-build docker-push IMG=devzeroinc/zxporter:${{ env.MAJOR }}.${{ env.MINOR }}
-            make docker-build docker-push IMG=devzeroinc/zxporter:${{ env.MAJOR }}
+            TAGS+=("${MAJOR}.${MINOR}.${PATCH}" "${MAJOR}.${MINOR}" "${MAJOR}")
           fi
+
+          for tag in "${TAGS[@]}"; do
+            docker buildx build \
+              --platform linux/amd64,linux/arm64 \
+              --push \
+              -t devzeroinc/zxporter:$tag \
+              .
+          done
