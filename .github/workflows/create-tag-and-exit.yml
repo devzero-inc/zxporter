@@ -1,0 +1,40 @@
+name: Tag zxporter (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Optional: Tag to push (e.g., v1.2.3). If omitted, patch is bumped.'
+        required: false
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create tag (user input or bump patch)
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+          if [[ -n "${{ github.event.inputs.tag }}" ]]; then
+            NEW_TAG="${{ github.event.inputs.tag }}"
+          else
+            LAST_TAG=$(git tag --sort=-creatordate | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n1 || echo "v0.0.0")
+            MAJOR=$(echo $LAST_TAG | cut -d. -f1 | tr -d 'v')
+            MINOR=$(echo $LAST_TAG | cut -d. -f2)
+            PATCH=$(echo $LAST_TAG | cut -d. -f3)
+            NEW_TAG="v${MAJOR}.${MINOR}.$((PATCH + 1))"
+          fi
+
+          echo "Creating new tag: $NEW_TAG"
+          git tag $NEW_TAG
+          git push origin $NEW_TAG
+
