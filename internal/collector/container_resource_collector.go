@@ -629,7 +629,7 @@ func (c *ContainerResourceCollector) collectContainerGPUMetrics(ctx context.Cont
 		"GPUPowerUsageWatts":       fmt.Sprintf(`sum(DCGM_FI_DEV_POWER_USAGE{namespace="%s", pod="%s", container="%s"})`, pod.Namespace, pod.Name, containerName),
 		"GPUTemperatureCelsius":    fmt.Sprintf(`avg(DCGM_FI_DEV_GPU_TEMP{namespace="%s", pod="%s", container="%s"})`, pod.Namespace, pod.Name, containerName),
 		"GPUSMClockMHz":            fmt.Sprintf(`sum(DCGM_FI_DEV_SM_CLOCK{namespace="%s", pod="%s", container="%s"})`, pod.Namespace, pod.Name, containerName),
-		"GPUMemClockMHz":           fmt.Sprintf(`sum(DCGM_FI_DEV_MEM_CLOCK{namespace="%s", pod="%s", container="%s"}`, pod.Namespace, pod.Name, containerName),
+		"GPUMemClockMHz":           fmt.Sprintf(`sum(DCGM_FI_DEV_MEM_CLOCK{namespace="%s", pod="%s", container="%s"})`, pod.Namespace, pod.Name, containerName),
 	}
 
 	// Execute each query and store the result
