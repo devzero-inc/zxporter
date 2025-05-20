@@ -38,4 +38,3 @@ jobs:
           git tag $NEW_TAG
           git push origin $NEW_TAG
 
-          echo "Tag pushed. Exiting. Tag-triggered workflow will build and push Docker images."
