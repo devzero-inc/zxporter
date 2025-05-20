@@ -17,6 +17,11 @@ type TelemetryMetrics struct {
 	AllMetrics      []prometheus.Collector
 }
 
+// Resettable is an interface for types that can be reset
+type Resettable interface {
+	Reset()
+}
+
 // NewTelemetryMetrics creates and registers Prometheus metrics
 func NewTelemetryMetrics() *TelemetryMetrics {
 

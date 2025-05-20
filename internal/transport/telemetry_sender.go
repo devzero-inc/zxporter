@@ -93,7 +93,7 @@ func (s *TelemetrySender) run(ctx context.Context) {
 // sendMetrics collects and sends metrics to the DAKR server
 func (s *TelemetrySender) sendMetrics(ctx context.Context) error {
 	// Collect telemetry metrics from the Prometheus registry
-	telemetryMetrics, err := s.collectTelemetryMetrics()
+	telemetryMetrics, err := s.collectAndResetTelemetryMetrics()
 	if err != nil {
 		return fmt.Errorf("failed to collect metrics: %w", err)
 	}
@@ -115,8 +115,8 @@ func (s *TelemetrySender) sendMetrics(ctx context.Context) error {
 	return nil
 }
 
-// collectTelemetryMetrics gathers metrics from the Prometheus registry and converts them to TelemetryMetric objects
-func (s *TelemetrySender) collectTelemetryMetrics() ([]*dto.MetricFamily, error) {
+// collectAndResetTelemetryMetrics gathers metrics from the Prometheus registry and converts them to TelemetryMetric objects
+func (s *TelemetrySender) collectAndResetTelemetryMetrics() ([]*dto.MetricFamily, error) {
 	var telemetryMetrics []*dto.MetricFamily
 
 	// Check if metrics are available
@@ -135,6 +135,11 @@ func (s *TelemetrySender) collectTelemetryMetrics() ([]*dto.MetricFamily, error)
 			m.Collect(metricCh)
 			close(metricCh)
 		}(metric)
+
+		if metric, ok := metric.(collector.Resettable); ok {
+			// Reset the metric after collection
+			metric.Reset()
+		}
 
 		// Process each collected metric
 		for m := range metricCh {
