@@ -502,6 +502,13 @@ func (c *ContainerResourceCollector) processContainerMetrics(
 		resourceData["gPUTotalMemoryMb"] = gpuMetrics["GPUTotalMemoryMb"]
 	}
 
+	// for debugging
+	c.logger.Info("GPU metrics",
+		"namespace", pod.Namespace,
+		"pod", pod.Name,
+		"container", containerMetrics.Name,
+		"data", gpuMetrics)
+
 	// Send the resource usage data to the batch channel
 	c.batchChan <- CollectedResource{
 		ResourceType: ContainerResource,
