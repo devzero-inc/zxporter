@@ -486,20 +486,20 @@ func (c *ContainerResourceCollector) processContainerMetrics(
 	}
 
 	if len(gpuMetrics) > 0 {
-		resourceData["gPUUsage"] = gpuMetrics["GPUUsage"]
-		resourceData["gPUMetricsCount"] = gpuMetrics["GPUMetricsCount"]
-		resourceData["gPUUtilizationPercentage"] = gpuMetrics["GPUUtilizationPercentage"]
-		resourceData["gPUMemoryUsedMb"] = gpuMetrics["GPUMemoryUsedMb"]
-		resourceData["gPUMemoryFreeMb"] = gpuMetrics["GPUMemoryFreeMb"]
-		resourceData["gPUPowerUsageWatts"] = gpuMetrics["GPUPowerUsageWatts"]
-		resourceData["gPUTemperatureCelsius"] = gpuMetrics["GPUTemperatureCelsius"]
-		resourceData["gPUSMClockMHz"] = gpuMetrics["GPUSMClockMHz"]
-		resourceData["gPUMemClockMHz"] = gpuMetrics["GPUMemClockMHz"]
+		resourceData["gpuUsage"] = gpuMetrics["GPUUsage"]
+		resourceData["gpuMetricsCount"] = gpuMetrics["GPUMetricsCount"]
+		resourceData["gpuUtilizationPercentage"] = gpuMetrics["GPUUtilizationPercentage"]
+		resourceData["gpuMemoryUsedMb"] = gpuMetrics["GPUMemoryUsedMb"]
+		resourceData["gpuMemoryFreeMb"] = gpuMetrics["GPUMemoryFreeMb"]
+		resourceData["gpuPowerUsageWatts"] = gpuMetrics["GPUPowerUsageWatts"]
+		resourceData["gpuTemperatureCelsius"] = gpuMetrics["GPUTemperatureCelsius"]
+		resourceData["gpuSMClockMHz"] = gpuMetrics["GPUSMClockMHz"]
+		resourceData["gpuMemClockMHz"] = gpuMetrics["GPUMemClockMHz"]
 		resourceData["gpuModels"] = gpuMetrics["GPUModels"]
 		resourceData["gpuUUIDs"] = gpuMetrics["GPUUUIDs"]
 		resourceData["gpuRequestCount"] = gpuMetrics["GPURequestCount"]
 		resourceData["gpuLimitCount"] = gpuMetrics["GPULimitCount"]
-		resourceData["gPUTotalMemoryMb"] = gpuMetrics["GPUTotalMemoryMb"]
+		resourceData["gpuTotalMemoryMb"] = gpuMetrics["GPUTotalMemoryMb"]
 	}
 
 	// for debugging
@@ -599,9 +599,6 @@ func (c *ContainerResourceCollector) collectContainerIOMetrics(ctx context.Conte
 // collectContainerGPUMetrics collects GPU metrics for a container using Prometheus queries
 func (c *ContainerResourceCollector) collectContainerGPUMetrics(ctx context.Context, pod *corev1.Pod, containerName string) (map[string]interface{}, error) {
 	metrics := make(map[string]interface{})
-	gpuCountValue := 0.0
-	gpuUtilValue := 0.0
-
 	// First query to check if this container uses GPU
 	// This query checks if any DCGM metrics exist for this container/pod
 	containerQuery := fmt.Sprintf(`count(DCGM_FI_DEV_GPU_UTIL{namespace="%s", pod="%s", container="%s"})`,
@@ -639,6 +636,9 @@ func (c *ContainerResourceCollector) collectContainerGPUMetrics(ctx context.Cont
 		"GPUMemClockMHz":           fmt.Sprintf(`sum(DCGM_FI_DEV_MEM_CLOCK{namespace="%s", pod="%s", container="%s"})`, pod.Namespace, pod.Name, containerName),
 	}
 
+	gpuCountValue := 0.0
+	gpuUtilValue := 0.0
+
 	// Execute each query and store the result
 	for metricName, query := range queries {
 		result, _, err := c.prometheusAPI.Query(ctx, query, time.Now())
@@ -657,8 +657,7 @@ func (c *ContainerResourceCollector) collectContainerGPUMetrics(ctx context.Cont
 				metrics[metricName] = float64(vector[0].Value)
 				if metricName == "GPUMetricsCount" {
 					gpuCountValue = float64(vector[0].Value)
-				}
-				if metricName == "GPUUtilizationPercentage" {
+				} else if metricName == "GPUUtilizationPercentage" {
 					gpuUtilValue = float64(vector[0].Value)
 				}
 			}

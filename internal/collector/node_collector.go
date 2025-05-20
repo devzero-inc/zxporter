@@ -517,6 +517,7 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 			// GPU models and identifiers
 			resourceData["gpuModels"] = gpuMetrics["GPUModels"]
 			resourceData["gpuUUIDs"] = gpuMetrics["GPUUUIDs"]
+			resourceData["gpuUsage"] = gpuMetrics["GPUUsage"]
 		}
 
 		// Send node resource metrics to the batch channel for batching
@@ -621,6 +622,8 @@ func (c *NodeCollector) collectNodeGPUMetrics(ctx context.Context, nodeName stri
 		"GPUGraphicsUtilizationAvg": fmt.Sprintf(`avg(DCGM_FI_PROF_GR_ENGINE_ACTIVE{node="%s"})`, nodeName),
 	}
 
+	gpuCountValue := 0.0
+	gpuUtilValue := 0.0
 	// Execute each query and store the result
 	for metricName, query := range queries {
 		c.logger.V(2).Info("Querying node GPU metric: ", "metric_name", metricName)
@@ -638,6 +641,11 @@ func (c *NodeCollector) collectNodeGPUMetrics(ctx context.Context, nodeName stri
 			vector := result.(model.Vector)
 			if len(vector) > 0 {
 				metrics[metricName] = float64(vector[0].Value)
+				if metricName == "GPUMetricsCount" {
+					gpuCountValue = float64(vector[0].Value)
+				} else if metricName == "GPUUtilizationPercentage" {
+					gpuUtilValue = float64(vector[0].Value)
+				}
 			}
 		}
 	}
@@ -685,6 +693,12 @@ func (c *NodeCollector) collectNodeGPUMetrics(ctx context.Context, nodeName stri
 		if memFree, ok := metrics["GPUMemoryFreeTotal"].(float64); ok {
 			metrics["GPUMemoryTotalMb"] = memUsed + memFree
 		}
+	}
+
+	// GPUUsage = GPUMetricsCount * GPUUtilizationPercentage / 100
+	if gpuCountValue > 0 {
+		gpuUsage := (gpuUtilValue * gpuCountValue) / 100.0
+		metrics["GPUUsage"] = gpuUsage
 	}
 
 	return metrics, nil
