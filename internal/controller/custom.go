@@ -30,6 +30,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/devzero-inc/zxporter/internal/collector"
 	"github.com/devzero-inc/zxporter/internal/util"
 )
 
@@ -74,6 +75,9 @@ func NewEnvBasedController(mgr ctrl.Manager, reconcileInterval time.Duration) (*
 		return nil, fmt.Errorf("failed to create apiextensions client: %w", err)
 	}
 
+	// Create a shared Prometheus metrics instance
+	sharedTelemetryMetrics := collector.NewTelemetryMetrics()
+
 	// Create the reconciler
 	reconciler := &CollectionPolicyReconciler{
 		Client:            mgr.GetClient(),
@@ -83,6 +87,7 @@ func NewEnvBasedController(mgr ctrl.Manager, reconcileInterval time.Duration) (*
 		DynamicClient:     dynamicClient,
 		DiscoveryClient:   discoveryClient,
 		ApiExtensions:     apiExtensionClient,
+		TelemetryMetrics:  sharedTelemetryMetrics,
 		IsRunning:         false,
 		RestartInProgress: false,
 	}

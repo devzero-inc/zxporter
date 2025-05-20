@@ -56,6 +56,7 @@ type NodeCollector struct {
 	config          NodeCollectorConfig
 	excludedNodes   map[string]bool
 	logger          logr.Logger
+	metrics         *TelemetryMetrics
 	mu              sync.RWMutex
 }
 
@@ -68,6 +69,7 @@ func NewNodeCollector(
 	maxBatchSize int,
 	maxBatchTime time.Duration,
 	logger logr.Logger,
+	metrics *TelemetryMetrics,
 ) *NodeCollector {
 	// Convert excluded nodes to a map for quicker lookups
 	excludedNodesMap := make(map[string]bool)
@@ -113,6 +115,7 @@ func NewNodeCollector(
 		config:        config,
 		excludedNodes: excludedNodesMap,
 		logger:        logger.WithName("node-collector"),
+		metrics:       metrics,
 	}
 }
 
@@ -121,8 +124,12 @@ func (c *NodeCollector) initPrometheusClient(ctx context.Context) error {
 	c.logger.Info("Initializing Prometheus client",
 		"prometheusURL", c.config.PrometheusURL)
 
+	// Create a custom HTTP client with metrics
+	httpClient := NewPrometheusClient(c.metrics)
+
 	client, err := api.NewClient(api.Config{
 		Address: c.config.PrometheusURL,
+		Client:  httpClient,
 	})
 	if err != nil {
 		c.logger.Error(err, "Failed to create Prometheus client, node network, I/O and GPU metrics will be disabled")

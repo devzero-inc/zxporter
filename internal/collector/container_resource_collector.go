@@ -59,6 +59,7 @@ type ContainerResourceCollector struct {
 	namespaces      []string
 	excludedPods    map[types.NamespacedName]bool
 	logger          logr.Logger
+	metrics         *TelemetryMetrics
 	mu              sync.RWMutex
 }
 
@@ -69,9 +70,10 @@ func NewContainerResourceCollector(
 	config ContainerResourceCollectorConfig,
 	namespaces []string,
 	excludedPods []ExcludedPod,
-	maxBatchSize int,           // Added parameter
+	maxBatchSize int, // Added parameter
 	maxBatchTime time.Duration, // Added parameter
 	logger logr.Logger,
+	metrics *TelemetryMetrics,
 ) *ContainerResourceCollector {
 	// Convert excluded pods to a map for quicker lookups
 	excludedPodsMap := make(map[types.NamespacedName]bool)
@@ -121,6 +123,7 @@ func NewContainerResourceCollector(
 		namespaces:    namespaces,
 		excludedPods:  excludedPodsMap,
 		logger:        logger.WithName("container-resource-collector"),
+		metrics:       metrics,
 	}
 }
 
@@ -141,8 +144,13 @@ func (c *ContainerResourceCollector) Start(ctx context.Context) error {
 	if !c.config.DisableNetworkIOMetrics && !c.config.DisableGPUMetrics {
 		c.logger.Info("Initializing Prometheus client for network/IO or GPU metrics",
 			"prometheusURL", c.config.PrometheusURL)
+
+		// Create a custom HTTP client with metrics
+		httpClient := NewPrometheusClient(c.metrics)
+
 		client, err := api.NewClient(api.Config{
 			Address: c.config.PrometheusURL,
+			Client:  httpClient,
 		})
 		if err != nil {
 			c.logger.Error(err, "Failed to create Prometheus client, network/IO and GPU metrics will be disabled")
