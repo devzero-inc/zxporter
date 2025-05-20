@@ -92,6 +92,17 @@ func (s *TelemetrySender) run(ctx context.Context) {
 
 // sendMetrics collects and sends metrics to the DAKR server
 func (s *TelemetrySender) sendMetrics(ctx context.Context) error {
+	defer func() {
+		if r := recover(); r != nil {
+			s.logger.Error(fmt.Errorf("panic occurred: %v", r), "Recovered from panic")
+		}
+	}()
+
+	if s.metrics == nil {
+		s.logger.Info("No metrics to send")
+		return nil
+	}
+
 	// Collect telemetry metrics from the Prometheus registry
 	telemetryMetrics, err := s.collectAndResetTelemetryMetrics(s.metrics.AllMetrics)
 	if err != nil {

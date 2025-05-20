@@ -181,7 +181,7 @@ func (c *DaemonSetCollector) daemonSetChanged(oldDaemonSet, newDaemonSet *appsv1
 	if changed != IgnoreChanges {
 		return changed == PushChanges
 	}
-	
+
 	// Check for status changes
 	if oldDaemonSet.Status.CurrentNumberScheduled != newDaemonSet.Status.CurrentNumberScheduled ||
 		oldDaemonSet.Status.DesiredNumberScheduled != newDaemonSet.Status.DesiredNumberScheduled ||

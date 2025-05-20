@@ -222,7 +222,7 @@ func (c *ReplicaSetCollector) replicaSetChanged(oldReplicaSet, newReplicaSet *ap
 			return true
 		}
 	}
-	
+
 	// Check for selector changes
 	if !metaLabelsEqual(oldReplicaSet.Spec.Selector, newReplicaSet.Spec.Selector) {
 		return true
