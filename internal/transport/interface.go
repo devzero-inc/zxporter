@@ -5,6 +5,7 @@ import (
 	"context"
 
 	"github.com/devzero-inc/zxporter/internal/collector"
+	dto "github.com/prometheus/client_model/go"
 )
 
 // DakrClient defines methods for sending data to Dakr
@@ -13,6 +14,8 @@ type DakrClient interface {
 	SendResource(ctx context.Context, resource collector.CollectedResource) (string, error)
 	// SendResourceBatch sends a batch of resources of the same type to Dakr
 	SendResourceBatch(ctx context.Context, resources []collector.CollectedResource, resourceType collector.ResourceType) (string, error)
+	// SendTelemetryMetrics sends telemetry metrics to Dakr
+	SendTelemetryMetrics(ctx context.Context, metrics []*dto.MetricFamily) (int32, error)
 }
 
 // Sender defines methods for sending data to external systems

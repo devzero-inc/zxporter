@@ -7,6 +7,7 @@ import (
 
 	"github.com/devzero-inc/zxporter/internal/collector"
 	"github.com/go-logr/logr"
+	dto "github.com/prometheus/client_model/go"
 )
 
 // DirectDakrSender sends resources directly to Dakr without buffering
@@ -90,4 +91,22 @@ func (c *SimpleDakrClient) SendResourceBatch(ctx context.Context, resources []co
 		"resourceType", resourceType,
 		"count", len(resources))
 	return "", nil
+}
+
+// SendTelemetryMetrics logs the telemetry metrics data (for development/testing)
+func (c *SimpleDakrClient) SendTelemetryMetrics(ctx context.Context, metrics []*dto.MetricFamily) (int32, error) {
+	// For now, just log that we would send something
+	c.logger.Info("Would send telemetry metrics to Dakr", "count", len(metrics))
+
+	// Log some details about the metrics
+	for i, metric := range metrics {
+		if i >= 5 { // Only log the first 5 metrics to avoid flooding logs
+			c.logger.Info("... and more metrics")
+			break
+		}
+
+		c.logger.Info("Metric details", "metric", metric)
+	}
+
+	return int32(len(metrics)), nil
 }

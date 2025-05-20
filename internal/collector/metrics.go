@@ -10,23 +10,35 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
+// Resettable is an interface for metrics that can be reset
+// We have to reset any counters or gauges after sending them to dakr
+// to avoid sending the same values again
+type ResettableCollector interface {
+	prometheus.Collector
+	Reset()
+}
+
 // TelemetryMetrics holds Prometheus metrics for the collector
 type TelemetryMetrics struct {
 	// RequestDuration captures the duration of Prometheus API calls
 	RequestDuration *prometheus.HistogramVec
+	AllMetrics      []ResettableCollector
 }
 
 // NewTelemetryMetrics creates and registers Prometheus metrics
 func NewTelemetryMetrics() *TelemetryMetrics {
+
+	requestDuration := promauto.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "prometheus_request_duration_seconds",
+			Help:    "Duration of Prometheus API requests in seconds",
+			Buckets: prometheus.DefBuckets,
+		},
+		[]string{"status"},
+	)
 	return &TelemetryMetrics{
-		RequestDuration: promauto.NewHistogramVec(
-			prometheus.HistogramOpts{
-				Name:    "prometheus_request_duration_seconds",
-				Help:    "Duration of Prometheus API requests in seconds",
-				Buckets: prometheus.DefBuckets,
-			},
-			[]string{"status"},
-		),
+		RequestDuration: requestDuration,
+		AllMetrics:      []ResettableCollector{requestDuration},
 	}
 }
 

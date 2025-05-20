@@ -28,8 +28,34 @@ type MetricsServer struct {
 }
 
 // SendTelemetryMetrics implements apiv1connect.MetricsCollectorServiceHandler.
-func (s *MetricsServer) SendTelemetryMetrics(context.Context, *connect.Request[apiv1.SendTelemetryMetricsRequest]) (*connect.Response[apiv1.SendTelemetryMetricsResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, fmt.Errorf("unimplemented"))
+func (s *MetricsServer) SendTelemetryMetrics(ctx context.Context, req *connect.Request[apiv1.SendTelemetryMetricsRequest]) (*connect.Response[apiv1.SendTelemetryMetricsResponse], error) {
+	// Log all metric family names
+	fmt.Fprintf(os.Stderr, "Received telemetry metrics - metric families: ")
+	processedCount := 0
+	for _, metricFamily := range req.Msg.MetricFamilies {
+		if metricFamily.Name != nil {
+			metricName := *metricFamily.Name
+			fmt.Fprintf(os.Stderr, "%s, ", metricName)
+
+			// Update metrics by type stats
+			if s.stats.MessagesByType == nil {
+				s.stats.MessagesByType = make(map[string]int)
+			}
+			metricTypeKey := fmt.Sprintf("METRIC:%s", metricName)
+			s.stats.MessagesByType[metricTypeKey]++
+
+			processedCount++
+		}
+	}
+	fmt.Fprintln(os.Stderr)
+
+	// Return a response
+	resp := connect.NewResponse(&apiv1.SendTelemetryMetricsResponse{
+		ClusterId:      req.Msg.ClusterId,
+		ProcessedCount: int32(processedCount),
+	})
+
+	return resp, nil
 }
 
 // processResourceItem handles the statistics update and data extraction for a single resource item.
