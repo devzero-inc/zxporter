@@ -339,8 +339,6 @@ func (c *NodeCollector) calculateNodeWorkloadResources(nodeName string) map[stri
 		"memoryLimitsBytes":   int64(0),
 		"gpuRequestCount":     int64(0),
 		"gpuLimitCount":       int64(0),
-		"podsCount":           0,
-		"containersCount":     0,
 	}
 
 	// Check if we have pods for this node
@@ -349,18 +347,12 @@ func (c *NodeCollector) calculateNodeWorkloadResources(nodeName string) map[stri
 		return result
 	}
 
-	result["podsCount"] = len(podMap)
-
 	// Calculate total requests and limits
 	for _, pod := range podMap {
 		// Skip pods not in Running or Pending phase
 		if pod.Status.Phase != corev1.PodRunning && pod.Status.Phase != corev1.PodPending {
 			continue
 		}
-
-		// Count containers
-		containerCount := len(pod.Spec.Containers)
-		result["containersCount"] = result["containersCount"].(int) + containerCount
 
 		// Calculate resources for containers
 		for _, container := range pod.Spec.Containers {
