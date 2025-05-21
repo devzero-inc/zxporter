@@ -333,12 +333,6 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 						"pod", podMetrics.Name,
 						"container", containerMetrics.Name,
 						"count", len(gpuMetrics))
-
-					c.logger.V(c.logger.GetV()+2).Info("GPU metrics collected for container",
-						"namespace", podMetrics.Namespace,
-						"pod", podMetrics.Name,
-						"container", containerMetrics.Name,
-						"gpuMetrics", gpuMetrics)
 				}
 			}
 			// Process the container metrics with optional network/IO data

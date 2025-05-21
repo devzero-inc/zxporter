@@ -641,9 +641,9 @@ func (c *NodeCollector) collectNodeGPUMetrics(ctx context.Context, nodeName stri
 			vector := result.(model.Vector)
 			if len(vector) > 0 {
 				metrics[metricName] = float64(vector[0].Value)
-				if metricName == "GPUMetricsCount" {
+				if metricName == "GPUCount" {
 					gpuCountValue = float64(vector[0].Value)
-				} else if metricName == "GPUUtilizationPercentage" {
+				} else if metricName == "GPUUtilizationAvg" {
 					gpuUtilValue = float64(vector[0].Value)
 				}
 			}
