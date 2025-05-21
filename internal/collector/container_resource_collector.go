@@ -3,6 +3,7 @@ package collector
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
@@ -332,12 +333,6 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 						"pod", podMetrics.Name,
 						"container", containerMetrics.Name,
 						"count", len(gpuMetrics))
-
-					c.logger.V(c.logger.GetV()+2).Info("GPU metrics collected for container",
-						"namespace", podMetrics.Namespace,
-						"pod", podMetrics.Name,
-						"container", containerMetrics.Name,
-						"gpuMetrics", gpuMetrics)
 				}
 			}
 			// Process the container metrics with optional network/IO data
@@ -500,15 +495,16 @@ func (c *ContainerResourceCollector) processContainerMetrics(
 		resourceData["gpuRequestCount"] = gpuMetrics["GPURequestCount"]
 		resourceData["gpuLimitCount"] = gpuMetrics["GPULimitCount"]
 		resourceData["gpuTotalMemoryMb"] = gpuMetrics["GPUTotalMemoryMb"]
-		resourceData["individualGPUMetrics"] = gpuMetrics["IndividualGPUs"]
+		if individualGPUs, ok := gpuMetrics["IndividualGPUs"]; ok {
+			individualJSON, err := json.Marshal(individualGPUs)
+			if err != nil {
+				c.logger.Error(err, "Failed to marshal individual GPU metrics",
+					"error", err)
+			} else {
+				resourceData["individualGPUMetrics"] = string(individualJSON)
+			}
+		}
 	}
-
-	// for debugging
-	c.logger.Info("GPU metrics",
-		"namespace", pod.Namespace,
-		"pod", pod.Name,
-		"container", containerMetrics.Name,
-		"data", gpuMetrics)
 
 	// Send the resource usage data to the batch channel
 	c.batchChan <- CollectedResource{
