@@ -48,11 +48,17 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Build and push multi-arch images
+        env:
+          GITVERSION: ${{ env.GITVERSION }}
+          MAJOR: ${{ env.MAJOR }}
+          MINOR: ${{ env.MINOR }}
+          PATCH: ${{ env.PATCH }}
+          IS_RELEASE: ${{ env.IS_RELEASE }}
+          COMMIT_HASH: ${{ env.COMMIT_HASH }}
+          GIT_TREE_STATE: ${{ env.GIT_TREE_STATE }}
+          BUILD_DATE: ${{ env.BUILD_DATE }}
+          GO_VERSION: ${{ env.GO_VERSION }}
         run: |
-          docker buildx create --use --name zxporter-builder || docker buildx use zxporter-builder
-
-          echo "Building and pushing multi-arch images..."
-
           TAGS=("latest" "$(git rev-parse --short HEAD)" "$GITVERSION")
 
           if [[ "$IS_RELEASE" == "true" ]]; then
@@ -64,5 +70,15 @@ jobs:
               --platform linux/amd64,linux/arm64 \
               --push \
               -t devzeroinc/zxporter:$tag \
+              --build-arg TARGETOS \
+              --build-arg TARGETARCH \
+              --build-arg MAJOR=$MAJOR \
+              --build-arg MINOR=$MINOR \
+              --build-arg PATCH=$PATCH \
+              --build-arg GITVERSION=$GITVERSION \
+              --build-arg COMMIT_HASH=$COMMIT_HASH \
+              --build-arg GIT_TREE_STATE=$GIT_TREE_STATE \
+              --build-arg BUILD_DATE=$BUILD_DATE \
+              --build-arg GO_VERSION=$GO_VERSION \
               .
           done

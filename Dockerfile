@@ -2,6 +2,8 @@
 FROM golang:1.24.1 AS builder
 ARG TARGETOS
 ARG TARGETARCH
+ENV GOOS=${TARGETOS}
+ENV GOARCH=${TARGETARCH}
 
 WORKDIR /workspace
 # Copy the Go Modules manifests
@@ -10,8 +12,6 @@ COPY go.mod go.sum ./
 # COPY go.sum go.sum
 # # cache deps before building and copying source so that we don't need to re-download as much
 # # and so that source changes don't invalidate our downloaded layer
-ARG GITHUB_TOKEN
-RUN git config --global url."https://${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
 RUN go mod download
 
 
