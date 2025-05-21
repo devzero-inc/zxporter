@@ -24,7 +24,6 @@ ARG GITVERSION=unknown
 ARG COMMIT_HASH=unknown
 ARG GIT_TREE_STATE=unknown
 ARG BUILD_DATE=unknown
-ARG GO_VERSION=unknown
 
 RUN echo "MAJOR: ${MAJOR}"
 RUN echo "MINOR: ${MINOR}"
@@ -33,7 +32,6 @@ RUN echo "GITVERSION: ${GITVERSION}"
 RUN echo "COMMIT_HASH: ${COMMIT_HASH}"
 RUN echo "GIT_TREE_STATE: ${GIT_TREE_STATE}"
 RUN echo "BUILD_DATE: ${BUILD_DATE}"
-RUN echo "GO_VERSION: ${GO_VERSION}"
 RUN echo "TARGETOS: ${TARGETOS:-linux}"
 RUN echo "TARGETARCH: ${TARGETARCH}"
 
@@ -42,7 +40,7 @@ RUN echo "TARGETARCH: ${TARGETARCH}"
 # was called. For example, if we call make docker-build in a local env which has the Apple Silicon M1 SO
 # the docker BUILDPLATFORM arg will be linux/arm64 when for Apple x86 it will be linux/amd64. Therefore,
 # by leaving it empty we can ensure that the container and binary shipped on it will have the same platform.
-RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build \
+RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} GO_VERSION=$(go version | awk '{print $3}') go build \
     -ldflags "-X github.com/devzero-inc/zxporter/internal/version.major=${MAJOR} \
     -X github.com/devzero-inc/zxporter/internal/version.minor=${MINOR} \
     -X github.com/devzero-inc/zxporter/internal/version.patch=${PATCH} \

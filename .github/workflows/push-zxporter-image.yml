@@ -47,6 +47,12 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Set build metadata
+        run: |
+          echo "COMMIT_HASH=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+          echo "GIT_TREE_STATE=clean" >> $GITHUB_ENV
+          echo "BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_ENV
+
       - name: Build and push multi-arch images
         env:
           GITVERSION: ${{ env.GITVERSION }}
@@ -57,7 +63,6 @@ jobs:
           COMMIT_HASH: ${{ env.COMMIT_HASH }}
           GIT_TREE_STATE: ${{ env.GIT_TREE_STATE }}
           BUILD_DATE: ${{ env.BUILD_DATE }}
-          GO_VERSION: ${{ env.GO_VERSION }}
         run: |
           TAGS=("latest" "$(git rev-parse --short HEAD)" "$GITVERSION")
 
@@ -79,6 +84,5 @@ jobs:
               --build-arg COMMIT_HASH=$COMMIT_HASH \
               --build-arg GIT_TREE_STATE=$GIT_TREE_STATE \
               --build-arg BUILD_DATE=$BUILD_DATE \
-              --build-arg GO_VERSION=$GO_VERSION \
               .
           done
