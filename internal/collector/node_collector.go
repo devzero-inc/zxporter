@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	gpuconst "github.com/NVIDIA/KAI-scheduler/pkg/common/constants"
 	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/api"
 	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
@@ -58,6 +59,9 @@ type NodeCollector struct {
 	logger          logr.Logger
 	metrics         *TelemetryMetrics
 	mu              sync.RWMutex
+	nodeToPodsMap   map[string]map[string]*corev1.Pod // Maps node name -> pod key -> pod object
+	podInformer     cache.SharedIndexInformer
+	podMapMutex     sync.RWMutex
 }
 
 // NewNodeCollector creates a new collector for node resources
@@ -116,6 +120,7 @@ func NewNodeCollector(
 		excludedNodes: excludedNodesMap,
 		logger:        logger.WithName("node-collector"),
 		metrics:       metrics,
+		nodeToPodsMap: make(map[string]map[string]*corev1.Pod),
 	}
 }
 
@@ -187,8 +192,35 @@ func (c *NodeCollector) Start(ctx context.Context) error {
 	// Create node informer
 	c.nodeInformer = c.informerFactory.Core().V1().Nodes().Informer()
 
+	c.podInformer = c.informerFactory.Core().V1().Pods().Informer()
+
+	// Add pod event handlers
+	_, err := c.podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			pod := obj.(*corev1.Pod)
+			c.handlePodEvent(pod, EventTypeAdd)
+		},
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			oldPod := oldObj.(*corev1.Pod)
+			newPod := newObj.(*corev1.Pod)
+			c.handlePodEvent(newPod, EventTypeUpdate)
+
+			// If node assignment changed, handle as delete for old node
+			if oldPod.Spec.NodeName != newPod.Spec.NodeName {
+				c.removePodFromNode(oldPod)
+			}
+		},
+		DeleteFunc: func(obj interface{}) {
+			pod := obj.(*corev1.Pod)
+			c.handlePodEvent(pod, EventTypeDelete)
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to add pod event handler: %w", err)
+	}
+
 	// Add event handlers
-	_, err := c.nodeInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+	_, err = c.nodeInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			node := obj.(*corev1.Node)
 			c.handleNodeEvent(node, EventTypeAdd)
@@ -216,7 +248,7 @@ func (c *NodeCollector) Start(ctx context.Context) error {
 
 	// Wait for cache sync
 	c.logger.Info("Waiting for informer caches to sync")
-	if !cache.WaitForCacheSync(c.stopCh, c.nodeInformer.HasSynced) {
+	if !cache.WaitForCacheSync(c.stopCh, c.nodeInformer.HasSynced, c.podInformer.HasSynced) {
 		return fmt.Errorf("timed out waiting for caches to sync")
 	}
 	c.logger.Info("Informer caches synced successfully")
@@ -243,6 +275,120 @@ func (c *NodeCollector) Start(ctx context.Context) error {
 	}()
 
 	return nil
+}
+
+// Add these new methods for pod event handling
+func (c *NodeCollector) handlePodEvent(pod *corev1.Pod, eventType EventType) {
+	// Skip pods not assigned to nodes yet
+	if pod.Spec.NodeName == "" {
+		return
+	}
+
+	// Skip excluded nodes
+	if c.isExcluded(pod.Spec.NodeName) {
+		return
+	}
+
+	switch eventType {
+	case EventTypeAdd, EventTypeUpdate:
+		c.addPodToNode(pod)
+	case EventTypeDelete:
+		c.removePodFromNode(pod)
+	}
+}
+
+// addPodToNode add pod to node
+func (c *NodeCollector) addPodToNode(pod *corev1.Pod) {
+	c.podMapMutex.Lock()
+	defer c.podMapMutex.Unlock()
+
+	nodeName := pod.Spec.NodeName
+	podKey := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
+
+	// Initialize the pod map for this node if it doesn't exist
+	if _, exists := c.nodeToPodsMap[nodeName]; !exists {
+		c.nodeToPodsMap[nodeName] = make(map[string]*corev1.Pod)
+	}
+
+	c.nodeToPodsMap[nodeName][podKey] = pod
+}
+
+// removePodFromNode removes pod from existing node
+func (c *NodeCollector) removePodFromNode(pod *corev1.Pod) {
+	c.podMapMutex.Lock()
+	defer c.podMapMutex.Unlock()
+
+	nodeName := pod.Spec.NodeName
+	podKey := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
+
+	// Remove the pod from the node map
+	if podMap, exists := c.nodeToPodsMap[nodeName]; exists {
+		delete(podMap, podKey)
+	}
+}
+
+// Calculate resource requests and limits for a node
+func (c *NodeCollector) calculateNodeWorkloadResources(nodeName string) map[string]interface{} {
+	c.podMapMutex.RLock()
+	defer c.podMapMutex.RUnlock()
+
+	result := map[string]interface{}{
+		"cpuRequestsMillis":   int64(0),
+		"cpuLimitsMillis":     int64(0),
+		"memoryRequestsBytes": int64(0),
+		"memoryLimitsBytes":   int64(0),
+		"gpuRequestCount":     int64(0),
+		"gpuLimitCount":       int64(0),
+	}
+
+	// Check if we have pods for this node
+	podMap, exists := c.nodeToPodsMap[nodeName]
+	if !exists {
+		return result
+	}
+
+	// Calculate total requests and limits
+	for _, pod := range podMap {
+		// Skip pods not in Running or Pending phase
+		if pod.Status.Phase != corev1.PodRunning && pod.Status.Phase != corev1.PodPending {
+			continue
+		}
+
+		// Calculate resources for containers
+		for _, container := range pod.Spec.Containers {
+			// CPU requests
+			if val, ok := container.Resources.Requests[corev1.ResourceCPU]; ok {
+				result["cpuRequestsMillis"] = result["cpuRequestsMillis"].(int64) + val.MilliValue()
+			}
+
+			// CPU limits
+			if val, ok := container.Resources.Limits[corev1.ResourceCPU]; ok {
+				result["cpuLimitsMillis"] = result["cpuLimitsMillis"].(int64) + val.MilliValue()
+			}
+
+			// Memory requests
+			if val, ok := container.Resources.Requests[corev1.ResourceMemory]; ok {
+				result["memoryRequestsBytes"] = result["memoryRequestsBytes"].(int64) + val.Value()
+			}
+
+			// Memory limits
+			if val, ok := container.Resources.Limits[corev1.ResourceMemory]; ok {
+				result["memoryLimitsBytes"] = result["memoryLimitsBytes"].(int64) + val.Value()
+			}
+
+			// GPU requests
+			if val, ok := container.Resources.Requests[gpuconst.GpuResource]; ok {
+				result["gpuRequestCount"] = result["gpuRequestCount"].(int64) + val.Value()
+			}
+
+			// GPU limits
+			if val, ok := container.Resources.Limits[gpuconst.GpuResource]; ok {
+				result["gpuLimitCount"] = result["gpuLimitCount"].(int64) + val.Value()
+			}
+		}
+	}
+
+	return result
 }
 
 // handleNodeEvent processes node add, update, and delete events
@@ -520,6 +666,12 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 			resourceData["gpuUsage"] = gpuMetrics["GPUUsage"]
 		}
 
+		workloadResources := c.calculateNodeWorkloadResources(node.Name)
+
+		for k, v := range workloadResources {
+			resourceData[k] = v
+		}
+
 		// Send node resource metrics to the batch channel for batching
 		c.batchChan <- CollectedResource{
 			ResourceType: NodeResource,
@@ -742,6 +894,12 @@ func (c *NodeCollector) Stop() error {
 		c.batcher.stop() // This will close resourceChan when done
 		c.logger.Info("Node collector batcher stopped")
 	}
+
+	// 5. Clear nodeToPodsMap
+	c.podMapMutex.Lock()
+	c.nodeToPodsMap = make(map[string]map[string]*corev1.Pod)
+	c.podMapMutex.Unlock()
+
 	// resourceChan is closed by the batcher's defer func.
 
 	return nil
