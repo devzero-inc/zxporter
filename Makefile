@@ -64,7 +64,7 @@ TARGET_NAMESPACES ?=
 # COLLECTION_FILE is used to control the collectionpolicies.
 COLLECTION_FILE ?= env_configmap.yaml
 # ENV_CONFIGMAP_FILE is used to control the zxporter-manager deployment.
-ENV_CONFIGMAP_FILE ?= config/manager/env_configmap.yaml
+ENV_CONFIGMAP_FILE ?= config/manager-env/env_configmap.yaml
 
 # Monitoring resources
 PROMETHEUS_CHART_VERSION ?= 25.8.0
@@ -78,6 +78,7 @@ DIST_INSTALL_BUNDLE ?= $(DIST_DIR)/install.yaml
 DIST_ZXPORTER_BUNDLE ?= $(DIST_DIR)/zxporter.yaml
 DIST_PROMETHEUS_BUNDLE ?= $(DIST_DIR)/prometheus.yaml
 DIST_NODE_EXPORTER_BUNDLE ?= $(DIST_DIR)/node-exporter.yaml
+DIST_ENV_CONFIGMAP ?= $(DIST_DIR)/env_configmap.yaml
 METRICS_SERVER ?= $(DIST_DIR)/metrics-server.yaml
 
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
@@ -334,25 +335,41 @@ build-installer: manifests generate kustomize yq ## Generate a consolidated YAML
 	@echo "[INFO] Append zxporter-manager to the installer bundle"
 	@cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
 
+	@# Create a backup of the configmap file to replace values, and rollback later, so while in development the file is not modified
+	@$(MAKE) replace-configmap-vars
+	@# Run kustomize build to with replaced environment variables
+	@echo "[INFO] Building installer"
+	@$(KUSTOMIZE) build config/default > $(DIST_ZXPORTER_BUNDLE)
+	@# Rollback changes
+	@$(MAKE) rollback-configmap-vars
+
+	@cat $(DIST_ZXPORTER_BUNDLE) >> $(DIST_INSTALL_BUNDLE)
+
+.PHONY: replace-configmap-vars
+replace-configmap-vars: yq
+	@# kustomize has no builtin functionality to replace values using environment variables with default values. But make does.
+	@# This is a workaround to replace the values in the configmap file without undoing changes during development
 	@echo "[INFO] Replacing env variables in configmap"
+	@cp $(ENV_CONFIGMAP_FILE) $(ENV_CONFIGMAP_FILE).bak
 	@$(YQ) e '.data.DAKR_URL = "$(DAKR_URL)"' -i $(ENV_CONFIGMAP_FILE)
 	@$(YQ) e '.data.PROMETHEUS_URL = "$(PROMETHEUS_URL)"' -i $(ENV_CONFIGMAP_FILE)
 	@$(YQ) e '.data.TARGET_NAMESPACES = "$(TARGET_NAMESPACES)"' -i $(ENV_CONFIGMAP_FILE)
 
-	@$(KUSTOMIZE) build config/default > $(DIST_ZXPORTER_BUNDLE)
-	@cat $(DIST_ZXPORTER_BUNDLE) >> $(DIST_INSTALL_BUNDLE)
+
+.PHONY: rollback-configmap-vars
+rollback-configmap-vars:
+	@echo "[INFO] Rolling back env variables in configmap"
+	@mv $(ENV_CONFIGMAP_FILE).bak $(ENV_CONFIGMAP_FILE)
 
 .PHONY: build-env-configmap
-build-env-configmap: DIST_INSTALL_BUNDLE=$(DIST_DIR)/env_configmap.yaml
 build-env-configmap: yq
-build-env-configmap:
-	echo "" > $(DIST_INSTALL_BUNDLE)
-	# Copy and patch environment config
-	sed "s|\$$(DAKR_URL)|$(DAKR_URL)|g" $(ENV_CONFIGMAP_FILE) > temp.yaml && mv temp.yaml $(ENV_CONFIGMAP_FILE)
-	sed "s|\$$(PROMETHEUS_URL)|$(PROMETHEUS_URL)|g" $(ENV_CONFIGMAP_FILE) > temp.yaml && mv temp.yaml $(ENV_CONFIGMAP_FILE)
-	sed "s|\$$(TARGET_NAMESPACES)|$(TARGET_NAMESPACES)|g" $(ENV_CONFIGMAP_FILE) > temp.yaml && mv temp.yaml $(ENV_CONFIGMAP_FILE)
-	$(KUSTOMIZE) build config/default | \
-	yq eval 'select(.kind == "ConfigMap" and .metadata.name == "devzero-zxporter-env-config")' - >> $(DIST_INSTALL_BUNDLE)
+	@# Copy and patch environment config
+	@# Create a backup of the configmap file to replace values, and rollback later, so while in development the file is not modified
+	@$(MAKE) replace-configmap-vars
+	@echo "[INFO] Building env config map"
+	@$(KUSTOMIZE) build config/manager-env  > $(DIST_ENV_CONFIGMAP)
+	@# Rollback changes
+	@$(MAKE) rollback-configmap-vars
 
 .PHONY: build-chart
 build-chart: build-installer ## Generate a consolidated helm chart from the installer manifest.
@@ -384,9 +401,8 @@ local-deploy: manifests kustomize ## Deploy controller to the K8s cluster specif
 	$(KUSTOMIZE) build config/default | $(KUBECTL) apply -f -
 
 .PHONY: deploy-env-configmap
-deploy-env-configmap: DIST_INSTALL_BUNDLE=$(DIST_DIR)/env_configmap.yaml
 deploy-env-configmap: build-env-configmap
-	cat $(DIST_INSTALL_BUNDLE) | $(KUBECTL) apply -f -
+	cat $(DIST_ENV_CONFIGMAP) | $(KUBECTL) apply -f -
 
 .PHONY: undeploy-monitoring
 undeploy-monitoring: ## Undeploy monitoring components.
