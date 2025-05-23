@@ -734,7 +734,7 @@ func (c *NodeCollector) collectNodeGPUMetrics(ctx context.Context, nodeName stri
 	metrics := make(map[string]interface{})
 
 	// First query to check if this node has any GPUs
-	nodeGPUQuery := fmt.Sprintf(`count(DCGM_FI_DEV_GPU_UTIL{node="%s"})`, nodeName)
+	nodeGPUQuery := fmt.Sprintf(`count(DCGM_FI_DEV_GPU_UTIL{node="%s", app_kubernetes_io_name="%s"})`, nodeName, DCGM_APP_NAME)
 
 	result, _, err := c.prometheusAPI.Query(ctx, nodeGPUQuery, time.Now())
 	if err != nil {
@@ -757,21 +757,21 @@ func (c *NodeCollector) collectNodeGPUMetrics(ctx context.Context, nodeName stri
 
 	// Node has GPUs, collect metrics
 	queries := map[string]string{
-		"GPUCount":                  fmt.Sprintf(`count(DCGM_FI_DEV_GPU_UTIL{node="%s"})`, nodeName),
-		"GPUUtilizationAvg":         fmt.Sprintf(`avg(DCGM_FI_DEV_GPU_UTIL{node="%s"})`, nodeName),
-		"GPUUtilizationMax":         fmt.Sprintf(`max(DCGM_FI_DEV_GPU_UTIL{node="%s"})`, nodeName),
-		"GPUMemoryUsedTotal":        fmt.Sprintf(`sum(DCGM_FI_DEV_FB_USED{node="%s"})`, nodeName),
-		"GPUMemoryFreeTotal":        fmt.Sprintf(`sum(DCGM_FI_DEV_FB_FREE{node="%s"})`, nodeName),
-		"GPUPowerUsageTotal":        fmt.Sprintf(`sum(DCGM_FI_DEV_POWER_USAGE{node="%s"})`, nodeName),
-		"GPUTemperatureAvg":         fmt.Sprintf(`avg(DCGM_FI_DEV_GPU_TEMP{node="%s"})`, nodeName),
-		"GPUTemperatureMax":         fmt.Sprintf(`max(DCGM_FI_DEV_GPU_TEMP{node="%s"})`, nodeName),
-		"GPUMemoryTemperatureAvg":   fmt.Sprintf(`avg(DCGM_FI_DEV_MEMORY_TEMP{node="%s"})`, nodeName),
-		"GPUMemoryTemperatureMax":   fmt.Sprintf(`max(DCGM_FI_DEV_MEMORY_TEMP{node="%s"})`, nodeName),
-		"GPUTensorUtilizationAvg":   fmt.Sprintf(`avg(DCGM_FI_PROF_PIPE_TENSOR_ACTIVE{node="%s"})`, nodeName),
-		"GPUDramUtilizationAvg":     fmt.Sprintf(`avg(DCGM_FI_PROF_DRAM_ACTIVE{node="%s"})`, nodeName),
-		"GPUPCIeTxBytesTotal":       fmt.Sprintf(`sum(DCGM_FI_PROF_PCIE_TX_BYTES{node="%s"})`, nodeName),
-		"GPUPCIeRxBytesTotal":       fmt.Sprintf(`sum(DCGM_FI_PROF_PCIE_RX_BYTES{node="%s"})`, nodeName),
-		"GPUGraphicsUtilizationAvg": fmt.Sprintf(`avg(DCGM_FI_PROF_GR_ENGINE_ACTIVE{node="%s"})`, nodeName),
+		"GPUCount":                  fmt.Sprintf(`count(DCGM_FI_DEV_GPU_UTIL{node="%s", app_kubernetes_io_name="%s"})`, nodeName, DCGM_APP_NAME),
+		"GPUUtilizationAvg":         fmt.Sprintf(`avg(DCGM_FI_DEV_GPU_UTIL{node="%s", app_kubernetes_io_name="%s"})`, nodeName, DCGM_APP_NAME),
+		"GPUUtilizationMax":         fmt.Sprintf(`max(DCGM_FI_DEV_GPU_UTIL{node="%s", app_kubernetes_io_name="%s"})`, nodeName, DCGM_APP_NAME),
+		"GPUMemoryUsedTotal":        fmt.Sprintf(`sum(DCGM_FI_DEV_FB_USED{node="%s", app_kubernetes_io_name="%s"})`, nodeName, DCGM_APP_NAME),
+		"GPUMemoryFreeTotal":        fmt.Sprintf(`sum(DCGM_FI_DEV_FB_FREE{node="%s", app_kubernetes_io_name="%s"})`, nodeName, DCGM_APP_NAME),
+		"GPUPowerUsageTotal":        fmt.Sprintf(`sum(DCGM_FI_DEV_POWER_USAGE{node="%s", app_kubernetes_io_name="%s"})`, nodeName, DCGM_APP_NAME),
+		"GPUTemperatureAvg":         fmt.Sprintf(`avg(DCGM_FI_DEV_GPU_TEMP{node="%s", app_kubernetes_io_name="%s"})`, nodeName, DCGM_APP_NAME),
+		"GPUTemperatureMax":         fmt.Sprintf(`max(DCGM_FI_DEV_GPU_TEMP{node="%s", app_kubernetes_io_name="%s"})`, nodeName, DCGM_APP_NAME),
+		"GPUMemoryTemperatureAvg":   fmt.Sprintf(`avg(DCGM_FI_DEV_MEMORY_TEMP{node="%s", app_kubernetes_io_name="%s"})`, nodeName, DCGM_APP_NAME),
+		"GPUMemoryTemperatureMax":   fmt.Sprintf(`max(DCGM_FI_DEV_MEMORY_TEMP{node="%s", app_kubernetes_io_name="%s"})`, nodeName, DCGM_APP_NAME),
+		"GPUTensorUtilizationAvg":   fmt.Sprintf(`avg(DCGM_FI_PROF_PIPE_TENSOR_ACTIVE{node="%s", app_kubernetes_io_name="%s"})`, nodeName, DCGM_APP_NAME),
+		"GPUDramUtilizationAvg":     fmt.Sprintf(`avg(DCGM_FI_PROF_DRAM_ACTIVE{node="%s", app_kubernetes_io_name="%s"})`, nodeName, DCGM_APP_NAME),
+		"GPUPCIeTxBytesTotal":       fmt.Sprintf(`sum(DCGM_FI_PROF_PCIE_TX_BYTES{node="%s", app_kubernetes_io_name="%s"})`, nodeName, DCGM_APP_NAME),
+		"GPUPCIeRxBytesTotal":       fmt.Sprintf(`sum(DCGM_FI_PROF_PCIE_RX_BYTES{node="%s", app_kubernetes_io_name="%s"})`, nodeName, DCGM_APP_NAME),
+		"GPUGraphicsUtilizationAvg": fmt.Sprintf(`avg(DCGM_FI_PROF_GR_ENGINE_ACTIVE{node="%s", app_kubernetes_io_name="%s"})`, nodeName, DCGM_APP_NAME),
 	}
 
 	gpuCountValue := 0.0
@@ -808,7 +808,7 @@ func (c *NodeCollector) collectNodeGPUMetrics(ctx context.Context, nodeName stri
 	}
 
 	// Get GPU models on this node - this requires a specific query and parsing (not sure if parsing is working or not :))
-	modelQuery := fmt.Sprintf(`DCGM_FI_DEV_GPU_UTIL{node="%s"}`, nodeName)
+	modelQuery := fmt.Sprintf(`DCGM_FI_DEV_GPU_UTIL{node="%s", app_kubernetes_io_name="%s"}`, nodeName, DCGM_APP_NAME)
 	result, _, err = c.prometheusAPI.Query(ctx, modelQuery, time.Now())
 	if err == nil && result.Type() == model.ValVector {
 		vector := result.(model.Vector)
