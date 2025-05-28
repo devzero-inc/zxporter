@@ -23,6 +23,8 @@ import (
 	metricsv1 "k8s.io/metrics/pkg/client/clientset/versioned"
 )
 
+const DCGM_APP_NAME = "devzero-zxporter-dcgm"
+
 // ContainerResourceCollectorConfig holds configuration for the resource collector
 type ContainerResourceCollectorConfig struct {
 	// UpdateInterval specifies how often to collect metrics
@@ -599,7 +601,7 @@ func (c *ContainerResourceCollector) collectContainerGPUMetrics(ctx context.Cont
 
 	namespace := pod.Namespace
 	podName := pod.Name
-	baseLabels := fmt.Sprintf(`namespace="%s", pod="%s", container="%s"`, namespace, podName, containerName)
+	baseLabels := fmt.Sprintf(`namespace="%s", pod="%s", container="%s", app_kubernetes_io_name="%s"`, namespace, podName, containerName, DCGM_APP_NAME)
 	queryTime := time.Now()
 
 	// Check if container uses GPU
