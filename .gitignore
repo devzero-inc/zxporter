@@ -27,3 +27,8 @@ config/**/charts
 *.swp
 *.swo
 *~
+
+# Terraform files
+*.tfstate
+*.tfstate.backup
+.terraform*
