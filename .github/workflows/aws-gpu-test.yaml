@@ -79,10 +79,10 @@ jobs:
           echo "Checking GPU resources on nodes..."
           if kubectl describe nodes | grep -q "nvidia.com/gpu"; then
             echo "GPU resources are available on the nodes."
-            echo "GPU_CHECK=true" >> $GITHUB_ENV   # Corrected!
+            echo "GPU_CHECK=true" >> $GITHUB_ENV
           else
             echo "GPU check failed"
-            echo "GPU_CHECK=false" >> $GITHUB_ENV  # Corrected!
+            echo "GPU_CHECK=false" >> $GITHUB_ENV
           fi
 
       - name: Install GPU Operator (if needed)
@@ -139,6 +139,7 @@ jobs:
           
       - name: Verify DCGM Pods and Prometheus Annotations
         run: |
+          kubectl get pods -n gpu-operator -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' | grep dcgm-exporter | xargs -r -I {} kubectl wait --for=condition=Ready pod {} -n gpu-operator --timeout=300s
           echo "Verifying DCGM pods and Prometheus annotations..."
           kubectl get pods -A | grep dcgm-exporter | awk '
           BEGIN { all_running = 1; pod_count = 0 }
@@ -175,6 +176,9 @@ jobs:
             -H "X-Kube-Context-Name: $(kubectl config current-context)" \
             "https://api.devzero.io/backend/v0/dakr/installer-manifest?cluster-provider=aws" | \
             kubectl apply -f -
+          
+          echo "Waiting for ZXPorter pods to be ready..."
+          kubectl wait --for=condition=Ready pod -l app.kubernetes.io/component=server -n devzero-zxporter --timeout=300s
 
       - name: Test ZXPorter with Prometheus
         run: |
