@@ -11,8 +11,8 @@ permissions:
   contents: read
 
 jobs:
-  setup-eks:
-    name: Setup EKS and Install ZXPorter
+  apply-terraform:
+    name: Apply Terraform Configuration
     runs-on: ubuntu-latest
 
     outputs:
@@ -58,7 +58,7 @@ jobs:
           terraform apply -auto-approve -var="cluster_name=$JOB_IDENTIFIER"
 
   install-and-validate:
-    name: Install and Validate ZXPorter and GPU Resources
+    name: Install and Validate GPU Resources and ZXPorter
     runs-on: ubuntu-latest
     needs: setup-eks 
 
@@ -77,15 +77,17 @@ jobs:
         id: gpu_check
         run: |
           echo "Checking GPU resources on nodes..."
+          kubectl describe nodes | grep "nvidia.com/gpu"
           if kubectl describe nodes | grep -q "nvidia.com/gpu"; then
             echo "GPU resources are available on the nodes."
+            echo "true" >> $GITHUB_ENV
           else
             echo "GPU check failed"
-            exit 0
+            echo "false" >> $GITHUB_ENV
           fi
 
       - name: Install GPU Operator (if needed)
-        if: steps.gpu_check.outcome == 'success'
+        if: env.GPU_CHECK == 'false'
         run: |
           echo "GPU resources not found, installing GPU Operator..."
           kubectl create ns gpu-operator
@@ -96,9 +98,10 @@ jobs:
           helm install --wait --generate-name -n gpu-operator --create-namespace nvidia/gpu-operator --version=v25.3.0
 
       - name: Check GPU Availability After Installing GPU Operator
-        if: steps.gpu_check.outcome == 'success'
+        if: env.GPU_CHECK == 'false'
         run: |
           echo "Re-checking GPU resources on nodes after GPU Operator installation..."
+          kubectl describe nodes | grep "nvidia.com/gpu"
           if kubectl describe nodes | grep -q "nvidia.com/gpu"; then
             echo "GPU resources are available on the nodes."
           else
@@ -110,24 +113,27 @@ jobs:
         id: dcgm_check
         run: |
           echo "Checking if DCGM DaemonSet is installed..."
+          kubectl get daemonset -A | grep dcgm
           if kubectl get daemonset -A | grep -q dcgm; then
-            echo "DCGM DaemonSet is installed."
+            echo "DCGM DaemonSet is already installed."
+            echo "true" >> $GITHUB_ENV
           else
-            echo "DCGM DaemonSet not found"
-            exit 0
+            echo "DCGM DaemonSet not found."
+            echo "false" >> $GITHUB_ENV
           fi
 
       - name: Install DCGM Exporter (if needed)
-        if: steps.dcgm_check.outcome == 'success'
+        if: env.DCGM_CHECK == 'false'
         run: |
           echo "Installing DCGM Exporter..."
           kubectl create ns devzero-zxporter
           curl https://raw.githubusercontent.com/devzero-inc/zxporter/refs/heads/main/dcgm-installers/eks.yml | kubectl apply -f -
 
       - name: Check DCGM DaemonSet After Installing DCGM Exporter
-        if: steps.dcgm_check.outcome == 'success'
+        if: env.DCGM_CHECK == 'false'
         run: |
           echo "Re-checking DCGM pods after DCGM Exporter installation..."
+          kubectl get daemonset -A | grep dcgm
           if kubectl get daemonset -A | grep -q dcgm; then
             echo "DCGM DaemonSet is running."
           else
@@ -186,7 +192,7 @@ jobs:
           echo "Metric found: $result"
 
   destroy-terraform:
-    name: Destroy Infrastructure
+    name: Destroy Terraform
     runs-on: ubuntu-latest
     if: always()
     needs: install-and-validate
@@ -196,6 +202,11 @@ jobs:
         with:
           role-to-assume: arn:aws:iam::484907513542:role/github-actions-oidc-role
           aws-region: us-east-1
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.5.7
 
       - name: Configure Terraform Backend
         run: |
