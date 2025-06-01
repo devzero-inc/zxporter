@@ -1,4 +1,4 @@
-name: AWS Terraform EKS Setup and ZXPorter Installation
+name: AWS GPU Test
 
 on:
   push:
@@ -79,10 +79,10 @@ jobs:
           echo "Checking GPU resources on nodes..."
           if kubectl describe nodes | grep -q "nvidia.com/gpu"; then
             echo "GPU resources are available on the nodes."
-            echo "true" >> $GITHUB_ENV
+            echo "GPU_CHECK=true" >> $GITHUB_ENV   # Corrected!
           else
             echo "GPU check failed"
-            echo "false" >> $GITHUB_ENV
+            echo "GPU_CHECK=false" >> $GITHUB_ENV  # Corrected!
           fi
 
       - name: Install GPU Operator (if needed)
@@ -113,10 +113,10 @@ jobs:
           echo "Checking if DCGM DaemonSet is installed..."
           if kubectl get daemonset -A | grep -q dcgm; then
             echo "DCGM DaemonSet is already installed."
-            echo "true" >> $GITHUB_ENV
+            echo "DCGM_CHECK=true" >> $GITHUB_ENV 
           else
             echo "DCGM DaemonSet not found."
-            echo "false" >> $GITHUB_ENV
+            echo "DCGM_CHECK=false" >> $GITHUB_ENV
           fi
 
       - name: Install DCGM Exporter (if needed)
@@ -191,7 +191,10 @@ jobs:
     name: Destroy Terraform
     runs-on: ubuntu-latest
     if: always()
-    needs: install-and-validate
+    needs:
+      - apply-terraform
+      - install-and-validate
+
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
