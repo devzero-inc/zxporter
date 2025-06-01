@@ -1,9 +1,6 @@
 name: AWS GPU Test
 
 on:
-  push:
-    branches:
-      - garvit/aws-gpu-test
   workflow_dispatch:
 
 permissions:
