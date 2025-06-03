@@ -83,7 +83,7 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
-        
+
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -220,7 +220,7 @@ jobs:
       - name: Test ZXPorter with Prometheus
         if: env.SKIP_INSTALL != 'true'
         run: |
-          kubectl port-forward svc/prometheus-server 9090:80 -n devzero-zxporter &
+          kubectl port-forward svc/prometheus-dz-prometheus-server 9090:80 -n devzero-zxporter &
           sleep 5
           result=$(curl -s "http://localhost:9090/api/v1/query?query=DCGM_FI_DEV_SM_CLOCK" | jq -r '.data.result')
           if [[ -z "$result" || "$result" == [] ]]; then
