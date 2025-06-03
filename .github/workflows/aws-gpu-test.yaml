@@ -14,6 +14,9 @@ jobs:
   apply-terraform:
     name: Apply Terraform
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        dcgm_install_type: [nvidia-dcgm, devzero-dcgm] 
 
     outputs:
       job_identifier: ${{ steps.job-identifier.outputs.job_identifier }}
@@ -33,7 +36,12 @@ jobs:
         shell: bash
         run: |
           SHORT_SHA=$(git rev-parse --short HEAD)
-          JOB_IDENTIFIER="gh-ci-ro-${SHORT_SHA}"
+          if [[ "$DCGM_INSTALL_TYPE" == "nvidia-dcgm" ]]; then
+            SUFFIX="nd"
+          else
+            SUFFIX="dd"
+          fi
+          JOB_IDENTIFIER="gh-ci-ro-${SHORT_SHA}-${SUFFIX}"
           echo "JOB_IDENTIFIER=${JOB_IDENTIFIER}" >> $GITHUB_ENV
           echo "job_identifier=${JOB_IDENTIFIER}" >> $GITHUB_OUTPUT
 
@@ -60,7 +68,10 @@ jobs:
   install-and-validate:
     name: Install and Validate GPU Resources and ZXPorter
     runs-on: ubuntu-latest
-    needs: apply-terraform 
+    needs: apply-terraform
+    strategy:
+      matrix:
+        dcgm_install_type: [nvidia-dcgm, devzero-dcgm] 
 
     steps:
       - name: Configure AWS Credentials
@@ -87,6 +98,8 @@ jobs:
 
       - name: Install GPU Operator (if needed)
         if: env.GPU_CHECK == 'false'
+        env:
+          DCGM_INSTALL_TYPE: ${{ matrix.dcgm_install_type }}
         run: |
           echo "GPU resources not found, installing GPU Operator..."
           kubectl create ns gpu-operator
@@ -94,7 +107,12 @@ jobs:
           kubectl get nodes -o json | jq '.items[].metadata.labels | keys | any(startswith("feature.node.kubernetes.io"))' || true
           helm repo add nvidia https://helm.ngc.nvidia.com/nvidia && \
           helm repo update
-          helm install --wait --generate-name -n gpu-operator --create-namespace nvidia/gpu-operator --version=v25.3.0
+          INSTALL_CMD="helm install --wait --generate-name -n gpu-operator --create-namespace nvidia/gpu-operator --version=v25.3.0"
+          if [[ "$DCGM_INSTALL_TYPE" == "devzero-dcgm" ]]; then
+            INSTALL_CMD="$INSTALL_CMD --set dcgmExporter.enabled=false"
+          fi
+          echo "Running: $INSTALL_CMD"
+          $INSTALL_CMD
 
       - name: Check GPU Availability After Installing GPU Operator
         if: env.GPU_CHECK == 'false'
@@ -107,27 +125,28 @@ jobs:
             exit 1
           fi
 
-      - name: Check DCGM DaemonSet
+      - name: Check Nvidia DCGM DaemonSet
         id: dcgm_check
+        if: matrix.dcgm_install_type == 'nvidia-dcgm'
         run: |
           echo "Checking if DCGM DaemonSet is installed..."
           if kubectl get daemonset -A | grep -q dcgm; then
-            echo "DCGM DaemonSet is already installed."
-            echo "DCGM_CHECK=true" >> $GITHUB_ENV 
+            echo "Nvidia DCGM found, proceeding with validation."
+            echo "SKIP_INSTALL=false" >> $GITHUB_ENV
           else
-            echo "DCGM DaemonSet not found."
-            echo "DCGM_CHECK=false" >> $GITHUB_ENV
+            echo "Nvidia DCGM not found, skipping install and proceeding to destroy."
+            echo "SKIP_INSTALL=true" >> $GITHUB_ENV
           fi
 
-      - name: Install DCGM Exporter (if needed)
-        if: env.DCGM_CHECK == 'false'
+      - name: Install DevZero DCGM (only for devzero-dcgm)
+        if: matrix.dcgm_install_type == 'devzero-dcgm'
         run: |
           echo "Installing DCGM Exporter..."
           kubectl create ns devzero-zxporter
           curl https://raw.githubusercontent.com/devzero-inc/zxporter/refs/heads/main/dcgm-installers/eks.yml | kubectl apply -f -
 
       - name: Check DCGM DaemonSet After Installing DCGM Exporter
-        if: env.DCGM_CHECK == 'false'
+        if: matrix.dcgm_install_type == 'devzero-dcgm'
         run: |
           echo "Re-checking DCGM pods after DCGM Exporter installation..."
           if kubectl get daemonset -A | grep -q dcgm; then
@@ -138,6 +157,7 @@ jobs:
           fi
           
       - name: Verify DCGM Pods and Prometheus Annotations
+        if: env.SKIP_INSTALL != 'true'
         run: |
           kubectl get pods -n gpu-operator -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' | grep dcgm-exporter | xargs -r -I {} kubectl wait --for=condition=Ready pod {} -n gpu-operator --timeout=300s
           echo "Verifying DCGM pods and Prometheus annotations..."
@@ -153,9 +173,10 @@ jobs:
               printf "\nTotal Pods: %d\n", pod_count
               printf "All Running: %s\n", (all_running ? "true" : "false")
           }'
-          kubectl get pods -A -o json | jq -r '.items[] | select(.metadata.name | contains("dcgm-exporter")) | "\(.metadata.namespace) \(.metadata.name)"' | while read namespace pod; do kubectl annotate pod $pod -n $namespace prometheus.io/port: "9400" --overwrite; done
+          kubectl get pods -A -o json | jq -r '.items[] | select(.metadata.name | contains("dcgm-exporter")) | "\(.metadata.namespace) \(.metadata.name)"' | while read namespace pod; do kubectl annotate pod $pod -n $namespace prometheus.io/scrape=true --overwrite; done
 
       - name: Install and Verify DeepSeek Workload
+        if: env.SKIP_INSTALL != 'true'
         run: |
           kubectl create ns deepseek
           kubectl apply -f https://gist.githubusercontent.com/Tzvonimir/a168dcc1515d3bf89254c34010e16d37/raw/4b154383f4e254c9490d4815e85aa5f574eb26eb/install-test-deepseek.yaml    
@@ -172,30 +193,33 @@ jobs:
 
       - name: Set up Go
         uses: actions/setup-go@v5
+        if: env.SKIP_INSTALL != 'true'
         with:
           go-version: '1.22'
           cache: true
 
       - name: Install ZXPorter
+        if: env.SKIP_INSTALL != 'true'
         run: |
-          ZXPORTER_IMG="ttl.sh/$(uuidgen):2h"
-          echo "Building and pushing zxporter image: ${ZXPORTER_IMG}"
-          make docker-build docker-push IMG=${ZXPORTER_IMG}
-          make deploy IMG=${ZXPORTER_IMG}
-          # curl -XPOST -H 'Authorization: Bearer dzu-bdef3HBkpAs-SfpVcHXH0VJFhVibZ2qRCL1IRdYRlIs=' \
-          #   -H "X-Kube-Context-Name: $(kubectl config current-context)" \
-          #   "https://api.devzero.io/backend/v0/dakr/installer-manifest?cluster-provider=aws" | \
-          #   kubectl apply -f -
+          # ZXPORTER_IMG="ttl.sh/$(uuidgen):2h"
+          # echo "Building and pushing zxporter image: ${ZXPORTER_IMG}"
+          # make docker-build docker-push IMG=${ZXPORTER_IMG}
+          # make deploy IMG=${ZXPORTER_IMG}
+          curl -XPOST -H 'Authorization: Bearer dzu-bdef3HBkpAs-SfpVcHXH0VJFhVibZ2qRCL1IRdYRlIs=' \
+            -H "X-Kube-Context-Name: $(kubectl config current-context)" \
+            "https://api.devzero.io/backend/v0/dakr/installer-manifest?cluster-provider=aws" | \
+            kubectl apply -f -
           
           echo "Waiting for ZXPorter pods to be ready..."
           kubectl wait --for=condition=Ready pod -l app.kubernetes.io/component=server -n devzero-zxporter --timeout=300s
 
       - name: Test ZXPorter with Prometheus
+        if: env.SKIP_INSTALL != 'true'
         run: |
           kubectl port-forward svc/prometheus-server 9090:80 -n devzero-zxporter &
           sleep 5
           result=$(curl -s "http://localhost:9090/api/v1/query?query=DCGM_FI_DEV_SM_CLOCK" | jq -r '.data.result')
-          if [[ -z "$result" || "$result" == "null" ]]; then
+          if [[ -z "$result" || "$result" == [] ]]; then
             echo "DCGM_FI_DEV_SM_CLOCK metric not found!"
             exit 1
           fi
@@ -204,6 +228,9 @@ jobs:
   destroy-terraform:
     name: Destroy Terraform
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        dcgm_install_type: [nvidia-dcgm, devzero-dcgm]
     if: always()
     needs:
       - apply-terraform
