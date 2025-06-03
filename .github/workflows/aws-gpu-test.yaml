@@ -206,14 +206,10 @@ jobs:
       - name: Install ZXPorter
         if: env.SKIP_INSTALL != 'true'
         run: |
-          # ZXPORTER_IMG="ttl.sh/$(uuidgen):2h"
-          # echo "Building and pushing zxporter image: ${ZXPORTER_IMG}"
-          # make docker-build docker-push IMG=${ZXPORTER_IMG}
-          # make deploy IMG=${ZXPORTER_IMG}
-          curl -XPOST -H 'Authorization: Bearer dzu-bdef3HBkpAs-SfpVcHXH0VJFhVibZ2qRCL1IRdYRlIs=' \
-            -H "X-Kube-Context-Name: $(kubectl config current-context)" \
-            "https://api.devzero.io/backend/v0/dakr/installer-manifest?cluster-provider=aws" | \
-            kubectl apply -f -
+          ZXPORTER_IMG="ttl.sh/$(uuidgen):2h"
+          echo "Building and pushing zxporter image: ${ZXPORTER_IMG}"
+          make docker-build docker-push IMG=${ZXPORTER_IMG}
+          make deploy IMG=${ZXPORTER_IMG}
           
           echo "Waiting for ZXPorter pods to be ready..."
           kubectl wait --for=condition=Ready pod -l app.kubernetes.io/component=server -n devzero-zxporter --timeout=300s
