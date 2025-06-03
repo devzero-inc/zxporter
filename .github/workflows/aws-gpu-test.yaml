@@ -143,15 +143,15 @@ jobs:
             echo "SKIP_INSTALL=true" >> $GITHUB_ENV
           fi
 
-      - name: Install DevZero DCGM (only for devzero-dcgm)
-        if: ${{ env.DCGM_INSTALL_TYPE == 'nvidia-dcgm' }}
+      - name: Install DevZero DCGM
+        if: ${{ env.DCGM_INSTALL_TYPE == 'devzero-dcgm' }}
         run: |
           echo "Installing DCGM Exporter..."
           kubectl create ns devzero-zxporter
           curl https://raw.githubusercontent.com/devzero-inc/zxporter/refs/heads/main/dcgm-installers/eks.yml | kubectl apply -f -
 
       - name: Check DCGM DaemonSet After Installing DCGM Exporter
-        if: ${{ env.DCGM_INSTALL_TYPE == 'nvidia-dcgm' }}
+        if: ${{ env.DCGM_INSTALL_TYPE == 'devzero-dcgm' }}
         run: |
           echo "Re-checking DCGM pods after DCGM Exporter installation..."
           if kubectl get daemonset -A | grep -q dcgm; then
