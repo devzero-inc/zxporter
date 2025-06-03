@@ -209,10 +209,10 @@ jobs:
       - name: Install ZXPorter
         if: env.SKIP_INSTALL != 'true'
         run: |
-          # ZXPORTER_IMG="ttl.sh/$(uuidgen):2h"
-          # echo "Building and pushing zxporter image: ${ZXPORTER_IMG}"
-          # make docker-build docker-push IMG=${ZXPORTER_IMG}
-          # make deploy IMG=${ZXPORTER_IMG}
+          ZXPORTER_IMG="ttl.sh/$(uuidgen):2h"
+          echo "Building and pushing zxporter image: ${ZXPORTER_IMG}"
+          make docker-build docker-push IMG=${ZXPORTER_IMG}
+          make deploy IMG=${ZXPORTER_IMG}
 
           kubectl apply -f dist/install.yaml
           
