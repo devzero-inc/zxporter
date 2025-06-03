@@ -81,6 +81,9 @@ jobs:
       DCGM_INSTALL_TYPE: ${{ github.event.inputs.dcgm_install_type || 'devzero-dcgm' }}
 
     steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
