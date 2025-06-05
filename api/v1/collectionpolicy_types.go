@@ -372,6 +372,10 @@ type Policies struct {
 	// BufferSize is the size of the sender buffer
 	BufferSize int `json:"bufferSize,omitempty"`
 
+	// NumResourceProcessors is the number of goroutines to process collected resources
+	// +optional
+	NumResourceProcessors *int `json:"numResourceProcessors,omitempty"`
+
 	// MaskSecretData determines whether to redact secret values
 	MaskSecretData bool `json:"maskSecretData,omitempty"`
 

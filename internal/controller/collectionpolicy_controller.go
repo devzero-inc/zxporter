@@ -117,6 +117,7 @@ type PolicyConfig struct {
 	NodeMetricsInterval     time.Duration
 	BufferSize              int
 	MaskSecretData          bool
+	NumResourceProcessors   int
 }
 
 //+kubebuilder:rbac:groups=devzero.io,resources=collectionpolicies,verbs=get;list;watch;create;update;patch;delete
@@ -249,6 +250,12 @@ func (r *CollectionPolicyReconciler) createNewConfig(envSpec *monitoringv1.Colle
 		MaskSecretData:          envSpec.Policies.MaskSecretData,
 		DisabledCollectors:      envSpec.Policies.DisabledCollectors,
 		BufferSize:              envSpec.Policies.BufferSize,
+	}
+
+	if envSpec.Policies.NumResourceProcessors != nil && *envSpec.Policies.NumResourceProcessors > 0 {
+		newConfig.NumResourceProcessors = *envSpec.Policies.NumResourceProcessors
+	} else {
+		newConfig.NumResourceProcessors = 16
 	}
 
 	logger.Info("Disabled collectors", "name", newConfig.DisabledCollectors)
@@ -1147,7 +1154,14 @@ func (r *CollectionPolicyReconciler) initializeCollectors(ctx context.Context, c
 	}
 
 	// Start processing collected resources
-	go r.processCollectedResources(ctx)
+	logger.Info("Starting resource processing workers", "count", config.NumResourceProcessors)
+	for i := 0; i < config.NumResourceProcessors; i++ {
+		workerID := i
+		go func() {
+			workerLogger := logger.WithValues("resourceProcessorSenderID", workerID)
+			r.processCollectedResources(ctx, workerLogger)
+		}()
+	}
 
 	// Update current config
 	r.CurrentConfig = config
@@ -1812,8 +1826,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 }
 
 // processCollectedResources reads from collection channel and forwards to sender
-func (r *CollectionPolicyReconciler) processCollectedResources(ctx context.Context) {
-	logger := r.Log.WithName("processor")
+func (r *CollectionPolicyReconciler) processCollectedResources(ctx context.Context, logger logr.Logger) {
 	logger.Info("Starting to process collected resources")
 
 	resourceChan := r.CollectionManager.GetCombinedChannel()
