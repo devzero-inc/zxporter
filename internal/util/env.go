@@ -13,6 +13,9 @@ import (
 
 // Configuration environment variables
 const (
+	// NUM_RESOURCE_SENDERS is the number of sender threads for sending resource data to control plane
+	_ENV_NUM_RESOURCE_SENDERS = "NUM_RESOURCE_SENDERS"
+
 	// KUBE_CONTEXT_NAME is the name of the current context being used to apply the installation yaml
 	// Default value: ""
 	_ENV_KUBE_CONTEXT_NAME = "KUBE_CONTEXT_NAME"
@@ -471,6 +474,13 @@ func LoadCollectionPolicySpecFromEnv() (v1.CollectionPolicySpec, error) {
 	}
 
 	// === Policies ===
+	if v := getEnv(_ENV_NUM_RESOURCE_SENDERS); v != "" {
+		num, err := strconv.Atoi(v)
+		if err != nil {
+			num = 16
+		}
+		newSpec.Policies.NumResourceProcessors = &num
+	}
 	if v := getEnv(_ENV_KUBE_CONTEXT_NAME); v != "" {
 		newSpec.Policies.KubeContextName = v
 	}

@@ -545,6 +545,10 @@ spec:
                     description: NodeMetricsInterval is how often to collect node
                       metrics (defaults to 6x regular frequency)
                     type: string
+                  numResourceProcessors:
+                    description: NumResourceProcessors is the number of goroutines
+                      to process collected resources
+                    type: integer
                   prometheusURL:
                     description: |-
                       PrometheusURL is the URL of the Prometheus server to query for metrics
