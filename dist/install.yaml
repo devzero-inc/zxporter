@@ -597,6 +597,9 @@ spec:
     metadata:
       annotations:
         cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
+        prometheus.io/path: /metrics
+        prometheus.io/port: "9101"
+        prometheus.io/scrape: "true"
       labels:
         helm.sh/chart: prometheus-node-exporter-4.24.0
         app.kubernetes.io/managed-by: Helm

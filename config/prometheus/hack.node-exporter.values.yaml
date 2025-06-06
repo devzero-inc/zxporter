@@ -10,3 +10,8 @@ containerSecurityContext:
 service:
   port: 9101
   targetPort: 9101
+
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "9101"
+  prometheus.io/path: "/metrics"
