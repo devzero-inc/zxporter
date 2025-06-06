@@ -54,7 +54,9 @@ func NewTelemetryMetrics() *TelemetryMetrics {
 	)
 
 	return &TelemetryMetrics{
-		RequestDuration: requestDuration,
+		RequestDuration:  requestDuration,
+		MessagesIngested: messagesIngested,
+		MessagesSent:     messagesSent,
 		AllMetrics: []ResettableCollector{
 			requestDuration,
 			messagesIngested,
