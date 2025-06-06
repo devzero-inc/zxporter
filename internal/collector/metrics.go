@@ -21,8 +21,10 @@ type ResettableCollector interface {
 // TelemetryMetrics holds Prometheus metrics for the collector
 type TelemetryMetrics struct {
 	// RequestDuration captures the duration of Prometheus API calls
-	RequestDuration *prometheus.HistogramVec
-	AllMetrics      []ResettableCollector
+	RequestDuration  *prometheus.HistogramVec
+	MessagesIngested *prometheus.CounterVec
+	MessagesSent     *prometheus.CounterVec
+	AllMetrics       []ResettableCollector
 }
 
 // NewTelemetryMetrics creates and registers Prometheus metrics
@@ -36,9 +38,28 @@ func NewTelemetryMetrics() *TelemetryMetrics {
 		},
 		[]string{"status"},
 	)
+	messagesIngested := promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "collector_messages_ingested_total",
+			Help: "Total number of messages ingested into the buffers",
+		},
+		[]string{"collector"},
+	)
+	messagesSent := promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "collector_messages_sent_total",
+			Help: "Total number of messages sent by the collector",
+		},
+		[]string{"collector"},
+	)
+
 	return &TelemetryMetrics{
 		RequestDuration: requestDuration,
-		AllMetrics:      []ResettableCollector{requestDuration},
+		AllMetrics: []ResettableCollector{
+			requestDuration,
+			messagesIngested,
+			messagesSent,
+		},
 	}
 }
 

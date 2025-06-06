@@ -1185,6 +1185,7 @@ func (r *CollectionPolicyReconciler) setupCollectionManager(ctx context.Context,
 	r.CollectionManager = collector.NewCollectionManager(
 		collectionConfig,
 		r.K8sClient,
+		r.TelemetryMetrics,
 		logger.WithName("collection-manager"),
 	)
 
@@ -1850,9 +1851,14 @@ func (r *CollectionPolicyReconciler) processCollectedResources(ctx context.Conte
 			// Send the raw resource directly to Dakr
 			if _, err := r.Sender.SendBatch(ctx, resources, resources[0].ResourceType); err != nil {
 				logger.Error(err, "Failed to send resource to Dakr",
+					"resourcesCount", len(resources),
 					"resourceType", resources[0].ResourceType)
 			} else {
+				// Update metrics for the number of resources processed
+				r.TelemetryMetrics.MessagesSent.WithLabelValues(
+					resources[0].ResourceType.String()).Add(float64(len(resources)))
 				logger.Info("Sent resource to Dakr",
+					"resourcesCount", len(resources),
 					"resourceType", resources[0].ResourceType)
 			}
 		}
