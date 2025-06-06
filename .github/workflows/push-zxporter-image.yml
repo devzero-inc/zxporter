@@ -64,10 +64,10 @@ jobs:
           GIT_TREE_STATE: ${{ env.GIT_TREE_STATE }}
           BUILD_DATE: ${{ env.BUILD_DATE }}
         run: |
-          TAGS=("latest" "$(git rev-parse --short HEAD)" "$GITVERSION")
+          TAGS=("latest" "$(git rev-parse --short HEAD)")
 
           if [[ "$IS_RELEASE" == "true" ]]; then
-            TAGS+=("${MAJOR}.${MINOR}.${PATCH}" "${MAJOR}.${MINOR}" "${MAJOR}")
+            TAGS+=("$GITVERSION")
           fi
 
           for tag in "${TAGS[@]}"; do
