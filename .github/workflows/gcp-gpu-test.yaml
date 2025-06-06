@@ -1,9 +1,9 @@
-name: AWS GPU Test
+name: GCP GPU Test
 
 on:
   push:
     branches:
-      - garvit/aws-gpu-test
+      - garvit/gcp-gpu-test
   workflow_dispatch:
     inputs:
       dcgm_install_type:
@@ -14,20 +14,6 @@ on:
         options:
           - nvidia-dcgm
           - devzero-dcgm
-      cluster_version:
-        description: 'Kubernetes cluster version'
-        required: false
-        default: '1.30'
-        type: choice
-        options:
-          - '1.26'
-          - '1.27'
-          - '1.28'
-          - '1.29'
-          - '1.30'
-          - '1.31'
-          - '1.32'
-          - '1.33'
 
 permissions:
   id-token: write
@@ -39,7 +25,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       DCGM_INSTALL_TYPE: ${{ github.event.inputs.dcgm_install_type || 'devzero-dcgm' }}
-      CLUSTER_VERSION: ${{ github.event.inputs.cluster_version || '1.30' }}
 
     outputs:
       job_identifier: ${{ steps.job-identifier.outputs.job_identifier }}
@@ -48,11 +33,19 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Configure AWS Credential
-        uses: aws-actions/configure-aws-credentials@v4
+      - name: 'Authenticate to Google Cloud'
+        id: 'auth'
+        uses: 'google-github-actions/auth@v2'
         with:
-          role-to-assume: arn:aws:iam::484907513542:role/github-actions-oidc-role
-          aws-region: us-east-1
+          workload_identity_provider: 'projects/926977153451/locations/global/workloadIdentityPools/dsh-testing-pool-id/providers/github-actions-pool'
+          service_account: 'devzero-self-hosted@devzero-self-hosted.iam.gserviceaccount.com'
+          create_credentials_file: true
+          export_environment_variables: true
+
+      - name: Export Terraform-friendly environment variables
+        run: |
+          echo "GOOGLE_APPLICATION_CREDENTIALS=${{ steps.auth.outputs.credentials_file_path }}" >> $GITHUB_ENV
+          echo "CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE=${{ steps.auth.outputs.credentials_file_path }}" >> $GITHUB_ENV
 
       - name: Generate Unique Job Identifier
         id: job-identifier
@@ -71,22 +64,21 @@ jobs:
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: 1.5.7
+          terraform_version: "1.11.3"
 
       - name: Apply Terraform
-        working-directory: terraform/aws
+        working-directory: terraform/gcp
         run: |
           cat <<EOF > backend_override.tf
           terraform {
-            backend "s3" {
-                bucket         	   = "zxporter-tf-state"
-                key              	 = "${JOB_IDENTIFIER}/terraform.tfstate"
-                region         	   = "us-east-1"
+            backend "gcs" {
+              bucket  = "zxporter-tf-state"
+              prefix  = "${JOB_IDENTIFIER}/terraform.tfstate"
             }
           }
           EOF
           terraform init
-          terraform apply -auto-approve -var="cluster_name=$JOB_IDENTIFIER" -var='cluster_version=${{ env.CLUSTER_VERSION }}'
+          terraform apply -auto-approve -var="cluster_name=$JOB_IDENTIFIER"
 
   install-and-validate:
     name: Install and Validate GPU Resources and ZXPorter
@@ -99,15 +91,30 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
+      - name: 'Authenticate to Google Cloud'
+        id: 'auth'
+        uses: 'google-github-actions/auth@v2'
         with:
-          role-to-assume: arn:aws:iam::484907513542:role/github-actions-oidc-role
-          aws-region: us-east-1
+          workload_identity_provider: 'projects/926977153451/locations/global/workloadIdentityPools/dsh-testing-pool-id/providers/github-actions-pool'
+          service_account: 'devzero-self-hosted@devzero-self-hosted.iam.gserviceaccount.com'
+          create_credentials_file: true
+          export_environment_variables: true
+
+      - name: 'Set up Cloud SDK'
+        uses: 'google-github-actions/setup-gcloud@v2'
+        with:
+          version: '>= 363.0.0'
+
+      - name: Install gke-gcloud-auth-plugin
+        run: |
+          echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] http://packages.cloud.google.com/apt cloud-sdk main" | sudo tee -a /etc/apt/sources.list.d/google-cloud-sdk.list
+          curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg
+          sudo apt-get update
+          sudo apt-get install -y google-cloud-sdk-gke-gcloud-auth-plugin
 
       - name: Configure Kubernetes Access
         run: |
-          aws eks update-kubeconfig --region us-east-1 --name ${{ needs.apply-terraform.outputs.job_identifier }}
+          gcloud container clusters get-credentials ${{ needs.apply-terraform.outputs.job_identifier }} --zone us-central1 --project devzero-self-hosted
 
       - name: Check GPU Availability
         id: gpu_check
@@ -166,7 +173,7 @@ jobs:
         run: |
           echo "Installing DCGM Exporter..."
           kubectl create ns devzero-zxporter
-          curl https://raw.githubusercontent.com/devzero-inc/zxporter/refs/heads/main/dcgm-installers/eks.yml | kubectl apply -f -
+          curl https://raw.githubusercontent.com/devzero-inc/zxporter/refs/heads/main/dcgm-installers/gke.yml | kubectl apply -f -
 
       - name: Check DCGM DaemonSet After Installing DCGM Exporter
         if: ${{ env.DCGM_INSTALL_TYPE == 'devzero-dcgm' }}
@@ -228,6 +235,8 @@ jobs:
           echo "Building and pushing zxporter image: ${ZXPORTER_IMG}"
           make docker-build docker-push IMG=${ZXPORTER_IMG}
           make deploy IMG=${ZXPORTER_IMG}
+
+          kubectl apply -f dist/install.yaml
           
           echo "Waiting for ZXPorter pods to be ready..."
           kubectl wait --for=condition=Ready pod -l app.kubernetes.io/component=server -n devzero-zxporter --timeout=300s
@@ -248,7 +257,7 @@ jobs:
     name: Destroy Terraform
     runs-on: ubuntu-latest
     env:
-      CLUSTER_VERSION: ${{ github.event.inputs.cluster_version || '1.30' }}
+      DCGM_INSTALL_TYPE: ${{ github.event.inputs.dcgm_install_type || 'devzero-dcgm' }}
 
     if: always()
     needs:
@@ -259,28 +268,35 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
+      - name: 'Authenticate to Google Cloud'
+        id: 'auth'
+        uses: 'google-github-actions/auth@v2'
         with:
-          role-to-assume: arn:aws:iam::484907513542:role/github-actions-oidc-role
-          aws-region: us-east-1
+          workload_identity_provider: 'projects/926977153451/locations/global/workloadIdentityPools/dsh-testing-pool-id/providers/github-actions-pool'
+          service_account: 'devzero-self-hosted@devzero-self-hosted.iam.gserviceaccount.com'
+          create_credentials_file: true
+          export_environment_variables: true
 
+      - name: Export Terraform-friendly environment variables
+        run: |
+          echo "GOOGLE_APPLICATION_CREDENTIALS=${{ steps.auth.outputs.credentials_file_path }}" >> $GITHUB_ENV
+          echo "CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE=${{ steps.auth.outputs.credentials_file_path }}" >> $GITHUB_ENV
+          
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: 1.5.7
+          terraform_version: "1.11.3"
 
       - name: Destroy Infrastructure
-        working-directory: terraform/aws
+        working-directory: terraform/gcp
         run: |
           cat <<EOF > backend_override.tf
           terraform {
-            backend "s3" {
-                bucket  = "zxporter-tf-state"
-                key     = "${{ needs.apply-terraform.outputs.job_identifier }}/terraform.tfstate"
-                region  = "us-east-1"
+            backend "gcs" {
+              bucket  = "zxporter-tf-state"
+              prefix  = "${{ needs.apply-terraform.outputs.job_identifier }}/terraform.tfstate"
             }
           }
           EOF
           terraform init
-          terraform destroy -auto-approve -var="cluster_name=${{ needs.apply-terraform.outputs.job_identifier }}" -var='cluster_version=${{ env.CLUSTER_VERSION }}'
+          terraform destroy -auto-approve -var="cluster_name=${{ needs.apply-terraform.outputs.job_identifier }}"
