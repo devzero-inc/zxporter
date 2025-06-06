@@ -67,7 +67,7 @@ jobs:
           TAGS=("latest" "$(git rev-parse --short HEAD)")
 
           if [[ "$IS_RELEASE" == "true" ]]; then
-            TAGS+=("${MAJOR}.${MINOR}.${PATCH}")
+            TAGS+=("$GITVERSION")
           fi
 
           for tag in "${TAGS[@]}"; do
