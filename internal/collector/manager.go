@@ -37,34 +37,36 @@ type CollectionConfig struct {
 
 // CollectionManager orchestrates multiple collectors
 type CollectionManager struct {
-	collectors      map[string]ResourceCollector
-	collectorCtxs   map[string]context.CancelFunc // Track context cancellation functions for each collector
-	processorWg     map[string]*sync.WaitGroup    // Track processor goroutines for each collector
-	combinedChannel chan []CollectedResource
-	wg              sync.WaitGroup
-	mu              sync.RWMutex
-	bufferSize      int
-	started         bool
-	client          kubernetes.Interface
-	config          *CollectionConfig
-	logger          logr.Logger
+	collectors       map[string]ResourceCollector
+	collectorCtxs    map[string]context.CancelFunc // Track context cancellation functions for each collector
+	processorWg      map[string]*sync.WaitGroup    // Track processor goroutines for each collector
+	combinedChannel  chan []CollectedResource
+	telemetryMetrics *TelemetryMetrics // Metrics for telemetry
+	wg               sync.WaitGroup
+	mu               sync.RWMutex
+	bufferSize       int
+	started          bool
+	client           kubernetes.Interface
+	config           *CollectionConfig
+	logger           logr.Logger
 }
 
 // NewCollectionManager creates a new collection manager
-func NewCollectionManager(config *CollectionConfig, client kubernetes.Interface, logger logr.Logger) *CollectionManager {
+func NewCollectionManager(config *CollectionConfig, client kubernetes.Interface, telemetryMetrics *TelemetryMetrics, logger logr.Logger) *CollectionManager {
 	if config != nil && config.BufferSize > 0 {
 		bufferSize = config.BufferSize
 	}
 
 	return &CollectionManager{
-		collectors:      make(map[string]ResourceCollector),
-		collectorCtxs:   make(map[string]context.CancelFunc),
-		processorWg:     make(map[string]*sync.WaitGroup),
-		combinedChannel: make(chan []CollectedResource, bufferSize),
-		bufferSize:      bufferSize,
-		client:          client,
-		config:          config,
-		logger:          logger,
+		collectors:       make(map[string]ResourceCollector),
+		collectorCtxs:    make(map[string]context.CancelFunc),
+		processorWg:      make(map[string]*sync.WaitGroup),
+		combinedChannel:  make(chan []CollectedResource, bufferSize),
+		telemetryMetrics: telemetryMetrics,
+		bufferSize:       bufferSize,
+		client:           client,
+		config:           config,
+		logger:           logger,
 	}
 }
 
@@ -312,6 +314,9 @@ func (m *CollectionManager) processCollectorChannel(collectorType string, collec
 			continue
 		}
 
+		// Update metrics for the ingested resources
+		m.telemetryMetrics.MessagesIngested.WithLabelValues(resources[0].ResourceType.String()).Add(float64(len(resources)))
+
 		// Forward to the combined channel
 		select {
 		case m.combinedChannel <- resources:
@@ -319,6 +324,7 @@ func (m *CollectionManager) processCollectorChannel(collectorType string, collec
 		default:
 			// Channel full, log warning
 			m.logger.Info("Combined channel buffer full, dropping resource",
+				"count", len(resources),
 				"type", resources[0].ResourceType)
 		}
 	}
