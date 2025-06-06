@@ -236,7 +236,7 @@ jobs:
         if: env.SKIP_INSTALL != 'true'
         run: |
           kubectl port-forward svc/prometheus-dz-prometheus-server 9090:80 -n devzero-zxporter &
-          sleep 5
+          sleep 10
           result=$(curl -s "http://localhost:9090/api/v1/query?query=DCGM_FI_DEV_SM_CLOCK" | jq -r '.data.result')
           if [[ -z "$result" || "$result" == [] ]]; then
             echo "DCGM_FI_DEV_SM_CLOCK metric not found!"
