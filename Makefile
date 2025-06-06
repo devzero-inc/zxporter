@@ -50,7 +50,7 @@ endif
 # This is useful for CI or a project to utilize a specific version of the operator-sdk toolkit.
 OPERATOR_SDK_VERSION ?= v1.39.1
 # Image URLs to use all building/pushing image targets
-IMG ?= devzeroinc/zxporter:latest
+IMG ?= ttl.sh/zxporter:latest
 # Testserver image URL
 TESTSERVER_IMG ?= ttl.sh/zxporter-testserver:latest
 # Stress test image URL
