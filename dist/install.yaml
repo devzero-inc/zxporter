@@ -31,47 +31,19 @@ metadata:
   namespace: devzero-zxporter
 imagePullSecrets:
 ---
-# Source: prometheus/charts/prometheus-node-exporter/templates/serviceaccount.yaml
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: prometheus-prometheus-node-exporter
-  namespace: devzero-zxporter
-  labels:
-    helm.sh/chart: prometheus-node-exporter-4.24.0
-    app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/component: metrics
-    app.kubernetes.io/part-of: prometheus-node-exporter
-    app.kubernetes.io/name: prometheus-node-exporter
-    app.kubernetes.io/instance: prometheus
-    app.kubernetes.io/version: "1.7.0"
----
-# Source: prometheus/charts/prometheus-pushgateway/templates/serviceaccount.yaml
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  labels:
-    helm.sh/chart: prometheus-pushgateway-2.4.2
-    app.kubernetes.io/name: prometheus-pushgateway
-    app.kubernetes.io/instance: prometheus
-    app.kubernetes.io/version: "v1.6.2"
-    app.kubernetes.io/managed-by: Helm
-  name: prometheus-prometheus-pushgateway
-  namespace: devzero-zxporter
----
 # Source: prometheus/templates/serviceaccount.yaml
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   labels:
     app.kubernetes.io/component: server
-    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/name: dz-prometheus
     app.kubernetes.io/instance: prometheus
     app.kubernetes.io/version: v2.48.0
     helm.sh/chart: prometheus-25.8.0
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/part-of: prometheus
-  name: prometheus-server
+    app.kubernetes.io/part-of: dz-prometheus
+  name: prometheus-dz-prometheus-server
   namespace: devzero-zxporter
   annotations:
     {}
@@ -82,13 +54,13 @@ kind: ConfigMap
 metadata:
   labels:
     app.kubernetes.io/component: server
-    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/name: dz-prometheus
     app.kubernetes.io/instance: prometheus
     app.kubernetes.io/version: v2.48.0
     helm.sh/chart: prometheus-25.8.0
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/part-of: prometheus
-  name: prometheus-server
+    app.kubernetes.io/part-of: dz-prometheus
+  name: prometheus-dz-prometheus-server
   namespace: devzero-zxporter
 data:
   allow-snippet-annotations: "false"
@@ -112,21 +84,6 @@ data:
       - targets:
         - localhost:9090
     - bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
-      job_name: kubernetes-apiservers
-      kubernetes_sd_configs:
-      - role: endpoints
-      relabel_configs:
-      - action: keep
-        regex: default;kubernetes;https
-        source_labels:
-        - __meta_kubernetes_namespace
-        - __meta_kubernetes_service_name
-        - __meta_kubernetes_endpoint_port_name
-      scheme: https
-      tls_config:
-        ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
-        insecure_skip_verify: true
-    - bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
       job_name: kubernetes-nodes
       kubernetes_sd_configs:
       - role: node
@@ -143,7 +100,6 @@ data:
       scheme: https
       tls_config:
         ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
-        insecure_skip_verify: true
     - bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
       job_name: kubernetes-nodes-cadvisor
       kubernetes_sd_configs:
@@ -161,137 +117,6 @@ data:
       scheme: https
       tls_config:
         ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
-        insecure_skip_verify: true
-    - honor_labels: true
-      job_name: kubernetes-service-endpoints
-      kubernetes_sd_configs:
-      - role: endpoints
-      relabel_configs:
-      - action: keep
-        regex: true
-        source_labels:
-        - __meta_kubernetes_service_annotation_prometheus_io_scrape
-      - action: drop
-        regex: true
-        source_labels:
-        - __meta_kubernetes_service_annotation_prometheus_io_scrape_slow
-      - action: replace
-        regex: (https?)
-        source_labels:
-        - __meta_kubernetes_service_annotation_prometheus_io_scheme
-        target_label: __scheme__
-      - action: replace
-        regex: (.+)
-        source_labels:
-        - __meta_kubernetes_service_annotation_prometheus_io_path
-        target_label: __metrics_path__
-      - action: replace
-        regex: (.+?)(?::\d+)?;(\d+)
-        replacement: $1:$2
-        source_labels:
-        - __address__
-        - __meta_kubernetes_service_annotation_prometheus_io_port
-        target_label: __address__
-      - action: labelmap
-        regex: __meta_kubernetes_service_annotation_prometheus_io_param_(.+)
-        replacement: __param_$1
-      - action: labelmap
-        regex: __meta_kubernetes_service_label_(.+)
-      - action: replace
-        source_labels:
-        - __meta_kubernetes_namespace
-        target_label: namespace
-      - action: replace
-        source_labels:
-        - __meta_kubernetes_service_name
-        target_label: service
-      - action: replace
-        source_labels:
-        - __meta_kubernetes_pod_node_name
-        target_label: node
-    - honor_labels: true
-      job_name: kubernetes-service-endpoints-slow
-      kubernetes_sd_configs:
-      - role: endpoints
-      relabel_configs:
-      - action: keep
-        regex: true
-        source_labels:
-        - __meta_kubernetes_service_annotation_prometheus_io_scrape_slow
-      - action: replace
-        regex: (https?)
-        source_labels:
-        - __meta_kubernetes_service_annotation_prometheus_io_scheme
-        target_label: __scheme__
-      - action: replace
-        regex: (.+)
-        source_labels:
-        - __meta_kubernetes_service_annotation_prometheus_io_path
-        target_label: __metrics_path__
-      - action: replace
-        regex: (.+?)(?::\d+)?;(\d+)
-        replacement: $1:$2
-        source_labels:
-        - __address__
-        - __meta_kubernetes_service_annotation_prometheus_io_port
-        target_label: __address__
-      - action: labelmap
-        regex: __meta_kubernetes_service_annotation_prometheus_io_param_(.+)
-        replacement: __param_$1
-      - action: labelmap
-        regex: __meta_kubernetes_service_label_(.+)
-      - action: replace
-        source_labels:
-        - __meta_kubernetes_namespace
-        target_label: namespace
-      - action: replace
-        source_labels:
-        - __meta_kubernetes_service_name
-        target_label: service
-      - action: replace
-        source_labels:
-        - __meta_kubernetes_pod_node_name
-        target_label: node
-      scrape_interval: 5m
-      scrape_timeout: 30s
-    - honor_labels: true
-      job_name: prometheus-pushgateway
-      kubernetes_sd_configs:
-      - role: service
-      relabel_configs:
-      - action: keep
-        regex: pushgateway
-        source_labels:
-        - __meta_kubernetes_service_annotation_prometheus_io_probe
-    - honor_labels: true
-      job_name: kubernetes-services
-      kubernetes_sd_configs:
-      - role: service
-      metrics_path: /probe
-      params:
-        module:
-        - http_2xx
-      relabel_configs:
-      - action: keep
-        regex: true
-        source_labels:
-        - __meta_kubernetes_service_annotation_prometheus_io_probe
-      - source_labels:
-        - __address__
-        target_label: __param_target
-      - replacement: blackbox
-        target_label: __address__
-      - source_labels:
-        - __param_target
-        target_label: instance
-      - action: labelmap
-        regex: __meta_kubernetes_service_label_(.+)
-      - source_labels:
-        - __meta_kubernetes_namespace
-        target_label: namespace
-      - source_labels:
-        - __meta_kubernetes_service_name
-        target_label: service
     - honor_labels: true
       job_name: kubernetes-pods
       kubernetes_sd_configs:
@@ -350,62 +175,6 @@ data:
         source_labels:
         - __meta_kubernetes_pod_node_name
         target_label: node
-    - honor_labels: true
-      job_name: kubernetes-pods-slow
-      kubernetes_sd_configs:
-      - role: pod
-      relabel_configs:
-      - action: keep
-        regex: true
-        source_labels:
-        - __meta_kubernetes_pod_annotation_prometheus_io_scrape_slow
-      - action: replace
-        regex: (https?)
-        source_labels:
-        - __meta_kubernetes_pod_annotation_prometheus_io_scheme
-        target_label: __scheme__
-      - action: replace
-        regex: (.+)
-        source_labels:
-        - __meta_kubernetes_pod_annotation_prometheus_io_path
-        target_label: __metrics_path__
-      - action: replace
-        regex: (\d+);(([A-Fa-f0-9]{1,4}::?){1,7}[A-Fa-f0-9]{1,4})
-        replacement: '[$2]:$1'
-        source_labels:
-        - __meta_kubernetes_pod_annotation_prometheus_io_port
-        - __meta_kubernetes_pod_ip
-        target_label: __address__
-      - action: replace
-        regex: (\d+);((([0-9]+?)(\.|$)){4})
-        replacement: $2:$1
-        source_labels:
-        - __meta_kubernetes_pod_annotation_prometheus_io_port
-        - __meta_kubernetes_pod_ip
-        target_label: __address__
-      - action: labelmap
-        regex: __meta_kubernetes_pod_annotation_prometheus_io_param_(.+)
-        replacement: __param_$1
-      - action: labelmap
-        regex: __meta_kubernetes_pod_label_(.+)
-      - action: replace
-        source_labels:
-        - __meta_kubernetes_namespace
-        target_label: namespace
-      - action: replace
-        source_labels:
-        - __meta_kubernetes_pod_name
-        target_label: pod
-      - action: drop
-        regex: Pending|Succeeded|Failed|Completed
-        source_labels:
-        - __meta_kubernetes_pod_phase
-      - action: replace
-        source_labels:
-        - __meta_kubernetes_pod_node_name
-        target_label: node
-      scrape_interval: 5m
-      scrape_timeout: 30s
   recording_rules.yml: |
     {}
   rules: |
@@ -426,144 +195,9 @@ metadata:
   name: prometheus-kube-state-metrics
 rules:
 
-- apiGroups: ["certificates.k8s.io"]
-  resources:
-  - certificatesigningrequests
-  verbs: ["list", "watch"]
-
-- apiGroups: [""]
-  resources:
-  - configmaps
-  verbs: ["list", "watch"]
-
-- apiGroups: ["batch"]
-  resources:
-  - cronjobs
-  verbs: ["list", "watch"]
-
-- apiGroups: ["extensions", "apps"]
-  resources:
-  - daemonsets
-  verbs: ["list", "watch"]
-
-- apiGroups: ["extensions", "apps"]
-  resources:
-  - deployments
-  verbs: ["list", "watch"]
-
-- apiGroups: [""]
-  resources:
-  - endpoints
-  verbs: ["list", "watch"]
-
-- apiGroups: ["autoscaling"]
-  resources:
-  - horizontalpodautoscalers
-  verbs: ["list", "watch"]
-
-- apiGroups: ["extensions", "networking.k8s.io"]
-  resources:
-  - ingresses
-  verbs: ["list", "watch"]
-
-- apiGroups: ["batch"]
-  resources:
-  - jobs
-  verbs: ["list", "watch"]
-
-- apiGroups: ["coordination.k8s.io"]
-  resources:
-  - leases
-  verbs: ["list", "watch"]
-
-- apiGroups: [""]
-  resources:
-  - limitranges
-  verbs: ["list", "watch"]
-
-- apiGroups: ["admissionregistration.k8s.io"]
-  resources:
-    - mutatingwebhookconfigurations
-  verbs: ["list", "watch"]
-
-- apiGroups: [""]
-  resources:
-  - namespaces
-  verbs: ["list", "watch"]
-
-- apiGroups: ["networking.k8s.io"]
-  resources:
-  - networkpolicies
-  verbs: ["list", "watch"]
-
 - apiGroups: [""]
   resources:
   - nodes
-  verbs: ["list", "watch"]
-
-- apiGroups: [""]
-  resources:
-  - persistentvolumeclaims
-  verbs: ["list", "watch"]
-
-- apiGroups: [""]
-  resources:
-  - persistentvolumes
-  verbs: ["list", "watch"]
-
-- apiGroups: ["policy"]
-  resources:
-    - poddisruptionbudgets
-  verbs: ["list", "watch"]
-
-- apiGroups: [""]
-  resources:
-  - pods
-  verbs: ["list", "watch"]
-
-- apiGroups: ["extensions", "apps"]
-  resources:
-  - replicasets
-  verbs: ["list", "watch"]
-
-- apiGroups: [""]
-  resources:
-  - replicationcontrollers
-  verbs: ["list", "watch"]
-
-- apiGroups: [""]
-  resources:
-  - resourcequotas
-  verbs: ["list", "watch"]
-
-- apiGroups: [""]
-  resources:
-  - secrets
-  verbs: ["list", "watch"]
-
-- apiGroups: [""]
-  resources:
-  - services
-  verbs: ["list", "watch"]
-
-- apiGroups: ["apps"]
-  resources:
-  - statefulsets
-  verbs: ["list", "watch"]
-
-- apiGroups: ["storage.k8s.io"]
-  resources:
-    - storageclasses
-  verbs: ["list", "watch"]
-
-- apiGroups: ["admissionregistration.k8s.io"]
-  resources:
-    - validatingwebhookconfigurations
-  verbs: ["list", "watch"]
-
-- apiGroups: ["storage.k8s.io"]
-  resources:
-    - volumeattachments
   verbs: ["list", "watch"]
 ---
 # Source: prometheus/templates/clusterrole.yaml
@@ -572,13 +206,13 @@ kind: ClusterRole
 metadata:
   labels:
     app.kubernetes.io/component: server
-    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/name: dz-prometheus
     app.kubernetes.io/instance: prometheus
     app.kubernetes.io/version: v2.48.0
     helm.sh/chart: prometheus-25.8.0
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/part-of: prometheus
-  name: prometheus-server
+    app.kubernetes.io/part-of: dz-prometheus
+  name: prometheus-dz-prometheus-server
 rules:
   - apiGroups:
       - ""
@@ -646,21 +280,21 @@ kind: ClusterRoleBinding
 metadata:
   labels:
     app.kubernetes.io/component: server
-    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/name: dz-prometheus
     app.kubernetes.io/instance: prometheus
     app.kubernetes.io/version: v2.48.0
     helm.sh/chart: prometheus-25.8.0
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/part-of: prometheus
-  name: prometheus-server
+    app.kubernetes.io/part-of: dz-prometheus
+  name: prometheus-dz-prometheus-server
 subjects:
   - kind: ServiceAccount
-    name: prometheus-server
+    name: prometheus-dz-prometheus-server
     namespace: devzero-zxporter
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: prometheus-server
+  name: prometheus-dz-prometheus-server
 ---
 # Source: prometheus/charts/kube-state-metrics/templates/service.yaml
 apiVersion: v1
@@ -690,71 +324,19 @@ spec:
     app.kubernetes.io/name: kube-state-metrics
     app.kubernetes.io/instance: prometheus
 ---
-# Source: prometheus/charts/prometheus-node-exporter/templates/service.yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: prometheus-prometheus-node-exporter
-  namespace: devzero-zxporter
-  labels:
-    helm.sh/chart: prometheus-node-exporter-4.24.0
-    app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/component: metrics
-    app.kubernetes.io/part-of: prometheus-node-exporter
-    app.kubernetes.io/name: prometheus-node-exporter
-    app.kubernetes.io/instance: prometheus
-    app.kubernetes.io/version: "1.7.0"
-  annotations:
-    prometheus.io/scrape: "true"
-spec:
-  type: ClusterIP
-  ports:
-    - port: 9100
-      targetPort: 9100
-      protocol: TCP
-      name: metrics
-  selector:
-    app.kubernetes.io/name: prometheus-node-exporter
-    app.kubernetes.io/instance: prometheus
----
-# Source: prometheus/charts/prometheus-pushgateway/templates/service.yaml
-apiVersion: v1
-kind: Service
-metadata:
-  annotations:
-    prometheus.io/probe: pushgateway
-  labels:
-    helm.sh/chart: prometheus-pushgateway-2.4.2
-    app.kubernetes.io/name: prometheus-pushgateway
-    app.kubernetes.io/instance: prometheus
-    app.kubernetes.io/version: "v1.6.2"
-    app.kubernetes.io/managed-by: Helm
-  name: prometheus-prometheus-pushgateway
-  namespace: devzero-zxporter
-spec:
-  type: ClusterIP
-  ports:
-    - port: 9091
-      targetPort: 9091
-      protocol: TCP
-      name: http
-  selector:
-    app.kubernetes.io/name: prometheus-pushgateway
-    app.kubernetes.io/instance: prometheus
----
 # Source: prometheus/templates/service.yaml
 apiVersion: v1
 kind: Service
 metadata:
   labels:
     app.kubernetes.io/component: server
-    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/name: dz-prometheus
     app.kubernetes.io/instance: prometheus
     app.kubernetes.io/version: v2.48.0
     helm.sh/chart: prometheus-25.8.0
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/part-of: prometheus
-  name: prometheus-server
+    app.kubernetes.io/part-of: dz-prometheus
+  name: prometheus-dz-prometheus-server
   namespace: devzero-zxporter
 spec:
   ports:
@@ -764,125 +346,10 @@ spec:
       targetPort: 9090
   selector:
     app.kubernetes.io/component: server
-    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/name: dz-prometheus
     app.kubernetes.io/instance: prometheus
   sessionAffinity: None
   type: "ClusterIP"
----
-# Source: prometheus/charts/prometheus-node-exporter/templates/daemonset.yaml
-apiVersion: apps/v1
-kind: DaemonSet
-metadata:
-  name: prometheus-prometheus-node-exporter
-  namespace: devzero-zxporter
-  labels:
-    helm.sh/chart: prometheus-node-exporter-4.24.0
-    app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/component: metrics
-    app.kubernetes.io/part-of: prometheus-node-exporter
-    app.kubernetes.io/name: prometheus-node-exporter
-    app.kubernetes.io/instance: prometheus
-    app.kubernetes.io/version: "1.7.0"
-spec:
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: prometheus-node-exporter
-      app.kubernetes.io/instance: prometheus
-  revisionHistoryLimit: 10
-  updateStrategy:
-    rollingUpdate:
-      maxUnavailable: 1
-    type: RollingUpdate
-  template:
-    metadata:
-      annotations:
-        cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
-      labels:
-        helm.sh/chart: prometheus-node-exporter-4.24.0
-        app.kubernetes.io/managed-by: Helm
-        app.kubernetes.io/component: metrics
-        app.kubernetes.io/part-of: prometheus-node-exporter
-        app.kubernetes.io/name: prometheus-node-exporter
-        app.kubernetes.io/instance: prometheus
-        app.kubernetes.io/version: "1.7.0"
-    spec:
-      automountServiceAccountToken: false
-      securityContext:
-        fsGroup: 65534
-        runAsGroup: 65534
-        runAsNonRoot: true
-        runAsUser: 65534
-      serviceAccountName: prometheus-prometheus-node-exporter
-      containers:
-        - name: node-exporter
-          image: quay.io/prometheus/node-exporter:v1.7.0
-          imagePullPolicy: IfNotPresent
-          args:
-            - --path.procfs=/host/proc
-            - --path.sysfs=/host/sys
-            - --path.rootfs=/host/root
-            - --path.udev.data=/host/root/run/udev/data
-            - --web.listen-address=[$(HOST_IP)]:9100
-          securityContext:
-            allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: true
-          env:
-            - name: HOST_IP
-              value: 0.0.0.0
-          ports:
-            - name: metrics
-              containerPort: 9100
-              protocol: TCP
-          livenessProbe:
-            failureThreshold: 3
-            httpGet:
-              httpHeaders:
-              path: /
-              port: 9100
-              scheme: HTTP
-            initialDelaySeconds: 0
-            periodSeconds: 10
-            successThreshold: 1
-            timeoutSeconds: 1
-          readinessProbe:
-            failureThreshold: 3
-            httpGet:
-              httpHeaders:
-              path: /
-              port: 9100
-              scheme: HTTP
-            initialDelaySeconds: 0
-            periodSeconds: 10
-            successThreshold: 1
-            timeoutSeconds: 1
-          volumeMounts:
-            - name: proc
-              mountPath: /host/proc
-              readOnly:  true
-            - name: sys
-              mountPath: /host/sys
-              readOnly: true
-            - name: root
-              mountPath: /host/root
-              mountPropagation: HostToContainer
-              readOnly: true
-      hostNetwork: true
-      hostPID: true
-      nodeSelector:
-        kubernetes.io/os: linux
-      tolerations:
-        - effect: NoSchedule
-          operator: Exists
-      volumes:
-        - name: proc
-          hostPath:
-            path: /proc
-        - name: sys
-          hostPath:
-            path: /sys
-        - name: root
-          hostPath:
-            path: /
 ---
 # Source: prometheus/charts/kube-state-metrics/templates/deployment.yaml
 apiVersion: apps/v1
@@ -931,7 +398,7 @@ spec:
       - name: kube-state-metrics
         args:
         - --port=8080
-        - --resources=certificatesigningrequests,configmaps,cronjobs,daemonsets,deployments,endpoints,horizontalpodautoscalers,ingresses,jobs,leases,limitranges,mutatingwebhookconfigurations,namespaces,networkpolicies,nodes,persistentvolumeclaims,persistentvolumes,poddisruptionbudgets,pods,replicasets,replicationcontrollers,resourcequotas,secrets,services,statefulsets,storageclasses,validatingwebhookconfigurations,volumeattachments
+        - --resources=nodes
         imagePullPolicy: IfNotPresent
         image: registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.10.1
         ports:
@@ -955,87 +422,25 @@ spec:
             drop:
             - ALL
 ---
-# Source: prometheus/charts/prometheus-pushgateway/templates/deployment.yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  labels:
-    helm.sh/chart: prometheus-pushgateway-2.4.2
-    app.kubernetes.io/name: prometheus-pushgateway
-    app.kubernetes.io/instance: prometheus
-    app.kubernetes.io/version: "v1.6.2"
-    app.kubernetes.io/managed-by: Helm
-  name: prometheus-prometheus-pushgateway
-  namespace: devzero-zxporter
-spec:
-  replicas: 1
-  strategy:
-    type: Recreate
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: prometheus-pushgateway
-      app.kubernetes.io/instance: prometheus
-  template:
-    metadata:
-      labels:
-        helm.sh/chart: prometheus-pushgateway-2.4.2
-        app.kubernetes.io/name: prometheus-pushgateway
-        app.kubernetes.io/instance: prometheus
-        app.kubernetes.io/version: "v1.6.2"
-        app.kubernetes.io/managed-by: Helm
-    spec:
-      serviceAccountName: prometheus-prometheus-pushgateway
-      containers:
-        - name: pushgateway
-          image: "quay.io/prometheus/pushgateway:v1.6.2"
-          imagePullPolicy: IfNotPresent
-          ports:
-            - name: metrics
-              containerPort: 9091
-              protocol: TCP
-          livenessProbe:
-            httpGet:
-              path: /-/healthy
-              port: 9091
-            initialDelaySeconds: 10
-            timeoutSeconds: 10
-          readinessProbe:
-            httpGet:
-              path: /-/ready
-              port: 9091
-            initialDelaySeconds: 10
-            timeoutSeconds: 10
-          volumeMounts:
-            - name: storage-volume
-              mountPath: "/data"
-              subPath: ""
-      securityContext:
-        fsGroup: 65534
-        runAsNonRoot: true
-        runAsUser: 65534
-      volumes:
-        - name: storage-volume
-          emptyDir: {}
----
 # Source: prometheus/templates/deploy.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
     app.kubernetes.io/component: server
-    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/name: dz-prometheus
     app.kubernetes.io/instance: prometheus
     app.kubernetes.io/version: v2.48.0
     helm.sh/chart: prometheus-25.8.0
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/part-of: prometheus
-  name: prometheus-server
+    app.kubernetes.io/part-of: dz-prometheus
+  name: prometheus-dz-prometheus-server
   namespace: devzero-zxporter
 spec:
   selector:
     matchLabels:
       app.kubernetes.io/component: server
-      app.kubernetes.io/name: prometheus
+      app.kubernetes.io/name: dz-prometheus
       app.kubernetes.io/instance: prometheus
   replicas: 1
   revisionHistoryLimit: 10
@@ -1046,17 +451,17 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/component: server
-        app.kubernetes.io/name: prometheus
+        app.kubernetes.io/name: dz-prometheus
         app.kubernetes.io/instance: prometheus
         app.kubernetes.io/version: v2.48.0
         helm.sh/chart: prometheus-25.8.0
         app.kubernetes.io/managed-by: Helm
-        app.kubernetes.io/part-of: prometheus
+        app.kubernetes.io/part-of: dz-prometheus
     spec:
       enableServiceLinks: true
-      serviceAccountName: prometheus-server
+      serviceAccountName: prometheus-dz-prometheus-server
       containers:
-        - name: prometheus-server-configmap-reload
+        - name: dz-prometheus-server-configmap-reload
           image: "quay.io/prometheus-operator/prometheus-config-reloader:v0.67.0"
           imagePullPolicy: "IfNotPresent"
           args:
@@ -1067,7 +472,7 @@ spec:
               mountPath: /etc/config
               readOnly: true
 
-        - name: prometheus-server
+        - name: dz-prometheus-server
           image: "quay.io/prometheus/prometheus:v2.48.0"
           imagePullPolicy: "IfNotPresent"
           args:
@@ -1115,7 +520,7 @@ spec:
       volumes:
         - name: config-volume
           configMap:
-            name: prometheus-server
+            name: prometheus-dz-prometheus-server
         - name: storage-volume
           emptyDir:
             {}
@@ -1126,14 +531,14 @@ spec:
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: node-exporter-prometheus-node-exporter
+  name: dz-prometheus-node-exporter
   namespace: devzero-zxporter
   labels:
     helm.sh/chart: prometheus-node-exporter-4.24.0
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: metrics
-    app.kubernetes.io/part-of: prometheus-node-exporter
-    app.kubernetes.io/name: prometheus-node-exporter
+    app.kubernetes.io/part-of: dz-prometheus-node-exporter
+    app.kubernetes.io/name: dz-prometheus-node-exporter
     app.kubernetes.io/instance: node-exporter
     app.kubernetes.io/version: "1.7.0"
 ---
@@ -1141,14 +546,14 @@ metadata:
 apiVersion: v1
 kind: Service
 metadata:
-  name: node-exporter-prometheus-node-exporter
+  name: dz-prometheus-node-exporter
   namespace: devzero-zxporter
   labels:
     helm.sh/chart: prometheus-node-exporter-4.24.0
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: metrics
-    app.kubernetes.io/part-of: prometheus-node-exporter
-    app.kubernetes.io/name: prometheus-node-exporter
+    app.kubernetes.io/part-of: dz-prometheus-node-exporter
+    app.kubernetes.io/name: dz-prometheus-node-exporter
     app.kubernetes.io/instance: node-exporter
     app.kubernetes.io/version: "1.7.0"
   annotations:
@@ -1156,32 +561,32 @@ metadata:
 spec:
   type: ClusterIP
   ports:
-    - port: 9100
-      targetPort: 9100
+    - port: 9101
+      targetPort: 9101
       protocol: TCP
       name: metrics
   selector:
-    app.kubernetes.io/name: prometheus-node-exporter
+    app.kubernetes.io/name: dz-prometheus-node-exporter
     app.kubernetes.io/instance: node-exporter
 ---
 # Source: prometheus-node-exporter/templates/daemonset.yaml
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: node-exporter-prometheus-node-exporter
+  name: dz-prometheus-node-exporter
   namespace: devzero-zxporter
   labels:
     helm.sh/chart: prometheus-node-exporter-4.24.0
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: metrics
-    app.kubernetes.io/part-of: prometheus-node-exporter
-    app.kubernetes.io/name: prometheus-node-exporter
+    app.kubernetes.io/part-of: dz-prometheus-node-exporter
+    app.kubernetes.io/name: dz-prometheus-node-exporter
     app.kubernetes.io/instance: node-exporter
     app.kubernetes.io/version: "1.7.0"
 spec:
   selector:
     matchLabels:
-      app.kubernetes.io/name: prometheus-node-exporter
+      app.kubernetes.io/name: dz-prometheus-node-exporter
       app.kubernetes.io/instance: node-exporter
   revisionHistoryLimit: 10
   updateStrategy:
@@ -1196,8 +601,8 @@ spec:
         helm.sh/chart: prometheus-node-exporter-4.24.0
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/component: metrics
-        app.kubernetes.io/part-of: prometheus-node-exporter
-        app.kubernetes.io/name: prometheus-node-exporter
+        app.kubernetes.io/part-of: dz-prometheus-node-exporter
+        app.kubernetes.io/name: dz-prometheus-node-exporter
         app.kubernetes.io/instance: node-exporter
         app.kubernetes.io/version: "1.7.0"
     spec:
@@ -1207,7 +612,7 @@ spec:
         runAsGroup: 65534
         runAsNonRoot: true
         runAsUser: 65534
-      serviceAccountName: node-exporter-prometheus-node-exporter
+      serviceAccountName: dz-prometheus-node-exporter
       containers:
         - name: node-exporter
           image: quay.io/prometheus/node-exporter:v1.7.0
@@ -1217,22 +622,23 @@ spec:
             - --path.sysfs=/host/sys
             - --path.rootfs=/host/root
             - --path.udev.data=/host/root/run/udev/data
-            - --web.listen-address=[$(HOST_IP)]:9100
+            - --web.listen-address=[$(HOST_IP)]:9101
           securityContext:
+            allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
           env:
             - name: HOST_IP
               value: 0.0.0.0
           ports:
             - name: metrics
-              containerPort: 9100
+              containerPort: 9101
               protocol: TCP
           livenessProbe:
             failureThreshold: 3
             httpGet:
               httpHeaders:
               path: /
-              port: 9100
+              port: 9101
               scheme: HTTP
             initialDelaySeconds: 0
             periodSeconds: 10
@@ -1243,7 +649,7 @@ spec:
             httpGet:
               httpHeaders:
               path: /
-              port: 9100
+              port: 9101
               scheme: HTTP
             initialDelaySeconds: 0
             periodSeconds: 10
@@ -1698,9 +1104,8 @@ apiVersion: v1
 data:
   BUFFER_SIZE: ""
   CLUSTER_TOKEN: '{{ .cluster_token }}'
-  KUBE_CONTEXT_NAME: '{{ .kube_context_name }}'
   COLLECTION_FREQUENCY: ""
-  DAKR_URL: '{{ .api_url }}/dakr'
+  DAKR_URL: https://api.devzero.io/dakr
   DISABLE_NETWORK_IO_METRICS: ""
   DISABLED_COLLECTORS: ""
   EXCLUDED_CLUSTERROLEBINDINGS: ""
@@ -1735,9 +1140,10 @@ data:
   EXCLUDED_STORAGECLASSES: ""
   EXCLUDED_VPAS: ""
   K8S_PROVIDER: '{{ .k8s_provider }}'
+  KUBE_CONTEXT_NAME: '{{ .kube_context_name }}'
   MASK_SECRET_DATA: ""
   NODE_METRICS_INTERVAL: ""
-  PROMETHEUS_URL: http://prometheus-server.devzero-zxporter.svc.cluster.local:80
+  PROMETHEUS_URL: http://prometheus-dz-prometheus-server.devzero-zxporter.svc.cluster.local:80
   TARGET_NAMESPACES: ""
   WATCHED_CRDS: ""
 kind: ConfigMap
@@ -1789,7 +1195,7 @@ spec:
         - --metrics-bind-address=:8443
         - --leader-elect
         - --health-probe-bind-address=:8081
-        image: devzeroinc/zxporter:latest
+        image: ttl.sh/zxporter:latest
         livenessProbe:
           httpGet:
             path: /healthz
