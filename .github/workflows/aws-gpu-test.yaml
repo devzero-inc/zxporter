@@ -217,7 +217,7 @@ jobs:
           if [[ "$DCGM_INSTALL_TYPE" == "nvidia-dcgm" ]]; then
             NAMESPACE="gpu-operator"
           fi
-          kubectl get pods -n gpu-operator -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' | grep dcgm-exporter | xargs -r -I {} kubectl wait --for=condition=Ready pod {} -n $NAMESPACE --timeout=300s
+          kubectl get pods -n $NAMESPACE -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' | grep dcgm-exporter | xargs -r -I {} kubectl wait --for=condition=Ready pod {} -n $NAMESPACE --timeout=300s
           echo "Verifying DCGM pods and Prometheus annotations..."
           kubectl get pods -A | grep dcgm-exporter | awk '
           BEGIN { all_running = 1; pod_count = 0 }
