@@ -6,6 +6,14 @@ on:
       - garvit/aws-gpu-test
   workflow_dispatch:
     inputs:
+      gpu_install_type:
+        description: 'GPU installation type'
+        required: false
+        default: 'nvidia-device-plugin'
+        type: choice
+        options:
+          - gpu-operator
+          - nvidia-device-plugin
       dcgm_install_type:
         description: 'DCGM install type'
         required: false
@@ -38,6 +46,7 @@ jobs:
     name: Apply Terraform
     runs-on: ubuntu-latest
     env:
+      GPU_INSTALL_TYPE: ${{ github.event.inputs.gpu_install_type || 'nvidia-device-plugin' }}
       DCGM_INSTALL_TYPE: ${{ github.event.inputs.dcgm_install_type || 'devzero-dcgm' }}
       CLUSTER_VERSION: ${{ github.event.inputs.cluster_version || '1.30' }}
 
@@ -45,6 +54,16 @@ jobs:
       job_identifier: ${{ steps.job-identifier.outputs.job_identifier }}
 
     steps:
+      - name: Validate Inputs
+        run: |
+          echo "GPU_INSTALL_TYPE=${GPU_INSTALL_TYPE}"
+          echo "DCGM_INSTALL_TYPE=${DCGM_INSTALL_TYPE}"
+
+          if [[ "$GPU_INSTALL_TYPE" == "nvidia-device-plugin" && "$DCGM_INSTALL_TYPE" != "devzero-dcgm" ]]; then
+            echo "Error: When GPU_INSTALL_TYPE is 'nvidia-device-plugin', DCGM_INSTALL_TYPE must be 'devzero-dcgm'."
+            exit 1
+          fi
+
       - name: Checkout Repository
         uses: actions/checkout@v4
 
@@ -93,6 +112,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: apply-terraform
     env:
+      GPU_INSTALL_TYPE: ${{ github.event.inputs.gpu_install_type || 'nvidia-device-plugin' }}
       DCGM_INSTALL_TYPE: ${{ github.event.inputs.dcgm_install_type || 'devzero-dcgm' }}
 
     steps:
@@ -122,7 +142,7 @@ jobs:
           fi
 
       - name: Install GPU Operator (if needed)
-        if: env.GPU_CHECK == 'false'
+        if: env.GPU_CHECK == 'false' && env.GPU_INSTALL_TYPE == 'gpu-operator'
         run: |
           echo "GPU resources not found, installing GPU Operator..."
           kubectl create ns gpu-operator
@@ -136,6 +156,20 @@ jobs:
           fi
           echo "Running: $INSTALL_CMD"
           $INSTALL_CMD
+
+      - name: Install Nvidia Device Plugin
+        if: env.GPU_INSTALL_TYPE == 'nvidia-device-plugin' && env.GPU_CHECK == 'false'
+        run: |
+          echo "Installing Nvidia Device Plugin..."
+          kubectl label node "$(kubectl get nodes -o jsonpath='{.items[0].metadata.name}')" nvidia.com/gpu=true nvidia.com/mps.capable=true nvidia.com/gpu.present=true --overwrite
+
+          kubectl apply -f nvidia-device-plugin-prereq
+          helm repo add nvdp https://nvidia.github.io/k8s-device-plugin
+          helm repo update
+          helm upgrade -i nvdp nvdp/nvidia-device-plugin \
+            --namespace nvidia-device-plugin \
+            --create-namespace \
+            --version 0.17.1
 
       - name: Check GPU Availability After Installing GPU Operator
         if: env.GPU_CHECK == 'false'
@@ -155,10 +189,9 @@ jobs:
           echo "Checking if DCGM DaemonSet is installed..."
           if kubectl get daemonset -A | grep -q dcgm; then
             echo "Nvidia DCGM found, proceeding with validation."
-            echo "SKIP_INSTALL=false" >> $GITHUB_ENV
           else
-            echo "Nvidia DCGM not found, skipping install and proceeding to destroy."
-            echo "SKIP_INSTALL=true" >> $GITHUB_ENV
+            echo "Nvidia DCGM not found."
+            exit 1
           fi
 
       - name: Install DevZero DCGM
@@ -180,9 +213,12 @@ jobs:
           fi
           
       - name: Verify DCGM Pods and Prometheus Annotations
-        if: env.SKIP_INSTALL != 'true'
         run: |
-          kubectl get pods -n gpu-operator -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' | grep dcgm-exporter | xargs -r -I {} kubectl wait --for=condition=Ready pod {} -n gpu-operator --timeout=300s
+          NAMESPACE="devzero-zxporter"
+          if [[ "$DCGM_INSTALL_TYPE" == "nvidia-dcgm" ]]; then
+            NAMESPACE="gpu-operator"
+          fi
+          kubectl get pods -n gpu-operator -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' | grep dcgm-exporter | xargs -r -I {} kubectl wait --for=condition=Ready pod {} -n $NAMESPACE --timeout=300s
           echo "Verifying DCGM pods and Prometheus annotations..."
           kubectl get pods -A | grep dcgm-exporter | awk '
           BEGIN { all_running = 1; pod_count = 0 }
@@ -199,7 +235,6 @@ jobs:
           kubectl get pods -A -o json | jq -r '.items[] | select(.metadata.name | contains("dcgm-exporter")) | "\(.metadata.namespace) \(.metadata.name)"' | while read namespace pod; do kubectl annotate pod $pod -n $namespace prometheus.io/scrape=true --overwrite; done
 
       - name: Install and Verify DeepSeek Workload
-        if: env.SKIP_INSTALL != 'true'
         run: |
           kubectl create ns deepseek
           kubectl apply -f https://gist.githubusercontent.com/Tzvonimir/a168dcc1515d3bf89254c34010e16d37/raw/4b154383f4e254c9490d4815e85aa5f574eb26eb/install-test-deepseek.yaml    
@@ -216,13 +251,11 @@ jobs:
 
       - name: Set up Go
         uses: actions/setup-go@v5
-        if: env.SKIP_INSTALL != 'true'
         with:
           go-version: '1.22'
           cache: true
 
       - name: Install ZXPorter
-        if: env.SKIP_INSTALL != 'true'
         run: |
           ZXPORTER_IMG="ttl.sh/$(uuidgen):2h"
           echo "Building and pushing zxporter image: ${ZXPORTER_IMG}"
@@ -233,7 +266,6 @@ jobs:
           kubectl wait --for=condition=Ready pod -l app.kubernetes.io/component=server -n devzero-zxporter --timeout=300s
 
       - name: Test ZXPorter with Prometheus
-        if: env.SKIP_INSTALL != 'true'
         run: |
           kubectl port-forward svc/prometheus-dz-prometheus-server 9090:80 -n devzero-zxporter &
           sleep 10
