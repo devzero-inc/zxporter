@@ -266,15 +266,29 @@ jobs:
 
       - name: Test ZXPorter with Prometheus
         run: |
-          kubectl port-forward svc/prometheus-dz-prometheus-server 9090:80 -n devzero-zxporter &
-          sleep 10
+          kubectl port-forward svc/prometheus-dz-prometheus-server 9090:80 -n devzero-zxporter > pf.log 2>&1 &
+          PF_PID=$!
+          sleep 5
+          MAX_RETRIES=6
+          for i in $(seq 1 $MAX_RETRIES); do
+            if curl -s "http://localhost:9090/-/ready" >/dev/null; then
+              echo "Prometheus port-forward is ready."
+              break
+            fi
+            echo "[$i/$MAX_RETRIES] Waiting for Prometheus to become ready..."
+            sleep 5
+          done
+
           result=$(curl -s "http://localhost:9090/api/v1/query?query=DCGM_FI_DEV_SM_CLOCK" | jq -r '.data.result')
+          kill $PF_PID || true
+
           echo "Metric found: $result"
           if [[ -z "$result" || "$result" == [] ]]; then
-            echo "DCGM_FI_DEV_SM_CLOCK metric not found!"
+            echo "❌ DCGM_FI_DEV_SM_CLOCK metric not found!"
+            echo "Port-forward log:"
+            cat pf.log
             exit 1
           fi
-          
 
   destroy-terraform:
     name: Destroy Terraform
