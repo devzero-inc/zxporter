@@ -241,6 +241,7 @@ jobs:
           echo "Metric found: $result"
           if [[ -z "$result" || "$result" == [] ]]; then
             echo "DCGM_FI_DEV_SM_CLOCK metric not found!"
+            exit 1
           fi
           
 
