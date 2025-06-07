@@ -162,13 +162,12 @@ jobs:
         run: |
           echo "Installing Nvidia Device Plugin..."
           kubectl label node "$(kubectl get nodes -o jsonpath='{.items[0].metadata.name}')" nvidia.com/gpu=true nvidia.com/mps.capable=true nvidia.com/gpu.present=true --overwrite
-
+          kubectl create ns nvidia-device-plugin
           kubectl apply -f nvidia-device-plugin-prereq
           helm repo add nvdp https://nvidia.github.io/k8s-device-plugin
           helm repo update
           helm upgrade -i nvdp nvdp/nvidia-device-plugin \
             --namespace nvidia-device-plugin \
-            --create-namespace \
             --version 0.17.1
 
       - name: Check GPU Availability After Installing GPU Operator
