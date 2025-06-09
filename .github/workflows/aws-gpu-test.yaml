@@ -327,7 +327,6 @@ jobs:
           kubectl port-forward -n kube-system service/karpenter 8000:8000 > /dev/null 2>&1 &
           PF_PID=$!
           
-          # Allow port-forward to establish
           sleep 5
           
           MAX_RETRIES=6
