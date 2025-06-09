@@ -350,7 +350,7 @@ jobs:
           if [ "$HEALTH" == "OK" ]; then
             echo "Karpenter is healthy ✅"
           else
-            echo "Karpenter health check failed ❌"
+            echo "Karpenter health check failed ❌ "
             kubectl get pods -n kube-system -l app.kubernetes.io/name=karpenter
             kubectl logs -n kube-system -l app.kubernetes.io/name=karpenter --tail=50
             exit 1
