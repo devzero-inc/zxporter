@@ -30,7 +30,7 @@ module "vpc" {
   private_subnet_tags = {
     "kubernetes.io/cluster/${var.cluster_name}" = "shared"
     "kubernetes.io/role/internal-elb"           = "1"
-    "karpenter.sh/discovery"                    = "${var.cluster_name}"  # Added Karpenter discovery tag
+    "karpenter.sh/discovery"                    = "${var.cluster_name}" 
   }
 }
 
@@ -72,7 +72,6 @@ resource "aws_iam_role_policy_attachment" "karpenter_node_admin_policy_attachmen
   policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
 }
 
-# IAM Role for Karpenter Controller (with OIDC Trust Relationship)
 resource "aws_iam_role" "karpenter_controller_role" {
   name = "KarpenterControllerRole-${var.cluster_name}"
 
@@ -252,7 +251,6 @@ module "eks" {
   cluster_endpoint_public_access = true
   cluster_endpoint_public_access_cidrs = ["0.0.0.0/0"]
 
-  # Disable automatic node IAM role creation
   create_node_iam_role = false
 
   eks_managed_node_groups = {
@@ -283,7 +281,6 @@ module "eks" {
   }
 }
 
-# Security Group Tagging for Karpenter
 resource "aws_security_group" "karpenter_sg" {
   name        = "karpenter-sg-${var.cluster_name}"
   description = "Karpenter security group"
@@ -302,10 +299,8 @@ resource "aws_security_group_rule" "karpenter_inbound" {
   cidr_blocks       = ["0.0.0.0/0"]
 }
 
-
-// Replace the existing aws_sqs_queue resource
 resource "aws_sqs_queue" "karpenter_interruption_queue" {
-  name = "${var.cluster_name}-karpenter-interruption"  // Changed name to be more specific
+  name = "${var.cluster_name}-karpenter-interruption"
   sqs_managed_sse_enabled = true
 
   tags = {
@@ -313,7 +308,6 @@ resource "aws_sqs_queue" "karpenter_interruption_queue" {
   }
 }
 
-// Update the SQS queue policy
 resource "aws_sqs_queue_policy" "karpenter_interruption_queue_policy" {
   queue_url = aws_sqs_queue.karpenter_interruption_queue.url
 
