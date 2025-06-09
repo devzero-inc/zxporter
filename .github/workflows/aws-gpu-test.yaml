@@ -36,6 +36,14 @@ on:
           - '1.31'
           - '1.32'
           - '1.33'
+      karpenter_version:
+        description: 'Karpenter Version'
+        required: false
+        default: '0.37.7'
+        type: choice
+        options:
+          - 'no_karpenter'
+          - '0.37.7'
 
 permissions:
   id-token: write
@@ -114,6 +122,7 @@ jobs:
     env:
       GPU_INSTALL_TYPE: ${{ github.event.inputs.gpu_install_type || 'nvidia-device-plugin' }}
       DCGM_INSTALL_TYPE: ${{ github.event.inputs.dcgm_install_type || 'devzero-dcgm' }}
+      Karpenter_VERSION: ${{ github.event.inputs.karpenter_version || '0.37.7' }}
 
     steps:
       - name: Checkout Repository
@@ -128,6 +137,29 @@ jobs:
       - name: Configure Kubernetes Access
         run: |
           aws eks update-kubeconfig --region us-east-1 --name ${{ needs.apply-terraform.outputs.job_identifier }}
+
+      - name: Install Karpenter (if needed)
+        if: env.Karpenter_VERSION != 'no_karpenter'
+        run: |
+          echo "Installing Karpenter..."
+          AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
+          CLUSTER_ENDPOINT="$(aws eks describe-cluster --name "${{ needs.apply-terraform.outputs.job_identifier }}" --query "cluster.endpoint" --output text)"
+          KARPENTER_IAM_ROLE_ARN="arn:aws:iam::${AWS_ACCOUNT_ID}:role/KarpenterControllerRole-${{ needs.apply-terraform.outputs.job_identifier }}"
+          helm upgrade --install karpenter oci://public.ecr.aws/karpenter/karpenter \
+            --version "${{ env.KARPENTER_VERSION}}" \
+            --namespace kube-system \
+            --create-namespace \
+            --set settings.clusterName="${{ needs.apply-terraform.outputs.job_identifier }}" \
+            --set settings.aws.clusterName="${{ needs.apply-terraform.outputs.job_identifier }}" \
+            --set settings.aws.clusterEndpoint="${CLUSTER_ENDPOINT}" \
+            --set settings.aws.defaultInstanceProfile="KarpenterNodeRole-${{ needs.apply-terraform.outputs.job_identifier }}" \
+            --set settings.aws.interruptionQueueName="${{ needs.apply-terraform.outputs.job_identifier }}-karpenter-interruption" \
+            --set serviceAccount.annotations."eks\.amazonaws\.com/role-arn"="${KARPENTER_IAM_ROLE_ARN}" \
+            --set controller.resources.requests.cpu="1" \
+            --set controller.resources.requests.memory="1Gi" \
+            --set controller.resources.limits.cpu="1" \
+            --set controller.resources.limits.memory="1Gi" \
+            --wait
 
       - name: Check GPU Availability
         id: gpu_check
@@ -161,7 +193,7 @@ jobs:
         if: env.GPU_INSTALL_TYPE == 'nvidia-device-plugin' && env.GPU_CHECK == 'false'
         run: |
           echo "Installing Nvidia Device Plugin..."
-          kubectl label node "$(kubectl get nodes -o jsonpath='{.items[0].metadata.name}')" nvidia.com/gpu=true nvidia.com/mps.capable=true nvidia.com/gpu.present=true --overwrite
+          kubectl get nodes -l node_type=gpu -o jsonpath='{.items[*].metadata.name}' | xargs -I {} kubectl label node {} nvidia.com/gpu=true nvidia.com/mps.capable=true nvidia.com/gpu.present=true --overwrite
           kubectl create ns nvidia-device-plugin
           kubectl apply -f nvidia-device-plugin-prereq
           helm repo add nvdp https://nvidia.github.io/k8s-device-plugin
@@ -287,6 +319,40 @@ jobs:
             echo "❌ DCGM_FI_DEV_SM_CLOCK metric not found!"
             echo "Port-forward log:"
             cat pf.log
+            exit 1
+          fi
+
+      - name: Test Karpenter
+        if: inputs.karpenter_version != 'no_karpenter'
+        run: |
+          echo "Verifying Karpenter installation..."
+          kubectl port-forward -n kube-system service/karpenter 8000:8000 > /dev/null 2>&1 &
+          PF_PID=$!
+          
+          # Allow port-forward to establish
+          sleep 5
+          
+          MAX_RETRIES=6
+          HEALTH=""
+          
+          for i in $(seq 1 $MAX_RETRIES); do
+            if curl -s http://localhost:8000/metrics | grep -q "controller_runtime_max_concurrent_reconciles"; then
+              HEALTH="OK"
+              break
+            fi
+            echo "[$i/$MAX_RETRIES] Waiting for Karpenter to become ready..."
+            sleep 10
+          done
+          
+          # Cleanup port-forward
+          kill $PF_PID || true
+          
+          if [ "$HEALTH" == "OK" ]; then
+            echo "Karpenter is healthy ✅"
+          else
+            echo "Karpenter health check failed ❌"
+            kubectl get pods -n kube-system -l app.kubernetes.io/name=karpenter
+            kubectl logs -n kube-system -l app.kubernetes.io/name=karpenter --tail=50
             exit 1
           fi
 
