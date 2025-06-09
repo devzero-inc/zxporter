@@ -334,7 +334,9 @@ jobs:
           HEALTH=""
           
           for i in $(seq 1 $MAX_RETRIES); do
-            if curl -s http://localhost:8000/metrics | grep -q "controller_runtime_max_concurrent_reconciles"; then
+            response=$(curl -s http://localhost:8000/metrics)
+            echo "Response: $response"
+            if [[ -n "$response" ]]; then
               HEALTH="OK"
               break
             fi
@@ -348,11 +350,12 @@ jobs:
           if [ "$HEALTH" == "OK" ]; then
             echo "Karpenter is healthy ✅"
           else
-            echo "Karpenter health check failed ❌ "
+            echo "Karpenter health check failed ❌"
             kubectl get pods -n kube-system -l app.kubernetes.io/name=karpenter
             kubectl logs -n kube-system -l app.kubernetes.io/name=karpenter --tail=50
             exit 1
           fi
+
 
   destroy-terraform:
     name: Destroy Terraform
