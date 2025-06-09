@@ -97,8 +97,6 @@ jobs:
 
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: 1.11.3
 
       - name: Apply Terraform
         working-directory: terraform/aws
@@ -379,8 +377,6 @@ jobs:
 
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: 1.11.3
 
       - name: Destroy Infrastructure
         working-directory: terraform/aws
