@@ -407,6 +407,8 @@ jobs:
           kubectl wait --for=condition=Ready pod -l app=inflate --timeout=180s
 
           kubectl get nodes -o wide || true
+
+          kubectl logs -n kube-system -l app.kubernetes.io/name=karpenter -c controller
   
           NODE_COUNT=$(kubectl get nodes --no-headers | wc -l)
           if [ "$NODE_COUNT" -le 1 ]; then
