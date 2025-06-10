@@ -316,6 +316,7 @@ jobs:
         run: |
           echo "Intalling Karpenter Node Class and Node Pool..."
           ALIAS_VERSION="$(aws ssm get-parameter --name "/aws/service/eks/optimized-ami/${{ env.CLUSTER_VERSION }}/amazon-linux-2023/x86_64/standard/recommended/image_id" --query Parameter.Value | xargs aws ec2 describe-images --query 'Images[0].Name' --image-ids | sed -r 's/^.*(v[[:digit:]]+).*$/\1/')"
+          echo "Using ALIAS_VERSION: ${ALIAS_VERSION}"
           kubectl get nodes -o wide || true
           cat <<EOF | envsubst | kubectl apply -f -
           apiVersion: karpenter.sh/v1
