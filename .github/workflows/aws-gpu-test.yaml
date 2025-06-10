@@ -132,9 +132,23 @@ jobs:
           role-to-assume: arn:aws:iam::484907513542:role/github-actions-oidc-role
           aws-region: us-east-1
 
+      - name: Install yq
+        run: |
+          sudo wget https://github.com/mikefarah/yq/releases/download/v4.15.1/yq_linux_amd64 -O /usr/local/bin/yq
+          sudo chmod +x /usr/local/bin/yq
+
       - name: Configure Kubernetes Access
         run: |
           aws eks update-kubeconfig --region us-east-1 --name ${{ needs.apply-terraform.outputs.job_identifier }}
+
+      - name: Add new mapRole to aws-auth ConfigMap
+        if: env.Karpenter_VERSION != 'no_karpenter'
+        run: |
+          NEW_MAPROLE='- groups:\n      - system:bootstrappers\n      - system:nodes\n      rolearn: arn:aws:iam::484907513542:role/KarpenterNodeRole-${{ needs.apply-terraform.outputs.job_identifier }}\n      username: system:node:{{EC2PrivateDNSName}}'
+          kubectl get configmap/aws-auth -n kube-system -o yaml > aws-auth.yaml
+          yq eval '.data.mapRoles |= . + "- groups:\n  - system:bootstrappers\n  - system:nodes\n  rolearn: arn:aws:iam::484907513542:role/KarpenterNodeRole-${{ needs.apply-terraform.outputs.job_identifier }}\n  username: system:node:{{EC2PrivateDNSName}}\n"' -i aws-auth.yaml
+          kubectl apply -f aws-auth.yaml
+          kubectl get configmap/aws-auth -n kube-system -o yaml
 
       - name: Install Karpenter (if needed)
         if: env.Karpenter_VERSION != 'no_karpenter'
