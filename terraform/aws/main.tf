@@ -253,6 +253,10 @@ module "eks" {
 
   create_node_iam_role = false
 
+  tags = {
+    "karpenter.sh/discovery" = var.cluster_name
+  }
+
   eks_managed_node_groups = {
     gpu_nodes = {
       instance_types = ["g6.4xlarge"]
@@ -284,6 +288,7 @@ module "eks" {
 resource "aws_security_group" "karpenter_sg" {
   name        = "karpenter-sg-${var.cluster_name}"
   description = "Karpenter security group"
+  vpc_id      = module.vpc.vpc_id
 
   tags = {
     "karpenter.sh/discovery" = "${var.cluster_name}"
