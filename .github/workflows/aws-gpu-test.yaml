@@ -1,9 +1,9 @@
 name: AWS GPU Test
 
 on:
-  # push:
-  #   branches:
-  #     - garvit/aws-gpu-test
+  push:
+    branches:
+      - garvit/aws-gpu-test
   workflow_dispatch:
     inputs:
       gpu_install_type:
@@ -294,11 +294,117 @@ jobs:
           echo "Waiting for ZXPorter pods to be ready..."
           kubectl wait --for=condition=Ready pod -l app.kubernetes.io/component=server -n devzero-zxporter --timeout=300s
 
+      - name: Test Karpenter
+        if: inputs.karpenter_version != 'no_karpenter'
+        run: |
+          echo "Intalling Karpenter Node Class and Node Pool..."
+          K8S_VERSION="1.30"
+          ALIAS_VERSION="$(aws ssm get-parameter --name "/aws/service/eks/optimized-ami/${K8S_VERSION}/amazon-linux-2023/x86_64/standard/recommended/image_id" --query Parameter.Value | xargs aws ec2 describe-images --query 'Images[0].Name' --image-ids | sed -r 's/^.*(v[[:digit:]]+).*$/\1/')"
+          kubectl get nodes -o wide || true
+          cat <<EOF | envsubst | kubectl apply -f -
+          apiVersion: karpenter.sh/v1
+          kind: NodePool
+          metadata:
+            name: default
+          spec:
+            template:
+              spec:
+                requirements:
+                  - key: kubernetes.io/arch
+                    operator: In
+                    values: ["amd64"]
+                  - key: kubernetes.io/os
+                    operator: In
+                    values: ["linux"]
+                  - key: karpenter.sh/capacity-type
+                    operator: In
+                    values: ["on-demand"]
+                  - key: karpenter.k8s.aws/instance-category
+                    operator: In
+                    values: ["c", "m", "r"]
+                  - key: karpenter.k8s.aws/instance-generation
+                    operator: Gt
+                    values: ["2"]
+                nodeClassRef:
+                  group: karpenter.k8s.aws
+                  kind: EC2NodeClass
+                  name: default
+                expireAfter: 720h # 30 * 24h = 720h
+            limits:
+              cpu: 1000
+            disruption:
+              consolidationPolicy: WhenEmptyOrUnderutilized
+              consolidateAfter: 1m
+          ---
+          apiVersion: karpenter.k8s.aws/v1
+          kind: EC2NodeClass
+          metadata:
+            name: default
+          spec:
+            role: "KarpenterNodeRole-${{ needs.apply-terraform.outputs.job_identifier }}" # replace with your cluster name
+            amiSelectorTerms:
+              - alias: "al2023@${ALIAS_VERSION}"
+            subnetSelectorTerms:
+              - tags:
+                  karpenter.sh/discovery: "${{ needs.apply-terraform.outputs.job_identifier }}" # replace with your cluster name
+            securityGroupSelectorTerms:
+              - tags:
+                  karpenter.sh/discovery: "${{ needs.apply-terraform.outputs.job_identifier }}" # replace with your cluster name
+          EOF
+
+          sleep 10
+
+          echo "Creating a deployment to trigger Karpenter node provisioning..."
+          cat <<EOF | kubectl apply -f -
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: inflate
+          spec:
+            replicas: 0
+            selector:
+              matchLabels:
+                app: inflate
+            template:
+              metadata:
+                labels:
+                  app: inflate
+              spec:
+                terminationGracePeriodSeconds: 0
+                securityContext:
+                  runAsUser: 1000
+                  runAsGroup: 3000
+                  fsGroup: 2000
+                containers:
+                - name: inflate
+                  image: public.ecr.aws/eks-distro/kubernetes/pause:3.7
+                  resources:
+                    requests:
+                      cpu: 1
+                  securityContext:
+                    allowPrivilegeEscalation: false
+          EOF
+
+          kubectl scale deployment inflate --replicas 10
+
+          echo "Waiting for nodes to be provisioned by Karpenter..."
+          sleep 20
+
+          kubectl get nodes -o wide || true
+  
+          NODE_COUNT=$(kubectl get nodes --no-headers | wc -l)
+          if [ "$NODE_COUNT" -le 1 ]; then
+            echo "Error: Node count is $NODE_COUNT, Karpenter did not provision nodes."
+            exit 1
+          else
+            echo "Karepenter successfully provisioned nodes. Node count: $NODE_COUNT"
+          fi
+
       - name: Test ZXPorter with Prometheus
         run: |
           kubectl port-forward svc/prometheus-dz-prometheus-server 9090:80 -n devzero-zxporter > pf.log 2>&1 &
           PF_PID=$!
-          sleep 5
+          sleep 20
           MAX_RETRIES=6
           for i in $(seq 1 $MAX_RETRIES); do
             if curl -s "http://localhost:9090/-/ready" >/dev/null; then
@@ -319,42 +425,6 @@ jobs:
             cat pf.log
             exit 1
           fi
-
-      - name: Test Karpenter
-        if: inputs.karpenter_version != 'no_karpenter'
-        run: |
-          echo "Verifying Karpenter installation..."
-          kubectl port-forward -n kube-system service/karpenter 8000:8000 > /dev/null 2>&1 &
-          PF_PID=$!
-          
-          sleep 5
-          
-          MAX_RETRIES=6
-          HEALTH=""
-          
-          for i in $(seq 1 $MAX_RETRIES); do
-            response=$(curl -s http://localhost:8000/metrics)
-            echo "Response: $response"
-            if [[ -n "$response" ]]; then
-              HEALTH="OK"
-              break
-            fi
-            echo "[$i/$MAX_RETRIES] Waiting for Karpenter to become ready..."
-            sleep 10
-          done
-          
-          # Cleanup port-forward
-          kill $PF_PID || true
-          
-          if [ "$HEALTH" == "OK" ]; then
-            echo "Karpenter is healthy ✅"
-          else
-            echo "Karpenter health check failed ❌"
-            kubectl get pods -n kube-system -l app.kubernetes.io/name=karpenter
-            kubectl logs -n kube-system -l app.kubernetes.io/name=karpenter --tail=50
-            exit 1
-          fi
-
 
   destroy-terraform:
     name: Destroy Terraform
