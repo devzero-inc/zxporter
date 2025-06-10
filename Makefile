@@ -294,6 +294,12 @@ final-installer:
 	@cp dist/install.yaml $(DIST_BACKEND_INSTALL_BUNDLE)
 	@$(YQ) -i '(select(.kind == "ConfigMap" and .metadata.name == "devzero-zxporter-env-config") | .data.DAKR_URL) = "{{ .api_url }}/dakr"' $(DIST_BACKEND_INSTALL_BUNDLE)
 	@$(YQ) -i '(select(.kind == "Deployment") | .spec.template.spec.containers[]? | select(.image == "ttl.sh/zxporter:latest")).image = "devzeroinc/zxporter:latest"' $(DIST_BACKEND_INSTALL_BUNDLE)
+	@$(MAKE) installer-without-configmap
+
+.PHONY: installer-without-configmap
+installer-without-configmap:
+	@cp $(DIST_BACKEND_INSTALL_BUNDLE) $(DIST_DIR)/installer_updater.yaml
+	@$(YQ) -i 'select(.kind != "ConfigMap" or .metadata.name != "devzero-zxporter-env-config")' $(DIST_DIR)/installer_updater.yaml
 
 .PHONY: build-installer
 build-installer: manifests generate kustomize yq ## Generate a consolidated YAML with deployment.
