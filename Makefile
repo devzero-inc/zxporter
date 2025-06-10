@@ -67,14 +67,15 @@ COLLECTION_FILE ?= env_configmap.yaml
 ENV_CONFIGMAP_FILE ?= config/manager/env_configmap.yaml
 
 # Monitoring resources
-PROMETHEUS_CHART_VERSION ?= 25.8.0
+PROMETHEUS_CHART_VERSION ?= 27.20.0
 DEVZERO_MONITORING_NAMESPACE ?= devzero-zxporter
-NODE_EXPORTER_CHART_VERSION ?= 4.24.0
-METRICS_SERVER_CHART_VERSION ?= 3.12.0
+NODE_EXPORTER_CHART_VERSION ?= 4.47.0
+METRICS_SERVER_CHART_VERSION ?= 3.12.2
 
 # DIST_INSTALL_BUNDLE is the final complete manifest
 DIST_DIR ?= dist
 DIST_INSTALL_BUNDLE ?= $(DIST_DIR)/install.yaml
+DIST_BACKEND_INSTALL_BUNDLE ?= $(DIST_DIR)/backend-install.yaml
 DIST_ZXPORTER_BUNDLE ?= $(DIST_DIR)/zxporter.yaml
 DIST_PROMETHEUS_BUNDLE ?= $(DIST_DIR)/prometheus.yaml
 DIST_NODE_EXPORTER_BUNDLE ?= $(DIST_DIR)/node-exporter.yaml
@@ -288,6 +289,11 @@ generate-monitoring-manifests: helm ## Generate monitoring manifests for Prometh
 		--values config/prometheus/hack.node-exporter.values.yaml \
 		> $(DIST_NODE_EXPORTER_BUNDLE)
 
+.PHONY: final-installer
+final-installer:
+	@cp dist/install.yaml $(DIST_BACKEND_INSTALL_BUNDLE)
+	@$(YQ) -i '(select(.kind == "ConfigMap" and .metadata.name == "devzero-zxporter-env-config") | .data.DAKR_URL) = "{{ .api_url }}/dakr"' $(DIST_BACKEND_INSTALL_BUNDLE)
+	@$(YQ) -i '(select(.kind == "Deployment") | .spec.template.spec.containers[]? | select(.image == "ttl.sh/zxporter:latest")).image = "devzeroinc/zxporter:latest"' $(DIST_BACKEND_INSTALL_BUNDLE)
 
 .PHONY: build-installer
 build-installer: manifests generate kustomize yq ## Generate a consolidated YAML with deployment.
@@ -341,6 +347,9 @@ build-installer: manifests generate kustomize yq ## Generate a consolidated YAML
 
 	@$(KUSTOMIZE) build config/default > $(DIST_ZXPORTER_BUNDLE)
 	@cat $(DIST_ZXPORTER_BUNDLE) >> $(DIST_INSTALL_BUNDLE)
+
+	@echo "[INFO] Building backend installer"
+	@$(MAKE) final-installer
 
 .PHONY: build-env-configmap
 build-env-configmap: DIST_INSTALL_BUNDLE=$(DIST_DIR)/env_configmap.yaml
