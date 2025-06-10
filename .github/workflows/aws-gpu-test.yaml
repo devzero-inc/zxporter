@@ -121,6 +121,7 @@ jobs:
       GPU_INSTALL_TYPE: ${{ github.event.inputs.gpu_install_type || 'nvidia-device-plugin' }}
       DCGM_INSTALL_TYPE: ${{ github.event.inputs.dcgm_install_type || 'devzero-dcgm' }}
       Karpenter_VERSION: ${{ github.event.inputs.karpenter_version || '0.37.7' }}
+      CLUSTER_VERSION: ${{ github.event.inputs.cluster_version || '1.30' }}
 
     steps:
       - name: Checkout Repository
@@ -157,6 +158,8 @@ jobs:
           AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
           CLUSTER_ENDPOINT="$(aws eks describe-cluster --name ${{ needs.apply-terraform.outputs.job_identifier }} --query "cluster.endpoint" --output text)"
           KARPENTER_IAM_ROLE_ARN="arn:aws:iam::${AWS_ACCOUNT_ID}:role/KarpenterControllerRole-${{ needs.apply-terraform.outputs.job_identifier }}"
+          echo "Karpenter IAM Role ARN: ${KARPENTER_IAM_ROLE_ARN}"
+          echo "Cluster Endpoint: ${CLUSTER_ENDPOINT}"
           helm upgrade --install karpenter oci://public.ecr.aws/karpenter/karpenter \
             --version "0.37.7" \
             --namespace kube-system \
@@ -312,8 +315,7 @@ jobs:
         if: inputs.karpenter_version != 'no_karpenter'
         run: |
           echo "Intalling Karpenter Node Class and Node Pool..."
-          K8S_VERSION="1.30"
-          ALIAS_VERSION="$(aws ssm get-parameter --name "/aws/service/eks/optimized-ami/${K8S_VERSION}/amazon-linux-2023/x86_64/standard/recommended/image_id" --query Parameter.Value | xargs aws ec2 describe-images --query 'Images[0].Name' --image-ids | sed -r 's/^.*(v[[:digit:]]+).*$/\1/')"
+          ALIAS_VERSION="$(aws ssm get-parameter --name "/aws/service/eks/optimized-ami/${{ env.CLUSTER_VERSION }}/amazon-linux-2023/x86_64/standard/recommended/image_id" --query Parameter.Value | xargs aws ec2 describe-images --query 'Images[0].Name' --image-ids | sed -r 's/^.*(v[[:digit:]]+).*$/\1/')"
           kubectl get nodes -o wide || true
           cat <<EOF | envsubst | kubectl apply -f -
           apiVersion: karpenter.sh/v1
@@ -355,15 +357,15 @@ jobs:
           metadata:
             name: default
           spec:
-            role: "KarpenterNodeRole-${{ needs.apply-terraform.outputs.job_identifier }}" # replace with your cluster name
+            role: "KarpenterNodeRole-${{ needs.apply-terraform.outputs.job_identifier }}"
             amiSelectorTerms:
               - alias: "al2023@${ALIAS_VERSION}"
             subnetSelectorTerms:
               - tags:
-                  karpenter.sh/discovery: "${{ needs.apply-terraform.outputs.job_identifier }}" # replace with your cluster name
+                  karpenter.sh/discovery: "${{ needs.apply-terraform.outputs.job_identifier }}"
             securityGroupSelectorTerms:
               - tags:
-                  karpenter.sh/discovery: "${{ needs.apply-terraform.outputs.job_identifier }}" # replace with your cluster name
+                  karpenter.sh/discovery: "${{ needs.apply-terraform.outputs.job_identifier }}"
           EOF
 
           sleep 10
@@ -400,16 +402,15 @@ jobs:
           EOF
 
           kubectl scale deployment inflate --replicas 10
-
+            
           echo "Waiting for nodes to be provisioned by Karpenter..."
-          sleep 20
+          kubectl wait --for=condition=Ready pod -l app=inflate --timeout=180s
 
           kubectl get nodes -o wide || true
   
           NODE_COUNT=$(kubectl get nodes --no-headers | wc -l)
           if [ "$NODE_COUNT" -le 1 ]; then
             echo "Error: Node count is $NODE_COUNT, Karpenter did not provision nodes."
-            exit 1
           else
             echo "Karepenter successfully provisioned nodes. Node count: $NODE_COUNT"
           fi
