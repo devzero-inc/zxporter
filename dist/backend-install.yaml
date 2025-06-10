@@ -20,7 +20,7 @@ apiVersion: v1
 kind: ServiceAccount
 automountServiceAccountToken: true
 metadata:
-  labels:    
+  labels:
     helm.sh/chart: kube-state-metrics-5.33.2
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: metrics
@@ -44,8 +44,7 @@ metadata:
     app.kubernetes.io/part-of: dz-prometheus
   name: prometheus-dz-prometheus-server
   namespace: devzero-zxporter
-  annotations:
-    {}
+  annotations: {}
 ---
 # Source: prometheus/templates/cm.yaml
 apiVersion: v1
@@ -182,7 +181,7 @@ data:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  labels:    
+  labels:
     helm.sh/chart: kube-state-metrics-5.33.2
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: metrics
@@ -192,11 +191,10 @@ metadata:
     app.kubernetes.io/version: "2.15.0"
   name: prometheus-kube-state-metrics
 rules:
-
-- apiGroups: [""]
-  resources:
-  - nodes
-  verbs: ["list", "watch"]
+  - apiGroups: [""]
+    resources:
+      - nodes
+    verbs: ["list", "watch"]
 ---
 # Source: prometheus/templates/clusterrole.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -252,7 +250,7 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  labels:    
+  labels:
     helm.sh/chart: kube-state-metrics-5.33.2
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: metrics
@@ -266,9 +264,9 @@ roleRef:
   kind: ClusterRole
   name: prometheus-kube-state-metrics
 subjects:
-- kind: ServiceAccount
-  name: prometheus-kube-state-metrics
-  namespace: devzero-zxporter
+  - kind: ServiceAccount
+    name: prometheus-kube-state-metrics
+    namespace: devzero-zxporter
 ---
 # Source: prometheus/templates/clusterrolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -297,7 +295,7 @@ kind: Service
 metadata:
   name: prometheus-kube-state-metrics
   namespace: devzero-zxporter
-  labels:    
+  labels:
     helm.sh/chart: kube-state-metrics-5.33.2
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: metrics
@@ -310,12 +308,11 @@ metadata:
 spec:
   type: "ClusterIP"
   ports:
-  - name: "http"
-    protocol: TCP
-    port: 8080
-    targetPort: 8080
-  
-  selector:    
+    - name: "http"
+      protocol: TCP
+      port: 8080
+      targetPort: 8080
+  selector:
     app.kubernetes.io/name: kube-state-metrics
     app.kubernetes.io/instance: prometheus
 ---
@@ -351,7 +348,7 @@ kind: Deployment
 metadata:
   name: prometheus-kube-state-metrics
   namespace: devzero-zxporter
-  labels:    
+  labels:
     helm.sh/chart: kube-state-metrics-5.33.2
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: metrics
@@ -361,7 +358,7 @@ metadata:
     app.kubernetes.io/version: "2.15.0"
 spec:
   selector:
-    matchLabels:      
+    matchLabels:
       app.kubernetes.io/name: kube-state-metrics
       app.kubernetes.io/instance: prometheus
   replicas: 1
@@ -370,7 +367,7 @@ spec:
   revisionHistoryLimit: 10
   template:
     metadata:
-      labels:        
+      labels:
         helm.sh/chart: kube-state-metrics-5.33.2
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/component: metrics
@@ -391,45 +388,44 @@ spec:
           type: RuntimeDefault
       dnsPolicy: ClusterFirst
       containers:
-      - name: kube-state-metrics
-        args:
-        - --port=8080
-        - --resources=nodes
-        imagePullPolicy: IfNotPresent
-        image: registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.15.0
-        ports:
-        - containerPort: 8080
-          name: "http"
-        livenessProbe:
-          failureThreshold: 3
-          httpGet:
-            httpHeaders:
-            path: /livez
-            port: 8080
-            scheme: HTTP
-          initialDelaySeconds: 5
-          periodSeconds: 10
-          successThreshold: 1
-          timeoutSeconds: 5
-        readinessProbe:
-          failureThreshold: 3
-          httpGet:
-            httpHeaders:
-            path: /readyz
-            port: 8081
-            scheme: HTTP
-          initialDelaySeconds: 5
-          periodSeconds: 10
-          successThreshold: 1
-          timeoutSeconds: 5
-        resources:
-          {}
-        securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-            - ALL
-          readOnlyRootFilesystem: true
+        - name: kube-state-metrics
+          args:
+            - --port=8080
+            - --resources=nodes
+          imagePullPolicy: IfNotPresent
+          image: registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.15.0
+          ports:
+            - containerPort: 8080
+              name: "http"
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              httpHeaders:
+              path: /livez
+              port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 5
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              httpHeaders:
+              path: /readyz
+              port: 8081
+              scheme: HTTP
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 5
+          resources: {}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
 ---
 # Source: prometheus/templates/deploy.yaml
 apiVersion: apps/v1
@@ -495,7 +491,6 @@ spec:
             - name: config-volume
               mountPath: /etc/config
               readOnly: true
-
         - name: dz-prometheus-server
           image: "quay.io/prometheus/prometheus:v3.4.1"
           imagePullPolicy: "IfNotPresent"
@@ -546,8 +541,7 @@ spec:
           configMap:
             name: prometheus-dz-prometheus-server
         - name: storage-volume
-          emptyDir:
-            {}
+          emptyDir: {}
 # ----- END PROM SERVER -----
 # ----- START PROM NODE EXPORTER -----
 ---
@@ -686,7 +680,7 @@ spec:
           volumeMounts:
             - name: proc
               mountPath: /host/proc
-              readOnly:  true
+              readOnly: true
             - name: sys
               mountPath: /host/sys
               readOnly: true
@@ -701,15 +695,15 @@ spec:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
-            - matchExpressions:
-              - key: eks.amazonaws.com/compute-type
-                operator: NotIn
-                values:
-                - fargate
-              - key: type
-                operator: NotIn
-                values:
-                - virtual-kubelet
+              - matchExpressions:
+                  - key: eks.amazonaws.com/compute-type
+                    operator: NotIn
+                    values:
+                      - fargate
+                  - key: type
+                    operator: NotIn
+                    values:
+                      - virtual-kubelet
       nodeSelector:
         kubernetes.io/os: linux
       tolerations:
@@ -754,67 +748,67 @@ metadata:
   name: devzero-zxporter-leader-election-role
   namespace: devzero-zxporter
 rules:
-- apiGroups:
-  - ""
-  resources:
-  - configmaps
-  - deployments
-  - serviceaccounts
-  - services
-  verbs:
-  - get
-  - list
-  - watch
-  - create
-  - update
-  - patch
-  - delete
-- apiGroups:
-  - apps
-  resources:
-  - deployments
-  verbs:
-  - get
-  - list
-  - watch
-  - create
-  - update
-  - patch
-  - delete
-- apiGroups:
-  - coordination.k8s.io
-  resources:
-  - leases
-  verbs:
-  - get
-  - list
-  - watch
-  - create
-  - update
-  - patch
-  - delete
-- apiGroups:
-  - ""
-  resources:
-  - events
-  verbs:
-  - create
-  - patch
-- apiGroups:
-  - rbac.authorization.k8s.io
-  resources:
-  - rolebindings
-  - roles
-  - clusterrolebindings
-  - clusterroles
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+      - deployments
+      - serviceaccounts
+      - services
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  - apiGroups:
+      - apps
+    resources:
+      - deployments
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  - apiGroups:
+      - coordination.k8s.io
+    resources:
+      - leases
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  - apiGroups:
+      - ""
+    resources:
+      - events
+    verbs:
+      - create
+      - patch
+  - apiGroups:
+      - rbac.authorization.k8s.io
+    resources:
+      - rolebindings
+      - roles
+      - clusterrolebindings
+      - clusterroles
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -824,24 +818,24 @@ metadata:
     app.kubernetes.io/name: devzero-zxporter
   name: devzero-zxporter-collectionpolicy-editor-role
 rules:
-- apiGroups:
-  - devzero.io
-  resources:
-  - collectionpolicies
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - devzero.io
-  resources:
-  - collectionpolicies/status
-  verbs:
-  - get
+  - apiGroups:
+      - devzero.io
+    resources:
+      - collectionpolicies
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - devzero.io
+    resources:
+      - collectionpolicies/status
+    verbs:
+      - get
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -851,250 +845,250 @@ metadata:
     app.kubernetes.io/name: devzero-zxporter
   name: devzero-zxporter-collectionpolicy-viewer-role
 rules:
-- apiGroups:
-  - devzero.io
-  resources:
-  - collectionpolicies
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - devzero.io
-  resources:
-  - collectionpolicies/status
-  verbs:
-  - get
+  - apiGroups:
+      - devzero.io
+    resources:
+      - collectionpolicies
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - devzero.io
+    resources:
+      - collectionpolicies/status
+    verbs:
+      - get
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: devzero-zxporter-manager-role
 rules:
-- apiGroups:
-  - apiregistration.k8s.io
-  resources:
-  - apiservices
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-- apiGroups:
-  - apps
-  resources:
-  - daemonsets
-  - deployments
-  - replicasets
-  - statefulsets
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - argoproj.io
-  resources:
-  - rollouts
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - autoscaling
-  resources:
-  - horizontalpodautoscalers
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - autoscaling.k8s.io
-  resources:
-  - verticalpodautoscalers
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - batch
-  resources:
-  - cronjobs
-  - jobs
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - configmaps
-  - endpoints
-  - events
-  - limitranges
-  - namespaces
-  - nodes
-  - persistentvolumeclaims
-  - persistentvolumes
-  - pods
-  - replicationcontrollers
-  - resourcequotas
-  - serviceaccounts
-  - services
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - nodes/metrics
-  - nodes/status
-  - pods/status
-  verbs:
-  - get
-- apiGroups:
-  - datadoghq.com
-  resources:
-  - extendeddaemonsetreplicasets
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - devzero.io
-  resources:
-  - collectionpolicies
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - devzero.io
-  resources:
-  - collectionpolicies/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - devzero.io
-  resources:
-  - collectionpolicies/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - karpenter.k8s.aws
-  resources:
-  - awsnodetemplates
-  - ec2nodeclasses
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - karpenter.sh
-  resources:
-  - machines
-  - nodeclaims
-  - nodepools
-  - provisioners
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - metrics.k8s.io
-  resources:
-  - nodes
-  - pods
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - networking.k8s.io
-  resources:
-  - ingressclasses
-  - ingresses
-  - networkpolicies
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - policy
-  resources:
-  - poddisruptionbudgets
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - rbac.authorization.k8s.io
-  resources:
-  - clusterrolebindings
-  - clusterroles
-  - role
-  - rolebindings
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - rbac.authorization.k8s.io
-  resources:
-  - roles
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - storage.k8s.io
-  resources:
-  - csinodes
-  - storageclasses
-  verbs:
-  - get
-  - list
-  - watch
+  - apiGroups:
+      - apiregistration.k8s.io
+    resources:
+      - apiservices
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+  - apiGroups:
+      - apps
+    resources:
+      - daemonsets
+      - deployments
+      - replicasets
+      - statefulsets
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - argoproj.io
+    resources:
+      - rollouts
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - autoscaling
+    resources:
+      - horizontalpodautoscalers
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - autoscaling.k8s.io
+    resources:
+      - verticalpodautoscalers
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - batch
+    resources:
+      - cronjobs
+      - jobs
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+      - endpoints
+      - events
+      - limitranges
+      - namespaces
+      - nodes
+      - persistentvolumeclaims
+      - persistentvolumes
+      - pods
+      - replicationcontrollers
+      - resourcequotas
+      - serviceaccounts
+      - services
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - ""
+    resources:
+      - nodes/metrics
+      - nodes/status
+      - pods/status
+    verbs:
+      - get
+  - apiGroups:
+      - datadoghq.com
+    resources:
+      - extendeddaemonsetreplicasets
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - devzero.io
+    resources:
+      - collectionpolicies
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - devzero.io
+    resources:
+      - collectionpolicies/finalizers
+    verbs:
+      - update
+  - apiGroups:
+      - devzero.io
+    resources:
+      - collectionpolicies/status
+    verbs:
+      - get
+      - patch
+      - update
+  - apiGroups:
+      - karpenter.k8s.aws
+    resources:
+      - awsnodetemplates
+      - ec2nodeclasses
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - karpenter.sh
+    resources:
+      - machines
+      - nodeclaims
+      - nodepools
+      - provisioners
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - metrics.k8s.io
+    resources:
+      - nodes
+      - pods
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - networking.k8s.io
+    resources:
+      - ingressclasses
+      - ingresses
+      - networkpolicies
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - policy
+    resources:
+      - poddisruptionbudgets
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - rbac.authorization.k8s.io
+    resources:
+      - clusterrolebindings
+      - clusterroles
+      - role
+      - rolebindings
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - rbac.authorization.k8s.io
+    resources:
+      - roles
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - storage.k8s.io
+    resources:
+      - csinodes
+      - storageclasses
+    verbs:
+      - get
+      - list
+      - watch
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: devzero-zxporter-metrics-auth-role
 rules:
-- apiGroups:
-  - authentication.k8s.io
-  resources:
-  - tokenreviews
-  verbs:
-  - create
-- apiGroups:
-  - authorization.k8s.io
-  resources:
-  - subjectaccessreviews
-  verbs:
-  - create
+  - apiGroups:
+      - authentication.k8s.io
+    resources:
+      - tokenreviews
+    verbs:
+      - create
+  - apiGroups:
+      - authorization.k8s.io
+    resources:
+      - subjectaccessreviews
+    verbs:
+      - create
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: devzero-zxporter-metrics-reader
 rules:
-- nonResourceURLs:
-  - /metrics
-  verbs:
-  - get
+  - nonResourceURLs:
+      - /metrics
+    verbs:
+      - get
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -1109,9 +1103,9 @@ roleRef:
   kind: Role
   name: devzero-zxporter-leader-election-role
 subjects:
-- kind: ServiceAccount
-  name: devzero-zxporter-controller-manager
-  namespace: devzero-zxporter
+  - kind: ServiceAccount
+    name: devzero-zxporter-controller-manager
+    namespace: devzero-zxporter
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -1125,9 +1119,9 @@ roleRef:
   kind: ClusterRole
   name: devzero-zxporter-manager-role
 subjects:
-- kind: ServiceAccount
-  name: devzero-zxporter-controller-manager
-  namespace: devzero-zxporter
+  - kind: ServiceAccount
+    name: devzero-zxporter-controller-manager
+    namespace: devzero-zxporter
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -1138,16 +1132,16 @@ roleRef:
   kind: ClusterRole
   name: devzero-zxporter-metrics-auth-role
 subjects:
-- kind: ServiceAccount
-  name: devzero-zxporter-controller-manager
-  namespace: devzero-zxporter
+  - kind: ServiceAccount
+    name: devzero-zxporter-controller-manager
+    namespace: devzero-zxporter
 ---
 apiVersion: v1
 data:
   BUFFER_SIZE: ""
   CLUSTER_TOKEN: '{{ .cluster_token }}'
   COLLECTION_FREQUENCY: ""
-  DAKR_URL: https://api.devzero.io/dakr
+  DAKR_URL: '{{ .api_url }}/dakr'
   DISABLE_NETWORK_IO_METRICS: ""
   DISABLED_COLLECTORS: ""
   EXCLUDED_CLUSTERROLEBINDINGS: ""
@@ -1204,10 +1198,10 @@ metadata:
   namespace: devzero-zxporter
 spec:
   ports:
-  - name: https
-    port: 8443
-    protocol: TCP
-    targetPort: 8443
+    - name: https
+      port: 8443
+      protocol: TCP
+      targetPort: 8443
   selector:
     control-plane: controller-manager
 ---
@@ -1233,42 +1227,42 @@ spec:
         control-plane: controller-manager
     spec:
       containers:
-      - args:
-        - --metrics-bind-address=:8443
-        - --leader-elect
-        - --health-probe-bind-address=:8081
-        image: ttl.sh/zxporter:latest
-        livenessProbe:
-          httpGet:
-            path: /healthz
-            port: 8081
-          initialDelaySeconds: 15
-          periodSeconds: 20
-        name: manager
-        readinessProbe:
-          httpGet:
-            path: /readyz
-            port: 8081
-          initialDelaySeconds: 5
-          periodSeconds: 10
-        resources:
-          requests:
-            cpu: 200m
-            memory: 128Mi
-        securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-            - ALL
-        volumeMounts:
-        - mountPath: /etc/zxporter/config
-          name: config-volume
-          readOnly: true
+        - args:
+            - --metrics-bind-address=:8443
+            - --leader-elect
+            - --health-probe-bind-address=:8081
+          image: devzeroinc/zxporter:latest
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8081
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          name: manager
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8081
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 200m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - mountPath: /etc/zxporter/config
+              name: config-volume
+              readOnly: true
       securityContext:
         runAsNonRoot: true
       serviceAccountName: devzero-zxporter-controller-manager
       terminationGracePeriodSeconds: 10
       volumes:
-      - configMap:
-          name: devzero-zxporter-env-config
-        name: config-volume
+        - configMap:
+            name: devzero-zxporter-env-config
+          name: config-volume

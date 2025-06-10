@@ -2,18 +2,18 @@
 # Source: prometheus/charts/kube-state-metrics/templates/serviceaccount.yaml
 apiVersion: v1
 kind: ServiceAccount
+automountServiceAccountToken: true
 metadata:
   labels:    
-    helm.sh/chart: kube-state-metrics-5.15.2
+    helm.sh/chart: kube-state-metrics-5.33.2
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: metrics
     app.kubernetes.io/part-of: kube-state-metrics
     app.kubernetes.io/name: kube-state-metrics
     app.kubernetes.io/instance: prometheus
-    app.kubernetes.io/version: "2.10.1"
+    app.kubernetes.io/version: "2.15.0"
   name: prometheus-kube-state-metrics
   namespace: devzero-zxporter
-imagePullSecrets:
 ---
 # Source: prometheus/templates/serviceaccount.yaml
 apiVersion: v1
@@ -23,9 +23,8 @@ metadata:
     app.kubernetes.io/component: server
     app.kubernetes.io/name: dz-prometheus
     app.kubernetes.io/instance: prometheus
-    app.kubernetes.io/version: v2.48.0
-    helm.sh/chart: prometheus-25.8.0
-    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/version: v3.4.1
+    helm.sh/chart: prometheus-27.20.0
     app.kubernetes.io/part-of: dz-prometheus
   name: prometheus-dz-prometheus-server
   namespace: devzero-zxporter
@@ -40,9 +39,8 @@ metadata:
     app.kubernetes.io/component: server
     app.kubernetes.io/name: dz-prometheus
     app.kubernetes.io/instance: prometheus
-    app.kubernetes.io/version: v2.48.0
-    helm.sh/chart: prometheus-25.8.0
-    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/version: v3.4.1
+    helm.sh/chart: prometheus-27.20.0
     app.kubernetes.io/part-of: dz-prometheus
   name: prometheus-dz-prometheus-server
   namespace: devzero-zxporter
@@ -169,13 +167,13 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   labels:    
-    helm.sh/chart: kube-state-metrics-5.15.2
+    helm.sh/chart: kube-state-metrics-5.33.2
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: metrics
     app.kubernetes.io/part-of: kube-state-metrics
     app.kubernetes.io/name: kube-state-metrics
     app.kubernetes.io/instance: prometheus
-    app.kubernetes.io/version: "2.10.1"
+    app.kubernetes.io/version: "2.15.0"
   name: prometheus-kube-state-metrics
 rules:
 
@@ -192,9 +190,8 @@ metadata:
     app.kubernetes.io/component: server
     app.kubernetes.io/name: dz-prometheus
     app.kubernetes.io/instance: prometheus
-    app.kubernetes.io/version: v2.48.0
-    helm.sh/chart: prometheus-25.8.0
-    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/version: v3.4.1
+    helm.sh/chart: prometheus-27.20.0
     app.kubernetes.io/part-of: dz-prometheus
   name: prometheus-dz-prometheus-server
 rules:
@@ -214,7 +211,6 @@ rules:
       - list
       - watch
   - apiGroups:
-      - "extensions"
       - "networking.k8s.io"
     resources:
       - ingresses/status
@@ -241,13 +237,13 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   labels:    
-    helm.sh/chart: kube-state-metrics-5.15.2
+    helm.sh/chart: kube-state-metrics-5.33.2
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: metrics
     app.kubernetes.io/part-of: kube-state-metrics
     app.kubernetes.io/name: kube-state-metrics
     app.kubernetes.io/instance: prometheus
-    app.kubernetes.io/version: "2.10.1"
+    app.kubernetes.io/version: "2.15.0"
   name: prometheus-kube-state-metrics
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -266,9 +262,8 @@ metadata:
     app.kubernetes.io/component: server
     app.kubernetes.io/name: dz-prometheus
     app.kubernetes.io/instance: prometheus
-    app.kubernetes.io/version: v2.48.0
-    helm.sh/chart: prometheus-25.8.0
-    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/version: v3.4.1
+    helm.sh/chart: prometheus-27.20.0
     app.kubernetes.io/part-of: dz-prometheus
   name: prometheus-dz-prometheus-server
 subjects:
@@ -287,13 +282,13 @@ metadata:
   name: prometheus-kube-state-metrics
   namespace: devzero-zxporter
   labels:    
-    helm.sh/chart: kube-state-metrics-5.15.2
+    helm.sh/chart: kube-state-metrics-5.33.2
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: metrics
     app.kubernetes.io/part-of: kube-state-metrics
     app.kubernetes.io/name: kube-state-metrics
     app.kubernetes.io/instance: prometheus
-    app.kubernetes.io/version: "2.10.1"
+    app.kubernetes.io/version: "2.15.0"
   annotations:
     prometheus.io/scrape: 'true'
 spec:
@@ -316,9 +311,8 @@ metadata:
     app.kubernetes.io/component: server
     app.kubernetes.io/name: dz-prometheus
     app.kubernetes.io/instance: prometheus
-    app.kubernetes.io/version: v2.48.0
-    helm.sh/chart: prometheus-25.8.0
-    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/version: v3.4.1
+    helm.sh/chart: prometheus-27.20.0
     app.kubernetes.io/part-of: dz-prometheus
   name: prometheus-dz-prometheus-server
   namespace: devzero-zxporter
@@ -342,13 +336,13 @@ metadata:
   name: prometheus-kube-state-metrics
   namespace: devzero-zxporter
   labels:    
-    helm.sh/chart: kube-state-metrics-5.15.2
+    helm.sh/chart: kube-state-metrics-5.33.2
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: metrics
     app.kubernetes.io/part-of: kube-state-metrics
     app.kubernetes.io/name: kube-state-metrics
     app.kubernetes.io/instance: prometheus
-    app.kubernetes.io/version: "2.10.1"
+    app.kubernetes.io/version: "2.15.0"
 spec:
   selector:
     matchLabels:      
@@ -361,14 +355,15 @@ spec:
   template:
     metadata:
       labels:        
-        helm.sh/chart: kube-state-metrics-5.15.2
+        helm.sh/chart: kube-state-metrics-5.33.2
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/component: metrics
         app.kubernetes.io/part-of: kube-state-metrics
         app.kubernetes.io/name: kube-state-metrics
         app.kubernetes.io/instance: prometheus
-        app.kubernetes.io/version: "2.10.1"
+        app.kubernetes.io/version: "2.15.0"
     spec:
+      automountServiceAccountToken: true
       hostNetwork: false
       serviceAccountName: prometheus-kube-state-metrics
       securityContext:
@@ -378,33 +373,47 @@ spec:
         runAsUser: 65534
         seccompProfile:
           type: RuntimeDefault
+      dnsPolicy: ClusterFirst
       containers:
       - name: kube-state-metrics
         args:
         - --port=8080
         - --resources=nodes
         imagePullPolicy: IfNotPresent
-        image: registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.10.1
+        image: registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.15.0
         ports:
         - containerPort: 8080
           name: "http"
         livenessProbe:
+          failureThreshold: 3
           httpGet:
-            path: /healthz
+            httpHeaders:
+            path: /livez
             port: 8080
+            scheme: HTTP
           initialDelaySeconds: 5
+          periodSeconds: 10
+          successThreshold: 1
           timeoutSeconds: 5
         readinessProbe:
+          failureThreshold: 3
           httpGet:
-            path: /
-            port: 8080
+            httpHeaders:
+            path: /readyz
+            port: 8081
+            scheme: HTTP
           initialDelaySeconds: 5
+          periodSeconds: 10
+          successThreshold: 1
           timeoutSeconds: 5
+        resources:
+          {}
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
             drop:
             - ALL
+          readOnlyRootFilesystem: true
 ---
 # Source: prometheus/templates/deploy.yaml
 apiVersion: apps/v1
@@ -414,9 +423,8 @@ metadata:
     app.kubernetes.io/component: server
     app.kubernetes.io/name: dz-prometheus
     app.kubernetes.io/instance: prometheus
-    app.kubernetes.io/version: v2.48.0
-    helm.sh/chart: prometheus-25.8.0
-    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/version: v3.4.1
+    helm.sh/chart: prometheus-27.20.0
     app.kubernetes.io/part-of: dz-prometheus
   name: prometheus-dz-prometheus-server
   namespace: devzero-zxporter
@@ -437,27 +445,43 @@ spec:
         app.kubernetes.io/component: server
         app.kubernetes.io/name: dz-prometheus
         app.kubernetes.io/instance: prometheus
-        app.kubernetes.io/version: v2.48.0
-        helm.sh/chart: prometheus-25.8.0
-        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/version: v3.4.1
+        helm.sh/chart: prometheus-27.20.0
         app.kubernetes.io/part-of: dz-prometheus
     spec:
       enableServiceLinks: true
       serviceAccountName: prometheus-dz-prometheus-server
       containers:
         - name: dz-prometheus-server-configmap-reload
-          image: "quay.io/prometheus-operator/prometheus-config-reloader:v0.67.0"
+          image: "quay.io/prometheus-operator/prometheus-config-reloader:v0.83.0"
           imagePullPolicy: "IfNotPresent"
           args:
             - --watched-dir=/etc/config
+            - --listen-address=0.0.0.0:8080
             - --reload-url=http://127.0.0.1:9090/-/reload
+          ports:
+            - containerPort: 8080
+              name: metrics
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: metrics
+              scheme: HTTP
+            initialDelaySeconds: 2
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: metrics
+              scheme: HTTP
+            periodSeconds: 10
           volumeMounts:
             - name: config-volume
               mountPath: /etc/config
               readOnly: true
 
         - name: dz-prometheus-server
-          image: "quay.io/prometheus/prometheus:v2.48.0"
+          image: "quay.io/prometheus/prometheus:v3.4.1"
           imagePullPolicy: "IfNotPresent"
           args:
             - --storage.tsdb.retention.time=15d
