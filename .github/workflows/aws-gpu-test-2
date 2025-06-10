@@ -1,0 +1,515 @@
+name: AWS GPU Test
+
+on:
+  push:
+    branches:
+      - garvit/aws-gpu-test
+  workflow_dispatch:
+    inputs:
+      gpu_install_type:
+        description: 'GPU installation type'
+        required: false
+        default: 'nvidia-device-plugin'
+        type: choice
+        options:
+          - gpu-operator
+          - nvidia-device-plugin
+      dcgm_install_type:
+        description: 'DCGM install type'
+        required: false
+        default: 'devzero-dcgm'
+        type: choice
+        options:
+          - nvidia-dcgm
+          - devzero-dcgm
+      cluster_version:
+        description: 'Kubernetes cluster version'
+        required: false
+        default: '1.30'
+        type: choice
+        options:
+          - '1.26'
+          - '1.27'
+          - '1.28'
+          - '1.29'
+          - '1.30'
+          - '1.31'
+          - '1.32'
+          - '1.33'
+      karpenter_version:
+        description: 'Karpenter Version'
+        required: false
+        default: '0.37.7'
+        type: choice
+        options:
+          - 'no_karpenter'
+          - '0.37.7'
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  apply-terraform:
+    name: Apply Terraform
+    runs-on: ubuntu-latest
+    env:
+      GPU_INSTALL_TYPE: ${{ github.event.inputs.gpu_install_type || 'nvidia-device-plugin' }}
+      DCGM_INSTALL_TYPE: ${{ github.event.inputs.dcgm_install_type || 'devzero-dcgm' }}
+      CLUSTER_VERSION: ${{ github.event.inputs.cluster_version || '1.30' }}
+
+    outputs:
+      job_identifier: ${{ steps.job-identifier.outputs.job_identifier }}
+
+    steps:
+      - name: Validate Inputs
+        run: |
+          echo "GPU_INSTALL_TYPE=${GPU_INSTALL_TYPE}"
+          echo "DCGM_INSTALL_TYPE=${DCGM_INSTALL_TYPE}"
+
+          if [[ "$GPU_INSTALL_TYPE" == "nvidia-device-plugin" && "$DCGM_INSTALL_TYPE" != "devzero-dcgm" ]]; then
+            echo "Error: When GPU_INSTALL_TYPE is 'nvidia-device-plugin', DCGM_INSTALL_TYPE must be 'devzero-dcgm'."
+            exit 1
+          fi
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credential
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::484907513542:role/github-actions-oidc-role
+          aws-region: us-east-1
+
+      - name: Generate Unique Job Identifier
+        id: job-identifier
+        shell: bash
+        run: |
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          if [[ "$DCGM_INSTALL_TYPE" == "devzero-dcgm" ]]; then
+            SUFFIX="dd"
+          else
+            SUFFIX="nd"
+          fi
+          JOB_IDENTIFIER="gh-ci-ro-${SHORT_SHA}-${SUFFIX}"
+          echo "JOB_IDENTIFIER=${JOB_IDENTIFIER}" >> $GITHUB_ENV
+          echo "job_identifier=${JOB_IDENTIFIER}" >> $GITHUB_OUTPUT
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Apply Terraform
+        working-directory: terraform/aws
+        run: |
+          export KARPENTER_NAMESPACE="kube-system"
+          export KARPENTER_VERSION="0.37.7"
+          export K8S_VERSION="1.30"
+          export AWS_PARTITION="aws" # if you are not using standard partitions, you may need to configure to aws-cn / aws-us-gov
+          export CLUSTER_NAME="${env.JOB_IDENTIFIER}"
+          export AWS_DEFAULT_REGION="us-east-1"
+          export AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
+          export TEMPOUT="$(mktemp)"
+          export ALIAS_VERSION="$(aws ssm get-parameter --name "/aws/service/eks/optimized-ami/${K8S_VERSION}/amazon-linux-2023/x86_64/standard/recommended/image_id" --query Parameter.Value | xargs aws ec2 describe-images --query 'Images[0].Name' --image-ids | sed -r 's/^.*(v[[:digit:]]+).*$/\1/')"
+          echo "${KARPENTER_NAMESPACE}" "${KARPENTER_VERSION}" "${K8S_VERSION}" "${CLUSTER_NAME}" "${AWS_DEFAULT_REGION}" "${AWS_ACCOUNT_ID}" "${TEMPOUT}" "${ALIAS_VERSION}"
+
+          curl -fsSL https://raw.githubusercontent.com/aws/karpenter-provider-aws/v"${KARPENTER_VERSION}"/website/content/en/preview/getting-started/getting-started-with-karpenter/cloudformation.yaml  > "${TEMPOUT}" \
+          && aws cloudformation deploy \
+            --stack-name "Karpenter-${CLUSTER_NAME}" \
+            --template-file "${TEMPOUT}" \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --parameter-overrides "ClusterName=${CLUSTER_NAME}"
+
+          eksctl create cluster -f - <<EOF
+          ---
+          apiVersion: eksctl.io/v1alpha5
+          kind: ClusterConfig
+          metadata:
+            name: ${CLUSTER_NAME}
+            region: ${AWS_DEFAULT_REGION}
+            version: "${K8S_VERSION}"
+            tags:
+              karpenter.sh/discovery: ${CLUSTER_NAME}
+
+          iam:
+            withOIDC: true
+            podIdentityAssociations:
+            - namespace: "${KARPENTER_NAMESPACE}"
+              serviceAccountName: karpenter
+              roleName: ${CLUSTER_NAME}-karpenter
+              permissionPolicyARNs:
+              - arn:${AWS_PARTITION}:iam::${AWS_ACCOUNT_ID}:policy/KarpenterControllerPolicy-${CLUSTER_NAME}
+
+          iamIdentityMappings:
+          - arn: "arn:${AWS_PARTITION}:iam::${AWS_ACCOUNT_ID}:role/KarpenterNodeRole-${CLUSTER_NAME}"
+            username: system:node:{{EC2PrivateDNSName}}
+            groups:
+            - system:bootstrappers
+            - system:nodes
+            ## If you intend to run Windows workloads, the kube-proxy group should be specified.
+            # For more information, see https://github.com/aws/karpenter/issues/5099.
+            # - eks:kube-proxy-windows
+
+          managedNodeGroups:
+          - instanceType: g6.4xlarge
+            amiFamily: AmazonLinux2023
+            name: ${CLUSTER_NAME}-ng
+            desiredCapacity: 2
+            minSize: 1
+            maxSize: 10
+
+          addons:
+          - name: eks-pod-identity-agent
+          EOF
+
+          export CLUSTER_ENDPOINT="$(aws eks describe-cluster --name "${CLUSTER_NAME}" --query "cluster.endpoint" --output text)"
+          export KARPENTER_IAM_ROLE_ARN="arn:${AWS_PARTITION}:iam::${AWS_ACCOUNT_ID}:role/${CLUSTER_NAME}-karpenter"
+
+          echo "${CLUSTER_ENDPOINT} ${KARPENTER_IAM_ROLE_ARN}"
+
+      - name: Configure Karpenter
+        run: |
+          echo "Configuring Karpenter..."
+          # Logout of helm registry to perform an unauthenticated pull against the public ECR
+          helm registry logout public.ecr.aws || true
+
+          helm upgrade --install karpenter oci://public.ecr.aws/karpenter/karpenter --version "${KARPENTER_VERSION}" --namespace "${KARPENTER_NAMESPACE}" --create-namespace \
+            --set "settings.clusterName=${CLUSTER_NAME}" \
+            --set "settings.interruptionQueue=${CLUSTER_NAME}" \
+            --set controller.resources.requests.cpu=1 \
+            --set controller.resources.requests.memory=1Gi \
+            --set controller.resources.limits.cpu=1 \
+            --set controller.resources.limits.memory=1Gi \
+            --wait
+
+      - name: Configure Karpenter Node Class
+        run: |
+          cat <<EOF | envsubst | kubectl apply -f -
+          apiVersion: karpenter.sh/v1
+          kind: NodePool
+          metadata:
+            name: default
+          spec:
+            template:
+              spec:
+                requirements:
+                  - key: kubernetes.io/arch
+                    operator: In
+                    values: ["amd64"]
+                  - key: kubernetes.io/os
+                    operator: In
+                    values: ["linux"]
+                  - key: karpenter.sh/capacity-type
+                    operator: In
+                    values: ["on-demand"]
+                  - key: karpenter.k8s.aws/instance-category
+                    operator: In
+                    values: ["c", "m", "r"]
+                  - key: karpenter.k8s.aws/instance-generation
+                    operator: Gt
+                    values: ["2"]
+                nodeClassRef:
+                  group: karpenter.k8s.aws
+                  kind: EC2NodeClass
+                  name: default
+                expireAfter: 720h # 30 * 24h = 720h
+            limits:
+              cpu: 1000
+            disruption:
+              consolidationPolicy: WhenEmptyOrUnderutilized
+              consolidateAfter: 1m
+          ---
+          apiVersion: karpenter.k8s.aws/v1
+          kind: EC2NodeClass
+          metadata:
+            name: default
+          spec:
+            role: "KarpenterNodeRole-${CLUSTER_NAME}" # replace with your cluster name
+            amiSelectorTerms:
+              - alias: "al2023@${ALIAS_VERSION}"
+            subnetSelectorTerms:
+              - tags:
+                  karpenter.sh/discovery: "${CLUSTER_NAME}" # replace with your cluster name
+            securityGroupSelectorTerms:
+              - tags:
+                  karpenter.sh/discovery: "${CLUSTER_NAME}" # replace with your cluster name
+          EOF
+
+          cat <<EOF | kubectl apply -f -
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: inflate
+          spec:
+            replicas: 0
+            selector:
+              matchLabels:
+                app: inflate
+            template:
+              metadata:
+                labels:
+                  app: inflate
+              spec:
+                terminationGracePeriodSeconds: 0
+                securityContext:
+                  runAsUser: 1000
+                  runAsGroup: 3000
+                  fsGroup: 2000
+                containers:
+                - name: inflate
+                  image: public.ecr.aws/eks-distro/kubernetes/pause:3.7
+                  resources:
+                    requests:
+                      cpu: 1
+                  securityContext:
+                    allowPrivilegeEscalation: false
+          EOF
+
+  install-and-validate:
+    name: Install and Validate GPU Resources and ZXPorter
+    runs-on: ubuntu-latest
+    needs: apply-terraform
+    env:
+      GPU_INSTALL_TYPE: ${{ github.event.inputs.gpu_install_type || 'nvidia-device-plugin' }}
+      DCGM_INSTALL_TYPE: ${{ github.event.inputs.dcgm_install_type || 'devzero-dcgm' }}
+      Karpenter_VERSION: ${{ github.event.inputs.karpenter_version || '0.37.7' }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::484907513542:role/github-actions-oidc-role
+          aws-region: us-east-1
+
+      - name: Configure Kubernetes Access
+        run: |
+          aws eks update-kubeconfig --region us-east-1 --name ${{ needs.apply-terraform.outputs.job_identifier }}
+
+      # - name: Install Karpenter (if needed)
+      #   if: env.Karpenter_VERSION != 'no_karpenter'
+      #   run: |
+      #     echo "Installing Karpenter..."
+      #     AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
+      #     CLUSTER_ENDPOINT="$(aws eks describe-cluster --name "devzero-gpu-cluster" --query "cluster.endpoint" --output text)"
+      #     KARPENTER_IAM_ROLE_ARN="arn:aws:iam::${AWS_ACCOUNT_ID}:role/KarpenterControllerRole-devzero-gpu-cluster"
+      #     helm upgrade --install karpenter oci://public.ecr.aws/karpenter/karpenter \
+      #       --version "0.37.7" \
+      #       --namespace kube-system \
+      #       --create-namespace \
+      #       --set settings.clusterName="devzero-gpu-cluster" \
+      #       --set settings.aws.clusterName="devzero-gpu-cluster" \
+      #       --set settings.aws.clusterEndpoint="${CLUSTER_ENDPOINT}" \
+      #       --set settings.aws.defaultInstanceProfile="KarpenterNodeRole-devzero-gpu-cluster" \
+      #       --set settings.aws.interruptionQueueName="devzero-gpu-cluster-karpenter-interruption" \
+      #       --set serviceAccount.annotations."eks\.amazonaws\.com/role-arn"="${KARPENTER_IAM_ROLE_ARN}" \
+      #       --set controller.resources.requests.cpu="1" \
+      #       --set controller.resources.requests.memory="1Gi" \
+      #       --set controller.resources.limits.cpu="1" \
+      #       --set controller.resources.limits.memory="1Gi" \
+      #       --wait
+
+      - name: Check GPU Availability
+        id: gpu_check
+        run: |
+          echo "Checking GPU resources on nodes..."
+          if kubectl describe nodes | grep -q "nvidia.com/gpu"; then
+            echo "GPU resources are available on the nodes."
+            echo "GPU_CHECK=true" >> $GITHUB_ENV
+          else
+            echo "GPU check failed"
+            echo "GPU_CHECK=false" >> $GITHUB_ENV
+          fi
+
+      - name: Install GPU Operator (if needed)
+        if: env.GPU_CHECK == 'false' && env.GPU_INSTALL_TYPE == 'gpu-operator'
+        run: |
+          echo "GPU resources not found, installing GPU Operator..."
+          kubectl create ns gpu-operator
+          kubectl label ns gpu-operator pod-security.kubernetes.io/enforce=privileged --overwrite
+          kubectl get nodes -o json | jq '.items[].metadata.labels | keys | any(startswith("feature.node.kubernetes.io"))' || true
+          helm repo add nvidia https://helm.ngc.nvidia.com/nvidia && \
+          helm repo update
+          INSTALL_CMD="helm install --wait --generate-name -n gpu-operator --create-namespace nvidia/gpu-operator --version=v25.3.0"
+          if [[ "$DCGM_INSTALL_TYPE" == "devzero-dcgm" ]]; then
+            INSTALL_CMD="$INSTALL_CMD --set dcgmExporter.enabled=false"
+          fi
+          echo "Running: $INSTALL_CMD"
+          $INSTALL_CMD
+
+      - name: Install Nvidia Device Plugin
+        if: env.GPU_INSTALL_TYPE == 'nvidia-device-plugin' && env.GPU_CHECK == 'false'
+        run: |
+          echo "Installing Nvidia Device Plugin..."
+          kubectl get nodes -l node_type=gpu -o jsonpath='{.items[*].metadata.name}' | xargs -I {} kubectl label node {} nvidia.com/gpu=true nvidia.com/mps.capable=true nvidia.com/gpu.present=true --overwrite
+          kubectl create ns nvidia-device-plugin
+          kubectl apply -f nvidia-device-plugin-prereq
+          helm repo add nvdp https://nvidia.github.io/k8s-device-plugin
+          helm repo update
+          helm upgrade -i nvdp nvdp/nvidia-device-plugin \
+            --namespace nvidia-device-plugin \
+            --version 0.17.1
+
+      - name: Check GPU Availability After Installing GPU Operator
+        if: env.GPU_CHECK == 'false'
+        run: |
+          echo "Re-checking GPU resources on nodes after GPU Operator installation..."
+          if kubectl describe nodes | grep -q "nvidia.com/gpu"; then
+            echo "GPU resources are available on the nodes."
+          else
+            echo "GPU check failed after GPU Operator installation"
+            exit 1
+          fi
+
+      - name: Check Nvidia DCGM DaemonSet
+        id: dcgm_check
+        if: ${{ env.DCGM_INSTALL_TYPE == 'nvidia-dcgm' }}
+        run: |
+          echo "Checking if DCGM DaemonSet is installed..."
+          if kubectl get daemonset -A | grep -q dcgm; then
+            echo "Nvidia DCGM found, proceeding with validation."
+          else
+            echo "Nvidia DCGM not found."
+            exit 1
+          fi
+
+      - name: Install DevZero DCGM
+        if: ${{ env.DCGM_INSTALL_TYPE == 'devzero-dcgm' }}
+        run: |
+          echo "Installing DCGM Exporter..."
+          kubectl create ns devzero-zxporter
+          curl https://raw.githubusercontent.com/devzero-inc/zxporter/refs/heads/main/dcgm-installers/eks.yml | kubectl apply -f -
+
+      - name: Check DCGM DaemonSet After Installing DCGM Exporter
+        if: ${{ env.DCGM_INSTALL_TYPE == 'devzero-dcgm' }}
+        run: |
+          echo "Re-checking DCGM pods after DCGM Exporter installation..."
+          if kubectl get daemonset -A | grep -q dcgm; then
+            echo "DCGM DaemonSet is running."
+          else
+            echo "DCGM DaemonSet not running after installation"
+            exit 1
+          fi
+          
+      - name: Verify DCGM Pods and Prometheus Annotations
+        run: |
+          NAMESPACE="devzero-zxporter"
+          if [[ "$DCGM_INSTALL_TYPE" == "nvidia-dcgm" ]]; then
+            NAMESPACE="gpu-operator"
+          fi
+          kubectl get pods -n $NAMESPACE -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' | grep dcgm-exporter | xargs -r -I {} kubectl wait --for=condition=Ready pod {} -n $NAMESPACE --timeout=300s
+          echo "Verifying DCGM pods and Prometheus annotations..."
+          kubectl get pods -A | grep dcgm-exporter | awk '
+          BEGIN { all_running = 1; pod_count = 0 }
+          {
+              pod_count++
+              status = $4
+              printf "Pod: %s/%s - Status: %s\n", $1, $2, status
+              if (status != "Running") all_running = 0
+          }
+          END {
+              printf "\nTotal Pods: %d\n", pod_count
+              printf "All Running: %s\n", (all_running ? "true" : "false")
+          }'
+          kubectl get pods -A -o json | jq -r '.items[] | select(.metadata.name | contains("dcgm-exporter")) | "\(.metadata.namespace) \(.metadata.name)"' | while read namespace pod; do kubectl annotate pod $pod -n $namespace prometheus.io/scrape=true --overwrite; done
+
+      - name: Install and Verify DeepSeek Workload
+        run: |
+          kubectl create ns deepseek
+          kubectl apply -f https://gist.githubusercontent.com/Tzvonimir/a168dcc1515d3bf89254c34010e16d37/raw/4b154383f4e254c9490d4815e85aa5f574eb26eb/install-test-deepseek.yaml    
+          
+          kubectl wait --for=condition=ready pod -n deepseek --all --timeout=600s
+          pod_status=$(kubectl get pods -n deepseek --field-selector=status.phase!=Running -o jsonpath='{.items[*].status.phase}')
+          
+          if [[ -n "$pod_status" ]]; then
+            echo "Pods are not in Running state. Failing the pipeline."
+            exit 1
+          else
+            echo "All pods are running successfully."
+          fi
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: true
+
+      - name: Install ZXPorter
+        run: |
+          ZXPORTER_IMG="ttl.sh/$(uuidgen):2h"
+          echo "Building and pushing zxporter image: ${ZXPORTER_IMG}"
+          make docker-build docker-push IMG=${ZXPORTER_IMG}
+          make deploy IMG=${ZXPORTER_IMG}
+          
+          echo "Waiting for ZXPorter pods to be ready..."
+          kubectl wait --for=condition=Ready pod -l app.kubernetes.io/component=server -n devzero-zxporter --timeout=300s
+
+      - name: Test ZXPorter with Prometheus
+        run: |
+          kubectl port-forward svc/prometheus-dz-prometheus-server 9090:80 -n devzero-zxporter > pf.log 2>&1 &
+          PF_PID=$!
+          sleep 5
+          MAX_RETRIES=6
+          for i in $(seq 1 $MAX_RETRIES); do
+            if curl -s "http://localhost:9090/-/ready" >/dev/null; then
+              echo "Prometheus port-forward is ready."
+              break
+            fi
+            echo "[$i/$MAX_RETRIES] Waiting for Prometheus to become ready..."
+            sleep 5
+          done
+
+          result=$(curl -s "http://localhost:9090/api/v1/query?query=DCGM_FI_DEV_SM_CLOCK" | jq -r '.data.result')
+          kill $PF_PID || true
+
+          echo "Metric found: $result"
+          if [[ -z "$result" || "$result" == [] ]]; then
+            echo "❌ DCGM_FI_DEV_SM_CLOCK metric not found!"
+            echo "Port-forward log:"
+            cat pf.log
+            exit 1
+          fi
+
+      - name: Test Karpenter
+        if: inputs.karpenter_version != 'no_karpenter'
+        run: |
+          kubectl scale deployment inflate --replicas 10
+          kubectl logs -n "${KARPENTER_NAMESPACE}" -l app.kubernetes.io/name=karpenter -c controller
+          kubectl get nodes -o wide
+          kubectl delete deployment inflate
+
+
+  destroy-terraform:
+    name: Destroy Terraform
+    runs-on: ubuntu-latest
+    env:
+      CLUSTER_VERSION: ${{ github.event.inputs.cluster_version || '1.30' }}
+
+    if: always()
+    needs:
+      - apply-terraform
+      - install-and-validate
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::484907513542:role/github-actions-oidc-role
+          aws-region: us-east-1
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Destroy Infrastructure
+        working-directory: terraform/aws
+        run: |
+          helm uninstall karpenter --namespace kube-system || true
+          aws cloudformation delete-stack --stack-name "Karpenter-${{needs.apply-terraform.outputs.job_identifier}}" || true
+          aws ec2 describe-launch-templates --filters "Name=tag:karpenter.k8s.aws/cluster,Values=${{needs.apply-terraform.outputs.job_identifier}}" |
+              jq -r ".LaunchTemplates[].LaunchTemplateName" |
+              xargs -I{} aws ec2 delete-launch-template --launch-template-name {}
+          eksctl delete cluster --name "${{needs.apply-terraform.outputs.job_identifier}}"
