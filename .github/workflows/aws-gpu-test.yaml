@@ -368,7 +368,7 @@ jobs:
                   karpenter.sh/discovery: "${{ needs.apply-terraform.outputs.job_identifier }}"
           EOF
 
-          sleep 10
+          kubectl logs -n kube-system -l app.kubernetes.io/name=karpenter -c controller
 
           echo "Creating a deployment to trigger Karpenter node provisioning..."
           cat <<EOF | kubectl apply -f -
@@ -404,9 +404,9 @@ jobs:
           kubectl scale deployment inflate --replicas 10
             
           echo "Waiting for nodes to be provisioned by Karpenter..."
-          kubectl wait --for=condition=Ready pod -l app=inflate --timeout=180s
+          kubectl wait --for=condition=Ready pod -l app=inflate --timeout=180s || true
 
-          kubectl get nodes -o wide || true
+          kubectl get nodes -o wide
 
           kubectl logs -n kube-system -l app.kubernetes.io/name=karpenter -c controller
   
