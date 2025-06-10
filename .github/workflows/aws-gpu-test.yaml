@@ -135,7 +135,7 @@ jobs:
 
       - name: Install yq
         run: |
-          sudo wget https://github.com/mikefarah/yq/releases/download/v4.15.1/yq_linux_amd64 -O /usr/local/bin/yq
+          sudo wget https://github.com/mikefarah/yq/releases/download/v4.35.2/yq_linux_amd64 -O /usr/local/bin/yq
           sudo chmod +x /usr/local/bin/yq
 
       - name: Configure Kubernetes Access
@@ -464,6 +464,20 @@ jobs:
         with:
           role-to-assume: arn:aws:iam::484907513542:role/github-actions-oidc-role
           aws-region: us-east-1
+
+      - name: Configure Kubernetes Access
+        if: inputs.karpenter_version != 'no_karpenter'
+        run: |
+          aws eks update-kubeconfig --region us-east-1 --name ${{ needs.apply-terraform.outputs.job_identifier }}
+
+      - name: Delete Karpenter Nodes
+        if: inputs.karpenter_version != 'no_karpenter'
+        run: |
+          kubectl delete deployment inflate
+          kubectl wait --for=delete deployment/inflate --timeout=300s
+          NODE_NAME=$(kubectl get nodes --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[1].metadata.name}')
+          kubectl delete node "${NODE_NAME}"
+
 
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v3
