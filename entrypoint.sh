@@ -18,7 +18,7 @@ log "Starting entrypoint script"
 
 # Check if metrics-server is installed
 log "Checking if metrics-server is installed..."
-if ! kubectl get apiservice v1beta1.metrics.k8s.io &>/dev/null; then
+if ! kubectl get apiservice v1beta1.metrics.k8s.io &>/dev/null || ! kubectl top nodes &>/dev/null || ! kubectl get --raw "/apis/metrics.k8s.io/v1beta1/nodes" &>/dev/null; then
   log "metrics-server not found, installing it now..."
 
   # Check if metrics-server.yaml exists

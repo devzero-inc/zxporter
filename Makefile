@@ -337,10 +337,10 @@ build-installer: manifests generate kustomize yq ## Generate a consolidated YAML
 	@cat $(DIST_NODE_EXPORTER_BUNDLE) >> $(DIST_INSTALL_BUNDLE)
 	@echo "# ----- END PROM NODE EXPORTER -----" >> $(DIST_INSTALL_BUNDLE)
 
-	@echo "[INFO] Append Metrics Server to the main installer"
-	@echo "# ----- START METRICS SERVER -----" >> $(DIST_INSTALL_BUNDLE)
-	@cat $(METRICS_SERVER) >> $(DIST_INSTALL_BUNDLE)
-	@echo "# ----- END METRICS SERVER -----" >> $(DIST_INSTALL_BUNDLE)
+	# @echo "[INFO] Append Metrics Server to the main installer"
+	# @echo "# ----- START METRICS SERVER -----" >> $(DIST_INSTALL_BUNDLE)
+	# @cat $(METRICS_SERVER) >> $(DIST_INSTALL_BUNDLE)
+	# @echo "# ----- END METRICS SERVER -----" >> $(DIST_INSTALL_BUNDLE)
 	@echo "---" >> $(DIST_INSTALL_BUNDLE)
 	
 	@echo "[INFO] Append zxporter-manager to the installer bundle"
