@@ -1,0 +1,6 @@
+# Values copied from default/kustomization.yaml so we can run this kustomization standalone
+namespace: devzero-zxporter
+namePrefix: devzero-zxporter-
+
+resources:
+  - ../manager-env-base
