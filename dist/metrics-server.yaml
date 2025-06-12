@@ -6,10 +6,10 @@ metadata:
   name: dz-metrics-server
   namespace: devzero-zxporter
   labels:
-    helm.sh/chart: metrics-server-3.12.0
+    helm.sh/chart: metrics-server-3.12.2
     app.kubernetes.io/name: dz-metrics-server
     app.kubernetes.io/instance: metrics-server
-    app.kubernetes.io/version: "0.7.0"
+    app.kubernetes.io/version: "0.7.2"
     app.kubernetes.io/managed-by: Helm
 ---
 # Source: metrics-server/templates/clusterrole-aggregated-reader.yaml
@@ -18,10 +18,10 @@ kind: ClusterRole
 metadata:
   name: system:dz-metrics-server-aggregated-reader
   labels:
-    helm.sh/chart: metrics-server-3.12.0
+    helm.sh/chart: metrics-server-3.12.2
     app.kubernetes.io/name: dz-metrics-server
     app.kubernetes.io/instance: metrics-server
-    app.kubernetes.io/version: "0.7.0"
+    app.kubernetes.io/version: "0.7.2"
     app.kubernetes.io/managed-by: Helm
     rbac.authorization.k8s.io/aggregate-to-admin: "true"
     rbac.authorization.k8s.io/aggregate-to-edit: "true"
@@ -43,10 +43,10 @@ kind: ClusterRole
 metadata:
   name: system:dz-metrics-server
   labels:
-    helm.sh/chart: metrics-server-3.12.0
+    helm.sh/chart: metrics-server-3.12.2
     app.kubernetes.io/name: dz-metrics-server
     app.kubernetes.io/instance: metrics-server
-    app.kubernetes.io/version: "0.7.0"
+    app.kubernetes.io/version: "0.7.2"
     app.kubernetes.io/managed-by: Helm
 rules:
   - apiGroups:
@@ -73,10 +73,10 @@ kind: ClusterRoleBinding
 metadata:
   name: dz-metrics-server:system:auth-delegator
   labels:
-    helm.sh/chart: metrics-server-3.12.0
+    helm.sh/chart: metrics-server-3.12.2
     app.kubernetes.io/name: dz-metrics-server
     app.kubernetes.io/instance: metrics-server
-    app.kubernetes.io/version: "0.7.0"
+    app.kubernetes.io/version: "0.7.2"
     app.kubernetes.io/managed-by: Helm
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -93,10 +93,10 @@ kind: ClusterRoleBinding
 metadata:
   name: system:dz-metrics-server
   labels:
-    helm.sh/chart: metrics-server-3.12.0
+    helm.sh/chart: metrics-server-3.12.2
     app.kubernetes.io/name: dz-metrics-server
     app.kubernetes.io/instance: metrics-server
-    app.kubernetes.io/version: "0.7.0"
+    app.kubernetes.io/version: "0.7.2"
     app.kubernetes.io/managed-by: Helm
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -114,10 +114,10 @@ metadata:
   name: dz-metrics-server-auth-reader
   namespace: kube-system
   labels:
-    helm.sh/chart: metrics-server-3.12.0
+    helm.sh/chart: metrics-server-3.12.2
     app.kubernetes.io/name: dz-metrics-server
     app.kubernetes.io/instance: metrics-server
-    app.kubernetes.io/version: "0.7.0"
+    app.kubernetes.io/version: "0.7.2"
     app.kubernetes.io/managed-by: Helm
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -135,10 +135,10 @@ metadata:
   name: dz-metrics-server
   namespace: devzero-zxporter
   labels:
-    helm.sh/chart: metrics-server-3.12.0
+    helm.sh/chart: metrics-server-3.12.2
     app.kubernetes.io/name: dz-metrics-server
     app.kubernetes.io/instance: metrics-server
-    app.kubernetes.io/version: "0.7.0"
+    app.kubernetes.io/version: "0.7.2"
     app.kubernetes.io/managed-by: Helm
 spec:
   type: ClusterIP
@@ -147,6 +147,7 @@ spec:
       port: 443
       protocol: TCP
       targetPort: https
+      appProtocol: https
   selector:
     app.kubernetes.io/name: dz-metrics-server
     app.kubernetes.io/instance: metrics-server
@@ -158,10 +159,10 @@ metadata:
   name: dz-metrics-server
   namespace: devzero-zxporter
   labels:
-    helm.sh/chart: metrics-server-3.12.0
+    helm.sh/chart: metrics-server-3.12.2
     app.kubernetes.io/name: dz-metrics-server
     app.kubernetes.io/instance: metrics-server
-    app.kubernetes.io/version: "0.7.0"
+    app.kubernetes.io/version: "0.7.2"
     app.kubernetes.io/managed-by: Helm
 spec:
   replicas: 1
@@ -175,7 +176,6 @@ spec:
         app.kubernetes.io/name: dz-metrics-server
         app.kubernetes.io/instance: metrics-server
     spec:
-      schedulerName: 
       serviceAccountName: dz-metrics-server
       priorityClassName: "system-cluster-critical"
       containers:
@@ -190,7 +190,7 @@ spec:
             runAsUser: 1000
             seccompProfile:
               type: RuntimeDefault
-          image: registry.k8s.io/metrics-server/metrics-server:v0.7.0
+          image: registry.k8s.io/metrics-server/metrics-server:v0.7.2
           imagePullPolicy: IfNotPresent
           args:
             - --secure-port=10250
@@ -236,10 +236,10 @@ kind: APIService
 metadata:
   name: v1beta1.metrics.k8s.io
   labels:
-    helm.sh/chart: metrics-server-3.12.0
+    helm.sh/chart: metrics-server-3.12.2
     app.kubernetes.io/name: dz-metrics-server
     app.kubernetes.io/instance: metrics-server
-    app.kubernetes.io/version: "0.7.0"
+    app.kubernetes.io/version: "0.7.2"
     app.kubernetes.io/managed-by: Helm
 spec:
   group: metrics.k8s.io
