@@ -30,6 +30,8 @@ const (
 	EventTypeContainerStopped
 	// EventTypeContainerRestarted represents a container restarted event
 	EventTypeContainerRestarted
+	// EventTypeSnapshot represents a cluster snapshot
+	EventTypeSnapshot
 )
 
 // String returns the string representation of the EventType
@@ -44,6 +46,7 @@ func (e EventType) String() string {
 		EventTypeContainerStarted:   "container_started",
 		EventTypeContainerStopped:   "container_stopped",
 		EventTypeContainerRestarted: "container_restarted",
+		EventTypeSnapshot:           "cluster_snapshot",
 	}
 
 	if name, ok := names[e]; ok {
@@ -73,6 +76,8 @@ func (e EventType) ProtoType() gen.EventType {
 		return gen.EventType_EVENT_TYPE_CONTAINER_STOPPED
 	case EventTypeContainerRestarted:
 		return gen.EventType_EVENT_TYPE_CONTAINER_RESTARTED
+	case EventTypeSnapshot:
+		return gen.EventType_EVENT_TYPE_CLUSTER_SNAPSHOT
 	default:
 		return gen.EventType_EVENT_TYPE_UNSPECIFIED
 	}

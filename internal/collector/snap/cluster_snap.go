@@ -46,7 +46,7 @@ type NodeData struct {
 	Node    *corev1.Node           `json:"node"`
 	Pods    map[string]*corev1.Pod `json:"pods"`
 	Hash    string                 `json:"hash"`
-	Changed bool                   `json:"-"` // Used for delta calculation
+	Changed bool                   `json:"-"`
 }
 
 // Namespace represents a namespace and all resources within it
@@ -71,9 +71,9 @@ type Namespace struct {
 	Endpoints            map[string]*corev1.Endpoints             `json:"endpoints"`
 	LimitRanges          map[string]*corev1.LimitRange            `json:"limitRanges"`
 	ResourceQuotas       map[string]*corev1.ResourceQuota         `json:"resourceQuotas"`
-	UnscheduledPods      map[string]*corev1.Pod                   `json:"unscheduledPods"` // Pods not assigned to nodes
+	UnscheduledPods      map[string]*corev1.Pod                   `json:"unscheduledPods"`
 	Hash                 string                                   `json:"hash"`
-	Changed              bool                                     `json:"-"` // Used for delta calculation
+	Changed              bool                                     `json:"-"`
 }
 
 // DeploymentWithPods represents a deployment and its associated pods
@@ -120,13 +120,13 @@ type ClusterScopedSnapshot struct {
 
 // ClusterSnapshotter takes periodic snapshots and computes deltas
 type ClusterSnapshotter struct {
-	client        kubernetes.Interface
-	logger        logr.Logger
-	sender        transport.DirectSender
-	stopCh        chan struct{}
-	ticker        *time.Ticker
-	interval      time.Duration
-	lastSnapshot  *ClusterSnapshot
+	client   kubernetes.Interface
+	logger   logr.Logger
+	sender   transport.DirectSender
+	stopCh   chan struct{}
+	ticker   *time.Ticker
+	interval time.Duration
+	// lastSnapshot  *ClusterSnapshot
 	mu            sync.RWMutex
 	namespaces    []string
 	excludedPods  map[string]bool
@@ -160,8 +160,8 @@ func NewClusterSnapshotter(
 	return &ClusterSnapshotter{
 		client:        client,
 		logger:        logger.WithName("cluster-snapshotter"),
-		stopCh:        make(chan struct{}),
 		sender:        sender,
+		stopCh:        make(chan struct{}),
 		interval:      interval,
 		namespaces:    namespaces,
 		excludedPods:  excludedPodsMap,
@@ -216,24 +216,21 @@ func (c *ClusterSnapshotter) takeSnapshot(ctx context.Context) {
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	c.sendSnapshot(ctx, snapshot, true)
 
-	if c.lastSnapshot == nil {
-		// First snapshot - send everything
-		c.logger.Info("First snapshot - sending complete cluster state")
-		c.sendSnapshot(ctx, snapshot, true)
-	} else {
-		delta := c.computeDelta(c.lastSnapshot, snapshot)
-		if delta != nil {
-			c.logger.Info("Changes detected - sending delta snapshot",
-				"changedNodes", c.countChangedNodes(delta),
-				"changedNamespaces", c.countChangedNamespaces(delta))
-			c.sendSnapshot(ctx, delta, false)
-		} else {
-			c.logger.Info("No changes detected - skipping snapshot")
-		}
-	}
+	// if c.lastSnapshot == nil {
+	// 	// First snapshot - send everything
+	// 	c.logger.Info("First snapshot - sending complete cluster state")
+	// } else {
+	// 	delta := c.computeDelta(c.lastSnapshot, snapshot)
+	// 	if delta != nil {
+	// 		c.sendSnapshot(ctx, delta, false)
+	// 	} else {
+	// 		c.logger.Info("No changes detected - skipping snapshot")
+	// 	}
+	// }
 
-	c.lastSnapshot = snapshot
+	// c.lastSnapshot = snapshot
 	c.logger.Info("Snapshot completed", "duration", time.Since(startTime))
 }
 
@@ -291,13 +288,11 @@ func (c *ClusterSnapshotter) captureClusterInfo(ctx context.Context, snapshot *C
 
 // captureNodes captures all nodes and their assigned pods
 func (c *ClusterSnapshotter) captureNodes(ctx context.Context, snapshot *ClusterSnapshot) error {
-	// Get all nodes
 	nodes, err := c.client.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to list nodes: %w", err)
 	}
 
-	// Get all pods to map them to nodes
 	allPods, err := c.getAllPods(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get all pods: %w", err)
@@ -358,7 +353,6 @@ func (c *ClusterSnapshotter) captureNamespaces(ctx context.Context, snapshot *Cl
 			UnscheduledPods:      make(map[string]*corev1.Pod),
 		}
 
-		// Get namespace object
 		ns, err := c.client.CoreV1().Namespaces().Get(ctx, nsName, metav1.GetOptions{})
 		if err != nil {
 			c.logger.Error(err, "Failed to get namespace", "namespace", nsName)
@@ -366,7 +360,6 @@ func (c *ClusterSnapshotter) captureNamespaces(ctx context.Context, snapshot *Cl
 		}
 		nsData.Namespace = ns.DeepCopy()
 
-		// Capture all resources in this namespace
 		if err := c.captureNamespaceResources(ctx, nsName, nsData); err != nil {
 			c.logger.Error(err, "Failed to capture resources for namespace", "namespace", nsName)
 			continue
@@ -379,33 +372,32 @@ func (c *ClusterSnapshotter) captureNamespaces(ctx context.Context, snapshot *Cl
 	return nil
 }
 
-// captureNamespaceResources captures all resources within a namespace
+// captureNamespaceResources captures all resources within a namespace with improved pod association
 func (c *ClusterSnapshotter) captureNamespaceResources(ctx context.Context, namespace string, nsData *Namespace) error {
-	// Get all pods in the namespace
 	pods, err := c.client.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to list pods: %w", err)
 	}
 
-	// Create pod map for easy lookup
 	podMap := make(map[string]*corev1.Pod)
 	for _, pod := range pods.Items {
 		if !c.isPodExcluded(&pod) {
 			key := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
 			podMap[key] = pod.DeepCopy()
 
-			// If pod is not scheduled to a node, add to unscheduled pods
+			// If pod is not scheduled to a node
 			if pod.Spec.NodeName == "" {
 				nsData.UnscheduledPods[key] = pod.DeepCopy()
 			}
 		}
 	}
 
-	// Capture Deployments and their pods
+	// Capture Deployments and their pods using selector-based matching (owner referece was not wroking so choosing this path)
 	deployments, err := c.client.AppsV1().Deployments(namespace).List(ctx, metav1.ListOptions{})
 	if err == nil {
 		for _, deployment := range deployments.Items {
-			deploymentPods := c.getPodsForOwner(podMap, &deployment, "Deployment")
+			deploymentPods := c.getPodsForDeploymentBySelector(ctx, &deployment)
+
 			nsData.Deployments[deployment.Name] = &DeploymentWithPods{
 				Deployment: deployment.DeepCopy(),
 				Pods:       deploymentPods,
@@ -414,11 +406,10 @@ func (c *ClusterSnapshotter) captureNamespaceResources(ctx context.Context, name
 		}
 	}
 
-	// Capture StatefulSets and their pods
 	statefulSets, err := c.client.AppsV1().StatefulSets(namespace).List(ctx, metav1.ListOptions{})
 	if err == nil {
 		for _, sts := range statefulSets.Items {
-			stsPods := c.getPodsForOwner(podMap, &sts, "StatefulSet")
+			stsPods := c.getPodsForStatefulSetBySelector(ctx, &sts)
 			nsData.StatefulSets[sts.Name] = &StatefulSetWithPods{
 				StatefulSet: sts.DeepCopy(),
 				Pods:        stsPods,
@@ -427,11 +418,10 @@ func (c *ClusterSnapshotter) captureNamespaceResources(ctx context.Context, name
 		}
 	}
 
-	// Capture DaemonSets and their pods
 	daemonSets, err := c.client.AppsV1().DaemonSets(namespace).List(ctx, metav1.ListOptions{})
 	if err == nil {
 		for _, ds := range daemonSets.Items {
-			dsPods := c.getPodsForOwner(podMap, &ds, "DaemonSet")
+			dsPods := c.getPodsForDaemonSetBySelector(ctx, &ds)
 			nsData.DaemonSets[ds.Name] = &DaemonSetWithPods{
 				DaemonSet: ds.DeepCopy(),
 				Pods:      dsPods,
@@ -444,7 +434,7 @@ func (c *ClusterSnapshotter) captureNamespaceResources(ctx context.Context, name
 	replicaSets, err := c.client.AppsV1().ReplicaSets(namespace).List(ctx, metav1.ListOptions{})
 	if err == nil {
 		for _, rs := range replicaSets.Items {
-			rsPods := c.getPodsForOwner(podMap, &rs, "ReplicaSet")
+			rsPods := c.getPodsForReplicaSetBySelector(ctx, &rs)
 			nsData.ReplicaSets[rs.Name] = &ReplicaSetWithPods{
 				ReplicaSet: rs.DeepCopy(),
 				Pods:       rsPods,
@@ -453,53 +443,226 @@ func (c *ClusterSnapshotter) captureNamespaceResources(ctx context.Context, name
 		}
 	}
 
-	// Capture other resources (simplified for brevity)
+	// Capture other resources
 	c.captureOtherResources(ctx, namespace, nsData)
 
 	return nil
 }
 
+// Helper methods for each resource type using label selectors
+func (c *ClusterSnapshotter) getPodsForDeploymentBySelector(ctx context.Context, deployment *appsv1.Deployment) map[string]*corev1.Pod {
+	result := make(map[string]*corev1.Pod)
+
+	selector := deployment.Spec.Selector
+	if selector == nil {
+		return result
+	}
+
+	selectorString := metav1.FormatLabelSelector(selector)
+	if selectorString == "" {
+		return result
+	}
+
+	pods, err := c.client.CoreV1().Pods(deployment.Namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: selectorString,
+	})
+	if err != nil {
+		c.logger.Error(err, "Failed to list pods by selector for deployment", "deployment", deployment.Name)
+		return result
+	}
+
+	for _, pod := range pods.Items {
+		if !c.isPodExcluded(&pod) {
+			key := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
+			result[key] = pod.DeepCopy()
+		}
+	}
+
+	return result
+}
+
+func (c *ClusterSnapshotter) getPodsForStatefulSetBySelector(ctx context.Context, sts *appsv1.StatefulSet) map[string]*corev1.Pod {
+	result := make(map[string]*corev1.Pod)
+
+	selector := sts.Spec.Selector
+	if selector == nil {
+		return result
+	}
+
+	selectorString := metav1.FormatLabelSelector(selector)
+	if selectorString == "" {
+		return result
+	}
+
+	pods, err := c.client.CoreV1().Pods(sts.Namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: selectorString,
+	})
+	if err != nil {
+		c.logger.Error(err, "Failed to list pods by selector for statefulset", "statefulset", sts.Name)
+		return result
+	}
+
+	for _, pod := range pods.Items {
+		if !c.isPodExcluded(&pod) {
+			key := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
+			result[key] = pod.DeepCopy()
+		}
+	}
+
+	return result
+}
+
+func (c *ClusterSnapshotter) getPodsForDaemonSetBySelector(ctx context.Context, ds *appsv1.DaemonSet) map[string]*corev1.Pod {
+	result := make(map[string]*corev1.Pod)
+
+	selector := ds.Spec.Selector
+	if selector == nil {
+		return result
+	}
+
+	selectorString := metav1.FormatLabelSelector(selector)
+	if selectorString == "" {
+		return result
+	}
+
+	pods, err := c.client.CoreV1().Pods(ds.Namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: selectorString,
+	})
+	if err != nil {
+		c.logger.Error(err, "Failed to list pods by selector for daemonset", "daemonset", ds.Name)
+		return result
+	}
+
+	for _, pod := range pods.Items {
+		if !c.isPodExcluded(&pod) {
+			key := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
+			result[key] = pod.DeepCopy()
+		}
+	}
+
+	return result
+}
+
+func (c *ClusterSnapshotter) getPodsForReplicaSetBySelector(ctx context.Context, rs *appsv1.ReplicaSet) map[string]*corev1.Pod {
+	result := make(map[string]*corev1.Pod)
+
+	selector := rs.Spec.Selector
+	if selector == nil {
+		return result
+	}
+
+	selectorString := metav1.FormatLabelSelector(selector)
+	if selectorString == "" {
+		return result
+	}
+
+	pods, err := c.client.CoreV1().Pods(rs.Namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: selectorString,
+	})
+	if err != nil {
+		c.logger.Error(err, "Failed to list pods by selector for replicaset", "replicaset", rs.Name)
+		return result
+	}
+
+	for _, pod := range pods.Items {
+		if !c.isPodExcluded(&pod) {
+			key := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
+			result[key] = pod.DeepCopy()
+		}
+	}
+
+	return result
+}
+
 // captureOtherResources captures other namespace-scoped resources
 func (c *ClusterSnapshotter) captureOtherResources(ctx context.Context, namespace string, nsData *Namespace) {
-	// Services
 	if services, err := c.client.CoreV1().Services(namespace).List(ctx, metav1.ListOptions{}); err == nil {
 		for _, svc := range services.Items {
 			nsData.Services[svc.Name] = svc.DeepCopy()
 		}
 	}
 
-	// ConfigMaps
 	if configMaps, err := c.client.CoreV1().ConfigMaps(namespace).List(ctx, metav1.ListOptions{}); err == nil {
 		for _, cm := range configMaps.Items {
 			nsData.ConfigMaps[cm.Name] = cm.DeepCopy()
 		}
 	}
 
-	// Secrets
 	if secrets, err := c.client.CoreV1().Secrets(namespace).List(ctx, metav1.ListOptions{}); err == nil {
 		for _, secret := range secrets.Items {
 			nsData.Secrets[secret.Name] = secret.DeepCopy()
 		}
 	}
 
-	// PVCs
 	if pvcs, err := c.client.CoreV1().PersistentVolumeClaims(namespace).List(ctx, metav1.ListOptions{}); err == nil {
 		for _, pvc := range pvcs.Items {
 			nsData.PVCs[pvc.Name] = pvc.DeepCopy()
 		}
 	}
 
-	// Jobs
 	if jobs, err := c.client.BatchV1().Jobs(namespace).List(ctx, metav1.ListOptions{}); err == nil {
 		for _, job := range jobs.Items {
 			nsData.Jobs[job.Name] = job.DeepCopy()
 		}
 	}
 
-	// CronJobs
 	if cronJobs, err := c.client.BatchV1().CronJobs(namespace).List(ctx, metav1.ListOptions{}); err == nil {
 		for _, cronJob := range cronJobs.Items {
 			nsData.CronJobs[cronJob.Name] = cronJob.DeepCopy()
+		}
+	}
+
+	if ingresses, err := c.client.NetworkingV1().Ingresses(namespace).List(ctx, metav1.ListOptions{}); err == nil {
+		for _, ingress := range ingresses.Items {
+			nsData.Ingresses[ingress.Name] = ingress.DeepCopy()
+		}
+	}
+
+	if networkPolicies, err := c.client.NetworkingV1().NetworkPolicies(namespace).List(ctx, metav1.ListOptions{}); err == nil {
+		for _, np := range networkPolicies.Items {
+			nsData.NetworkPolicies[np.Name] = np.DeepCopy()
+		}
+	}
+
+	if serviceAccounts, err := c.client.CoreV1().ServiceAccounts(namespace).List(ctx, metav1.ListOptions{}); err == nil {
+		for _, sa := range serviceAccounts.Items {
+			nsData.ServiceAccounts[sa.Name] = sa.DeepCopy()
+		}
+	}
+
+	if roles, err := c.client.RbacV1().Roles(namespace).List(ctx, metav1.ListOptions{}); err == nil {
+		for _, role := range roles.Items {
+			nsData.Roles[role.Name] = role.DeepCopy()
+		}
+	}
+
+	if roleBindings, err := c.client.RbacV1().RoleBindings(namespace).List(ctx, metav1.ListOptions{}); err == nil {
+		for _, rb := range roleBindings.Items {
+			nsData.RoleBindings[rb.Name] = rb.DeepCopy()
+		}
+	}
+
+	if pdbs, err := c.client.PolicyV1().PodDisruptionBudgets(namespace).List(ctx, metav1.ListOptions{}); err == nil {
+		for _, pdb := range pdbs.Items {
+			nsData.PodDisruptionBudgets[pdb.Name] = pdb.DeepCopy()
+		}
+	}
+
+	if endpoints, err := c.client.CoreV1().Endpoints(namespace).List(ctx, metav1.ListOptions{}); err == nil {
+		for _, ep := range endpoints.Items {
+			nsData.Endpoints[ep.Name] = ep.DeepCopy()
+		}
+	}
+
+	if limitRanges, err := c.client.CoreV1().LimitRanges(namespace).List(ctx, metav1.ListOptions{}); err == nil {
+		for _, lr := range limitRanges.Items {
+			nsData.LimitRanges[lr.Name] = lr.DeepCopy()
+		}
+	}
+
+	if resourceQuotas, err := c.client.CoreV1().ResourceQuotas(namespace).List(ctx, metav1.ListOptions{}); err == nil {
+		for _, rq := range resourceQuotas.Items {
+			nsData.ResourceQuotas[rq.Name] = rq.DeepCopy()
 		}
 	}
 }
@@ -512,28 +675,24 @@ func (c *ClusterSnapshotter) captureClusterScopedResources(ctx context.Context, 
 	clusterScoped.ClusterRoles = make(map[string]*rbacv1.ClusterRole)
 	clusterScoped.ClusterRoleBindings = make(map[string]*rbacv1.ClusterRoleBinding)
 
-	// PersistentVolumes
 	if pvs, err := c.client.CoreV1().PersistentVolumes().List(ctx, metav1.ListOptions{}); err == nil {
 		for _, pv := range pvs.Items {
 			clusterScoped.PersistentVolumes[pv.Name] = pv.DeepCopy()
 		}
 	}
 
-	// StorageClasses
 	if scs, err := c.client.StorageV1().StorageClasses().List(ctx, metav1.ListOptions{}); err == nil {
 		for _, sc := range scs.Items {
 			clusterScoped.StorageClasses[sc.Name] = sc.DeepCopy()
 		}
 	}
 
-	// ClusterRoles
 	if clusterRoles, err := c.client.RbacV1().ClusterRoles().List(ctx, metav1.ListOptions{}); err == nil {
 		for _, cr := range clusterRoles.Items {
 			clusterScoped.ClusterRoles[cr.Name] = cr.DeepCopy()
 		}
 	}
 
-	// ClusterRoleBindings
 	if clusterRoleBindings, err := c.client.RbacV1().ClusterRoleBindings().List(ctx, metav1.ListOptions{}); err == nil {
 		for _, crb := range clusterRoleBindings.Items {
 			clusterScoped.ClusterRoleBindings[crb.Name] = crb.DeepCopy()
@@ -544,86 +703,85 @@ func (c *ClusterSnapshotter) captureClusterScopedResources(ctx context.Context, 
 	return nil
 }
 
-// computeDelta computes the delta between old and new snapshots
-func (c *ClusterSnapshotter) computeDelta(oldSnapshot, newSnapshot *ClusterSnapshot) *ClusterSnapshot {
-	hasChanges := false
-	delta := &ClusterSnapshot{
-		ClusterInfo:   newSnapshot.ClusterInfo,
-		Nodes:         make(map[string]*NodeData),
-		Namespaces:    make(map[string]*Namespace),
-		ClusterScoped: &ClusterScopedSnapshot{},
-		Timestamp:     newSnapshot.Timestamp,
-		SnapshotID:    newSnapshot.SnapshotID,
-	}
+// // computeDelta computes the delta between old and new snapshots
+// func (c *ClusterSnapshotter) computeDelta(oldSnapshot, newSnapshot *ClusterSnapshot) *ClusterSnapshot {
+// 	hasChanges := false
+// 	delta := &ClusterSnapshot{
+// 		ClusterInfo:   newSnapshot.ClusterInfo,
+// 		Nodes:         make(map[string]*NodeData),
+// 		Namespaces:    make(map[string]*Namespace),
+// 		ClusterScoped: &ClusterScopedSnapshot{},
+// 		Timestamp:     newSnapshot.Timestamp,
+// 		SnapshotID:    newSnapshot.SnapshotID,
+// 	}
 
-	// Check node changes
-	for nodeName, newNode := range newSnapshot.Nodes {
-		oldNode, exists := oldSnapshot.Nodes[nodeName]
-		if !exists || oldNode.Hash != newNode.Hash {
-			newNode.Changed = true
-			delta.Nodes[nodeName] = newNode
-			hasChanges = true
-		}
-	}
+// 	// Check node changes
+// 	for nodeName, newNode := range newSnapshot.Nodes {
+// 		oldNode, exists := oldSnapshot.Nodes[nodeName]
+// 		if !exists || oldNode.Hash != newNode.Hash {
+// 			newNode.Changed = true
+// 			delta.Nodes[nodeName] = newNode
+// 			hasChanges = true
+// 		}
+// 	}
 
-	// Check for deleted nodes
-	for nodeName := range oldSnapshot.Nodes {
-		if _, exists := newSnapshot.Nodes[nodeName]; !exists {
-			// Node was deleted - we should send a tombstone
-			deletedNode := &NodeData{
-				Node:    nil, // Use nil to indicate deletion
-				Pods:    make(map[string]*corev1.Pod),
-				Hash:    "",
-				Changed: true,
-			}
-			delta.Nodes[nodeName] = deletedNode
-			hasChanges = true
-		}
-	}
+// 	// Check for deleted nodes
+// 	for nodeName := range oldSnapshot.Nodes {
+// 		if _, exists := newSnapshot.Nodes[nodeName]; !exists {
+// 			// Node was deleted - so sending a tombstone
+// 			deletedNode := &NodeData{
+// 				Node:    nil, // Using nil to indicate deletion
+// 				Pods:    make(map[string]*corev1.Pod),
+// 				Hash:    "",
+// 				Changed: true,
+// 			}
+// 			delta.Nodes[nodeName] = deletedNode
+// 			hasChanges = true
+// 		}
+// 	}
 
-	// Check namespace changes
-	for nsName, newNs := range newSnapshot.Namespaces {
-		oldNs, exists := oldSnapshot.Namespaces[nsName]
-		if !exists || oldNs.Hash != newNs.Hash {
-			newNs.Changed = true
-			delta.Namespaces[nsName] = newNs
-			hasChanges = true
-		}
-	}
+// 	// Check namespace changes
+// 	for nsName, newNs := range newSnapshot.Namespaces {
+// 		oldNs, exists := oldSnapshot.Namespaces[nsName]
+// 		if !exists || oldNs.Hash != newNs.Hash {
+// 			newNs.Changed = true
+// 			delta.Namespaces[nsName] = newNs
+// 			hasChanges = true
+// 		}
+// 	}
 
-	// Check for deleted namespaces
-	for nsName := range oldSnapshot.Namespaces {
-		if _, exists := newSnapshot.Namespaces[nsName]; !exists {
-			// Namespace was deleted
-			deletedNs := &Namespace{
-				Namespace: nil, // Use nil to indicate deletion
-				Changed:   true,
-			}
-			delta.Namespaces[nsName] = deletedNs
-			hasChanges = true
-		}
-	}
+// 	// Check for deleted namespaces
+// 	for nsName := range oldSnapshot.Namespaces {
+// 		if _, exists := newSnapshot.Namespaces[nsName]; !exists {
+// 			// Namespace was deleted
+// 			deletedNs := &Namespace{
+// 				Namespace: nil, // Use nil to indicate deletion
+// 				Changed:   true,
+// 			}
+// 			delta.Namespaces[nsName] = deletedNs
+// 			hasChanges = true
+// 		}
+// 	}
 
-	// Check cluster-scoped changes
-	if oldSnapshot.ClusterScoped.Hash != newSnapshot.ClusterScoped.Hash {
-		newSnapshot.ClusterScoped.Changed = true
-		delta.ClusterScoped = newSnapshot.ClusterScoped
-		hasChanges = true
-	}
+// 	// Check cluster-scoped changes
+// 	if oldSnapshot.ClusterScoped.Hash != newSnapshot.ClusterScoped.Hash {
+// 		newSnapshot.ClusterScoped.Changed = true
+// 		delta.ClusterScoped = newSnapshot.ClusterScoped
+// 		hasChanges = true
+// 	}
 
-	if !hasChanges {
-		return nil
-	}
+// 	if !hasChanges {
+// 		return nil
+// 	}
 
-	return delta
-}
+// 	return delta
+// }
 
 // Helper methods for resource collection and hashing
 func (c *ClusterSnapshotter) getAllPods(ctx context.Context) ([]*corev1.Pod, error) {
 	var allPods []*corev1.Pod
 
 	if len(c.namespaces) > 0 && c.namespaces[0] != "" {
-		// Get pods from specific namespaces
 		for _, ns := range c.namespaces {
 			pods, err := c.client.CoreV1().Pods(ns).List(ctx, metav1.ListOptions{})
 			if err != nil {
@@ -634,7 +792,6 @@ func (c *ClusterSnapshotter) getAllPods(ctx context.Context) ([]*corev1.Pod, err
 			}
 		}
 	} else {
-		// Get all pods
 		pods, err := c.client.CoreV1().Pods("").List(ctx, metav1.ListOptions{})
 		if err != nil {
 			return nil, fmt.Errorf("failed to list all pods: %w", err)
@@ -649,45 +806,25 @@ func (c *ClusterSnapshotter) getAllPods(ctx context.Context) ([]*corev1.Pod, err
 
 func (c *ClusterSnapshotter) getTargetNamespaces(ctx context.Context) []string {
 	if len(c.namespaces) > 0 && c.namespaces[0] != "" {
-		c.logger.Info("Using specified namespaces", "namespaces", c.namespaces)
 		return c.namespaces
 	}
 
-	// Get all namespaces
 	namespaces, err := c.client.CoreV1().Namespaces().List(ctx, metav1.ListOptions{})
 	if err != nil {
-		c.logger.Error(err, "Failed to list namespaces, defaulting to common namespaces")
-		// Return some default namespaces instead of empty slice
-		return []string{"default", "kube-system", "kube-public"}
+		c.logger.Error(err, "Failed to list namespaces")
+		return []string{}
 	}
 
 	var nsNames []string
 	for _, ns := range namespaces.Items {
 		nsNames = append(nsNames, ns.Name)
 	}
-	c.logger.Info("Found namespaces", "count", len(nsNames), "namespaces", nsNames)
 	return nsNames
 }
 
 func (c *ClusterSnapshotter) isPodExcluded(pod *corev1.Pod) bool {
 	key := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
 	return c.excludedPods[key]
-}
-
-func (c *ClusterSnapshotter) getPodsForOwner(podMap map[string]*corev1.Pod, owner metav1.Object, kind string) map[string]*corev1.Pod {
-	result := make(map[string]*corev1.Pod)
-
-	for key, pod := range podMap {
-		for _, ownerRef := range pod.OwnerReferences {
-			if ownerRef.Kind == kind &&
-				ownerRef.UID == owner.GetUID() {
-				result[key] = pod
-				break
-			}
-		}
-	}
-
-	return result
 }
 
 func (c *ClusterSnapshotter) generateSnapshotID() string {
@@ -698,12 +835,10 @@ func (c *ClusterSnapshotter) generateSnapshotID() string {
 func (c *ClusterSnapshotter) calculateNodeHash(nodeData *NodeData) string {
 	h := sha256.New()
 
-	// Hash node spec and status
 	if nodeBytes, err := json.Marshal(nodeData.Node); err == nil {
 		h.Write(nodeBytes)
 	}
 
-	// Hash pods
 	for _, pod := range nodeData.Pods {
 		if podBytes, err := json.Marshal(pod); err == nil {
 			h.Write(podBytes)
@@ -752,6 +887,33 @@ func (c *ClusterSnapshotter) calculateNamespaceHash(nsData *Namespace) string {
 	if cronBytes, err := json.Marshal(nsData.CronJobs); err == nil {
 		h.Write(cronBytes)
 	}
+	if ingressBytes, err := json.Marshal(nsData.Ingresses); err == nil {
+		h.Write(ingressBytes)
+	}
+	if netpolBytes, err := json.Marshal(nsData.NetworkPolicies); err == nil {
+		h.Write(netpolBytes)
+	}
+	if saBytes, err := json.Marshal(nsData.ServiceAccounts); err == nil {
+		h.Write(saBytes)
+	}
+	if roleBytes, err := json.Marshal(nsData.Roles); err == nil {
+		h.Write(roleBytes)
+	}
+	if rbBytes, err := json.Marshal(nsData.RoleBindings); err == nil {
+		h.Write(rbBytes)
+	}
+	if pdbBytes, err := json.Marshal(nsData.PodDisruptionBudgets); err == nil {
+		h.Write(pdbBytes)
+	}
+	if epBytes, err := json.Marshal(nsData.Endpoints); err == nil {
+		h.Write(epBytes)
+	}
+	if lrBytes, err := json.Marshal(nsData.LimitRanges); err == nil {
+		h.Write(lrBytes)
+	}
+	if rqBytes, err := json.Marshal(nsData.ResourceQuotas); err == nil {
+		h.Write(rqBytes)
+	}
 	if unscheduledBytes, err := json.Marshal(nsData.UnscheduledPods); err == nil {
 		h.Write(unscheduledBytes)
 	}
@@ -799,27 +961,6 @@ func (c *ClusterSnapshotter) calculateClusterScopedHash(clusterScoped *ClusterSc
 	return fmt.Sprintf("%x", h.Sum(nil))
 }
 
-// Counting methods for logging
-func (c *ClusterSnapshotter) countChangedNodes(snapshot *ClusterSnapshot) int {
-	count := 0
-	for _, node := range snapshot.Nodes {
-		if node.Changed {
-			count++
-		}
-	}
-	return count
-}
-
-func (c *ClusterSnapshotter) countChangedNamespaces(snapshot *ClusterSnapshot) int {
-	count := 0
-	for _, ns := range snapshot.Namespaces {
-		if ns.Changed {
-			count++
-		}
-	}
-	return count
-}
-
 // sendSnapshot sends the snapshot to the collection channel
 func (c *ClusterSnapshotter) sendSnapshot(ctx context.Context, snapshot *ClusterSnapshot, isFullSnapshot bool) {
 	snapshotType := "delta"
@@ -837,14 +978,16 @@ func (c *ClusterSnapshotter) sendSnapshot(ctx context.Context, snapshot *Cluster
 		ResourceType: collector.ClusterSnapshot,
 		Object:       snapshot,
 		Timestamp:    snapshot.Timestamp,
-		EventType:    collector.EventTypeDelete,
+		EventType:    collector.EventTypeSnapshot,
 		Key:          snapshot.SnapshotID,
 	}
 
-	c.logger.Info("FULL CLUSTER SNAPSHOT", "SNAPSHOT", res)
-
 	// Send the snapshot directly
-	c.sender.Send(ctx, res)
+	if _, err := c.sender.Send(ctx, res); err != nil {
+		c.logger.Error(err, "Failed to send cluster snapshot")
+	} else {
+		c.logger.Info("Successfully sent cluster snapshot", "type", snapshotType)
+	}
 }
 
 // Stop gracefully shuts down the cluster snapshotter
@@ -876,7 +1019,6 @@ func (c *ClusterSnapshotter) GetType() string {
 }
 
 func (c *ClusterSnapshotter) IsAvailable(ctx context.Context) bool {
-	// Test basic API access
 	_, err := c.client.CoreV1().Namespaces().List(ctx, metav1.ListOptions{Limit: 1})
 	return err == nil
 }
