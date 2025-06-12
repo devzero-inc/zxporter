@@ -308,6 +308,11 @@ func (m *CollectionManager) processCollectorChannel(collectorType string, collec
 	m.logger.Info("Starting to process collector channel", "type", collectorType)
 	resourceChan := collector.GetResourceChannel()
 
+	if resourceChan == nil {
+		m.logger.Info("Collector channel is nil, skipping", "type", collectorType)
+		return
+	}
+
 	for resources := range resourceChan {
 		// Skip if channel is closed
 		if len(resources) == 0 {

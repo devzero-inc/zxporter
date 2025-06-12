@@ -40,6 +40,7 @@ import (
 
 	"github.com/devzero-inc/zxporter/internal/collector"
 	"github.com/devzero-inc/zxporter/internal/collector/provider"
+	"github.com/devzero-inc/zxporter/internal/collector/snap"
 	"github.com/devzero-inc/zxporter/internal/transport"
 	"github.com/devzero-inc/zxporter/internal/util"
 	"k8s.io/client-go/discovery"
@@ -1130,7 +1131,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 		case "custom_resource_definition":
 			replacedCollector = collector.NewCRDCollector(
 				r.ApiExtensions,
-        collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
 			)
@@ -1150,6 +1151,16 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				newConfig.ExcludedKedaScaledObjects,
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
+				logger,
+			)
+		case "cluster_snapshot":
+			replacedCollector = snap.NewClusterSnapshotter(
+				r.K8sClient,
+				15*time.Minute,
+				r.Sender,
+				newConfig.TargetNamespaces,
+				newConfig.ExcludedPods,
+				newConfig.ExcludedNodes,
 				logger,
 			)
 		default:
@@ -1905,6 +1916,17 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 			),
 			name: collector.KedaScaledJob,
 		},
+		{
+			collector: snap.NewClusterSnapshotter(
+				r.K8sClient,
+				15*time.Minute,
+				r.Sender,
+				config.TargetNamespaces,
+				config.ExcludedPods,
+				config.ExcludedNodes,
+				logger,
+			),
+		},
 	}
 
 	// Register all collectors
@@ -2072,7 +2094,6 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 				)
 			case "container_resource":
 				// Use the reconciler's shared Prometheus metrics instance
-
 				replacedCollector = collector.NewContainerResourceCollector(
 					r.K8sClient,
 					metricsClient,
@@ -2342,7 +2363,7 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 			case "custom_resource_definition":
 				replacedCollector = collector.NewCRDCollector(
 					r.ApiExtensions,
-          collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchSize,
 					collector.DefaultMaxBatchTime,
 					logger,
 				)
@@ -2362,6 +2383,16 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					newConfig.ExcludedKedaScaledObjects,
 					collector.DefaultMaxBatchSize,
 					collector.DefaultMaxBatchTime,
+					logger,
+				)
+			case "cluster_snapshot":
+				replacedCollector = snap.NewClusterSnapshotter(
+					r.K8sClient,
+					15*time.Minute,
+					r.Sender,
+					newConfig.TargetNamespaces,
+					newConfig.ExcludedPods,
+					newConfig.ExcludedNodes,
 					logger,
 				)
 			default:
