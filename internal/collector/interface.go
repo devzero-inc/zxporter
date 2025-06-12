@@ -126,6 +126,7 @@ const (
 	Karpenter
 	Datadog
 	ArgoRollouts
+	ClusterSnapshot
 )
 
 // String returns the string representation of the ResourceType
@@ -169,6 +170,7 @@ func (r ResourceType) String() string {
 		Karpenter:               "karpenter",
 		Datadog:                 "datadog",
 		ArgoRollouts:            "argo_rollouts",
+		ClusterSnapshot:         "cluster_snapshot",
 	}
 
 	if name, ok := names[r]; ok {
@@ -256,6 +258,8 @@ func (r ResourceType) ProtoType() gen.ResourceType {
 		return gen.ResourceType_RESOURCE_DATADOG
 	case ArgoRollouts:
 		return gen.ResourceType_RESOURCE_ARGO_ROLLOUTS
+	case ClusterSnapshot:
+		return gen.ResourceType_RESOURCE_CLUSTER_SNAPSHOT
 	default:
 		return gen.ResourceType_RESOURCE_TYPE_UNSPECIFIED
 	}
