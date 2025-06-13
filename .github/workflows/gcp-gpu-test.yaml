@@ -307,6 +307,8 @@ jobs:
             sleep 5
           done
 
+          sleep 20  
+
           result=$(curl -s "http://localhost:9090/api/v1/query?query=DCGM_FI_DEV_SM_CLOCK" | jq -r '.data.result')
           kill $PF_PID || true
 
