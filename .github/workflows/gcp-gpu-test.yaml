@@ -156,13 +156,18 @@ jobs:
         id: gpu_check
         run: |
           echo "Checking GPU resources on nodes..."
-          if kubectl describe nodes | grep -q "nvidia.com/gpu"; then
-            echo "GPU resources are available on the nodes."
-            echo "GPU_CHECK=true" >> $GITHUB_ENV
-          else
-            echo "GPU check failed"
-            echo "GPU_CHECK=false" >> $GITHUB_ENV
-          fi
+          for i in {1..6}; do
+            if kubectl describe nodes | grep -q "nvidia.com/gpu"; then
+              echo "GPU resources are available on the nodes."
+              echo "GPU_CHECK=true" >> $GITHUB_ENV
+              exit 0
+            else
+              echo "[$i/6] GPUs not available yet, retrying in 10s..."
+              sleep 10
+            fi
+          done
+          echo "❌ GPU check failed after retries."
+          echo "GPU_CHECK=false" >> $GITHUB_ENV
 
       - name: Install GPU Operator (if needed)
         if: env.GPU_CHECK == 'false' && env.GPU_INSTALL_TYPE == 'gpu-operator'
