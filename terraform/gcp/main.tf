@@ -4,12 +4,12 @@ provider "google" {
 }
 
 resource "google_compute_network" "gke_vpc" {
-  name                    = "gke-vpc"
+  name                    = "${var.cluster_name}-vpc"
   auto_create_subnetworks = false
 }
 
 resource "google_compute_subnetwork" "gke_subnet" {
-  name          = "gke-subnet"
+  name          = "${var.cluster_name}-subnet"
   ip_cidr_range = "10.10.0.0/16"
   region        = var.region
   network       = google_compute_network.gke_vpc.id
