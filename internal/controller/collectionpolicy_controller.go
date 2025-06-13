@@ -39,6 +39,7 @@ import (
 
 	"github.com/devzero-inc/zxporter/internal/collector"
 	"github.com/devzero-inc/zxporter/internal/collector/provider"
+	"github.com/devzero-inc/zxporter/internal/collector/snap"
 	"github.com/devzero-inc/zxporter/internal/transport"
 	"github.com/devzero-inc/zxporter/internal/util"
 	"k8s.io/client-go/discovery"
@@ -1083,6 +1084,16 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				collector.DefaultMaxBatchTime,
 				logger,
 			)
+		case "cluster_snapshot":
+			replacedCollector = snap.NewClusterSnapshotter(
+				r.K8sClient,
+				15*time.Minute,
+				r.Sender,
+				newConfig.TargetNamespaces,
+				newConfig.ExcludedPods,
+				newConfig.ExcludedNodes,
+				logger,
+			)
 		default:
 			logger.Info("Collector type not handled in selective restart", "type", collectorType)
 			continue
@@ -1805,6 +1816,17 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 			),
 			name: collector.ArgoRollouts,
 		},
+		{
+			collector: snap.NewClusterSnapshotter(
+				r.K8sClient,
+				15*time.Minute,
+				r.Sender,
+				config.TargetNamespaces,
+				config.ExcludedPods,
+				config.ExcludedNodes,
+				logger,
+			),
+		},
 	}
 
 	// Register all collectors
@@ -1972,7 +1994,6 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 				)
 			case "container_resource":
 				// Use the reconciler's shared Prometheus metrics instance
-
 				replacedCollector = collector.NewContainerResourceCollector(
 					r.K8sClient,
 					metricsClient,
@@ -2237,6 +2258,16 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					r.DynamicClient,
 					collector.DefaultMaxBatchSize,
 					collector.DefaultMaxBatchTime,
+					logger,
+				)
+			case "cluster_snapshot":
+				replacedCollector = snap.NewClusterSnapshotter(
+					r.K8sClient,
+					15*time.Minute,
+					r.Sender,
+					newConfig.TargetNamespaces,
+					newConfig.ExcludedPods,
+					newConfig.ExcludedNodes,
 					logger,
 				)
 			default:

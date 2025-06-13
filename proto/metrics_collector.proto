@@ -21,6 +21,7 @@ enum EventType {
   EVENT_TYPE_CONTAINER_STARTED = 6;
   EVENT_TYPE_CONTAINER_STOPPED = 7;
   EVENT_TYPE_CONTAINER_RESTARTED = 8;
+  EVENT_TYPE_CLUSTER_SNAPSHOT = 9;
 }
 
 // ResourceType is a type of resource that can enter the system
@@ -98,6 +99,9 @@ enum ResourceType {
 
   // Argo rollouts type
   RESOURCE_ARGO_ROLLOUTS = 42;
+
+  // Cluster snapshot type
+  RESOURCE_CLUSTER_SNAPSHOT = 43;
 }
 
 // ResourceItem contains the data for a single resource event.
