@@ -132,18 +132,18 @@ func (c *KarpenterCollector) Start(ctx context.Context) error {
 	var syncErrors []string
 	for _, res := range resources {
 		if err := c.startResourceInformer(ctx, res); err != nil {
-			c.logger.Error(err, "Failed to start informer",
-				"group", res.GroupVersion.Group,
-				"version", res.GroupVersion.Version,
-				"resource", res.Resource)
 			syncErrors = append(syncErrors, fmt.Sprintf("%s.%s/%s: %v",
 				res.GroupVersion.Group, res.GroupVersion.Version, res.Resource, err))
 			continue
+		} else {
+			c.logger.Info("Successfully started informer for Karpenter resource",
+				"group", res.GroupVersion.Group,
+				"version", res.GroupVersion.Version,
+				"resource", res.Resource)
 		}
 	}
-
-	// Check if at least one informer synced successfully
-	if !c.hasAnySyncedInformer() {
+	// Check if all informers failed to sync
+	if len(syncErrors) == len(resources) {
 		return fmt.Errorf("failed to sync any Karpenter resources. Errors: %s", strings.Join(syncErrors, "; "))
 	}
 
@@ -320,6 +320,17 @@ func (c *KarpenterCollector) handleKarpenterResourceEvent(
 		// Generic processing for unknown types
 		processedObj = c.processGenericResource(obj)
 	}
+
+	// Add more detailed logging before sending to batch channel
+	c.logger.Info("Karpenter resource details",
+		"resourceType", Karpenter,
+	 	"key", key,
+	 	"eventType", eventType.String(),
+	 	"kind", kind,
+	 	"name", name,
+	 	"namespace", namespace,
+	 	"apiVersion", obj.GetAPIVersion(),
+	 	"processedFields", processedObj)
 
 	// Send the Karpenter resource to the batch channel
 	c.batchChan <- CollectedResource{
@@ -687,20 +698,4 @@ func (c *KarpenterCollector) IsAvailable(ctx context.Context) bool {
 
 	c.logger.Info("Karpenter resources not available in the cluster")
 	return false
-}
-
-func (c *KarpenterCollector) hasAnySyncedInformer() bool {
-    syncedCount := 0
-    for resKey := range c.informers {
-        if _, exists := c.informerStopChs[resKey]; exists {
-            syncedCount++
-            c.logger.Info("Informer synced successfully", "resource", resKey)
-        }
-    }
-
-    if syncedCount > 0 {
-        c.logger.Info("Successfully synced informers", "count", syncedCount)
-        return true
-    }
-    return false
 }
