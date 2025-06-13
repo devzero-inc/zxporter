@@ -27,3 +27,6 @@ config/**/charts
 *.swp
 *.swo
 *~
+
+.terraform*
+*.tfstate*
