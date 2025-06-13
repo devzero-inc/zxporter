@@ -4,6 +4,7 @@ package collector
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -128,17 +129,25 @@ func (c *KarpenterCollector) Start(ctx context.Context) error {
 	}
 
 	// Create informers for each resource type
+	var syncErrors []string
 	for _, res := range resources {
 		if err := c.startResourceInformer(ctx, res); err != nil {
-			c.logger.Error(err, "Failed to start informer",
+			syncErrors = append(syncErrors, fmt.Sprintf("%s.%s/%s: %v",
+				res.GroupVersion.Group, res.GroupVersion.Version, res.Resource, err))
+			continue
+		} else {
+			c.logger.Info("Successfully started informer for Karpenter resource",
 				"group", res.GroupVersion.Group,
 				"version", res.GroupVersion.Version,
 				"resource", res.Resource)
-			// Continue with other resources even if one fails
 		}
 	}
+	// Check if all informers failed to sync
+	if len(syncErrors) == len(resources) {
+		return fmt.Errorf("failed to sync any Karpenter resources. Errors: %s", strings.Join(syncErrors, "; "))
+	}
 
-	// Start the batcher after all informers are synced
+	// Start the batcher since at least one informer synced
 	c.logger.Info("Starting resources batcher for Karpenter resources")
 	c.batcher.start()
 
@@ -168,6 +177,17 @@ func (c *KarpenterCollector) startResourceInformer(ctx context.Context, res Karp
 	// Create a unique key for this resource
 	resKey := fmt.Sprintf("%s.%s.%s", res.GroupVersion.Group, res.GroupVersion.Version, res.Resource)
 
+	// First check if the resource exists in the cluster
+	_, err := c.dynamicClient.Resource(gvr).List(ctx, metav1.ListOptions{Limit: 1})
+	if err != nil {
+		// Resource doesn't exist - log at debug level and return without error
+		c.logger.V(4).Info("Resource not available in cluster, skipping",
+			"group", res.GroupVersion.Group,
+			"version", res.GroupVersion.Version,
+			"resource", res.Resource)
+		return nil
+	}
+
 	// Create a dynamic informer factory
 	factory := dynamicinformer.NewFilteredDynamicSharedInformerFactory(
 		c.dynamicClient,
@@ -180,7 +200,7 @@ func (c *KarpenterCollector) startResourceInformer(ctx context.Context, res Karp
 	informer := factory.ForResource(gvr).Informer()
 
 	// Add event handlers
-	_, err := informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+	_, err = informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			u, ok := obj.(*unstructured.Unstructured)
 			if !ok {
@@ -300,6 +320,17 @@ func (c *KarpenterCollector) handleKarpenterResourceEvent(
 		// Generic processing for unknown types
 		processedObj = c.processGenericResource(obj)
 	}
+
+	// Add more detailed logging before sending to batch channel
+	c.logger.Info("Karpenter resource details",
+		"resourceType", Karpenter,
+	 	"key", key,
+	 	"eventType", eventType.String(),
+	 	"kind", kind,
+	 	"name", name,
+	 	"namespace", namespace,
+	 	"apiVersion", obj.GetAPIVersion(),
+	 	"processedFields", processedObj)
 
 	// Send the Karpenter resource to the batch channel
 	c.batchChan <- CollectedResource{
