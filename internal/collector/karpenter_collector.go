@@ -35,6 +35,7 @@ type KarpenterCollector struct {
 	informers         map[string]cache.SharedIndexInformer
 	informerStopChs   map[string]chan struct{}
 	excludedResources map[string]map[string]bool // resourceType -> resourceName -> excluded
+	version           string
 	mu                sync.RWMutex
 }
 
@@ -324,13 +325,13 @@ func (c *KarpenterCollector) handleKarpenterResourceEvent(
 	// Add more detailed logging before sending to batch channel
 	c.logger.Info("Karpenter resource details",
 		"resourceType", Karpenter,
-	 	"key", key,
-	 	"eventType", eventType.String(),
-	 	"kind", kind,
-	 	"name", name,
-	 	"namespace", namespace,
-	 	"apiVersion", obj.GetAPIVersion(),
-	 	"processedFields", processedObj)
+		"key", key,
+		"eventType", eventType.String(),
+		"kind", kind,
+		"name", name,
+		"namespace", namespace,
+		"apiVersion", obj.GetAPIVersion(),
+		"processedFields", processedObj)
 
 	// Send the Karpenter resource to the batch channel
 	c.batchChan <- CollectedResource{
@@ -544,6 +545,7 @@ func (c *KarpenterCollector) extractCommonFields(obj *unstructured.Unstructured)
 	// Basic metadata
 	result := map[string]interface{}{
 		"name":              obj.GetName(),
+		"karpenterVersion":  c.version,
 		"namespace":         obj.GetNamespace(),
 		"uid":               string(obj.GetUID()),
 		"kind":              obj.GetKind(),
@@ -666,36 +668,92 @@ func (c *KarpenterCollector) GetType() string {
 	return "karpenter"
 }
 
-// IsAvailable checks if Karpenter resources can be accessed in the cluster
-func (c *KarpenterCollector) IsAvailable(ctx context.Context) bool {
-	// Try to list NodePools to see if Karpenter is installed
-	// Check both v1beta1 and v1 api versions
-	gvrs := []schema.GroupVersionResource{
-		{
-			Group:    "karpenter.sh",
-			Version:  "v1",
-			Resource: "nodepools",
-		},
-		{
-			Group:    "karpenter.sh",
-			Version:  "v1beta1",
-			Resource: "nodepools",
-		},
-		{
-			Group:    "karpenter.sh",
-			Version:  "v1alpha5",
-			Resource: "provisioners",
-		},
+// detectKarpenterVersion detects the version of Karpenter from the deployment object
+func (c *KarpenterCollector) detectKarpenterVersion(obj *unstructured.Unstructured) {
+	containers, found, _ := unstructured.NestedSlice(obj.Object, "spec", "template", "spec", "containers")
+	if !found {
+		return
 	}
 
-	for _, gvr := range gvrs {
-		_, err := c.dynamicClient.Resource(gvr).List(ctx, metav1.ListOptions{Limit: 1})
-		if err == nil {
-			c.logger.Info("Karpenter resources available", "gvr", gvr.String())
-			return true
+	for _, container := range containers {
+		containerMap, ok := container.(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		name, found, _ := unstructured.NestedString(containerMap, "name")
+		if !found || name != "controller" {
+			continue
+		}
+
+		image, found, _ := unstructured.NestedString(containerMap, "image")
+		if !found {
+			continue
+		}
+
+		// Image format: public.ecr.aws/karpenter/controller:0.37.7@sha256:...
+		imageParts := strings.Split(image, "@")[0] 
+		versionParts := strings.Split(imageParts, ":")
+		if len(versionParts) != 2 {
+			c.logger.V(4).Info("Invalid image format", "image", image)
+			continue
+		}
+
+		version := versionParts[1]
+		c.mu.Lock()
+		c.version = version
+		c.mu.Unlock()
+		c.logger.Info("Detected Karpenter version", "version", version)
+		return
+	}
+
+	c.logger.V(4).Info("Could not detect Karpenter version from deployment")
+}
+
+// Update IsAvailable to detect version
+func (c *KarpenterCollector) IsAvailable(ctx context.Context) bool {
+	gvr := schema.GroupVersionResource{
+		Group:    "apps",
+		Version:  "v1",
+		Resource: "deployments",
+	}
+
+	// Karpenter deployment has these labels
+	labelSelector := "app.kubernetes.io/name=karpenter,app.kubernetes.io/instance=karpenter"
+
+	// List deployments across all namespaces with the Karpenter labels
+	deployments, err := c.dynamicClient.Resource(gvr).List(ctx, metav1.ListOptions{
+		LabelSelector: labelSelector,
+	})
+	if err != nil {
+		c.logger.Error(err, "Failed to list deployments")
+		return false
+	}
+
+	if len(deployments.Items) == 0 {
+		c.logger.Info("No Karpenter deployment found")
+		return false
+	}
+
+	// Check if at least one deployment is ready
+	for _, d := range deployments.Items {
+		status, found, _ := unstructured.NestedMap(d.Object, "status")
+		if found {
+			readyReplicas, found, _ := unstructured.NestedInt64(status, "readyReplicas")
+			if found && readyReplicas > 0 {
+				c.detectKarpenterVersion(&d)
+
+				ns, _, _ := unstructured.NestedString(d.Object, "metadata", "namespace")
+				name, _, _ := unstructured.NestedString(d.Object, "metadata", "name")
+				c.logger.Info("Found running Karpenter deployment",
+					"namespace", ns,
+					"name", name,
+					"version", c.version)
+				return true
+			}
 		}
 	}
 
-	c.logger.Info("Karpenter resources not available in the cluster")
+	c.logger.Info("No ready Karpenter deployment found")
 	return false
 }
