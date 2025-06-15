@@ -576,7 +576,7 @@ catalog-push: ## Push a catalog image.
 	$(MAKE) docker-push IMG=$(CATALOG_IMG)
 
 # DAKR_* files are related to generating a gRPC client to send resource metadata to Dakr.
-DAKR_DIR ?= /Users/kevinshi/services/dakr
+DAKR_DIR ?= ../services/dakr
 DAKR_BUF_GEN_FILE ?= buf.gen.yaml
 DAKR_BUF_GEN ?= $(DAKR_DIR)/$(DAKR_BUF_GEN_FILE)
 DAKR_METRICS_COLLECTOR_PROTO_FILE ?= metrics_collector.proto
