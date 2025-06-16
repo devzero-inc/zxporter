@@ -692,7 +692,7 @@ func (c *KarpenterCollector) detectKarpenterVersion(obj *unstructured.Unstructur
 		}
 
 		// Image format: public.ecr.aws/karpenter/controller:0.37.7@sha256:...
-		imageParts := strings.Split(image, "@")[0] 
+		imageParts := strings.Split(image, "@")[0]
 		versionParts := strings.Split(imageParts, ":")
 		if len(versionParts) != 2 {
 			c.logger.V(4).Info("Invalid image format", "image", image)
@@ -749,6 +749,9 @@ func (c *KarpenterCollector) IsAvailable(ctx context.Context) bool {
 					"namespace", ns,
 					"name", name,
 					"version", c.version)
+
+				// Send initial installation status metric
+				c.sendInstallationMetric(&d)
 				return true
 			}
 		}
@@ -756,4 +759,36 @@ func (c *KarpenterCollector) IsAvailable(ctx context.Context) bool {
 
 	c.logger.Info("No ready Karpenter deployment found")
 	return false
+}
+
+// Add this new method
+func (c *KarpenterCollector) sendInstallationMetric(obj *unstructured.Unstructured) {
+	// Create basic installation status metric
+	installStatus := map[string]interface{}{
+		"name":             "karpenter",
+		"karpenterVersion": c.version,
+		"namespace":        obj.GetNamespace(),
+		"status":           "installed",
+		"timestamp":        time.Now().Unix(),
+	}
+
+	// Add metadata from the deployment
+	if labels := obj.GetLabels(); len(labels) > 0 {
+		installStatus["labels"] = labels
+	}
+	if annotations := obj.GetAnnotations(); len(annotations) > 0 {
+		installStatus["annotations"] = annotations
+	}
+
+	// Send to batch channel
+	c.batchChan <- CollectedResource{
+		ResourceType: Karpenter,
+		Object:       installStatus,
+		Timestamp:    time.Now(),
+		EventType:    EventTypeAdd,
+		Key:          "karpenter/installation",
+	}
+
+	c.logger.Info("Sent Karpenter installation metric",
+		"Object", installStatus)
 }
