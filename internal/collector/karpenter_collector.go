@@ -761,9 +761,8 @@ func (c *KarpenterCollector) IsAvailable(ctx context.Context) bool {
 	return false
 }
 
-// Add this new method
 func (c *KarpenterCollector) sendInstallationMetric(obj *unstructured.Unstructured) {
-	// Create basic installation status metric
+	
 	installStatus := map[string]interface{}{
 		"name":             "karpenter",
 		"karpenterVersion": c.version,
@@ -772,7 +771,6 @@ func (c *KarpenterCollector) sendInstallationMetric(obj *unstructured.Unstructur
 		"timestamp":        time.Now().Unix(),
 	}
 
-	// Add metadata from the deployment
 	if labels := obj.GetLabels(); len(labels) > 0 {
 		installStatus["labels"] = labels
 	}
@@ -780,7 +778,6 @@ func (c *KarpenterCollector) sendInstallationMetric(obj *unstructured.Unstructur
 		installStatus["annotations"] = annotations
 	}
 
-	// Send to batch channel
 	c.batchChan <- CollectedResource{
 		ResourceType: Karpenter,
 		Object:       installStatus,
