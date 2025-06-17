@@ -762,20 +762,53 @@ func (c *KarpenterCollector) IsAvailable(ctx context.Context) bool {
 }
 
 func (c *KarpenterCollector) sendInstallationMetric(obj *unstructured.Unstructured) {
-	
-	installStatus := map[string]interface{}{
-		"name":             "karpenter",
-		"karpenterVersion": c.version,
-		"namespace":        obj.GetNamespace(),
-		"status":           "installed",
-		"timestamp":        time.Now().Unix(),
+	// Extract required fields from the deployment object
+	uid := string(obj.GetUID())
+	name := obj.GetName()
+	namespace := obj.GetNamespace()
+	apiVersion := obj.GetAPIVersion()
+	resourceVersion := obj.GetResourceVersion()
+	creationTimestamp := obj.GetCreationTimestamp().Unix()
+
+	// Get spec and status
+	spec, found, _ := unstructured.NestedMap(obj.Object, "spec")
+	if !found {
+		spec = make(map[string]interface{})
 	}
 
-	if labels := obj.GetLabels(); len(labels) > 0 {
-		installStatus["labels"] = labels
+	status, found, _ := unstructured.NestedMap(obj.Object, "status")
+	if !found {
+		status = make(map[string]interface{})
 	}
-	if annotations := obj.GetAnnotations(); len(annotations) > 0 {
-		installStatus["annotations"] = annotations
+
+	// Create installation status object matching the model structure
+	installStatus := map[string]interface{}{
+		"kind":              obj.GetKind(),
+		"apiVersion":        apiVersion,
+		"name":              name,
+		"namespace":         namespace,
+		"uid":               uid,
+		"resourceVersion":   resourceVersion,
+		"creationTimestamp": creationTimestamp,
+		"labels":            obj.GetLabels(),
+		"annotations":       obj.GetAnnotations(),
+		"spec":              spec,
+		"status":            status,
+		"raw":               obj.Object,
+		"karpenterVersion": c.version,
+	}
+
+	if owners := obj.GetOwnerReferences(); len(owners) > 0 {
+		ownerRefs := make([]map[string]interface{}, 0, len(owners))
+		for _, owner := range owners {
+			ownerRefs = append(ownerRefs, map[string]interface{}{
+				"apiVersion": owner.APIVersion,
+				"kind":       owner.Kind,
+				"name":       owner.Name,
+				"uid":        string(owner.UID),
+			})
+		}
+		installStatus["ownerReferences"] = ownerRefs
 	}
 
 	c.batchChan <- CollectedResource{
@@ -783,7 +816,7 @@ func (c *KarpenterCollector) sendInstallationMetric(obj *unstructured.Unstructur
 		Object:       installStatus,
 		Timestamp:    time.Now(),
 		EventType:    EventTypeAdd,
-		Key:          "karpenter/installation",
+		Key:          fmt.Sprintf("karpenter/installation/%s", uid),
 	}
 
 	c.logger.Info("Sent Karpenter installation metric",
