@@ -692,7 +692,7 @@ func (c *KarpenterCollector) detectKarpenterVersion(obj *unstructured.Unstructur
 		}
 
 		// Image format: public.ecr.aws/karpenter/controller:0.37.7@sha256:...
-		imageParts := strings.Split(image, "@")[0] 
+		imageParts := strings.Split(image, "@")[0]
 		versionParts := strings.Split(imageParts, ":")
 		if len(versionParts) != 2 {
 			c.logger.V(4).Info("Invalid image format", "image", image)

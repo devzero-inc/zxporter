@@ -88,16 +88,25 @@ enum ResourceType {
   RESOURCE_TYPE_CLUSTER = 38;
 
   // CSINode type
-  RESOURCE_CSI_NODE = 39;
+  RESOURCE_TYPE_CSI_NODE = 39;
 
   // Karpenter type
-  RESOURCE_KARPENTER = 40;
+  RESOURCE_TYPE_KARPENTER = 40;
 
   // Datadog type
-  RESOURCE_DATADOG = 41;
+  RESOURCE_TYPE_DATADOG = 41;
 
   // Argo rollouts type
-  RESOURCE_ARGO_ROLLOUTS = 42;
+  RESOURCE_TYPE_ARGO_ROLLOUTS = 42;
+
+  // Keda type - Leaving this as a reserve now, not really sure if we actually need it
+  RESOURCE_TYPE_KEDA = 43;
+
+  // Keda scaled object type
+  RESOURCE_TYPE_KEDA_SCALED_OBJECT = 44;
+
+  // Keda scaled job type
+  RESOURCE_TYPE_KEDA_SCALED_JOB = 45;
 }
 
 // ResourceItem contains the data for a single resource event.

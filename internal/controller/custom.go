@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	kedaclient "github.com/kedacore/keda/v2/pkg/generated/clientset/versioned"
 	apiextensionsclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/discovery"
@@ -60,6 +61,11 @@ func NewEnvBasedController(mgr ctrl.Manager, reconcileInterval time.Duration) (*
 		return nil, fmt.Errorf("failed to create kubernetes clientset: %w", err)
 	}
 
+	kedaClientset, err := kedaclient.NewForConfig(config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create KEDA clientset: %w", err)
+	}
+
 	dynamicClient, err := dynamic.NewForConfig(config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create dynamic client: %w", err)
@@ -83,6 +89,7 @@ func NewEnvBasedController(mgr ctrl.Manager, reconcileInterval time.Duration) (*
 		Client:            mgr.GetClient(),
 		Scheme:            mgr.GetScheme(),
 		Log:               logger.WithName("reconciler"),
+		KEDAClient:        kedaClientset,
 		K8sClient:         clientset,
 		DynamicClient:     dynamicClient,
 		DiscoveryClient:   discoveryClient,
