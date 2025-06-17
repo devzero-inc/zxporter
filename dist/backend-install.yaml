@@ -1003,6 +1003,17 @@ rules:
       - list
       - watch
   - apiGroups:
+      - keda.sh
+    resources:
+      - clustertriggerauthentications
+      - scaledjobs
+      - scaledobjects
+      - triggerauthentications
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
       - metrics.k8s.io
     resources:
       - nodes
@@ -1231,7 +1242,7 @@ spec:
             - --metrics-bind-address=:8443
             - --leader-elect
             - --health-probe-bind-address=:8081
-          image: devzeroinc/zxporter:latest
+          image: zvonimirtomesic/zxporter:v101-local
           livenessProbe:
             httpGet:
               path: /healthz
