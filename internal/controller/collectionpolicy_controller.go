@@ -643,6 +643,13 @@ func (r *CollectionPolicyReconciler) identifyAffectedCollectors(oldConfig, newCo
 		affectedCollectors["container_resource"] = true
 	}
 
+	// Add check for CRD changes
+	if !reflect.DeepEqual(oldConfig.ExcludedCRDs, newConfig.ExcludedCRDs) ||
+		!reflect.DeepEqual(oldConfig.ExcludedCRDGroups, newConfig.ExcludedCRDGroups) ||
+		!reflect.DeepEqual(oldConfig.WatchedCRDs, newConfig.WatchedCRDs) {
+		affectedCollectors["custom_resource_definition"] = true
+	}
+
 	return affectedCollectors
 }
 
@@ -1079,6 +1086,13 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				r.DynamicClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedArgoRollouts,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+			)
+		case "custom_resource_definition":
+			replacedCollector = collector.NewCRDCollector(
+				r.ApiExtensions,
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
@@ -1805,6 +1819,15 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 			),
 			name: collector.ArgoRollouts,
 		},
+		{
+			collector: collector.NewCRDCollector(
+				r.ApiExtensions,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+			),
+			name: collector.CustomResourceDefinition,
+		},
 	}
 
 	// Register all collectors
@@ -2235,6 +2258,13 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 			case "karpenter":
 				replacedCollector = collector.NewKarpenterCollector(
 					r.DynamicClient,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+				)
+			case "custom_resource_definition":
+				replacedCollector = collector.NewCRDCollector(
+					r.ApiExtensions,
 					collector.DefaultMaxBatchSize,
 					collector.DefaultMaxBatchTime,
 					logger,
