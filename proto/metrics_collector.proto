@@ -108,6 +108,8 @@ enum ResourceType {
 
   // Keda scaled job type
   RESOURCE_TYPE_KEDA_SCALED_JOB = 45;
+  // Cluster snapshot type
+  RESOURCE_CLUSTER_SNAPSHOT = 77;
 }
 
 // ResourceItem contains the data for a single resource event.
