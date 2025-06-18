@@ -76,6 +76,31 @@ func NewKarpenterCollector(
 func (c *KarpenterCollector) Start(ctx context.Context) error {
 	c.logger.Info("Starting Karpenter collector")
 
+	// Get Karpenter deployment for installation metric
+	gvr := schema.GroupVersionResource{
+		Group:    "apps",
+		Version:  "v1",
+		Resource: "deployments",
+	}
+	labelSelector := "app.kubernetes.io/name=karpenter,app.kubernetes.io/instance=karpenter"
+
+	deployments, err := c.dynamicClient.Resource(gvr).List(ctx, metav1.ListOptions{
+		LabelSelector: labelSelector,
+	})
+	if err == nil && len(deployments.Items) > 0 {
+		for _, d := range deployments.Items {
+			status, found, _ := unstructured.NestedMap(d.Object, "status")
+			if found {
+				readyReplicas, found, _ := unstructured.NestedInt64(status, "readyReplicas")
+				if found && readyReplicas > 0 {
+					c.detectKarpenterVersion(&d)
+					c.sendInstallationMetric(&d)
+					break
+				}
+			}
+		}
+	}
+
 	// Define all Karpenter resources to watch
 	resources := []KarpenterResource{
 		// v1alpha5 resources
@@ -718,10 +743,8 @@ func (c *KarpenterCollector) IsAvailable(ctx context.Context) bool {
 		Resource: "deployments",
 	}
 
-	// Karpenter deployment has these labels
 	labelSelector := "app.kubernetes.io/name=karpenter,app.kubernetes.io/instance=karpenter"
 
-	// List deployments across all namespaces with the Karpenter labels
 	deployments, err := c.dynamicClient.Resource(gvr).List(ctx, metav1.ListOptions{
 		LabelSelector: labelSelector,
 	})
@@ -742,16 +765,6 @@ func (c *KarpenterCollector) IsAvailable(ctx context.Context) bool {
 			readyReplicas, found, _ := unstructured.NestedInt64(status, "readyReplicas")
 			if found && readyReplicas > 0 {
 				c.detectKarpenterVersion(&d)
-
-				ns, _, _ := unstructured.NestedString(d.Object, "metadata", "namespace")
-				name, _, _ := unstructured.NestedString(d.Object, "metadata", "name")
-				c.logger.Info("Found running Karpenter deployment",
-					"namespace", ns,
-					"name", name,
-					"version", c.version)
-
-				// Send initial installation status metric
-				c.sendInstallationMetric(&d)
 				return true
 			}
 		}
@@ -795,7 +808,7 @@ func (c *KarpenterCollector) sendInstallationMetric(obj *unstructured.Unstructur
 		"spec":              spec,
 		"status":            status,
 		"raw":               obj.Object,
-		"karpenterVersion": c.version,
+		"karpenterVersion":  c.version,
 	}
 
 	if owners := obj.GetOwnerReferences(); len(owners) > 0 {
