@@ -193,6 +193,9 @@ type PolicyConfig struct {
 //+kubebuilder:rbac:groups=karpenter.k8s.aws,resources=awsnodetemplates,verbs=get;list;watch
 //+kubebuilder:rbac:groups=karpenter.k8s.aws,resources=ec2nodeclasses,verbs=get;list;watch
 
+// CRD API Group resources
+//+kubebuilder:rbac:groups=apiextensions.k8s.io,resources=customresourcedefinitions,verbs=get;list;watch
+
 // DataDog resources
 //+kubebuilder:rbac:groups=datadoghq.com,resources=extendeddaemonsetreplicasets,verbs=get;list;watch
 
