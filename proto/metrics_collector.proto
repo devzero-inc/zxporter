@@ -101,7 +101,7 @@ enum ResourceType {
   RESOURCE_ARGO_ROLLOUTS = 42;
 
   // Cluster snapshot type
-  RESOURCE_CLUSTER_SNAPSHOT = 43;
+  RESOURCE_CLUSTER_SNAPSHOT = 77;
 }
 
 // ResourceItem contains the data for a single resource event.
