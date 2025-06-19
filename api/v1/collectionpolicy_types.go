@@ -84,6 +84,10 @@ type Exclusions struct {
 
 	// Event Exclusions
 	ExcludedEvents []ExcludedEvent `json:"excludedEvents,omitempty"`
+
+	// Keda Exclusions
+	ExcludedScaledObjects []ExcludedScaledObject `json:"excludedScaledObjects,omitempty"`
+	ExcludedScaledJobs    []ExcludedScaledJob    `json:"excludedScaledJobs,omitempty"`
 }
 
 // Common exclusion patterns
@@ -335,6 +339,26 @@ type ExcludedEvent struct {
 	Namespace string `json:"namespace"`
 
 	// Name of the event
+	Name string `json:"name"`
+}
+
+// Keda exclusion types
+
+// ExcludedScaledObject identifies a KEDA scaled object to exclude
+type ExcludedScaledObject struct {
+	// Namespace is the scaled object's namespace
+	Namespace string `json:"namespace"`
+
+	// Name is the scaled object
+	Name string `json:"name"`
+}
+
+// ExcludedScaledJob identifies a KEDA scaled job to exclude
+type ExcludedScaledJob struct {
+	// Namespace is the scaled job's namespace
+	Namespace string `json:"namespace"`
+
+	// Name is the scaled job
 	Name string `json:"name"`
 }
 

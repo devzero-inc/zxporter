@@ -337,10 +337,10 @@ build-installer: manifests generate kustomize yq ## Generate a consolidated YAML
 	@cat $(DIST_NODE_EXPORTER_BUNDLE) >> $(DIST_INSTALL_BUNDLE)
 	@echo "# ----- END PROM NODE EXPORTER -----" >> $(DIST_INSTALL_BUNDLE)
 
-#	@echo "[INFO] Append Metrics Server to the main installer"
-#	@echo "# ----- START METRICS SERVER -----" >> $(DIST_INSTALL_BUNDLE)
-#	@cat $(METRICS_SERVER) >> $(DIST_INSTALL_BUNDLE)
-#	@echo "# ----- END METRICS SERVER -----" >> $(DIST_INSTALL_BUNDLE)
+	# @echo "[INFO] Append Metrics Server to the main installer"
+	# @echo "# ----- START METRICS SERVER -----" >> $(DIST_INSTALL_BUNDLE)
+	# @cat $(METRICS_SERVER) >> $(DIST_INSTALL_BUNDLE)
+	# @echo "# ----- END METRICS SERVER -----" >> $(DIST_INSTALL_BUNDLE)
 	@echo "---" >> $(DIST_INSTALL_BUNDLE)
 	
 	@echo "[INFO] Append zxporter-manager to the installer bundle"
@@ -576,7 +576,7 @@ catalog-push: ## Push a catalog image.
 	$(MAKE) docker-push IMG=$(CATALOG_IMG)
 
 # DAKR_* files are related to generating a gRPC client to send resource metadata to Dakr.
-DAKR_DIR ?= /Users/kevinshi/services/dakr
+DAKR_DIR ?= ../services/dakr
 DAKR_BUF_GEN_FILE ?= buf.gen.yaml
 DAKR_BUF_GEN ?= $(DAKR_DIR)/$(DAKR_BUF_GEN_FILE)
 DAKR_METRICS_COLLECTOR_PROTO_FILE ?= metrics_collector.proto
