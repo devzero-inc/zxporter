@@ -35,6 +35,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	monitoringv1 "github.com/devzero-inc/zxporter/api/v1"
+	kedaclient "github.com/kedacore/keda/v2/pkg/generated/clientset/versioned"
 	metricsv1 "k8s.io/metrics/pkg/client/clientset/versioned"
 
 	"github.com/devzero-inc/zxporter/internal/collector"
@@ -51,6 +52,7 @@ type CollectionPolicyReconciler struct {
 	client.Client
 	Scheme            *runtime.Scheme
 	Log               logr.Logger
+	KEDAClient        *kedaclient.Clientset
 	K8sClient         *kubernetes.Clientset
 	DynamicClient     *dynamic.DynamicClient
 	DiscoveryClient   *discovery.DiscoveryClient
@@ -104,6 +106,8 @@ type PolicyConfig struct {
 	ExcludedCSINodes               []string
 	ExcludedDatadogReplicaSets     []collector.ExcludedDatadogExtendedDaemonSetReplicaSet
 	ExcludedArgoRollouts           []collector.ExcludedArgoRollout
+	ExcludedKedaScaledJobs         []collector.ExcludedScaledJob
+	ExcludedKedaScaledObjects      []collector.ExcludedScaledObject
 
 	DisabledCollectors []string
 
@@ -201,6 +205,12 @@ type PolicyConfig struct {
 
 // Argo Rollouts resources
 //+kubebuilder:rbac:groups=argoproj.io,resources=rollouts,verbs=get;list;watch
+
+// KEDA resources
+//+kubebuilder:rbac:groups=keda.sh,resources=scaledobjects,verbs=get;list;watch
+//+kubebuilder:rbac:groups=keda.sh,resources=scaledjobs,verbs=get;list;watch
+//+kubebuilder:rbac:groups=keda.sh,resources=triggerauthentications,verbs=get;list;watch
+//+kubebuilder:rbac:groups=keda.sh,resources=clustertriggerauthentications,verbs=get;list;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -474,6 +484,22 @@ func (r *CollectionPolicyReconciler) createNewConfig(envSpec *monitoringv1.Colle
 	// CRDGroups
 	newConfig.ExcludedCRDGroups = envSpec.Exclusions.ExcludedCRDGroups
 
+	// KEDA ScaledJob
+	for _, scaledJob := range envSpec.Exclusions.ExcludedScaledJobs {
+		newConfig.ExcludedKedaScaledJobs = append(newConfig.ExcludedKedaScaledJobs, collector.ExcludedScaledJob{
+			Namespace: scaledJob.Namespace,
+			Name:      scaledJob.Name,
+		})
+	}
+
+	// KEDA ScaledObject
+	for _, scaledObject := range envSpec.Exclusions.ExcludedScaledObjects {
+		newConfig.ExcludedKedaScaledObjects = append(newConfig.ExcludedKedaScaledObjects, collector.ExcludedScaledObject{
+			Namespace: scaledObject.Namespace,
+			Name:      scaledObject.Name,
+		})
+	}
+
 	// Events - these are special with more fields
 	for _, event := range envSpec.Exclusions.ExcludedEvents {
 		newConfig.ExcludedEvents = append(newConfig.ExcludedEvents, collector.ExcludedEvent{
@@ -635,6 +661,14 @@ func (r *CollectionPolicyReconciler) identifyAffectedCollectors(oldConfig, newCo
 
 	if !reflect.DeepEqual(oldConfig.ExcludedCSINodes, newConfig.ExcludedCSINodes) {
 		affectedCollectors["csi_node"] = true
+	}
+
+	if !reflect.DeepEqual(oldConfig.ExcludedKedaScaledJobs, newConfig.ExcludedKedaScaledJobs) {
+		affectedCollectors["keda_scaled_job"] = true
+	}
+
+	if !reflect.DeepEqual(oldConfig.ExcludedKedaScaledObjects, newConfig.ExcludedKedaScaledObjects) {
+		affectedCollectors["keda_scaled_object"] = true
 	}
 
 	// Check if the special node collectors are affected by the update interval change
@@ -1096,6 +1130,24 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 		case "custom_resource_definition":
 			replacedCollector = collector.NewCRDCollector(
 				r.ApiExtensions,
+        collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+			)
+		case "keda_scaled_job":
+			replacedCollector = collector.NewScaledJobCollector(
+				r.KEDAClient,
+				newConfig.TargetNamespaces,
+				newConfig.ExcludedKedaScaledJobs,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+			)
+		case "keda_scaled_object":
+			replacedCollector = collector.NewScaledObjectCollector(
+				r.KEDAClient,
+				newConfig.TargetNamespaces,
+				newConfig.ExcludedKedaScaledObjects,
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
@@ -1831,6 +1883,28 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 			),
 			name: collector.CustomResourceDefinition,
 		},
+		{
+			collector: collector.NewScaledJobCollector(
+				r.KEDAClient,
+				config.TargetNamespaces,
+				config.ExcludedKedaScaledJobs,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+			),
+			name: collector.KedaScaledObject,
+		},
+		{
+			collector: collector.NewScaledObjectCollector(
+				r.KEDAClient,
+				config.TargetNamespaces,
+				config.ExcludedKedaScaledObjects,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+			),
+			name: collector.KedaScaledJob,
+		},
 	}
 
 	// Register all collectors
@@ -2268,6 +2342,24 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 			case "custom_resource_definition":
 				replacedCollector = collector.NewCRDCollector(
 					r.ApiExtensions,
+          collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+				)
+			case "keda_scaled_job":
+				replacedCollector = collector.NewScaledJobCollector(
+					r.KEDAClient,
+					newConfig.TargetNamespaces,
+					newConfig.ExcludedKedaScaledJobs,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+				)
+			case "keda_scaled_object":
+				replacedCollector = collector.NewScaledObjectCollector(
+					r.KEDAClient,
+					newConfig.TargetNamespaces,
+					newConfig.ExcludedKedaScaledObjects,
 					collector.DefaultMaxBatchSize,
 					collector.DefaultMaxBatchTime,
 					logger,

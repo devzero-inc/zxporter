@@ -2,6 +2,12 @@ name: 'Push zxporter to Docker Hub'
 
 on:
   workflow_dispatch:
+    inputs:
+      push_latest:
+        description: 'Push latest tag'
+        required: false
+        type: boolean
+        default: 'false'
   push:
     tags:
       - 'v*'
@@ -76,8 +82,13 @@ jobs:
           COMMIT_HASH: ${{ env.COMMIT_HASH }}
           GIT_TREE_STATE: ${{ env.GIT_TREE_STATE }}
           BUILD_DATE: ${{ env.BUILD_DATE }}
+          PUSH_LATEST: ${{ inputs.push_latest || 'false' }}
         run: |
-          TAGS=("latest" "$(git rev-parse --short HEAD)" "$GITVERSION")
+          TAGS=("$(git rev-parse --short HEAD)" "$GITVERSION")
+
+          if [[ "$PUSH_LATEST" == "true" ]]; then
+            TAGS+=("latest")
+          fi
 
           if [[ "$IS_RELEASE" == "true" ]]; then
             TAGS+=("$FULLV")

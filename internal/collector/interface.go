@@ -126,6 +126,9 @@ const (
 	Karpenter
 	Datadog
 	ArgoRollouts
+	Keda
+	KedaScaledJob
+	KedaScaledObject
 )
 
 // String returns the string representation of the ResourceType
@@ -170,6 +173,9 @@ func (r ResourceType) String() string {
 		Karpenter:                "karpenter",
 		Datadog:                  "datadog",
 		ArgoRollouts:             "argo_rollouts",
+    Keda:                     "keda",
+		KedaScaledJob:            "keda_scaled_job",
+		KedaScaledObject:         "keda_scaled_object",
 	}
 
 	if name, ok := names[r]; ok {
@@ -252,13 +258,19 @@ func (r ResourceType) ProtoType() gen.ResourceType {
 	case Cluster:
 		return gen.ResourceType_RESOURCE_TYPE_CLUSTER
 	case CSINode:
-		return gen.ResourceType_RESOURCE_CSI_NODE
+		return gen.ResourceType_RESOURCE_TYPE_CSI_NODE
 	case Karpenter:
-		return gen.ResourceType_RESOURCE_KARPENTER
+		return gen.ResourceType_RESOURCE_TYPE_KARPENTER
 	case Datadog:
-		return gen.ResourceType_RESOURCE_DATADOG
+		return gen.ResourceType_RESOURCE_TYPE_DATADOG
 	case ArgoRollouts:
-		return gen.ResourceType_RESOURCE_ARGO_ROLLOUTS
+		return gen.ResourceType_RESOURCE_TYPE_ARGO_ROLLOUTS
+	case Keda:
+		return gen.ResourceType_RESOURCE_TYPE_KEDA
+	case KedaScaledJob:
+		return gen.ResourceType_RESOURCE_TYPE_KEDA_SCALED_JOB
+	case KedaScaledObject:
+		return gen.ResourceType_RESOURCE_TYPE_KEDA_SCALED_OBJECT
 	default:
 		return gen.ResourceType_RESOURCE_TYPE_UNSPECIFIED
 	}
