@@ -197,6 +197,9 @@ type PolicyConfig struct {
 //+kubebuilder:rbac:groups=karpenter.k8s.aws,resources=awsnodetemplates,verbs=get;list;watch
 //+kubebuilder:rbac:groups=karpenter.k8s.aws,resources=ec2nodeclasses,verbs=get;list;watch
 
+// CRD API Group resources
+//+kubebuilder:rbac:groups=apiextensions.k8s.io,resources=customresourcedefinitions,verbs=get;list;watch
+
 // DataDog resources
 //+kubebuilder:rbac:groups=datadoghq.com,resources=extendeddaemonsetreplicasets,verbs=get;list;watch
 
@@ -677,6 +680,13 @@ func (r *CollectionPolicyReconciler) identifyAffectedCollectors(oldConfig, newCo
 		affectedCollectors["container_resource"] = true
 	}
 
+	// Add check for CRD changes
+	if !reflect.DeepEqual(oldConfig.ExcludedCRDs, newConfig.ExcludedCRDs) ||
+		!reflect.DeepEqual(oldConfig.ExcludedCRDGroups, newConfig.ExcludedCRDGroups) ||
+		!reflect.DeepEqual(oldConfig.WatchedCRDs, newConfig.WatchedCRDs) {
+		affectedCollectors["custom_resource_definition"] = true
+	}
+
 	return affectedCollectors
 }
 
@@ -1114,6 +1124,13 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedArgoRollouts,
 				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+			)
+		case "custom_resource_definition":
+			replacedCollector = collector.NewCRDCollector(
+				r.ApiExtensions,
+        collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
 			)
@@ -1858,6 +1875,15 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 			name: collector.ArgoRollouts,
 		},
 		{
+			collector: collector.NewCRDCollector(
+				r.ApiExtensions,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+			),
+			name: collector.CustomResourceDefinition,
+		},
+		{
 			collector: collector.NewScaledJobCollector(
 				r.KEDAClient,
 				config.TargetNamespaces,
@@ -2310,6 +2336,13 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 				replacedCollector = collector.NewKarpenterCollector(
 					r.DynamicClient,
 					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+				)
+			case "custom_resource_definition":
+				replacedCollector = collector.NewCRDCollector(
+					r.ApiExtensions,
+          collector.DefaultMaxBatchSize,
 					collector.DefaultMaxBatchTime,
 					logger,
 				)
