@@ -76,6 +76,31 @@ func NewKarpenterCollector(
 func (c *KarpenterCollector) Start(ctx context.Context) error {
 	c.logger.Info("Starting Karpenter collector")
 
+	// Get Karpenter deployment for installation metric
+	gvr := schema.GroupVersionResource{
+		Group:    "apps",
+		Version:  "v1",
+		Resource: "deployments",
+	}
+	labelSelector := "app.kubernetes.io/name=karpenter,app.kubernetes.io/instance=karpenter"
+
+	deployments, err := c.dynamicClient.Resource(gvr).List(ctx, metav1.ListOptions{
+		LabelSelector: labelSelector,
+	})
+	if err == nil && len(deployments.Items) > 0 {
+		for _, d := range deployments.Items {
+			status, found, _ := unstructured.NestedMap(d.Object, "status")
+			if found {
+				readyReplicas, found, _ := unstructured.NestedInt64(status, "readyReplicas")
+				if found && readyReplicas > 0 {
+					c.detectKarpenterVersion(&d)
+					c.sendInstallationMetric(&d)
+					break
+				}
+			}
+		}
+	}
+
 	// Define all Karpenter resources to watch
 	resources := []KarpenterResource{
 		// v1alpha5 resources
@@ -718,10 +743,8 @@ func (c *KarpenterCollector) IsAvailable(ctx context.Context) bool {
 		Resource: "deployments",
 	}
 
-	// Karpenter deployment has these labels
 	labelSelector := "app.kubernetes.io/name=karpenter,app.kubernetes.io/instance=karpenter"
 
-	// List deployments across all namespaces with the Karpenter labels
 	deployments, err := c.dynamicClient.Resource(gvr).List(ctx, metav1.ListOptions{
 		LabelSelector: labelSelector,
 	})
@@ -742,13 +765,6 @@ func (c *KarpenterCollector) IsAvailable(ctx context.Context) bool {
 			readyReplicas, found, _ := unstructured.NestedInt64(status, "readyReplicas")
 			if found && readyReplicas > 0 {
 				c.detectKarpenterVersion(&d)
-
-				ns, _, _ := unstructured.NestedString(d.Object, "metadata", "namespace")
-				name, _, _ := unstructured.NestedString(d.Object, "metadata", "name")
-				c.logger.Info("Found running Karpenter deployment",
-					"namespace", ns,
-					"name", name,
-					"version", c.version)
 				return true
 			}
 		}
@@ -756,4 +772,66 @@ func (c *KarpenterCollector) IsAvailable(ctx context.Context) bool {
 
 	c.logger.Info("No ready Karpenter deployment found")
 	return false
+}
+
+func (c *KarpenterCollector) sendInstallationMetric(obj *unstructured.Unstructured) {
+	// Extract required fields from the deployment object
+	uid := string(obj.GetUID())
+	name := obj.GetName()
+	namespace := obj.GetNamespace()
+	apiVersion := obj.GetAPIVersion()
+	resourceVersion := obj.GetResourceVersion()
+	creationTimestamp := obj.GetCreationTimestamp().Unix()
+
+	// Get spec and status
+	spec, found, _ := unstructured.NestedMap(obj.Object, "spec")
+	if !found {
+		spec = make(map[string]interface{})
+	}
+
+	status, found, _ := unstructured.NestedMap(obj.Object, "status")
+	if !found {
+		status = make(map[string]interface{})
+	}
+
+	// Create installation status object matching the model structure
+	installStatus := map[string]interface{}{
+		"kind":              obj.GetKind(),
+		"apiVersion":        apiVersion,
+		"name":              name,
+		"namespace":         namespace,
+		"uid":               uid,
+		"resourceVersion":   resourceVersion,
+		"creationTimestamp": creationTimestamp,
+		"labels":            obj.GetLabels(),
+		"annotations":       obj.GetAnnotations(),
+		"spec":              spec,
+		"status":            status,
+		"raw":               obj.Object,
+		"karpenterVersion":  c.version,
+	}
+
+	if owners := obj.GetOwnerReferences(); len(owners) > 0 {
+		ownerRefs := make([]map[string]interface{}, 0, len(owners))
+		for _, owner := range owners {
+			ownerRefs = append(ownerRefs, map[string]interface{}{
+				"apiVersion": owner.APIVersion,
+				"kind":       owner.Kind,
+				"name":       owner.Name,
+				"uid":        string(owner.UID),
+			})
+		}
+		installStatus["ownerReferences"] = ownerRefs
+	}
+
+	c.batchChan <- CollectedResource{
+		ResourceType: Karpenter,
+		Object:       installStatus,
+		Timestamp:    time.Now(),
+		EventType:    EventTypeAdd,
+		Key:          fmt.Sprintf("karpenter/installation/%s", uid),
+	}
+
+	c.logger.Info("Sent Karpenter installation metric",
+		"Object", installStatus)
 }
