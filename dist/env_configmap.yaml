@@ -5,7 +5,7 @@ data:
   CLUSTER_TOKEN: '{{ .cluster_token }}'
   KUBE_CONTEXT_NAME: '{{ .kube_context_name }}'
   COLLECTION_FREQUENCY: ""
-  DAKR_URL: https://api.devzero.io/dakr
+  DAKR_URL: https://dakr.devzero.io
   DISABLE_NETWORK_IO_METRICS: ""
   DISABLE_GPU_METRICS: ""
   DISABLED_COLLECTORS: ""
