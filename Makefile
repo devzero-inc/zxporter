@@ -56,7 +56,7 @@ TESTSERVER_IMG ?= ttl.sh/zxporter-testserver:latest
 # Stress test image URL
 STRESS_IMG ?= ttl.sh/zxporter-stress:latest
 # DAKR URL to use for deployment
-DAKR_URL ?= https://api.devzero.io/dakr
+DAKR_URL ?= https://dakr.devzero.io
 # PROMETHEUS URL for metrics collection
 PROMETHEUS_URL ?= http://prometheus-dz-prometheus-server.$(DEVZERO_MONITORING_NAMESPACE).svc.cluster.local:80
 # TARGET_NAMESPACES for limiting collection to specific namespaces (comma-separated)
