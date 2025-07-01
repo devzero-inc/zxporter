@@ -182,44 +182,6 @@ func (r ResourceType) String() string {
 		Keda:                     "keda",
 		KedaScaledJob:            "keda_scaled_job",
 		KedaScaledObject:         "keda_scaled_object",
-		Unknown:                  "unknown",
-		Cluster:                  "cluster",
-		Node:                     "node",
-		Pod:                      "pod",
-		Namespace:                "namespace",
-		Event:                    "event",
-		Endpoints:                "endpoints",
-		ServiceAccount:           "service_account",
-		LimitRange:               "limit_range",
-		ResourceQuota:            "resource_quota",
-		Deployment:               "deployment",
-		StatefulSet:              "stateful_set",
-		DaemonSet:                "daemon_set",
-		ReplicaSet:               "replica_set",
-		ReplicationController:    "replication_controller",
-		Job:                      "job",
-		CronJob:                  "cron_job",
-		PersistentVolumeClaim:    "persistent_volume_claim",
-		PersistentVolume:         "persistent_volume",
-		StorageClass:             "storage_class",
-		Service:                  "service",
-		Ingress:                  "ingress",
-		IngressClass:             "ingress_class",
-		NetworkPolicy:            "network_policy",
-		Role:                     "role",
-		RoleBinding:              "role_binding",
-		ClusterRole:              "cluster_role",
-		ClusterRoleBinding:       "cluster_role_binding",
-		HorizontalPodAutoscaler:  "horizontal_pod_autoscaler",
-		VerticalPodAutoscaler:    "vertical_pod_autoscaler",
-		PodDisruptionBudget:      "pod_disruption_budget",
-		PodSecurityPolicy:        "pod_security_policy",
-		NodeResource:             "node_resource",
-		ContainerResource:        "container_resource",
-		CSINode:                  "csi_node",
-		Karpenter:                "karpenter",
-		Datadog:                  "datadog",
-		ArgoRollouts:             "argo_rollouts",
 		ClusterSnapshot:          "cluster_snapshot",
 	}
 
@@ -316,7 +278,6 @@ func (r ResourceType) ProtoType() gen.ResourceType {
 		return gen.ResourceType_RESOURCE_TYPE_KEDA_SCALED_JOB
 	case KedaScaledObject:
 		return gen.ResourceType_RESOURCE_TYPE_KEDA_SCALED_OBJECT
-		return gen.ResourceType_RESOURCE_ARGO_ROLLOUTS
 	case ClusterSnapshot:
 		return gen.ResourceType_RESOURCE_CLUSTER_SNAPSHOT
 	default:
