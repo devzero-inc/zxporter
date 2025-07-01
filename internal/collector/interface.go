@@ -279,7 +279,7 @@ func (r ResourceType) ProtoType() gen.ResourceType {
 	case KedaScaledObject:
 		return gen.ResourceType_RESOURCE_TYPE_KEDA_SCALED_OBJECT
 	case ClusterSnapshot:
-		return gen.ResourceType_RESOURCE_CLUSTER_SNAPSHOT
+		return gen.ResourceType_RESOURCE_TYPE_CLUSTER_SNAPSHOT
 	default:
 		return gen.ResourceType_RESOURCE_TYPE_UNSPECIFIED
 	}
