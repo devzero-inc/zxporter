@@ -21,6 +21,7 @@ enum EventType {
   EVENT_TYPE_CONTAINER_STARTED = 6;
   EVENT_TYPE_CONTAINER_STOPPED = 7;
   EVENT_TYPE_CONTAINER_RESTARTED = 8;
+  EVENT_TYPE_CLUSTER_SNAPSHOT = 9;
 }
 
 // ResourceType is a type of resource that can enter the system
@@ -107,6 +108,9 @@ enum ResourceType {
 
   // Keda scaled job type
   RESOURCE_TYPE_KEDA_SCALED_JOB = 45;
+
+  // Cluster snapshot type
+  RESOURCE_CLUSTER_SNAPSHOT = 77;
 }
 
 // ResourceItem contains the data for a single resource event.
