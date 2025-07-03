@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"time"
 
@@ -103,12 +104,31 @@ func NewDakrClient(dakrBaseURL string, clusterToken string, logger logr.Logger) 
 		})
 	})
 
+	// Create custom HTTP client with 30-second timeout and keepalive
+	httpClient := &http.Client{
+		Timeout: 30 * time.Second,
+		Transport: &http.Transport{
+			DialContext: (&net.Dialer{
+				Timeout:   30 * time.Second,
+				KeepAlive: 30 * time.Second,
+			}).DialContext,
+			MaxIdleConns:        100,
+			MaxIdleConnsPerHost: 10,
+			IdleConnTimeout:     90 * time.Second,
+			TLSHandshakeTimeout: 10 * time.Second,
+			DisableKeepAlives:   false,
+			DisableCompression:  false,
+		},
+	}
+
 	// We're using the connect client for the Dakr service
 	client := genconnect.NewMetricsCollectorServiceClient(
-		http.DefaultClient,
+		httpClient,
 		dakrBaseURL,
 		connect.WithGRPC(),
 		connect.WithInterceptors(retryInterceptor),
+		connect.WithSendMaxBytes(1024*1024*16), // 16MB max send size
+		connect.WithReadMaxBytes(1024*1024*16), // 16MB max read size
 	)
 
 	return &RealDakrClient{
