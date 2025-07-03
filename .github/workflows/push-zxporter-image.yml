@@ -7,7 +7,7 @@ on:
         description: 'Push latest tag'
         required: false
         type: boolean
-        default: 'false'
+        default: false
   push:
     tags:
       - 'v*'
@@ -71,20 +71,31 @@ jobs:
           echo "GIT_TREE_STATE=clean" >> $GITHUB_ENV
           echo "BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_ENV
 
-      - name: Build and push multi-arch images
+      - name: Check existing tags and validate
+        id: validate_tags
         env:
           GITVERSION: ${{ env.GITVERSION }}
-          MAJOR: ${{ env.MAJOR }}
-          MINOR: ${{ env.MINOR }}
-          PATCH: ${{ env.PATCH }}
           FULLV: ${{ env.FULLV }}
           IS_RELEASE: ${{ env.IS_RELEASE }}
-          COMMIT_HASH: ${{ env.COMMIT_HASH }}
-          GIT_TREE_STATE: ${{ env.GIT_TREE_STATE }}
-          BUILD_DATE: ${{ env.BUILD_DATE }}
-          PUSH_LATEST: ${{ inputs.push_latest || 'false' }}
+          PUSH_LATEST: ${{ inputs.push_latest || false }}
         run: |
-          TAGS=("$(git rev-parse --short HEAD)" "$GITVERSION")
+          # Function to check if a Docker tag exists in registry
+          check_tag_exists() {
+            local tag=$1
+            echo "Checking if tag '$tag' exists in registry..."
+            
+            # Use docker manifest inspect to check if tag exists
+            if docker manifest inspect devzeroinc/zxporter:$tag >/dev/null 2>&1; then
+              echo "Tag '$tag' exists in registry"
+              return 0
+            else
+              echo "Tag '$tag' does not exist in registry"
+              return 1
+            fi
+          }
+
+          # Build the list of tags that will be created
+          TAGS=("$GITVERSION")
 
           if [[ "$PUSH_LATEST" == "true" ]]; then
             TAGS+=("latest")
@@ -94,7 +105,78 @@ jobs:
             TAGS+=("$FULLV")
           fi
 
+          echo "Tags to be processed: ${TAGS[@]}"
+
+          # Check existing tags 
+          EXISTING_TAGS=()
           for tag in "${TAGS[@]}"; do
+            if check_tag_exists "$tag"; then
+              EXISTING_TAGS+=("$tag")
+            fi
+          done
+
+          # Handle existing tags
+          if [ ${#EXISTING_TAGS[@]} -gt 0 ]; then
+            echo "Found existing tags: ${EXISTING_TAGS[@]}"
+            
+            # Check if any non-latest tags exist
+            NON_LATEST_EXISTING=()
+            for tag in "${EXISTING_TAGS[@]}"; do
+              if [[ "$tag" != "latest" ]]; then
+                NON_LATEST_EXISTING+=("$tag")
+              fi
+            done
+
+            # Definately have to fail if any non-latest tags exist
+            if [ ${#NON_LATEST_EXISTING[@]} -gt 0 ]; then
+              echo "ERROR: The following tags already exist in the registry and cannot be overridden:"
+              printf '  - %s\n' "${NON_LATEST_EXISTING[@]}"
+              echo ""
+              echo "To avoid accidentally overriding existing images, this build is being stopped."
+              echo "If you need to rebuild these tags, please delete them from the registry first."
+              exit 1
+            fi
+
+            # check latest tag to push or not
+            for tag in "${EXISTING_TAGS[@]}"; do
+              if [[ "$tag" == "latest" ]]; then
+                if [[ "$PUSH_LATEST" != "true" ]]; then
+                  echo "ERROR: The 'latest' tag already exists in the registry."
+                  echo "To override the 'latest' tag, you must set 'push_latest' to true in the workflow dispatch."
+                  echo "Current push_latest value: $PUSH_LATEST"
+                  exit 1
+                else
+                  echo "WARNING: The 'latest' tag exists but will be overridden because push_latest=true"
+                fi
+              fi
+            done
+          fi
+
+          echo "Tag validation passed. Proceeding with build..."
+          
+          # Export validated tags for the next step
+          TAGS_STRING="${TAGS[*]}"
+          echo "VALIDATED_TAGS=${TAGS_STRING}" >> $GITHUB_OUTPUT
+          echo "Validated tags to build: ${TAGS_STRING}"
+
+      - name: Build and push multi-arch images
+        env:
+          MAJOR: ${{ env.MAJOR }}
+          MINOR: ${{ env.MINOR }}
+          PATCH: ${{ env.PATCH }}
+          GITVERSION: ${{ env.GITVERSION }}
+          COMMIT_HASH: ${{ env.COMMIT_HASH }}
+          GIT_TREE_STATE: ${{ env.GIT_TREE_STATE }}
+          BUILD_DATE: ${{ env.BUILD_DATE }}
+          VALIDATED_TAGS: ${{ steps.validate_tags.outputs.VALIDATED_TAGS }}
+        run: |
+          # Use the validated tags from the previous step
+          read -ra TAGS <<< "$VALIDATED_TAGS"
+          
+          echo "Building and pushing validated tags: ${TAGS[@]}"
+
+          for tag in "${TAGS[@]}"; do
+            echo "Building and pushing tag: $tag"
             docker buildx build \
               --platform linux/amd64,linux/arm64 \
               --push \
@@ -110,3 +192,5 @@ jobs:
               --build-arg BUILD_DATE=$BUILD_DATE \
               .
           done
+
+          echo "Successfully built and pushed all validated tags: ${TAGS[@]}"
