@@ -2,6 +2,7 @@ package transport
 
 import (
 	"context"
+	"time"
 
 	"github.com/devzero-inc/zxporter/internal/collector"
 	"github.com/go-logr/logr"
@@ -42,6 +43,18 @@ func (s *directSenderImpl) Send(ctx context.Context, resource collector.Collecte
 	clusterID, err := s.dakrClient.SendResource(ctx, resource)
 	if err != nil {
 		s.logger.Error(err, "Failed to send single resource directly", "type", resource.ResourceType, "key", resource.Key)
+		return clusterID, err
+	}
+	return clusterID, nil
+}
+
+// SendClusterSnapshot transmits cluster snapshot data directly using the DakrClient.
+func (s *directSenderImpl) SendClusterSnapshot(ctx context.Context, snapshotData interface{}, snapshotID string, timestamp time.Time) (string, error) {
+	s.logger.V(1).Info("Sending cluster snapshot directly", "snapshotId", snapshotID)
+
+	clusterID, err := s.dakrClient.SendClusterSnapshot(ctx, snapshotData, snapshotID, timestamp)
+	if err != nil {
+		s.logger.Error(err, "Failed to send cluster snapshot directly", "snapshotId", snapshotID)
 		return clusterID, err
 	}
 	return clusterID, nil

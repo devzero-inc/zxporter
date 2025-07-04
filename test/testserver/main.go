@@ -204,6 +204,61 @@ func (s *MetricsServer) SendResourceBatch(ctx context.Context, req *connect.Requ
 	return resp, nil
 }
 
+// SendClusterSnapshot implements the SendClusterSnapshot RPC method
+func (s *MetricsServer) SendClusterSnapshot(ctx context.Context, req *connect.Request[apiv1.SendClusterSnapshotRequest]) (*connect.Response[apiv1.SendClusterSnapshotResponse], error) {
+	// Convert the cluster snapshot request to JSON for logging
+	jsonData, err := json.Marshal(req.Msg)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error marshaling cluster snapshot request to JSON: %v\n", err)
+		// Continue processing even if logging fails, but don't write the faulty JSON
+	}
+
+	// Lock for stats update and file writing
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Update stats for cluster snapshot
+	s.stats.TotalMessages++
+	if s.stats.MessagesByType == nil {
+		s.stats.MessagesByType = make(map[string]int)
+	}
+	s.stats.MessagesByType["CLUSTER_SNAPSHOT"]++
+
+	// Update first message time if not set
+	if s.stats.FirstMessageTime == nil {
+		now := time.Now()
+		s.stats.FirstMessageTime = &now
+	}
+
+	// Write the JSON to the output file if marshaling succeeded
+	if err == nil {
+		f, fileErr := os.OpenFile(s.outputFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+		if fileErr != nil {
+			fmt.Fprintf(os.Stderr, "Error opening output file for cluster snapshot: %v\n", fileErr)
+			// Return error as file writing is crucial for testing
+			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("error opening output file for cluster snapshot: %w", fileErr))
+		}
+		defer f.Close() // Ensure file is closed even if writing fails
+
+		if _, writeErr := f.WriteString(string(jsonData) + "\n"); writeErr != nil {
+			fmt.Fprintf(os.Stderr, "Error writing cluster snapshot to output file: %v\n", writeErr)
+			// Return error as file writing is crucial for testing
+			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("error writing cluster snapshot to output file: %w", writeErr))
+		}
+	}
+
+	fmt.Fprintf(os.Stderr, "Received cluster snapshot - ID: %s, ClusterID: %s\n", req.Msg.SnapshotId, req.Msg.ClusterId)
+
+	// Return a response
+	resp := connect.NewResponse(&apiv1.SendClusterSnapshotResponse{
+		ClusterId:  req.Msg.ClusterId,
+		SnapshotId: req.Msg.SnapshotId,
+		Status:     "processed",
+	})
+
+	return resp, nil
+}
+
 // StatsHandler handles the /stats HTTP endpoint
 func (s *MetricsServer) StatsHandler(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()

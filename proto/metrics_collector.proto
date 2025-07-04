@@ -208,6 +208,36 @@ message SendTelemetryMetricsResponse {
   int32 processed_count = 2;
 }
 
+// SendClusterSnapshotRequest is used to send cluster snapshot data
+message SendClusterSnapshotRequest {
+  // Unique identifier for the cluster
+  string cluster_id = 1;
+  
+  // Team ID that owns the cluster
+  string team_id = 2;
+  
+  // Timestamp when the snapshot was taken
+  google.protobuf.Timestamp timestamp = 3;
+  
+  // The cluster snapshot data as a flexible structure
+  google.protobuf.Struct snapshot_data = 4;
+  
+  // Unique identifier for this snapshot
+  string snapshot_id = 5;
+}
+
+// SendClusterSnapshotResponse is the response for cluster snapshot submission
+message SendClusterSnapshotResponse {
+  // Unique identifier for the cluster
+  string cluster_id = 1;
+  
+  // Unique identifier for the processed snapshot
+  string snapshot_id = 2;
+  
+  // Status message
+  string status = 3;
+}
+
 // Defines the service that provides RPC methods for Kubernetes cluster monitoring metrics collector.
 service MetricsCollectorService {
   // SendResource pushes a single metric for a resource.
@@ -218,4 +248,7 @@ service MetricsCollectorService {
   
   // SendTelemetryMetrics pushes a batch of telemetry metrics (gauges, counters, histograms) from a cluster.
   rpc SendTelemetryMetrics(SendTelemetryMetricsRequest) returns (SendTelemetryMetricsResponse);
+  
+  // SendClusterSnapshot processes cluster snapshot data for resource deletion tracking.
+  rpc SendClusterSnapshot(SendClusterSnapshotRequest) returns (SendClusterSnapshotResponse);
 }
