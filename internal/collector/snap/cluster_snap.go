@@ -25,8 +25,8 @@ type ResourceIdentifier struct {
 // ClusterSnapshot represents a minimal snapshot for deletion tracking
 type ClusterSnapshot struct {
 	ClusterInfo   ClusterInfo            `json:"clusterInfo"`
-	Nodes         map[string]*NodeData   `json:"nodes"`
-	Namespaces    map[string]*Namespace  `json:"namespaces"`
+	Nodes         map[string]*NodeData   `json:"nodes"`      // node uid -> NodeData
+	Namespaces    map[string]*Namespace  `json:"namespaces"` // namespace UID -> Namespace
 	ClusterScoped *ClusterScopedSnapshot `json:"clusterScoped"`
 	Timestamp     time.Time              `json:"timestamp"`
 	SnapshotID    string                 `json:"snapshotId"`
@@ -266,7 +266,7 @@ func (c *ClusterSnapshotter) captureNodes(ctx context.Context, snapshot *Cluster
 		}
 
 		nodeData.Hash = c.calculateNodeHash(nodeData)
-		snapshot.Nodes[node.Name] = nodeData
+		snapshot.Nodes[string(node.UID)] = nodeData
 	}
 
 	snapshot.ClusterInfo.NodeCount = len(snapshot.Nodes)
@@ -315,7 +315,9 @@ func (c *ClusterSnapshotter) captureNamespaces(ctx context.Context, snapshot *Cl
 		}
 
 		nsData.Hash = c.calculateNamespaceHash(nsData)
-		snapshot.Namespaces[nsName] = nsData
+		// Use namespace UID as the map key for O(1) processor lookup
+		uid := string(ns.UID)
+		snapshot.Namespaces[uid] = nsData
 	}
 
 	return nil
@@ -617,6 +619,18 @@ func (c *ClusterSnapshotter) sendSnapshot(ctx context.Context, snapshot *Cluster
 		"nodes", len(snapshot.Nodes),
 		"namespaces", len(snapshot.Namespaces))
 
+	// Use the dedicated cluster snapshot endpoint directly via the DirectSender interface
+	if _, err := c.sender.SendClusterSnapshot(ctx, snapshot, snapshot.SnapshotID, snapshot.Timestamp); err != nil {
+		c.logger.Error(err, "Failed to send cluster snapshot via dedicated endpoint")
+		// Fallback to the old method if the dedicated endpoint fails
+		c.sendSnapshotFallback(ctx, snapshot)
+	} else {
+		c.logger.Info("Successfully sent cluster snapshot via dedicated endpoint", "type", snapshotType)
+	}
+}
+
+// sendSnapshotFallback sends the cluster snapshot using the old generic resource method
+func (c *ClusterSnapshotter) sendSnapshotFallback(ctx context.Context, snapshot *ClusterSnapshot) {
 	res := collector.CollectedResource{
 		ResourceType: collector.ClusterSnapshot,
 		Object:       snapshot,
@@ -626,9 +640,9 @@ func (c *ClusterSnapshotter) sendSnapshot(ctx context.Context, snapshot *Cluster
 	}
 
 	if _, err := c.sender.Send(ctx, res); err != nil {
-		c.logger.Error(err, "Failed to send cluster snapshot")
+		c.logger.Error(err, "Failed to send cluster snapshot via fallback method")
 	} else {
-		c.logger.Info("Successfully sent cluster snapshot", "type", snapshotType)
+		c.logger.Info("Successfully sent cluster snapshot via fallback method")
 	}
 }
 
