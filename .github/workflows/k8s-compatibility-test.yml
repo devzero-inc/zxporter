@@ -74,9 +74,9 @@ jobs:
           - v1.31.6
           - v1.32.3
         deployment-method:
-          - manifest
           - helm
-
+          - manifest
+          
     steps:
       - name: Set Docker image names
         run: |
@@ -92,6 +92,12 @@ jobs:
         with:
           go-version: '1.22'
           cache: true
+
+      - name: Install yq
+        run: |
+          YQ_VERSION=v4.40.5
+          curl -sSL "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64" -o /usr/local/bin/yq
+          chmod +x /usr/local/bin/yq
 
       - name: Create k8s Kind Cluster
         uses: helm/kind-action@v1
@@ -192,8 +198,13 @@ jobs:
           
           if [ "${{ matrix.deployment-method }}" = "helm" ]; then
             echo "Deploying ZXporter using Helm..."
-            sed -i "s|repository: devzeroinc/zxporter|repository: ${ZXPORTER_IMG%:*}|g" helm-chart/zxporter/values.yaml
-            sed -i "s|tag: \"latest\"|tag: \"${ZXPORTER_IMG##*:}\"|g" helm-chart/zxporter/values.yaml
+            yq eval '
+              .namespace = "dztest" |
+              .image.repository = "'${ZXPORTER_IMG%:*}'" |
+              .image.tag = "'${ZXPORTER_IMG##*:}'" |
+              .zxporter.dakrUrl = "http://testserver.devzero-zxporter.svc.cluster.local:50051" |
+              .zxporter.targetNamespaces = "dztest"
+            ' -i helm-chart/zxporter/values.yaml
             make helm-chart-install
           else
             echo "Deploying ZXporter using make deploy..."
