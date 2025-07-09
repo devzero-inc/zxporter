@@ -42,7 +42,8 @@ data:
   MASK_SECRET_DATA: ""
   NODE_METRICS_INTERVAL: ""
   PROMETHEUS_URL: http://prometheus-dz-prometheus-server.{{ .Values.namespace }}.svc.cluster.local:80
-  TARGET_NAMESPACES: ""
+  DAKR_URL: "{{ .Values.zxporter.dakrUrl }}"
+  TARGET_NAMESPACES: "{{ .Values.zxporter.targetNamespaces }}"
   WATCHED_CRDS: ""
 kind: ConfigMap
 metadata:
