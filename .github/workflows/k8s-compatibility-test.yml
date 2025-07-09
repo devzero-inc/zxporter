@@ -205,7 +205,7 @@ jobs:
             echo "Updated values.yaml:"
             cat helm-chart/zxporter/values.yaml
             
-            make helm-chart-install
+            make helm-chart-install YQ=/usr/local/bin/yq
           else
             echo "Deploying ZXporter using make deploy..."
             make deploy IMG=${{ env.ZXPORTER_IMG }} DAKR_URL=http://testserver.devzero-zxporter.svc.cluster.local:50051 TARGET_NAMESPACES=dztest
