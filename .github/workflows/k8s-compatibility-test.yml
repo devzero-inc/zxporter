@@ -198,13 +198,13 @@ jobs:
           
           if [ "${{ matrix.deployment-method }}" = "helm" ]; then
             echo "Deploying ZXporter using Helm..."
-            yq eval '
-              .namespace = "dztest" |
-              .image.repository = "'${ZXPORTER_IMG%:*}'" |
-              .image.tag = "'${ZXPORTER_IMG##*:}'" |
-              .zxporter.dakrUrl = "http://testserver.devzero-zxporter.svc.cluster.local:50051" |
-              .zxporter.targetNamespaces = "dztest"
-            ' -i helm-chart/zxporter/values.yaml
+            yq eval '.image.repository = "'"${ZXPORTER_IMG%:*}"'"' -i helm-chart/zxporter/values.yaml
+            yq eval '.image.tag = "'"${ZXPORTER_IMG##*:}"'"' -i helm-chart/zxporter/values.yaml
+            yq eval '.zxporter.dakrUrl = "http://testserver.devzero-zxporter.svc.cluster.local:50051"' -i helm-chart/zxporter/values.yaml
+            yq eval '.zxporter.targetNamespaces = "dztest"' -i helm-chart/zxporter/values.yaml
+            echo "Updated values.yaml:"
+            cat helm-chart/zxporter/values.yaml
+            
             make helm-chart-install
           else
             echo "Deploying ZXporter using make deploy..."
