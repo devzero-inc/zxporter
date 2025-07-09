@@ -142,12 +142,32 @@ helm install zxporter ./helm-chart/zxporter \
   --set image.tag="latest"
 ```
 
+#### Deploy ZXporter with Your Existing Prometheus/Node Exporter
+If you already have Prometheus and Node Exporter running in your cluster:
+
+```sh
+# Install only zxporter (no monitoring components)
+helm install zxporter ./helm-chart/zxporter \
+  --set monitoring.enabled=false \
+  --set zxporter.prometheusUrl="http://your-prometheus.monitoring.svc.cluster.local:9090" \
+  --namespace devzero-zxporter \
+  --create-namespace
+
+# Or use the Makefile target
+make helm-chart-install-minimal PROMETHEUS_URL="http://your-prometheus.monitoring.svc.cluster.local:9090"
+```
+
+Note: Checkout helm-charts/templates/prometheus-configmap.yaml to get the required configs for custom Prometheus.
+
 #### Key Configuration Options
 - `zxporter.dakrUrl`: DAKR server URL (default: "https://dakr.devzero.io")
 - `zxporter.prometheusUrl`: Prometheus server URL
 - `zxporter.targetNamespaces`: Comma-separated list of namespaces to monitor (empty = all)
 - `image.repository`: Container image repository
 - `image.tag`: Container image tag (default: "latest")
+- `monitoring.enabled`: Enable/disable all monitoring components (default: true)
+- `monitoring.prometheus.enabled`: Enable/disable Prometheus (default: true)
+- `monitoring.nodeExporter.enabled`: Enable/disable Node Exporter (default: true)
 
 #### Upgrade and Uninstall
 ```sh

@@ -1,3 +1,5 @@
+{{- if .Values.monitoring.enabled }}
+{{- if .Values.monitoring.prometheus.enabled }}
 # Source: prometheus/charts/kube-state-metrics/templates/deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -198,3 +200,5 @@ spec:
             name: prometheus-dz-prometheus-server
         - name: storage-volume
           emptyDir: {}
+{{- end }}
+{{- end }}

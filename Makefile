@@ -413,6 +413,16 @@ helm-chart-install: helm-chart-build ## Install the Helm chart locally for testi
 		--create-namespace \
 		--wait
 
+.PHONY: helm-chart-install-minimal
+helm-chart-install-minimal: helm-chart-build ## Install only zxporter without monitoring components
+	@echo "[INFO] Installing minimal zxporter chart (no monitoring)..."
+	@$(HELM) upgrade --install zxporter $(HELM_CHART_DIR) \
+		--namespace devzero-zxporter \
+		--create-namespace \
+		--set monitoring.enabled=false \
+		--set zxporter.prometheusUrl="$(PROMETHEUS_URL)" \
+		--wait
+
 .PHONY: helm-chart-uninstall
 helm-chart-uninstall: helm ## Uninstall the Helm chart
 	@echo "[INFO] Uninstalling Helm chart..."

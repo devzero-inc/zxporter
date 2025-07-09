@@ -1,3 +1,5 @@
+{{- if .Values.monitoring.enabled }}
+{{- if .Values.monitoring.nodeExporter.enabled }}
 # Source: prometheus-node-exporter/templates/daemonset.yaml
 apiVersion: apps/v1
 kind: DaemonSet
@@ -129,3 +131,5 @@ spec:
         - name: root
           hostPath:
             path: /
+{{- end }}
+{{- end }}
