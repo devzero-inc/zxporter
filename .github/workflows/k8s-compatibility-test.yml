@@ -1,6 +1,9 @@
 name: Kubernetes Compatibility Test
 
 on:
+  push:
+    branches:
+      - garvit/helm-chart
   workflow_dispatch:
   pull_request:
 
@@ -54,7 +57,7 @@ jobs:
           make stress-docker-build stress-docker-push STRESS_IMG=${{ env.STRESS_IMG }}
 
   test:
-    name: Test on K8s ${{ matrix.k8s-version }}
+    name: Test on K8s ${{ matrix.k8s-version }} (${{ matrix.deployment-method }})
     needs: build
     runs-on: ubuntu-xl
     
@@ -70,6 +73,9 @@ jobs:
           - v1.30.8
           - v1.31.6
           - v1.32.3
+        deployment-method:
+          - manifest
+          - helm
 
     steps:
       - name: Set Docker image names
@@ -183,7 +189,16 @@ jobs:
           # Set TARGET_NAMESPACES to dztest to limit collection to that namespace
           echo "Setting DAKR_URL to http://testserver.devzero-zxporter.svc.cluster.local:50051"
           echo "Setting TARGET_NAMESPACES to dztest"
-          make deploy IMG=${{ env.ZXPORTER_IMG }} DAKR_URL=http://testserver.devzero-zxporter.svc.cluster.local:50051 TARGET_NAMESPACES=dztest
+          
+          if [ "${{ matrix.deployment-method }}" = "helm" ]; then
+            echo "Deploying ZXporter using Helm..."
+            sed -i "s|repository: devzeroinc/zxporter|repository: ${ZXPORTER_IMG%:*}|g" helm-chart/zxporter/values.yaml
+            sed -i "s|tag: \"latest\"|tag: \"${ZXPORTER_IMG##*:}\"|g" helm-chart/zxporter/values.yaml
+            make helm-chart-install
+          else
+            echo "Deploying ZXporter using make deploy..."
+            make deploy IMG=${{ env.ZXPORTER_IMG }} DAKR_URL=http://testserver.devzero-zxporter.svc.cluster.local:50051 TARGET_NAMESPACES=dztest
+          fi
 
       - name: Wait for deployment to be ready
         run: |

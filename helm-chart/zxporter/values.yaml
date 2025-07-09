@@ -1,0 +1,18 @@
+# Default values for zxporter.
+
+namespace: devzero-zxporter
+
+image:
+  repository: devzeroinc/zxporter
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+# ZXPorter configuration
+zxporter:
+  dakrUrl: "https://dakr.devzero.io"
+  prometheusUrl: "http://prometheus-dz-prometheus-server.devzero-zxporter.svc.cluster.local:80"
+  targetNamespaces: ""
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
