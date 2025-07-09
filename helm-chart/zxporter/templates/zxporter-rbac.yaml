@@ -125,6 +125,14 @@ metadata:
   name: devzero-zxporter-manager-role
 rules:
   - apiGroups:
+      - apiextensions.k8s.io
+    resources:
+      - customresourcedefinitions
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
       - apiregistration.k8s.io
     resources:
       - apiservices

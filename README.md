@@ -116,6 +116,48 @@ make docker-build docker-push IMG=<your-registry>/zxporter:tag
 make deploy IMG=<your-registry>/zxporter:tag
 ```
 
+### Helm Deployment
+
+ZXporter can also be deployed using Helm, which provides a more flexible and customizable deployment method.
+
+#### Quick Install
+```sh
+helm install zxporter ./helm-chart/zxporter --namespace devzero-zxporter --create-namespace
+
+# With Makefile
+make helm-chart-install
+```
+
+#### Custom Configuration
+Create a custom values file or override specific values:
+
+```sh
+# Using custom values file
+helm install zxporter ./helm-chart/zxporter -f my-values.yaml
+
+# Override specific values inline
+helm install zxporter ./helm-chart/zxporter \
+  --set zxporter.dakrUrl="https://my-dakr.example.com" \
+  --set zxporter.targetNamespaces="app1,app2" \
+  --set image.tag="latest"
+```
+
+#### Key Configuration Options
+- `zxporter.dakrUrl`: DAKR server URL (default: "https://dakr.devzero.io")
+- `zxporter.prometheusUrl`: Prometheus server URL
+- `zxporter.targetNamespaces`: Comma-separated list of namespaces to monitor (empty = all)
+- `image.repository`: Container image repository
+- `image.tag`: Container image tag (default: "latest")
+
+#### Upgrade and Uninstall
+```sh
+# Upgrade deployment
+helm upgrade zxporter ./helm-chart/zxporter
+
+# Uninstall
+helm uninstall zxporter
+```
+
 ## Configuration
 
 The operator is configured through the `CollectionPolicy` Custom Resource. Key configuration options include:

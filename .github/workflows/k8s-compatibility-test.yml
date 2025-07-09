@@ -1,9 +1,6 @@
 name: Kubernetes Compatibility Test
 
 on:
-  push:
-    branches:
-      - garvit/helm-chart
   workflow_dispatch:
   pull_request:
 
