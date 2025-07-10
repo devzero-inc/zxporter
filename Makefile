@@ -375,6 +375,74 @@ build-chart: build-installer ## Generate a consolidated helm chart from the inst
 	@cat $(DIST_INSTALL_BUNDLE) | helmify chart
 	@echo "[INFO] Helm chart generated in the 'chart' directory"
 
+##@ Helm Chart
+
+HELM_CHART_DIR := helm-chart/zxporter
+HELM_CHART_PACKAGE_DIR := helm-chart/packages
+
+.PHONY: helm-chart-build
+helm-chart-build: helm ## Build and package the Helm chart
+	@echo "[INFO] Building Helm chart..."
+	@mkdir -p $(HELM_CHART_PACKAGE_DIR)
+	
+	# Update chart version and appVersion
+	@$(YQ) eval '.version = "$(VERSION)"' -i $(HELM_CHART_DIR)/Chart.yaml
+	@$(YQ) eval '.appVersion = "$(VERSION)"' -i $(HELM_CHART_DIR)/Chart.yaml
+	
+	# Package the chart
+	@$(HELM) package $(HELM_CHART_DIR) --destination $(HELM_CHART_PACKAGE_DIR)
+	@echo "[INFO] Helm chart packaged successfully"
+
+.PHONY: helm-chart-lint
+helm-chart-lint: helm ## Lint the Helm chart
+	@echo "[INFO] Linting Helm chart..."
+	@$(HELM) lint $(HELM_CHART_DIR)
+
+.PHONY: helm-chart-template
+helm-chart-template: helm ## Generate Kubernetes manifests from the Helm chart
+	@echo "[INFO] Generating manifests from Helm chart..."
+	@$(HELM) template zxporter $(HELM_CHART_DIR) \
+		--namespace devzero-zxporter \
+		--output-dir $(DIST_DIR)/helm-manifests
+
+.PHONY: helm-chart-install
+helm-chart-install: helm-chart-build ## Install the Helm chart locally for testing
+	@echo "[INFO] Installing Helm chart locally..."
+	@$(HELM) upgrade --install zxporter $(HELM_CHART_DIR) \
+		--namespace devzero-zxporter \
+		--create-namespace \
+		--wait
+
+.PHONY: helm-chart-install-minimal
+helm-chart-install-minimal: helm-chart-build ## Install only zxporter without monitoring components
+	@echo "[INFO] Installing minimal zxporter chart (no monitoring)..."
+	@$(HELM) upgrade --install zxporter $(HELM_CHART_DIR) \
+		--namespace devzero-zxporter \
+		--create-namespace \
+		--set monitoring.enabled=false \
+		--set zxporter.prometheusUrl="$(PROMETHEUS_URL)" \
+		--wait
+
+.PHONY: helm-chart-uninstall
+helm-chart-uninstall: helm ## Uninstall the Helm chart
+	@echo "[INFO] Uninstalling Helm chart..."
+	@$(HELM) uninstall zxporter --namespace devzero-zxporter || true
+
+.PHONY: helm-chart-push
+helm-chart-push: helm-chart-build ## Push Helm chart to OCI registry (requires HELM_REGISTRY)
+ifndef HELM_REGISTRY
+	@echo "[ERROR] HELM_REGISTRY is not set. Please set it to your OCI registry URL (e.g., oci://ghcr.io/myorg/helm-charts)"
+	@exit 1
+endif
+	@echo "[INFO] Pushing Helm chart to $(HELM_REGISTRY)..."
+	@$(HELM) push $(HELM_CHART_PACKAGE_DIR)/zxporter-$(VERSION).tgz $(HELM_REGISTRY)
+
+.PHONY: helm-chart-clean
+helm-chart-clean: ## Clean Helm chart build artifacts
+	@echo "[INFO] Cleaning Helm chart artifacts..."
+	@rm -rf $(HELM_CHART_PACKAGE_DIR)
+	@rm -rf $(DIST_DIR)/helm-manifests
+
 ##@ Deployment
 
 ifndef ignore-not-found
