@@ -1,0 +1,83 @@
+{{- if .Values.monitoring.enabled }}
+{{- if .Values.monitoring.prometheus.enabled }}
+# Source: prometheus/charts/kube-state-metrics/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus-kube-state-metrics
+  namespace: {{ .Values.namespace }}
+  labels:
+    helm.sh/chart: kube-state-metrics-5.33.2
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: metrics
+    app.kubernetes.io/part-of: kube-state-metrics
+    app.kubernetes.io/name: kube-state-metrics
+    app.kubernetes.io/instance: prometheus
+    app.kubernetes.io/version: "2.15.0"
+  annotations:
+    prometheus.io/scrape: 'true'
+spec:
+  type: "ClusterIP"
+  ports:
+    - name: "http"
+      protocol: TCP
+      port: 8080
+      targetPort: 8080
+  selector:
+    app.kubernetes.io/name: kube-state-metrics
+    app.kubernetes.io/instance: prometheus
+---
+# Source: prometheus/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/component: server
+    app.kubernetes.io/name: dz-prometheus
+    app.kubernetes.io/instance: prometheus
+    app.kubernetes.io/version: v3.4.1
+    helm.sh/chart: prometheus-27.20.0
+    app.kubernetes.io/part-of: dz-prometheus
+  name: prometheus-dz-prometheus-server
+  namespace: {{ .Values.namespace }}
+spec:
+  ports:
+    - name: http
+      port: 80
+      protocol: TCP
+      targetPort: 9090
+  selector:
+    app.kubernetes.io/component: server
+    app.kubernetes.io/name: dz-prometheus
+    app.kubernetes.io/instance: prometheus
+  sessionAffinity: None
+  type: "ClusterIP"
+---
+# Source: prometheus-node-exporter/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: dz-prometheus-node-exporter
+  namespace: {{ .Values.namespace }}
+  labels:
+    helm.sh/chart: prometheus-node-exporter-4.47.0
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: metrics
+    app.kubernetes.io/part-of: dz-prometheus-node-exporter
+    app.kubernetes.io/name: dz-prometheus-node-exporter
+    app.kubernetes.io/instance: node-exporter
+    app.kubernetes.io/version: "1.9.1"
+  annotations:
+    prometheus.io/scrape: "true"
+spec:
+  type: ClusterIP
+  ports:
+    - port: 9101
+      targetPort: 9101
+      protocol: TCP
+      name: metrics
+  selector:
+    app.kubernetes.io/name: dz-prometheus-node-exporter
+    app.kubernetes.io/instance: node-exporter
+{{- end }}
+{{- end }}
