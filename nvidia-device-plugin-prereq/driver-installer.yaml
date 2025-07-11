@@ -1,0 +1,81 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: nvidia-driver-installer
+  namespace: nvidia-device-plugin
+spec:
+  selector:
+    matchLabels:
+      name: nvidia-driver-installer
+  template:
+    metadata:
+      labels:
+        name: nvidia-driver-installer
+    spec:
+      hostPID: true
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
+        - key: CriticalAddonsOnly
+          operator: Exists
+        - key: node-role.kubernetes.io/control-plane
+          effect: NoSchedule
+        - key: node-role.kubernetes.io/master
+          effect: NoSchedule
+      nodeSelector:
+        nvidia.com/gpu.present: "true"
+      containers:
+      - name: driver-installer
+        image: nvcr.io/nvidia/cloud-native/k8s-driver-manager:v0.8.0
+        securityContext:
+          privileged: true
+        env:
+          - name: NVIDIA_DRIVER_VERSION
+            value: "535.129.03"  # or the version you require
+          - name: NODE_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: spec.nodeName
+        volumeMounts:
+          - name: root
+            mountPath: /host
+            mountPropagation: Bidirectional
+          - name: modules
+            mountPath: /lib/modules
+            readOnly: true
+          - name: nvidia-local
+            mountPath: /host/usr/local/nvidia
+      - name: fix-dcgm-dir
+        image: amazonlinux:2023
+        securityContext:
+          privileged: true
+        command: ["/bin/bash", "-c"]
+        args:
+          - |
+            set -ex
+            TARGET_DIR="/host/usr/local/nvidia"
+            # If it doesn't exist, symlink something useful
+            if [ ! -d "$TARGET_DIR" ]; then
+              mkdir -p /host/usr/local
+              ln -s /usr/lib64 "$TARGET_DIR"
+            fi
+            echo "/usr/local/nvidia set up for DCGM."
+            sleep 10
+        volumeMounts:
+          - name: nvidia-local
+            mountPath: /host/usr/local/nvidia
+          - name: root
+            mountPath: /host
+            mountPropagation: Bidirectional
+      volumes:
+        - name: root
+          hostPath:
+            path: /
+        - name: modules
+          hostPath:
+            path: /lib/modules
+        - name: nvidia-local
+          hostPath:
+            path: /usr/local/nvidia
+            type: DirectoryOrCreate
