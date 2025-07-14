@@ -1,9 +1,6 @@
 name: Release Helm Chart
 
 on:
-  push:
-    branches:
-      - garvit/helm-release-ci
   workflow_dispatch:
     inputs:
       version_change:
@@ -37,13 +34,6 @@ jobs:
       uses: azure/setup-helm@v4
       with:
         version: '3.12.3'
-    
-    - name: Log in to Docker Hub
-      uses: docker/login-action@v3
-      with:
-        registry: ${{ env.REGISTRY }}
-        username: ${{ secrets.DOCKERHUB_ZXPORTER_BALANCE_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_ZXPORTER_BALANCE_TOKEN }}
 
     - name: Install yq
       run: |
