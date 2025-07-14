@@ -1939,9 +1939,9 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 		if c.collector.IsAvailable(context.Background()) {
 			logger.Info("Registering collector", "name", c.name.String())
 			if err := r.CollectionManager.RegisterCollector(c.collector); err != nil {
-				logger.Error(err, "Failed to register collector", "collector", c.name)
+				logger.Error(err, "Failed to register collector", "collector", c.name.String())
 			} else {
-				logger.Info("Registered collector", "collector", c.name)
+				logger.Info("Registered collector", "collector", c.name.String())
 			}
 		}
 	}
