@@ -4,6 +4,7 @@ package collector
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -170,7 +171,14 @@ func (m *CollectionManager) StartAll(ctx context.Context) error {
 		return fmt.Errorf("collection manager already started")
 	}
 
-	m.logger.Info("Starting all collectors", "count", len(m.collectors))
+	var collectorTypes []string
+	for _, collector := range m.collectors {
+		collectorTypes = append(collectorTypes, collector.GetType())
+	}
+
+	m.logger.Info("Starting all collectors",
+		"count", len(m.collectors),
+		"collector_types", strings.Join(collectorTypes, ", "))
 
 	// Start each collector in its own goroutine
 	for collectorType, collector := range m.collectors {
