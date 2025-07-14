@@ -1926,6 +1926,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				config.ExcludedNodes,
 				logger,
 			),
+			name: collector.ClusterSnapshot,
 		},
 	}
 
