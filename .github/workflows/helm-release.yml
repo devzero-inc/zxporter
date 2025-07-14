@@ -117,12 +117,20 @@ jobs:
           --app-version ${{ steps.bump_version.outputs.new_version }} \
           --destination helm-chart/packages
 
+        PUSH_LATEST="${{ github.event.inputs.push_latest || 'false' }}"
+        if [[ "$PUSH_LATEST" == "true" ]]; then
+          helm package helm-chart/zxporter \
+            --version latest \
+            --app-version ${{ steps.bump_version.outputs.new_version }} \
+            --destination helm-chart/packages
+        fi
+
     - name: Push Helm chart to Docker Hub OCI registry
       run: |
         helm push helm-chart/packages/zxporter-${{ steps.bump_version.outputs.new_version }}.tgz \
-          oci://${{ env.REGISTRY }}/${{ env.ORG }}/${{ env.CHART_NAME }}
+          oci://${{ env.REGISTRY }}/${{ env.ORG }}
         PUSH_LATEST="${{ github.event.inputs.push_latest || 'false' }}"
         if [[ "$PUSH_LATEST" == "true" ]]; then
-          helm push helm-chart/packages/zxporter-${{ steps.bump_version.outputs.new_version }}.tgz \
-            oci://${{ env.REGISTRY }}/${{ env.ORG }}/${{ env.CHART_NAME }} --version latest
+          helm push helm-chart/packages/zxporter-latest.tgz \
+            oci://${{ env.REGISTRY }}/${{ env.ORG }}
         fi
