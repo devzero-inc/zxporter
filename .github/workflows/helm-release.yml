@@ -15,12 +15,6 @@ on:
           - major
           - minor
           - patch
-      push_latest:
-        description: 'Also push as latest'
-        required: false
-        type: boolean
-        default: false
-
 env:
   REGISTRY: registry-1.docker.io
   CHART_NAME: zxporter
@@ -49,6 +43,13 @@ jobs:
         registry: ${{ env.REGISTRY }}
         username: ${{ secrets.DOCKERHUB_ZXPORTER_BALANCE_USERNAME }}
         password: ${{ secrets.DOCKERHUB_ZXPORTER_BALANCE_TOKEN }}
+
+    - name: Helm registry login
+      run: |
+        echo "${{ secrets.DOCKERHUB_ZXPORTER_BALANCE_TOKEN }}" | \
+          helm registry login registry-1.docker.io \
+            --username "${{ secrets.DOCKERHUB_ZXPORTER_BALANCE_USERNAME }}" \
+            --password-stdin
 
     - name: Enable Helm OCI support
       run: echo "HELM_EXPERIMENTAL_OCI=1" >> $GITHUB_ENV
@@ -117,20 +118,7 @@ jobs:
           --app-version ${{ steps.bump_version.outputs.new_version }} \
           --destination helm-chart/packages
 
-        PUSH_LATEST="${{ github.event.inputs.push_latest || 'false' }}"
-        if [[ "$PUSH_LATEST" == "true" ]]; then
-          helm package helm-chart/zxporter \
-            --version latest \
-            --app-version ${{ steps.bump_version.outputs.new_version }} \
-            --destination helm-chart/packages
-        fi
-
     - name: Push Helm chart to Docker Hub OCI registry
       run: |
         helm push helm-chart/packages/zxporter-${{ steps.bump_version.outputs.new_version }}.tgz \
           oci://${{ env.REGISTRY }}/${{ env.ORG }}
-        PUSH_LATEST="${{ github.event.inputs.push_latest || 'false' }}"
-        if [[ "$PUSH_LATEST" == "true" ]]; then
-          helm push helm-chart/packages/zxporter-latest.tgz \
-            oci://${{ env.REGISTRY }}/${{ env.ORG }}
-        fi
