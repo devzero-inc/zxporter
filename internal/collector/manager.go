@@ -186,6 +186,7 @@ func (m *CollectionManager) StartAll(ctx context.Context) error {
 			m.logger.Error(err, "Failed to start collector", "type", collectorType)
 			return fmt.Errorf("failed to start collector %s: %w", collectorType, err)
 		}
+		m.logger.Info("successfully started collector", "type", collector.GetType())
 	}
 
 	m.started = true
