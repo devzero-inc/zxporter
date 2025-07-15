@@ -1903,7 +1903,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				collector.DefaultMaxBatchTime,
 				logger,
 			),
-			name: collector.KedaScaledObject,
+			name: collector.KedaScaledJob,
 		},
 		{
 			collector: collector.NewScaledObjectCollector(
@@ -1914,7 +1914,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				collector.DefaultMaxBatchTime,
 				logger,
 			),
-			name: collector.KedaScaledJob,
+			name: collector.KedaScaledObject,
 		},
 		{
 			collector: snap.NewClusterSnapshotter(
@@ -1926,6 +1926,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				config.ExcludedNodes,
 				logger,
 			),
+			name: collector.ClusterSnapshot,
 		},
 	}
 
@@ -1938,9 +1939,9 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 		if c.collector.IsAvailable(context.Background()) {
 			logger.Info("Registering collector", "name", c.name.String())
 			if err := r.CollectionManager.RegisterCollector(c.collector); err != nil {
-				logger.Error(err, "Failed to register collector", "collector", c.name)
+				logger.Error(err, "Failed to register collector", "collector", c.name.String())
 			} else {
-				logger.Info("Registered collector", "collector", c.name)
+				logger.Info("Registered collector", "collector", c.name.String())
 			}
 		}
 	}

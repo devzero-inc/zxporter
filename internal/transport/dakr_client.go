@@ -313,6 +313,7 @@ func (c *RealDakrClient) SendClusterSnapshot(ctx context.Context, snapshotData i
 	var dataStruct *structpb.Struct
 	var err error
 
+	// TODO (parthiba): change this to send a []byte instead -- structs are way too bloated to send over the wire
 	dataStruct, err = structpb.NewStruct(map[string]interface{}{})
 	if err != nil {
 		c.logger.Error(err, "Failed to create empty struct for cluster snapshot")

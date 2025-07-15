@@ -1,6 +1,7 @@
 package collector
 
 import (
+	"math"
 	"sync"
 	"time"
 
@@ -8,15 +9,19 @@ import (
 )
 
 const (
-	// DefaultMaxBatchSize is the default maximum number of resources in a batch.
-	DefaultMaxBatchSize = 50
+	// DefaultBatchSize is the default maximum number of resources in a batch.
+	DefaultBatchSize = 50
+
+	// DefaultMaxBatchSize is the maximum number the batch size will grow to.
+	DefaultMaxBatchSize = 1000
+
 	// DefaultMaxBatchTime is the default maximum time duration before sending a batch.
 	DefaultMaxBatchTime = 5 * time.Second
 )
 
 // ResourcesBatcher handles batching of CollectedResource items.
 type ResourcesBatcher struct {
-	maxBatchSize int
+	batchSize    int
 	maxBatchTime time.Duration
 	inputChan    <-chan CollectedResource
 	outBatchChan chan<- []CollectedResource
@@ -27,20 +32,20 @@ type ResourcesBatcher struct {
 
 // NewResourcesBatcher creates a new ResourcesBatcher.
 func NewResourcesBatcher(
-	maxBatchSize int,
+	batchSize int,
 	maxBatchTime time.Duration,
 	inputChan <-chan CollectedResource,
 	outBatchChan chan<- []CollectedResource,
 	logger logr.Logger,
 ) *ResourcesBatcher {
-	if maxBatchSize <= 0 {
-		maxBatchSize = DefaultMaxBatchSize
+	if batchSize <= 0 {
+		batchSize = DefaultBatchSize
 	}
 	if maxBatchTime <= 0 {
 		maxBatchTime = DefaultMaxBatchTime
 	}
 	return &ResourcesBatcher{
-		maxBatchSize: maxBatchSize,
+		batchSize:    batchSize,
 		maxBatchTime: maxBatchTime,
 		inputChan:    inputChan,
 		outBatchChan: outBatchChan,
@@ -60,7 +65,7 @@ func (b *ResourcesBatcher) start() {
 			b.wg.Done()
 		}()
 
-		batch := make([]CollectedResource, 0, b.maxBatchSize)
+		batch := make([]CollectedResource, 0, b.batchSize)
 		ticker := time.NewTicker(b.maxBatchTime)
 		defer ticker.Stop() // Ensure ticker is stopped eventually
 
@@ -78,10 +83,16 @@ func (b *ResourcesBatcher) start() {
 					break loop        // Exit the main select loop to send final batch
 				}
 				batch = append(batch, resource)
-				if len(batch) >= b.maxBatchSize {
+				if len(batch) >= b.batchSize {
 					b.logger.Info("Sending batch due to size limit", "batchSize", len(batch))
 					b.outBatchChan <- batch
-					batch = make([]CollectedResource, 0, b.maxBatchSize) // Reset batch
+
+					// increase the batch size cuz last batch size limit was hit, but always cap at DefaultMaxBatchSize
+					newBatchSize := int(math.Min(DefaultMaxBatchSize, 1.5*float64(b.batchSize)))
+					b.logger.Info("Batch size resizing due to size limit being hit", "old", b.batchSize, "new", newBatchSize)
+					b.batchSize = newBatchSize
+
+					batch = make([]CollectedResource, 0, b.batchSize) // Reset batch
 					// Reset the timer only when a batch is sent due to size
 					// to ensure the time limit applies correctly to the *new* batch.
 					ticker.Reset(b.maxBatchTime)
@@ -91,7 +102,13 @@ func (b *ResourcesBatcher) start() {
 				if len(batch) > 0 {
 					b.logger.Info("Sending batch due to time limit", "batchSize", len(batch))
 					b.outBatchChan <- batch
-					batch = make([]CollectedResource, 0, b.maxBatchSize) // Reset batch
+
+					// decrease the batch size cuz last batch time limit was hit, but always cap at DefaultBatchSize
+					newBatchSize := int(math.Max(DefaultBatchSize, 0.8*float64(b.batchSize)))
+					b.logger.Info("Batch size resizing due to time limit being hit", "old", b.batchSize, "new", newBatchSize)
+					b.batchSize = newBatchSize
+
+					batch = make([]CollectedResource, 0, b.batchSize) // Reset batch
 				}
 				// Timer resets automatically after read, no need for explicit Reset here.
 			}
@@ -108,10 +125,10 @@ func (b *ResourcesBatcher) start() {
 			ticker.Stop()
 			for resource := range b.inputChan { // Reads until channel is closed and empty
 				batch = append(batch, resource)
-				if len(batch) >= b.maxBatchSize {
+				if len(batch) >= b.batchSize {
 					b.logger.Info("Sending batch due to size limit during drain", "batchSize", len(batch))
 					b.outBatchChan <- batch
-					batch = make([]CollectedResource, 0, b.maxBatchSize) // Reset batch
+					batch = make([]CollectedResource, 0, b.batchSize) // Reset batch
 				}
 			}
 			b.logger.Info("Input channel drained")
