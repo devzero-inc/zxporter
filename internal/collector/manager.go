@@ -3,6 +3,7 @@ package collector
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -182,11 +183,24 @@ func (m *CollectionManager) StartAll(ctx context.Context) error {
 
 	// Start each collector in its own goroutine
 	for collectorType, collector := range m.collectors {
-		if err := m.startCollectorInternal(ctx, collectorType, collector); err != nil {
-			m.logger.Error(err, "Failed to start collector", "type", collectorType)
-			return fmt.Errorf("failed to start collector %s: %w", collectorType, err)
-		}
-		m.logger.Info("successfully started collector", "type", collector.GetType())
+		go func(collectorType string, collector ResourceCollector) {
+			errCh := make(chan error, 1)
+
+			go func() {
+				errCh <- m.startCollectorInternal(collectorType, collector)
+			}()
+
+			select {
+			case err := <-errCh:
+				if err != nil {
+					m.logger.Info("Failed to start collector", "type", collectorType, "error", err.Error())
+				} else {
+					m.logger.Info("Successfully started collector", "type", collector.GetType())
+				}
+			case <-time.After(10 * time.Second):
+				m.logger.Error(errors.New("timeout"), "Timed out starting collector", "type", collectorType)
+			}
+		}(collectorType, collector)
 	}
 
 	m.started = true
@@ -207,15 +221,15 @@ func (m *CollectionManager) StartCollector(ctx context.Context, collectorType st
 		return fmt.Errorf("collector %s is already running", collectorType)
 	}
 
-	return m.startCollectorInternal(ctx, collectorType, collector)
+	return m.startCollectorInternal(collectorType, collector)
 }
 
 // startCollectorInternal is a helper function to start a collector with appropriate context management
-func (m *CollectionManager) startCollectorInternal(ctx context.Context, collectorType string, collector ResourceCollector) error {
+func (m *CollectionManager) startCollectorInternal(collectorType string, collector ResourceCollector) error {
 	m.logger.Info("Starting collector", "type", collectorType)
 
 	// Create a new context for this collector that can be cancelled individually
-	collectorCtx, cancel := context.WithCancel(ctx)
+	collectorCtx, cancel := context.WithCancel(context.Background())
 	m.collectorCtxs[collectorType] = cancel
 
 	// Make sure the processor wait group exists for this collector
