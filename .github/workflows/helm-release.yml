@@ -135,24 +135,3 @@ jobs:
         add-paths: |
           helm-chart/zxporter/Chart.yaml
 
-    # - name: Create PR in services repo to update Helm version in docs and dashboard
-    #   env:
-    #     GH_TOKEN: ${{ secrets.GH_PAT_SERVICES_REPO }}
-    #     NEW_VERSION: ${{ steps.bump_version.outputs.new_version }}
-    #   run: |
-    #     git config --global user.email "github-actions[bot]@users.noreply.github.com"
-    #     git config --global user.name "github-actions[bot]"
-    #     git clone https://x-access-token:${GH_TOKEN}@github.com/devzeroinc/services.git services-repo
-    #     cd services-repo
-    #     BRANCH="update/zxporter-helm-version-${NEW_VERSION}"
-    #     git checkout -b "$BRANCH"
-    #     sed -i 's/\(helm install zxporter oci:\/\/registry-1\.docker\.io\/devzeroinc\/zxporter --version \)[0-9]\+\.[0-9]\+\.[0-9]\+\( --namespace devzero-zxporter --create-namespace\)/\1${NEW_VERSION}\2/' web/content/docs/k8s-automation/getting-started/step-by-step.mdx
-    #     sed -i 's/\(helm install zxporter oci:\/\/registry-1\.docker\.io\/devzeroinc\/zxporter --version \)[0-9]\+\.[0-9]\+\.[0-9]\+\( --namespace devzero-zxporter --create-namespace\)/\1${NEW_VERSION}\2/' web/app/\(protected\)/dashboard/resource-optimization/_components/ConnectClusterContent.tsx
-    #     git add web/content/docs/k8s-automation/getting-started/step-by-step.mdx web/app/(protected)/dashboard/resource-optimization/_components/ConnectClusterContent.tsx
-    #     git commit -m "docs(helm): update zxporter Helm chart version to ${NEW_VERSION}"
-    #     git push origin "$BRANCH"
-    #     gh pr create --title "docs(helm): update zxporter Helm chart version to ${NEW_VERSION}" \
-    #       --body "This PR updates the zxporter Helm chart version to \`${NEW_VERSION}\` in documentation and dashboard." \
-    #       --head "$BRANCH" --base main
-
-
