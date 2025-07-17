@@ -10,7 +10,7 @@ image:
 # ZXPorter configuration
 zxporter:
   clusterToken: '{{ .cluster_token }}'
-  kubeContextName: ""
+  kubeContextName: '{{ .kube_context_name }}'
   dakrUrl: "https://dakr.devzero.io"
   prometheusUrl: "http://prometheus-dz-prometheus-server.devzero-zxporter.svc.cluster.local:80"
   targetNamespaces: ""
