@@ -1,9 +1,9 @@
 apiVersion: v1
 data:
   BUFFER_SIZE: ""
-  CLUSTER_TOKEN: '{{ .cluster_token }}'
+  CLUSTER_TOKEN: "{{ .Values.zxporter.clusterToken }}"
   COLLECTION_FREQUENCY: ""
-  DAKR_URL: "https://dakr.devzero.io"
+  DAKR_URL: "{{ .Values.zxporter.dakrUrl }}"
   DISABLE_NETWORK_IO_METRICS: ""
   DISABLED_COLLECTORS: ""
   EXCLUDED_CLUSTERROLEBINDINGS: ""
@@ -38,7 +38,7 @@ data:
   EXCLUDED_STORAGECLASSES: ""
   EXCLUDED_VPAS: ""
   K8S_PROVIDER: 'AWS'
-  KUBE_CONTEXT_NAME: 'minikube'
+  KUBE_CONTEXT_NAME: "{{ .Values.zxporter.kubeContextName }}"
   MASK_SECRET_DATA: ""
   NODE_METRICS_INTERVAL: ""
   PROMETHEUS_URL: "{{ .Values.zxporter.prometheusUrl }}"
