@@ -1903,7 +1903,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				collector.DefaultMaxBatchTime,
 				logger,
 			),
-			name: collector.KedaScaledObject,
+			name: collector.KedaScaledJob,
 		},
 		{
 			collector: collector.NewScaledObjectCollector(
@@ -1914,7 +1914,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				collector.DefaultMaxBatchTime,
 				logger,
 			),
-			name: collector.KedaScaledJob,
+			name: collector.KedaScaledObject,
 		},
 		{
 			collector: snap.NewClusterSnapshotter(
