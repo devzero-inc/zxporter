@@ -151,7 +151,7 @@ jobs:
         git checkout -b "$BRANCH"
         file="web/app/(protected)/dashboard/resource-optimization/_components/ConnectClusterContent.tsx"
         sed -i "s|\(helm install zxporter oci://registry-1.docker.io/devzeroinc/zxporter --version \)[0-9]\+\.[0-9]\+\.[0-9]\+\( --namespace devzero-zxporter --create-namespace\)|\1${NEW_VERSION}\2|" "$file"
-        git add web/app/(protected)/dashboard/resource-optimization/_components/ConnectClusterContent.tsx
+        git add "$file"
         git commit -m "web(helm): update zxporter Helm chart version to ${NEW_VERSION}"
         git push origin "$BRANCH"
         gh pr create --title "web(helm): update zxporter Helm chart version to ${NEW_VERSION}" \
