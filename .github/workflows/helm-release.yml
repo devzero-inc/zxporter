@@ -145,7 +145,7 @@ jobs:
       run: |
         git config --global user.email "github-actions[bot]@users.noreply.github.com"
         git config --global user.name "github-actions[bot]"
-        git clone https://x-access-token:${GH_TOKEN}@github.com/devzeroinc/services.git services-repo
+        git clone https://x-access-token:${GH_TOKEN}@github.com/devzero-inc/services.git services-repo
         cd services-repo
         BRANCH="update/zxporter-helm-version-${NEW_VERSION}"
         git checkout -b "$BRANCH"
