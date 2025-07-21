@@ -1,9 +1,6 @@
 name: Release Helm Chart
 
 on:
-  push:
-    branches:
-      - garvit/helm-version-bump
   workflow_dispatch:
     inputs:
       version_change:
