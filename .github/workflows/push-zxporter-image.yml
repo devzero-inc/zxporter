@@ -192,5 +192,105 @@ jobs:
               --build-arg BUILD_DATE=$BUILD_DATE \
               .
           done
-
+          
           echo "Successfully built and pushed all validated tags: ${TAGS[@]}"
+
+  update-helm-values-image-tag-pr:
+    name: Update Helm values image.tag and create PR
+    runs-on: ubuntu-latest
+    needs: [package-and-push] # only do this if all previous steps pass
+    if: ${{ env.IS_RELEASE == 'true' }}
+    steps:
+      - name: Get token that will be used to push branch and create PR
+        id: get_workflow_token
+        uses: peter-murray/workflow-application-token-action@v4
+        with:
+          application_id: ${{ secrets.WORKFLOW_ACTIONS_APP_ID }}
+          application_private_key: ${{ secrets.WORKFLOW_ACTIONS_PEM }}
+          organization: devzero-inc
+          permissions: "contents:write, pull_requests:write"
+
+      - name: Checkout repo
+        uses: actions/checkout@v3
+        with:
+          repository: devzero-inc/zxporter
+          path: zxporter-tmp
+          token: ${{ steps.get_workflow_token.outputs.token }}
+      
+      - name: Update image.tag in values.yaml
+        run: |
+          NEW_TAG="${{ env.FULLV }}"
+          # on mac: sed -i '' "s/^  tag: .*/  tag: \"$NEW_TAG\"/" zxporter-tmp/helm-chart/zxporter/values.yaml
+          sed -i.bak "s/^  tag: .*/  tag: \"$NEW_TAG\"/" zxporter-tmp/helm-chart/zxporter/values.yaml
+          rm zxporter-tmp/helm-chart/zxporter/values.yaml.bak || true
+      
+      - name: Check if there are changes
+        id: changes
+        run: |
+          cd zxporter-tmp
+          if git diff --exit-code; then
+            echo "No changes"
+            echo "changes=false" >> $GITHUB_OUTPUT
+          else
+            echo "Changes"
+            echo "changes=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create branch, commit, and push if changes exist
+        if: steps.changes.outputs.changes == 'true'
+        env:
+          GITHUB_TOKEN: ${{ steps.get_workflow_token.outputs.token }}
+        run: |
+          cd zxporter-tmp
+          git config --global user.name "github-actions-dzbot"
+          git config --global user.email "github-actions@github.com"
+          
+          branch="update-zxporter-op-helm-${{ env.FULLV }}"
+          git checkout -b "$branch"
+
+          # Check if anything in target paths actually changed
+          if git diff --quiet helm/*; then
+            echo "No changes to commit. Skipping push and PR."
+            echo "SHOULD_CREATE_PR=false" >> $GITHUB_ENV
+          else
+            git add helm/*
+            git commit -m "update image.tag in Helm values.yaml to ${{ env.FULLV }}"
+            git push origin "$branch"
+            echo "SHOULD_CREATE_PR=true" >> $GITHUB_ENV
+          fi
+
+      - name: Open Pull Request
+        if: env.SHOULD_CREATE_PR == 'true'
+        env:
+          GITHUB_TOKEN: ${{ steps.get_workflow_token.outputs.token }}
+        run: |
+          pr_url=$(gh pr create \
+            --title "update image.tag in Helm values.yaml to ${{ env.FULLV }}" \
+            --body "This PR updates the value for 'image.tag' in the helm chart to '${{ env.FULLV }}'." \
+            --head "update-zxporter-op-helm-${{ env.FULLV }}" \
+            --base main)
+          echo "PR_URL=${pr_url}" >> $GITHUB_ENV
+
+      - name: Checkout services repo for access to private Slack actions
+        uses: actions/checkout@v4
+        with:
+          repository: devzero-inc/services
+          token: ${{ steps.get_workflow_token.outputs.token }}
+          path: services
+          ref: main
+          fetch-depth: 1
+
+      - name: Notify Slack on failure
+        uses: ./services/.github/actions/slack-notify-failure
+        if: always()
+        with:
+          slack_bot_token: ${{ secrets.SLACK_BOT_TOKEN }}
+          workflow_name: ${{ inputs.workflow_name || 'Update zxporter operator/agent helm chart' }}
+
+      - name: Notify Slack on success
+        uses: ./services/.github/actions/slack-notify-success
+        if: env.SHOULD_CREATE_PR == 'true'
+        with:
+          slack_bot_token: ${{ secrets.SLACK_BOT_TOKEN }}
+          workflow_name: ${{ inputs.workflow_name || 'Update zxporter operator/agent helm chart' }}
+          pr_url: ${{ env.PR_URL }}
