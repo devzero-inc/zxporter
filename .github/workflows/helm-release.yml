@@ -1,6 +1,9 @@
 name: Release Helm Chart
 
 on:
+  push:
+    branches:
+      - garvit/helm-version-bump
   workflow_dispatch:
     inputs:
       version_change:
@@ -134,4 +137,24 @@ jobs:
         branch: "update/chart-version-${{ steps.bump_version.outputs.new_version }}"
         add-paths: |
           helm-chart/zxporter/Chart.yaml
+
+    - name: Create PR in services repo to update Helm version in docs and dashboard
+      env:
+        GH_TOKEN: ${{ secrets.GH_BOT_TOKEN }}
+        NEW_VERSION: ${{ steps.bump_version.outputs.new_version }}
+      run: |
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+        git config --global user.name "github-actions[bot]"
+        git clone https://x-access-token:${GH_TOKEN}@github.com/devzeroinc/services.git services-repo
+        cd services-repo
+        BRANCH="update/zxporter-helm-version-${NEW_VERSION}"
+        git checkout -b "$BRANCH"
+        file="web/app/(protected)/dashboard/resource-optimization/_components/ConnectClusterContent.tsx"
+        sed -i "s|\(helm install zxporter oci://registry-1.docker.io/devzeroinc/zxporter --version \)[0-9]\+\.[0-9]\+\.[0-9]\+\( --namespace devzero-zxporter --create-namespace\)|\1${NEW_VERSION}\2|" "$file"
+        git add web/app/(protected)/dashboard/resource-optimization/_components/ConnectClusterContent.tsx
+        git commit -m "web(helm): update zxporter Helm chart version to ${NEW_VERSION}"
+        git push origin "$BRANCH"
+        gh pr create --title "web(helm): update zxporter Helm chart version to ${NEW_VERSION}" \
+          --body "This PR updates the zxporter Helm chart version to \`${NEW_VERSION}\` in dashboard." \
+          --head "$BRANCH" --base main
 
