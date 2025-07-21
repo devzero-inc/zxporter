@@ -20,6 +20,8 @@ jobs:
   package-and-push:
     name: Package & Push Docker image
     runs-on: ubuntu-latest
+    outputs:
+      is_release: ${{ steps.version.outputs.is_release }}
 
     steps:
       - name: Checkout Code Repository
@@ -48,12 +50,14 @@ jobs:
 
             echo "Debug: MAJOR=${BASH_REMATCH[1]}, MINOR=${BASH_REMATCH[2]}, PATCH=${PATCH}, PATCH_SHORT=${PATCH_SHORT}"
             echo "Debug: FULLV=${FULLV}"
+            echo "is_release=${IS_RELEASE}" >> $GITHUB_OUTPUT
           else
             echo "MAJOR=0" >> $GITHUB_ENV
             echo "MINOR=0" >> $GITHUB_ENV
             echo "PATCH=0" >> $GITHUB_ENV
             echo "FULLV=v0.0.0" >> $GITHUB_ENV
             echo "IS_RELEASE=false" >> $GITHUB_ENV
+            echo "is_release=false" >> $GITHUB_OUTPUT
           fi
 
       - name: Log in to Docker Hub
@@ -199,7 +203,7 @@ jobs:
     name: Update Helm values image.tag and create PR
     runs-on: ubuntu-latest
     needs: [package-and-push] # only do this if all previous steps pass
-    if: ${{ env.IS_RELEASE == 'true' }}
+    if: ${{ needs.package-and-push.outputs.is_release == 'true' }}
     steps:
       - name: Get token that will be used to push branch and create PR
         id: get_workflow_token
