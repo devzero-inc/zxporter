@@ -1,7 +1,7 @@
 apiVersion: v1
 data:
   BUFFER_SIZE: ""
-  CLUSTER_TOKEN: '{{ .cluster_token }}'
+  CLUSTER_TOKEN: "{{ .Values.zxporter.clusterToken }}"
   COLLECTION_FREQUENCY: ""
   DAKR_URL: "https://dakr.devzero.io"
   DISABLE_NETWORK_IO_METRICS: ""
