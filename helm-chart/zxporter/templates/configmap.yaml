@@ -37,8 +37,8 @@ data:
   EXCLUDED_STATEFULSETS: ""
   EXCLUDED_STORAGECLASSES: ""
   EXCLUDED_VPAS: ""
-  K8S_PROVIDER: 'AWS'
-  KUBE_CONTEXT_NAME: 'minikube'
+  K8S_PROVIDER: "{{ .Values.zxporter.k8sProvider }}"
+  KUBE_CONTEXT_NAME: "{{ .Values.zxporter.kubeContextName }}"
   MASK_SECRET_DATA: ""
   NODE_METRICS_INTERVAL: ""
   PROMETHEUS_URL: "{{ .Values.zxporter.prometheusUrl }}"
