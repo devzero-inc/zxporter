@@ -19,10 +19,11 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	MetricsCollectorService_SendResource_FullMethodName         = "/api.v1.MetricsCollectorService/SendResource"
-	MetricsCollectorService_SendResourceBatch_FullMethodName    = "/api.v1.MetricsCollectorService/SendResourceBatch"
-	MetricsCollectorService_SendTelemetryMetrics_FullMethodName = "/api.v1.MetricsCollectorService/SendTelemetryMetrics"
-	MetricsCollectorService_SendClusterSnapshot_FullMethodName  = "/api.v1.MetricsCollectorService/SendClusterSnapshot"
+	MetricsCollectorService_SendResource_FullMethodName              = "/api.v1.MetricsCollectorService/SendResource"
+	MetricsCollectorService_SendResourceBatch_FullMethodName         = "/api.v1.MetricsCollectorService/SendResourceBatch"
+	MetricsCollectorService_SendTelemetryMetrics_FullMethodName      = "/api.v1.MetricsCollectorService/SendTelemetryMetrics"
+	MetricsCollectorService_SendClusterSnapshot_FullMethodName       = "/api.v1.MetricsCollectorService/SendClusterSnapshot"
+	MetricsCollectorService_SendClusterSnapshotStream_FullMethodName = "/api.v1.MetricsCollectorService/SendClusterSnapshotStream"
 )
 
 // MetricsCollectorServiceClient is the client API for MetricsCollectorService service.
@@ -37,6 +38,8 @@ type MetricsCollectorServiceClient interface {
 	SendTelemetryMetrics(ctx context.Context, in *SendTelemetryMetricsRequest, opts ...grpc.CallOption) (*SendTelemetryMetricsResponse, error)
 	// SendClusterSnapshot processes cluster snapshot data for resource deletion tracking.
 	SendClusterSnapshot(ctx context.Context, in *SendClusterSnapshotRequest, opts ...grpc.CallOption) (*SendClusterSnapshotResponse, error)
+	// SendClusterSnapshotStream processes cluster snapshot data in chunks via streaming
+	SendClusterSnapshotStream(ctx context.Context, opts ...grpc.CallOption) (MetricsCollectorService_SendClusterSnapshotStreamClient, error)
 }
 
 type metricsCollectorServiceClient struct {
@@ -83,6 +86,40 @@ func (c *metricsCollectorServiceClient) SendClusterSnapshot(ctx context.Context,
 	return out, nil
 }
 
+func (c *metricsCollectorServiceClient) SendClusterSnapshotStream(ctx context.Context, opts ...grpc.CallOption) (MetricsCollectorService_SendClusterSnapshotStreamClient, error) {
+	stream, err := c.cc.NewStream(ctx, &MetricsCollectorService_ServiceDesc.Streams[0], MetricsCollectorService_SendClusterSnapshotStream_FullMethodName, opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &metricsCollectorServiceSendClusterSnapshotStreamClient{stream}
+	return x, nil
+}
+
+type MetricsCollectorService_SendClusterSnapshotStreamClient interface {
+	Send(*ClusterSnapshotChunk) error
+	CloseAndRecv() (*SendClusterSnapshotStreamResponse, error)
+	grpc.ClientStream
+}
+
+type metricsCollectorServiceSendClusterSnapshotStreamClient struct {
+	grpc.ClientStream
+}
+
+func (x *metricsCollectorServiceSendClusterSnapshotStreamClient) Send(m *ClusterSnapshotChunk) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *metricsCollectorServiceSendClusterSnapshotStreamClient) CloseAndRecv() (*SendClusterSnapshotStreamResponse, error) {
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	m := new(SendClusterSnapshotStreamResponse)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // MetricsCollectorServiceServer is the server API for MetricsCollectorService service.
 // All implementations must embed UnimplementedMetricsCollectorServiceServer
 // for forward compatibility
@@ -95,6 +132,8 @@ type MetricsCollectorServiceServer interface {
 	SendTelemetryMetrics(context.Context, *SendTelemetryMetricsRequest) (*SendTelemetryMetricsResponse, error)
 	// SendClusterSnapshot processes cluster snapshot data for resource deletion tracking.
 	SendClusterSnapshot(context.Context, *SendClusterSnapshotRequest) (*SendClusterSnapshotResponse, error)
+	// SendClusterSnapshotStream processes cluster snapshot data in chunks via streaming
+	SendClusterSnapshotStream(MetricsCollectorService_SendClusterSnapshotStreamServer) error
 	mustEmbedUnimplementedMetricsCollectorServiceServer()
 }
 
@@ -113,6 +152,9 @@ func (UnimplementedMetricsCollectorServiceServer) SendTelemetryMetrics(context.C
 }
 func (UnimplementedMetricsCollectorServiceServer) SendClusterSnapshot(context.Context, *SendClusterSnapshotRequest) (*SendClusterSnapshotResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SendClusterSnapshot not implemented")
+}
+func (UnimplementedMetricsCollectorServiceServer) SendClusterSnapshotStream(MetricsCollectorService_SendClusterSnapshotStreamServer) error {
+	return status.Errorf(codes.Unimplemented, "method SendClusterSnapshotStream not implemented")
 }
 func (UnimplementedMetricsCollectorServiceServer) mustEmbedUnimplementedMetricsCollectorServiceServer() {
 }
@@ -200,6 +242,32 @@ func _MetricsCollectorService_SendClusterSnapshot_Handler(srv interface{}, ctx c
 	return interceptor(ctx, in, info, handler)
 }
 
+func _MetricsCollectorService_SendClusterSnapshotStream_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(MetricsCollectorServiceServer).SendClusterSnapshotStream(&metricsCollectorServiceSendClusterSnapshotStreamServer{stream})
+}
+
+type MetricsCollectorService_SendClusterSnapshotStreamServer interface {
+	SendAndClose(*SendClusterSnapshotStreamResponse) error
+	Recv() (*ClusterSnapshotChunk, error)
+	grpc.ServerStream
+}
+
+type metricsCollectorServiceSendClusterSnapshotStreamServer struct {
+	grpc.ServerStream
+}
+
+func (x *metricsCollectorServiceSendClusterSnapshotStreamServer) SendAndClose(m *SendClusterSnapshotStreamResponse) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func (x *metricsCollectorServiceSendClusterSnapshotStreamServer) Recv() (*ClusterSnapshotChunk, error) {
+	m := new(ClusterSnapshotChunk)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // MetricsCollectorService_ServiceDesc is the grpc.ServiceDesc for MetricsCollectorService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -224,6 +292,12 @@ var MetricsCollectorService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _MetricsCollectorService_SendClusterSnapshot_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "SendClusterSnapshotStream",
+			Handler:       _MetricsCollectorService_SendClusterSnapshotStream_Handler,
+			ClientStreams: true,
+		},
+	},
 	Metadata: "api/v1/metrics_collector.proto",
 }

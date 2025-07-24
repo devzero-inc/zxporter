@@ -238,6 +238,48 @@ message SendClusterSnapshotResponse {
   string status = 3;
 }
 
+// ClusterSnapshotChunk represents a chunk of cluster snapshot data
+message ClusterSnapshotChunk {
+  // Unique identifier for the cluster
+  string cluster_id = 1;
+
+  // Team ID that owns the cluster
+  string team_id = 2;
+
+  // Timestamp when the snapshot was taken
+  google.protobuf.Timestamp timestamp = 3;
+
+  // Unique identifier for this snapshot (same across all chunks)
+  string snapshot_id = 4;
+
+  // Chunk sequence number (starting from 0)
+  int32 chunk_number = 5;
+
+  // Total number of chunks in this snapshot
+  int32 total_chunks = 6;
+
+  // The chunk data as bytes
+  bytes chunk_data = 7;
+
+  // Indicates if this is the final chunk
+  bool is_final_chunk = 8;
+}
+
+// Response for streaming cluster snapshot submission
+message SendClusterSnapshotStreamResponse {
+  // Unique identifier for the cluster
+  string cluster_id = 1;
+
+  // Unique identifier for the processed snapshot
+  string snapshot_id = 2;
+
+  // Status message
+  string status = 3;
+
+  // Number of chunks received
+  int32 chunks_received = 4;
+}
+
 // Defines the service that provides RPC methods for Kubernetes cluster monitoring metrics collector.
 service MetricsCollectorService {
   // SendResource pushes a single metric for a resource.
@@ -251,4 +293,7 @@ service MetricsCollectorService {
   
   // SendClusterSnapshot processes cluster snapshot data for resource deletion tracking.
   rpc SendClusterSnapshot(SendClusterSnapshotRequest) returns (SendClusterSnapshotResponse);
+
+  // SendClusterSnapshotStream processes cluster snapshot data in chunks via streaming
+  rpc SendClusterSnapshotStream(stream ClusterSnapshotChunk) returns (SendClusterSnapshotStreamResponse);
 }

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net"
 	"net/http"
 	"time"
@@ -18,6 +19,11 @@ import (
 	gen "github.com/devzero-inc/zxporter/gen/api/v1"
 	genconnect "github.com/devzero-inc/zxporter/gen/api/v1/apiv1connect"
 	dto "github.com/prometheus/client_model/go"
+)
+
+const (
+	// Maximum size per chunk (in bytes) - set conservatively to avoid gRPC limits
+	maxChunkSize = 3 * 1024 * 1024 // 3MB per chunk
 )
 
 // RetryPolicy defines the parameters for retrying.
@@ -369,4 +375,79 @@ func (c *RealDakrClient) SendClusterSnapshot(ctx context.Context, snapshotData i
 
 func attachClusterToken[T any](req *connect.Request[T], clusterToken string) {
 	req.Header().Set("Authorization", fmt.Sprintf("Bearer %s", clusterToken))
+}
+
+// SendClusterSnapshotStream sends cluster snapshot data in chunks via streaming
+func (c *RealDakrClient) SendClusterSnapshotStream(ctx context.Context, snapshotData interface{}, snapshotID string, timestamp time.Time) (string, error) {
+	c.logger.Info("Sending cluster snapshot via streaming", "snapshotId", snapshotID)
+
+	jsonBytes, err := json.Marshal(snapshotData)
+	if err != nil {
+		c.logger.Error(err, "Failed to marshal cluster snapshot data to JSON")
+		return "", fmt.Errorf("failed to marshal cluster snapshot data: %w", err)
+	}
+
+	totalSize := len(jsonBytes)
+	totalChunks := int(math.Ceil(float64(totalSize) / float64(maxChunkSize)))
+
+	c.logger.Info("Preparing to stream cluster snapshot",
+		"totalSize", totalSize,
+		"totalChunks", totalChunks,
+		"maxChunkSize", maxChunkSize)
+
+	// Establish the stream
+	stream := c.client.SendClusterSnapshotStream(ctx)
+	stream.RequestHeader().Set("Authorization", fmt.Sprintf("Bearer %s", c.clusterToken))
+
+	clusterID := ""
+	teamID := ""
+	if ctx.Value("cluster_id") != nil {
+		clusterID, _ = ctx.Value("cluster_id").(string)
+	}
+	if ctx.Value("team_id") != nil {
+		teamID, _ = ctx.Value("team_id").(string)
+	}
+
+	// Send chunks
+	for chunkNum := 0; chunkNum < totalChunks; chunkNum++ {
+		start := chunkNum * maxChunkSize
+		end := start + maxChunkSize
+		if end > totalSize {
+			end = totalSize
+		}
+
+		chunkData := jsonBytes[start:end]
+
+		chunk := &gen.ClusterSnapshotChunk{
+			ClusterId:    clusterID,
+			TeamId:       teamID,
+			Timestamp:    timestamppb.New(timestamp),
+			SnapshotId:   snapshotID,
+			ChunkNumber:  int32(chunkNum),
+			TotalChunks:  int32(totalChunks),
+			ChunkData:    chunkData,
+			IsFinalChunk: chunkNum == totalChunks-1,
+		}
+
+		// Send the raw chunk message directly.
+		if err := stream.Send(chunk); err != nil {
+			c.logger.Error(err, "Failed to send chunk", "chunkNum", chunkNum)
+			return "", fmt.Errorf("failed to send chunk %d: %w", chunkNum, err)
+		}
+
+		c.logger.Info("Sent chunk", "chunkNum", chunkNum, "size", len(chunkData))
+	}
+
+	resp, err := stream.CloseAndReceive()
+	if err != nil {
+		c.logger.Error(err, "Failed to close stream and receive response")
+		return "", fmt.Errorf("failed to close stream and receive response: %w", err)
+	}
+
+	c.logger.Info("Successfully sent cluster snapshot via streaming",
+		"snapshotId", snapshotID,
+		"chunksReceived", resp.Msg.ChunksReceived,
+		"status", resp.Msg.Status)
+
+	return resp.Msg.ClusterId, nil
 }
