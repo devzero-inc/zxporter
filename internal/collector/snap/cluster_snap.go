@@ -2,6 +2,7 @@ package snap
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
@@ -12,6 +13,11 @@ import (
 	"github.com/go-logr/logr"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+)
+
+const (
+	// Maximum size for regular gRPC request (4MB limit minus overhead)
+	maxRegularSnapshotSize = 3 * 1024 * 1024 // 3MB
 )
 
 // ClusterSnapshotter takes periodic snapshots and computes deltas
@@ -142,7 +148,6 @@ func (c *ClusterSnapshotter) captureClusterState(ctx context.Context) (*ClusterS
 
 func (c *ClusterSnapshotter) sendSnapshot(ctx context.Context, snapshot *ClusterSnapshot, isFullSnapshot bool) {
 	// dont send multiple snapshots at once
-	// even if multiple runs are executing in parallel, this will ensure that same resources arent sent to the control plane simultaneously (control plane implementation detail)
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -157,32 +162,42 @@ func (c *ClusterSnapshotter) sendSnapshot(ctx context.Context, snapshot *Cluster
 		"nodes", len(snapshot.Nodes),
 		"namespaces", len(snapshot.Namespaces))
 
-	// Use the dedicated cluster snapshot endpoint directly via the DirectSender interface
-	if _, err := c.sender.SendClusterSnapshot(ctx, snapshot, snapshot.SnapshotID, snapshot.Timestamp); err != nil {
-		c.logger.Error(err, "Failed to send cluster snapshot via dedicated endpoint")
-		// Fallback to the old method if the dedicated endpoint fails
-		// c.sendSnapshotFallback(ctx, snapshot)
-	} else {
-		c.logger.Info("Successfully sent cluster snapshot via dedicated endpoint", "type", snapshotType)
+	// Estimate snapshot size
+	jsonBytes, err := json.Marshal(snapshot)
+	if err != nil {
+		c.logger.Error(err, "Failed to marshal snapshot for size estimation")
+		return
 	}
+
+	snapshotSize := len(jsonBytes)
+	c.logger.Info("Snapshot size calculated",
+		"size_bytes", snapshotSize,
+		"size_mb", float64(snapshotSize)/(1024*1024))
+
+	var sendErr error
+	var clusterID string
+
+	// checking if sender supports streaming (we have to cleanup out transport layer, those are confusing)
+	if streamingSender, ok := c.sender.(interface {
+		SendClusterSnapshotStream(ctx context.Context, snapshotData interface{}, snapshotID string, timestamp time.Time) (string, error)
+	}); ok {
+		clusterID, sendErr = streamingSender.SendClusterSnapshotStream(ctx, snapshot, snapshot.SnapshotID, snapshot.Timestamp)
+	} else {
+		c.logger.Info("Sender doesn't support streaming, but snapshot is too large for regular method",
+			"size", snapshotSize,
+			"max_size", maxRegularSnapshotSize)
+		sendErr = fmt.Errorf("snapshot streaming not supported")
+	}
+
+	if sendErr != nil {
+		c.logger.Error(sendErr, "Failed to send cluster snapshot",
+			"size", snapshotSize)
+		return
+	}
+
+	c.logger.Info("Successfully sent cluster snapshot",
+		"cluster_id", clusterID)
 }
-
-// // sendSnapshotFallback sends the cluster snapshot using the old generic resource method
-// func (c *ClusterSnapshotter) sendSnapshotFallback(ctx context.Context, snapshot *ClusterSnapshot) {
-// 	res := collector.CollectedResource{
-// 		ResourceType: collector.ClusterSnapshot,
-// 		Object:       snapshot,
-// 		Timestamp:    snapshot.Timestamp,
-// 		EventType:    collector.EventTypeSnapshot,
-// 		Key:          snapshot.SnapshotID,
-// 	}
-
-// 	if _, err := c.sender.Send(ctx, res); err != nil {
-// 		c.logger.Error(err, "Failed to send cluster snapshot via fallback method")
-// 	} else {
-// 		c.logger.Info("Successfully sent cluster snapshot via fallback method")
-// 	}
-// }
 
 func (c *ClusterSnapshotter) Stop() error {
 	c.logger.Info("Stopping cluster snapshotter")

@@ -16,10 +16,15 @@ type DirectDakrSender struct {
 	dakrClient DakrClient
 	logger     logr.Logger
 	clusterID  string
+	teamID     string
 }
 
 func (s *DirectDakrSender) SetClusterID(clusterID string) {
 	s.clusterID = clusterID
+}
+
+func (s *DirectDakrSender) SetTeamID(teamID string) {
+	s.teamID = teamID
 }
 
 func NewDirectDakrSender(dakrClient DakrClient, logger logr.Logger) Sender {
@@ -43,7 +48,8 @@ func (s *DirectDakrSender) Send(ctx context.Context, resource collector.Collecte
 	}
 
 	ctxWithCluster := context.WithValue(ctx, "cluster_id", s.clusterID)
-	clusterID, err := s.dakrClient.SendResource(ctxWithCluster, resource)
+	ctxWithTeam := context.WithValue(ctxWithCluster, "team_id", s.teamID)
+	clusterID, err := s.dakrClient.SendResource(ctxWithTeam, resource)
 	if clusterID != "" {
 		s.SetClusterID(clusterID)
 	}
@@ -70,22 +76,9 @@ func (s *DirectDakrSender) SendBatch(ctx context.Context, resources []collector.
 	}
 
 	ctxWithCluster := context.WithValue(ctx, "cluster_id", s.clusterID)
-	clusterID, err := s.dakrClient.SendResourceBatch(ctxWithCluster, resources, resourceType)
-	if clusterID != "" {
-		s.SetClusterID(clusterID)
-	}
+	ctxWithTeam := context.WithValue(ctxWithCluster, "team_id", s.teamID)
 
-	return clusterID, err
-}
-
-// SendClusterSnapshot sends cluster snapshot data using the dedicated endpoint
-func (s *DirectDakrSender) SendClusterSnapshot(ctx context.Context, snapshotData interface{}, snapshotID string, timestamp time.Time) (string, error) {
-	if s.dakrClient == nil {
-		return "", fmt.Errorf("dakr client is nil, cannot send cluster snapshot")
-	}
-
-	ctxWithCluster := context.WithValue(ctx, "cluster_id", s.clusterID)
-	clusterID, err := s.dakrClient.SendClusterSnapshot(ctxWithCluster, snapshotData, snapshotID, timestamp)
+	clusterID, err := s.dakrClient.SendResourceBatch(ctxWithTeam, resources, resourceType)
 	if clusterID != "" {
 		s.SetClusterID(clusterID)
 	}
@@ -142,8 +135,25 @@ func (c *SimpleDakrClient) SendTelemetryMetrics(ctx context.Context, metrics []*
 	return int32(len(metrics)), nil
 }
 
-// SendClusterSnapshot logs the cluster snapshot data (for development/testing)
-func (c *SimpleDakrClient) SendClusterSnapshot(ctx context.Context, snapshotData interface{}, snapshotID string, timestamp time.Time) (string, error) {
+// Update sender.go with fallback logic
+func (s *DirectDakrSender) SendClusterSnapshotStream(ctx context.Context, snapshotData interface{}, snapshotID string, timestamp time.Time) (string, error) {
+	if s.dakrClient == nil {
+		return "", fmt.Errorf("dakr client is nil, cannot send cluster snapshot stream")
+	}
+
+	ctxWithCluster := context.WithValue(ctx, "cluster_id", s.clusterID)
+	ctxWithTeam := context.WithValue(ctxWithCluster, "team_id", s.teamID) // Assuming you add teamID field
+
+	clusterID, err := s.dakrClient.SendClusterSnapshotStream(ctxWithTeam, snapshotData, snapshotID, timestamp)
+	if clusterID != "" {
+		s.SetClusterID(clusterID)
+	}
+
+	return clusterID, err
+}
+
+// Update sender.go with fallback logic
+func (c *SimpleDakrClient) SendClusterSnapshotStream(ctx context.Context, snapshotData interface{}, snapshotID string, timestamp time.Time) (string, error) {
 	// For now, just log that we would send something
 	c.logger.Info("Would send cluster snapshot to Dakr",
 		"snapshotId", snapshotID,

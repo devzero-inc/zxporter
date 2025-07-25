@@ -204,58 +204,58 @@ func (s *MetricsServer) SendResourceBatch(ctx context.Context, req *connect.Requ
 	return resp, nil
 }
 
-// SendClusterSnapshot implements the SendClusterSnapshot RPC method
-func (s *MetricsServer) SendClusterSnapshot(ctx context.Context, req *connect.Request[apiv1.SendClusterSnapshotRequest]) (*connect.Response[apiv1.SendClusterSnapshotResponse], error) {
-	// Convert the cluster snapshot request to JSON for logging
-	jsonData, err := json.Marshal(req.Msg)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error marshaling cluster snapshot request to JSON: %v\n", err)
-		// Continue processing even if logging fails, but don't write the faulty JSON
+// SendClusterSnapshotStream implements streaming ingestion for the test server
+func (s *MetricsServer) SendClusterSnapshotStream(
+	ctx context.Context,
+	stream *connect.ClientStream[apiv1.ClusterSnapshotChunk],
+) (*connect.Response[apiv1.SendClusterSnapshotStreamResponse], error) {
+	var snapshotID string
+	var clusterID string
+	var chunksReceived int32
+	var totalChunks int32
+	var receivedAt time.Time
+
+	for stream.Receive() {
+		chunk := stream.Msg()
+		chunksReceived++
+
+		if chunksReceived == 1 {
+			snapshotID = chunk.GetSnapshotId()
+			clusterID = chunk.GetClusterId()
+			totalChunks = chunk.GetTotalChunks()
+			receivedAt = time.Now()
+		}
+
+		fmt.Fprintf(os.Stderr, "Received snapshot chunk %d/%d for snapshot_id=%s (size: %d)\n",
+			chunk.GetChunkNumber()+1, chunk.GetTotalChunks(), chunk.GetSnapshotId(), len(chunk.GetChunkData()))
 	}
 
-	// Lock for stats update and file writing
+	if err := stream.Err(); err != nil {
+		fmt.Fprintf(os.Stderr, "Stream error in SendClusterSnapshotStream: %v\n", err)
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("stream error: %w", err))
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
-
-	// Update stats for cluster snapshot
 	s.stats.TotalMessages++
 	if s.stats.MessagesByType == nil {
 		s.stats.MessagesByType = make(map[string]int)
 	}
-	s.stats.MessagesByType["CLUSTER_SNAPSHOT"]++
-
-	// Update first message time if not set
+	s.stats.MessagesByType["CLUSTER_SNAPSHOT_STREAM"]++
 	if s.stats.FirstMessageTime == nil {
 		now := time.Now()
 		s.stats.FirstMessageTime = &now
 	}
 
-	// Write the JSON to the output file if marshaling succeeded
-	if err == nil {
-		f, fileErr := os.OpenFile(s.outputFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-		if fileErr != nil {
-			fmt.Fprintf(os.Stderr, "Error opening output file for cluster snapshot: %v\n", fileErr)
-			// Return error as file writing is crucial for testing
-			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("error opening output file for cluster snapshot: %w", fileErr))
-		}
-		defer f.Close() // Ensure file is closed even if writing fails
+	fmt.Fprintf(os.Stderr, "[%s] Received full snapshot stream of %d/%d chunks (clusterID: %s), took: %v\n",
+		snapshotID, chunksReceived, totalChunks, clusterID, time.Since(receivedAt))
 
-		if _, writeErr := f.WriteString(string(jsonData) + "\n"); writeErr != nil {
-			fmt.Fprintf(os.Stderr, "Error writing cluster snapshot to output file: %v\n", writeErr)
-			// Return error as file writing is crucial for testing
-			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("error writing cluster snapshot to output file: %w", writeErr))
-		}
-	}
-
-	fmt.Fprintf(os.Stderr, "Received cluster snapshot - ID: %s, ClusterID: %s\n", req.Msg.SnapshotId, req.Msg.ClusterId)
-
-	// Return a response
-	resp := connect.NewResponse(&apiv1.SendClusterSnapshotResponse{
-		ClusterId:  req.Msg.ClusterId,
-		SnapshotId: req.Msg.SnapshotId,
-		Status:     "processed",
+	resp := connect.NewResponse(&apiv1.SendClusterSnapshotStreamResponse{
+		ClusterId:      clusterID,
+		SnapshotId:     snapshotID,
+		Status:         "processed",
+		ChunksReceived: chunksReceived,
 	})
-
 	return resp, nil
 }
 
