@@ -174,21 +174,10 @@ func (c *ClusterSnapshotter) sendSnapshot(ctx context.Context, snapshot *Cluster
 		"size_bytes", snapshotSize,
 		"size_mb", float64(snapshotSize)/(1024*1024))
 
-	// Choose method based on size
 	var sendErr error
 	var clusterID string
 
-	// if snapshotSize <= maxRegularSnapshotSize {
-	// 	// Use regular method for smaller snapshots
-	// 	c.logger.Info("Using regular gRPC method for snapshot", "size", snapshotSize)
-	// 	clusterID, sendErr = c.sender.SendClusterSnapshot(ctx, snapshot, snapshot.SnapshotID, snapshot.Timestamp)
-	// } else {
-	// 	// Use streaming for larger snapshots
-	// 	c.logger.Info("Using streaming gRPC method for large snapshot",
-	// 		"size", snapshotSize,
-	// 		"threshold", maxRegularSnapshotSize)
-
-	// Check if sender supports streaming
+	// checking if sender supports streaming (we have to cleanup out transport layer, those are confusing)
 	if streamingSender, ok := c.sender.(interface {
 		SendClusterSnapshotStream(ctx context.Context, snapshotData interface{}, snapshotID string, timestamp time.Time) (string, error)
 	}); ok {
@@ -197,50 +186,18 @@ func (c *ClusterSnapshotter) sendSnapshot(ctx context.Context, snapshot *Cluster
 		c.logger.Info("Sender doesn't support streaming, but snapshot is too large for regular method",
 			"size", snapshotSize,
 			"max_size", maxRegularSnapshotSize)
-		// not to forget to remove it
-		sendErr = fmt.Errorf("snapshot too large (%d bytes) and streaming not supported", snapshotSize)
+		sendErr = fmt.Errorf("snapshot streaming not supported")
 	}
-	// }
 
 	if sendErr != nil {
 		c.logger.Error(sendErr, "Failed to send cluster snapshot",
-			"method", func() string {
-				if snapshotSize <= maxRegularSnapshotSize {
-					return "regular"
-				}
-				return "streaming"
-			}(),
 			"size", snapshotSize)
 		return
 	}
 
 	c.logger.Info("Successfully sent cluster snapshot",
-		"type", snapshotType,
-		"method", func() string {
-			if snapshotSize <= maxRegularSnapshotSize {
-				return "regular"
-			}
-			return "streaming"
-		}(),
 		"cluster_id", clusterID)
 }
-
-// // sendSnapshotFallback sends the cluster snapshot using the old generic resource method
-// func (c *ClusterSnapshotter) sendSnapshotFallback(ctx context.Context, snapshot *ClusterSnapshot) {
-// 	res := collector.CollectedResource{
-// 		ResourceType: collector.ClusterSnapshot,
-// 		Object:       snapshot,
-// 		Timestamp:    snapshot.Timestamp,
-// 		EventType:    collector.EventTypeSnapshot,
-// 		Key:          snapshot.SnapshotID,
-// 	}
-
-// 	if _, err := c.sender.Send(ctx, res); err != nil {
-// 		c.logger.Error(err, "Failed to send cluster snapshot via fallback method")
-// 	} else {
-// 		c.logger.Info("Successfully sent cluster snapshot via fallback method")
-// 	}
-// }
 
 func (c *ClusterSnapshotter) Stop() error {
 	c.logger.Info("Stopping cluster snapshotter")

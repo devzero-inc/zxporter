@@ -311,68 +311,6 @@ func (c *RealDakrClient) SendTelemetryMetrics(ctx context.Context, metrics []*dt
 	return resp.Msg.ProcessedCount, nil
 }
 
-// SendClusterSnapshot sends cluster snapshot data to Dakr using the dedicated endpoint
-func (c *RealDakrClient) SendClusterSnapshot(ctx context.Context, snapshotData interface{}, snapshotID string, timestamp time.Time) (string, error) {
-	c.logger.Info("Sending cluster snapshot to Dakr", "snapshotId", snapshotID)
-
-	// Convert snapshotData to a protobuf struct
-	var dataStruct *structpb.Struct
-	var err error
-
-	// TODO (parthiba): change this to send a []byte instead -- structs are way too bloated to send over the wire
-	dataStruct, err = structpb.NewStruct(map[string]interface{}{})
-	if err != nil {
-		c.logger.Error(err, "Failed to create empty struct for cluster snapshot")
-		return "", err
-	}
-
-	// Marshal the snapshot data to JSON then unmarshal to the struct
-	jsonBytes, err := json.Marshal(snapshotData)
-	if err != nil {
-		c.logger.Error(err, "Failed to marshal cluster snapshot data to JSON")
-		return "", fmt.Errorf("failed to marshal cluster snapshot data: %w", err)
-	}
-
-	err = dataStruct.UnmarshalJSON(jsonBytes)
-	if err != nil {
-		c.logger.Error(err, "Failed to unmarshal JSON to protobuf struct for cluster snapshot")
-		return "", fmt.Errorf("failed to convert cluster snapshot data to protobuf struct: %w", err)
-	}
-
-	// Create the cluster snapshot request
-	snapshotReq := &gen.SendClusterSnapshotRequest{
-		SnapshotData: dataStruct,
-		SnapshotId:   snapshotID,
-		Timestamp:    timestamppb.New(timestamp),
-	}
-
-	// Set cluster ID and team ID if available in context
-	if ctx.Value("cluster_id") != nil {
-		clusterString, _ := ctx.Value("cluster_id").(string)
-		snapshotReq.ClusterId = clusterString
-	}
-	if ctx.Value("team_id") != nil {
-		teamString, _ := ctx.Value("team_id").(string)
-		snapshotReq.TeamId = teamString
-	}
-
-	req := connect.NewRequest(snapshotReq)
-	attachClusterToken(req, c.clusterToken)
-
-	// Send to Dakr
-	resp, err := c.client.SendClusterSnapshot(ctx, req)
-	if err != nil {
-		c.logger.Error(err, "Failed to send cluster snapshot to Dakr")
-		return "", fmt.Errorf("failed to send cluster snapshot to Dakr: %w", err)
-	}
-
-	c.logger.Info("Successfully sent cluster snapshot to Dakr",
-		"snapshotId", snapshotID,
-		"status", resp.Msg.Status)
-
-	return resp.Msg.ClusterId, nil
-}
-
 func attachClusterToken[T any](req *connect.Request[T], clusterToken string) {
 	req.Header().Set("Authorization", fmt.Sprintf("Bearer %s", clusterToken))
 }

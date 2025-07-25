@@ -22,7 +22,6 @@ const (
 	MetricsCollectorService_SendResource_FullMethodName              = "/api.v1.MetricsCollectorService/SendResource"
 	MetricsCollectorService_SendResourceBatch_FullMethodName         = "/api.v1.MetricsCollectorService/SendResourceBatch"
 	MetricsCollectorService_SendTelemetryMetrics_FullMethodName      = "/api.v1.MetricsCollectorService/SendTelemetryMetrics"
-	MetricsCollectorService_SendClusterSnapshot_FullMethodName       = "/api.v1.MetricsCollectorService/SendClusterSnapshot"
 	MetricsCollectorService_SendClusterSnapshotStream_FullMethodName = "/api.v1.MetricsCollectorService/SendClusterSnapshotStream"
 )
 
@@ -36,8 +35,6 @@ type MetricsCollectorServiceClient interface {
 	SendResourceBatch(ctx context.Context, in *SendResourceBatchRequest, opts ...grpc.CallOption) (*SendResourceBatchResponse, error)
 	// SendTelemetryMetrics pushes a batch of telemetry metrics (gauges, counters, histograms) from a cluster.
 	SendTelemetryMetrics(ctx context.Context, in *SendTelemetryMetricsRequest, opts ...grpc.CallOption) (*SendTelemetryMetricsResponse, error)
-	// SendClusterSnapshot processes cluster snapshot data for resource deletion tracking.
-	SendClusterSnapshot(ctx context.Context, in *SendClusterSnapshotRequest, opts ...grpc.CallOption) (*SendClusterSnapshotResponse, error)
 	// SendClusterSnapshotStream processes cluster snapshot data in chunks via streaming
 	SendClusterSnapshotStream(ctx context.Context, opts ...grpc.CallOption) (MetricsCollectorService_SendClusterSnapshotStreamClient, error)
 }
@@ -71,15 +68,6 @@ func (c *metricsCollectorServiceClient) SendResourceBatch(ctx context.Context, i
 func (c *metricsCollectorServiceClient) SendTelemetryMetrics(ctx context.Context, in *SendTelemetryMetricsRequest, opts ...grpc.CallOption) (*SendTelemetryMetricsResponse, error) {
 	out := new(SendTelemetryMetricsResponse)
 	err := c.cc.Invoke(ctx, MetricsCollectorService_SendTelemetryMetrics_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *metricsCollectorServiceClient) SendClusterSnapshot(ctx context.Context, in *SendClusterSnapshotRequest, opts ...grpc.CallOption) (*SendClusterSnapshotResponse, error) {
-	out := new(SendClusterSnapshotResponse)
-	err := c.cc.Invoke(ctx, MetricsCollectorService_SendClusterSnapshot_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -130,8 +118,6 @@ type MetricsCollectorServiceServer interface {
 	SendResourceBatch(context.Context, *SendResourceBatchRequest) (*SendResourceBatchResponse, error)
 	// SendTelemetryMetrics pushes a batch of telemetry metrics (gauges, counters, histograms) from a cluster.
 	SendTelemetryMetrics(context.Context, *SendTelemetryMetricsRequest) (*SendTelemetryMetricsResponse, error)
-	// SendClusterSnapshot processes cluster snapshot data for resource deletion tracking.
-	SendClusterSnapshot(context.Context, *SendClusterSnapshotRequest) (*SendClusterSnapshotResponse, error)
 	// SendClusterSnapshotStream processes cluster snapshot data in chunks via streaming
 	SendClusterSnapshotStream(MetricsCollectorService_SendClusterSnapshotStreamServer) error
 	mustEmbedUnimplementedMetricsCollectorServiceServer()
@@ -149,9 +135,6 @@ func (UnimplementedMetricsCollectorServiceServer) SendResourceBatch(context.Cont
 }
 func (UnimplementedMetricsCollectorServiceServer) SendTelemetryMetrics(context.Context, *SendTelemetryMetricsRequest) (*SendTelemetryMetricsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SendTelemetryMetrics not implemented")
-}
-func (UnimplementedMetricsCollectorServiceServer) SendClusterSnapshot(context.Context, *SendClusterSnapshotRequest) (*SendClusterSnapshotResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method SendClusterSnapshot not implemented")
 }
 func (UnimplementedMetricsCollectorServiceServer) SendClusterSnapshotStream(MetricsCollectorService_SendClusterSnapshotStreamServer) error {
 	return status.Errorf(codes.Unimplemented, "method SendClusterSnapshotStream not implemented")
@@ -224,24 +207,6 @@ func _MetricsCollectorService_SendTelemetryMetrics_Handler(srv interface{}, ctx 
 	return interceptor(ctx, in, info, handler)
 }
 
-func _MetricsCollectorService_SendClusterSnapshot_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(SendClusterSnapshotRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(MetricsCollectorServiceServer).SendClusterSnapshot(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: MetricsCollectorService_SendClusterSnapshot_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(MetricsCollectorServiceServer).SendClusterSnapshot(ctx, req.(*SendClusterSnapshotRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _MetricsCollectorService_SendClusterSnapshotStream_Handler(srv interface{}, stream grpc.ServerStream) error {
 	return srv.(MetricsCollectorServiceServer).SendClusterSnapshotStream(&metricsCollectorServiceSendClusterSnapshotStreamServer{stream})
 }
@@ -286,10 +251,6 @@ var MetricsCollectorService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SendTelemetryMetrics",
 			Handler:    _MetricsCollectorService_SendTelemetryMetrics_Handler,
-		},
-		{
-			MethodName: "SendClusterSnapshot",
-			Handler:    _MetricsCollectorService_SendClusterSnapshot_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
