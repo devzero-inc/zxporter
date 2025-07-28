@@ -15,11 +15,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
-const (
-	// Maximum size for regular gRPC request (4MB limit minus overhead)
-	maxRegularSnapshotSize = 3 * 1024 * 1024 // 3MB
-)
-
 // ClusterSnapshotter takes periodic snapshots and computes deltas
 type ClusterSnapshotter struct {
 	client        kubernetes.Interface
@@ -183,9 +178,7 @@ func (c *ClusterSnapshotter) sendSnapshot(ctx context.Context, snapshot *Cluster
 	}); ok {
 		clusterID, sendErr = streamingSender.SendClusterSnapshotStream(ctx, snapshot, snapshot.SnapshotID, snapshot.Timestamp)
 	} else {
-		c.logger.Info("Sender doesn't support streaming, but snapshot is too large for regular method",
-			"size", snapshotSize,
-			"max_size", maxRegularSnapshotSize)
+		c.logger.Info("Sender doesn't support streaming")
 		sendErr = fmt.Errorf("snapshot streaming not supported")
 	}
 
