@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	gen "github.com/devzero-inc/zxporter/gen/api/v1"
 	"github.com/devzero-inc/zxporter/internal/collector"
 	"github.com/go-logr/logr"
 	dto "github.com/prometheus/client_model/go"
@@ -136,7 +137,7 @@ func (c *SimpleDakrClient) SendTelemetryMetrics(ctx context.Context, metrics []*
 }
 
 // Update sender.go with fallback logic
-func (s *DirectDakrSender) SendClusterSnapshotStream(ctx context.Context, snapshotData interface{}, snapshotID string, timestamp time.Time) (string, error) {
+func (s *DirectDakrSender) SendClusterSnapshotStream(ctx context.Context, snapshot *gen.ClusterSnapshot, snapshotID string, timestamp time.Time) (string, error) {
 	if s.dakrClient == nil {
 		return "", fmt.Errorf("dakr client is nil, cannot send cluster snapshot stream")
 	}
@@ -144,7 +145,7 @@ func (s *DirectDakrSender) SendClusterSnapshotStream(ctx context.Context, snapsh
 	ctxWithCluster := context.WithValue(ctx, "cluster_id", s.clusterID)
 	ctxWithTeam := context.WithValue(ctxWithCluster, "team_id", s.teamID) // Assuming you add teamID field
 
-	clusterID, err := s.dakrClient.SendClusterSnapshotStream(ctxWithTeam, snapshotData, snapshotID, timestamp)
+	clusterID, err := s.dakrClient.SendClusterSnapshotStream(ctxWithTeam, snapshot, snapshotID, timestamp)
 	if clusterID != "" {
 		s.SetClusterID(clusterID)
 	}
@@ -153,11 +154,11 @@ func (s *DirectDakrSender) SendClusterSnapshotStream(ctx context.Context, snapsh
 }
 
 // Update sender.go with fallback logic
-func (c *SimpleDakrClient) SendClusterSnapshotStream(ctx context.Context, snapshotData interface{}, snapshotID string, timestamp time.Time) (string, error) {
+func (c *SimpleDakrClient) SendClusterSnapshotStream(ctx context.Context, snapshot *gen.ClusterSnapshot, snapshotID string, timestamp time.Time) (string, error) {
 	// For now, just log that we would send something
 	c.logger.Info("Would send cluster snapshot to Dakr",
 		"snapshotId", snapshotID,
 		"timestamp", timestamp,
-		"dataType", fmt.Sprintf("%T", snapshotData))
+		"dataType", fmt.Sprintf("%T", snapshot))
 	return "", nil
 }

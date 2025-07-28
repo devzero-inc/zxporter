@@ -26,17 +26,17 @@ func (c *ClusterSnapshotter) captureNodes(ctx context.Context, snapshot *Cluster
 		}
 
 		nodeData := &NodeData{
-			Node: ResourceIdentifier{
+			Node: &ResourceIdentifier{
 				Name: node.Name,
 			},
-			Pods: make(map[string]ResourceIdentifier),
+			Pods: make(map[string]*ResourceIdentifier),
 		}
 
 		// Find pods assigned to this node, using UID as key
 		for _, pod := range allPods {
 			if pod.Spec.NodeName == node.Name && !c.isPodExcluded(pod) {
 				uid := string(pod.UID)
-				nodeData.Pods[uid] = ResourceIdentifier{
+				nodeData.Pods[uid] = &ResourceIdentifier{
 					Name: pod.Name,
 				}
 			}
@@ -46,7 +46,7 @@ func (c *ClusterSnapshotter) captureNodes(ctx context.Context, snapshot *Cluster
 		snapshot.Nodes[string(node.UID)] = nodeData
 	}
 
-	snapshot.ClusterInfo.NodeCount = len(snapshot.Nodes)
+	snapshot.ClusterInfo.NodeCount = int32(len(snapshot.Nodes))
 	return nil
 }
 

@@ -9,7 +9,9 @@ import (
 
 	"github.com/devzero-inc/zxporter/internal/collector"
 	"github.com/devzero-inc/zxporter/internal/transport"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
+	gen "github.com/devzero-inc/zxporter/gen/api/v1"
 	"github.com/go-logr/logr"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -118,8 +120,8 @@ func (c *ClusterSnapshotter) captureClusterState(ctx context.Context) (*ClusterS
 		Nodes:         make(map[string]*NodeData),
 		Namespaces:    make(map[string]*Namespace),
 		ClusterScoped: &ClusterScopedSnapshot{},
-		Timestamp:     time.Now(),
-		SnapshotID:    fmt.Sprintf("snapshot-%d", time.Now().UnixNano()),
+		Timestamp:     timestamppb.New(time.Now()),
+		SnapshotId:    fmt.Sprintf("snapshot-%d", time.Now().UnixNano()),
 	}
 
 	if err := c.captureClusterInfo(ctx, snapshot); err != nil {
@@ -153,7 +155,7 @@ func (c *ClusterSnapshotter) sendSnapshot(ctx context.Context, snapshot *Cluster
 
 	c.logger.Info("Sending cluster snapshot",
 		"type", snapshotType,
-		"snapshotId", snapshot.SnapshotID,
+		"snapshotId", snapshot.SnapshotId,
 		"nodes", len(snapshot.Nodes),
 		"namespaces", len(snapshot.Namespaces))
 
@@ -174,9 +176,9 @@ func (c *ClusterSnapshotter) sendSnapshot(ctx context.Context, snapshot *Cluster
 
 	// checking if sender supports streaming (we have to cleanup out transport layer, those are confusing)
 	if streamingSender, ok := c.sender.(interface {
-		SendClusterSnapshotStream(ctx context.Context, snapshotData interface{}, snapshotID string, timestamp time.Time) (string, error)
+		SendClusterSnapshotStream(ctx context.Context, snapshot *gen.ClusterSnapshot, snapshotID string, timestamp time.Time) (string, error)
 	}); ok {
-		clusterID, sendErr = streamingSender.SendClusterSnapshotStream(ctx, snapshot, snapshot.SnapshotID, snapshot.Timestamp)
+		clusterID, sendErr = streamingSender.SendClusterSnapshotStream(ctx, snapshot, snapshot.SnapshotId, snapshot.Timestamp.AsTime())
 	} else {
 		c.logger.Info("Sender doesn't support streaming")
 		sendErr = fmt.Errorf("snapshot streaming not supported")

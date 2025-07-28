@@ -13,6 +13,7 @@ import (
 	"connectrpc.com/connect"
 	"github.com/devzero-inc/zxporter/internal/collector"
 	"github.com/go-logr/logr"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -316,16 +317,16 @@ func attachClusterToken[T any](req *connect.Request[T], clusterToken string) {
 }
 
 // SendClusterSnapshotStream sends cluster snapshot data in chunks via streaming
-func (c *RealDakrClient) SendClusterSnapshotStream(ctx context.Context, snapshotData interface{}, snapshotID string, timestamp time.Time) (string, error) {
+func (c *RealDakrClient) SendClusterSnapshotStream(ctx context.Context, snapshot *gen.ClusterSnapshot, snapshotID string, timestamp time.Time) (string, error) {
 	c.logger.Info("Sending cluster snapshot via streaming", "snapshotId", snapshotID)
 
-	jsonBytes, err := json.Marshal(snapshotData)
+	protoBytes, err := proto.Marshal(snapshot)
 	if err != nil {
-		c.logger.Error(err, "Failed to marshal cluster snapshot data to JSON")
-		return "", fmt.Errorf("failed to marshal cluster snapshot data: %w", err)
+		c.logger.Error(err, "Failed to proto.Marshal cluster snapshot")
+		return "", fmt.Errorf("failed to proto.Marshal cluster snapshot: %w", err)
 	}
 
-	totalSize := len(jsonBytes)
+	totalSize := len(protoBytes)
 	totalChunks := int(math.Ceil(float64(totalSize) / float64(maxChunkSize)))
 
 	c.logger.Info("Preparing to stream cluster snapshot",
@@ -354,7 +355,7 @@ func (c *RealDakrClient) SendClusterSnapshotStream(ctx context.Context, snapshot
 			end = totalSize
 		}
 
-		chunkData := jsonBytes[start:end]
+		chunkData := protoBytes[start:end]
 
 		chunk := &gen.ClusterSnapshotChunk{
 			ClusterId:    clusterID,
