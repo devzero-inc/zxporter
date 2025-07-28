@@ -117,6 +117,7 @@ func (c *ClusterSnapshotter) takeSnapshot(ctx context.Context) {
 
 func (c *ClusterSnapshotter) captureClusterState(ctx context.Context) (*ClusterSnapshot, error) {
 	snapshot := &ClusterSnapshot{
+		ClusterInfo:   &ClusterInfo{},
 		Nodes:         make(map[string]*NodeData),
 		Namespaces:    make(map[string]*Namespace),
 		ClusterScoped: &ClusterScopedSnapshot{},
