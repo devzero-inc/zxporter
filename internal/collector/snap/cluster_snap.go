@@ -2,13 +2,16 @@ package snap
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
 
 	"github.com/devzero-inc/zxporter/internal/collector"
 	"github.com/devzero-inc/zxporter/internal/transport"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
+	gen "github.com/devzero-inc/zxporter/gen/api/v1"
 	"github.com/go-logr/logr"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -113,12 +116,26 @@ func (c *ClusterSnapshotter) takeSnapshot(ctx context.Context) {
 }
 
 func (c *ClusterSnapshotter) captureClusterState(ctx context.Context) (*ClusterSnapshot, error) {
+	now := time.Now().UTC()
+	clusterID := ""
+	if ctx.Value("cluster_id") != nil {
+		clusterID, _ = ctx.Value("cluster_id").(string)
+	}
+
+	var snapshotID string
+	if clusterID != "" {
+		snapshotID = fmt.Sprintf("snapshot-%s-%d", clusterID, now.UnixNano())
+	} else {
+		snapshotID = fmt.Sprintf("snapshot-unknown-%d", now.UnixNano())
+	}
+
 	snapshot := &ClusterSnapshot{
+		ClusterInfo:   &ClusterInfo{},
 		Nodes:         make(map[string]*NodeData),
 		Namespaces:    make(map[string]*Namespace),
 		ClusterScoped: &ClusterScopedSnapshot{},
-		Timestamp:     time.Now(),
-		SnapshotID:    fmt.Sprintf("snapshot-%d", time.Now().UnixNano()),
+		Timestamp:     timestamppb.New(now),
+		SnapshotId:    snapshotID,
 	}
 
 	if err := c.captureClusterInfo(ctx, snapshot); err != nil {
@@ -142,7 +159,6 @@ func (c *ClusterSnapshotter) captureClusterState(ctx context.Context) (*ClusterS
 
 func (c *ClusterSnapshotter) sendSnapshot(ctx context.Context, snapshot *ClusterSnapshot, isFullSnapshot bool) {
 	// dont send multiple snapshots at once
-	// even if multiple runs are executing in parallel, this will ensure that same resources arent sent to the control plane simultaneously (control plane implementation detail)
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -153,36 +169,44 @@ func (c *ClusterSnapshotter) sendSnapshot(ctx context.Context, snapshot *Cluster
 
 	c.logger.Info("Sending cluster snapshot",
 		"type", snapshotType,
-		"snapshotId", snapshot.SnapshotID,
+		"snapshotId", snapshot.SnapshotId,
 		"nodes", len(snapshot.Nodes),
 		"namespaces", len(snapshot.Namespaces))
 
-	// Use the dedicated cluster snapshot endpoint directly via the DirectSender interface
-	if _, err := c.sender.SendClusterSnapshot(ctx, snapshot, snapshot.SnapshotID, snapshot.Timestamp); err != nil {
-		c.logger.Error(err, "Failed to send cluster snapshot via dedicated endpoint")
-		// Fallback to the old method if the dedicated endpoint fails
-		// c.sendSnapshotFallback(ctx, snapshot)
-	} else {
-		c.logger.Info("Successfully sent cluster snapshot via dedicated endpoint", "type", snapshotType)
+	// Estimate snapshot size
+	jsonBytes, err := json.Marshal(snapshot)
+	if err != nil {
+		c.logger.Error(err, "Failed to marshal snapshot for size estimation")
+		return
 	}
+
+	snapshotSize := len(jsonBytes)
+	c.logger.Info("Snapshot size calculated",
+		"size_bytes", snapshotSize,
+		"size_mb", float64(snapshotSize)/(1024*1024))
+
+	var sendErr error
+	var clusterID string
+
+	// checking if sender supports streaming (we have to cleanup out transport layer, those are confusing)
+	if streamingSender, ok := c.sender.(interface {
+		SendClusterSnapshotStream(ctx context.Context, snapshot *gen.ClusterSnapshot, snapshotID string, timestamp time.Time) (string, error)
+	}); ok {
+		clusterID, sendErr = streamingSender.SendClusterSnapshotStream(ctx, snapshot, snapshot.SnapshotId, snapshot.Timestamp.AsTime())
+	} else {
+		c.logger.Info("Sender doesn't support streaming")
+		sendErr = fmt.Errorf("snapshot streaming not supported")
+	}
+
+	if sendErr != nil {
+		c.logger.Error(sendErr, "Failed to send cluster snapshot",
+			"size", snapshotSize)
+		return
+	}
+
+	c.logger.Info("Successfully sent cluster snapshot",
+		"cluster_id", clusterID)
 }
-
-// // sendSnapshotFallback sends the cluster snapshot using the old generic resource method
-// func (c *ClusterSnapshotter) sendSnapshotFallback(ctx context.Context, snapshot *ClusterSnapshot) {
-// 	res := collector.CollectedResource{
-// 		ResourceType: collector.ClusterSnapshot,
-// 		Object:       snapshot,
-// 		Timestamp:    snapshot.Timestamp,
-// 		EventType:    collector.EventTypeSnapshot,
-// 		Key:          snapshot.SnapshotID,
-// 	}
-
-// 	if _, err := c.sender.Send(ctx, res); err != nil {
-// 		c.logger.Error(err, "Failed to send cluster snapshot via fallback method")
-// 	} else {
-// 		c.logger.Info("Successfully sent cluster snapshot via fallback method")
-// 	}
-// }
 
 func (c *ClusterSnapshotter) Stop() error {
 	c.logger.Info("Stopping cluster snapshotter")

@@ -5,6 +5,7 @@ import (
 	"context"
 	"time"
 
+	gen "github.com/devzero-inc/zxporter/gen/api/v1"
 	"github.com/devzero-inc/zxporter/internal/collector"
 	dto "github.com/prometheus/client_model/go"
 )
@@ -17,8 +18,8 @@ type DakrClient interface {
 	SendResourceBatch(ctx context.Context, resources []collector.CollectedResource, resourceType collector.ResourceType) (string, error)
 	// SendTelemetryMetrics sends telemetry metrics to Dakr
 	SendTelemetryMetrics(ctx context.Context, metrics []*dto.MetricFamily) (int32, error)
-	// SendClusterSnapshot sends cluster snapshot data to Dakr using the dedicated endpoint
-	SendClusterSnapshot(ctx context.Context, snapshotData interface{}, snapshotID string, timestamp time.Time) (string, error)
+	// SendClusterSnapshotStream sends cluster snapshot data via streaming for large payloads
+	SendClusterSnapshotStream(ctx context.Context, snapshot *gen.ClusterSnapshot, snapshotID string, timestamp time.Time) (string, error)
 }
 
 // Sender defines methods for sending data to external systems
@@ -41,8 +42,8 @@ type DirectSender interface {
 	// Send transmits a resource to the target system
 	Send(ctx context.Context, resource collector.CollectedResource) (string, error)
 
-	// SendClusterSnapshot sends cluster snapshot data using the dedicated endpoint
-	SendClusterSnapshot(ctx context.Context, snapshotData interface{}, snapshotID string, timestamp time.Time) (string, error)
+	// SendClusterSnapshotStream sends large cluster snapshot data using streaming
+	SendClusterSnapshotStream(ctx context.Context, snapshot *gen.ClusterSnapshot, snapshotID string, timestamp time.Time) (string, error)
 }
 
 // // BufferedSender adds buffering capabilities to handle connection issues

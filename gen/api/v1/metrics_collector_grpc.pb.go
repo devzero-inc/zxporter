@@ -19,10 +19,10 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	MetricsCollectorService_SendResource_FullMethodName         = "/api.v1.MetricsCollectorService/SendResource"
-	MetricsCollectorService_SendResourceBatch_FullMethodName    = "/api.v1.MetricsCollectorService/SendResourceBatch"
-	MetricsCollectorService_SendTelemetryMetrics_FullMethodName = "/api.v1.MetricsCollectorService/SendTelemetryMetrics"
-	MetricsCollectorService_SendClusterSnapshot_FullMethodName  = "/api.v1.MetricsCollectorService/SendClusterSnapshot"
+	MetricsCollectorService_SendResource_FullMethodName              = "/api.v1.MetricsCollectorService/SendResource"
+	MetricsCollectorService_SendResourceBatch_FullMethodName         = "/api.v1.MetricsCollectorService/SendResourceBatch"
+	MetricsCollectorService_SendTelemetryMetrics_FullMethodName      = "/api.v1.MetricsCollectorService/SendTelemetryMetrics"
+	MetricsCollectorService_SendClusterSnapshotStream_FullMethodName = "/api.v1.MetricsCollectorService/SendClusterSnapshotStream"
 )
 
 // MetricsCollectorServiceClient is the client API for MetricsCollectorService service.
@@ -35,8 +35,8 @@ type MetricsCollectorServiceClient interface {
 	SendResourceBatch(ctx context.Context, in *SendResourceBatchRequest, opts ...grpc.CallOption) (*SendResourceBatchResponse, error)
 	// SendTelemetryMetrics pushes a batch of telemetry metrics (gauges, counters, histograms) from a cluster.
 	SendTelemetryMetrics(ctx context.Context, in *SendTelemetryMetricsRequest, opts ...grpc.CallOption) (*SendTelemetryMetricsResponse, error)
-	// SendClusterSnapshot processes cluster snapshot data for resource deletion tracking.
-	SendClusterSnapshot(ctx context.Context, in *SendClusterSnapshotRequest, opts ...grpc.CallOption) (*SendClusterSnapshotResponse, error)
+	// SendClusterSnapshotStream processes cluster snapshot data in chunks via streaming
+	SendClusterSnapshotStream(ctx context.Context, opts ...grpc.CallOption) (MetricsCollectorService_SendClusterSnapshotStreamClient, error)
 }
 
 type metricsCollectorServiceClient struct {
@@ -74,13 +74,38 @@ func (c *metricsCollectorServiceClient) SendTelemetryMetrics(ctx context.Context
 	return out, nil
 }
 
-func (c *metricsCollectorServiceClient) SendClusterSnapshot(ctx context.Context, in *SendClusterSnapshotRequest, opts ...grpc.CallOption) (*SendClusterSnapshotResponse, error) {
-	out := new(SendClusterSnapshotResponse)
-	err := c.cc.Invoke(ctx, MetricsCollectorService_SendClusterSnapshot_FullMethodName, in, out, opts...)
+func (c *metricsCollectorServiceClient) SendClusterSnapshotStream(ctx context.Context, opts ...grpc.CallOption) (MetricsCollectorService_SendClusterSnapshotStreamClient, error) {
+	stream, err := c.cc.NewStream(ctx, &MetricsCollectorService_ServiceDesc.Streams[0], MetricsCollectorService_SendClusterSnapshotStream_FullMethodName, opts...)
 	if err != nil {
 		return nil, err
 	}
-	return out, nil
+	x := &metricsCollectorServiceSendClusterSnapshotStreamClient{stream}
+	return x, nil
+}
+
+type MetricsCollectorService_SendClusterSnapshotStreamClient interface {
+	Send(*ClusterSnapshotChunk) error
+	CloseAndRecv() (*SendClusterSnapshotStreamResponse, error)
+	grpc.ClientStream
+}
+
+type metricsCollectorServiceSendClusterSnapshotStreamClient struct {
+	grpc.ClientStream
+}
+
+func (x *metricsCollectorServiceSendClusterSnapshotStreamClient) Send(m *ClusterSnapshotChunk) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *metricsCollectorServiceSendClusterSnapshotStreamClient) CloseAndRecv() (*SendClusterSnapshotStreamResponse, error) {
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	m := new(SendClusterSnapshotStreamResponse)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
 }
 
 // MetricsCollectorServiceServer is the server API for MetricsCollectorService service.
@@ -93,8 +118,8 @@ type MetricsCollectorServiceServer interface {
 	SendResourceBatch(context.Context, *SendResourceBatchRequest) (*SendResourceBatchResponse, error)
 	// SendTelemetryMetrics pushes a batch of telemetry metrics (gauges, counters, histograms) from a cluster.
 	SendTelemetryMetrics(context.Context, *SendTelemetryMetricsRequest) (*SendTelemetryMetricsResponse, error)
-	// SendClusterSnapshot processes cluster snapshot data for resource deletion tracking.
-	SendClusterSnapshot(context.Context, *SendClusterSnapshotRequest) (*SendClusterSnapshotResponse, error)
+	// SendClusterSnapshotStream processes cluster snapshot data in chunks via streaming
+	SendClusterSnapshotStream(MetricsCollectorService_SendClusterSnapshotStreamServer) error
 	mustEmbedUnimplementedMetricsCollectorServiceServer()
 }
 
@@ -111,8 +136,8 @@ func (UnimplementedMetricsCollectorServiceServer) SendResourceBatch(context.Cont
 func (UnimplementedMetricsCollectorServiceServer) SendTelemetryMetrics(context.Context, *SendTelemetryMetricsRequest) (*SendTelemetryMetricsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SendTelemetryMetrics not implemented")
 }
-func (UnimplementedMetricsCollectorServiceServer) SendClusterSnapshot(context.Context, *SendClusterSnapshotRequest) (*SendClusterSnapshotResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method SendClusterSnapshot not implemented")
+func (UnimplementedMetricsCollectorServiceServer) SendClusterSnapshotStream(MetricsCollectorService_SendClusterSnapshotStreamServer) error {
+	return status.Errorf(codes.Unimplemented, "method SendClusterSnapshotStream not implemented")
 }
 func (UnimplementedMetricsCollectorServiceServer) mustEmbedUnimplementedMetricsCollectorServiceServer() {
 }
@@ -182,22 +207,30 @@ func _MetricsCollectorService_SendTelemetryMetrics_Handler(srv interface{}, ctx 
 	return interceptor(ctx, in, info, handler)
 }
 
-func _MetricsCollectorService_SendClusterSnapshot_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(SendClusterSnapshotRequest)
-	if err := dec(in); err != nil {
+func _MetricsCollectorService_SendClusterSnapshotStream_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(MetricsCollectorServiceServer).SendClusterSnapshotStream(&metricsCollectorServiceSendClusterSnapshotStreamServer{stream})
+}
+
+type MetricsCollectorService_SendClusterSnapshotStreamServer interface {
+	SendAndClose(*SendClusterSnapshotStreamResponse) error
+	Recv() (*ClusterSnapshotChunk, error)
+	grpc.ServerStream
+}
+
+type metricsCollectorServiceSendClusterSnapshotStreamServer struct {
+	grpc.ServerStream
+}
+
+func (x *metricsCollectorServiceSendClusterSnapshotStreamServer) SendAndClose(m *SendClusterSnapshotStreamResponse) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func (x *metricsCollectorServiceSendClusterSnapshotStreamServer) Recv() (*ClusterSnapshotChunk, error) {
+	m := new(ClusterSnapshotChunk)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
-	if interceptor == nil {
-		return srv.(MetricsCollectorServiceServer).SendClusterSnapshot(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: MetricsCollectorService_SendClusterSnapshot_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(MetricsCollectorServiceServer).SendClusterSnapshot(ctx, req.(*SendClusterSnapshotRequest))
-	}
-	return interceptor(ctx, in, info, handler)
+	return m, nil
 }
 
 // MetricsCollectorService_ServiceDesc is the grpc.ServiceDesc for MetricsCollectorService service.
@@ -219,11 +252,13 @@ var MetricsCollectorService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "SendTelemetryMetrics",
 			Handler:    _MetricsCollectorService_SendTelemetryMetrics_Handler,
 		},
+	},
+	Streams: []grpc.StreamDesc{
 		{
-			MethodName: "SendClusterSnapshot",
-			Handler:    _MetricsCollectorService_SendClusterSnapshot_Handler,
+			StreamName:    "SendClusterSnapshotStream",
+			Handler:       _MetricsCollectorService_SendClusterSnapshotStream_Handler,
+			ClientStreams: true,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
 	Metadata: "api/v1/metrics_collector.proto",
 }

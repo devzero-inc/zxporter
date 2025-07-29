@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net"
 	"net/http"
 	"time"
@@ -12,12 +13,18 @@ import (
 	"connectrpc.com/connect"
 	"github.com/devzero-inc/zxporter/internal/collector"
 	"github.com/go-logr/logr"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	gen "github.com/devzero-inc/zxporter/gen/api/v1"
 	genconnect "github.com/devzero-inc/zxporter/gen/api/v1/apiv1connect"
 	dto "github.com/prometheus/client_model/go"
+)
+
+const (
+	// Maximum size per chunk (in bytes) - set conservatively to avoid gRPC limits
+	maxChunkSize = 3 * 1024 * 1024 // 3MB per chunk
 )
 
 // RetryPolicy defines the parameters for retrying.
@@ -305,68 +312,81 @@ func (c *RealDakrClient) SendTelemetryMetrics(ctx context.Context, metrics []*dt
 	return resp.Msg.ProcessedCount, nil
 }
 
-// SendClusterSnapshot sends cluster snapshot data to Dakr using the dedicated endpoint
-func (c *RealDakrClient) SendClusterSnapshot(ctx context.Context, snapshotData interface{}, snapshotID string, timestamp time.Time) (string, error) {
-	c.logger.Info("Sending cluster snapshot to Dakr", "snapshotId", snapshotID)
+func attachClusterToken[T any](req *connect.Request[T], clusterToken string) {
+	req.Header().Set("Authorization", fmt.Sprintf("Bearer %s", clusterToken))
+}
 
-	// Convert snapshotData to a protobuf struct
-	var dataStruct *structpb.Struct
-	var err error
+// SendClusterSnapshotStream sends cluster snapshot data in chunks via streaming
+func (c *RealDakrClient) SendClusterSnapshotStream(ctx context.Context, snapshot *gen.ClusterSnapshot, snapshotID string, timestamp time.Time) (string, error) {
+	c.logger.Info("Sending cluster snapshot via streaming", "snapshotId", snapshotID)
 
-	// TODO (parthiba): change this to send a []byte instead -- structs are way too bloated to send over the wire
-	dataStruct, err = structpb.NewStruct(map[string]interface{}{})
+	protoBytes, err := proto.Marshal(snapshot)
 	if err != nil {
-		c.logger.Error(err, "Failed to create empty struct for cluster snapshot")
-		return "", err
+		c.logger.Error(err, "Failed to proto.Marshal cluster snapshot")
+		return "", fmt.Errorf("failed to proto.Marshal cluster snapshot: %w", err)
 	}
 
-	// Marshal the snapshot data to JSON then unmarshal to the struct
-	jsonBytes, err := json.Marshal(snapshotData)
-	if err != nil {
-		c.logger.Error(err, "Failed to marshal cluster snapshot data to JSON")
-		return "", fmt.Errorf("failed to marshal cluster snapshot data: %w", err)
-	}
+	totalSize := len(protoBytes)
+	totalChunks := int(math.Ceil(float64(totalSize) / float64(maxChunkSize)))
 
-	err = dataStruct.UnmarshalJSON(jsonBytes)
-	if err != nil {
-		c.logger.Error(err, "Failed to unmarshal JSON to protobuf struct for cluster snapshot")
-		return "", fmt.Errorf("failed to convert cluster snapshot data to protobuf struct: %w", err)
-	}
+	c.logger.Info("Preparing to stream cluster snapshot",
+		"totalSize", totalSize,
+		"totalChunks", totalChunks,
+		"maxChunkSize", maxChunkSize)
 
-	// Create the cluster snapshot request
-	snapshotReq := &gen.SendClusterSnapshotRequest{
-		SnapshotData: dataStruct,
-		SnapshotId:   snapshotID,
-		Timestamp:    timestamppb.New(timestamp),
-	}
+	// Establish the stream
+	stream := c.client.SendClusterSnapshotStream(ctx)
+	stream.RequestHeader().Set("Authorization", fmt.Sprintf("Bearer %s", c.clusterToken))
 
-	// Set cluster ID and team ID if available in context
+	clusterID := ""
+	teamID := ""
 	if ctx.Value("cluster_id") != nil {
-		clusterString, _ := ctx.Value("cluster_id").(string)
-		snapshotReq.ClusterId = clusterString
+		clusterID, _ = ctx.Value("cluster_id").(string)
 	}
 	if ctx.Value("team_id") != nil {
-		teamString, _ := ctx.Value("team_id").(string)
-		snapshotReq.TeamId = teamString
+		teamID, _ = ctx.Value("team_id").(string)
 	}
 
-	req := connect.NewRequest(snapshotReq)
-	attachClusterToken(req, c.clusterToken)
+	// Send chunks
+	for chunkNum := 0; chunkNum < totalChunks; chunkNum++ {
+		start := chunkNum * maxChunkSize
+		end := start + maxChunkSize
+		if end > totalSize {
+			end = totalSize
+		}
 
-	// Send to Dakr
-	resp, err := c.client.SendClusterSnapshot(ctx, req)
+		chunkData := protoBytes[start:end]
+
+		chunk := &gen.ClusterSnapshotChunk{
+			ClusterId:    clusterID,
+			TeamId:       teamID,
+			Timestamp:    timestamppb.New(timestamp),
+			SnapshotId:   snapshotID,
+			ChunkNumber:  int32(chunkNum),
+			TotalChunks:  int32(totalChunks),
+			ChunkData:    chunkData,
+			IsFinalChunk: chunkNum == totalChunks-1,
+		}
+
+		// Send the raw chunk message directly.
+		if err := stream.Send(chunk); err != nil {
+			c.logger.Error(err, "Failed to send chunk", "chunkNum", chunkNum)
+			return "", fmt.Errorf("failed to send chunk %d: %w", chunkNum, err)
+		}
+
+		c.logger.Info("Sent chunk", "chunkNum", chunkNum, "size", len(chunkData))
+	}
+
+	resp, err := stream.CloseAndReceive()
 	if err != nil {
-		c.logger.Error(err, "Failed to send cluster snapshot to Dakr")
-		return "", fmt.Errorf("failed to send cluster snapshot to Dakr: %w", err)
+		c.logger.Error(err, "Failed to close stream and receive response")
+		return "", fmt.Errorf("failed to close stream and receive response: %w", err)
 	}
 
-	c.logger.Info("Successfully sent cluster snapshot to Dakr",
+	c.logger.Info("Successfully sent cluster snapshot via streaming",
 		"snapshotId", snapshotID,
+		"chunksReceived", resp.Msg.ChunksReceived,
 		"status", resp.Msg.Status)
 
 	return resp.Msg.ClusterId, nil
-}
-
-func attachClusterToken[T any](req *connect.Request[T], clusterToken string) {
-	req.Header().Set("Authorization", fmt.Sprintf("Bearer %s", clusterToken))
 }

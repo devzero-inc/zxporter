@@ -42,9 +42,9 @@ const (
 	// MetricsCollectorServiceSendTelemetryMetricsProcedure is the fully-qualified name of the
 	// MetricsCollectorService's SendTelemetryMetrics RPC.
 	MetricsCollectorServiceSendTelemetryMetricsProcedure = "/api.v1.MetricsCollectorService/SendTelemetryMetrics"
-	// MetricsCollectorServiceSendClusterSnapshotProcedure is the fully-qualified name of the
-	// MetricsCollectorService's SendClusterSnapshot RPC.
-	MetricsCollectorServiceSendClusterSnapshotProcedure = "/api.v1.MetricsCollectorService/SendClusterSnapshot"
+	// MetricsCollectorServiceSendClusterSnapshotStreamProcedure is the fully-qualified name of the
+	// MetricsCollectorService's SendClusterSnapshotStream RPC.
+	MetricsCollectorServiceSendClusterSnapshotStreamProcedure = "/api.v1.MetricsCollectorService/SendClusterSnapshotStream"
 )
 
 // MetricsCollectorServiceClient is a client for the api.v1.MetricsCollectorService service.
@@ -55,8 +55,8 @@ type MetricsCollectorServiceClient interface {
 	SendResourceBatch(context.Context, *connect.Request[v1.SendResourceBatchRequest]) (*connect.Response[v1.SendResourceBatchResponse], error)
 	// SendTelemetryMetrics pushes a batch of telemetry metrics (gauges, counters, histograms) from a cluster.
 	SendTelemetryMetrics(context.Context, *connect.Request[v1.SendTelemetryMetricsRequest]) (*connect.Response[v1.SendTelemetryMetricsResponse], error)
-	// SendClusterSnapshot processes cluster snapshot data for resource deletion tracking.
-	SendClusterSnapshot(context.Context, *connect.Request[v1.SendClusterSnapshotRequest]) (*connect.Response[v1.SendClusterSnapshotResponse], error)
+	// SendClusterSnapshotStream processes cluster snapshot data in chunks via streaming
+	SendClusterSnapshotStream(context.Context) *connect.ClientStreamForClient[v1.ClusterSnapshotChunk, v1.SendClusterSnapshotStreamResponse]
 }
 
 // NewMetricsCollectorServiceClient constructs a client for the api.v1.MetricsCollectorService
@@ -84,9 +84,9 @@ func NewMetricsCollectorServiceClient(httpClient connect.HTTPClient, baseURL str
 			baseURL+MetricsCollectorServiceSendTelemetryMetricsProcedure,
 			opts...,
 		),
-		sendClusterSnapshot: connect.NewClient[v1.SendClusterSnapshotRequest, v1.SendClusterSnapshotResponse](
+		sendClusterSnapshotStream: connect.NewClient[v1.ClusterSnapshotChunk, v1.SendClusterSnapshotStreamResponse](
 			httpClient,
-			baseURL+MetricsCollectorServiceSendClusterSnapshotProcedure,
+			baseURL+MetricsCollectorServiceSendClusterSnapshotStreamProcedure,
 			opts...,
 		),
 	}
@@ -94,10 +94,10 @@ func NewMetricsCollectorServiceClient(httpClient connect.HTTPClient, baseURL str
 
 // metricsCollectorServiceClient implements MetricsCollectorServiceClient.
 type metricsCollectorServiceClient struct {
-	sendResource         *connect.Client[v1.SendResourceRequest, v1.SendResourceResponse]
-	sendResourceBatch    *connect.Client[v1.SendResourceBatchRequest, v1.SendResourceBatchResponse]
-	sendTelemetryMetrics *connect.Client[v1.SendTelemetryMetricsRequest, v1.SendTelemetryMetricsResponse]
-	sendClusterSnapshot  *connect.Client[v1.SendClusterSnapshotRequest, v1.SendClusterSnapshotResponse]
+	sendResource              *connect.Client[v1.SendResourceRequest, v1.SendResourceResponse]
+	sendResourceBatch         *connect.Client[v1.SendResourceBatchRequest, v1.SendResourceBatchResponse]
+	sendTelemetryMetrics      *connect.Client[v1.SendTelemetryMetricsRequest, v1.SendTelemetryMetricsResponse]
+	sendClusterSnapshotStream *connect.Client[v1.ClusterSnapshotChunk, v1.SendClusterSnapshotStreamResponse]
 }
 
 // SendResource calls api.v1.MetricsCollectorService.SendResource.
@@ -115,9 +115,9 @@ func (c *metricsCollectorServiceClient) SendTelemetryMetrics(ctx context.Context
 	return c.sendTelemetryMetrics.CallUnary(ctx, req)
 }
 
-// SendClusterSnapshot calls api.v1.MetricsCollectorService.SendClusterSnapshot.
-func (c *metricsCollectorServiceClient) SendClusterSnapshot(ctx context.Context, req *connect.Request[v1.SendClusterSnapshotRequest]) (*connect.Response[v1.SendClusterSnapshotResponse], error) {
-	return c.sendClusterSnapshot.CallUnary(ctx, req)
+// SendClusterSnapshotStream calls api.v1.MetricsCollectorService.SendClusterSnapshotStream.
+func (c *metricsCollectorServiceClient) SendClusterSnapshotStream(ctx context.Context) *connect.ClientStreamForClient[v1.ClusterSnapshotChunk, v1.SendClusterSnapshotStreamResponse] {
+	return c.sendClusterSnapshotStream.CallClientStream(ctx)
 }
 
 // MetricsCollectorServiceHandler is an implementation of the api.v1.MetricsCollectorService
@@ -129,8 +129,8 @@ type MetricsCollectorServiceHandler interface {
 	SendResourceBatch(context.Context, *connect.Request[v1.SendResourceBatchRequest]) (*connect.Response[v1.SendResourceBatchResponse], error)
 	// SendTelemetryMetrics pushes a batch of telemetry metrics (gauges, counters, histograms) from a cluster.
 	SendTelemetryMetrics(context.Context, *connect.Request[v1.SendTelemetryMetricsRequest]) (*connect.Response[v1.SendTelemetryMetricsResponse], error)
-	// SendClusterSnapshot processes cluster snapshot data for resource deletion tracking.
-	SendClusterSnapshot(context.Context, *connect.Request[v1.SendClusterSnapshotRequest]) (*connect.Response[v1.SendClusterSnapshotResponse], error)
+	// SendClusterSnapshotStream processes cluster snapshot data in chunks via streaming
+	SendClusterSnapshotStream(context.Context, *connect.ClientStream[v1.ClusterSnapshotChunk]) (*connect.Response[v1.SendClusterSnapshotStreamResponse], error)
 }
 
 // NewMetricsCollectorServiceHandler builds an HTTP handler from the service implementation. It
@@ -154,9 +154,9 @@ func NewMetricsCollectorServiceHandler(svc MetricsCollectorServiceHandler, opts 
 		svc.SendTelemetryMetrics,
 		opts...,
 	)
-	metricsCollectorServiceSendClusterSnapshotHandler := connect.NewUnaryHandler(
-		MetricsCollectorServiceSendClusterSnapshotProcedure,
-		svc.SendClusterSnapshot,
+	metricsCollectorServiceSendClusterSnapshotStreamHandler := connect.NewClientStreamHandler(
+		MetricsCollectorServiceSendClusterSnapshotStreamProcedure,
+		svc.SendClusterSnapshotStream,
 		opts...,
 	)
 	return "/api.v1.MetricsCollectorService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -167,8 +167,8 @@ func NewMetricsCollectorServiceHandler(svc MetricsCollectorServiceHandler, opts 
 			metricsCollectorServiceSendResourceBatchHandler.ServeHTTP(w, r)
 		case MetricsCollectorServiceSendTelemetryMetricsProcedure:
 			metricsCollectorServiceSendTelemetryMetricsHandler.ServeHTTP(w, r)
-		case MetricsCollectorServiceSendClusterSnapshotProcedure:
-			metricsCollectorServiceSendClusterSnapshotHandler.ServeHTTP(w, r)
+		case MetricsCollectorServiceSendClusterSnapshotStreamProcedure:
+			metricsCollectorServiceSendClusterSnapshotStreamHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -190,6 +190,6 @@ func (UnimplementedMetricsCollectorServiceHandler) SendTelemetryMetrics(context.
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.MetricsCollectorService.SendTelemetryMetrics is not implemented"))
 }
 
-func (UnimplementedMetricsCollectorServiceHandler) SendClusterSnapshot(context.Context, *connect.Request[v1.SendClusterSnapshotRequest]) (*connect.Response[v1.SendClusterSnapshotResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.MetricsCollectorService.SendClusterSnapshot is not implemented"))
+func (UnimplementedMetricsCollectorServiceHandler) SendClusterSnapshotStream(context.Context, *connect.ClientStream[v1.ClusterSnapshotChunk]) (*connect.Response[v1.SendClusterSnapshotStreamResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.MetricsCollectorService.SendClusterSnapshotStream is not implemented"))
 }

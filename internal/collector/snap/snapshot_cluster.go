@@ -34,36 +34,53 @@ func (c *ClusterSnapshotter) captureClusterInfo(ctx context.Context, snapshot *C
 
 func (c *ClusterSnapshotter) captureClusterScopedResources(ctx context.Context, snapshot *ClusterSnapshot) error {
 	clusterScoped := snapshot.ClusterScoped
-	clusterScoped.PersistentVolumes = make(map[string]ResourceIdentifier)
-	clusterScoped.StorageClasses = make(map[string]ResourceIdentifier)
-	clusterScoped.ClusterRoles = make(map[string]ResourceIdentifier)
-	clusterScoped.ClusterRoleBindings = make(map[string]ResourceIdentifier)
+	clusterScoped.PersistentVolumes = make(map[string]*ResourceIdentifier)
+	clusterScoped.StorageClasses = make(map[string]*ResourceIdentifier)
+	clusterScoped.ClusterRoles = make(map[string]*ResourceIdentifier)
+	clusterScoped.ClusterRoleBindings = make(map[string]*ResourceIdentifier)
+	clusterScoped.CustomResourceDefinitions = make(map[string]*ResourceIdentifier) // Not implemented
+	clusterScoped.IngressClasses = make(map[string]*ResourceIdentifier)
+	clusterScoped.CsiNodes = make(map[string]*ResourceIdentifier)
 
 	if pvs, err := c.client.CoreV1().PersistentVolumes().List(ctx, metav1.ListOptions{}); err == nil {
 		for _, pv := range pvs.Items {
 			uid := string(pv.UID)
-			clusterScoped.PersistentVolumes[uid] = ResourceIdentifier{Name: pv.Name}
+			clusterScoped.PersistentVolumes[uid] = &ResourceIdentifier{Name: pv.Name}
 		}
 	}
 
 	if scs, err := c.client.StorageV1().StorageClasses().List(ctx, metav1.ListOptions{}); err == nil {
 		for _, sc := range scs.Items {
 			uid := string(sc.UID)
-			clusterScoped.StorageClasses[uid] = ResourceIdentifier{Name: sc.Name}
+			clusterScoped.StorageClasses[uid] = &ResourceIdentifier{Name: sc.Name}
 		}
 	}
 
 	if clusterRoles, err := c.client.RbacV1().ClusterRoles().List(ctx, metav1.ListOptions{}); err == nil {
 		for _, cr := range clusterRoles.Items {
 			uid := string(cr.UID)
-			clusterScoped.ClusterRoles[uid] = ResourceIdentifier{Name: cr.Name}
+			clusterScoped.ClusterRoles[uid] = &ResourceIdentifier{Name: cr.Name}
 		}
 	}
 
 	if clusterRoleBindings, err := c.client.RbacV1().ClusterRoleBindings().List(ctx, metav1.ListOptions{}); err == nil {
 		for _, crb := range clusterRoleBindings.Items {
 			uid := string(crb.UID)
-			clusterScoped.ClusterRoleBindings[uid] = ResourceIdentifier{Name: crb.Name}
+			clusterScoped.ClusterRoleBindings[uid] = &ResourceIdentifier{Name: crb.Name}
+		}
+	}
+
+	if ingressClasses, err := c.client.NetworkingV1().IngressClasses().List(ctx, metav1.ListOptions{}); err == nil {
+		for _, ic := range ingressClasses.Items {
+			uid := string(ic.UID)
+			clusterScoped.IngressClasses[uid] = &ResourceIdentifier{Name: ic.Name}
+		}
+	}
+
+	if csiNodes, err := c.client.StorageV1().CSINodes().List(ctx, metav1.ListOptions{}); err == nil {
+		for _, csiNode := range csiNodes.Items {
+			uid := string(csiNode.UID)
+			clusterScoped.CsiNodes[uid] = &ResourceIdentifier{Name: csiNode.Name}
 		}
 	}
 

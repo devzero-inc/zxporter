@@ -204,58 +204,128 @@ func (s *MetricsServer) SendResourceBatch(ctx context.Context, req *connect.Requ
 	return resp, nil
 }
 
-// SendClusterSnapshot implements the SendClusterSnapshot RPC method
-func (s *MetricsServer) SendClusterSnapshot(ctx context.Context, req *connect.Request[apiv1.SendClusterSnapshotRequest]) (*connect.Response[apiv1.SendClusterSnapshotResponse], error) {
-	// Convert the cluster snapshot request to JSON for logging
-	jsonData, err := json.Marshal(req.Msg)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error marshaling cluster snapshot request to JSON: %v\n", err)
-		// Continue processing even if logging fails, but don't write the faulty JSON
+// SendClusterSnapshotStream implements streaming ingestion for the test server
+// This method:
+// 1. Collects all chunks from the stream
+// 2. Reassembles the complete snapshot data
+// 3. Deserializes the cluster snapshot
+// 4. Extracts detailed resource statistics
+// 5. Stores the statistics for testing validation
+func (s *MetricsServer) SendClusterSnapshotStream(
+	ctx context.Context,
+	stream *connect.ClientStream[apiv1.ClusterSnapshotChunk],
+) (*connect.Response[apiv1.SendClusterSnapshotStreamResponse], error) {
+	fmt.Fprintf(os.Stderr, "=== Starting cluster snapshot stream processing ===\n")
+
+	var snapshotID string
+	var clusterID string
+	var chunksReceived int32
+	var totalChunks int32
+	var receivedAt time.Time
+	var totalSize int64
+
+	// Step 1: Collect all chunks and reassemble the data
+	fmt.Fprintf(os.Stderr, "Step 1: Collecting snapshot chunks...\n")
+	chunks := make(map[int32][]byte) // chunk_number -> chunk_data
+
+	for stream.Receive() {
+		chunk := stream.Msg()
+		chunksReceived++
+
+		if chunksReceived == 1 {
+			snapshotID = chunk.GetSnapshotId()
+			clusterID = chunk.GetClusterId()
+			totalChunks = chunk.GetTotalChunks()
+			receivedAt = time.Now()
+			fmt.Fprintf(os.Stderr, "  Snapshot ID: %s, Cluster ID: %s, Expected chunks: %d\n",
+				snapshotID, clusterID, totalChunks)
+		}
+
+		chunkSize := len(chunk.GetChunkData())
+		totalSize += int64(chunkSize)
+		chunks[chunk.GetChunkNumber()] = chunk.GetChunkData()
+
+		fmt.Fprintf(os.Stderr, "  Received chunk %d/%d (size: %d bytes)\n",
+			chunk.GetChunkNumber()+1, chunk.GetTotalChunks(), chunkSize)
 	}
 
-	// Lock for stats update and file writing
+	if err := stream.Err(); err != nil {
+		fmt.Fprintf(os.Stderr, "Stream error in SendClusterSnapshotStream: %v\n", err)
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("stream error: %w", err))
+	}
+
+	fmt.Fprintf(os.Stderr, "Step 1 Complete: Collected %d/%d chunks, total size: %d bytes\n",
+		chunksReceived, totalChunks, totalSize)
+
+	// Step 2: Reassemble the complete snapshot data
+	fmt.Fprintf(os.Stderr, "Step 2: Reassembling snapshot data...\n")
+	var completeData []byte
+	for i := int32(0); i < totalChunks; i++ {
+		if chunkData, exists := chunks[i]; exists {
+			completeData = append(completeData, chunkData...)
+		} else {
+			fmt.Fprintf(os.Stderr, "ERROR: Missing chunk %d\n", i)
+			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("missing chunk %d", i))
+		}
+	}
+	fmt.Fprintf(os.Stderr, "Step 2 Complete: Reassembled %d bytes of snapshot data\n", len(completeData))
+
+	// Step 3: Deserialize the cluster snapshot
+	fmt.Fprintf(os.Stderr, "Step 3: Deserializing cluster snapshot...\n")
+	var clusterSnapshot apiv1.ClusterSnapshot
+	if err := json.Unmarshal(completeData, &clusterSnapshot); err != nil {
+		fmt.Fprintf(os.Stderr, "ERROR: Failed to deserialize cluster snapshot: %v\n", err)
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to deserialize snapshot: %w", err))
+	}
+	fmt.Fprintf(os.Stderr, "Step 3 Complete: Successfully deserialized cluster snapshot\n")
+
+	// Step 4: Extract detailed resource statistics
+	fmt.Fprintf(os.Stderr, "Step 4: Extracting resource statistics...\n")
+	snapshotStats := s.extractSnapshotStatistics(&clusterSnapshot, snapshotID, clusterID, chunksReceived, totalSize, receivedAt)
+	fmt.Fprintf(os.Stderr, "Step 4 Complete: Extracted statistics for %d nodes, %d namespaces\n",
+		len(snapshotStats.NodeResources), len(snapshotStats.NamespaceResources))
+
+	// Step 5: Store statistics and update global stats
+	fmt.Fprintf(os.Stderr, "Step 5: Storing statistics...\n")
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// Update stats for cluster snapshot
+	// Update global message stats
 	s.stats.TotalMessages++
 	if s.stats.MessagesByType == nil {
 		s.stats.MessagesByType = make(map[string]int)
 	}
-	s.stats.MessagesByType["CLUSTER_SNAPSHOT"]++
-
-	// Update first message time if not set
+	s.stats.MessagesByType["CLUSTER_SNAPSHOT_STREAM"]++
 	if s.stats.FirstMessageTime == nil {
 		now := time.Now()
 		s.stats.FirstMessageTime = &now
 	}
 
-	// Write the JSON to the output file if marshaling succeeded
-	if err == nil {
-		f, fileErr := os.OpenFile(s.outputFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-		if fileErr != nil {
-			fmt.Fprintf(os.Stderr, "Error opening output file for cluster snapshot: %v\n", fileErr)
-			// Return error as file writing is crucial for testing
-			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("error opening output file for cluster snapshot: %w", fileErr))
-		}
-		defer f.Close() // Ensure file is closed even if writing fails
-
-		if _, writeErr := f.WriteString(string(jsonData) + "\n"); writeErr != nil {
-			fmt.Fprintf(os.Stderr, "Error writing cluster snapshot to output file: %v\n", writeErr)
-			// Return error as file writing is crucial for testing
-			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("error writing cluster snapshot to output file: %w", writeErr))
-		}
+	if s.stats.SnapshotStats == nil {
+		s.stats.SnapshotStats = make(map[string]stats.SnapshotStats)
 	}
+	s.stats.SnapshotStats[snapshotID] = snapshotStats
 
-	fmt.Fprintf(os.Stderr, "Received cluster snapshot - ID: %s, ClusterID: %s\n", req.Msg.SnapshotId, req.Msg.ClusterId)
+	fmt.Fprintf(os.Stderr, "Step 5 Complete: Stored snapshot statistics\n")
 
-	// Return a response
-	resp := connect.NewResponse(&apiv1.SendClusterSnapshotResponse{
-		ClusterId:  req.Msg.ClusterId,
-		SnapshotId: req.Msg.SnapshotId,
-		Status:     "processed",
+	processingDuration := time.Since(receivedAt)
+	fmt.Fprintf(os.Stderr, "=== Snapshot processing complete ===\n")
+	fmt.Fprintf(os.Stderr, "Summary:\n")
+	fmt.Fprintf(os.Stderr, "  - Snapshot ID: %s\n", snapshotID)
+	fmt.Fprintf(os.Stderr, "  - Cluster ID: %s\n", clusterID)
+	fmt.Fprintf(os.Stderr, "  - Chunks: %d/%d\n", chunksReceived, totalChunks)
+	fmt.Fprintf(os.Stderr, "  - Total size: %d bytes\n", totalSize)
+	fmt.Fprintf(os.Stderr, "  - Processing time: %v\n", processingDuration)
+	fmt.Fprintf(os.Stderr, "  - Nodes: %d\n", len(snapshotStats.NodeResources))
+	fmt.Fprintf(os.Stderr, "  - Namespaces: %d\n", len(snapshotStats.NamespaceResources))
+	fmt.Fprintf(os.Stderr, "  - Cluster-scoped resources: %d types\n", len(snapshotStats.ClusterScopedResources))
+
+	resp := connect.NewResponse(&apiv1.SendClusterSnapshotStreamResponse{
+		ClusterId:      clusterID,
+		SnapshotId:     snapshotID,
+		Status:         "processed",
+		ChunksReceived: chunksReceived,
 	})
-
 	return resp, nil
 }
 
@@ -513,6 +583,124 @@ func (s *MetricsServer) extractClusterResourceInfo(key string, data *structpb.St
 	s.stats.UsageReportCluster[key] = entry
 }
 
+func (s *MetricsServer) extractSnapshotStatistics(
+	snapshot *apiv1.ClusterSnapshot,
+	snapshotID, clusterID string,
+	chunksCount int32,
+	totalSize int64,
+	timestamp time.Time,
+) stats.SnapshotStats {
+	fmt.Fprintf(os.Stderr, "    Analyzing cluster snapshot structure...\n")
+
+	snapshotStats := stats.SnapshotStats{
+		SnapshotID:             snapshotID,
+		ClusterID:              clusterID,
+		Timestamp:              timestamp,
+		ChunksCount:            chunksCount,
+		TotalSize:              totalSize,
+		NodeResources:          make(map[string]int),
+		NamespaceResources:     make(map[string]int),
+		ClusterScopedResources: make(map[string]int),
+		NamespaceBreakdown:     make(map[string]stats.NamespaceResourceBreakdown),
+	}
+
+	if snapshot.ClusterInfo != nil {
+		snapshotStats.ClusterVersion = snapshot.ClusterInfo.Version
+		snapshotStats.NodeCount = snapshot.ClusterInfo.NodeCount
+		snapshotStats.Namespaces = snapshot.ClusterInfo.Namespaces
+		fmt.Fprintf(os.Stderr, "    Cluster version: %s, Node count: %d, Namespaces: %d\n",
+			snapshotStats.ClusterVersion, snapshotStats.NodeCount, len(snapshotStats.Namespaces))
+	}
+
+	fmt.Fprintf(os.Stderr, "    Analyzing node resources...\n")
+	for nodeUID, nodeData := range snapshot.Nodes {
+		if nodeData != nil {
+			podCount := len(nodeData.Pods)
+			snapshotStats.NodeResources[nodeUID] = podCount
+			fmt.Fprintf(os.Stderr, "      Node %s: %d pods\n", nodeUID, podCount)
+		}
+	}
+
+	fmt.Fprintf(os.Stderr, "    Analyzing namespace resources...\n")
+	for namespaceUID, namespaceData := range snapshot.Namespaces {
+		if namespaceData == nil {
+			continue
+		}
+
+		breakdown := stats.NamespaceResourceBreakdown{}
+		if namespaceData.Namespace != nil {
+			breakdown.NamespaceName = namespaceData.Namespace.Name
+		}
+
+		breakdown.Deployments = len(namespaceData.Deployments)
+		breakdown.StatefulSets = len(namespaceData.StatefulSets)
+		breakdown.DaemonSets = len(namespaceData.DaemonSets)
+		breakdown.ReplicaSets = len(namespaceData.ReplicaSets)
+		breakdown.Services = len(namespaceData.Services)
+		breakdown.ConfigMaps = len(namespaceData.ConfigMaps)
+		breakdown.Secrets = len(namespaceData.Secrets)
+		breakdown.PVCs = len(namespaceData.Pvcs)
+		breakdown.Jobs = len(namespaceData.Jobs)
+		breakdown.CronJobs = len(namespaceData.CronJobs)
+		breakdown.Ingresses = len(namespaceData.Ingresses)
+		breakdown.NetworkPolicies = len(namespaceData.NetworkPolicies)
+		breakdown.ServiceAccounts = len(namespaceData.ServiceAccounts)
+		breakdown.Roles = len(namespaceData.Roles)
+		breakdown.RoleBindings = len(namespaceData.RoleBindings)
+		breakdown.PodDisruptionBudgets = len(namespaceData.PodDisruptionBudgets)
+		breakdown.Endpoints = len(namespaceData.Endpoints)
+		breakdown.LimitRanges = len(namespaceData.LimitRanges)
+		breakdown.ResourceQuotas = len(namespaceData.ResourceQuotas)
+		breakdown.UnscheduledPods = len(namespaceData.UnscheduledPods)
+		breakdown.HorizontalPodAutoscalers = len(namespaceData.HorizontalPodAutoscalers)
+		breakdown.Events = len(namespaceData.Events)
+		breakdown.KedaScaledJobs = len(namespaceData.KedaScaledJobs)
+		breakdown.KedaScaledObjects = len(namespaceData.KedaScaledObjects)
+
+		breakdown.TotalResources = breakdown.Deployments + breakdown.StatefulSets + breakdown.DaemonSets +
+			breakdown.ReplicaSets + breakdown.Services + breakdown.ConfigMaps + breakdown.Secrets +
+			breakdown.PVCs + breakdown.Jobs + breakdown.CronJobs + breakdown.Ingresses +
+			breakdown.NetworkPolicies + breakdown.ServiceAccounts + breakdown.Roles + breakdown.RoleBindings +
+			breakdown.PodDisruptionBudgets + breakdown.Endpoints + breakdown.LimitRanges + breakdown.ResourceQuotas +
+			breakdown.UnscheduledPods + breakdown.HorizontalPodAutoscalers + breakdown.Events +
+			breakdown.KedaScaledJobs + breakdown.KedaScaledObjects
+
+		snapshotStats.NamespaceResources[namespaceUID] = breakdown.TotalResources
+		snapshotStats.NamespaceBreakdown[namespaceUID] = breakdown
+
+		fmt.Fprintf(os.Stderr, "      Namespace %s (%s): %d total resources\n",
+			breakdown.NamespaceName, namespaceUID, breakdown.TotalResources)
+		fmt.Fprintf(os.Stderr, "        - Deployments: %d, StatefulSets: %d, DaemonSets: %d\n",
+			breakdown.Deployments, breakdown.StatefulSets, breakdown.DaemonSets)
+		fmt.Fprintf(os.Stderr, "        - Services: %d, ConfigMaps: %d, Secrets: %d\n",
+			breakdown.Services, breakdown.ConfigMaps, breakdown.Secrets)
+		fmt.Fprintf(os.Stderr, "        - PVCs: %d, Jobs: %d, CronJobs: %d\n",
+			breakdown.PVCs, breakdown.Jobs, breakdown.CronJobs)
+		fmt.Fprintf(os.Stderr, "        - HPAs: %d, Events: %d, UnscheduledPods: %d\n",
+			breakdown.HorizontalPodAutoscalers, breakdown.Events, breakdown.UnscheduledPods)
+	}
+
+	fmt.Fprintf(os.Stderr, "    Analyzing cluster-scoped resources...\n")
+	if snapshot.ClusterScoped != nil {
+		snapshotStats.ClusterScopedResources["PersistentVolumes"] = len(snapshot.ClusterScoped.PersistentVolumes)
+		snapshotStats.ClusterScopedResources["StorageClasses"] = len(snapshot.ClusterScoped.StorageClasses)
+		snapshotStats.ClusterScopedResources["ClusterRoles"] = len(snapshot.ClusterScoped.ClusterRoles)
+		snapshotStats.ClusterScopedResources["ClusterRoleBindings"] = len(snapshot.ClusterScoped.ClusterRoleBindings)
+		snapshotStats.ClusterScopedResources["CustomResourceDefinitions"] = len(snapshot.ClusterScoped.CustomResourceDefinitions)
+		snapshotStats.ClusterScopedResources["IngressClasses"] = len(snapshot.ClusterScoped.IngressClasses)
+		snapshotStats.ClusterScopedResources["CSINodes"] = len(snapshot.ClusterScoped.CsiNodes)
+
+		for resourceType, count := range snapshotStats.ClusterScopedResources {
+			if count > 0 {
+				fmt.Fprintf(os.Stderr, "      %s: %d\n", resourceType, count)
+			}
+		}
+	}
+
+	fmt.Fprintf(os.Stderr, "    Snapshot analysis complete\n")
+	return snapshotStats
+}
+
 func main() {
 	// Define command-line flags
 	outputFile := flag.String("output", "requests.json", "Path to the output file for request data")
@@ -540,6 +728,7 @@ func main() {
 			UsageReportPods:    make(map[string]stats.PodResourceUsage),
 			UsageReportNodes:   make(map[string]stats.NodeResourceUsage),
 			UsageReportCluster: make(map[string]stats.ClusterResourceUsage),
+			SnapshotStats:      make(map[string]stats.SnapshotStats),
 		},
 		seenResources: make(map[string]bool),
 	}
