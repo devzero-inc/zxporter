@@ -117,13 +117,25 @@ func (c *ClusterSnapshotter) takeSnapshot(ctx context.Context) {
 
 func (c *ClusterSnapshotter) captureClusterState(ctx context.Context) (*ClusterSnapshot, error) {
 	now := time.Now().UTC()
+	clusterID := ""
+	if ctx.Value("cluster_id") != nil {
+		clusterID, _ = ctx.Value("cluster_id").(string)
+	}
+
+	var snapshotID string
+	if clusterID != "" {
+		snapshotID = fmt.Sprintf("snapshot-%s-%d", clusterID, now.UnixNano())
+	} else {
+		snapshotID = fmt.Sprintf("snapshot-unknown-%d", now.UnixNano())
+	}
+
 	snapshot := &ClusterSnapshot{
 		ClusterInfo:   &ClusterInfo{},
 		Nodes:         make(map[string]*NodeData),
 		Namespaces:    make(map[string]*Namespace),
 		ClusterScoped: &ClusterScopedSnapshot{},
 		Timestamp:     timestamppb.New(now),
-		SnapshotId:    fmt.Sprintf("snapshot-%d", now.UnixNano()),
+		SnapshotId:    snapshotID,
 	}
 
 	if err := c.captureClusterInfo(ctx, snapshot); err != nil {
