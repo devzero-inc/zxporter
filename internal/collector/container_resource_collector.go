@@ -13,6 +13,7 @@ import (
 	"github.com/prometheus/client_golang/api"
 	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
 	"github.com/prometheus/common/model"
+	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -21,6 +22,8 @@ import (
 	"k8s.io/client-go/tools/cache"
 	metricsv1beta1 "k8s.io/metrics/pkg/apis/metrics/v1beta1"
 	metricsv1 "k8s.io/metrics/pkg/client/clientset/versioned"
+
+	gen "github.com/devzero-inc/zxporter/gen/api/v1"
 )
 
 // ContainerResourceCollectorConfig holds configuration for the resource collector
@@ -61,6 +64,7 @@ type ContainerResourceCollector struct {
 	excludedPods    map[types.NamespacedName]bool
 	logger          logr.Logger
 	metrics         *TelemetryMetrics
+	telemLogs       *TelemetryLogsClient
 	mu              sync.RWMutex
 }
 
@@ -75,6 +79,7 @@ func NewContainerResourceCollector(
 	maxBatchTime time.Duration, // Added parameter
 	logger logr.Logger,
 	metrics *TelemetryMetrics,
+	telemLogs *TelemetryLogsClient,
 ) *ContainerResourceCollector {
 	// Convert excluded pods to a map for quicker lookups
 	excludedPodsMap := make(map[types.NamespacedName]bool)
@@ -125,6 +130,7 @@ func NewContainerResourceCollector(
 		excludedPods:  excludedPodsMap,
 		logger:        logger.WithName("container-resource-collector"),
 		metrics:       metrics,
+		telemLogs:     telemLogs,
 	}
 }
 
@@ -154,6 +160,15 @@ func (c *ContainerResourceCollector) Start(ctx context.Context) error {
 			Client:  httpClient,
 		})
 		if err != nil {
+			c.telemLogs.Send(&gen.LogEntry{
+				Timestamp: &timestamppb.Timestamp{Seconds: int64(time.Now().Second())},
+				Level:     gen.LogLevel_LOG_LEVEL_ERROR,
+				Message:   "failed to create prometheus client",
+				Error:     err.Error(),
+				Source:    "container_resource_collector",
+				Fields:    map[string]string{"prometheus_url": c.config.PrometheusURL},
+			})
+
 			c.logger.Error(err, "Failed to create Prometheus client, network/IO and GPU metrics will be disabled")
 		} else {
 			c.prometheusAPI = v1.NewAPI(client)

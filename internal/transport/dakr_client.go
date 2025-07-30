@@ -390,3 +390,9 @@ func (c *RealDakrClient) SendClusterSnapshotStream(ctx context.Context, snapshot
 
 	return resp.Msg.ClusterId, resp.Msg.MissingResources, nil
 }
+
+// SendTelemetryLogs implements DakrClient.
+func (c *RealDakrClient) SendTelemetryLogs(ctx context.Context, logs ...*gen.LogEntry) error {
+	//
+	return nil
+}

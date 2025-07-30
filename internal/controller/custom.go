@@ -84,6 +84,8 @@ func NewEnvBasedController(mgr ctrl.Manager, reconcileInterval time.Duration) (*
 	// Create a shared Telemetry metrics instance
 	sharedTelemetryMetrics := collector.NewTelemetryMetrics()
 
+	sharedTelemetryLogsClient := collector.NewTelemetryLogsClient()
+
 	// Create the reconciler
 	reconciler := &CollectionPolicyReconciler{
 		Client:            mgr.GetClient(),
@@ -95,6 +97,7 @@ func NewEnvBasedController(mgr ctrl.Manager, reconcileInterval time.Duration) (*
 		DiscoveryClient:   discoveryClient,
 		ApiExtensions:     apiExtensionClient,
 		TelemetryMetrics:  sharedTelemetryMetrics,
+		TelemetryLogs:     sharedTelemetryLogsClient,
 		IsRunning:         false,
 		RestartInProgress: false,
 	}

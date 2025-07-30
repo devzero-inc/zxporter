@@ -62,6 +62,7 @@ type CollectionPolicyReconciler struct {
 	Sender            transport.DirectSender
 	TelemetrySender   *transport.TelemetrySender
 	TelemetryMetrics  *collector.TelemetryMetrics
+	TelemetryLogs     *collector.TelemetryLogsClient
 	IsRunning         bool
 	CurrentPolicyHash string
 	CurrentConfig     *PolicyConfig
@@ -919,6 +920,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				newConfig.UpdateInterval,
 				logger,
 				r.TelemetryMetrics,
+				r.TelemetryLogs,
 			)
 		case "node":
 			replacedCollector = collector.NewNodeCollector(
@@ -1780,6 +1782,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				config.UpdateInterval,
 				logger,
 				r.TelemetryMetrics,
+				r.TelemetryLogs,
 			),
 			name: collector.ContainerResource,
 		},
@@ -2197,6 +2200,7 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					newConfig.UpdateInterval,
 					logger,
 					r.TelemetryMetrics,
+					r.TelemetryLogs,
 				)
 			case "persistent_volume_claim":
 				replacedCollector = collector.NewPersistentVolumeClaimCollector(

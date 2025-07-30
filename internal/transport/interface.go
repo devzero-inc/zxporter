@@ -20,6 +20,9 @@ type DakrClient interface {
 	SendTelemetryMetrics(ctx context.Context, metrics []*dto.MetricFamily) (int32, error)
 	// SendClusterSnapshotStream sends cluster snapshot data via streaming for large payloads
 	SendClusterSnapshotStream(ctx context.Context, snapshot *gen.ClusterSnapshot, snapshotID string, timestamp time.Time) (string, *gen.ClusterSnapshot, error)
+
+	// SendTelemetryLogs .
+	SendTelemetryLogs(ctx context.Context, logs ...*gen.LogEntry) error
 }
 
 // Sender defines methods for sending data to external systems

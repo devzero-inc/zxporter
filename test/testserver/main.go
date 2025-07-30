@@ -28,6 +28,11 @@ type MetricsServer struct {
 	seenResources map[string]bool // Track unique resources by type+key
 }
 
+// SendTelemetryLogs implements apiv1connect.MetricsCollectorServiceHandler.
+func (s *MetricsServer) SendTelemetryLogs(context.Context, *connect.Request[apiv1.SendTelemetryLogsRequest]) (*connect.Response[apiv1.SendTelemetryLogsResponse], error) {
+	return &connect.Response[apiv1.SendTelemetryLogsResponse]{}, nil
+}
+
 // SendTelemetryMetrics implements apiv1connect.MetricsCollectorServiceHandler.
 func (s *MetricsServer) SendTelemetryMetrics(ctx context.Context, req *connect.Request[apiv1.SendTelemetryMetricsRequest]) (*connect.Response[apiv1.SendTelemetryMetricsResponse], error) {
 	// Log all metric family names

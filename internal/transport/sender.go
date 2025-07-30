@@ -162,3 +162,9 @@ func (c *SimpleDakrClient) SendClusterSnapshotStream(ctx context.Context, snapsh
 		"dataType", fmt.Sprintf("%T", snapshot))
 	return "", nil, nil
 }
+
+// SendTelemetryLogs implements DakrClient.
+func (c *SimpleDakrClient) SendTelemetryLogs(ctx context.Context, logs ...*gen.LogEntry) error {
+	//
+	return nil
+}
