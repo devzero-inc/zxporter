@@ -135,6 +135,9 @@ const (
 	KedaScaledJob
 	KedaScaledObject
 	ClusterSnapshot
+	CSIDriver
+	CSIStorageCapacity
+	VolumeAttachment
 )
 
 // String returns the string representation of the ResourceType
@@ -183,6 +186,9 @@ func (r ResourceType) String() string {
 		KedaScaledJob:            "keda_scaled_job",
 		KedaScaledObject:         "keda_scaled_object",
 		ClusterSnapshot:          "cluster_snapshot",
+		CSIDriver:                "csi_driver",
+		CSIStorageCapacity:       "csi_storage_capacity",
+		VolumeAttachment:         "volume_attachment",
 	}
 
 	if name, ok := names[r]; ok {
@@ -280,6 +286,12 @@ func (r ResourceType) ProtoType() gen.ResourceType {
 		return gen.ResourceType_RESOURCE_TYPE_KEDA_SCALED_OBJECT
 	case ClusterSnapshot:
 		return gen.ResourceType_RESOURCE_TYPE_CLUSTER_SNAPSHOT
+	case CSIDriver:
+		return gen.ResourceType_RESOURCE_TYPE_CSI_DRIVER
+	case CSIStorageCapacity:
+		return gen.ResourceType_RESOURCE_TYPE_CSI_STORAGE_CAPACITY
+	case VolumeAttachment:
+		return gen.ResourceType_RESOURCE_TYPE_VOLUME_ATTACHMENT
 	default:
 		return gen.ResourceType_RESOURCE_TYPE_UNSPECIFIED
 	}
