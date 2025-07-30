@@ -4,6 +4,7 @@ package collector
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -445,6 +446,14 @@ func (c *NodeCollector) nodeStatusChanged(oldNode, newNode *corev1.Node) bool {
 	// Check if capacity changed
 	if !oldNode.Status.Capacity.Cpu().Equal(*newNode.Status.Capacity.Cpu()) ||
 		!oldNode.Status.Capacity.Memory().Equal(*newNode.Status.Capacity.Memory()) {
+		return true
+	}
+
+	if !reflect.DeepEqual(oldNode.Labels, newNode.Labels) {
+		return true
+	}
+
+	if !reflect.DeepEqual(oldNode.Annotations, newNode.Annotations) {
 		return true
 	}
 
