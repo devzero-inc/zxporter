@@ -334,6 +334,7 @@ message Namespace {
   map<string, ResourceIdentifier> keda_scaled_jobs = 24;
   map<string, ResourceIdentifier> keda_scaled_objects = 25;
   string hash = 26;
+  map<string, ResourceIdentifier> csi_storage_capacities = 27;
 }
 
 // ClusterScopedSnapshot contains minimal cluster-scoped resource data
@@ -346,6 +347,8 @@ message ClusterScopedSnapshot {
   map<string, ResourceIdentifier> ingress_classes = 6;
   map<string, ResourceIdentifier> csi_nodes = 7;
   string hash = 8;
+  map<string, ResourceIdentifier> csi_drivers = 9;
+  map<string, ResourceIdentifier> volume_attachments = 10;
 }
 
 // ClusterInfo contains basic cluster information
