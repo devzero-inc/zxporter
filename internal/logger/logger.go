@@ -12,8 +12,9 @@ import (
 )
 
 // MetricsCollectorClient defines the necessary gRPC method for sending logs.
-// Forcefully had to do this as, was not fully convinced to put this in transport layer and cant use the
-type MetricsCollectorClient interface {
+// Forcefully had to do this as, was not fully convinced to put this in transport layer
+// and cant use the DackerClient/DirectSender interface here for circular dependency
+type TelemetryLogSender interface {
 	SendTelemetryLogs(ctx context.Context, in *gen.SendTelemetryLogsRequest) (*gen.SendTelemetryLogsResponse, error)
 }
 
@@ -34,7 +35,7 @@ type Config struct {
 
 // logger is the concrete implementation of the Logger interface.
 type logger struct {
-	client   MetricsCollectorClient
+	client   TelemetryLogSender
 	config   Config
 	logQueue chan *gen.LogEntry
 	// clusterID string
@@ -53,7 +54,7 @@ type logger struct {
 }
 
 // NewLogger creates and starts a new telemetry logger.
-func NewLogger(ctx context.Context, client MetricsCollectorClient, config Config, zapLogger *zap.Logger) Logger {
+func NewLogger(ctx context.Context, client TelemetryLogSender, config Config, zapLogger *zap.Logger) Logger {
 	l := &logger{
 		client:   client,
 		config:   config,

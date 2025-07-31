@@ -7,6 +7,7 @@ import (
 
 	gen "github.com/devzero-inc/zxporter/gen/api/v1"
 	"github.com/devzero-inc/zxporter/internal/collector"
+	telemetry_logger "github.com/devzero-inc/zxporter/internal/logger"
 	dto "github.com/prometheus/client_model/go"
 )
 
@@ -20,9 +21,8 @@ type DakrClient interface {
 	SendTelemetryMetrics(ctx context.Context, metrics []*dto.MetricFamily) (int32, error)
 	// SendClusterSnapshotStream sends cluster snapshot data via streaming for large payloads
 	SendClusterSnapshotStream(ctx context.Context, snapshot *gen.ClusterSnapshot, snapshotID string, timestamp time.Time) (string, *gen.ClusterSnapshot, error)
-
-	// SendTelemetryLogs sends a batch of log entries to Dakr
-	SendTelemetryLogs(ctx context.Context, in *gen.SendTelemetryLogsRequest) (*gen.SendTelemetryLogsResponse, error)
+	// telemetry_logger.TelemetryLogSender sends a batch of log entries to Dakr
+	telemetry_logger.TelemetryLogSender
 }
 
 // Sender defines methods for sending data to external systems
@@ -48,8 +48,8 @@ type DirectSender interface {
 	// SendClusterSnapshotStream sends large cluster snapshot data using streaming
 	SendClusterSnapshotStream(ctx context.Context, snapshot *gen.ClusterSnapshot, snapshotID string, timestamp time.Time) (string, *gen.ClusterSnapshot, error)
 
-	// SendTelemetryLogs sends a batch of log entries.
-	SendTelemetryLogs(ctx context.Context, in *gen.SendTelemetryLogsRequest) (*gen.SendTelemetryLogsResponse, error)
+	// telemetry_logger.TelemetryLogSender sends a batch of log entries.
+	telemetry_logger.TelemetryLogSender
 }
 
 // // BufferedSender adds buffering capabilities to handle connection issues
