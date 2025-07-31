@@ -88,6 +88,11 @@ type Exclusions struct {
 	// Keda Exclusions
 	ExcludedScaledObjects []ExcludedScaledObject `json:"excludedScaledObjects,omitempty"`
 	ExcludedScaledJobs    []ExcludedScaledJob    `json:"excludedScaledJobs,omitempty"`
+
+	// CSI Exclusions
+	ExcludedCSIDrivers           []string                     `json:"excludedCSIDrivers,omitempty"`
+	ExcludedCSIStorageCapacities []ExcludedCSIStorageCapacity `json:"excludedCSIStorageCapacities,omitempty"`
+	ExcludedVolumeAttachments    []string                     `json:"excludedVolumeAttachments,omitempty"`
 }
 
 // Common exclusion patterns
@@ -359,6 +364,15 @@ type ExcludedScaledJob struct {
 	Namespace string `json:"namespace"`
 
 	// Name is the scaled job
+	Name string `json:"name"`
+}
+
+// ExcludedCSIStorageCapacity identifies a CSIStorageCapacity to exclude
+type ExcludedCSIStorageCapacity struct {
+	// Namespace is the CSIStorageCapacity's namespace
+	Namespace string `json:"namespace"`
+
+	// Name is the CSIStorageCapacity's name
 	Name string `json:"name"`
 }
 

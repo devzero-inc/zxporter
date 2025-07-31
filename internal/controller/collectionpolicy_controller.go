@@ -109,6 +109,9 @@ type PolicyConfig struct {
 	ExcludedArgoRollouts           []collector.ExcludedArgoRollout
 	ExcludedKedaScaledJobs         []collector.ExcludedScaledJob
 	ExcludedKedaScaledObjects      []collector.ExcludedScaledObject
+	ExcludedCSIDrivers             []string
+	ExcludedCSIStorageCapacities   []collector.ExcludedCSIStorageCapacity
+	ExcludedVolumeAttachments      []string
 
 	DisabledCollectors []string
 
@@ -189,6 +192,9 @@ type PolicyConfig struct {
 // Storage API Group resources
 //+kubebuilder:rbac:groups=storage.k8s.io,resources=storageclasses,verbs=get;list;watch
 //+kubebuilder:rbac:groups=storage.k8s.io,resources=csinodes,verbs=get;list;watch
+//+kubebuilder:rbac:groups=storage.k8s.io,resources=csidrivers,verbs=get;list;watch
+//+kubebuilder:rbac:groups=storage.k8s.io,resources=csistoragecapacities,verbs=get;list;watch
+//+kubebuilder:rbac:groups=storage.k8s.io,resources=volumeattachments,verbs=get;list;watch
 
 // Karpenter resources
 //+kubebuilder:rbac:groups=karpenter.sh,resources=provisioners,verbs=get;list;watch
@@ -501,6 +507,16 @@ func (r *CollectionPolicyReconciler) createNewConfig(envSpec *monitoringv1.Colle
 		})
 	}
 
+	// CSI
+	newConfig.ExcludedCSIDrivers = envSpec.Exclusions.ExcludedCSIDrivers
+	for _, csc := range envSpec.Exclusions.ExcludedCSIStorageCapacities {
+		newConfig.ExcludedCSIStorageCapacities = append(newConfig.ExcludedCSIStorageCapacities, collector.ExcludedCSIStorageCapacity{
+			Namespace: csc.Namespace,
+			Name:      csc.Name,
+		})
+	}
+	newConfig.ExcludedVolumeAttachments = envSpec.Exclusions.ExcludedVolumeAttachments
+
 	// Events - these are special with more fields
 	for _, event := range envSpec.Exclusions.ExcludedEvents {
 		newConfig.ExcludedEvents = append(newConfig.ExcludedEvents, collector.ExcludedEvent{
@@ -670,6 +686,18 @@ func (r *CollectionPolicyReconciler) identifyAffectedCollectors(oldConfig, newCo
 
 	if !reflect.DeepEqual(oldConfig.ExcludedKedaScaledObjects, newConfig.ExcludedKedaScaledObjects) {
 		affectedCollectors["keda_scaled_object"] = true
+	}
+
+	if !reflect.DeepEqual(oldConfig.ExcludedCSIDrivers, newConfig.ExcludedCSIDrivers) {
+		affectedCollectors["csi_driver"] = true
+	}
+
+	if !reflect.DeepEqual(oldConfig.ExcludedCSIStorageCapacities, newConfig.ExcludedCSIStorageCapacities) {
+		affectedCollectors["csi_storage_capacity"] = true
+	}
+
+	if !reflect.DeepEqual(oldConfig.ExcludedVolumeAttachments, newConfig.ExcludedVolumeAttachments) {
+		affectedCollectors["volume_attachment"] = true
 	}
 
 	// Check if the special node collectors are affected by the update interval change
@@ -1161,6 +1189,31 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedPods,
 				newConfig.ExcludedNodes,
+				logger,
+			)
+		case "csi_driver":
+			replacedCollector = collector.NewCSIDriverCollector(
+				r.K8sClient,
+				newConfig.ExcludedCSIDrivers,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+			)
+		case "csi_storage_capacity":
+			replacedCollector = collector.NewCSIStorageCapacityCollector(
+				r.K8sClient,
+				newConfig.TargetNamespaces,
+				newConfig.ExcludedCSIStorageCapacities,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+			)
+		case "volume_attachment":
+			replacedCollector = collector.NewVolumeAttachmentCollector(
+				r.K8sClient,
+				newConfig.ExcludedVolumeAttachments,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
 				logger,
 			)
 		default:
@@ -1928,6 +1981,37 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 			),
 			name: collector.ClusterSnapshot,
 		},
+		{
+			collector: collector.NewCSIDriverCollector(
+				r.K8sClient,
+				config.ExcludedCSIDrivers,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+			),
+			name: collector.CSIDriver,
+		},
+		{
+			collector: collector.NewCSIStorageCapacityCollector(
+				r.K8sClient,
+				config.TargetNamespaces,
+				config.ExcludedCSIStorageCapacities,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+			),
+			name: collector.CSIStorageCapacity,
+		},
+		{
+			collector: collector.NewVolumeAttachmentCollector(
+				r.K8sClient,
+				config.ExcludedVolumeAttachments,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+			),
+			name: collector.VolumeAttachment,
+		},
 	}
 
 	// Register all collectors
@@ -2394,6 +2478,31 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					newConfig.TargetNamespaces,
 					newConfig.ExcludedPods,
 					newConfig.ExcludedNodes,
+					logger,
+				)
+			case "csi_driver":
+				replacedCollector = collector.NewCSIDriverCollector(
+					r.K8sClient,
+					newConfig.ExcludedCSIDrivers,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+				)
+			case "csi_storage_capacity":
+				replacedCollector = collector.NewCSIStorageCapacityCollector(
+					r.K8sClient,
+					newConfig.TargetNamespaces,
+					newConfig.ExcludedCSIStorageCapacities,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+				)
+			case "volume_attachment":
+				replacedCollector = collector.NewVolumeAttachmentCollector(
+					r.K8sClient,
+					newConfig.ExcludedVolumeAttachments,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
 					logger,
 				)
 			default:

@@ -109,8 +109,18 @@ enum ResourceType {
   // Keda scaled job type
   RESOURCE_TYPE_KEDA_SCALED_JOB = 45;
 
+  // CSI DRIVER 
+  RESOURCE_TYPE_CSI_DRIVER = 46;
+
+  // CSI STORAGE CAPACITY
+  RESOURCE_TYPE_CSI_STORAGE_CAPACITY = 47;
+
+  // VOLUME ATTACHMENT
+  RESOURCE_TYPE_VOLUME_ATTACHMENT = 48;
+
   // Cluster snapshot type
   RESOURCE_TYPE_CLUSTER_SNAPSHOT = 77;
+
 }
 
 // ResourceItem contains the data for a single resource event.
@@ -125,10 +135,13 @@ message ResourceItem {
   EventType event_type = 3;
 
   // The actual resource data as a flexible structure
-  google.protobuf.Struct data = 4;
+  google.protobuf.Struct data = 4 [deprecated = true];
 
   // Type of resource (pod, container, node_resources, etc.)
   ResourceType resource_type = 5;
+
+  // The actual resource data as a JSON string
+  bytes data_bytes = 6;
 }
 
 // Requests
@@ -166,6 +179,37 @@ message SendResourceBatchRequest {
   
   // team_id of resources - all resources in the batch must belong to this team
   string team_id = 3;
+}
+
+// Request for fetching minute-bucketed container forecast metrics
+message GetForecastMetricsRequest {
+  string cluster_id = 1;
+  string namespace = 2;
+  string workload_name = 3;
+  string metric_type = 4;
+  google.protobuf.Timestamp start_time = 5;
+  google.protobuf.Timestamp end_time = 6;
+}
+
+// Response containing forecast metrics
+message GetForecastMetricsResponse {
+  repeated ContainerForecastMetric metrics = 1;
+}
+
+// Forecast metric for a container
+message ContainerForecastMetric {
+  google.protobuf.Timestamp timestamp = 1;
+  string container_id = 2;
+  string cluster_id = 3;
+  string workload_name = 4;
+  string namespace = 5;
+  string metric_type = 6;
+  double forecast_value = 7;
+  double lower_bound = 8;
+  double upper_bound = 9;
+  string model_version = 10;
+  google.protobuf.Timestamp created_at = 11;
+  google.protobuf.Timestamp updated_at = 12;
 }
 
 // Responses
@@ -290,6 +334,7 @@ message Namespace {
   map<string, ResourceIdentifier> keda_scaled_jobs = 24;
   map<string, ResourceIdentifier> keda_scaled_objects = 25;
   string hash = 26;
+  map<string, ResourceIdentifier> csi_storage_capacities = 27;
 }
 
 // ClusterScopedSnapshot contains minimal cluster-scoped resource data
@@ -302,6 +347,8 @@ message ClusterScopedSnapshot {
   map<string, ResourceIdentifier> ingress_classes = 6;
   map<string, ResourceIdentifier> csi_nodes = 7;
   string hash = 8;
+  map<string, ResourceIdentifier> csi_drivers = 9;
+  map<string, ResourceIdentifier> volume_attachments = 10;
 }
 
 // ClusterInfo contains basic cluster information

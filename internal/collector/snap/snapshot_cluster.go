@@ -41,6 +41,8 @@ func (c *ClusterSnapshotter) captureClusterScopedResources(ctx context.Context, 
 	clusterScoped.CustomResourceDefinitions = make(map[string]*ResourceIdentifier) // Not implemented
 	clusterScoped.IngressClasses = make(map[string]*ResourceIdentifier)
 	clusterScoped.CsiNodes = make(map[string]*ResourceIdentifier)
+	clusterScoped.CsiDrivers = make(map[string]*ResourceIdentifier)
+	clusterScoped.VolumeAttachments = make(map[string]*ResourceIdentifier)
 
 	if pvs, err := c.client.CoreV1().PersistentVolumes().List(ctx, metav1.ListOptions{}); err == nil {
 		for _, pv := range pvs.Items {
@@ -81,6 +83,20 @@ func (c *ClusterSnapshotter) captureClusterScopedResources(ctx context.Context, 
 		for _, csiNode := range csiNodes.Items {
 			uid := string(csiNode.UID)
 			clusterScoped.CsiNodes[uid] = &ResourceIdentifier{Name: csiNode.Name}
+		}
+	}
+
+	if csiDrivers, err := c.client.StorageV1().CSIDrivers().List(ctx, metav1.ListOptions{}); err == nil {
+		for _, csiDriver := range csiDrivers.Items {
+			uid := string(csiDriver.UID)
+			clusterScoped.CsiDrivers[uid] = &ResourceIdentifier{Name: csiDriver.Name}
+		}
+	}
+
+	if volumeAttachments, err := c.client.StorageV1().VolumeAttachments().List(ctx, metav1.ListOptions{}); err == nil {
+		for _, va := range volumeAttachments.Items {
+			uid := string(va.UID)
+			clusterScoped.VolumeAttachments[uid] = &ResourceIdentifier{Name: va.Name}
 		}
 	}
 

@@ -61,6 +61,27 @@ spec:
                     items:
                       type: string
                     type: array
+                  excludedCSIDrivers:
+                    description: CSI Exclusions
+                    items:
+                      type: string
+                    type: array
+                  excludedCSIStorageCapacities:
+                    items:
+                      description: ExcludedCSIStorageCapacity identifies a CSIStorageCapacity
+                        to exclude
+                      properties:
+                        name:
+                          description: Name is the CSIStorageCapacity's name
+                          type: string
+                        namespace:
+                          description: Namespace is the CSIStorageCapacity's namespace
+                          type: string
+                      required:
+                      - name
+                      - namespace
+                      type: object
+                    type: array
                   excludedClusterRoleBindings:
                     items:
                       type: string
@@ -527,6 +548,10 @@ spec:
                       - name
                       - namespace
                       type: object
+                    type: array
+                  excludedVolumeAttachments:
+                    items:
+                      type: string
                     type: array
                 type: object
               policies:

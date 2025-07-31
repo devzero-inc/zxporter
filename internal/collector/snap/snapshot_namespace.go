@@ -38,6 +38,7 @@ func (c *ClusterSnapshotter) captureNamespaces(ctx context.Context, snapshot *Cl
 			Events:                   make(map[string]*ResourceIdentifier),
 			KedaScaledJobs:           make(map[string]*ResourceIdentifier), // Not implemented
 			KedaScaledObjects:        make(map[string]*ResourceIdentifier), // Not implemented
+			CsiStorageCapacities:     make(map[string]*ResourceIdentifier),
 		}
 
 		ns, err := c.client.CoreV1().Namespaces().Get(ctx, nsName, metav1.GetOptions{})
@@ -241,6 +242,13 @@ func (c *ClusterSnapshotter) captureOtherResources(ctx context.Context, namespac
 		for _, event := range events.Items {
 			uid := string(event.UID)
 			nsData.Events[uid] = &ResourceIdentifier{Name: event.Name}
+		}
+	}
+
+	if csiStorageCapacities, err := c.client.StorageV1().CSIStorageCapacities(namespace).List(ctx, metav1.ListOptions{}); err == nil {
+		for _, csc := range csiStorageCapacities.Items {
+			uid := string(csc.UID)
+			nsData.CsiStorageCapacities[uid] = &ResourceIdentifier{Name: csc.Name}
 		}
 	}
 }
