@@ -261,8 +261,36 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 	}
 
 	if err != nil {
+		if c.telemetryLogger != nil {
+			c.telemetryLogger.Report(
+				gen.LogLevel_LOG_LEVEL_ERROR,
+				"ContainerResourceCollector",
+				"Failed to get pod metrics from metrics server",
+				err,
+				map[string]string{
+					"namespaces": fmt.Sprintf("%v", c.namespaces),
+					"error_type": "metrics_server_query_failed",
+				},
+			)
+		}
 		c.logger.Error(err, "Failed to get pod metrics from metrics server")
 		return
+	}
+
+	c.logger.Info("Successfully fetched pod metrics from metrics server", "pod_count", len(podMetricsList.Items))
+
+	if c.telemetryLogger != nil {
+		c.telemetryLogger.Report(
+			gen.LogLevel_LOG_LEVEL_INFO,
+			"ContainerResourceCollector",
+			"Successfully fetched pod metrics from metrics server",
+			nil,
+			map[string]string{
+				"pod_count":  fmt.Sprintf("%d", len(podMetricsList.Items)),
+				"namespaces": fmt.Sprintf("%v", c.namespaces),
+				"event_type": "metrics_server_query_success",
+			},
+		)
 	}
 
 	// Process each pod's metrics
@@ -294,11 +322,41 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 		if !c.config.DisableNetworkIOMetrics && c.prometheusAPI != nil && queryCtx != nil {
 			networkMetrics, err = c.collectPodNetworkMetrics(queryCtx, pod)
 			if err != nil {
+				if c.telemetryLogger != nil {
+					c.telemetryLogger.Report(
+						gen.LogLevel_LOG_LEVEL_WARN,
+						"ContainerResourceCollector",
+						"Failed to collect network metrics from Prometheus",
+						err,
+						map[string]string{
+							"namespace":      podMetrics.Namespace,
+							"pod":            podMetrics.Name,
+							"error_type":     "prometheus_network_query_failed",
+							"prometheus_url": c.config.PrometheusURL,
+						},
+					)
+				}
 				c.logger.Error(err, "Failed to collect network metrics",
 					"namespace", podMetrics.Namespace,
 					"name", podMetrics.Name)
 				// Continue with CPU/memory metrics
 				networkMetrics = make(map[string]float64)
+			} else if len(networkMetrics) > 0 {
+				if c.telemetryLogger != nil {
+					c.telemetryLogger.Report(
+						gen.LogLevel_LOG_LEVEL_INFO,
+						"ContainerResourceCollector",
+						"Successfully collected network metrics from Prometheus",
+						nil,
+						map[string]string{
+							"namespace":      podMetrics.Namespace,
+							"pod":            podMetrics.Name,
+							"metrics_count":  fmt.Sprintf("%d", len(networkMetrics)),
+							"event_type":     "prometheus_network_query_success",
+							"prometheus_url": c.config.PrometheusURL,
+						},
+					)
+				}
 			}
 		}
 
@@ -313,6 +371,21 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 				if !c.config.DisableNetworkIOMetrics {
 					ioMetrics, err = c.collectContainerIOMetrics(queryCtx, pod, containerMetrics.Name)
 					if err != nil {
+						if c.telemetryLogger != nil {
+							c.telemetryLogger.Report(
+								gen.LogLevel_LOG_LEVEL_WARN,
+								"ContainerResourceCollector",
+								"Failed to collect I/O metrics from Prometheus",
+								err,
+								map[string]string{
+									"namespace":      podMetrics.Namespace,
+									"pod":            podMetrics.Name,
+									"container":      containerMetrics.Name,
+									"error_type":     "prometheus_io_query_failed",
+									"prometheus_url": c.config.PrometheusURL,
+								},
+							)
+						}
 						c.logger.Error(err, "Failed to collect I/O metrics",
 							"namespace", podMetrics.Namespace,
 							"pod", podMetrics.Name,

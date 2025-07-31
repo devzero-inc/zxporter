@@ -38,6 +38,7 @@ import (
 	kedaclient "github.com/kedacore/keda/v2/pkg/generated/clientset/versioned"
 	metricsv1 "k8s.io/metrics/pkg/client/clientset/versioned"
 
+	gen "github.com/devzero-inc/zxporter/gen/api/v1"
 	"github.com/devzero-inc/zxporter/internal/collector"
 	"github.com/devzero-inc/zxporter/internal/collector/provider"
 	"github.com/devzero-inc/zxporter/internal/collector/snap"
@@ -58,6 +59,7 @@ type CollectionPolicyReconciler struct {
 	K8sClient         *kubernetes.Clientset
 	DynamicClient     *dynamic.DynamicClient
 	DiscoveryClient   *discovery.DiscoveryClient
+	DakrClient        transport.DakrClient
 	ApiExtensions     *apiextensionsclientset.Clientset
 	CollectionManager *collector.CollectionManager
 	Sender            transport.DirectSender
@@ -231,6 +233,17 @@ func (r *CollectionPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	// Create a new config object from the policy and environment
 	newEnvSpec, err := util.LoadCollectionPolicySpecFromEnv()
 	if err != nil {
+		if r.TelemetryLogger != nil {
+			r.TelemetryLogger.Report(
+				gen.LogLevel_LOG_LEVEL_ERROR,
+				"CollectionPolicyReconciler",
+				"Failed to load collection policy spec from environment variables",
+				err,
+				map[string]string{
+					"error_type": "env_config_load_failed",
+				},
+			)
+		}
 		logger.Error(err, "Error loading ENV varaibles")
 	}
 
@@ -859,6 +872,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			)
 		case "deployment":
 			replacedCollector = collector.NewDeploymentCollector(
@@ -940,6 +954,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				newConfig.UpdateInterval,
 				logger,
 				r.TelemetryMetrics,
+				r.TelemetryLogger,
 			)
 		case "persistent_volume_claim":
 			replacedCollector = collector.NewPersistentVolumeClaimCollector(
@@ -1269,21 +1284,94 @@ func (r *CollectionPolicyReconciler) initializeCollectors(ctx context.Context, c
 
 	// Setup collection manager and basic services
 	if err := r.setupCollectionManager(ctx, config, logger); err != nil {
+		if r.TelemetryLogger != nil {
+			r.TelemetryLogger.Report(
+				gen.LogLevel_LOG_LEVEL_ERROR,
+				"CollectionPolicyReconciler",
+				"Failed to setup collection manager and basic services",
+				err,
+				map[string]string{
+					"error_type": "collection_manager_setup_failed",
+					"dakr_url":   config.DakrURL,
+				},
+			)
+		}
 		return ctrl.Result{}, err
+	}
+
+	if r.TelemetryLogger != nil {
+		r.TelemetryLogger.Report(
+			gen.LogLevel_LOG_LEVEL_INFO,
+			"CollectionPolicyReconciler",
+			"Successfully setup collection manager and basic services",
+			nil,
+			map[string]string{
+				"event_type": "collection_manager_setup_success",
+				"dakr_url":   config.DakrURL,
+			},
+		)
 	}
 
 	// First register and start only the cluster collector
 	clusterCollector, err := r.setupClusterCollector(ctx, logger, config)
 	if err != nil {
+		if r.TelemetryLogger != nil {
+			r.TelemetryLogger.Report(
+				gen.LogLevel_LOG_LEVEL_ERROR,
+				"CollectionPolicyReconciler",
+				"Failed to setup cluster collector",
+				err,
+				map[string]string{
+					"error_type": "cluster_collector_setup_failed",
+				},
+			)
+		}
 		return ctrl.Result{}, err
+	}
+
+	if r.TelemetryLogger != nil {
+		r.TelemetryLogger.Report(
+			gen.LogLevel_LOG_LEVEL_INFO,
+			"CollectionPolicyReconciler",
+			"Successfully setup cluster collector",
+			nil,
+			map[string]string{
+				"event_type": "cluster_collector_setup_success",
+			},
+		)
 	}
 
 	// Wait for cluster data to be sent to Dakr
 	registrationResult := r.waitForClusterRegistration(ctx, logger)
 	if registrationResult != nil {
+		if r.TelemetryLogger != nil {
+			r.TelemetryLogger.Report(
+				gen.LogLevel_LOG_LEVEL_ERROR,
+				"CollectionPolicyReconciler",
+				"Failed to register cluster with Dakr",
+				fmt.Errorf("cluster registration failed or timed out"),
+				map[string]string{
+					"error_type": "cluster_registration_failed",
+					"dakr_url":   config.DakrURL,
+				},
+			)
+		}
 		// Clean up and return the error result
 		r.cleanupOnFailure(logger)
 		return *registrationResult, fmt.Errorf("failed to register cluster with Dakr")
+	}
+
+	if r.TelemetryLogger != nil {
+		r.TelemetryLogger.Report(
+			gen.LogLevel_LOG_LEVEL_INFO,
+			"CollectionPolicyReconciler",
+			"Successfully registered cluster with Dakr",
+			nil,
+			map[string]string{
+				"event_type": "cluster_registration_success",
+				"dakr_url":   config.DakrURL,
+			},
+		)
 	}
 
 	// Register and start all other collectors
@@ -1327,43 +1415,10 @@ func (r *CollectionPolicyReconciler) setupCollectionManager(ctx context.Context,
 		logger.WithName("collection-manager"),
 	)
 
-	// Create dakr client and sender
-	var dakrClient transport.DakrClient
-	if config.DakrURL != "" {
-		dakrClient = transport.NewDakrClient(config.DakrURL, config.ClusterToken, logger)
-		logger.Info("Created Dakr client with configured URL", "url", config.DakrURL)
-	} else {
-		dakrClient = transport.NewSimpleDakrClient(logger)
-		logger.Info("Created simple (logging) Dakr client because no URL was configured")
-	}
-
-	r.Sender = transport.NewDirectSender(dakrClient, logger)
-
-	logger.Info("Initializing telemetry logger")
-	telemetryConfig := telemetry_logger.Config{
-		BatchSize:     20,
-		FlushInterval: 10 * time.Second,
-		SendTimeout:   5 * time.Second,
-		QueueSize:     100,
-	}
-
-	if r.ZapLogger == nil {
-		return fmt.Errorf("ZapLogger is not initialized in the reconciler")
-	}
-
-	r.TelemetryLogger = telemetry_logger.NewLogger(
-		ctx,
-		r.Sender, // r.Sender satisfies the MetricsCollectorClient interface, this is confusing but has to clear the circular dependency..
-		telemetryConfig,
-		// clusterID,
-		// teamID,
-		r.ZapLogger,
-	)
-
 	// Create and start the telemetry sender
 	r.TelemetrySender = transport.NewTelemetrySender(
 		logger.WithName("telemetry"),
-		dakrClient, // Use the dakrClient directly
+		r.DakrClient, // Use the dakrClient directly
 		r.TelemetryMetrics,
 		15*time.Second, // Send metrics every 15 seconds
 	)
@@ -1555,7 +1610,30 @@ func (r *CollectionPolicyReconciler) setupAllCollectors(
 
 	// Register all other collectors
 	if err := r.registerResourceCollectors(logger, config, metricsClient); err != nil {
+		if r.TelemetryLogger != nil {
+			r.TelemetryLogger.Report(
+				gen.LogLevel_LOG_LEVEL_ERROR,
+				"CollectionPolicyReconciler",
+				"Failed to register resource collectors",
+				err,
+				map[string]string{
+					"error_type": "resource_collectors_registration_failed",
+				},
+			)
+		}
 		return err
+	}
+
+	if r.TelemetryLogger != nil {
+		r.TelemetryLogger.Report(
+			gen.LogLevel_LOG_LEVEL_INFO,
+			"CollectionPolicyReconciler",
+			"Successfully registered all resource collectors",
+			nil,
+			map[string]string{
+				"event_type": "resource_collectors_registration_success",
+			},
+		)
 	}
 
 	// Start the collection manager with all collectors
@@ -1647,6 +1725,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			),
 			name: collector.Pod,
 		},
@@ -1830,6 +1909,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				config.UpdateInterval,
 				logger,
 				r.TelemetryMetrics,
+				r.TelemetryLogger,
 			),
 			name: collector.Node,
 		},
@@ -2050,16 +2130,66 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 	// Register all collectors
 	for _, c := range collectors {
 		if disabledCollectorsMap[c.name.String()] {
+			if r.TelemetryLogger != nil {
+				r.TelemetryLogger.Report(
+					gen.LogLevel_LOG_LEVEL_WARN,
+					"CollectionPolicyReconciler",
+					"Collector is disabled, skipping registration",
+					nil,
+					map[string]string{
+						"collector_type": c.name.String(),
+						"event_type":     "collector_disabled",
+					},
+				)
+			}
 			logger.Info("Skipping disabled collector", "type", c.name.String())
 			continue
 		}
 		if c.collector.IsAvailable(context.Background()) {
 			logger.Info("Registering collector", "name", c.name.String())
 			if err := r.CollectionManager.RegisterCollector(c.collector); err != nil {
+				if r.TelemetryLogger != nil {
+					r.TelemetryLogger.Report(
+						gen.LogLevel_LOG_LEVEL_ERROR,
+						"CollectionPolicyReconciler",
+						"Failed to register collector",
+						err,
+						map[string]string{
+							"collector_type": c.name.String(),
+							"error_type":     "collector_registration_failed",
+						},
+					)
+				}
 				logger.Error(err, "Failed to register collector", "collector", c.name.String())
 			} else {
+				if r.TelemetryLogger != nil {
+					r.TelemetryLogger.Report(
+						gen.LogLevel_LOG_LEVEL_INFO,
+						"CollectionPolicyReconciler",
+						"Successfully registered collector",
+						nil,
+						map[string]string{
+							"collector_type": c.name.String(),
+							"event_type":     "collector_registration_success",
+						},
+					)
+				}
 				logger.Info("Registered collector", "collector", c.name.String())
 			}
+		} else {
+			if r.TelemetryLogger != nil {
+				r.TelemetryLogger.Report(
+					gen.LogLevel_LOG_LEVEL_WARN,
+					"CollectionPolicyReconciler",
+					"Collector is not available, skipping registration",
+					nil,
+					map[string]string{ // Note: we should get the reason of why its not available
+						"collector_type": c.name.String(),
+						"event_type":     "collector_not_available",
+					},
+				)
+			}
+			logger.Info("Collector not available, skipping registration", "type", c.name.String())
 		}
 	}
 
@@ -2164,6 +2294,7 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					collector.DefaultMaxBatchSize,
 					collector.DefaultMaxBatchTime,
 					logger,
+					r.TelemetryLogger,
 				)
 			case "deployment":
 				replacedCollector = collector.NewDeploymentCollector(
@@ -2415,6 +2546,7 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					newConfig.UpdateInterval,
 					logger,
 					r.TelemetryMetrics,
+					r.TelemetryLogger,
 				)
 			case "persistent_volume":
 				replacedCollector = collector.NewPersistentVolumeCollector(

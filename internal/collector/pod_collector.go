@@ -7,6 +7,8 @@ import (
 	"sync"
 	"time"
 
+	gen "github.com/devzero-inc/zxporter/gen/api/v1"
+	telemetry_logger "github.com/devzero-inc/zxporter/internal/logger"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -27,6 +29,7 @@ type PodCollector struct {
 	namespaces      []string
 	excludedPods    map[types.NamespacedName]bool
 	logger          logr.Logger
+	telemetryLogger telemetry_logger.Logger
 	mu              sync.RWMutex
 }
 
@@ -38,6 +41,7 @@ func NewPodCollector(
 	maxBatchSize int, // Added parameter
 	maxBatchTime time.Duration, // Added parameter
 	logger logr.Logger,
+	telemetryLogger telemetry_logger.Logger,
 ) *PodCollector {
 	// Convert excluded pods to a map for quicker lookups
 	excludedPodsMap := make(map[types.NamespacedName]bool)
@@ -62,14 +66,15 @@ func NewPodCollector(
 	)
 
 	return &PodCollector{
-		client:       client,
-		batchChan:    batchChan,
-		resourceChan: resourceChan,
-		batcher:      batcher,
-		stopCh:       make(chan struct{}),
-		namespaces:   namespaces,
-		excludedPods: excludedPodsMap,
-		logger:       logger.WithName("pod-collector"),
+		client:          client,
+		batchChan:       batchChan,
+		resourceChan:    resourceChan,
+		batcher:         batcher,
+		stopCh:          make(chan struct{}),
+		namespaces:      namespaces,
+		excludedPods:    excludedPodsMap,
+		logger:          logger.WithName("pod-collector"),
+		telemetryLogger: telemetryLogger,
 	}
 }
 
@@ -110,6 +115,15 @@ func (c *PodCollector) Start(ctx context.Context) error {
 		},
 	})
 	if err != nil {
+		if c.telemetryLogger != nil {
+			c.telemetryLogger.Report(
+				gen.LogLevel_LOG_LEVEL_ERROR,
+				"PodCollector",
+				"Failed to add event handler",
+				err,
+				map[string]string{"namespaces": fmt.Sprintf("%v", c.namespaces)},
+			)
+		}
 		return fmt.Errorf("failed to add event handler: %w", err)
 	}
 
@@ -119,6 +133,15 @@ func (c *PodCollector) Start(ctx context.Context) error {
 	// Wait for cache sync
 	c.logger.Info("Waiting for informer caches to sync")
 	if !cache.WaitForCacheSync(c.stopCh, c.podInformer.HasSynced) {
+		if c.telemetryLogger != nil {
+			c.telemetryLogger.Report(
+				gen.LogLevel_LOG_LEVEL_ERROR,
+				"PodCollector",
+				"Timed out waiting for caches to sync",
+				fmt.Errorf("cache sync timeout"),
+				map[string]string{"namespaces": fmt.Sprintf("%v", c.namespaces)},
+			)
+		}
 		return fmt.Errorf("timed out waiting for caches to sync")
 	}
 	c.logger.Info("Informer caches synced successfully")
@@ -215,6 +238,24 @@ func (c *PodCollector) checkForContainerEvents(oldPod, newPod *corev1.Pod) {
 					"namespace", newPod.Namespace,
 					"pod", newPod.Name,
 					"container", newStatus.Name)
+
+				// Report OOM event to telemetry
+				if c.telemetryLogger != nil {
+					c.telemetryLogger.Report(
+						gen.LogLevel_LOG_LEVEL_WARN,
+						"PodCollector",
+						"Container OOM killed",
+						fmt.Errorf("container %s in pod %s/%s was OOM killed", newStatus.Name, newPod.Namespace, newPod.Name),
+						map[string]string{
+							"namespace":         newPod.Namespace,
+							"pod":               newPod.Name,
+							"container":         newStatus.Name,
+							"restartCount":      fmt.Sprintf("%d", newStatus.RestartCount),
+							"exitCode":          fmt.Sprintf("%d", newStatus.LastTerminationState.Terminated.ExitCode),
+							"terminationReason": newStatus.LastTerminationState.Terminated.Reason,
+						},
+					)
+				}
 			}
 
 			c.sendContainerEvent(newPod, newStatus.Name, EventTypeContainerRestarted, &newStatus)

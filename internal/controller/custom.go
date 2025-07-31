@@ -33,6 +33,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/devzero-inc/zxporter/internal/collector"
+	telemetry_logger "github.com/devzero-inc/zxporter/internal/logger"
+	"github.com/devzero-inc/zxporter/internal/transport"
 	"github.com/devzero-inc/zxporter/internal/util"
 )
 
@@ -89,7 +91,6 @@ func NewEnvBasedController(mgr ctrl.Manager, reconcileInterval time.Duration) (*
 	// Create a shared Telemetry metrics instance
 	sharedTelemetryMetrics := collector.NewTelemetryMetrics()
 
-	// Create the reconciler
 	reconciler := &CollectionPolicyReconciler{
 		Client:            mgr.GetClient(),
 		Scheme:            mgr.GetScheme(),
@@ -132,6 +133,12 @@ func NewEnvBasedController(mgr ctrl.Manager, reconcileInterval time.Duration) (*
 func (c *EnvBasedController) Start(ctx context.Context) error {
 	c.Log.Info("Starting environment-based controller", "reconcileInterval", c.reconcileInterval)
 
+	// Initialize Dakr sender and telemetry logger with context
+	if err := c.initializeTelemetryComponents(ctx); err != nil {
+		c.Log.Error(err, "Failed to initialize telemetry components")
+		return fmt.Errorf("failed to initialize telemetry components: %w", err)
+	}
+
 	// Run the first reconciliation immediately
 	if err := c.doReconcile(ctx); err != nil {
 		c.Log.Error(err, "Failed initial reconciliation")
@@ -172,6 +179,50 @@ func (c *EnvBasedController) runPeriodicReconciliation(ctx context.Context) {
 			return
 		}
 	}
+}
+
+// initializeTelemetryComponents initializes the Dakr sender and telemetry logger
+func (c *EnvBasedController) initializeTelemetryComponents(ctx context.Context) error {
+	// Load environment configuration to get Dakr URL and cluster token
+	envSpec, err := util.LoadCollectionPolicySpecFromEnv()
+	if err != nil {
+		c.Log.Error(err, "Failed to load environment configuration for Dakr client setup")
+		// Continue with default values
+	}
+
+	// Create dakr client and sender
+	var dakrClient transport.DakrClient
+	if envSpec.Policies.DakrURL != "" {
+		dakrClient = transport.NewDakrClient(envSpec.Policies.DakrURL, envSpec.Policies.ClusterToken, c.Log)
+		c.Log.Info("Created Dakr client with configured URL", "url", envSpec.Policies.DakrURL)
+	} else {
+		dakrClient = transport.NewSimpleDakrClient(c.Log)
+		c.Log.Info("Created simple (logging) Dakr client because no URL was configured")
+	}
+
+	sender := transport.NewDirectSender(dakrClient, c.Log)
+
+	// Initialize telemetry logger
+	telemetryConfig := telemetry_logger.Config{
+		BatchSize:     20,
+		FlushInterval: 10 * time.Second,
+		SendTimeout:   5 * time.Second,
+		QueueSize:     100,
+	}
+
+	telemetryLogger := telemetry_logger.NewLogger(
+		ctx,
+		sender,
+		telemetryConfig,
+		c.Reconciler.ZapLogger,
+	)
+
+	c.Reconciler.DakrClient = dakrClient
+	c.Reconciler.Sender = sender
+	c.Reconciler.TelemetryLogger = telemetryLogger
+
+	c.Log.Info("Successfully initialized telemetry components")
+	return nil
 }
 
 // doReconcile performs a single reconciliation

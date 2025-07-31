@@ -10,6 +10,8 @@ import (
 	"time"
 
 	gpuconst "github.com/NVIDIA/KAI-scheduler/pkg/common/constants"
+	gen "github.com/devzero-inc/zxporter/gen/api/v1"
+	telemetry_logger "github.com/devzero-inc/zxporter/internal/logger"
 	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/api"
 	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
@@ -59,6 +61,7 @@ type NodeCollector struct {
 	excludedNodes   map[string]bool
 	logger          logr.Logger
 	metrics         *TelemetryMetrics
+	telemetryLogger telemetry_logger.Logger
 	mu              sync.RWMutex
 	nodeToPodsMap   map[string]map[string]*corev1.Pod // Maps node name -> pod key -> pod object
 	podInformer     cache.SharedIndexInformer
@@ -75,6 +78,7 @@ func NewNodeCollector(
 	maxBatchTime time.Duration,
 	logger logr.Logger,
 	metrics *TelemetryMetrics,
+	telemetryLogger telemetry_logger.Logger,
 ) *NodeCollector {
 	// Convert excluded nodes to a map for quicker lookups
 	excludedNodesMap := make(map[string]bool)
@@ -111,17 +115,18 @@ func NewNodeCollector(
 	)
 
 	return &NodeCollector{
-		k8sClient:     k8sClient,
-		metricsClient: metricsClient,
-		batchChan:     batchChan,
-		resourceChan:  resourceChan,
-		batcher:       batcher,
-		stopCh:        make(chan struct{}),
-		config:        config,
-		excludedNodes: excludedNodesMap,
-		logger:        logger.WithName("node-collector"),
-		metrics:       metrics,
-		nodeToPodsMap: make(map[string]map[string]*corev1.Pod),
+		k8sClient:       k8sClient,
+		metricsClient:   metricsClient,
+		batchChan:       batchChan,
+		resourceChan:    resourceChan,
+		batcher:         batcher,
+		stopCh:          make(chan struct{}),
+		config:          config,
+		excludedNodes:   excludedNodesMap,
+		logger:          logger.WithName("node-collector"),
+		metrics:         metrics,
+		telemetryLogger: telemetryLogger,
+		nodeToPodsMap:   make(map[string]map[string]*corev1.Pod),
 	}
 }
 
@@ -138,6 +143,15 @@ func (c *NodeCollector) initPrometheusClient(ctx context.Context) error {
 		Client:  httpClient,
 	})
 	if err != nil {
+		if c.telemetryLogger != nil {
+			c.telemetryLogger.Report(
+				gen.LogLevel_LOG_LEVEL_ERROR,
+				"NodeCollector",
+				"Failed to create Prometheus client",
+				err,
+				map[string]string{"prometheus_url": c.config.PrometheusURL},
+			)
+		}
 		c.logger.Error(err, "Failed to create Prometheus client, node network, I/O and GPU metrics will be disabled")
 		return err
 	}
@@ -250,6 +264,15 @@ func (c *NodeCollector) Start(ctx context.Context) error {
 	// Wait for cache sync
 	c.logger.Info("Waiting for informer caches to sync")
 	if !cache.WaitForCacheSync(c.stopCh, c.nodeInformer.HasSynced, c.podInformer.HasSynced) {
+		if c.telemetryLogger != nil {
+			c.telemetryLogger.Report(
+				gen.LogLevel_LOG_LEVEL_ERROR,
+				"NodeCollector",
+				"Timed out waiting for caches to sync",
+				fmt.Errorf("cache sync timeout"),
+				map[string]string{"excluded_nodes": fmt.Sprintf("%v", c.excludedNodes)},
+			)
+		}
 		return fmt.Errorf("timed out waiting for caches to sync")
 	}
 	c.logger.Info("Informer caches synced successfully")
@@ -494,8 +517,36 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 	// Fetch node metrics from the metrics server
 	nodeMetricsList, err := c.metricsClient.MetricsV1beta1().NodeMetricses().List(ctx, metav1.ListOptions{})
 	if err != nil {
+		if c.telemetryLogger != nil {
+			c.telemetryLogger.Report(
+				gen.LogLevel_LOG_LEVEL_ERROR,
+				"NodeCollector",
+				"Failed to get node metrics from metrics server",
+				err,
+				map[string]string{
+					"excluded_nodes": fmt.Sprintf("%v", c.excludedNodes),
+					"error_type":     "metrics_server_query_failed",
+				},
+			)
+		}
 		c.logger.Error(err, "Failed to get node metrics from metrics server")
 		return
+	}
+
+	c.logger.Info("Successfully fetched node metrics from metrics server", "node_count", len(nodeMetricsList.Items))
+
+	if c.telemetryLogger != nil {
+		c.telemetryLogger.Report(
+			gen.LogLevel_LOG_LEVEL_INFO,
+			"NodeCollector",
+			"Successfully fetched node metrics from metrics server",
+			nil,
+			map[string]string{
+				"node_count":     fmt.Sprintf("%d", len(nodeMetricsList.Items)),
+				"excluded_nodes": fmt.Sprintf("%v", c.excludedNodes),
+				"event_type":     "metrics_server_query_success",
+			},
+		)
 	}
 
 	// Process each node's metrics
@@ -563,6 +614,19 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 					c.logger.Error(queryCtx.Err(), "Query context for node network metrics failed", "node", node.Name)
 				}
 				if err != nil {
+					if c.telemetryLogger != nil {
+						c.telemetryLogger.Report(
+							gen.LogLevel_LOG_LEVEL_WARN,
+							"NodeCollector",
+							"Failed to collect node network and I/O metrics from Prometheus",
+							err,
+							map[string]string{
+								"node":           node.Name,
+								"error_type":     "prometheus_network_io_query_failed",
+								"prometheus_url": c.config.PrometheusURL,
+							},
+						)
+					}
 					c.logger.Error(err, "Failed to collect node network and io metrics",
 						"name", node.Name)
 					// Continue with basic metrics
@@ -575,6 +639,21 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 				c.logger.V(c.logger.GetV()+2).Info("Network and IO metrics collected for node",
 					"node", node.Name,
 					"resourceData", gpuMetrics)
+
+				if c.telemetryLogger != nil && len(networkMetrics) > 0 {
+					c.telemetryLogger.Report(
+						gen.LogLevel_LOG_LEVEL_INFO,
+						"NodeCollector",
+						"Successfully collected network and I/O metrics from Prometheus",
+						nil,
+						map[string]string{
+							"node":           node.Name,
+							"metrics_count":  fmt.Sprintf("%d", len(networkMetrics)),
+							"event_type":     "prometheus_network_io_query_success",
+							"prometheus_url": c.config.PrometheusURL,
+						},
+					)
+				}
 			}
 
 			// Fetch GPU metrics for the node if enabled
@@ -584,6 +663,19 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 					c.logger.Error(queryCtx.Err(), "Query context for node GPU metrics failed", "node", node.Name)
 				}
 				if err != nil {
+					if c.telemetryLogger != nil {
+						c.telemetryLogger.Report(
+							gen.LogLevel_LOG_LEVEL_WARN,
+							"NodeCollector",
+							"Failed to collect node GPU metrics from Prometheus",
+							err,
+							map[string]string{
+								"node":           node.Name,
+								"error_type":     "prometheus_gpu_query_failed",
+								"prometheus_url": c.config.PrometheusURL,
+							},
+						)
+					}
 					c.logger.Error(err, "Failed to collect node GPU metrics. If you are not using GPU, this is expected. To disable GPU metrics, set DISABLE_GPU_METRICS environment variable to true",
 						"name", node.Name)
 					// Continue with other metrics
