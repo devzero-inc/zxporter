@@ -163,8 +163,8 @@ func (c *SimpleDakrClient) SendClusterSnapshotStream(ctx context.Context, snapsh
 	return "", nil, nil
 }
 
-// SendTelemetryLogs implements DakrClient.
-func (c *SimpleDakrClient) SendTelemetryLogs(ctx context.Context, logs ...*gen.LogEntry) error {
+// SendTelemetryLogs implements SimpleDakrClient.
+func (c *SimpleDakrClient) SendTelemetryLogs(ctx context.Context, in *gen.SendTelemetryLogsRequest) (*gen.SendTelemetryLogsResponse, error) {
 	//
-	return nil
+	return nil, nil
 }

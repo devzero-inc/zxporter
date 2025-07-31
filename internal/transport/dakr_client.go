@@ -391,8 +391,33 @@ func (c *RealDakrClient) SendClusterSnapshotStream(ctx context.Context, snapshot
 	return resp.Msg.ClusterId, resp.Msg.MissingResources, nil
 }
 
-// SendTelemetryLogs implements DakrClient.
-func (c *RealDakrClient) SendTelemetryLogs(ctx context.Context, logs ...*gen.LogEntry) error {
-	//
-	return nil
+// SendTelemetryLogs sends a batch of log entries to the Dakr service.
+func (c *RealDakrClient) SendTelemetryLogs(ctx context.Context, in *gen.SendTelemetryLogsRequest) (*gen.SendTelemetryLogsResponse, error) {
+	c.logger.V(1).Info("Sending telemetry logs to Dakr", "count", len(in.Logs))
+
+	req := connect.NewRequest(in)
+	attachClusterToken(req, c.clusterToken)
+
+	// Set cluster and team IDs if they are not already in the request body
+	// (this is where we set the cluster id and team id, my assumption is that we always have those thing in our parent context)
+	if in.ClusterId == "" {
+		if clusterID, ok := ctx.Value("cluster_id").(string); ok {
+			in.ClusterId = clusterID
+		}
+	}
+	if in.TeamId == "" {
+		if teamID, ok := ctx.Value("team_id").(string); ok {
+			in.TeamId = teamID
+		}
+	}
+
+	// Send to Dakr
+	resp, err := c.client.SendTelemetryLogs(ctx, req)
+	if err != nil {
+		c.logger.Error(err, "Failed to send telemetry logs to Dakr")
+		return nil, fmt.Errorf("failed to send telemetry logs to Dakr: %w", err)
+	}
+
+	c.logger.V(1).Info("Successfully sent telemetry logs to Dakr", "processed_count", resp.Msg.ProcessedCount)
+	return resp.Msg, nil
 }

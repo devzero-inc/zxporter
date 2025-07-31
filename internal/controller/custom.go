@@ -23,6 +23,7 @@ import (
 
 	"github.com/go-logr/logr"
 	kedaclient "github.com/kedacore/keda/v2/pkg/generated/clientset/versioned"
+	"go.uber.org/zap"
 	apiextensionsclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/discovery"
@@ -53,6 +54,10 @@ type EnvBasedController struct {
 func NewEnvBasedController(mgr ctrl.Manager, reconcileInterval time.Duration) (*EnvBasedController, error) {
 	// Set up basic components
 	logger := util.NewLogger("env-controller")
+	zapLogger, err := zap.NewProduction()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create zap logger: %w", err)
+	}
 
 	// Create a Kubernetes clientset
 	config := mgr.GetConfig()
@@ -84,8 +89,6 @@ func NewEnvBasedController(mgr ctrl.Manager, reconcileInterval time.Duration) (*
 	// Create a shared Telemetry metrics instance
 	sharedTelemetryMetrics := collector.NewTelemetryMetrics()
 
-	sharedTelemetryLogsClient := collector.NewTelemetryLogsClient()
-
 	// Create the reconciler
 	reconciler := &CollectionPolicyReconciler{
 		Client:            mgr.GetClient(),
@@ -97,9 +100,9 @@ func NewEnvBasedController(mgr ctrl.Manager, reconcileInterval time.Duration) (*
 		DiscoveryClient:   discoveryClient,
 		ApiExtensions:     apiExtensionClient,
 		TelemetryMetrics:  sharedTelemetryMetrics,
-		TelemetryLogs:     sharedTelemetryLogsClient,
 		IsRunning:         false,
 		RestartInProgress: false,
+		ZapLogger:         zapLogger,
 	}
 
 	logger.Info("Checking 1st reconcile interval", "reconcile", reconcileInterval)

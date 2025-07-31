@@ -41,6 +41,7 @@ import (
 	"github.com/devzero-inc/zxporter/internal/collector"
 	"github.com/devzero-inc/zxporter/internal/collector/provider"
 	"github.com/devzero-inc/zxporter/internal/collector/snap"
+	telemetry_logger "github.com/devzero-inc/zxporter/internal/logger"
 	"github.com/devzero-inc/zxporter/internal/transport"
 	"github.com/devzero-inc/zxporter/internal/util"
 	"k8s.io/client-go/discovery"
@@ -62,7 +63,8 @@ type CollectionPolicyReconciler struct {
 	Sender            transport.DirectSender
 	TelemetrySender   *transport.TelemetrySender
 	TelemetryMetrics  *collector.TelemetryMetrics
-	TelemetryLogs     *collector.TelemetryLogsClient
+	TelemetryLogger   telemetry_logger.Logger
+	ZapLogger         *zap.Logger
 	IsRunning         bool
 	CurrentPolicyHash string
 	CurrentConfig     *PolicyConfig
@@ -920,7 +922,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				newConfig.UpdateInterval,
 				logger,
 				r.TelemetryMetrics,
-				r.TelemetryLogs,
+				r.TelemetryLogger,
 			)
 		case "node":
 			replacedCollector = collector.NewNodeCollector(
@@ -1337,6 +1339,27 @@ func (r *CollectionPolicyReconciler) setupCollectionManager(ctx context.Context,
 
 	r.Sender = transport.NewDirectSender(dakrClient, logger)
 
+	logger.Info("Initializing telemetry logger")
+	telemetryConfig := telemetry_logger.Config{
+		BatchSize:     20,
+		FlushInterval: 10 * time.Second,
+		SendTimeout:   5 * time.Second,
+		QueueSize:     100,
+	}
+
+	if r.ZapLogger == nil {
+		return fmt.Errorf("ZapLogger is not initialized in the reconciler")
+	}
+
+	r.TelemetryLogger = telemetry_logger.NewLogger(
+		ctx,
+		r.Sender, // r.Sender satisfies the MetricsCollectorClient interface, this is confusing but has to clear the circular dependency..
+		telemetryConfig,
+		// clusterID,
+		// teamID,
+		r.ZapLogger,
+	)
+
 	// Create and start the telemetry sender
 	r.TelemetrySender = transport.NewTelemetrySender(
 		logger.WithName("telemetry"),
@@ -1486,6 +1509,11 @@ func (r *CollectionPolicyReconciler) cleanupOnFailure(logger logr.Logger) {
 		if err := r.CollectionManager.StopAll(); err != nil {
 			logger.Error(err, "Error stopping collection manager during failure")
 		}
+	}
+
+	if r.TelemetryLogger != nil {
+		r.TelemetryLogger.Stop()
+		logger.Info("Stopped telemetry logger during failure cleanup.")
 	}
 
 	// Stop telemetry sender if it's running
@@ -1782,7 +1810,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				config.UpdateInterval,
 				logger,
 				r.TelemetryMetrics,
-				r.TelemetryLogs,
+				r.TelemetryLogger,
 			),
 			name: collector.ContainerResource,
 		},
@@ -2200,7 +2228,7 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					newConfig.UpdateInterval,
 					logger,
 					r.TelemetryMetrics,
-					r.TelemetryLogs,
+					r.TelemetryLogger,
 				)
 			case "persistent_volume_claim":
 				replacedCollector = collector.NewPersistentVolumeClaimCollector(

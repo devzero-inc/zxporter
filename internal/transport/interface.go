@@ -21,8 +21,8 @@ type DakrClient interface {
 	// SendClusterSnapshotStream sends cluster snapshot data via streaming for large payloads
 	SendClusterSnapshotStream(ctx context.Context, snapshot *gen.ClusterSnapshot, snapshotID string, timestamp time.Time) (string, *gen.ClusterSnapshot, error)
 
-	// SendTelemetryLogs .
-	SendTelemetryLogs(ctx context.Context, logs ...*gen.LogEntry) error
+	// SendTelemetryLogs sends a batch of log entries to Dakr
+	SendTelemetryLogs(ctx context.Context, in *gen.SendTelemetryLogsRequest) (*gen.SendTelemetryLogsResponse, error)
 }
 
 // Sender defines methods for sending data to external systems
@@ -47,6 +47,9 @@ type DirectSender interface {
 
 	// SendClusterSnapshotStream sends large cluster snapshot data using streaming
 	SendClusterSnapshotStream(ctx context.Context, snapshot *gen.ClusterSnapshot, snapshotID string, timestamp time.Time) (string, *gen.ClusterSnapshot, error)
+
+	// SendTelemetryLogs sends a batch of log entries.
+	SendTelemetryLogs(ctx context.Context, in *gen.SendTelemetryLogsRequest) (*gen.SendTelemetryLogsResponse, error)
 }
 
 // // BufferedSender adds buffering capabilities to handle connection issues
