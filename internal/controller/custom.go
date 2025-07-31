@@ -215,6 +215,7 @@ func (c *EnvBasedController) initializeTelemetryComponents(ctx context.Context) 
 		sender,
 		telemetryConfig,
 		c.Reconciler.ZapLogger,
+		c.Log,
 	)
 
 	c.Reconciler.DakrClient = dakrClient
