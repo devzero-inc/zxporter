@@ -249,7 +249,6 @@ func (m *CollectionManager) StartAll(ctx context.Context) error {
 // StartCollector starts a specific collector
 func (m *CollectionManager) StartCollector(ctx context.Context, collectorType string) error {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 
 	collector, exists := m.collectors[collectorType]
 	if !exists {
@@ -259,12 +258,14 @@ func (m *CollectionManager) StartCollector(ctx context.Context, collectorType st
 	if _, ctxExists := m.collectorCtxs[collectorType]; ctxExists {
 		return fmt.Errorf("collector %s is already running", collectorType)
 	}
+	m.mu.Unlock()
 
 	return m.startCollectorInternal(collectorType, collector)
 }
 
 // startCollectorInternal is a helper function to start a collector with appropriate context management
 func (m *CollectionManager) startCollectorInternal(collectorType string, collector ResourceCollector) error {
+	m.mu.Lock()
 	m.logger.Info("Starting collector", "type", collectorType)
 
 	// Create a new context for this collector that can be cancelled individually
@@ -276,10 +277,14 @@ func (m *CollectionManager) startCollectorInternal(collectorType string, collect
 		m.processorWg[collectorType] = &sync.WaitGroup{}
 	}
 
+	m.mu.Unlock() // we can unlock it here to unblock other go routines to progress, without depend on the start method of other collectors
+
 	// Start this collector
-	if err := collector.Start(collectorCtx); err != nil {
+	if err := collector.Start(collectorCtx); err != nil { // this is the blocking call some time.
 		cancel() // Clean up the context
+		m.mu.Lock()
 		delete(m.collectorCtxs, collectorType)
+		m.mu.Unlock()
 		return fmt.Errorf("failed to start collector %s: %w", collectorType, err)
 	}
 
@@ -293,6 +298,8 @@ func (m *CollectionManager) startCollectorInternal(collectorType string, collect
 }
 
 // StopAll stops all registered collectors
+// TODO: FIX THIS, FIX THIS, stop all currently acts like reset button, preparing
+// the same CollectionManager instance to be used again, which doesnt feels good.
 func (m *CollectionManager) StopAll() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
