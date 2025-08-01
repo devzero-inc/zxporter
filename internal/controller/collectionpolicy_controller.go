@@ -230,20 +230,23 @@ func (r *CollectionPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	logger := log.FromContext(ctx)
 	logger.Info("Reconciling CollectionPolicy", "request", req)
 
+	// Check if TelemetryLogger is nil
+	if r.TelemetryLogger == nil {
+		return ctrl.Result{}, fmt.Errorf("TelemetryLogger is nil")
+	}
+
 	// Create a new config object from the policy and environment
 	newEnvSpec, err := util.LoadCollectionPolicySpecFromEnv()
 	if err != nil {
-		if r.TelemetryLogger != nil {
-			r.TelemetryLogger.Report(
-				gen.LogLevel_LOG_LEVEL_ERROR,
-				"CollectionPolicyReconciler",
-				"Failed to load collection policy spec from environment variables",
-				err,
-				map[string]string{
-					"error_type": "env_config_load_failed",
-				},
-			)
-		}
+		r.TelemetryLogger.Report(
+			gen.LogLevel_LOG_LEVEL_ERROR,
+			"CollectionPolicyReconciler_Reconcile",
+			"Failed to load collection policy spec from environment variables",
+			err,
+			map[string]string{
+				"error_type": "env_config_load_failed",
+			},
+		)
 		logger.Error(err, "Error loading ENV varaibles")
 	}
 
@@ -252,6 +255,15 @@ func (r *CollectionPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	// Check if we need to restart collectors due to config change
 	if configChanged && r.IsRunning {
+		r.TelemetryLogger.Report(
+			gen.LogLevel_LOG_LEVEL_INFO,
+			"CollectionPolicyReconciler_Reconcile",
+			"Configuration changed, restarting collectors",
+			nil,
+			map[string]string{
+				"config_changed": fmt.Sprintf("%t", configChanged),
+			},
+		)
 		logger.Info("Configuration changed, restarting collectors")
 		return r.restartCollectors(ctx, newConfig)
 	}
@@ -755,6 +767,17 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 			r.CurrentConfig.DisableNetworkIOMetrics != newConfig.DisableNetworkIOMetrics ||
 			r.CurrentConfig.DisableGPUMetrics != newConfig.DisableGPUMetrics) {
 		logger.Info("Prometheus configuration changed, checking availability", "url", newConfig.PrometheusURL)
+
+		r.TelemetryLogger.Report(
+			gen.LogLevel_LOG_LEVEL_DEBUG,
+			"CollectionPolicyReconciler_restartCollectors",
+			"Prometheus or metrics configuration changed",
+			nil,
+			map[string]string{
+				"prometheus_url": fmt.Sprintf("%v", newConfig.PrometheusURL),
+			},
+		)
+
 		prometheusAvailable := r.waitForPrometheusAvailability(ctx, newConfig.PrometheusURL)
 		if !prometheusAvailable {
 			logger.Info("Prometheus is not available after waiting, will continue with restart but metrics may be limited")
@@ -769,6 +792,16 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 		logger.Info("Disabled collectors configuration changed, updating affected collectors")
 		if err := r.handleDisabledCollectorsChange(ctx, logger, r.CurrentConfig, newConfig); err != nil {
 			logger.Error(err, "Error handling disabled collectors change")
+			r.TelemetryLogger.Report(
+				gen.LogLevel_LOG_LEVEL_ERROR,
+				"CollectionPolicyReconciler_restartCollectors",
+				"Error handling disabled collectors change",
+				err,
+				map[string]string{
+					"current_config": fmt.Sprintf("%v", r.CurrentConfig),
+					"new_config":     fmt.Sprintf("%v", newConfig),
+				},
+			)
 			// Continue with other updates despite error
 		}
 	}
@@ -779,12 +812,32 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 	// If affectedCollectors is nil, it signals a full restart is needed
 	if affectedCollectors == nil {
 		logger.Info("Major configuration change detected, performing full restart")
+		r.TelemetryLogger.Report(
+			gen.LogLevel_LOG_LEVEL_WARN,
+			"CollectionPolicyReconciler_restartCollectors",
+			"Major configuration change detected, performing full restart",
+			nil,
+			map[string]string{
+				"current_config": fmt.Sprintf("%v", r.CurrentConfig),
+				"new_config":     fmt.Sprintf("%v", newConfig),
+			},
+		)
 
 		// Stop all existing collectors
 		if r.CollectionManager != nil {
 			logger.Info("Stopping all collectors")
 			if err := r.CollectionManager.StopAll(); err != nil {
 				logger.Error(err, "Error stopping collection manager")
+				r.TelemetryLogger.Report(
+					gen.LogLevel_LOG_LEVEL_INFO,
+					"CollectionPolicyReconciler_restartCollectors",
+					"Stopping all collectors",
+					nil,
+					map[string]string{
+						"current_config": fmt.Sprintf("%v", r.CurrentConfig),
+						"new_config":     fmt.Sprintf("%v", newConfig),
+					},
+				)
 			}
 		}
 
@@ -794,17 +847,47 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 		r.CurrentConfig = nil
 
 		// Initialize with new config
+		r.TelemetryLogger.Report(
+			gen.LogLevel_LOG_LEVEL_INFO,
+			"CollectionPolicyReconciler_restartCollectors",
+			"Initialize collectors with new config due to major config changes",
+			nil,
+			map[string]string{
+				"current_config": fmt.Sprintf("%v", r.CurrentConfig),
+				"new_config":     fmt.Sprintf("%v", newConfig),
+			},
+		)
 		return r.initializeCollectors(ctx, newConfig)
 	}
 
 	// If no collectors need to be restarted, just update the config
 	if len(affectedCollectors) == 0 {
 		logger.Info("No collectors affected by this configuration change")
+		r.TelemetryLogger.Report(
+			gen.LogLevel_LOG_LEVEL_INFO,
+			"CollectionPolicyReconciler_restartCollectors",
+			"No collectors affected by this configuration change",
+			nil,
+			map[string]string{
+				"current_config": fmt.Sprintf("%v", r.CurrentConfig),
+				"new_config":     fmt.Sprintf("%v", newConfig),
+			},
+		)
 		r.CurrentConfig = newConfig
 		return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
 	}
 
 	logger.Info("Performing selective restart of affected collectors", "affectedCount", len(affectedCollectors))
+	r.TelemetryLogger.Report(
+		gen.LogLevel_LOG_LEVEL_INFO,
+		"CollectionPolicyReconciler_restartCollectors",
+		"Performing selective restart of affected collectors",
+		nil,
+		map[string]string{
+			"affected_count":      fmt.Sprintf("%v", len(affectedCollectors)),
+			"affected_collectors": fmt.Sprintf("%v", affectedCollectors),
+		},
+	)
 
 	// Get collector registry from CollectionManager
 	collectorTypes := r.CollectionManager.GetCollectorTypes()
@@ -834,6 +917,15 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 		logger.Info("Stopping telemetry sender for restart")
 		if err := r.TelemetrySender.Stop(); err != nil {
 			logger.Error(err, "Error stopping telemetry sender")
+			r.TelemetryLogger.Report(
+				gen.LogLevel_LOG_LEVEL_ERROR,
+				"CollectionPolicyReconciler_restartCollectors",
+				"Error stopping telemetry sender",
+				err,
+				map[string]string{
+					"error_type": "error_telemetry_sender",
+				},
+			)
 		}
 
 		// Create a new telemetry sender
@@ -846,6 +938,15 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 
 		if err := r.TelemetrySender.Start(ctx); err != nil {
 			logger.Error(err, "Failed to restart telemetry sender")
+			r.TelemetryLogger.Report(
+				gen.LogLevel_LOG_LEVEL_ERROR,
+				"CollectionPolicyReconciler_restartCollectors",
+				"Failed to restart telemetry sender",
+				err,
+				map[string]string{
+					"error_type": "error_telemetry_sender",
+				},
+			)
 		} else {
 			logger.Info("Successfully restarted telemetry sender")
 		}
@@ -855,6 +956,15 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 	clientConfig := ctrl.GetConfigOrDie()
 	metricsClient, err := metricsv1.NewForConfig(clientConfig)
 	if err != nil {
+		r.TelemetryLogger.Report(
+			gen.LogLevel_LOG_LEVEL_ERROR,
+			"CollectionPolicyReconciler_restartCollectors",
+			"Failed to create metrics client, some collectors may be limited",
+			err,
+			map[string]string{
+				"client_config": fmt.Sprintf("%v", clientConfig),
+			},
+		)
 		logger.Error(err, "Failed to create metrics client, some collectors may be limited")
 	}
 
@@ -882,6 +992,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			)
 		case "stateful_set":
 			replacedCollector = collector.NewStatefulSetCollector(
@@ -891,6 +1002,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			)
 		case "replica_set":
 			replacedCollector = collector.NewReplicaSetCollector(
@@ -900,6 +1012,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			)
 		case "daemon_set":
 			replacedCollector = collector.NewDaemonSetCollector(
@@ -909,6 +1022,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			)
 		case "service":
 			replacedCollector = collector.NewServiceCollector(
@@ -918,6 +1032,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			)
 		case "container_resource":
 			replacedCollector = collector.NewContainerResourceCollector(
@@ -964,6 +1079,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			)
 		case "persistent_volume":
 			replacedCollector = collector.NewPersistentVolumeCollector(
@@ -972,6 +1088,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			)
 		case "event":
 			replacedCollector = collector.NewEventCollector(
@@ -983,6 +1100,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				400,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			)
 		case "job":
 			replacedCollector = collector.NewJobCollector(
@@ -992,6 +1110,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			)
 		case "cron_job":
 			replacedCollector = collector.NewCronJobCollector(
@@ -1001,6 +1120,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			)
 		case "replication_controller":
 			replacedCollector = collector.NewReplicationControllerCollector(
@@ -1010,6 +1130,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			)
 		case "ingress":
 			replacedCollector = collector.NewIngressCollector(
@@ -1019,6 +1140,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			)
 		case "ingress_class":
 			replacedCollector = collector.NewIngressClassCollector(
@@ -1027,6 +1149,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			)
 		case "network_policy":
 			replacedCollector = collector.NewNetworkPolicyCollector(
@@ -1036,6 +1159,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			)
 		case "endpoints":
 			replacedCollector = collector.NewEndpointCollector(
@@ -1045,6 +1169,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			)
 		case "service_account":
 			replacedCollector = collector.NewServiceAccountCollector(
@@ -1054,6 +1179,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			)
 		case "limit_range":
 			replacedCollector = collector.NewLimitRangeCollector(
@@ -1063,6 +1189,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			)
 		case "resource_quota":
 			replacedCollector = collector.NewResourceQuotaCollector(
@@ -1072,6 +1199,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			)
 		case "horizontal_pod_autoscaler":
 			replacedCollector = collector.NewHorizontalPodAutoscalerCollector(
@@ -1081,6 +1209,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			)
 		case "vertical_pod_autoscaler":
 			replacedCollector = collector.NewVerticalPodAutoscalerCollector(
@@ -1090,6 +1219,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			)
 		case "role":
 			replacedCollector = collector.NewRoleCollector(
@@ -1099,6 +1229,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			)
 		case "role_binding":
 			replacedCollector = collector.NewRoleBindingCollector(
@@ -1108,6 +1239,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			)
 		case "cluster_role":
 			replacedCollector = collector.NewClusterRoleCollector(
@@ -1116,6 +1248,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			)
 		case "cluster_role_binding":
 			replacedCollector = collector.NewClusterRoleBindingCollector(
@@ -1124,6 +1257,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			)
 		case "pod_disruption_budget":
 			replacedCollector = collector.NewPodDisruptionBudgetCollector(
@@ -1133,6 +1267,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			)
 		case "storage_class":
 			replacedCollector = collector.NewStorageClassCollector(
@@ -1141,6 +1276,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			)
 		case "csi_node":
 			replacedCollector = collector.NewCSINodeCollector(
@@ -1149,6 +1285,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			)
 		case "karpenter":
 			replacedCollector = collector.NewKarpenterCollector(
@@ -1156,6 +1293,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			)
 		case "datadog":
 			replacedCollector = collector.NewDatadogCollector(
@@ -1165,6 +1303,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			)
 		case "argo_rollouts":
 			replacedCollector = collector.NewArgoRolloutsCollector(
@@ -1174,6 +1313,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			)
 		case "custom_resource_definition":
 			replacedCollector = collector.NewCRDCollector(
@@ -1181,6 +1321,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			)
 		case "keda_scaled_job":
 			replacedCollector = collector.NewScaledJobCollector(
@@ -1190,6 +1331,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			)
 		case "keda_scaled_object":
 			replacedCollector = collector.NewScaledObjectCollector(
@@ -1199,6 +1341,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			)
 		case "cluster_snapshot":
 			replacedCollector = snap.NewClusterSnapshotter(
@@ -1218,6 +1361,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			)
 		case "csi_storage_capacity":
 			replacedCollector = collector.NewCSIStorageCapacityCollector(
@@ -1227,6 +1371,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			)
 		case "volume_attachment":
 			replacedCollector = collector.NewVolumeAttachmentCollector(
@@ -1235,6 +1380,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			)
 		default:
 			logger.Info("Collector type not handled in selective restart", "type", collectorType)
@@ -1256,12 +1402,41 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 		// Start the collector
 		if err := r.CollectionManager.StartCollector(ctx, collectorType); err != nil {
 			logger.Error(err, "Failed to start collector", "type", collectorType)
+			r.TelemetryLogger.Report(
+				gen.LogLevel_LOG_LEVEL_ERROR,
+				"CollectionPolicyReconciler_restartCollectors",
+				"Failed to start collector",
+				err,
+				map[string]string{
+					"event_type":     "resource_collectors_restart_failed",
+					"collector_type": collectorType,
+				},
+			)
 		} else {
+			r.TelemetryLogger.Report(
+				gen.LogLevel_LOG_LEVEL_INFO,
+				"CollectionPolicyReconciler_restartCollectors",
+				"Successfully restarted collector",
+				nil,
+				map[string]string{
+					"event_type":     "resource_collectors_restart_succeed",
+					"collector_type": collectorType,
+				},
+			)
 			logger.Info("Successfully restarted collector", "type", collectorType)
 		}
 	}
 
 	logger.Info("Completed selective restart of collectors")
+	r.TelemetryLogger.Report(
+		gen.LogLevel_LOG_LEVEL_INFO,
+		"CollectionPolicyReconciler_restartCollectors",
+		"Completed selective restart of collectors",
+		nil,
+		map[string]string{
+			"affected_count": fmt.Sprintf("%v", len(affectedCollectors)),
+		},
+	)
 	return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
 }
 
@@ -1276,10 +1451,38 @@ func (r *CollectionPolicyReconciler) initializeCollectors(ctx context.Context, c
 		prometheusAvailable := r.waitForPrometheusAvailability(ctx, config.PrometheusURL)
 		if !prometheusAvailable {
 			logger.Info("Prometheus is not available after waiting, will continue initialization but metrics may be limited")
+			r.TelemetryLogger.Report(
+				gen.LogLevel_LOG_LEVEL_DEBUG,
+				"CollectionPolicyReconciler_initializeCollectors",
+				"Prometheus is not available after waiting, will continue initialization but metrics may be limited",
+				nil,
+				map[string]string{
+					"prometheus_url": fmt.Sprintf("%v", config.PrometheusURL),
+				},
+			)
 			// We continue initialization, but log the warning
 		} else {
+			r.TelemetryLogger.Report(
+				gen.LogLevel_LOG_LEVEL_INFO,
+				"CollectionPolicyReconciler_initializeCollectors",
+				"Prometheus is available, continuing with full metrics collection",
+				nil,
+				map[string]string{
+					"prometheus_url": fmt.Sprintf("%v", config.PrometheusURL),
+				},
+			)
 			logger.Info("Prometheus is available, continuing with full metrics collection")
 		}
+	} else {
+		r.TelemetryLogger.Report(
+			gen.LogLevel_LOG_LEVEL_WARN,
+			"CollectionPolicyReconciler_initializeCollectors",
+			"Prometheus URL is empty in config, metrics will be limited",
+			nil,
+			map[string]string{
+				"prometheus_url": fmt.Sprintf("%v", config.PrometheusURL),
+			},
+		)
 	}
 
 	// Setup collection manager and basic services
@@ -1287,7 +1490,7 @@ func (r *CollectionPolicyReconciler) initializeCollectors(ctx context.Context, c
 		if r.TelemetryLogger != nil {
 			r.TelemetryLogger.Report(
 				gen.LogLevel_LOG_LEVEL_ERROR,
-				"CollectionPolicyReconciler",
+				"CollectionPolicyReconciler_initializeCollectors",
 				"Failed to setup collection manager and basic services",
 				err,
 				map[string]string{
@@ -1299,18 +1502,16 @@ func (r *CollectionPolicyReconciler) initializeCollectors(ctx context.Context, c
 		return ctrl.Result{}, err
 	}
 
-	if r.TelemetryLogger != nil {
-		r.TelemetryLogger.Report(
-			gen.LogLevel_LOG_LEVEL_INFO,
-			"CollectionPolicyReconciler",
-			"Successfully setup collection manager and basic services",
-			nil,
-			map[string]string{
-				"event_type": "collection_manager_setup_success",
-				"dakr_url":   config.DakrURL,
-			},
-		)
-	}
+	r.TelemetryLogger.Report(
+		gen.LogLevel_LOG_LEVEL_INFO,
+		"CollectionPolicyReconciler_initializeCollectors",
+		"Successfully setup collection manager and basic services",
+		nil,
+		map[string]string{
+			"event_type": "collection_manager_setup_success",
+			"dakr_url":   config.DakrURL,
+		},
+	)
 
 	// First register and start only the cluster collector
 	clusterCollector, err := r.setupClusterCollector(ctx, logger, config)
@@ -1318,7 +1519,7 @@ func (r *CollectionPolicyReconciler) initializeCollectors(ctx context.Context, c
 		if r.TelemetryLogger != nil {
 			r.TelemetryLogger.Report(
 				gen.LogLevel_LOG_LEVEL_ERROR,
-				"CollectionPolicyReconciler",
+				"CollectionPolicyReconciler_initializeCollectors",
 				"Failed to setup cluster collector",
 				err,
 				map[string]string{
@@ -1332,7 +1533,7 @@ func (r *CollectionPolicyReconciler) initializeCollectors(ctx context.Context, c
 	if r.TelemetryLogger != nil {
 		r.TelemetryLogger.Report(
 			gen.LogLevel_LOG_LEVEL_INFO,
-			"CollectionPolicyReconciler",
+			"CollectionPolicyReconciler_initializeCollectors",
 			"Successfully setup cluster collector",
 			nil,
 			map[string]string{
@@ -1344,35 +1545,31 @@ func (r *CollectionPolicyReconciler) initializeCollectors(ctx context.Context, c
 	// Wait for cluster data to be sent to Dakr
 	registrationResult := r.waitForClusterRegistration(ctx, logger)
 	if registrationResult != nil {
-		if r.TelemetryLogger != nil {
-			r.TelemetryLogger.Report(
-				gen.LogLevel_LOG_LEVEL_ERROR,
-				"CollectionPolicyReconciler",
-				"Failed to register cluster with Dakr",
-				fmt.Errorf("cluster registration failed or timed out"),
-				map[string]string{
-					"error_type": "cluster_registration_failed",
-					"dakr_url":   config.DakrURL,
-				},
-			)
-		}
+		r.TelemetryLogger.Report(
+			gen.LogLevel_LOG_LEVEL_ERROR,
+			"CollectionPolicyReconciler_initializeCollectors",
+			"Failed to register cluster with Dakr",
+			fmt.Errorf("cluster registration failed or timed out"),
+			map[string]string{
+				"error_type": "cluster_registration_failed",
+				"dakr_url":   config.DakrURL,
+			},
+		)
 		// Clean up and return the error result
 		r.cleanupOnFailure(logger)
 		return *registrationResult, fmt.Errorf("failed to register cluster with Dakr")
 	}
 
-	if r.TelemetryLogger != nil {
-		r.TelemetryLogger.Report(
-			gen.LogLevel_LOG_LEVEL_INFO,
-			"CollectionPolicyReconciler",
-			"Successfully registered cluster with Dakr",
-			nil,
-			map[string]string{
-				"event_type": "cluster_registration_success",
-				"dakr_url":   config.DakrURL,
-			},
-		)
-	}
+	r.TelemetryLogger.Report(
+		gen.LogLevel_LOG_LEVEL_INFO,
+		"CollectionPolicyReconciler_initializeCollectors",
+		"Successfully registered cluster with Dakr",
+		nil,
+		map[string]string{
+			"event_type": "cluster_registration_success",
+			"dakr_url":   config.DakrURL,
+		},
+	)
 
 	// Register and start all other collectors
 	if err := r.setupAllCollectors(ctx, logger, config, clusterCollector); err != nil {
@@ -1413,6 +1610,7 @@ func (r *CollectionPolicyReconciler) setupCollectionManager(ctx context.Context,
 		r.K8sClient,
 		r.TelemetryMetrics,
 		logger.WithName("collection-manager"),
+		r.TelemetryLogger,
 	)
 
 	// Create and start the telemetry sender
@@ -1441,6 +1639,15 @@ func (r *CollectionPolicyReconciler) setupClusterCollector(ctx context.Context, 
 	clientConfig := ctrl.GetConfigOrDie()
 	metricsClient, err := metricsv1.NewForConfig(clientConfig)
 	if err != nil {
+		r.TelemetryLogger.Report(
+			gen.LogLevel_LOG_LEVEL_ERROR,
+			"CollectionPolicyReconciler_setupClusterCollector",
+			"Failed to create metrics client",
+			err,
+			map[string]string{
+				"client_config": fmt.Sprintf("%v", clientConfig),
+			},
+		)
 		logger.Error(err, "Failed to create metrics client")
 	}
 
@@ -1458,6 +1665,7 @@ func (r *CollectionPolicyReconciler) setupClusterCollector(ctx context.Context, 
 		detectedProvider,
 		30*time.Minute,
 		logger,
+		r.TelemetryLogger,
 	)
 
 	// Register only the cluster collector initially
@@ -1489,12 +1697,30 @@ func (r *CollectionPolicyReconciler) waitForClusterRegistration(ctx context.Cont
 	select {
 	case <-clusterRegisteredCh:
 		logger.Info("Cluster registration completed, proceeding with other collectors")
+		r.TelemetryLogger.Report(
+			gen.LogLevel_LOG_LEVEL_INFO,
+			"CollectionPolicyReconciler_waitForClusterRegistration",
+			"Cluster registration completed, proceeding with other collectors",
+			nil,
+			map[string]string{
+				"error_type": "cluster_registration_succeed",
+			},
+		)
 		return nil
 	case <-clusterFailedCh:
 		logger.Error(nil, "Cluster data registration failed after maximum attempts, operator entering error state")
 		return &ctrl.Result{Requeue: true, RequeueAfter: 1 * time.Minute}
 	case <-clusterTimeoutCh:
 		logger.Info("Timeout waiting for cluster data")
+		r.TelemetryLogger.Report(
+			gen.LogLevel_LOG_LEVEL_ERROR,
+			"CollectionPolicyReconciler_waitForClusterRegistration",
+			"Timeout waiting for cluster data",
+			fmt.Errorf("timeout waiting for cluster data"),
+			map[string]string{
+				"error_type": "cluster_registration_failed",
+			},
+		)
 		return &ctrl.Result{Requeue: true, RequeueAfter: 1 * time.Minute}
 	case <-ctx.Done():
 		logger.Info("Context cancelled while waiting for cluster data")
@@ -1517,6 +1743,15 @@ func (r *CollectionPolicyReconciler) monitorClusterRegistration(
 		if !ok {
 			// Channel closed unexpectedly
 			logger.Error(nil, "Resource channel closed while waiting for cluster data")
+			r.TelemetryLogger.Report(
+				gen.LogLevel_LOG_LEVEL_ERROR,
+				"CollectionPolicyReconciler_monitorClusterRegistration",
+				"Resource channel closed while waiting for cluster data",
+				fmt.Errorf("resourceChan closed unexpectedly"),
+				map[string]string{
+					"error_type": "cluster_registration_failed",
+				},
+			)
 			close(clusterFailedCh)
 			return
 		}
@@ -1527,11 +1762,29 @@ func (r *CollectionPolicyReconciler) monitorClusterRegistration(
 			_, err := r.Sender.Send(ctx, resources[0])
 			if err != nil {
 				logger.Error(err, "Failed to send cluster data")
+				r.TelemetryLogger.Report(
+					gen.LogLevel_LOG_LEVEL_ERROR,
+					"CollectionPolicyReconciler_monitorClusterRegistration",
+					"Failed to send cluster data for cluster registration",
+					err,
+					map[string]string{
+						"error_type": "cluster_registration_failed",
+					},
+				)
 				close(clusterFailedCh)
 				return
 				// Continue waiting for next attempt
 			} else {
 				logger.Info("Successfully sent cluster data to Dakr")
+				r.TelemetryLogger.Report(
+					gen.LogLevel_LOG_LEVEL_INFO,
+					"CollectionPolicyReconciler_monitorClusterRegistration",
+					"Successfully sent cluster data to Dakr",
+					nil,
+					map[string]string{
+						"event_type": "cluster_data_sent",
+					},
+				)
 				close(clusterRegisteredCh)
 				return
 			}
@@ -1541,6 +1794,15 @@ func (r *CollectionPolicyReconciler) monitorClusterRegistration(
 			if rLength == 1 {
 				rType = resources[0].ResourceType
 			}
+			r.TelemetryLogger.Report(
+				gen.LogLevel_LOG_LEVEL_ERROR,
+				"CollectionPolicyReconciler_monitorClusterRegistration",
+				"non cluster resource received",
+				fmt.Errorf("expected cluster resource, got non cluster resource"),
+				map[string]string{
+					"error_type": "cluster_registration_failed",
+				},
+			)
 			logger.Error(fmt.Errorf("non cluster resource received"),
 				"unexpected resource encountered when expecting single cluster resource",
 				zap.String("resource_type", rType.String()),
@@ -1598,6 +1860,15 @@ func (r *CollectionPolicyReconciler) setupAllCollectors(
 
 	// Stop the collection manager to reconfigure with all collectors
 	if err := r.CollectionManager.StopAll(); err != nil {
+		r.TelemetryLogger.Report(
+			gen.LogLevel_LOG_LEVEL_ERROR,
+			"CollectionPolicyReconciler_setupAllCollectors",
+			"Error stopping collection manager",
+			err,
+			map[string]string{
+				"error_type": "resource_collectors_stopping_failed",
+			},
+		)
 		logger.Error(err, "Error stopping collection manager")
 	}
 
@@ -1605,39 +1876,53 @@ func (r *CollectionPolicyReconciler) setupAllCollectors(
 	clientConfig := ctrl.GetConfigOrDie()
 	metricsClient, err := metricsv1.NewForConfig(clientConfig)
 	if err != nil {
+		r.TelemetryLogger.Report(
+			gen.LogLevel_LOG_LEVEL_ERROR,
+			"CollectionPolicyReconciler_setupAllCollectors",
+			"Failed to create metrics client, some collectors may be limited",
+			err,
+			map[string]string{
+				"client_config": fmt.Sprintf("%v", clientConfig),
+			},
+		)
 		logger.Error(err, "Failed to create metrics client, some collectors may be limited")
 	}
 
 	// Register all other collectors
 	if err := r.registerResourceCollectors(logger, config, metricsClient); err != nil {
-		if r.TelemetryLogger != nil {
-			r.TelemetryLogger.Report(
-				gen.LogLevel_LOG_LEVEL_ERROR,
-				"CollectionPolicyReconciler",
-				"Failed to register resource collectors",
-				err,
-				map[string]string{
-					"error_type": "resource_collectors_registration_failed",
-				},
-			)
-		}
+		r.TelemetryLogger.Report(
+			gen.LogLevel_LOG_LEVEL_ERROR,
+			"CollectionPolicyReconciler_setupAllCollectors",
+			"Failed to register resource collectors",
+			err,
+			map[string]string{
+				"error_type": "resource_collectors_registration_failed",
+			},
+		)
 		return err
 	}
 
-	if r.TelemetryLogger != nil {
-		r.TelemetryLogger.Report(
-			gen.LogLevel_LOG_LEVEL_INFO,
-			"CollectionPolicyReconciler",
-			"Successfully registered all resource collectors",
-			nil,
-			map[string]string{
-				"event_type": "resource_collectors_registration_success",
-			},
-		)
-	}
+	r.TelemetryLogger.Report(
+		gen.LogLevel_LOG_LEVEL_INFO,
+		"CollectionPolicyReconciler",
+		"Successfully registered all resource collectors",
+		nil,
+		map[string]string{
+			"event_type": "resource_collectors_registration_success",
+		},
+	)
 
 	// Start the collection manager with all collectors
 	if err := r.CollectionManager.StartAll(ctx); err != nil {
+		r.TelemetryLogger.Report(
+			gen.LogLevel_LOG_LEVEL_ERROR,
+			"CollectionPolicyReconciler_setupAllCollectors",
+			"Failed to start collection manager with all collectors",
+			err,
+			map[string]string{
+				"error_type": "resource_collectors_start_all_failed",
+			},
+		)
 		logger.Error(err, "Failed to start collection manager with all collectors")
 		return err
 	}
@@ -1671,6 +1956,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			),
 			name: collector.Endpoints,
 		},
@@ -1682,6 +1968,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			),
 			name: collector.ServiceAccount,
 		},
@@ -1693,6 +1980,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			),
 			name: collector.LimitRange,
 		},
@@ -1704,6 +1992,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			),
 			name: collector.ResourceQuota,
 		},
@@ -1714,6 +2003,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			),
 			name: collector.PersistentVolume,
 		},
@@ -1737,6 +2027,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			),
 			name: collector.Deployment,
 		},
@@ -1748,6 +2039,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			),
 			name: collector.StatefulSet,
 		},
@@ -1759,6 +2051,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			),
 			name: collector.DaemonSet,
 		},
@@ -1769,6 +2062,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			),
 			name: collector.Namespace,
 		},
@@ -1780,6 +2074,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			),
 			name: collector.ReplicationController,
 		},
@@ -1791,6 +2086,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			),
 			name: collector.Ingress,
 		},
@@ -1801,6 +2097,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			),
 			name: collector.IngressClass,
 		},
@@ -1812,6 +2109,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			),
 			name: collector.PersistentVolumeClaim,
 		},
@@ -1825,6 +2123,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				400,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			),
 			name: collector.Event,
 		},
@@ -1836,6 +2135,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			),
 			name: collector.Service,
 		},
@@ -1847,6 +2147,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			),
 			name: collector.Job,
 		},
@@ -1858,6 +2159,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			),
 			name: collector.NetworkPolicy,
 		},
@@ -1869,6 +2171,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			),
 			name: collector.CronJob,
 		},
@@ -1921,6 +2224,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			),
 			name: collector.Role,
 		},
@@ -1932,6 +2236,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			),
 			name: collector.RoleBinding,
 		},
@@ -1942,6 +2247,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			),
 			name: collector.ClusterRole,
 		},
@@ -1952,6 +2258,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			),
 			name: collector.ClusterRoleBinding,
 		},
@@ -1963,6 +2270,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			),
 			name: collector.HorizontalPodAutoscaler,
 		},
@@ -1974,6 +2282,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			),
 			name: collector.VerticalPodAutoscaler,
 		},
@@ -1985,6 +2294,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			),
 			name: collector.PodDisruptionBudget,
 		},
@@ -1995,6 +2305,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			),
 			name: collector.StorageClass,
 		},
@@ -2006,6 +2317,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			),
 			name: collector.ReplicaSet,
 		},
@@ -2016,6 +2328,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			),
 			name: collector.CSINode,
 		},
@@ -2025,6 +2338,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			),
 			name: collector.Karpenter,
 		},
@@ -2036,6 +2350,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			),
 			name: collector.Datadog,
 		},
@@ -2047,6 +2362,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			),
 			name: collector.ArgoRollouts,
 		},
@@ -2056,6 +2372,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			),
 			name: collector.CustomResourceDefinition,
 		},
@@ -2067,6 +2384,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			),
 			name: collector.KedaScaledJob,
 		},
@@ -2078,6 +2396,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			),
 			name: collector.KedaScaledObject,
 		},
@@ -2101,6 +2420,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			),
 			name: collector.CSIDriver,
 		},
@@ -2112,6 +2432,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			),
 			name: collector.CSIStorageCapacity,
 		},
@@ -2122,6 +2443,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
 			),
 			name: collector.VolumeAttachment,
 		},
@@ -2130,65 +2452,57 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 	// Register all collectors
 	for _, c := range collectors {
 		if disabledCollectorsMap[c.name.String()] {
-			if r.TelemetryLogger != nil {
-				r.TelemetryLogger.Report(
-					gen.LogLevel_LOG_LEVEL_WARN,
-					"CollectionPolicyReconciler",
-					"Collector is disabled, skipping registration",
-					nil,
-					map[string]string{
-						"collector_type": c.name.String(),
-						"event_type":     "collector_disabled",
-					},
-				)
-			}
+			r.TelemetryLogger.Report(
+				gen.LogLevel_LOG_LEVEL_WARN,
+				"CollectionPolicyReconciler_registerResourceCollectors",
+				"Collector is disabled, skipping registration",
+				nil,
+				map[string]string{
+					"collector_type": c.name.String(),
+					"event_type":     "collector_disabled",
+				},
+			)
 			logger.Info("Skipping disabled collector", "type", c.name.String())
 			continue
 		}
 		if c.collector.IsAvailable(context.Background()) {
 			logger.Info("Registering collector", "name", c.name.String())
 			if err := r.CollectionManager.RegisterCollector(c.collector); err != nil {
-				if r.TelemetryLogger != nil {
-					r.TelemetryLogger.Report(
-						gen.LogLevel_LOG_LEVEL_ERROR,
-						"CollectionPolicyReconciler",
-						"Failed to register collector",
-						err,
-						map[string]string{
-							"collector_type": c.name.String(),
-							"error_type":     "collector_registration_failed",
-						},
-					)
-				}
+				r.TelemetryLogger.Report(
+					gen.LogLevel_LOG_LEVEL_ERROR,
+					"CollectionPolicyReconciler_registerResourceCollectors",
+					"Failed to register collector",
+					err,
+					map[string]string{
+						"collector_type": c.name.String(),
+						"error_type":     "collector_registration_failed",
+					},
+				)
 				logger.Error(err, "Failed to register collector", "collector", c.name.String())
 			} else {
-				if r.TelemetryLogger != nil {
-					r.TelemetryLogger.Report(
-						gen.LogLevel_LOG_LEVEL_INFO,
-						"CollectionPolicyReconciler",
-						"Successfully registered collector",
-						nil,
-						map[string]string{
-							"collector_type": c.name.String(),
-							"event_type":     "collector_registration_success",
-						},
-					)
-				}
+				r.TelemetryLogger.Report(
+					gen.LogLevel_LOG_LEVEL_INFO,
+					"CollectionPolicyReconciler_registerResourceCollectors",
+					"Successfully registered collector",
+					nil,
+					map[string]string{
+						"collector_type": c.name.String(),
+						"event_type":     "collector_registration_success",
+					},
+				)
 				logger.Info("Registered collector", "collector", c.name.String())
 			}
 		} else {
-			if r.TelemetryLogger != nil {
-				r.TelemetryLogger.Report(
-					gen.LogLevel_LOG_LEVEL_WARN,
-					"CollectionPolicyReconciler",
-					"Collector is not available, skipping registration",
-					nil,
-					map[string]string{ // Note: we should get the reason of why its not available
-						"collector_type": c.name.String(),
-						"event_type":     "collector_not_available",
-					},
-				)
-			}
+			r.TelemetryLogger.Report(
+				gen.LogLevel_LOG_LEVEL_WARN,
+				"CollectionPolicyReconciler_registerResourceCollectors",
+				"Collector is not available, skipping registration",
+				nil,
+				map[string]string{ // Note: we should get the reason of why its not available
+					"collector_type": c.name.String(),
+					"event_type":     "collector_not_available",
+				},
+			)
 			logger.Info("Collector not available, skipping registration", "type", c.name.String())
 		}
 	}
@@ -2220,6 +2534,15 @@ func (r *CollectionPolicyReconciler) processCollectedResources(ctx context.Conte
 
 			// Send the raw resource directly to Dakr
 			if _, err := r.Sender.SendBatch(ctx, resources, resources[0].ResourceType); err != nil {
+				r.TelemetryLogger.Report(
+					gen.LogLevel_LOG_LEVEL_ERROR,
+					"CollectionPolicyReconciler_processCollectedResources",
+					"Failed to send resource to Dakr",
+					err,
+					map[string]string{
+						"resources_count": fmt.Sprintf("%v", len(resources)),
+					},
+				)
 				logger.Error(err, "Failed to send resource to Dakr",
 					"resourcesCount", len(resources),
 					"resourceType", resources[0].ResourceType)
@@ -2262,6 +2585,15 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 			logger.Info("Deregistering newly disabled collector", "type", collectorType)
 			if err := r.CollectionManager.DeregisterCollector(collectorType); err != nil {
 				logger.Error(err, "Failed to deregister collector", "type", collectorType)
+				r.TelemetryLogger.Report(
+					gen.LogLevel_LOG_LEVEL_ERROR,
+					"CollectionPolicyReconciler_handleDisabledCollectorsChange",
+					"Failed to deregister collector",
+					err,
+					map[string]string{
+						"collector_type": fmt.Sprintf("%v", collectorType),
+					},
+				)
 				// Continue with other collectors even if one fails
 			}
 		}
@@ -2271,6 +2603,15 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 	clientConfig := ctrl.GetConfigOrDie()
 	metricsClient, err := metricsv1.NewForConfig(clientConfig)
 	if err != nil {
+		r.TelemetryLogger.Report(
+			gen.LogLevel_LOG_LEVEL_ERROR,
+			"CollectionPolicyReconciler_handleDisabledCollectorsChange",
+			"Failed to create metrics client for newly enabled collectors",
+			err,
+			map[string]string{
+				"client_config": fmt.Sprintf("%v", clientConfig),
+			},
+		)
 		logger.Error(err, "Failed to create metrics client for newly enabled collectors")
 	}
 
@@ -2304,6 +2645,7 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					collector.DefaultMaxBatchSize,
 					collector.DefaultMaxBatchTime,
 					logger,
+					r.TelemetryLogger,
 				)
 			case "stateful_set":
 				replacedCollector = collector.NewStatefulSetCollector(
@@ -2313,6 +2655,7 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					collector.DefaultMaxBatchSize,
 					collector.DefaultMaxBatchTime,
 					logger,
+					r.TelemetryLogger,
 				)
 			case "replica_set":
 				replacedCollector = collector.NewReplicaSetCollector(
@@ -2322,6 +2665,7 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					collector.DefaultMaxBatchSize,
 					collector.DefaultMaxBatchTime,
 					logger,
+					r.TelemetryLogger,
 				)
 			case "daemon_set":
 				replacedCollector = collector.NewDaemonSetCollector(
@@ -2331,6 +2675,7 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					collector.DefaultMaxBatchSize,
 					collector.DefaultMaxBatchTime,
 					logger,
+					r.TelemetryLogger,
 				)
 			case "service":
 				replacedCollector = collector.NewServiceCollector(
@@ -2340,6 +2685,7 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					collector.DefaultMaxBatchSize,
 					collector.DefaultMaxBatchTime,
 					logger,
+					r.TelemetryLogger,
 				)
 			case "container_resource":
 				// Use the reconciler's shared Prometheus metrics instance
@@ -2369,6 +2715,7 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					collector.DefaultMaxBatchSize,
 					collector.DefaultMaxBatchTime,
 					logger,
+					r.TelemetryLogger,
 				)
 			case "event":
 				replacedCollector = collector.NewEventCollector(
@@ -2380,6 +2727,7 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					400,
 					collector.DefaultMaxBatchTime,
 					logger,
+					r.TelemetryLogger,
 				)
 			case "job":
 				replacedCollector = collector.NewJobCollector(
@@ -2389,6 +2737,7 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					collector.DefaultMaxBatchSize,
 					collector.DefaultMaxBatchTime,
 					logger,
+					r.TelemetryLogger,
 				)
 			case "cron_job":
 				replacedCollector = collector.NewCronJobCollector(
@@ -2398,6 +2747,7 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					collector.DefaultMaxBatchSize,
 					collector.DefaultMaxBatchTime,
 					logger,
+					r.TelemetryLogger,
 				)
 			case "replication_controller":
 				replacedCollector = collector.NewReplicationControllerCollector(
@@ -2407,6 +2757,7 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					collector.DefaultMaxBatchSize,
 					collector.DefaultMaxBatchTime,
 					logger,
+					r.TelemetryLogger,
 				)
 			case "ingress":
 				replacedCollector = collector.NewIngressCollector(
@@ -2416,6 +2767,7 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					collector.DefaultMaxBatchSize,
 					collector.DefaultMaxBatchTime,
 					logger,
+					r.TelemetryLogger,
 				)
 			case "network_policy":
 				replacedCollector = collector.NewNetworkPolicyCollector(
@@ -2425,6 +2777,7 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					collector.DefaultMaxBatchSize,
 					collector.DefaultMaxBatchTime,
 					logger,
+					r.TelemetryLogger,
 				)
 			case "endpoints":
 				replacedCollector = collector.NewEndpointCollector(
@@ -2434,6 +2787,7 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					collector.DefaultMaxBatchSize,
 					collector.DefaultMaxBatchTime,
 					logger,
+					r.TelemetryLogger,
 				)
 			case "service_account":
 				replacedCollector = collector.NewServiceAccountCollector(
@@ -2443,6 +2797,7 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					collector.DefaultMaxBatchSize,
 					collector.DefaultMaxBatchTime,
 					logger,
+					r.TelemetryLogger,
 				)
 			case "limit_range":
 				replacedCollector = collector.NewLimitRangeCollector(
@@ -2452,6 +2807,7 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					collector.DefaultMaxBatchSize,
 					collector.DefaultMaxBatchTime,
 					logger,
+					r.TelemetryLogger,
 				)
 			case "resource_quota":
 				replacedCollector = collector.NewResourceQuotaCollector(
@@ -2461,6 +2817,7 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					collector.DefaultMaxBatchSize,
 					collector.DefaultMaxBatchTime,
 					logger,
+					r.TelemetryLogger,
 				)
 			case "horizontal_pod_autoscaler":
 				replacedCollector = collector.NewHorizontalPodAutoscalerCollector(
@@ -2470,6 +2827,7 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					collector.DefaultMaxBatchSize,
 					collector.DefaultMaxBatchTime,
 					logger,
+					r.TelemetryLogger,
 				)
 			case "vertical_pod_autoscaler":
 				replacedCollector = collector.NewVerticalPodAutoscalerCollector(
@@ -2479,6 +2837,7 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					collector.DefaultMaxBatchSize,
 					collector.DefaultMaxBatchTime,
 					logger,
+					r.TelemetryLogger,
 				)
 			case "role":
 				replacedCollector = collector.NewRoleCollector(
@@ -2488,6 +2847,7 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					collector.DefaultMaxBatchSize,
 					collector.DefaultMaxBatchTime,
 					logger,
+					r.TelemetryLogger,
 				)
 			case "role_binding":
 				replacedCollector = collector.NewRoleBindingCollector(
@@ -2497,6 +2857,7 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					collector.DefaultMaxBatchSize,
 					collector.DefaultMaxBatchTime,
 					logger,
+					r.TelemetryLogger,
 				)
 			case "pod_disruption_budget":
 				replacedCollector = collector.NewPodDisruptionBudgetCollector(
@@ -2506,6 +2867,7 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					collector.DefaultMaxBatchSize,
 					collector.DefaultMaxBatchTime,
 					logger,
+					r.TelemetryLogger,
 				)
 			case "datadog":
 				replacedCollector = collector.NewDatadogCollector(
@@ -2515,6 +2877,7 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					collector.DefaultMaxBatchSize,
 					collector.DefaultMaxBatchTime,
 					logger,
+					r.TelemetryLogger,
 				)
 			case "argo_rollouts":
 				replacedCollector = collector.NewArgoRolloutsCollector(
@@ -2524,6 +2887,7 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					collector.DefaultMaxBatchSize,
 					collector.DefaultMaxBatchTime,
 					logger,
+					r.TelemetryLogger,
 				)
 			//////////////////////////////////////////////////////////////////////////////////
 			/// Cluster wide resources
@@ -2555,6 +2919,7 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					collector.DefaultMaxBatchSize,
 					collector.DefaultMaxBatchTime,
 					logger,
+					r.TelemetryLogger,
 				)
 			case "ingress_class":
 				replacedCollector = collector.NewIngressClassCollector(
@@ -2563,6 +2928,7 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					collector.DefaultMaxBatchSize,
 					collector.DefaultMaxBatchTime,
 					logger,
+					r.TelemetryLogger,
 				)
 			case "cluster_role":
 				replacedCollector = collector.NewClusterRoleCollector(
@@ -2571,6 +2937,7 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					collector.DefaultMaxBatchSize,
 					collector.DefaultMaxBatchTime,
 					logger,
+					r.TelemetryLogger,
 				)
 			case "cluster_role_binding":
 				replacedCollector = collector.NewClusterRoleBindingCollector(
@@ -2579,6 +2946,7 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					collector.DefaultMaxBatchSize,
 					collector.DefaultMaxBatchTime,
 					logger,
+					r.TelemetryLogger,
 				)
 			case "storage_class":
 				replacedCollector = collector.NewStorageClassCollector(
@@ -2587,6 +2955,7 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					collector.DefaultMaxBatchSize,
 					collector.DefaultMaxBatchTime,
 					logger,
+					r.TelemetryLogger,
 				)
 			case "namespace":
 				replacedCollector = collector.NewNamespaceCollector(
@@ -2595,6 +2964,7 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					collector.DefaultMaxBatchSize,
 					collector.DefaultMaxBatchTime,
 					logger,
+					r.TelemetryLogger,
 				)
 			case "csi_node":
 				replacedCollector = collector.NewCSINodeCollector(
@@ -2603,6 +2973,7 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					collector.DefaultMaxBatchSize,
 					collector.DefaultMaxBatchTime,
 					logger,
+					r.TelemetryLogger,
 				)
 			case "karpenter":
 				replacedCollector = collector.NewKarpenterCollector(
@@ -2610,6 +2981,7 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					collector.DefaultMaxBatchSize,
 					collector.DefaultMaxBatchTime,
 					logger,
+					r.TelemetryLogger,
 				)
 			case "custom_resource_definition":
 				replacedCollector = collector.NewCRDCollector(
@@ -2617,6 +2989,7 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					collector.DefaultMaxBatchSize,
 					collector.DefaultMaxBatchTime,
 					logger,
+					r.TelemetryLogger,
 				)
 			case "keda_scaled_job":
 				replacedCollector = collector.NewScaledJobCollector(
@@ -2626,6 +2999,7 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					collector.DefaultMaxBatchSize,
 					collector.DefaultMaxBatchTime,
 					logger,
+					r.TelemetryLogger,
 				)
 			case "keda_scaled_object":
 				replacedCollector = collector.NewScaledObjectCollector(
@@ -2635,6 +3009,7 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					collector.DefaultMaxBatchSize,
 					collector.DefaultMaxBatchTime,
 					logger,
+					r.TelemetryLogger,
 				)
 			case "cluster_snapshot":
 				replacedCollector = snap.NewClusterSnapshotter(
@@ -2654,6 +3029,7 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					collector.DefaultMaxBatchSize,
 					collector.DefaultMaxBatchTime,
 					logger,
+					r.TelemetryLogger,
 				)
 			case "csi_storage_capacity":
 				replacedCollector = collector.NewCSIStorageCapacityCollector(
@@ -2663,6 +3039,7 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					collector.DefaultMaxBatchSize,
 					collector.DefaultMaxBatchTime,
 					logger,
+					r.TelemetryLogger,
 				)
 			case "volume_attachment":
 				replacedCollector = collector.NewVolumeAttachmentCollector(
@@ -2671,6 +3048,7 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					collector.DefaultMaxBatchSize,
 					collector.DefaultMaxBatchTime,
 					logger,
+					r.TelemetryLogger,
 				)
 			default:
 				logger.Info("Unknown collector type, skipping", "type", collectorType)
@@ -2680,11 +3058,29 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 			// Register and start the collector
 			if err := r.CollectionManager.RegisterCollector(replacedCollector); err != nil {
 				logger.Error(err, "Failed to register collector", "type", collectorType)
+				r.TelemetryLogger.Report(
+					gen.LogLevel_LOG_LEVEL_ERROR,
+					"CollectionPolicyReconciler_handleDisabledCollectorsChange",
+					"Failed to register collector",
+					err,
+					map[string]string{
+						"collector_type": fmt.Sprintf("%v", collectorType),
+					},
+				)
 				continue
 			}
 
 			if err := r.CollectionManager.StartCollector(ctx, collectorType); err != nil {
 				logger.Error(err, "Failed to start collector", "type", collectorType)
+				r.TelemetryLogger.Report(
+					gen.LogLevel_LOG_LEVEL_ERROR,
+					"CollectionPolicyReconciler_handleDisabledCollectorsChange",
+					"Failed to start collector",
+					err,
+					map[string]string{
+						"collector_type": fmt.Sprintf("%v", collectorType),
+					},
+				)
 			}
 		}
 	}
@@ -2730,6 +3126,15 @@ func (r *CollectionPolicyReconciler) waitForPrometheusAvailability(ctx context.C
 			req, err := http.NewRequestWithContext(ctx, http.MethodGet, healthEndpoint, nil)
 			if err != nil {
 				logger.Error(err, "Failed to create request for Prometheus health check")
+				r.TelemetryLogger.Report(
+					gen.LogLevel_LOG_LEVEL_ERROR,
+					"CollectionPolicyReconciler_waitForPrometheusAvailability",
+					"Failed to start collector",
+					err,
+					map[string]string{
+						"prometheus_url": prometheusURL,
+					},
+				)
 				time.Sleep(backoff)
 				backoff = min(backoff*2, maxBackoff)
 				continue
@@ -2758,6 +3163,15 @@ func (r *CollectionPolicyReconciler) waitForPrometheusAvailability(ctx context.C
 				"statusCode", resp.StatusCode,
 				"attempt", i+1,
 				"maxRetries", maxRetries)
+			r.TelemetryLogger.Report(
+				gen.LogLevel_LOG_LEVEL_ERROR,
+				"CollectionPolicyReconciler_waitForPrometheusAvailability",
+				"Prometheus returned non-OK status",
+				err,
+				map[string]string{
+					"prometheus_url": prometheusURL,
+				},
+			)
 			resp.Body.Close()
 			time.Sleep(backoff)
 			backoff = min(backoff*2, maxBackoff)
@@ -2765,6 +3179,16 @@ func (r *CollectionPolicyReconciler) waitForPrometheusAvailability(ctx context.C
 	}
 
 	logger.Info("Prometheus availability check failed after maximum retries", "maxRetries", maxRetries)
+	r.TelemetryLogger.Report(
+		gen.LogLevel_LOG_LEVEL_ERROR,
+		"CollectionPolicyReconciler_waitForPrometheusAvailability",
+		"Prometheus availability check failed after maximum retries",
+		fmt.Errorf("prometheus not available"),
+		map[string]string{
+			"prometheus_url": prometheusURL,
+			"max_retries":    fmt.Sprintf("%v", maxRetries),
+		},
+	)
 	return false
 }
 

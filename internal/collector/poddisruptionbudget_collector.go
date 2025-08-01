@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	telemetry_logger "github.com/devzero-inc/zxporter/internal/logger"
 	"github.com/go-logr/logr"
 	policyv1 "k8s.io/api/policy/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -28,6 +29,7 @@ type PodDisruptionBudgetCollector struct {
 	namespaces      []string
 	excludedPDBs    map[types.NamespacedName]bool
 	logger          logr.Logger
+	telemetryLogger telemetry_logger.Logger
 	mu              sync.RWMutex
 	cDHelper        ChangeDetectionHelper
 }
@@ -40,6 +42,7 @@ func NewPodDisruptionBudgetCollector(
 	maxBatchSize int,
 	maxBatchTime time.Duration,
 	logger logr.Logger,
+	telemetryLogger telemetry_logger.Logger,
 ) *PodDisruptionBudgetCollector {
 	// Convert excluded PDBs to a map for quicker lookups
 	excludedPDBsMap := make(map[types.NamespacedName]bool)
@@ -65,15 +68,16 @@ func NewPodDisruptionBudgetCollector(
 
 	newLogger := logger.WithName("pdb-collector")
 	return &PodDisruptionBudgetCollector{
-		client:       client,
-		batchChan:    batchChan,
-		resourceChan: resourceChan,
-		batcher:      batcher,
-		stopCh:       make(chan struct{}),
-		namespaces:   namespaces,
-		excludedPDBs: excludedPDBsMap,
-		logger:       newLogger,
-		cDHelper:     ChangeDetectionHelper{logger: newLogger}}
+		client:          client,
+		batchChan:       batchChan,
+		resourceChan:    resourceChan,
+		batcher:         batcher,
+		stopCh:          make(chan struct{}),
+		namespaces:      namespaces,
+		excludedPDBs:    excludedPDBsMap,
+		logger:          newLogger,
+		telemetryLogger: telemetryLogger,
+		cDHelper:        ChangeDetectionHelper{logger: newLogger}}
 }
 
 // Start begins the PDB collection process

@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	telemetry_logger "github.com/devzero-inc/zxporter/internal/logger"
 	"github.com/go-logr/logr"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -30,6 +31,7 @@ type VerticalPodAutoscalerCollector struct {
 	namespaces      []string
 	excludedVPAs    map[types.NamespacedName]bool
 	logger          logr.Logger
+	telemetryLogger telemetry_logger.Logger
 	mu              sync.RWMutex
 }
 
@@ -48,6 +50,7 @@ func NewVerticalPodAutoscalerCollector(
 	maxBatchSize int,
 	maxBatchTime time.Duration,
 	logger logr.Logger,
+	telemetryLogger telemetry_logger.Logger,
 ) *VerticalPodAutoscalerCollector {
 	// Convert excluded VPAs to a map for quicker lookups
 	excludedVPAsMap := make(map[types.NamespacedName]bool)
@@ -72,14 +75,15 @@ func NewVerticalPodAutoscalerCollector(
 	)
 
 	return &VerticalPodAutoscalerCollector{
-		client:       client,
-		batchChan:    batchChan,
-		resourceChan: resourceChan,
-		batcher:      batcher,
-		stopCh:       make(chan struct{}),
-		namespaces:   namespaces,
-		excludedVPAs: excludedVPAsMap,
-		logger:       logger.WithName("vpa-collector"),
+		client:          client,
+		batchChan:       batchChan,
+		resourceChan:    resourceChan,
+		batcher:         batcher,
+		stopCh:          make(chan struct{}),
+		namespaces:      namespaces,
+		excludedVPAs:    excludedVPAsMap,
+		logger:          logger.WithName("vpa-collector"),
+		telemetryLogger: telemetryLogger,
 	}
 }
 

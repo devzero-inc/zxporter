@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	telemetry_logger "github.com/devzero-inc/zxporter/internal/logger"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
@@ -27,6 +28,7 @@ type StorageClassCollector struct {
 	stopCh                 chan struct{}
 	excludedStorageClasses map[string]bool
 	logger                 logr.Logger
+	telemetryLogger        telemetry_logger.Logger
 	mu                     sync.RWMutex
 	cDHelper               ChangeDetectionHelper
 }
@@ -38,6 +40,7 @@ func NewStorageClassCollector(
 	maxBatchSize int,
 	maxBatchTime time.Duration,
 	logger logr.Logger,
+	telemetryLogger telemetry_logger.Logger,
 ) *StorageClassCollector {
 	// Convert excluded StorageClasses to a map for quicker lookups
 	excludedStorageClassesMap := make(map[string]bool)
@@ -67,6 +70,7 @@ func NewStorageClassCollector(
 		stopCh:                 make(chan struct{}),
 		excludedStorageClasses: excludedStorageClassesMap,
 		logger:                 newLogger,
+		telemetryLogger:        telemetryLogger,
 		cDHelper:               ChangeDetectionHelper{logger: newLogger}}
 }
 

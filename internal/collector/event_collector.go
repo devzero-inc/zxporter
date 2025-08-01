@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	telemetry_logger "github.com/devzero-inc/zxporter/internal/logger"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -30,6 +31,7 @@ type EventCollector struct {
 	eventCounts      map[string]int // Track number of events per type
 	retentionPeriod  time.Duration  // How long to keep events in memory
 	logger           logr.Logger
+	telemetryLogger  telemetry_logger.Logger
 	mu               sync.RWMutex
 	cDHelper         ChangeDetectionHelper
 }
@@ -44,6 +46,7 @@ func NewEventCollector(
 	maxBatchSize int,
 	maxBatchTime time.Duration,
 	logger logr.Logger,
+	telemetryLogger telemetry_logger.Logger,
 ) *EventCollector {
 	// Convert excluded events to a map for quicker lookups
 	excludedEventsMap := make(map[types.NamespacedName]bool)
@@ -89,6 +92,7 @@ func NewEventCollector(
 		eventCounts:      make(map[string]int),
 		retentionPeriod:  retentionPeriod,
 		logger:           newLogger,
+		telemetryLogger:  telemetryLogger,
 		cDHelper:         ChangeDetectionHelper{logger: newLogger},
 	}
 }

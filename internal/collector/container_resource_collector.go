@@ -160,15 +160,13 @@ func (c *ContainerResourceCollector) Start(ctx context.Context) error {
 			Client:  httpClient,
 		})
 		if err != nil {
-			if c.telemetryLogger != nil {
-				c.telemetryLogger.Report(
-					gen.LogLevel_LOG_LEVEL_ERROR,
-					"ContainerResourceCollector",
-					"Failed to create Prometheus client",
-					err,
-					map[string]string{"prometheus_url": c.config.PrometheusURL},
-				)
-			}
+			c.telemetryLogger.Report(
+				gen.LogLevel_LOG_LEVEL_ERROR,
+				"ContainerResourceCollector",
+				"Failed to create Prometheus client",
+				err,
+				map[string]string{"prometheus_url": c.config.PrometheusURL},
+			)
 
 			c.logger.Error(err, "Failed to create Prometheus client, network/IO and GPU metrics will be disabled")
 		} else {
@@ -938,6 +936,15 @@ func (c *ContainerResourceCollector) IsAvailable(ctx context.Context) bool {
 	// First verify the metrics client is initialized
 	if c.metricsClient == nil {
 		c.logger.Info("Metrics client is not available, cannot collect container resources")
+		c.telemetryLogger.Report(
+			gen.LogLevel_LOG_LEVEL_ERROR,
+			"ContainerResourceCollector",
+			"Metrics client is not available or set properly, cannot collect container resources",
+			fmt.Errorf("metrics server client is not available or set"),
+			map[string]string{
+				"collector_type": c.GetType(),
+			},
+		)
 		return false
 	}
 
@@ -948,6 +955,15 @@ func (c *ContainerResourceCollector) IsAvailable(ctx context.Context) bool {
 
 	if err != nil {
 		c.logger.Info("Metrics server API not available", "error", err.Error())
+		c.telemetryLogger.Report(
+			gen.LogLevel_LOG_LEVEL_ERROR,
+			"ContainerResourceCollector",
+			"Metrics server API not available",
+			err,
+			map[string]string{
+				"collector_type": c.GetType(),
+			},
+		)
 		return false
 	}
 
@@ -955,6 +971,15 @@ func (c *ContainerResourceCollector) IsAvailable(ctx context.Context) bool {
 	if !c.config.DisableNetworkIOMetrics && !c.config.DisableGPUMetrics {
 		if c.prometheusAPI == nil {
 			c.logger.Info("Prometheus client is not available for network/IO or GPU metrics")
+			c.telemetryLogger.Report(
+				gen.LogLevel_LOG_LEVEL_ERROR,
+				"ContainerResourceCollector",
+				"Prometheus client is not available for network/IO or GPU metrics",
+				fmt.Errorf("prometehus client not available or set properly"),
+				map[string]string{
+					"collector_type": c.GetType(),
+				},
+			)
 			// Still return true since the main metrics are available
 			return true
 		}
@@ -965,6 +990,15 @@ func (c *ContainerResourceCollector) IsAvailable(ctx context.Context) bool {
 
 		_, _, err = c.prometheusAPI.Query(queryCtx, "up", time.Now())
 		if err != nil {
+			c.telemetryLogger.Report(
+				gen.LogLevel_LOG_LEVEL_ERROR,
+				"ContainerResourceCollector",
+				"Prometheus API not available for network and I/O metrics",
+				err,
+				map[string]string{
+					"collector_type": c.GetType(),
+				},
+			)
 			c.logger.Info("Prometheus API not available for network and I/O metrics", "error", err.Error())
 			// Still return true since the main metrics are available
 		}

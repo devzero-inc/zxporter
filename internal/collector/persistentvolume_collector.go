@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	telemetry_logger "github.com/devzero-inc/zxporter/internal/logger"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/informers"
@@ -26,6 +27,7 @@ type PersistentVolumeCollector struct {
 	stopCh          chan struct{}
 	excludedPVs     map[string]bool
 	logger          logr.Logger
+	telemetryLogger telemetry_logger.Logger
 	mu              sync.RWMutex
 	cDHelper        ChangeDetectionHelper
 }
@@ -37,6 +39,7 @@ func NewPersistentVolumeCollector(
 	maxBatchSize int,
 	maxBatchTime time.Duration,
 	logger logr.Logger,
+	telemetryLogger telemetry_logger.Logger,
 ) *PersistentVolumeCollector {
 	// Convert excluded PVs to a map for quicker lookups
 	excludedPVsMap := make(map[string]bool)
@@ -59,14 +62,15 @@ func NewPersistentVolumeCollector(
 
 	newLogger := logger.WithName("persistentvolume-collector")
 	return &PersistentVolumeCollector{
-		client:       client,
-		batchChan:    batchChan,
-		resourceChan: resourceChan,
-		batcher:      batcher,
-		stopCh:       make(chan struct{}),
-		excludedPVs:  excludedPVsMap,
-		logger:       newLogger,
-		cDHelper:     ChangeDetectionHelper{logger: newLogger}}
+		client:          client,
+		batchChan:       batchChan,
+		resourceChan:    resourceChan,
+		batcher:         batcher,
+		stopCh:          make(chan struct{}),
+		excludedPVs:     excludedPVsMap,
+		logger:          newLogger,
+		telemetryLogger: telemetryLogger,
+		cDHelper:        ChangeDetectionHelper{logger: newLogger}}
 }
 
 // Start begins the PV collection process

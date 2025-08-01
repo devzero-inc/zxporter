@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	telemetry_logger "github.com/devzero-inc/zxporter/internal/logger"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -28,6 +29,7 @@ type ServiceAccountCollector struct {
 	namespaces              []string
 	excludedServiceAccounts map[types.NamespacedName]bool
 	logger                  logr.Logger
+	telemetryLogger         telemetry_logger.Logger
 	mu                      sync.RWMutex
 	cDHelper                ChangeDetectionHelper
 }
@@ -40,6 +42,7 @@ func NewServiceAccountCollector(
 	maxBatchSize int, // Added parameter
 	maxBatchTime time.Duration, // Added parameter
 	logger logr.Logger,
+	telemetryLogger telemetry_logger.Logger,
 ) *ServiceAccountCollector {
 	// Convert excluded serviceaccounts to a map for quicker lookups
 	excludedServiceAccountsMap := make(map[types.NamespacedName]bool)
@@ -75,6 +78,7 @@ func NewServiceAccountCollector(
 		namespaces:              namespaces,
 		excludedServiceAccounts: excludedServiceAccountsMap,
 		logger:                  newLogger,
+		telemetryLogger:         telemetryLogger,
 		cDHelper:                ChangeDetectionHelper{logger: newLogger}}
 }
 

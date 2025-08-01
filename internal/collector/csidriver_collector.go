@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	telemetry_logger "github.com/devzero-inc/zxporter/internal/logger"
 	"github.com/go-logr/logr"
 	storagev1 "k8s.io/api/storage/v1"
 	"k8s.io/client-go/informers"
@@ -25,6 +26,7 @@ type CSIDriverCollector struct {
 	stopCh             chan struct{}
 	excludedCSIDrivers map[string]bool
 	logger             logr.Logger
+	telemetryLogger    telemetry_logger.Logger
 	mu                 sync.RWMutex
 	cDHelper           ChangeDetectionHelper
 }
@@ -36,6 +38,7 @@ func NewCSIDriverCollector(
 	maxBatchSize int,
 	maxBatchTime time.Duration,
 	logger logr.Logger,
+	telemetryLogger telemetry_logger.Logger,
 ) *CSIDriverCollector {
 	// Convert excluded CSIDrivers to a map for quicker lookups
 	excludedCSIDriversMap := make(map[string]bool)
@@ -65,6 +68,7 @@ func NewCSIDriverCollector(
 		stopCh:             make(chan struct{}),
 		excludedCSIDrivers: excludedCSIDriversMap,
 		logger:             newLogger,
+		telemetryLogger:    telemetryLogger,
 		cDHelper:           ChangeDetectionHelper{logger: newLogger},
 	}
 }

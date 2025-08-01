@@ -511,6 +511,16 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 	// Skip if metrics client is unavailable
 	if c.metricsClient == nil {
 		c.logger.Info("Metrics client not available, skipping node metrics collection")
+		c.telemetryLogger.Report(
+			gen.LogLevel_LOG_LEVEL_ERROR,
+			"NodeCollector",
+			"Metrics client not available, skipping node metrics collection",
+			fmt.Errorf("metrics server client not available or properly set"),
+			map[string]string{
+				"collector_type": c.GetType(),
+				"error_type":     "nil_metrics_server_client",
+			},
+		)
 		return
 	}
 
@@ -560,17 +570,50 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 		nodeObj, exists, err := c.nodeInformer.GetIndexer().GetByKey(nodeMetrics.Name)
 		if err != nil {
 			c.logger.Error(err, "Failed to get node from cache", "name", nodeMetrics.Name)
+			c.telemetryLogger.Report(
+				gen.LogLevel_LOG_LEVEL_ERROR,
+				"NodeCollector",
+				"Failed to get node from cache",
+				err,
+				map[string]string{
+					"collector_type":    c.GetType(),
+					"node_metrics_name": nodeMetrics.Name,
+					"error_type":        "node_cache_fail",
+				},
+			)
 			continue
 		}
 
 		if !exists {
 			c.logger.Info("Node not found in cache", "name", nodeMetrics.Name)
+			c.telemetryLogger.Report(
+				gen.LogLevel_LOG_LEVEL_ERROR,
+				"NodeCollector",
+				"Node not found in informer cache",
+				fmt.Errorf("node not found in informer cache"),
+				map[string]string{
+					"collector_type":    c.GetType(),
+					"node_metrics_name": nodeMetrics.Name,
+					"error_type":        "node_cache_fail",
+				},
+			)
 			continue
 		}
 
 		node, ok := nodeObj.(*corev1.Node)
 		if !ok {
 			c.logger.Error(nil, "Failed to convert to Node type", "name", nodeMetrics.Name)
+			c.telemetryLogger.Report(
+				gen.LogLevel_LOG_LEVEL_ERROR,
+				"NodeCollector",
+				"Failed to convert to Node type",
+				fmt.Errorf("failed to convert cache node to node type object"),
+				map[string]string{
+					"collector_type":    c.GetType(),
+					"node_metrics_name": nodeMetrics.Name,
+					"error_type":        "node_object",
+				},
+			)
 			continue
 		}
 
@@ -1025,6 +1068,15 @@ func (c *NodeCollector) IsAvailable(ctx context.Context) bool {
 	// Check if the metrics client is available - this is required for basic metrics
 	if c.metricsClient == nil {
 		c.logger.Info("Metrics client is not available, cannot collect node metrics")
+		c.telemetryLogger.Report(
+			gen.LogLevel_LOG_LEVEL_WARN,
+			"NodeCollector",
+			"Metrics client is not available, cannot collect node metrics",
+			fmt.Errorf("metrics client is not available or properly set"),
+			map[string]string{
+				"collector_type": c.GetType(),
+			},
+		)
 		return false
 	}
 
@@ -1033,6 +1085,15 @@ func (c *NodeCollector) IsAvailable(ctx context.Context) bool {
 		Limit: 1, // Only request a single item to minimize load
 	})
 	if err != nil {
+		c.telemetryLogger.Report(
+			gen.LogLevel_LOG_LEVEL_WARN,
+			"NodeCollector",
+			"Metrics server API not available for node metrics",
+			err,
+			map[string]string{
+				"collector_type": c.GetType(),
+			},
+		)
 		c.logger.Info("Metrics server API not available for node metrics", "error", err.Error())
 		return false
 	}

@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	telemetry_logger "github.com/devzero-inc/zxporter/internal/logger"
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -28,6 +29,7 @@ type StatefulSetCollector struct {
 	namespaces           []string
 	excludedStatefulSets map[types.NamespacedName]bool
 	logger               logr.Logger
+	telemetryLogger      telemetry_logger.Logger
 	mu                   sync.RWMutex
 	cDHelper             ChangeDetectionHelper
 }
@@ -40,6 +42,7 @@ func NewStatefulSetCollector(
 	maxBatchSize int,
 	maxBatchTime time.Duration,
 	logger logr.Logger,
+	telemetryLogger telemetry_logger.Logger,
 ) *StatefulSetCollector {
 	// Convert excluded statefulsets to a map for quicker lookups
 	excludedStatefulSetsMap := make(map[types.NamespacedName]bool)
@@ -73,6 +76,7 @@ func NewStatefulSetCollector(
 		namespaces:           namespaces,
 		excludedStatefulSets: excludedStatefulSetsMap,
 		logger:               newLogger,
+		telemetryLogger:      telemetryLogger,
 		cDHelper:             ChangeDetectionHelper{logger: newLogger}}
 }
 

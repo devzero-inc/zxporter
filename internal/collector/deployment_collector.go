@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	telemetry_logger "github.com/devzero-inc/zxporter/internal/logger"
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -28,6 +29,7 @@ type DeploymentCollector struct {
 	namespaces          []string
 	excludedDeployments map[types.NamespacedName]bool
 	logger              logr.Logger
+	telemetryLogger     telemetry_logger.Logger
 	mu                  sync.RWMutex
 	cDHelper            ChangeDetectionHelper
 }
@@ -40,6 +42,7 @@ func NewDeploymentCollector(
 	maxBatchSize int,
 	maxBatchTime time.Duration,
 	logger logr.Logger,
+	telemetryLogger telemetry_logger.Logger,
 ) *DeploymentCollector {
 	// Convert excluded deployments to a map for quicker lookups
 	excludedDeploymentsMap := make(map[types.NamespacedName]bool)
@@ -73,6 +76,7 @@ func NewDeploymentCollector(
 		namespaces:          namespaces,
 		excludedDeployments: excludedDeploymentsMap,
 		logger:              newLogger,
+		telemetryLogger:     telemetryLogger,
 		cDHelper:            ChangeDetectionHelper{logger: newLogger},
 	}
 }

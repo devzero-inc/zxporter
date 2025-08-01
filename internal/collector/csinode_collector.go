@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	telemetry_logger "github.com/devzero-inc/zxporter/internal/logger"
 	"github.com/go-logr/logr"
 	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -26,6 +27,7 @@ type CSINodeCollector struct {
 	stopCh          chan struct{}
 	excludedNodes   map[string]bool
 	logger          logr.Logger
+	telemetryLogger telemetry_logger.Logger
 	mu              sync.RWMutex
 }
 
@@ -36,6 +38,7 @@ func NewCSINodeCollector(
 	maxBatchSize int,
 	maxBatchTime time.Duration,
 	logger logr.Logger,
+	telemetryLogger telemetry_logger.Logger,
 ) *CSINodeCollector {
 	// Convert excluded nodes to a map for quicker lookups
 	excludedNodesMap := make(map[string]bool)
@@ -57,13 +60,14 @@ func NewCSINodeCollector(
 	)
 
 	return &CSINodeCollector{
-		client:        client,
-		batchChan:     batchChan,
-		resourceChan:  resourceChan,
-		batcher:       batcher,
-		stopCh:        make(chan struct{}),
-		excludedNodes: excludedNodesMap,
-		logger:        logger.WithName("csinode-collector"),
+		client:          client,
+		batchChan:       batchChan,
+		resourceChan:    resourceChan,
+		batcher:         batcher,
+		stopCh:          make(chan struct{}),
+		excludedNodes:   excludedNodesMap,
+		logger:          logger.WithName("csinode-collector"),
+		telemetryLogger: telemetryLogger,
 	}
 }
 

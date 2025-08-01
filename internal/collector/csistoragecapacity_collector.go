@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	telemetry_logger "github.com/devzero-inc/zxporter/internal/logger"
 	"github.com/go-logr/logr"
 	storagev1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -27,6 +28,7 @@ type CSIStorageCapacityCollector struct {
 	namespaces                   []string
 	excludedCSIStorageCapacities map[types.NamespacedName]bool
 	logger                       logr.Logger
+	telemetryLogger              telemetry_logger.Logger
 	mu                           sync.RWMutex
 	cDHelper                     ChangeDetectionHelper
 }
@@ -39,6 +41,7 @@ func NewCSIStorageCapacityCollector(
 	maxBatchSize int,
 	maxBatchTime time.Duration,
 	logger logr.Logger,
+	telemetryLogger telemetry_logger.Logger,
 ) *CSIStorageCapacityCollector {
 	// Convert excluded CSIStorageCapacities to a map for quicker lookups
 	excludedCSIStorageCapacitiesMap := make(map[types.NamespacedName]bool)
@@ -72,6 +75,7 @@ func NewCSIStorageCapacityCollector(
 		namespaces:                   namespaces,
 		excludedCSIStorageCapacities: excludedCSIStorageCapacitiesMap,
 		logger:                       newLogger,
+		telemetryLogger:              telemetryLogger,
 		cDHelper:                     ChangeDetectionHelper{logger: newLogger},
 	}
 }

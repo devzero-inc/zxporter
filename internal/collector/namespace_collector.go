@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	telemetry_logger "github.com/devzero-inc/zxporter/internal/logger"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/informers"
@@ -26,6 +27,7 @@ type NamespaceCollector struct {
 	stopCh             chan struct{}
 	excludedNamespaces map[string]bool
 	logger             logr.Logger
+	telemetryLogger    telemetry_logger.Logger
 	mu                 sync.RWMutex
 	cDHelper           ChangeDetectionHelper
 }
@@ -37,6 +39,7 @@ func NewNamespaceCollector(
 	maxBatchSize int,
 	maxBatchTime time.Duration,
 	logger logr.Logger,
+	telemetryLogger telemetry_logger.Logger,
 ) *NamespaceCollector {
 	// Convert excluded namespaces to a map for quicker lookups
 	excludedNamespacesMap := make(map[string]bool)
@@ -66,6 +69,7 @@ func NewNamespaceCollector(
 		stopCh:             make(chan struct{}),
 		excludedNamespaces: excludedNamespacesMap,
 		logger:             newLogger,
+		telemetryLogger:    telemetryLogger,
 		cDHelper:           ChangeDetectionHelper{logger: newLogger},
 	}
 }
