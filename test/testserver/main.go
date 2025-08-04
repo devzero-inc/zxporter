@@ -17,7 +17,7 @@ import (
 	apiv1 "github.com/devzero-inc/zxporter/gen/api/v1"
 	apiv1connect "github.com/devzero-inc/zxporter/gen/api/v1/apiv1connect"
 	"github.com/devzero-inc/zxporter/test/stats"
-	"github.com/gogo/protobuf/proto"
+	"google.golang.org/protobuf/proto"
 )
 
 // MetricsServer implements the MetricsCollectorServiceHandler interface
