@@ -321,10 +321,11 @@ func (s *MetricsServer) SendClusterSnapshotStream(
 	fmt.Fprintf(os.Stderr, "  - Cluster-scoped resources: %d types\n", len(snapshotStats.ClusterScopedResources))
 
 	resp := connect.NewResponse(&apiv1.SendClusterSnapshotStreamResponse{
-		ClusterId:      clusterID,
-		SnapshotId:     snapshotID,
-		Status:         "processed",
-		ChunksReceived: chunksReceived,
+		ClusterId:        clusterID,
+		SnapshotId:       snapshotID,
+		Status:           "processed",
+		ChunksReceived:   chunksReceived,
+		MissingResources: &clusterSnapshot,
 	})
 	return resp, nil
 }
