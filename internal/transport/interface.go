@@ -19,7 +19,7 @@ type DakrClient interface {
 	// SendTelemetryMetrics sends telemetry metrics to Dakr
 	SendTelemetryMetrics(ctx context.Context, metrics []*dto.MetricFamily) (int32, error)
 	// SendClusterSnapshotStream sends cluster snapshot data via streaming for large payloads
-	SendClusterSnapshotStream(ctx context.Context, snapshot *gen.ClusterSnapshot, snapshotID string, timestamp time.Time) (string, error)
+	SendClusterSnapshotStream(ctx context.Context, snapshot *gen.ClusterSnapshot, snapshotID string, timestamp time.Time) (string, *gen.ClusterSnapshot, error)
 }
 
 // Sender defines methods for sending data to external systems
@@ -43,7 +43,7 @@ type DirectSender interface {
 	Send(ctx context.Context, resource collector.CollectedResource) (string, error)
 
 	// SendClusterSnapshotStream sends large cluster snapshot data using streaming
-	SendClusterSnapshotStream(ctx context.Context, snapshot *gen.ClusterSnapshot, snapshotID string, timestamp time.Time) (string, error)
+	SendClusterSnapshotStream(ctx context.Context, snapshot *gen.ClusterSnapshot, snapshotID string, timestamp time.Time) (string, *gen.ClusterSnapshot, error)
 }
 
 // // BufferedSender adds buffering capabilities to handle connection issues

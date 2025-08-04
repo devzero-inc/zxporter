@@ -332,4 +332,7 @@ type ResourceCollector interface {
 
 	// Returns true if the resource is available
 	IsAvailable(ctx context.Context) bool
+
+	// AddResource manually adds a resource to be processed by the collector
+	AddResource(resource interface{}) error
 }

@@ -391,3 +391,15 @@ func (m *CollectionManager) IsCollectorRunning(collectorType string) bool {
 	_, exists := m.collectorCtxs[collectorType]
 	return exists
 }
+
+// GetCollector returns a specific collector by type, or nil if not found
+func (m *CollectionManager) GetCollector(collectorType string) ResourceCollector {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	collector, exists := m.collectors[collectorType]
+	if !exists {
+		return nil
+	}
+	return collector
+}

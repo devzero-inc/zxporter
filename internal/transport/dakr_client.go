@@ -317,13 +317,13 @@ func attachClusterToken[T any](req *connect.Request[T], clusterToken string) {
 }
 
 // SendClusterSnapshotStream sends cluster snapshot data in chunks via streaming
-func (c *RealDakrClient) SendClusterSnapshotStream(ctx context.Context, snapshot *gen.ClusterSnapshot, snapshotID string, timestamp time.Time) (string, error) {
+func (c *RealDakrClient) SendClusterSnapshotStream(ctx context.Context, snapshot *gen.ClusterSnapshot, snapshotID string, timestamp time.Time) (string, *gen.ClusterSnapshot, error) {
 	c.logger.Info("Sending cluster snapshot via streaming", "snapshotId", snapshotID)
 
 	protoBytes, err := proto.Marshal(snapshot)
 	if err != nil {
 		c.logger.Error(err, "Failed to proto.Marshal cluster snapshot")
-		return "", fmt.Errorf("failed to proto.Marshal cluster snapshot: %w", err)
+		return "", nil, fmt.Errorf("failed to proto.Marshal cluster snapshot: %w", err)
 	}
 
 	totalSize := len(protoBytes)
@@ -371,7 +371,7 @@ func (c *RealDakrClient) SendClusterSnapshotStream(ctx context.Context, snapshot
 		// Send the raw chunk message directly.
 		if err := stream.Send(chunk); err != nil {
 			c.logger.Error(err, "Failed to send chunk", "chunkNum", chunkNum)
-			return "", fmt.Errorf("failed to send chunk %d: %w", chunkNum, err)
+			return "", nil, fmt.Errorf("failed to send chunk %d: %w", chunkNum, err)
 		}
 
 		c.logger.Info("Sent chunk", "chunkNum", chunkNum, "size", len(chunkData))
@@ -380,7 +380,7 @@ func (c *RealDakrClient) SendClusterSnapshotStream(ctx context.Context, snapshot
 	resp, err := stream.CloseAndReceive()
 	if err != nil {
 		c.logger.Error(err, "Failed to close stream and receive response")
-		return "", fmt.Errorf("failed to close stream and receive response: %w", err)
+		return "", nil, fmt.Errorf("failed to close stream and receive response: %w", err)
 	}
 
 	c.logger.Info("Successfully sent cluster snapshot via streaming",
@@ -388,5 +388,5 @@ func (c *RealDakrClient) SendClusterSnapshotStream(ctx context.Context, snapshot
 		"chunksReceived", resp.Msg.ChunksReceived,
 		"status", resp.Msg.Status)
 
-	return resp.Msg.ClusterId, nil
+	return resp.Msg.ClusterId, resp.Msg.MissingResources, nil
 }
