@@ -338,3 +338,14 @@ func (c *EventCollector) GetType() string {
 func (c *EventCollector) IsAvailable(ctx context.Context) bool {
 	return true
 }
+
+// AddResource manually adds an event resource to be processed by the collector
+func (c *EventCollector) AddResource(resource interface{}) error {
+	event, ok := resource.(*corev1.Event)
+	if !ok {
+		return fmt.Errorf("expected *corev1.Event, got %T", resource)
+	}
+
+	c.handleEvent(event, EventTypeAdd)
+	return nil
+}

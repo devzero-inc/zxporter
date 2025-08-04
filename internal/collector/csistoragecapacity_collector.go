@@ -280,6 +280,17 @@ func (c *CSIStorageCapacityCollector) IsAvailable(ctx context.Context) bool {
 	return true
 }
 
+// AddResource manually adds a CSI storage capacity resource to be processed by the collector
+func (c *CSIStorageCapacityCollector) AddResource(resource interface{}) error {
+	csc, ok := resource.(*storagev1.CSIStorageCapacity)
+	if !ok {
+		return fmt.Errorf("expected *storagev1.CSIStorageCapacity, got %T", resource)
+	}
+	
+	c.handleCSIStorageCapacityEvent(csc, EventTypeAdd)
+	return nil
+}
+
 // ExcludedCSIStorageCapacity defines a CSIStorageCapacity to be excluded from collection
 type ExcludedCSIStorageCapacity struct {
 	Namespace string `yaml:"namespace"`

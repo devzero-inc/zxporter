@@ -327,3 +327,14 @@ func (c *ScaledJobCollector) IsAvailable(ctx context.Context) bool {
 	}
 	return true
 }
+
+// AddResource manually adds a scaled job resource to be processed by the collector
+func (c *ScaledJobCollector) AddResource(resource interface{}) error {
+	scaledJob, ok := resource.(*kedav1alpha1.ScaledJob)
+	if !ok {
+		return fmt.Errorf("expected *kedav1alpha1.ScaledJob, got %T", resource)
+	}
+	
+	c.handleScaledJobEvent(scaledJob, EventTypeAdd)
+	return nil
+}

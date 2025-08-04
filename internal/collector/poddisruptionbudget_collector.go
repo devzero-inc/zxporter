@@ -274,3 +274,14 @@ func (c *PodDisruptionBudgetCollector) GetType() string {
 func (c *PodDisruptionBudgetCollector) IsAvailable(ctx context.Context) bool {
 	return true
 }
+
+// AddResource manually adds a PDB resource to be processed by the collector
+func (c *PodDisruptionBudgetCollector) AddResource(resource interface{}) error {
+	pdb, ok := resource.(*policyv1.PodDisruptionBudget)
+	if !ok {
+		return fmt.Errorf("expected *policyv1.PodDisruptionBudget, got %T", resource)
+	}
+
+	c.handlePDBEvent(pdb, EventTypeAdd)
+	return nil
+}

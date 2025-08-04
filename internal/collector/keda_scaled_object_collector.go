@@ -337,3 +337,14 @@ func (c *ScaledObjectCollector) IsAvailable(ctx context.Context) bool {
 	}
 	return true
 }
+
+// AddResource manually adds a scaled object resource to be processed by the collector
+func (c *ScaledObjectCollector) AddResource(resource interface{}) error {
+	scaledObject, ok := resource.(*kedav1alpha1.ScaledObject)
+	if !ok {
+		return fmt.Errorf("expected *kedav1alpha1.ScaledObject, got %T", resource)
+	}
+	
+	c.handleScaledObjectEvent(scaledObject, EventTypeAdd)
+	return nil
+}

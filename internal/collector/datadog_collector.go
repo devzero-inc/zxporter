@@ -312,3 +312,14 @@ func (c *DatadogCollector) IsAvailable(ctx context.Context) bool {
 	}
 	return true
 }
+
+// AddResource manually adds a DataDog resource to be processed by the collector
+func (c *DatadogCollector) AddResource(resource interface{}) error {
+	obj, ok := resource.(*unstructured.Unstructured)
+	if !ok {
+		return fmt.Errorf("expected *unstructured.Unstructured, got %T", resource)
+	}
+
+	c.handleReplicaSetEvent(obj, EventTypeAdd)
+	return nil
+}

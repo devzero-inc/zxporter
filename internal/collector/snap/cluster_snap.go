@@ -645,6 +645,11 @@ func (c *ClusterSnapshotter) IsAvailable(ctx context.Context) bool {
 	return err == nil
 }
 
+// AddResource manually adds a resource - not supported for cluster snapshotter
+func (c *ClusterSnapshotter) AddResource(resource interface{}) error {
+	return fmt.Errorf("AddResource not supported for cluster snapshotter - snapshots are collected automatically")
+}
+
 // refreshMissingResources processes missing resources by fetching them from kubernetes and sending to collectors
 func (c *ClusterSnapshotter) refreshMissingResources(ctx context.Context, missingResources *gen.ClusterSnapshot) error {
 	if c.collectorManager == nil {

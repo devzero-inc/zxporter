@@ -945,3 +945,14 @@ func (c *NodeCollector) IsAvailable(ctx context.Context) bool {
 	// so we return true here
 	return true
 }
+
+// AddResource manually adds a node resource to be processed by the collector
+func (c *NodeCollector) AddResource(resource interface{}) error {
+	node, ok := resource.(*corev1.Node)
+	if !ok {
+		return fmt.Errorf("expected *corev1.Node, got %T", resource)
+	}
+
+	c.handleNodeEvent(node, EventTypeAdd)
+	return nil
+}

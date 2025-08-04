@@ -282,3 +282,14 @@ func (c *ReplicationControllerCollector) GetType() string {
 func (c *ReplicationControllerCollector) IsAvailable(ctx context.Context) bool {
 	return true
 }
+
+// AddResource manually adds a replicationcontroller resource to be processed by the collector
+func (c *ReplicationControllerCollector) AddResource(resource interface{}) error {
+	rc, ok := resource.(*corev1.ReplicationController)
+	if !ok {
+		return fmt.Errorf("expected *corev1.ReplicationController, got %T", resource)
+	}
+
+	c.handleReplicationControllerEvent(rc, EventTypeAdd)
+	return nil
+}

@@ -148,6 +148,17 @@ func (c *CRDCollector) IsAvailable(ctx context.Context) bool {
 	return err == nil
 }
 
+// AddResource manually adds a CRD resource to be processed by the collector
+func (c *CRDCollector) AddResource(resource interface{}) error {
+	crd, ok := resource.(*apiextv1.CustomResourceDefinition)
+	if !ok {
+		return fmt.Errorf("expected *apiextensionsv1.CustomResourceDefinition, got %T", resource)
+	}
+
+	c.handleCRDEvent(crd, EventTypeAdd)
+	return nil
+}
+
 func getCleanCRDJSON(crd *apiextv1.CustomResourceDefinition, logger logr.Logger) interface{} {
 	raw, err := json.Marshal(crd)
 	if err != nil {

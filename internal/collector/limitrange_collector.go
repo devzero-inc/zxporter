@@ -262,3 +262,14 @@ func (c *LimitRangeCollector) GetType() string {
 func (c *LimitRangeCollector) IsAvailable(ctx context.Context) bool {
 	return true
 }
+
+// AddResource manually adds a limitrange resource to be processed by the collector
+func (c *LimitRangeCollector) AddResource(resource interface{}) error {
+	lr, ok := resource.(*corev1.LimitRange)
+	if !ok {
+		return fmt.Errorf("expected *corev1.LimitRange, got %T", resource)
+	}
+
+	c.handleLimitRangeEvent(lr, EventTypeAdd)
+	return nil
+}
