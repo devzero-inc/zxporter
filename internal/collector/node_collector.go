@@ -659,7 +659,7 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 				if err != nil {
 					if c.telemetryLogger != nil {
 						c.telemetryLogger.Report(
-							gen.LogLevel_LOG_LEVEL_WARN,
+							gen.LogLevel_LOG_LEVEL_ERROR,
 							"NodeCollector",
 							"Failed to collect node network and I/O metrics from Prometheus",
 							err,
@@ -682,21 +682,6 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 				c.logger.V(c.logger.GetV()+2).Info("Network and IO metrics collected for node",
 					"node", node.Name,
 					"resourceData", gpuMetrics)
-
-				if c.telemetryLogger != nil && len(networkMetrics) > 0 {
-					c.telemetryLogger.Report(
-						gen.LogLevel_LOG_LEVEL_INFO,
-						"NodeCollector",
-						"Successfully collected network and I/O metrics from Prometheus",
-						nil,
-						map[string]string{
-							"node":           node.Name,
-							"metrics_count":  fmt.Sprintf("%d", len(networkMetrics)),
-							"event_type":     "prometheus_network_io_query_success",
-							"prometheus_url": c.config.PrometheusURL,
-						},
-					)
-				}
 			}
 
 			// Fetch GPU metrics for the node if enabled

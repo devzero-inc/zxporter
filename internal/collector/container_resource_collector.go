@@ -339,22 +339,6 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 					"name", podMetrics.Name)
 				// Continue with CPU/memory metrics
 				networkMetrics = make(map[string]float64)
-			} else if len(networkMetrics) > 0 {
-				if c.telemetryLogger != nil {
-					c.telemetryLogger.Report(
-						gen.LogLevel_LOG_LEVEL_INFO,
-						"ContainerResourceCollector",
-						"Successfully collected network metrics from Prometheus",
-						nil,
-						map[string]string{
-							"namespace":      podMetrics.Namespace,
-							"pod":            podMetrics.Name,
-							"metrics_count":  fmt.Sprintf("%d", len(networkMetrics)),
-							"event_type":     "prometheus_network_query_success",
-							"prometheus_url": c.config.PrometheusURL,
-						},
-					)
-				}
 			}
 		}
 

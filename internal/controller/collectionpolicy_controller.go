@@ -829,10 +829,10 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 			if err := r.CollectionManager.StopAll(); err != nil {
 				logger.Error(err, "Error stopping collection manager")
 				r.TelemetryLogger.Report(
-					gen.LogLevel_LOG_LEVEL_INFO,
+					gen.LogLevel_LOG_LEVEL_ERROR,
 					"CollectionPolicyReconciler_restartCollectors",
-					"Stopping all collectors",
-					nil,
+					"Error stopping collection manager",
+					fmt.Errorf("error stopping collection manager"),
 					map[string]string{
 						"current_config": fmt.Sprintf("%v", r.CurrentConfig),
 						"new_config":     fmt.Sprintf("%v", newConfig),
@@ -848,7 +848,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 
 		// Initialize with new config
 		r.TelemetryLogger.Report(
-			gen.LogLevel_LOG_LEVEL_INFO,
+			gen.LogLevel_LOG_LEVEL_WARN,
 			"CollectionPolicyReconciler_restartCollectors",
 			"Initialize collectors with new config due to major config changes",
 			nil,
@@ -879,7 +879,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 
 	logger.Info("Performing selective restart of affected collectors", "affectedCount", len(affectedCollectors))
 	r.TelemetryLogger.Report(
-		gen.LogLevel_LOG_LEVEL_INFO,
+		gen.LogLevel_LOG_LEVEL_WARN,
 		"CollectionPolicyReconciler_restartCollectors",
 		"Performing selective restart of affected collectors",
 		nil,
