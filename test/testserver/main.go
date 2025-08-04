@@ -637,7 +637,6 @@ func (s *MetricsServer) extractSnapshotStatistics(
 		breakdown.DaemonSets = len(namespaceData.DaemonSets)
 		breakdown.ReplicaSets = len(namespaceData.ReplicaSets)
 		breakdown.Services = len(namespaceData.Services)
-		breakdown.ConfigMaps = len(namespaceData.ConfigMaps)
 		breakdown.Secrets = len(namespaceData.Secrets)
 		breakdown.PVCs = len(namespaceData.Pvcs)
 		breakdown.Jobs = len(namespaceData.Jobs)
@@ -653,7 +652,6 @@ func (s *MetricsServer) extractSnapshotStatistics(
 		breakdown.ResourceQuotas = len(namespaceData.ResourceQuotas)
 		breakdown.UnscheduledPods = len(namespaceData.UnscheduledPods)
 		breakdown.HorizontalPodAutoscalers = len(namespaceData.HorizontalPodAutoscalers)
-		breakdown.Events = len(namespaceData.Events)
 		breakdown.KedaScaledJobs = len(namespaceData.KedaScaledJobs)
 		breakdown.KedaScaledObjects = len(namespaceData.KedaScaledObjects)
 
