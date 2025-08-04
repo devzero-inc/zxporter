@@ -317,25 +317,27 @@ message Namespace {
   map<string, ResourceIdentifier> daemon_sets = 4;
   map<string, ResourceIdentifier> replica_sets = 5;
   map<string, ResourceIdentifier> services = 6;
-  map<string, ResourceIdentifier> secrets = 7;
-  map<string, ResourceIdentifier> pvcs = 8;
-  map<string, ResourceIdentifier> jobs = 9;
-  map<string, ResourceIdentifier> cron_jobs = 10;
-  map<string, ResourceIdentifier> ingresses = 11;
-  map<string, ResourceIdentifier> network_policies = 12;
-  map<string, ResourceIdentifier> service_accounts = 13;
-  map<string, ResourceIdentifier> roles = 14;
-  map<string, ResourceIdentifier> role_bindings = 15;
-  map<string, ResourceIdentifier> pod_disruption_budgets = 16;
-  map<string, ResourceIdentifier> endpoints = 17;
-  map<string, ResourceIdentifier> limit_ranges = 18;
-  map<string, ResourceIdentifier> resource_quotas = 19;
-  map<string, ResourceIdentifier> unscheduled_pods = 20;
-  map<string, ResourceIdentifier> horizontal_pod_autoscalers = 21;
-  map<string, ResourceIdentifier> keda_scaled_jobs = 22;
-  map<string, ResourceIdentifier> keda_scaled_objects = 23;
-  string hash = 24;
-  map<string, ResourceIdentifier> csi_storage_capacities = 25;
+  map<string, ResourceIdentifier> config_maps = 7 [deprecated = true];
+  map<string, ResourceIdentifier> secrets = 8;
+  map<string, ResourceIdentifier> pvcs = 9;
+  map<string, ResourceIdentifier> jobs = 10;
+  map<string, ResourceIdentifier> cron_jobs = 11;
+  map<string, ResourceIdentifier> ingresses = 12;
+  map<string, ResourceIdentifier> network_policies = 13;
+  map<string, ResourceIdentifier> service_accounts = 14;
+  map<string, ResourceIdentifier> roles = 15;
+  map<string, ResourceIdentifier> role_bindings = 16;
+  map<string, ResourceIdentifier> pod_disruption_budgets = 17;
+  map<string, ResourceIdentifier> endpoints = 18;
+  map<string, ResourceIdentifier> limit_ranges = 19;
+  map<string, ResourceIdentifier> resource_quotas = 20;
+  map<string, ResourceIdentifier> unscheduled_pods = 21;
+  map<string, ResourceIdentifier> horizontal_pod_autoscalers = 22;
+  map<string, ResourceIdentifier> events = 23 [deprecated = true];
+  map<string, ResourceIdentifier> keda_scaled_jobs = 24;
+  map<string, ResourceIdentifier> keda_scaled_objects = 25;
+  string hash = 26;
+  map<string, ResourceIdentifier> csi_storage_capacities = 27;
 }
 
 // ClusterScopedSnapshot contains minimal cluster-scoped resource data

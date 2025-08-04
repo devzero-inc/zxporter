@@ -329,6 +329,11 @@ func (s *MetricsServer) SendClusterSnapshotStream(
 	return resp, nil
 }
 
+// SendTelemetryLogs implements apiv1connect.MetricsCollectorServiceHandler.
+func (s *MetricsServer) SendTelemetryLogs(context.Context, *connect.Request[apiv1.SendTelemetryLogsRequest]) (*connect.Response[apiv1.SendTelemetryLogsResponse], error) {
+	return &connect.Response[apiv1.SendTelemetryLogsResponse]{}, nil
+}
+
 // StatsHandler handles the /stats HTTP endpoint
 func (s *MetricsServer) StatsHandler(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
