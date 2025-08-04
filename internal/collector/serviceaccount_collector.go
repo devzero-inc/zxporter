@@ -271,3 +271,14 @@ func (c *ServiceAccountCollector) GetType() string {
 func (c *ServiceAccountCollector) IsAvailable(ctx context.Context) bool {
 	return true
 }
+
+// AddResource manually adds a ServiceAccount resource to be processed by the collector
+func (c *ServiceAccountCollector) AddResource(resource interface{}) error {
+	serviceAccount, ok := resource.(*corev1.ServiceAccount)
+	if !ok {
+		return fmt.Errorf("expected *corev1.ServiceAccount, got %T", resource)
+	}
+
+	c.handleServiceAccountEvent(serviceAccount, EventTypeAdd)
+	return nil
+}

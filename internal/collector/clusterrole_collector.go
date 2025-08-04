@@ -229,3 +229,14 @@ func (c *ClusterRoleCollector) GetType() string {
 func (c *ClusterRoleCollector) IsAvailable(ctx context.Context) bool {
 	return true
 }
+
+// AddResource manually adds a cluster role resource to be processed by the collector
+func (c *ClusterRoleCollector) AddResource(resource interface{}) error {
+	clusterRole, ok := resource.(*rbacv1.ClusterRole)
+	if !ok {
+		return fmt.Errorf("expected *rbacv1.ClusterRole, got %T", resource)
+	}
+
+	c.handleClusterRoleEvent(clusterRole, EventTypeAdd)
+	return nil
+}

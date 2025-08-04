@@ -681,7 +681,7 @@ func (c *ClusterSnapshotter) refreshClusterScopedResources(ctx context.Context, 
 	for resourceType, handler := range c.clusterHandlers {
 		// Get the resource map for this type from the snapshot
 		resourceMap := handler.SnapshotExtractor(clusterScoped)
-		
+
 		// Refresh each resource in the map
 		for resourceUID, resource := range resourceMap {
 			if err := c.refreshResource(ctx, resourceType, resourceUID, resource.Name); err != nil {
@@ -706,7 +706,7 @@ func (c *ClusterSnapshotter) refreshNamespaceResources(ctx context.Context, nsUI
 	for resourceType, handler := range c.namespacedHandlers {
 		// Get the resource map for this type from the namespace snapshot
 		resourceMap := handler.SnapshotExtractor(namespace)
-		
+
 		// Refresh each resource in the map
 		for resourceUID, resource := range resourceMap {
 			if err := c.refreshNamespacedResource(ctx, resourceType, nsName, resourceUID, resource.Name); err != nil {

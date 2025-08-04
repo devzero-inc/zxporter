@@ -306,3 +306,14 @@ func (c *StatefulSetCollector) GetType() string {
 func (c *StatefulSetCollector) IsAvailable(ctx context.Context) bool {
 	return true
 }
+
+// AddResource manually adds a StatefulSet resource to be processed by the collector
+func (c *StatefulSetCollector) AddResource(resource interface{}) error {
+	statefulset, ok := resource.(*appsv1.StatefulSet)
+	if !ok {
+		return fmt.Errorf("expected *appsv1.StatefulSet, got %T", resource)
+	}
+
+	c.handleStatefulSetEvent(statefulset, EventTypeAdd)
+	return nil
+}

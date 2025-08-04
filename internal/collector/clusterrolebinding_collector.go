@@ -231,3 +231,14 @@ func (c *ClusterRoleBindingCollector) GetType() string {
 func (c *ClusterRoleBindingCollector) IsAvailable(ctx context.Context) bool {
 	return true
 }
+
+// AddResource manually adds a ClusterRoleBinding resource to be processed by the collector
+func (c *ClusterRoleBindingCollector) AddResource(resource interface{}) error {
+	clusterRoleBinding, ok := resource.(*rbacv1.ClusterRoleBinding)
+	if !ok {
+		return fmt.Errorf("expected *rbacv1.ClusterRoleBinding, got %T", resource)
+	}
+
+	c.handleClusterRoleBindingEvent(clusterRoleBinding, EventTypeAdd)
+	return nil
+}

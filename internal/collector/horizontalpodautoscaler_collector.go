@@ -316,3 +316,14 @@ func (c *HorizontalPodAutoscalerCollector) IsAvailable(ctx context.Context) bool
 
 	return true
 }
+
+// AddResource manually adds a HorizontalPodAutoscaler resource to be processed by the collector
+func (c *HorizontalPodAutoscalerCollector) AddResource(resource interface{}) error {
+	hpa, ok := resource.(*autoscalingv2.HorizontalPodAutoscaler)
+	if !ok {
+		return fmt.Errorf("expected *autoscalingv2.HorizontalPodAutoscaler, got %T", resource)
+	}
+
+	c.handleHPAEvent(hpa, EventTypeAdd)
+	return nil
+}

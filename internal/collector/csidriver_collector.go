@@ -223,3 +223,14 @@ func (c *CSIDriverCollector) GetType() string {
 func (c *CSIDriverCollector) IsAvailable(ctx context.Context) bool {
 	return true
 }
+
+// AddResource manually adds a CSIDriver resource to be processed by the collector
+func (c *CSIDriverCollector) AddResource(resource interface{}) error {
+	csiDriver, ok := resource.(*storagev1.CSIDriver)
+	if !ok {
+		return fmt.Errorf("expected *storagev1.CSIDriver, got %T", resource)
+	}
+
+	c.handleCSIDriverEvent(csiDriver, EventTypeAdd)
+	return nil
+}

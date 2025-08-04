@@ -301,3 +301,14 @@ func (c *DaemonSetCollector) GetType() string {
 func (c *DaemonSetCollector) IsAvailable(ctx context.Context) bool {
 	return true
 }
+
+// AddResource manually adds a DaemonSet resource to be processed by the collector
+func (c *DaemonSetCollector) AddResource(resource interface{}) error {
+	daemonSet, ok := resource.(*appsv1.DaemonSet)
+	if !ok {
+		return fmt.Errorf("expected *appsv1.DaemonSet, got %T", resource)
+	}
+
+	c.handleDaemonSetEvent(daemonSet, EventTypeAdd)
+	return nil
+}

@@ -303,3 +303,14 @@ func (c *ReplicaSetCollector) GetType() string {
 func (c *ReplicaSetCollector) IsAvailable(ctx context.Context) bool {
 	return true
 }
+
+// AddResource manually adds a ReplicaSet resource to be processed by the collector
+func (c *ReplicaSetCollector) AddResource(resource interface{}) error {
+	replicaSet, ok := resource.(*appsv1.ReplicaSet)
+	if !ok {
+		return fmt.Errorf("expected *appsv1.ReplicaSet, got %T", resource)
+	}
+
+	c.handleReplicaSetEvent(replicaSet, EventTypeAdd)
+	return nil
+}

@@ -268,3 +268,14 @@ func (c *RoleBindingCollector) GetType() string {
 func (c *RoleBindingCollector) IsAvailable(ctx context.Context) bool {
 	return true
 }
+
+// AddResource manually adds a RoleBinding resource to be processed by the collector
+func (c *RoleBindingCollector) AddResource(resource interface{}) error {
+	roleBinding, ok := resource.(*rbacv1.RoleBinding)
+	if !ok {
+		return fmt.Errorf("expected *rbacv1.RoleBinding, got %T", resource)
+	}
+
+	c.handleRoleBindingEvent(roleBinding, EventTypeAdd)
+	return nil
+}

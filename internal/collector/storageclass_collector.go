@@ -308,3 +308,14 @@ func (c *StorageClassCollector) GetType() string {
 func (c *StorageClassCollector) IsAvailable(ctx context.Context) bool {
 	return true
 }
+
+// AddResource manually adds a storage class resource to be processed by the collector
+func (c *StorageClassCollector) AddResource(resource interface{}) error {
+	storageClass, ok := resource.(*storagev1.StorageClass)
+	if !ok {
+		return fmt.Errorf("expected *storagev1.StorageClass, got %T", resource)
+	}
+
+	c.handleStorageClassEvent(storageClass, EventTypeAdd)
+	return nil
+}
