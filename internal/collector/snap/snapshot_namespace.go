@@ -19,7 +19,6 @@ func (c *ClusterSnapshotter) captureNamespaces(ctx context.Context, snapshot *Cl
 			DaemonSets:               make(map[string]*ResourceIdentifier),
 			ReplicaSets:              make(map[string]*ResourceIdentifier),
 			Services:                 make(map[string]*ResourceIdentifier),
-			ConfigMaps:               make(map[string]*ResourceIdentifier),
 			Secrets:                  make(map[string]*ResourceIdentifier),
 			Pvcs:                     make(map[string]*ResourceIdentifier),
 			Jobs:                     make(map[string]*ResourceIdentifier),
@@ -35,7 +34,6 @@ func (c *ClusterSnapshotter) captureNamespaces(ctx context.Context, snapshot *Cl
 			ResourceQuotas:           make(map[string]*ResourceIdentifier),
 			UnscheduledPods:          make(map[string]*ResourceIdentifier),
 			HorizontalPodAutoscalers: make(map[string]*ResourceIdentifier),
-			Events:                   make(map[string]*ResourceIdentifier),
 			KedaScaledJobs:           make(map[string]*ResourceIdentifier), // Not implemented
 			KedaScaledObjects:        make(map[string]*ResourceIdentifier), // Not implemented
 			CsiStorageCapacities:     make(map[string]*ResourceIdentifier),
@@ -128,13 +126,6 @@ func (c *ClusterSnapshotter) captureOtherResources(ctx context.Context, namespac
 		for _, svc := range services.Items {
 			uid := string(svc.UID)
 			nsData.Services[uid] = &ResourceIdentifier{Name: svc.Name}
-		}
-	}
-
-	if configMaps, err := c.client.CoreV1().ConfigMaps(namespace).List(ctx, metav1.ListOptions{}); err == nil {
-		for _, cm := range configMaps.Items {
-			uid := string(cm.UID)
-			nsData.ConfigMaps[uid] = &ResourceIdentifier{Name: cm.Name}
 		}
 	}
 
@@ -234,14 +225,6 @@ func (c *ClusterSnapshotter) captureOtherResources(ctx context.Context, namespac
 		for _, hpa := range hpas.Items {
 			uid := string(hpa.UID)
 			nsData.HorizontalPodAutoscalers[uid] = &ResourceIdentifier{Name: hpa.Name}
-		}
-	}
-
-	// Capture Events
-	if events, err := c.client.CoreV1().Events(namespace).List(ctx, metav1.ListOptions{}); err == nil {
-		for _, event := range events.Items {
-			uid := string(event.UID)
-			nsData.Events[uid] = &ResourceIdentifier{Name: event.Name}
 		}
 	}
 

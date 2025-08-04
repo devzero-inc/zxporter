@@ -23,6 +23,7 @@ const (
 	MetricsCollectorService_SendResourceBatch_FullMethodName         = "/api.v1.MetricsCollectorService/SendResourceBatch"
 	MetricsCollectorService_SendTelemetryMetrics_FullMethodName      = "/api.v1.MetricsCollectorService/SendTelemetryMetrics"
 	MetricsCollectorService_SendClusterSnapshotStream_FullMethodName = "/api.v1.MetricsCollectorService/SendClusterSnapshotStream"
+	MetricsCollectorService_SendTelemetryLogs_FullMethodName         = "/api.v1.MetricsCollectorService/SendTelemetryLogs"
 )
 
 // MetricsCollectorServiceClient is the client API for MetricsCollectorService service.
@@ -37,6 +38,8 @@ type MetricsCollectorServiceClient interface {
 	SendTelemetryMetrics(ctx context.Context, in *SendTelemetryMetricsRequest, opts ...grpc.CallOption) (*SendTelemetryMetricsResponse, error)
 	// SendClusterSnapshotStream processes cluster snapshot data in chunks via streaming
 	SendClusterSnapshotStream(ctx context.Context, opts ...grpc.CallOption) (MetricsCollectorService_SendClusterSnapshotStreamClient, error)
+	// SendTelemetryLogs ingests a batch of log messages from the cluster.
+	SendTelemetryLogs(ctx context.Context, in *SendTelemetryLogsRequest, opts ...grpc.CallOption) (*SendTelemetryLogsResponse, error)
 }
 
 type metricsCollectorServiceClient struct {
@@ -108,6 +111,15 @@ func (x *metricsCollectorServiceSendClusterSnapshotStreamClient) CloseAndRecv() 
 	return m, nil
 }
 
+func (c *metricsCollectorServiceClient) SendTelemetryLogs(ctx context.Context, in *SendTelemetryLogsRequest, opts ...grpc.CallOption) (*SendTelemetryLogsResponse, error) {
+	out := new(SendTelemetryLogsResponse)
+	err := c.cc.Invoke(ctx, MetricsCollectorService_SendTelemetryLogs_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // MetricsCollectorServiceServer is the server API for MetricsCollectorService service.
 // All implementations must embed UnimplementedMetricsCollectorServiceServer
 // for forward compatibility
@@ -120,6 +132,8 @@ type MetricsCollectorServiceServer interface {
 	SendTelemetryMetrics(context.Context, *SendTelemetryMetricsRequest) (*SendTelemetryMetricsResponse, error)
 	// SendClusterSnapshotStream processes cluster snapshot data in chunks via streaming
 	SendClusterSnapshotStream(MetricsCollectorService_SendClusterSnapshotStreamServer) error
+	// SendTelemetryLogs ingests a batch of log messages from the cluster.
+	SendTelemetryLogs(context.Context, *SendTelemetryLogsRequest) (*SendTelemetryLogsResponse, error)
 	mustEmbedUnimplementedMetricsCollectorServiceServer()
 }
 
@@ -138,6 +152,9 @@ func (UnimplementedMetricsCollectorServiceServer) SendTelemetryMetrics(context.C
 }
 func (UnimplementedMetricsCollectorServiceServer) SendClusterSnapshotStream(MetricsCollectorService_SendClusterSnapshotStreamServer) error {
 	return status.Errorf(codes.Unimplemented, "method SendClusterSnapshotStream not implemented")
+}
+func (UnimplementedMetricsCollectorServiceServer) SendTelemetryLogs(context.Context, *SendTelemetryLogsRequest) (*SendTelemetryLogsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SendTelemetryLogs not implemented")
 }
 func (UnimplementedMetricsCollectorServiceServer) mustEmbedUnimplementedMetricsCollectorServiceServer() {
 }
@@ -233,6 +250,24 @@ func (x *metricsCollectorServiceSendClusterSnapshotStreamServer) Recv() (*Cluste
 	return m, nil
 }
 
+func _MetricsCollectorService_SendTelemetryLogs_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SendTelemetryLogsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MetricsCollectorServiceServer).SendTelemetryLogs(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MetricsCollectorService_SendTelemetryLogs_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MetricsCollectorServiceServer).SendTelemetryLogs(ctx, req.(*SendTelemetryLogsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // MetricsCollectorService_ServiceDesc is the grpc.ServiceDesc for MetricsCollectorService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -251,6 +286,10 @@ var MetricsCollectorService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SendTelemetryMetrics",
 			Handler:    _MetricsCollectorService_SendTelemetryMetrics_Handler,
+		},
+		{
+			MethodName: "SendTelemetryLogs",
+			Handler:    _MetricsCollectorService_SendTelemetryLogs_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

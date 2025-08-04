@@ -2,17 +2,17 @@ package collector
 
 import (
 	"context"
-	"fmt"
-	"time"
-	"sync"
 	"encoding/json"
+	"fmt"
+	"sync"
+	"time"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"github.com/go-logr/logr"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	apiextinformers "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
-	"k8s.io/client-go/tools/cache"
 	apiextclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
+	apiextinformers "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/tools/cache"
 )
 
 type CRDCollector struct {
@@ -162,5 +162,3 @@ func getCleanCRDJSON(crd *apiextv1.CustomResourceDefinition, logger logr.Logger)
 	}
 	return clean
 }
-
-
