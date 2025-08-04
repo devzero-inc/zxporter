@@ -292,6 +292,9 @@ message SendClusterSnapshotStreamResponse {
 
   // Number of chunks received
   int32 chunks_received = 4;
+
+ // Contains resources that were not found in the database
+  ClusterSnapshot missing_resources = 5;
 }
 
 // ResourceIdentifier contains minimal resource identification data
@@ -314,27 +317,25 @@ message Namespace {
   map<string, ResourceIdentifier> daemon_sets = 4;
   map<string, ResourceIdentifier> replica_sets = 5;
   map<string, ResourceIdentifier> services = 6;
-  map<string, ResourceIdentifier> config_maps = 7;
-  map<string, ResourceIdentifier> secrets = 8;
-  map<string, ResourceIdentifier> pvcs = 9;
-  map<string, ResourceIdentifier> jobs = 10;
-  map<string, ResourceIdentifier> cron_jobs = 11;
-  map<string, ResourceIdentifier> ingresses = 12;
-  map<string, ResourceIdentifier> network_policies = 13;
-  map<string, ResourceIdentifier> service_accounts = 14;
-  map<string, ResourceIdentifier> roles = 15;
-  map<string, ResourceIdentifier> role_bindings = 16;
-  map<string, ResourceIdentifier> pod_disruption_budgets = 17;
-  map<string, ResourceIdentifier> endpoints = 18;
-  map<string, ResourceIdentifier> limit_ranges = 19;
-  map<string, ResourceIdentifier> resource_quotas = 20;
-  map<string, ResourceIdentifier> unscheduled_pods = 21;
-  map<string, ResourceIdentifier> horizontal_pod_autoscalers = 22;
-  map<string, ResourceIdentifier> events = 23;
-  map<string, ResourceIdentifier> keda_scaled_jobs = 24;
-  map<string, ResourceIdentifier> keda_scaled_objects = 25;
-  string hash = 26;
-  map<string, ResourceIdentifier> csi_storage_capacities = 27;
+  map<string, ResourceIdentifier> secrets = 7;
+  map<string, ResourceIdentifier> pvcs = 8;
+  map<string, ResourceIdentifier> jobs = 9;
+  map<string, ResourceIdentifier> cron_jobs = 10;
+  map<string, ResourceIdentifier> ingresses = 11;
+  map<string, ResourceIdentifier> network_policies = 12;
+  map<string, ResourceIdentifier> service_accounts = 13;
+  map<string, ResourceIdentifier> roles = 14;
+  map<string, ResourceIdentifier> role_bindings = 15;
+  map<string, ResourceIdentifier> pod_disruption_budgets = 16;
+  map<string, ResourceIdentifier> endpoints = 17;
+  map<string, ResourceIdentifier> limit_ranges = 18;
+  map<string, ResourceIdentifier> resource_quotas = 19;
+  map<string, ResourceIdentifier> unscheduled_pods = 20;
+  map<string, ResourceIdentifier> horizontal_pod_autoscalers = 21;
+  map<string, ResourceIdentifier> keda_scaled_jobs = 22;
+  map<string, ResourceIdentifier> keda_scaled_objects = 23;
+  string hash = 24;
+  map<string, ResourceIdentifier> csi_storage_capacities = 25;
 }
 
 // ClusterScopedSnapshot contains minimal cluster-scoped resource data
@@ -368,6 +369,55 @@ message ClusterSnapshot {
   string snapshot_id = 6;
 }
 
+// LogLevel defines severity levels for log messages
+enum LogLevel {
+  LOG_LEVEL_UNSPECIFIED = 0;
+  LOG_LEVEL_DEBUG = 1;
+  LOG_LEVEL_INFO = 2;
+  LOG_LEVEL_WARN = 3;
+  LOG_LEVEL_ERROR = 4;
+  LOG_LEVEL_FATAL = 5;
+}
+
+// SendTelemetryLogsRequest is used to send a batch of log messages from a cluster
+message SendTelemetryLogsRequest {
+  // Unique identifier for the cluster
+  string cluster_id = 1;
+
+  // Team ID that owns the cluster
+  string team_id = 2;
+
+  // List of log entries
+  repeated LogEntry logs = 3;
+}
+
+// LogEntry represents a single log message
+message LogEntry {
+  // Timestamp of the log message
+  google.protobuf.Timestamp timestamp = 1;
+
+  // Severity level of the log
+  LogLevel level = 2;
+
+  // The actual log message
+  string message = 3;
+
+  // Structured fields associated with the log entry
+  map<string, string> fields = 6;
+
+  // Error string, if any
+  string error = 7;
+
+  // The source or component generating the log (e.g., pod name, container ID)
+  string source = 11;
+}
+
+// SendTelemetryLogsResponse is the response for log ingestion
+message SendTelemetryLogsResponse {
+  // Number of logs successfully processed
+  int32 processed_count = 1;
+}
+
 // Defines the service that provides RPC methods for Kubernetes cluster monitoring metrics collector.
 service MetricsCollectorService {
   // SendResource pushes a single metric for a resource.
@@ -381,4 +431,7 @@ service MetricsCollectorService {
 
   // SendClusterSnapshotStream processes cluster snapshot data in chunks via streaming
   rpc SendClusterSnapshotStream(stream ClusterSnapshotChunk) returns (SendClusterSnapshotStreamResponse);
+
+  // SendTelemetryLogs ingests a batch of log messages from the cluster.
+  rpc SendTelemetryLogs(SendTelemetryLogsRequest) returns (SendTelemetryLogsResponse);
 }
