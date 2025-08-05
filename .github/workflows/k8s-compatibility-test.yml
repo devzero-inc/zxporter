@@ -398,4 +398,4 @@ jobs:
         run: |
           echo "Checking ZXporter logs for errors..."
           POD_NAME=$(kubectl get pods -n devzero-zxporter -l control-plane=controller-manager -o jsonpath='{.items[0].metadata.name}')
-          kubectl logs $POD_NAME -n devzero-zxporter | grep -i "error" || echo "No errors found in ZXporter logs"
+          kubectl logs $POD_NAME -n devzero-zxporter
