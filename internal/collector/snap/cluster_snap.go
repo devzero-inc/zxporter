@@ -731,6 +731,8 @@ func (c *ClusterSnapshotter) refreshResource(ctx context.Context, resourceType, 
 		return nil
 	}
 
+	c.logger.Info("Refreshing cluster resource", "type", resourceType, "name", resourceName, "uid", resourceUID)
+
 	// Fetch the resource from Kubernetes API using UID
 	resource, err := c.fetchClusterResourceByUID(ctx, resourceType, resourceUID)
 	if err != nil {
@@ -758,6 +760,8 @@ func (c *ClusterSnapshotter) refreshNamespacedResource(ctx context.Context, reso
 		c.logger.Info("No collector found for resource type", "type", resourceType, "name", resourceName, "namespace", namespace)
 		return nil
 	}
+
+	c.logger.Info("Refreshing namespaced resource", "type", resourceType, "name", resourceName, "uid", resourceUID, "namespace", namespace)
 
 	// Fetch the resource from Kubernetes API using UID
 	resource, err := c.fetchNamespacedResourceByUID(ctx, resourceType, namespace, resourceUID)
