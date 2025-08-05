@@ -778,7 +778,7 @@ func (c *KarpenterCollector) IsAvailable(ctx context.Context) bool {
 func (c *KarpenterCollector) determineKarpenterResourceType(obj *unstructured.Unstructured) (KarpenterResource, error) {
 	kind := obj.GetKind()
 	apiVersion := obj.GetAPIVersion()
-	
+
 	switch {
 	case kind == "Provisioner" && strings.Contains(apiVersion, "karpenter.sh/v1alpha5"):
 		return KarpenterResource{

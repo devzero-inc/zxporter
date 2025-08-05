@@ -733,20 +733,20 @@ func (c *ClusterSnapshotter) refreshResource(ctx context.Context, resourceType, 
 
 	c.logger.Info("Refreshing cluster resource", "type", resourceType, "name", resourceName, "uid", resourceUID)
 
-	// Fetch the resource from Kubernetes API using UID
-	resource, err := c.fetchClusterResourceByUID(ctx, resourceType, resourceUID)
+	// Fetch the resource from Kubernetes API using name
+	resource, err := c.fetchClusterResourceByName(ctx, resourceType, resourceName)
 	if err != nil {
-		return fmt.Errorf("failed to fetch %s with UID %s: %w", resourceType, resourceUID, err)
+		return fmt.Errorf("failed to fetch %s with name %s: %w", resourceType, resourceName, err)
 	}
 
 	if resource == nil {
-		c.logger.Info("Resource not found in cluster", "type", resourceType, "uid", resourceUID)
+		c.logger.Info("Resource not found in cluster", "type", resourceType, "name", resourceName, "uid", resourceUID)
 		return nil
 	}
 
 	// Add the resource to the collector
 	if err := collector.AddResource(resource); err != nil {
-		return fmt.Errorf("failed to add %s with UID %s to collector: %w", resourceType, resourceUID, err)
+		return fmt.Errorf("failed to add %s with name %s to collector: %w", resourceType, resourceName, err)
 	}
 
 	c.logger.Info("Successfully refreshed resource", "type", resourceType, "uid", resourceUID)
@@ -763,35 +763,35 @@ func (c *ClusterSnapshotter) refreshNamespacedResource(ctx context.Context, reso
 
 	c.logger.Info("Refreshing namespaced resource", "type", resourceType, "name", resourceName, "uid", resourceUID, "namespace", namespace)
 
-	// Fetch the resource from Kubernetes API using UID
-	resource, err := c.fetchNamespacedResourceByUID(ctx, resourceType, namespace, resourceUID)
+	// Fetch the resource from Kubernetes API using name
+	resource, err := c.fetchNamespacedResourceByName(ctx, resourceType, namespace, resourceName)
 	if err != nil {
-		return fmt.Errorf("failed to fetch %s with UID %s in namespace %s: %w", resourceType, resourceUID, namespace, err)
+		return fmt.Errorf("failed to fetch %s with name %s in namespace %s: %w", resourceType, resourceName, namespace, err)
 	}
 
 	if resource == nil {
-		c.logger.Info("Resource not found in cluster", "type", resourceType, "uid", resourceUID, "namespace", namespace)
+		c.logger.Info("Resource not found in cluster", "type", resourceType, "name", resourceName, "uid", resourceUID, "namespace", namespace)
 		return nil
 	}
 
 	// Add the resource to the collector
 	if err := collector.AddResource(resource); err != nil {
-		return fmt.Errorf("failed to add %s with UID %s in namespace %s to collector: %w", resourceType, resourceUID, namespace, err)
+		return fmt.Errorf("failed to add %s with name %s in namespace %s to collector: %w", resourceType, resourceName, namespace, err)
 	}
 
 	c.logger.Info("Successfully refreshed resource", "type", resourceType, "uid", resourceUID, "namespace", namespace)
 	return nil
 }
 
-// fetchClusterResourceByUID fetches a cluster-scoped resource from Kubernetes API by UID
-func (c *ClusterSnapshotter) fetchClusterResourceByUID(ctx context.Context, resourceType, resourceUID string) (interface{}, error) {
+// fetchClusterResourceByName fetches a cluster-scoped resource from Kubernetes API by name
+func (c *ClusterSnapshotter) fetchClusterResourceByName(ctx context.Context, resourceType, resourceName string) (interface{}, error) {
 	handler, exists := c.clusterHandlers[resourceType]
 	if !exists {
 		c.logger.Info("Unknown cluster-scoped resource type", "type", resourceType)
 		return nil, nil
 	}
 
-	fieldSelector := fmt.Sprintf("metadata.uid=%s", resourceUID)
+	fieldSelector := fmt.Sprintf("metadata.name=%s", resourceName)
 	listOptions := metav1.ListOptions{
 		FieldSelector: fieldSelector,
 		Limit:         1, // We only expect one result
@@ -807,15 +807,15 @@ func (c *ClusterSnapshotter) fetchClusterResourceByUID(ctx context.Context, reso
 	return handler.Extractor(listResult)
 }
 
-// fetchNamespacedResourceByUID fetches a namespaced resource from Kubernetes API by UID
-func (c *ClusterSnapshotter) fetchNamespacedResourceByUID(ctx context.Context, resourceType, namespace, resourceUID string) (interface{}, error) {
+// fetchNamespacedResourceByName fetches a namespaced resource from Kubernetes API by name
+func (c *ClusterSnapshotter) fetchNamespacedResourceByName(ctx context.Context, resourceType, namespace, resourceName string) (interface{}, error) {
 	handler, exists := c.namespacedHandlers[resourceType]
 	if !exists {
 		c.logger.Info("Unknown namespaced resource type", "type", resourceType, "namespace", namespace)
 		return nil, nil
 	}
 
-	fieldSelector := fmt.Sprintf("metadata.uid=%s", resourceUID)
+	fieldSelector := fmt.Sprintf("metadata.name=%s", resourceName)
 	listOptions := metav1.ListOptions{
 		FieldSelector: fieldSelector,
 		Limit:         1, // We only expect one result

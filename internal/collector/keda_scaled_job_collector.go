@@ -334,7 +334,7 @@ func (c *ScaledJobCollector) AddResource(resource interface{}) error {
 	if !ok {
 		return fmt.Errorf("expected *kedav1alpha1.ScaledJob, got %T", resource)
 	}
-	
+
 	c.handleScaledJobEvent(scaledJob, EventTypeAdd)
 	return nil
 }

@@ -255,7 +255,7 @@ func (c *NamespaceCollector) AddResource(resource interface{}) error {
 	if !ok {
 		return fmt.Errorf("expected *corev1.Namespace, got %T", resource)
 	}
-	
+
 	c.handleNamespaceEvent(namespace, EventTypeAdd)
 	return nil
 }

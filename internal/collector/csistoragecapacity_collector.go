@@ -286,7 +286,7 @@ func (c *CSIStorageCapacityCollector) AddResource(resource interface{}) error {
 	if !ok {
 		return fmt.Errorf("expected *storagev1.CSIStorageCapacity, got %T", resource)
 	}
-	
+
 	c.handleCSIStorageCapacityEvent(csc, EventTypeAdd)
 	return nil
 }

@@ -344,7 +344,7 @@ func (c *ScaledObjectCollector) AddResource(resource interface{}) error {
 	if !ok {
 		return fmt.Errorf("expected *kedav1alpha1.ScaledObject, got %T", resource)
 	}
-	
+
 	c.handleScaledObjectEvent(scaledObject, EventTypeAdd)
 	return nil
 }
