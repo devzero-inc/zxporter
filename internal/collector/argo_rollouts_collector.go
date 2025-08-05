@@ -435,3 +435,14 @@ func (c *ArgoRolloutsCollector) IsAvailable(ctx context.Context) bool {
 	}
 	return true
 }
+
+// AddResource manually adds an Argo Rollout resource to be processed by the collector
+func (c *ArgoRolloutsCollector) AddResource(resource interface{}) error {
+	rollout, ok := resource.(*unstructured.Unstructured)
+	if !ok {
+		return fmt.Errorf("expected *unstructured.Unstructured, got %T", resource)
+	}
+
+	c.handleRolloutEvent(rollout, EventTypeAdd)
+	return nil
+}

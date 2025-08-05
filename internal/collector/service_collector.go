@@ -304,3 +304,14 @@ func (c *ServiceCollector) GetType() string {
 func (c *ServiceCollector) IsAvailable(ctx context.Context) bool {
 	return true
 }
+
+// AddResource manually adds a service resource to be processed by the collector
+func (c *ServiceCollector) AddResource(resource interface{}) error {
+	service, ok := resource.(*corev1.Service)
+	if !ok {
+		return fmt.Errorf("expected *corev1.Service, got %T", resource)
+	}
+
+	c.handleServiceEvent(service, EventTypeAdd)
+	return nil
+}

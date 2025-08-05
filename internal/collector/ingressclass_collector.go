@@ -259,3 +259,14 @@ func (c *IngressClassCollector) IsAvailable(ctx context.Context) bool {
 
 	return true
 }
+
+// AddResource manually adds a IngressClass resource to be processed by the collector
+func (c *IngressClassCollector) AddResource(resource interface{}) error {
+	ingressClass, ok := resource.(*networkingv1.IngressClass)
+	if !ok {
+		return fmt.Errorf("expected *networkingv1.IngressClass, got %T", resource)
+	}
+
+	c.handleIngressClassEvent(ingressClass, EventTypeAdd)
+	return nil
+}

@@ -248,3 +248,14 @@ func (c *NamespaceCollector) GetType() string {
 func (c *NamespaceCollector) IsAvailable(ctx context.Context) bool {
 	return true
 }
+
+// AddResource manually adds a namespace resource to be processed by the collector
+func (c *NamespaceCollector) AddResource(resource interface{}) error {
+	namespace, ok := resource.(*corev1.Namespace)
+	if !ok {
+		return fmt.Errorf("expected *corev1.Namespace, got %T", resource)
+	}
+
+	c.handleNamespaceEvent(namespace, EventTypeAdd)
+	return nil
+}

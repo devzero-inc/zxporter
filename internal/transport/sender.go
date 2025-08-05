@@ -137,28 +137,28 @@ func (c *SimpleDakrClient) SendTelemetryMetrics(ctx context.Context, metrics []*
 }
 
 // Update sender.go with fallback logic
-func (s *DirectDakrSender) SendClusterSnapshotStream(ctx context.Context, snapshot *gen.ClusterSnapshot, snapshotID string, timestamp time.Time) (string, error) {
+func (s *DirectDakrSender) SendClusterSnapshotStream(ctx context.Context, snapshot *gen.ClusterSnapshot, snapshotID string, timestamp time.Time) (string, *gen.ClusterSnapshot, error) {
 	if s.dakrClient == nil {
-		return "", fmt.Errorf("dakr client is nil, cannot send cluster snapshot stream")
+		return "", nil, fmt.Errorf("dakr client is nil, cannot send cluster snapshot stream")
 	}
 
 	ctxWithCluster := context.WithValue(ctx, "cluster_id", s.clusterID)
 	ctxWithTeam := context.WithValue(ctxWithCluster, "team_id", s.teamID) // Assuming you add teamID field
 
-	clusterID, err := s.dakrClient.SendClusterSnapshotStream(ctxWithTeam, snapshot, snapshotID, timestamp)
+	clusterID, missingResources, err := s.dakrClient.SendClusterSnapshotStream(ctxWithTeam, snapshot, snapshotID, timestamp)
 	if clusterID != "" {
 		s.SetClusterID(clusterID)
 	}
 
-	return clusterID, err
+	return clusterID, missingResources, err
 }
 
 // Update sender.go with fallback logic
-func (c *SimpleDakrClient) SendClusterSnapshotStream(ctx context.Context, snapshot *gen.ClusterSnapshot, snapshotID string, timestamp time.Time) (string, error) {
+func (c *SimpleDakrClient) SendClusterSnapshotStream(ctx context.Context, snapshot *gen.ClusterSnapshot, snapshotID string, timestamp time.Time) (string, *gen.ClusterSnapshot, error) {
 	// For now, just log that we would send something
 	c.logger.Info("Would send cluster snapshot to Dakr",
 		"snapshotId", snapshotID,
 		"timestamp", timestamp,
 		"dataType", fmt.Sprintf("%T", snapshot))
-	return "", nil
+	return "", nil, nil
 }

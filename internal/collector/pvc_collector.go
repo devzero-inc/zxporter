@@ -308,3 +308,14 @@ func (c *PersistentVolumeClaimCollector) GetType() string {
 func (c *PersistentVolumeClaimCollector) IsAvailable(ctx context.Context) bool {
 	return true
 }
+
+// AddResource manually adds a PVC resource to be processed by the collector
+func (c *PersistentVolumeClaimCollector) AddResource(resource interface{}) error {
+	pvc, ok := resource.(*corev1.PersistentVolumeClaim)
+	if !ok {
+		return fmt.Errorf("expected *corev1.PersistentVolumeClaim, got %T", resource)
+	}
+
+	c.handlePVCEvent(pvc, EventTypeAdd)
+	return nil
+}

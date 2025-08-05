@@ -312,3 +312,14 @@ func (c *PodCollector) GetType() string {
 func (c *PodCollector) IsAvailable(ctx context.Context) bool {
 	return true
 }
+
+// AddResource manually adds a pod resource to be processed by the collector
+func (c *PodCollector) AddResource(resource interface{}) error {
+	pod, ok := resource.(*corev1.Pod)
+	if !ok {
+		return fmt.Errorf("expected *corev1.Pod, got %T", resource)
+	}
+
+	c.handlePodEvent(pod, EventTypeAdd)
+	return nil
+}

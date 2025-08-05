@@ -50,13 +50,13 @@ func (s *directSenderImpl) Send(ctx context.Context, resource collector.Collecte
 }
 
 // Foword the snapshot data to stream to the control plane
-func (s *directSenderImpl) SendClusterSnapshotStream(ctx context.Context, snapshot *gen.ClusterSnapshot, snapshotID string, timestamp time.Time) (string, error) {
+func (s *directSenderImpl) SendClusterSnapshotStream(ctx context.Context, snapshot *gen.ClusterSnapshot, snapshotID string, timestamp time.Time) (string, *gen.ClusterSnapshot, error) {
 	s.logger.V(1).Info("Sending cluster snapshot via streaming", "snapshotId", snapshotID)
 
-	clusterID, err := s.dakrClient.SendClusterSnapshotStream(ctx, snapshot, snapshotID, timestamp)
+	clusterID, missingResources, err := s.dakrClient.SendClusterSnapshotStream(ctx, snapshot, snapshotID, timestamp)
 	if err != nil {
 		s.logger.Error(err, "Failed to send cluster snapshot via streaming", "snapshotId", snapshotID)
-		return clusterID, err
+		return clusterID, nil, err
 	}
-	return clusterID, nil
+	return clusterID, missingResources, nil
 }

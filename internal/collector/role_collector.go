@@ -261,3 +261,14 @@ func (c *RoleCollector) GetType() string {
 func (c *RoleCollector) IsAvailable(ctx context.Context) bool {
 	return true
 }
+
+// AddResource manually adds a Role resource to be processed by the collector
+func (c *RoleCollector) AddResource(resource interface{}) error {
+	role, ok := resource.(*rbacv1.Role)
+	if !ok {
+		return fmt.Errorf("expected *rbacv1.Role, got %T", resource)
+	}
+
+	c.handleRoleEvent(role, EventTypeAdd)
+	return nil
+}

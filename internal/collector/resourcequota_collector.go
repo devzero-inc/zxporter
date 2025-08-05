@@ -277,3 +277,14 @@ func (c *ResourceQuotaCollector) GetType() string {
 func (c *ResourceQuotaCollector) IsAvailable(ctx context.Context) bool {
 	return true
 }
+
+// AddResource manually adds a resourcequota resource to be processed by the collector
+func (c *ResourceQuotaCollector) AddResource(resource interface{}) error {
+	rq, ok := resource.(*corev1.ResourceQuota)
+	if !ok {
+		return fmt.Errorf("expected *corev1.ResourceQuota, got %T", resource)
+	}
+
+	c.handleResourceQuotaEvent(rq, EventTypeAdd)
+	return nil
+}

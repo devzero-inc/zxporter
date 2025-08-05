@@ -317,3 +317,14 @@ func (c *CronJobCollector) IsAvailable(ctx context.Context) bool {
 
 	return true
 }
+
+// AddResource manually adds a cronjob resource to be processed by the collector
+func (c *CronJobCollector) AddResource(resource interface{}) error {
+	cronJob, ok := resource.(*batchv1.CronJob)
+	if !ok {
+		return fmt.Errorf("expected *batchv1.CronJob, got %T", resource)
+	}
+
+	c.handleCronJobEvent(cronJob, EventTypeAdd)
+	return nil
+}

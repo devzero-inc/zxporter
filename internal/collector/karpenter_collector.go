@@ -774,6 +774,65 @@ func (c *KarpenterCollector) IsAvailable(ctx context.Context) bool {
 	return false
 }
 
+// determineKarpenterResourceType determines the KarpenterResource type from an unstructured object
+func (c *KarpenterCollector) determineKarpenterResourceType(obj *unstructured.Unstructured) (KarpenterResource, error) {
+	kind := obj.GetKind()
+	apiVersion := obj.GetAPIVersion()
+
+	switch {
+	case kind == "Provisioner" && strings.Contains(apiVersion, "karpenter.sh/v1alpha5"):
+		return KarpenterResource{
+			GroupVersion: schema.GroupVersion{Group: "karpenter.sh", Version: "v1alpha5"},
+			Resource:     "provisioners",
+			Kind:         "Provisioner",
+		}, nil
+	case kind == "Machine" && strings.Contains(apiVersion, "karpenter.sh/v1alpha5"):
+		return KarpenterResource{
+			GroupVersion: schema.GroupVersion{Group: "karpenter.sh", Version: "v1alpha5"},
+			Resource:     "machines",
+			Kind:         "Machine",
+		}, nil
+	case kind == "AWSNodeTemplate" && strings.Contains(apiVersion, "karpenter.k8s.aws/v1alpha1"):
+		return KarpenterResource{
+			GroupVersion: schema.GroupVersion{Group: "karpenter.k8s.aws", Version: "v1alpha1"},
+			Resource:     "awsnodetemplates",
+			Kind:         "AWSNodeTemplate",
+		}, nil
+	case kind == "NodeClaim" && strings.Contains(apiVersion, "karpenter.sh/v1alpha5"):
+		return KarpenterResource{
+			GroupVersion: schema.GroupVersion{Group: "karpenter.sh", Version: "v1alpha5"},
+			Resource:     "nodeclaims",
+			Kind:         "NodeClaim",
+		}, nil
+	case kind == "EC2NodeClass" && strings.Contains(apiVersion, "karpenter.k8s.aws/v1beta1"):
+		return KarpenterResource{
+			GroupVersion: schema.GroupVersion{Group: "karpenter.k8s.aws", Version: "v1beta1"},
+			Resource:     "ec2nodeclasses",
+			Kind:         "EC2NodeClass",
+		}, nil
+	case kind == "NodePool" && strings.Contains(apiVersion, "karpenter.sh/v1"):
+		return KarpenterResource{
+			GroupVersion: schema.GroupVersion{Group: "karpenter.sh", Version: "v1"},
+			Resource:     "nodepools",
+			Kind:         "NodePool",
+		}, nil
+	case kind == "NodeClaim" && strings.Contains(apiVersion, "karpenter.sh/v1"):
+		return KarpenterResource{
+			GroupVersion: schema.GroupVersion{Group: "karpenter.sh", Version: "v1"},
+			Resource:     "nodeclaims",
+			Kind:         "NodeClaim",
+		}, nil
+	case kind == "EC2NodeClass" && strings.Contains(apiVersion, "karpenter.k8s.aws/v1"):
+		return KarpenterResource{
+			GroupVersion: schema.GroupVersion{Group: "karpenter.k8s.aws", Version: "v1"},
+			Resource:     "ec2nodeclasses",
+			Kind:         "EC2NodeClass",
+		}, nil
+	default:
+		return KarpenterResource{}, fmt.Errorf("unsupported Karpenter resource: kind=%s, apiVersion=%s", kind, apiVersion)
+	}
+}
+
 func (c *KarpenterCollector) sendInstallationMetric(obj *unstructured.Unstructured) {
 	// Extract required fields from the deployment object
 	uid := string(obj.GetUID())
@@ -834,4 +893,21 @@ func (c *KarpenterCollector) sendInstallationMetric(obj *unstructured.Unstructur
 
 	c.logger.Info("Sent Karpenter installation metric",
 		"Object", installStatus)
+}
+
+// AddResource manually adds a Karpenter resource to be processed by the collector
+func (c *KarpenterCollector) AddResource(resource interface{}) error {
+	obj, ok := resource.(*unstructured.Unstructured)
+	if !ok {
+		return fmt.Errorf("expected *unstructured.Unstructured, got %T", resource)
+	}
+
+	// Use helper method to determine the resource type
+	karpenterResource, err := c.determineKarpenterResourceType(obj)
+	if err != nil {
+		return err
+	}
+
+	c.handleKarpenterResourceEvent(obj, karpenterResource, EventTypeAdd)
+	return nil
 }

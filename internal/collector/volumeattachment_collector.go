@@ -228,3 +228,14 @@ func (c *VolumeAttachmentCollector) GetType() string {
 func (c *VolumeAttachmentCollector) IsAvailable(ctx context.Context) bool {
 	return true
 }
+
+// AddResource manually adds a VolumeAttachment resource to be processed by the collector
+func (c *VolumeAttachmentCollector) AddResource(resource interface{}) error {
+	volumeAttachment, ok := resource.(*storagev1.VolumeAttachment)
+	if !ok {
+		return fmt.Errorf("expected *storagev1.VolumeAttachment, got %T", resource)
+	}
+
+	c.handleVolumeAttachmentEvent(volumeAttachment, EventTypeAdd)
+	return nil
+}

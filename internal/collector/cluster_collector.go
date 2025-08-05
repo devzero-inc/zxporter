@@ -318,3 +318,8 @@ func (c *ClusterCollector) GetType() string {
 func (c *ClusterCollector) IsAvailable(ctx context.Context) bool {
 	return true
 }
+
+// AddResource manually adds a cluster resource - not supported for cluster collector
+func (c *ClusterCollector) AddResource(resource interface{}) error {
+	return fmt.Errorf("AddResource not supported for cluster collector - cluster information is collected automatically")
+}

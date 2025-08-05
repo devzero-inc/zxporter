@@ -883,3 +883,9 @@ func (c *ContainerResourceCollector) IsAvailable(ctx context.Context) bool {
 
 	return true
 }
+
+// AddResource is a no-op for container resource collector - we never sync individual containers
+func (c *ContainerResourceCollector) AddResource(resource interface{}) error {
+	// Container resources are collected automatically via metrics scraping, not via individual resource refresh
+	return nil
+}

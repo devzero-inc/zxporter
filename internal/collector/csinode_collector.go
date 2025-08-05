@@ -286,3 +286,14 @@ func (c *CSINodeCollector) IsAvailable(ctx context.Context) bool {
 	}
 	return true
 }
+
+// AddResource manually adds a CSINode resource to be processed by the collector
+func (c *CSINodeCollector) AddResource(resource interface{}) error {
+	csiNode, ok := resource.(*storagev1.CSINode)
+	if !ok {
+		return fmt.Errorf("expected *storagev1.CSINode, got %T", resource)
+	}
+
+	c.handleCSINodeEvent(csiNode, EventTypeAdd)
+	return nil
+}

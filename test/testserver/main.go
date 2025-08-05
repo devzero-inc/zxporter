@@ -17,6 +17,7 @@ import (
 	apiv1 "github.com/devzero-inc/zxporter/gen/api/v1"
 	apiv1connect "github.com/devzero-inc/zxporter/gen/api/v1/apiv1connect"
 	"github.com/devzero-inc/zxporter/test/stats"
+	"google.golang.org/protobuf/proto"
 )
 
 // MetricsServer implements the MetricsCollectorServiceHandler interface
@@ -273,7 +274,7 @@ func (s *MetricsServer) SendClusterSnapshotStream(
 	// Step 3: Deserialize the cluster snapshot
 	fmt.Fprintf(os.Stderr, "Step 3: Deserializing cluster snapshot...\n")
 	var clusterSnapshot apiv1.ClusterSnapshot
-	if err := json.Unmarshal(completeData, &clusterSnapshot); err != nil {
+	if err := proto.Unmarshal(completeData, &clusterSnapshot); err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: Failed to deserialize cluster snapshot: %v\n", err)
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to deserialize snapshot: %w", err))
 	}
@@ -321,10 +322,11 @@ func (s *MetricsServer) SendClusterSnapshotStream(
 	fmt.Fprintf(os.Stderr, "  - Cluster-scoped resources: %d types\n", len(snapshotStats.ClusterScopedResources))
 
 	resp := connect.NewResponse(&apiv1.SendClusterSnapshotStreamResponse{
-		ClusterId:      clusterID,
-		SnapshotId:     snapshotID,
-		Status:         "processed",
-		ChunksReceived: chunksReceived,
+		ClusterId:        clusterID,
+		SnapshotId:       snapshotID,
+		Status:           "processed",
+		ChunksReceived:   chunksReceived,
+		MissingResources: &clusterSnapshot,
 	})
 	return resp, nil
 }

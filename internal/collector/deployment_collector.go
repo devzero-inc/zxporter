@@ -301,3 +301,14 @@ func (c *DeploymentCollector) GetType() string {
 func (c *DeploymentCollector) IsAvailable(ctx context.Context) bool {
 	return true
 }
+
+// AddResource manually adds a deployment resource to be processed by the collector
+func (c *DeploymentCollector) AddResource(resource interface{}) error {
+	deployment, ok := resource.(*appsv1.Deployment)
+	if !ok {
+		return fmt.Errorf("expected *appsv1.Deployment, got %T", resource)
+	}
+
+	c.handleDeploymentEvent(deployment, EventTypeAdd)
+	return nil
+}

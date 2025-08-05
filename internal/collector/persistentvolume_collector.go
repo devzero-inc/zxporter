@@ -337,3 +337,14 @@ func (c *PersistentVolumeCollector) GetType() string {
 func (c *PersistentVolumeCollector) IsAvailable(ctx context.Context) bool {
 	return true
 }
+
+// AddResource manually adds a persistent volume resource to be processed by the collector
+func (c *PersistentVolumeCollector) AddResource(resource interface{}) error {
+	pv, ok := resource.(*corev1.PersistentVolume)
+	if !ok {
+		return fmt.Errorf("expected *corev1.PersistentVolume, got %T", resource)
+	}
+
+	c.handlePVEvent(pv, EventTypeAdd)
+	return nil
+}

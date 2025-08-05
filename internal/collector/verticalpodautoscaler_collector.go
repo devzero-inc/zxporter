@@ -325,3 +325,14 @@ func (c *VerticalPodAutoscalerCollector) IsAvailable(ctx context.Context) bool {
 	c.logger.Error(err, "Error checking VPA resource availability")
 	return false
 }
+
+// AddResource manually adds a VPA resource to be processed by the collector
+func (c *VerticalPodAutoscalerCollector) AddResource(resource interface{}) error {
+	vpa, ok := resource.(*unstructured.Unstructured)
+	if !ok {
+		return fmt.Errorf("expected *unstructured.Unstructured, got %T", resource)
+	}
+
+	c.handleVPAEvent(vpa, EventTypeAdd)
+	return nil
+}

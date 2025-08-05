@@ -330,3 +330,14 @@ func (c *NetworkPolicyCollector) IsAvailable(ctx context.Context) bool {
 
 	return true
 }
+
+// AddResource manually adds a NetworkPolicy resource to be processed by the collector
+func (c *NetworkPolicyCollector) AddResource(resource interface{}) error {
+	networkPolicy, ok := resource.(*networkingv1.NetworkPolicy)
+	if !ok {
+		return fmt.Errorf("expected *networkingv1.NetworkPolicy, got %T", resource)
+	}
+
+	c.handleNetworkPolicyEvent(networkPolicy, EventTypeAdd)
+	return nil
+}

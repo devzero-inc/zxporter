@@ -319,3 +319,14 @@ func (c *JobCollector) GetType() string {
 func (c *JobCollector) IsAvailable(ctx context.Context) bool {
 	return true
 }
+
+// AddResource manually adds a job resource to be processed by the collector
+func (c *JobCollector) AddResource(resource interface{}) error {
+	job, ok := resource.(*batchv1.Job)
+	if !ok {
+		return fmt.Errorf("expected *batchv1.Job, got %T", resource)
+	}
+
+	c.handleJobEvent(job, EventTypeAdd)
+	return nil
+}

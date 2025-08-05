@@ -262,3 +262,14 @@ func (c *EndpointCollector) GetType() string {
 func (c *EndpointCollector) IsAvailable(ctx context.Context) bool {
 	return true
 }
+
+// AddResource manually adds a Endpoints resource to be processed by the collector
+func (c *EndpointCollector) AddResource(resource interface{}) error {
+	endpoints, ok := resource.(*corev1.Endpoints)
+	if !ok {
+		return fmt.Errorf("expected *corev1.Endpoints, got %T", resource)
+	}
+
+	c.handleEndpointsEvent(endpoints, EventTypeAdd)
+	return nil
+}
