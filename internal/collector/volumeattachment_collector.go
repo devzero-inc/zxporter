@@ -173,6 +173,10 @@ func (c *VolumeAttachmentCollector) volumeAttachmentChanged(oldVA, newVA *storag
 		return true
 	}
 
+	if !reflect.DeepEqual(oldVA.UID, newVA.UID) {
+		return true
+	}
+
 	// No significant changes detected
 	return false
 }

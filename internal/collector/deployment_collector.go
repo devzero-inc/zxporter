@@ -4,6 +4,7 @@ package collector
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"sync"
 	"time"
 
@@ -224,6 +225,10 @@ func (c *DeploymentCollector) deploymentChanged(oldDeployment, newDeployment *ap
 			oldCondition.Message != newCondition.Message {
 			return true
 		}
+	}
+
+	if !reflect.DeepEqual(oldDeployment.UID, newDeployment.UID) {
+		return true
 	}
 
 	// No significant changes detected

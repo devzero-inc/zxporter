@@ -4,6 +4,7 @@ package collector
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"sync"
 	"time"
 
@@ -227,6 +228,10 @@ func (c *ServiceCollector) serviceChanged(oldService, newService *corev1.Service
 		if oldIngress.IP != newIngress.IP || oldIngress.Hostname != newIngress.Hostname {
 			return true
 		}
+	}
+
+	if !reflect.DeepEqual(oldService.UID, newService.UID) {
+		return true
 	}
 
 	// No significant changes detected

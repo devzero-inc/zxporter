@@ -202,6 +202,10 @@ func (c *ResourceQuotaCollector) resourceQuotaChanged(oldRQ, newRQ *corev1.Resou
 		return true
 	}
 
+	if !reflect.DeepEqual(oldRQ.UID, newRQ.UID) {
+		return true
+	}
+
 	// No significant changes detected
 	return false
 }

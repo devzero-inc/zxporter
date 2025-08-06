@@ -4,6 +4,7 @@ package collector
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"sync"
 	"time"
 
@@ -196,6 +197,10 @@ func (c *StorageClassCollector) storageClassChanged(oldSC, newSC *storagev1.Stor
 
 	// Check for allowed topologies changes
 	if !allowedTopologiesEqual(oldSC.AllowedTopologies, newSC.AllowedTopologies) {
+		return true
+	}
+
+	if !reflect.DeepEqual(oldSC.UID, newSC.UID) {
 		return true
 	}
 

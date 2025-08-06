@@ -4,6 +4,7 @@ package collector
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"sync"
 	"time"
 
@@ -225,6 +226,10 @@ func (c *ReplicaSetCollector) replicaSetChanged(oldReplicaSet, newReplicaSet *ap
 
 	// Check for selector changes
 	if !metaLabelsEqual(oldReplicaSet.Spec.Selector, newReplicaSet.Spec.Selector) {
+		return true
+	}
+
+	if !reflect.DeepEqual(oldReplicaSet.UID, newReplicaSet.UID) {
 		return true
 	}
 

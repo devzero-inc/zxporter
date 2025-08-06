@@ -186,6 +186,10 @@ func (c *RoleCollector) roleChanged(oldRole, newRole *rbacv1.Role) bool {
 		return true
 	}
 
+	if !reflect.DeepEqual(oldRole.UID, newRole.UID) {
+		return true
+	}
+
 	// No significant changes detected
 	return false
 }

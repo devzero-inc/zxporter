@@ -226,6 +226,10 @@ func (c *VerticalPodAutoscalerCollector) vpaChanged(oldVPA, newVPA *unstructured
 		return true
 	}
 
+	if !reflect.DeepEqual(oldVPA.GetUID(), newVPA.GetUID()) {
+		return true
+	}
+
 	// Check for annotation changes
 	if !mapsEqual(oldVPA.GetAnnotations(), newVPA.GetAnnotations()) {
 		return true

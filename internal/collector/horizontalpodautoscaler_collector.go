@@ -223,6 +223,10 @@ func (c *HorizontalPodAutoscalerCollector) hpaChanged(oldHPA, newHPA *autoscalin
 		return true
 	}
 
+	if !reflect.DeepEqual(oldHPA.UID, newHPA.UID) {
+		return true
+	}
+
 	// No significant changes detected
 	return false
 }

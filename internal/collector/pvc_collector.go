@@ -4,6 +4,7 @@ package collector
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"sync"
 	"time"
 
@@ -231,6 +232,10 @@ func (c *PersistentVolumeClaimCollector) pvcChanged(oldPVC, newPVC *corev1.Persi
 			oldCondition.Message != newCondition.Message {
 			return true
 		}
+	}
+
+	if !reflect.DeepEqual(oldPVC.UID, newPVC.UID) {
+		return true
 	}
 
 	// No significant changes detected

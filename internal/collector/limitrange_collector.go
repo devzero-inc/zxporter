@@ -187,6 +187,10 @@ func (c *LimitRangeCollector) limitRangeChanged(oldLR, newLR *corev1.LimitRange)
 		return true
 	}
 
+	if !reflect.DeepEqual(oldLR.UID, newLR.UID) {
+		return true
+	}
+
 	// No significant changes detected
 	return false
 }

@@ -4,6 +4,7 @@ package collector
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -183,6 +184,10 @@ func (c *IngressClassCollector) ingressClassChanged(oldIngressClass, newIngressC
 			oldIngressClass.Spec.Parameters.Namespace != newIngressClass.Spec.Parameters.Namespace {
 			return true
 		}
+	}
+
+	if !reflect.DeepEqual(oldIngressClass.UID, newIngressClass.UID) {
+		return true
 	}
 
 	// No significant changes detected

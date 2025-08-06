@@ -4,6 +4,7 @@ package collector
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -222,6 +223,10 @@ func (c *CronJobCollector) cronJobChanged(oldCronJob, newCronJob *batchv1.CronJo
 
 	// Check for active jobs changes
 	if len(oldCronJob.Status.Active) != len(newCronJob.Status.Active) {
+		return true
+	}
+
+	if !reflect.DeepEqual(oldCronJob.UID, newCronJob.UID) {
 		return true
 	}
 

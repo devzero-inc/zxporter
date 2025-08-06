@@ -4,6 +4,7 @@ package collector
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"sync"
 	"time"
 
@@ -223,6 +224,10 @@ func (c *PersistentVolumeCollector) pvChanged(oldPV, newPV *corev1.PersistentVol
 
 	// Check for mount options changes
 	if !stringSlicesEqual(oldPV.Spec.MountOptions, newPV.Spec.MountOptions) {
+		return true
+	}
+
+	if !reflect.DeepEqual(oldPV.UID, newPV.UID) {
 		return true
 	}
 

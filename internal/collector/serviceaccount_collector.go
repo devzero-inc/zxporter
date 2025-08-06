@@ -4,6 +4,7 @@ package collector
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"sync"
 	"time"
 
@@ -189,6 +190,10 @@ func (c *ServiceAccountCollector) serviceAccountChanged(oldSA, newSA *corev1.Ser
 
 	// Check for automount service account token changes
 	if !boolPointerEqual(oldSA.AutomountServiceAccountToken, newSA.AutomountServiceAccountToken) {
+		return true
+	}
+
+	if !reflect.DeepEqual(oldSA.UID, newSA.UID) {
 		return true
 	}
 

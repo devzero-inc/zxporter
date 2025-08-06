@@ -211,6 +211,10 @@ func (c *ScaledJobCollector) scaledJobChanged(oldScaledJob, newScaledJob *kedav1
 		return true
 	}
 
+	if !reflect.DeepEqual(oldScaledJob.UID, newScaledJob.UID) {
+		return true
+	}
+
 	// No significant changes detected
 	return false
 }

@@ -4,6 +4,7 @@ package collector
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -219,6 +220,10 @@ func (c *IngressCollector) ingressChanged(oldIngress, newIngress *networkingv1.I
 		if oldLB.IP != newLB.IP || oldLB.Hostname != newLB.Hostname {
 			return true
 		}
+	}
+
+	if !reflect.DeepEqual(oldIngress.UID, newIngress.UID) {
+		return true
 	}
 
 	// No significant changes detected

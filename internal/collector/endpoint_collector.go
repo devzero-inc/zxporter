@@ -187,6 +187,10 @@ func (c *EndpointCollector) endpointsChanged(oldEndpoints, newEndpoints *corev1.
 		return true
 	}
 
+	if !reflect.DeepEqual(oldEndpoints.UID, newEndpoints.UID) {
+		return true
+	}
+
 	// No significant changes detected
 	return false
 }
