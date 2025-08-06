@@ -204,6 +204,10 @@ func (c *CSIStorageCapacityCollector) csiStorageCapacityChanged(oldCSC, newCSC *
 		return true
 	}
 
+	if !reflect.DeepEqual(oldCSC.UID, newCSC.UID) {
+		return true
+	}
+
 	// No significant changes detected
 	return false
 }

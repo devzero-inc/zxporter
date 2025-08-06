@@ -176,6 +176,10 @@ func (c *ClusterRoleBindingCollector) clusterRoleBindingChanged(oldCRB, newCRB *
 		return true
 	}
 
+	if !reflect.DeepEqual(oldCRB.UID, newCRB.UID) {
+		return true
+	}
+
 	// No significant changes detected
 	return false
 }

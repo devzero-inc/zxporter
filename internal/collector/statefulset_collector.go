@@ -4,6 +4,7 @@ package collector
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"sync"
 	"time"
 
@@ -229,6 +230,10 @@ func (c *StatefulSetCollector) statefulSetChanged(oldStatefulSet, newStatefulSet
 				return true
 			}
 		}
+	}
+
+	if !reflect.DeepEqual(oldStatefulSet.UID, newStatefulSet.UID) {
+		return true
 	}
 
 	// No significant changes detected

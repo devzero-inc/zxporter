@@ -4,6 +4,7 @@ package collector
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"sync"
 	"time"
 
@@ -224,6 +225,10 @@ func (c *DaemonSetCollector) daemonSetChanged(oldDaemonSet, newDaemonSet *appsv1
 				return true
 			}
 		}
+	}
+
+	if !reflect.DeepEqual(oldDaemonSet.UID, newDaemonSet.UID) {
+		return true
 	}
 
 	// No significant changes detected

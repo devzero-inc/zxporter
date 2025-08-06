@@ -203,6 +203,10 @@ func (c *NetworkPolicyCollector) networkPolicyChanged(oldNetworkPolicy, newNetwo
 		return true
 	}
 
+	if !reflect.DeepEqual(oldNetworkPolicy.UID, newNetworkPolicy.UID) {
+		return true
+	}
+
 	// No significant changes detected
 	return false
 }

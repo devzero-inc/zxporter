@@ -174,6 +174,10 @@ func (c *ClusterRoleCollector) clusterRoleChanged(oldRole, newRole *rbacv1.Clust
 		return true
 	}
 
+	if !reflect.DeepEqual(oldRole.UID, newRole.UID) {
+		return true
+	}
+
 	// No significant changes detected
 	return false
 }

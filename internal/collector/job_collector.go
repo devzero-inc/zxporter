@@ -4,6 +4,7 @@ package collector
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"sync"
 	"time"
 
@@ -241,6 +242,10 @@ func (c *JobCollector) jobChanged(oldJob, newJob *batchv1.Job) bool {
 
 	// Check for owner reference changes (could indicate adoption by a CronJob)
 	if len(oldJob.OwnerReferences) != len(newJob.OwnerReferences) {
+		return true
+	}
+
+	if !reflect.DeepEqual(oldJob.UID, newJob.UID) {
 		return true
 	}
 

@@ -4,6 +4,7 @@ package collector
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"sync"
 	"time"
 
@@ -204,6 +205,10 @@ func (c *ReplicationControllerCollector) replicationControllerChanged(oldRC, new
 
 	// Check for generation changes
 	if oldRC.Generation != newRC.Generation {
+		return true
+	}
+
+	if !reflect.DeepEqual(oldRC.UID, newRC.UID) {
 		return true
 	}
 

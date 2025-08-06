@@ -4,6 +4,7 @@ package collector
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"sync"
 	"time"
 
@@ -186,6 +187,10 @@ func (c *NamespaceCollector) namespaceChanged(oldNamespace, newNamespace *corev1
 			oldCondition.Message != newCondition.Message {
 			return true
 		}
+	}
+
+	if !reflect.DeepEqual(oldNamespace.UID, newNamespace.UID) {
+		return true
 	}
 
 	// Check for finalizerName changes

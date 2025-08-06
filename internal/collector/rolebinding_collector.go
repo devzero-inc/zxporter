@@ -193,6 +193,10 @@ func (c *RoleBindingCollector) roleBindingChanged(oldRB, newRB *rbacv1.RoleBindi
 		return true
 	}
 
+	if !reflect.DeepEqual(oldRB.UID, newRB.UID) {
+		return true
+	}
+
 	// No significant changes detected
 	return false
 }

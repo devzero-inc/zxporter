@@ -211,6 +211,10 @@ func (c *ScaledObjectCollector) scaledObjectChanged(oldScaledObject, newScaledOb
 		return true
 	}
 
+	if !reflect.DeepEqual(oldScaledObject.UID, newScaledObject.UID) {
+		return true
+	}
+
 	// No significant changes detected
 	return false
 }

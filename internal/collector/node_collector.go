@@ -457,6 +457,10 @@ func (c *NodeCollector) nodeStatusChanged(oldNode, newNode *corev1.Node) bool {
 		return true
 	}
 
+	if !reflect.DeepEqual(oldNode.UID, newNode.UID) {
+		return true
+	}
+
 	// No significant changes detected
 	return false
 }

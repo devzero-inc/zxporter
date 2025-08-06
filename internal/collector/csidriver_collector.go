@@ -168,6 +168,10 @@ func (c *CSIDriverCollector) csiDriverChanged(oldDriver, newDriver *storagev1.CS
 		return true
 	}
 
+	if !reflect.DeepEqual(oldDriver.UID, newDriver.UID) {
+		return true
+	}
+
 	// No significant changes detected
 	return false
 }

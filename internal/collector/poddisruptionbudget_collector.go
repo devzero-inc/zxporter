@@ -199,6 +199,10 @@ func (c *PodDisruptionBudgetCollector) pdbChanged(oldPDB, newPDB *policyv1.PodDi
 		return true
 	}
 
+	if !reflect.DeepEqual(oldPDB.UID, newPDB.UID) {
+		return true
+	}
+
 	// No significant changes detected
 	return false
 }
