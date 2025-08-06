@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	telemetry_logger "github.com/devzero-inc/zxporter/internal/logger"
 	"github.com/go-logr/logr"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiextclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
@@ -16,14 +17,15 @@ import (
 )
 
 type CRDCollector struct {
-	client       apiextclientset.Interface
-	informer     cache.SharedIndexInformer
-	batchChan    chan CollectedResource
-	resourceChan chan []CollectedResource
-	batcher      *ResourcesBatcher
-	stopCh       chan struct{}
-	logger       logr.Logger
-	mu           sync.RWMutex
+	client          apiextclientset.Interface
+	informer        cache.SharedIndexInformer
+	batchChan       chan CollectedResource
+	resourceChan    chan []CollectedResource
+	batcher         *ResourcesBatcher
+	stopCh          chan struct{}
+	logger          logr.Logger
+	telemetryLogger telemetry_logger.Logger
+	mu              sync.RWMutex
 }
 
 func NewCRDCollector(
@@ -31,18 +33,20 @@ func NewCRDCollector(
 	maxBatchSize int,
 	maxBatchTime time.Duration,
 	logger logr.Logger,
+	telemetryLogger telemetry_logger.Logger,
 ) *CRDCollector {
 	batchChan := make(chan CollectedResource, 100)
 	resourceChan := make(chan []CollectedResource, 100)
 	batcher := NewResourcesBatcher(maxBatchSize, maxBatchTime, batchChan, resourceChan, logger)
 
 	return &CRDCollector{
-		client:       client,
-		batchChan:    batchChan,
-		resourceChan: resourceChan,
-		batcher:      batcher,
-		stopCh:       make(chan struct{}),
-		logger:       logger.WithName("crd-collector"),
+		client:          client,
+		batchChan:       batchChan,
+		resourceChan:    resourceChan,
+		batcher:         batcher,
+		stopCh:          make(chan struct{}),
+		logger:          logger.WithName("crd-collector"),
+		telemetryLogger: telemetryLogger,
 	}
 }
 

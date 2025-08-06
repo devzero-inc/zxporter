@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	telemetry_logger "github.com/devzero-inc/zxporter/internal/logger"
 	"github.com/go-logr/logr"
 	kedav1alpha1 "github.com/kedacore/keda/v2/apis/keda/v1alpha1"
 	kedaclient "github.com/kedacore/keda/v2/pkg/generated/clientset/versioned"
@@ -29,6 +30,7 @@ type ScaledJobCollector struct {
 	namespaces         []string
 	excludedScaledJobs map[types.NamespacedName]bool
 	logger             logr.Logger
+	telemetryLogger    telemetry_logger.Logger
 	mu                 sync.RWMutex
 	cDHelper           ChangeDetectionHelper
 }
@@ -47,6 +49,7 @@ func NewScaledJobCollector(
 	maxBatchSize int,
 	maxBatchTime time.Duration,
 	logger logr.Logger,
+	telemetryLogger telemetry_logger.Logger,
 ) *ScaledJobCollector {
 	// Convert excluded ScaledJobs to a map for quicker lookups
 	excludedScaledJobsMap := make(map[types.NamespacedName]bool)
@@ -80,6 +83,7 @@ func NewScaledJobCollector(
 		namespaces:         namespaces,
 		excludedScaledJobs: excludedScaledJobsMap,
 		logger:             newLogger,
+		telemetryLogger:    telemetryLogger,
 		cDHelper:           ChangeDetectionHelper{logger: newLogger},
 	}
 }

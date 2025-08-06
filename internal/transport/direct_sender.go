@@ -60,3 +60,14 @@ func (s *directSenderImpl) SendClusterSnapshotStream(ctx context.Context, snapsh
 	}
 	return clusterID, missingResources, nil
 }
+
+// SendTelemetryLogs forwards a telemetry log request directly using the DakrClient.
+func (s *directSenderImpl) SendTelemetryLogs(ctx context.Context, in *gen.SendTelemetryLogsRequest) (*gen.SendTelemetryLogsResponse, error) {
+	s.logger.V(1).Info("Sending telemetry logs directly", "count", len(in.Logs))
+	resp, err := s.dakrClient.SendTelemetryLogs(ctx, in)
+	if err != nil {
+		s.logger.Error(err, "Failed to send telemetry logs directly")
+		return nil, err
+	}
+	return resp, nil
+}

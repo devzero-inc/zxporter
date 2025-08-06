@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	telemetry_logger "github.com/devzero-inc/zxporter/internal/logger"
 	"github.com/go-logr/logr"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -32,6 +33,7 @@ type KarpenterCollector struct {
 	batcher           *ResourcesBatcher
 	stopCh            chan struct{}
 	logger            logr.Logger
+	telemetryLogger   telemetry_logger.Logger
 	informers         map[string]cache.SharedIndexInformer
 	informerStopChs   map[string]chan struct{}
 	excludedResources map[string]map[string]bool // resourceType -> resourceName -> excluded
@@ -45,6 +47,7 @@ func NewKarpenterCollector(
 	maxBatchSize int,
 	maxBatchTime time.Duration,
 	logger logr.Logger,
+	telemetryLogger telemetry_logger.Logger,
 ) *KarpenterCollector {
 	// Create channels
 	batchChan := make(chan CollectedResource, 100)
@@ -66,6 +69,7 @@ func NewKarpenterCollector(
 		batcher:           batcher,
 		stopCh:            make(chan struct{}),
 		logger:            logger.WithName("karpenter-collector"),
+		telemetryLogger:   telemetryLogger,
 		informers:         make(map[string]cache.SharedIndexInformer),
 		informerStopChs:   make(map[string]chan struct{}),
 		excludedResources: make(map[string]map[string]bool),

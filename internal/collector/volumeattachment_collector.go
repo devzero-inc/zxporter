@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	telemetry_logger "github.com/devzero-inc/zxporter/internal/logger"
 	"github.com/go-logr/logr"
 	storagev1 "k8s.io/api/storage/v1"
 	"k8s.io/client-go/informers"
@@ -25,6 +26,7 @@ type VolumeAttachmentCollector struct {
 	stopCh                    chan struct{}
 	excludedVolumeAttachments map[string]bool
 	logger                    logr.Logger
+	telemetryLogger           telemetry_logger.Logger
 	mu                        sync.RWMutex
 	cDHelper                  ChangeDetectionHelper
 }
@@ -36,6 +38,7 @@ func NewVolumeAttachmentCollector(
 	maxBatchSize int,
 	maxBatchTime time.Duration,
 	logger logr.Logger,
+	telemetryLogger telemetry_logger.Logger,
 ) *VolumeAttachmentCollector {
 	// Convert excluded VolumeAttachments to a map for quicker lookups
 	excludedVolumeAttachmentsMap := make(map[string]bool)
@@ -65,6 +68,7 @@ func NewVolumeAttachmentCollector(
 		stopCh:                    make(chan struct{}),
 		excludedVolumeAttachments: excludedVolumeAttachmentsMap,
 		logger:                    newLogger,
+		telemetryLogger:           telemetryLogger,
 		cDHelper:                  ChangeDetectionHelper{logger: newLogger},
 	}
 }

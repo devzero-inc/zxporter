@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	telemetry_logger "github.com/devzero-inc/zxporter/internal/logger"
 	"github.com/go-logr/logr"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -29,6 +30,7 @@ type ArgoRolloutsCollector struct {
 	namespaces       []string
 	excludedRollouts map[types.NamespacedName]bool
 	logger           logr.Logger
+	telemetryLogger  telemetry_logger.Logger
 	mu               sync.RWMutex
 }
 
@@ -40,6 +42,7 @@ func NewArgoRolloutsCollector(
 	maxBatchSize int,
 	maxBatchTime time.Duration,
 	logger logr.Logger,
+	telemetryLogger telemetry_logger.Logger,
 ) *ArgoRolloutsCollector {
 	// Convert excluded rollouts to a map for quicker lookups
 	excludedRolloutsMap := make(map[types.NamespacedName]bool)
@@ -74,6 +77,7 @@ func NewArgoRolloutsCollector(
 		namespaces:       namespaces,
 		excludedRollouts: excludedRolloutsMap,
 		logger:           logger.WithName("argo-rollouts-collector"),
+		telemetryLogger:  telemetryLogger,
 	}
 }
 

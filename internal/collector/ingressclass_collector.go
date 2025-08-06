@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	telemetry_logger "github.com/devzero-inc/zxporter/internal/logger"
 	"github.com/go-logr/logr"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -28,6 +29,7 @@ type IngressClassCollector struct {
 	stopCh                 chan struct{}
 	excludedIngressClasses map[string]bool
 	logger                 logr.Logger
+	telemetryLogger        telemetry_logger.Logger
 	mu                     sync.RWMutex
 	cDHelper               ChangeDetectionHelper
 }
@@ -39,6 +41,7 @@ func NewIngressClassCollector(
 	maxBatchSize int,
 	maxBatchTime time.Duration,
 	logger logr.Logger,
+	telemetryLogger telemetry_logger.Logger,
 ) *IngressClassCollector {
 	// Convert excluded IngressClasses to a map for quicker lookups
 	excludedIngressClassesMap := make(map[string]bool)
@@ -68,6 +71,7 @@ func NewIngressClassCollector(
 		stopCh:                 make(chan struct{}),
 		excludedIngressClasses: excludedIngressClassesMap,
 		logger:                 newLogger,
+		telemetryLogger:        telemetryLogger,
 		cDHelper:               ChangeDetectionHelper{logger: newLogger},
 	}
 }

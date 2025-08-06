@@ -9,6 +9,8 @@ import (
 	"sync"
 	"time"
 
+	gen "github.com/devzero-inc/zxporter/gen/api/v1"
+	telemetry_logger "github.com/devzero-inc/zxporter/internal/logger"
 	"github.com/go-logr/logr"
 	"k8s.io/client-go/kubernetes"
 )
@@ -51,10 +53,16 @@ type CollectionManager struct {
 	client           kubernetes.Interface
 	config           *CollectionConfig
 	logger           logr.Logger
+	telemetryLogger  telemetry_logger.Logger
 }
 
 // NewCollectionManager creates a new collection manager
-func NewCollectionManager(config *CollectionConfig, client kubernetes.Interface, telemetryMetrics *TelemetryMetrics, logger logr.Logger) *CollectionManager {
+func NewCollectionManager(config *CollectionConfig,
+	client kubernetes.Interface,
+	telemetryMetrics *TelemetryMetrics,
+	logger logr.Logger,
+	telemetryLogger telemetry_logger.Logger,
+) *CollectionManager {
 	if config != nil && config.BufferSize > 0 {
 		bufferSize = config.BufferSize
 	}
@@ -69,6 +77,7 @@ func NewCollectionManager(config *CollectionConfig, client kubernetes.Interface,
 		client:           client,
 		config:           config,
 		logger:           logger,
+		telemetryLogger:  telemetryLogger,
 	}
 }
 
@@ -193,11 +202,41 @@ func (m *CollectionManager) StartAll(ctx context.Context) error {
 			select {
 			case err := <-errCh:
 				if err != nil {
+					m.telemetryLogger.Report(
+						gen.LogLevel_LOG_LEVEL_ERROR,
+						"CollectionManager_StartAll",
+						"Failed to start collector",
+						err,
+						map[string]string{
+							"error_type":     "resource_collectors_start_failed",
+							"collector_type": collectorType,
+						},
+					)
 					m.logger.Info("Failed to start collector", "type", collectorType, "error", err.Error())
 				} else {
+					m.telemetryLogger.Report(
+						gen.LogLevel_LOG_LEVEL_INFO,
+						"CollectionManager_StartAll",
+						"Successfully started collector",
+						err,
+						map[string]string{
+							"error_type":     "resource_collectors_start_succeed",
+							"collector_type": collectorType,
+						},
+					)
 					m.logger.Info("Successfully started collector", "type", collector.GetType())
 				}
 			case <-time.After(10 * time.Second):
+				m.telemetryLogger.Report(
+					gen.LogLevel_LOG_LEVEL_WARN,
+					"CollectionManager_StartAll",
+					"Timed out starting collector",
+					nil,
+					map[string]string{
+						"event_type":     "resource_collectors_start_timed_out",
+						"collector_type": collectorType,
+					},
+				)
 				m.logger.Error(errors.New("timeout"), "Timed out starting collector", "type", collectorType)
 			}
 		}(collectorType, collector)
@@ -210,7 +249,6 @@ func (m *CollectionManager) StartAll(ctx context.Context) error {
 // StartCollector starts a specific collector
 func (m *CollectionManager) StartCollector(ctx context.Context, collectorType string) error {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 
 	collector, exists := m.collectors[collectorType]
 	if !exists {
@@ -220,12 +258,14 @@ func (m *CollectionManager) StartCollector(ctx context.Context, collectorType st
 	if _, ctxExists := m.collectorCtxs[collectorType]; ctxExists {
 		return fmt.Errorf("collector %s is already running", collectorType)
 	}
+	m.mu.Unlock()
 
 	return m.startCollectorInternal(collectorType, collector)
 }
 
 // startCollectorInternal is a helper function to start a collector with appropriate context management
 func (m *CollectionManager) startCollectorInternal(collectorType string, collector ResourceCollector) error {
+	m.mu.Lock()
 	m.logger.Info("Starting collector", "type", collectorType)
 
 	// Create a new context for this collector that can be cancelled individually
@@ -237,10 +277,14 @@ func (m *CollectionManager) startCollectorInternal(collectorType string, collect
 		m.processorWg[collectorType] = &sync.WaitGroup{}
 	}
 
+	m.mu.Unlock() // we can unlock it here to unblock other go routines to progress, without depend on the start method of other collectors
+
 	// Start this collector
-	if err := collector.Start(collectorCtx); err != nil {
+	if err := collector.Start(collectorCtx); err != nil { // this is the blocking call some time.
 		cancel() // Clean up the context
+		m.mu.Lock()
 		delete(m.collectorCtxs, collectorType)
+		m.mu.Unlock()
 		return fmt.Errorf("failed to start collector %s: %w", collectorType, err)
 	}
 
@@ -254,6 +298,8 @@ func (m *CollectionManager) startCollectorInternal(collectorType string, collect
 }
 
 // StopAll stops all registered collectors
+// TODO: FIX THIS, FIX THIS, stop all currently acts like reset button, preparing
+// the same CollectionManager instance to be used again, which doesnt feels good.
 func (m *CollectionManager) StopAll() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()

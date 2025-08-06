@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	telemetry_logger "github.com/devzero-inc/zxporter/internal/logger"
 	"github.com/go-logr/logr"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -28,6 +29,7 @@ type RoleCollector struct {
 	namespaces      []string
 	excludedRoles   map[types.NamespacedName]bool
 	logger          logr.Logger
+	telemetryLogger telemetry_logger.Logger
 	mu              sync.RWMutex
 	cDHelper        ChangeDetectionHelper
 }
@@ -40,6 +42,7 @@ func NewRoleCollector(
 	maxBatchSize int,
 	maxBatchTime time.Duration,
 	logger logr.Logger,
+	telemetryLogger telemetry_logger.Logger,
 ) *RoleCollector {
 	// Convert excluded Roles to a map for quicker lookups
 	excludedRolesMap := make(map[types.NamespacedName]bool)
@@ -65,15 +68,16 @@ func NewRoleCollector(
 
 	newLogger := logger.WithName("role-collector")
 	return &RoleCollector{
-		client:        client,
-		batchChan:     batchChan,
-		resourceChan:  resourceChan,
-		batcher:       batcher,
-		stopCh:        make(chan struct{}),
-		namespaces:    namespaces,
-		excludedRoles: excludedRolesMap,
-		logger:        newLogger,
-		cDHelper:      ChangeDetectionHelper{logger: newLogger}}
+		client:          client,
+		batchChan:       batchChan,
+		resourceChan:    resourceChan,
+		batcher:         batcher,
+		stopCh:          make(chan struct{}),
+		namespaces:      namespaces,
+		excludedRoles:   excludedRolesMap,
+		logger:          newLogger,
+		telemetryLogger: telemetryLogger,
+		cDHelper:        ChangeDetectionHelper{logger: newLogger}}
 }
 
 // Start begins the Role collection process

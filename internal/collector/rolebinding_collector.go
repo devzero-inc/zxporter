@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	telemetry_logger "github.com/devzero-inc/zxporter/internal/logger"
 	"github.com/go-logr/logr"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -28,6 +29,7 @@ type RoleBindingCollector struct {
 	namespaces           []string
 	excludedRoleBindings map[types.NamespacedName]bool
 	logger               logr.Logger
+	telemetryLogger      telemetry_logger.Logger
 	mu                   sync.RWMutex
 	cDHelper             ChangeDetectionHelper
 }
@@ -40,6 +42,7 @@ func NewRoleBindingCollector(
 	maxBatchSize int,
 	maxBatchTime time.Duration,
 	logger logr.Logger,
+	telemetryLogger telemetry_logger.Logger,
 ) *RoleBindingCollector {
 	// Convert excluded RoleBindings to a map for quicker lookups
 	excludedRoleBindingsMap := make(map[types.NamespacedName]bool)
@@ -73,6 +76,7 @@ func NewRoleBindingCollector(
 		namespaces:           namespaces,
 		excludedRoleBindings: excludedRoleBindingsMap,
 		logger:               newLogger,
+		telemetryLogger:      telemetryLogger,
 		cDHelper:             ChangeDetectionHelper{logger: newLogger}}
 }
 

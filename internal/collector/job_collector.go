@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	telemetry_logger "github.com/devzero-inc/zxporter/internal/logger"
 	"github.com/go-logr/logr"
 	batchv1 "k8s.io/api/batch/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -28,6 +29,7 @@ type JobCollector struct {
 	namespaces      []string
 	excludedJobs    map[types.NamespacedName]bool
 	logger          logr.Logger
+	telemetryLogger telemetry_logger.Logger
 	mu              sync.RWMutex
 	cDHelper        ChangeDetectionHelper
 }
@@ -40,6 +42,7 @@ func NewJobCollector(
 	maxBatchSize int,
 	maxBatchTime time.Duration,
 	logger logr.Logger,
+	telemetryLogger telemetry_logger.Logger,
 ) *JobCollector {
 	// Convert excluded jobs to a map for quicker lookups
 	excludedJobsMap := make(map[types.NamespacedName]bool)
@@ -65,15 +68,16 @@ func NewJobCollector(
 
 	newLogger := logger.WithName("job-collector")
 	return &JobCollector{
-		client:       client,
-		batchChan:    batchChan,
-		resourceChan: resourceChan,
-		batcher:      batcher,
-		stopCh:       make(chan struct{}),
-		namespaces:   namespaces,
-		excludedJobs: excludedJobsMap,
-		logger:       newLogger,
-		cDHelper:     ChangeDetectionHelper{logger: newLogger},
+		client:          client,
+		batchChan:       batchChan,
+		resourceChan:    resourceChan,
+		batcher:         batcher,
+		stopCh:          make(chan struct{}),
+		namespaces:      namespaces,
+		excludedJobs:    excludedJobsMap,
+		logger:          newLogger,
+		telemetryLogger: telemetryLogger,
+		cDHelper:        ChangeDetectionHelper{logger: newLogger},
 	}
 }
 

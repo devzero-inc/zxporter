@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	telemetry_logger "github.com/devzero-inc/zxporter/internal/logger"
 	"github.com/go-logr/logr"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -30,6 +31,7 @@ type NetworkPolicyCollector struct {
 	namespaces              []string
 	excludedNetworkPolicies map[types.NamespacedName]bool
 	logger                  logr.Logger
+	telemetryLogger         telemetry_logger.Logger
 	mu                      sync.RWMutex
 	cDHelper                ChangeDetectionHelper
 }
@@ -42,6 +44,7 @@ func NewNetworkPolicyCollector(
 	maxBatchSize int,
 	maxBatchTime time.Duration,
 	logger logr.Logger,
+	telemetryLogger telemetry_logger.Logger,
 ) *NetworkPolicyCollector {
 	// Convert excluded networkpolicies to a map for quicker lookups
 	excludedNetworkPoliciesMap := make(map[types.NamespacedName]bool)
@@ -75,6 +78,7 @@ func NewNetworkPolicyCollector(
 		namespaces:              namespaces,
 		excludedNetworkPolicies: excludedNetworkPoliciesMap,
 		logger:                  newLogger,
+		telemetryLogger:         telemetryLogger,
 		cDHelper:                ChangeDetectionHelper{logger: newLogger}}
 }
 

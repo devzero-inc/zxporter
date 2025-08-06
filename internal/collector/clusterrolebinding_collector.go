@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	telemetry_logger "github.com/devzero-inc/zxporter/internal/logger"
 	"github.com/go-logr/logr"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/client-go/informers"
@@ -26,6 +27,7 @@ type ClusterRoleBindingCollector struct {
 	stopCh                      chan struct{}
 	excludedClusterRoleBindings map[string]bool
 	logger                      logr.Logger
+	telemetryLogger             telemetry_logger.Logger
 	mu                          sync.RWMutex
 	cDHelper                    ChangeDetectionHelper
 }
@@ -37,6 +39,7 @@ func NewClusterRoleBindingCollector(
 	maxBatchSize int,
 	maxBatchTime time.Duration,
 	logger logr.Logger,
+	telemetryLogger telemetry_logger.Logger,
 ) *ClusterRoleBindingCollector {
 	// Convert excluded ClusterRoleBindings to a map for quicker lookups
 	excludedClusterRoleBindingsMap := make(map[string]bool)
@@ -66,6 +69,7 @@ func NewClusterRoleBindingCollector(
 		stopCh:                      make(chan struct{}),
 		excludedClusterRoleBindings: excludedClusterRoleBindingsMap,
 		logger:                      newLogger,
+		telemetryLogger:             telemetryLogger,
 		cDHelper:                    ChangeDetectionHelper{logger: newLogger},
 	}
 }

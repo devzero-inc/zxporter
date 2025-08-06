@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	telemetry_logger "github.com/devzero-inc/zxporter/internal/logger"
 	"github.com/go-logr/logr"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -29,6 +30,7 @@ type DatadogCollector struct {
 	namespaces          []string
 	excludedReplicaSets map[types.NamespacedName]bool
 	logger              logr.Logger
+	telemetryLogger     telemetry_logger.Logger
 	mu                  sync.RWMutex
 }
 
@@ -40,6 +42,7 @@ func NewDatadogCollector(
 	maxBatchSize int,
 	maxBatchTime time.Duration,
 	logger logr.Logger,
+	telemetryLogger telemetry_logger.Logger,
 ) *DatadogCollector {
 	// Convert excluded replica sets to a map for quicker lookups
 	excludedReplicaSetsMap := make(map[types.NamespacedName]bool)
@@ -74,6 +77,7 @@ func NewDatadogCollector(
 		namespaces:          namespaces,
 		excludedReplicaSets: excludedReplicaSetsMap,
 		logger:              logger.WithName("datadog-collector"),
+		telemetryLogger:     telemetryLogger,
 	}
 }
 

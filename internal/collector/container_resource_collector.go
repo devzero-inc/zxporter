@@ -9,6 +9,7 @@ import (
 	"time"
 
 	gpuconst "github.com/NVIDIA/KAI-scheduler/pkg/common/constants"
+	telemetry_logger "github.com/devzero-inc/zxporter/internal/logger"
 	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/api"
 	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
@@ -21,6 +22,8 @@ import (
 	"k8s.io/client-go/tools/cache"
 	metricsv1beta1 "k8s.io/metrics/pkg/apis/metrics/v1beta1"
 	metricsv1 "k8s.io/metrics/pkg/client/clientset/versioned"
+
+	gen "github.com/devzero-inc/zxporter/gen/api/v1"
 )
 
 // ContainerResourceCollectorConfig holds configuration for the resource collector
@@ -61,6 +64,7 @@ type ContainerResourceCollector struct {
 	excludedPods    map[types.NamespacedName]bool
 	logger          logr.Logger
 	metrics         *TelemetryMetrics
+	telemetryLogger telemetry_logger.Logger
 	mu              sync.RWMutex
 }
 
@@ -75,6 +79,7 @@ func NewContainerResourceCollector(
 	maxBatchTime time.Duration, // Added parameter
 	logger logr.Logger,
 	metrics *TelemetryMetrics,
+	telemetryLogger telemetry_logger.Logger,
 ) *ContainerResourceCollector {
 	// Convert excluded pods to a map for quicker lookups
 	excludedPodsMap := make(map[types.NamespacedName]bool)
@@ -114,17 +119,18 @@ func NewContainerResourceCollector(
 	)
 
 	return &ContainerResourceCollector{
-		k8sClient:     k8sClient,
-		metricsClient: metricsClient,
-		batchChan:     batchChan,
-		resourceChan:  resourceChan,
-		batcher:       batcher,
-		stopCh:        make(chan struct{}),
-		config:        config,
-		namespaces:    namespaces,
-		excludedPods:  excludedPodsMap,
-		logger:        logger.WithName("container-resource-collector"),
-		metrics:       metrics,
+		k8sClient:       k8sClient,
+		metricsClient:   metricsClient,
+		batchChan:       batchChan,
+		resourceChan:    resourceChan,
+		batcher:         batcher,
+		stopCh:          make(chan struct{}),
+		config:          config,
+		namespaces:      namespaces,
+		excludedPods:    excludedPodsMap,
+		logger:          logger.WithName("container-resource-collector"),
+		metrics:         metrics,
+		telemetryLogger: telemetryLogger,
 	}
 }
 
@@ -154,6 +160,14 @@ func (c *ContainerResourceCollector) Start(ctx context.Context) error {
 			Client:  httpClient,
 		})
 		if err != nil {
+			c.telemetryLogger.Report(
+				gen.LogLevel_LOG_LEVEL_ERROR,
+				"ContainerResourceCollector",
+				"Failed to create Prometheus client",
+				err,
+				map[string]string{"prometheus_url": c.config.PrometheusURL},
+			)
+
 			c.logger.Error(err, "Failed to create Prometheus client, network/IO and GPU metrics will be disabled")
 		} else {
 			c.prometheusAPI = v1.NewAPI(client)
@@ -245,8 +259,36 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 	}
 
 	if err != nil {
+		if c.telemetryLogger != nil {
+			c.telemetryLogger.Report(
+				gen.LogLevel_LOG_LEVEL_ERROR,
+				"ContainerResourceCollector",
+				"Failed to get pod metrics from metrics server",
+				err,
+				map[string]string{
+					"namespaces": fmt.Sprintf("%v", c.namespaces),
+					"error_type": "metrics_server_query_failed",
+				},
+			)
+		}
 		c.logger.Error(err, "Failed to get pod metrics from metrics server")
 		return
+	}
+
+	c.logger.Info("Successfully fetched pod metrics from metrics server", "pod_count", len(podMetricsList.Items))
+
+	if c.telemetryLogger != nil {
+		c.telemetryLogger.Report(
+			gen.LogLevel_LOG_LEVEL_INFO,
+			"ContainerResourceCollector",
+			"Successfully fetched pod metrics from metrics server",
+			nil,
+			map[string]string{
+				"pod_count":  fmt.Sprintf("%d", len(podMetricsList.Items)),
+				"namespaces": fmt.Sprintf("%v", c.namespaces),
+				"event_type": "metrics_server_query_success",
+			},
+		)
 	}
 
 	// Process each pod's metrics
@@ -278,6 +320,20 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 		if !c.config.DisableNetworkIOMetrics && c.prometheusAPI != nil && queryCtx != nil {
 			networkMetrics, err = c.collectPodNetworkMetrics(queryCtx, pod)
 			if err != nil {
+				if c.telemetryLogger != nil {
+					c.telemetryLogger.Report(
+						gen.LogLevel_LOG_LEVEL_WARN,
+						"ContainerResourceCollector",
+						"Failed to collect network metrics from Prometheus",
+						err,
+						map[string]string{
+							"namespace":      podMetrics.Namespace,
+							"pod":            podMetrics.Name,
+							"error_type":     "prometheus_network_query_failed",
+							"prometheus_url": c.config.PrometheusURL,
+						},
+					)
+				}
 				c.logger.Error(err, "Failed to collect network metrics",
 					"namespace", podMetrics.Namespace,
 					"name", podMetrics.Name)
@@ -297,6 +353,21 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 				if !c.config.DisableNetworkIOMetrics {
 					ioMetrics, err = c.collectContainerIOMetrics(queryCtx, pod, containerMetrics.Name)
 					if err != nil {
+						if c.telemetryLogger != nil {
+							c.telemetryLogger.Report(
+								gen.LogLevel_LOG_LEVEL_WARN,
+								"ContainerResourceCollector",
+								"Failed to collect I/O metrics from Prometheus",
+								err,
+								map[string]string{
+									"namespace":      podMetrics.Namespace,
+									"pod":            podMetrics.Name,
+									"container":      containerMetrics.Name,
+									"error_type":     "prometheus_io_query_failed",
+									"prometheus_url": c.config.PrometheusURL,
+								},
+							)
+						}
 						c.logger.Error(err, "Failed to collect I/O metrics",
 							"namespace", podMetrics.Namespace,
 							"pod", podMetrics.Name,
@@ -849,6 +920,15 @@ func (c *ContainerResourceCollector) IsAvailable(ctx context.Context) bool {
 	// First verify the metrics client is initialized
 	if c.metricsClient == nil {
 		c.logger.Info("Metrics client is not available, cannot collect container resources")
+		c.telemetryLogger.Report(
+			gen.LogLevel_LOG_LEVEL_ERROR,
+			"ContainerResourceCollector",
+			"Metrics client is not available or set properly, cannot collect container resources",
+			fmt.Errorf("metrics server client is not available or set"),
+			map[string]string{
+				"collector_type": c.GetType(),
+			},
+		)
 		return false
 	}
 
@@ -859,6 +939,15 @@ func (c *ContainerResourceCollector) IsAvailable(ctx context.Context) bool {
 
 	if err != nil {
 		c.logger.Info("Metrics server API not available", "error", err.Error())
+		c.telemetryLogger.Report(
+			gen.LogLevel_LOG_LEVEL_ERROR,
+			"ContainerResourceCollector",
+			"Metrics server API not available",
+			err,
+			map[string]string{
+				"collector_type": c.GetType(),
+			},
+		)
 		return false
 	}
 
@@ -866,6 +955,15 @@ func (c *ContainerResourceCollector) IsAvailable(ctx context.Context) bool {
 	if !c.config.DisableNetworkIOMetrics && !c.config.DisableGPUMetrics {
 		if c.prometheusAPI == nil {
 			c.logger.Info("Prometheus client is not available for network/IO or GPU metrics")
+			c.telemetryLogger.Report(
+				gen.LogLevel_LOG_LEVEL_ERROR,
+				"ContainerResourceCollector",
+				"Prometheus client is not available for network/IO or GPU metrics",
+				fmt.Errorf("prometehus client not available or set properly"),
+				map[string]string{
+					"collector_type": c.GetType(),
+				},
+			)
 			// Still return true since the main metrics are available
 			return true
 		}
@@ -876,6 +974,15 @@ func (c *ContainerResourceCollector) IsAvailable(ctx context.Context) bool {
 
 		_, _, err = c.prometheusAPI.Query(queryCtx, "up", time.Now())
 		if err != nil {
+			c.telemetryLogger.Report(
+				gen.LogLevel_LOG_LEVEL_ERROR,
+				"ContainerResourceCollector",
+				"Prometheus API not available for network and I/O metrics",
+				err,
+				map[string]string{
+					"collector_type": c.GetType(),
+				},
+			)
 			c.logger.Info("Prometheus API not available for network and I/O metrics", "error", err.Error())
 			// Still return true since the main metrics are available
 		}

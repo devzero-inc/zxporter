@@ -14,6 +14,7 @@ import (
 	metricsv1 "k8s.io/metrics/pkg/client/clientset/versioned"
 
 	"github.com/devzero-inc/zxporter/internal/collector/provider"
+	telemetry_logger "github.com/devzero-inc/zxporter/internal/logger"
 	"github.com/devzero-inc/zxporter/internal/version"
 )
 
@@ -23,15 +24,16 @@ const (
 
 // ClusterCollector collects comprehensive cluster information
 type ClusterCollector struct {
-	k8sClient      kubernetes.Interface
-	metricsClient  metricsv1.Interface
-	provider       provider.Provider
-	resourceChan   chan []CollectedResource
-	stopCh         chan struct{}
-	ticker         *time.Ticker
-	updateInterval time.Duration
-	logger         logr.Logger
-	mu             sync.RWMutex
+	k8sClient       kubernetes.Interface
+	metricsClient   metricsv1.Interface
+	provider        provider.Provider
+	resourceChan    chan []CollectedResource
+	stopCh          chan struct{}
+	ticker          *time.Ticker
+	updateInterval  time.Duration
+	logger          logr.Logger
+	telemetryLogger telemetry_logger.Logger
+	mu              sync.RWMutex
 }
 
 // NewClusterCollector creates a new collector for cluster data
@@ -41,6 +43,7 @@ func NewClusterCollector(
 	provider provider.Provider,
 	updateInterval time.Duration,
 	logger logr.Logger,
+	telemetryLogger telemetry_logger.Logger,
 ) *ClusterCollector {
 	// Default to 30 minute update interval if not specified
 	if updateInterval <= 0 {
@@ -48,13 +51,14 @@ func NewClusterCollector(
 	}
 
 	return &ClusterCollector{
-		k8sClient:      k8sClient,
-		metricsClient:  metricsClient,
-		provider:       provider,
-		resourceChan:   make(chan []CollectedResource, 10),
-		stopCh:         make(chan struct{}),
-		updateInterval: updateInterval,
-		logger:         logger.WithName("cluster-collector"),
+		k8sClient:       k8sClient,
+		metricsClient:   metricsClient,
+		provider:        provider,
+		resourceChan:    make(chan []CollectedResource, 10),
+		stopCh:          make(chan struct{}),
+		updateInterval:  updateInterval,
+		logger:          logger.WithName("cluster-collector"),
+		telemetryLogger: telemetryLogger,
 	}
 }
 

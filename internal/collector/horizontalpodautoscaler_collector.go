@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	telemetry_logger "github.com/devzero-inc/zxporter/internal/logger"
 	"github.com/go-logr/logr"
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -30,6 +31,7 @@ type HorizontalPodAutoscalerCollector struct {
 	namespaces                      []string
 	excludedHPAs                    map[types.NamespacedName]bool
 	logger                          logr.Logger
+	telemetryLogger                 telemetry_logger.Logger
 	mu                              sync.RWMutex
 	cDHelper                        ChangeDetectionHelper
 }
@@ -42,6 +44,7 @@ func NewHorizontalPodAutoscalerCollector(
 	maxBatchSize int,
 	maxBatchTime time.Duration,
 	logger logr.Logger,
+	telemetryLogger telemetry_logger.Logger,
 ) *HorizontalPodAutoscalerCollector {
 	// Convert excluded HPAs to a map for quicker lookups
 	excludedHPAsMap := make(map[types.NamespacedName]bool)
@@ -67,15 +70,16 @@ func NewHorizontalPodAutoscalerCollector(
 
 	newLogger := logger.WithName("hpa-collector")
 	return &HorizontalPodAutoscalerCollector{
-		client:       client,
-		batchChan:    batchChan,
-		resourceChan: resourceChan,
-		batcher:      batcher,
-		stopCh:       make(chan struct{}),
-		namespaces:   namespaces,
-		excludedHPAs: excludedHPAsMap,
-		logger:       newLogger,
-		cDHelper:     ChangeDetectionHelper{logger: newLogger},
+		client:          client,
+		batchChan:       batchChan,
+		resourceChan:    resourceChan,
+		batcher:         batcher,
+		stopCh:          make(chan struct{}),
+		namespaces:      namespaces,
+		excludedHPAs:    excludedHPAsMap,
+		logger:          newLogger,
+		telemetryLogger: telemetryLogger,
+		cDHelper:        ChangeDetectionHelper{logger: newLogger},
 	}
 }
 

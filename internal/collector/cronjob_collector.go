@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	telemetry_logger "github.com/devzero-inc/zxporter/internal/logger"
 	"github.com/go-logr/logr"
 	batchv1 "k8s.io/api/batch/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -30,6 +31,7 @@ type CronJobCollector struct {
 	namespaces       []string
 	excludedCronJobs map[types.NamespacedName]bool
 	logger           logr.Logger
+	telemetryLogger  telemetry_logger.Logger
 	mu               sync.RWMutex
 	cDHelper         ChangeDetectionHelper
 }
@@ -42,6 +44,7 @@ func NewCronJobCollector(
 	maxBatchSize int,
 	maxBatchTime time.Duration,
 	logger logr.Logger,
+	telemetryLogger telemetry_logger.Logger,
 ) *CronJobCollector {
 	// Convert excluded cronjobs to a map for quicker lookups
 	excludedCronJobsMap := make(map[types.NamespacedName]bool)
@@ -75,6 +78,7 @@ func NewCronJobCollector(
 		namespaces:       namespaces,
 		excludedCronJobs: excludedCronJobsMap,
 		logger:           newLogger,
+		telemetryLogger:  telemetryLogger,
 		cDHelper:         ChangeDetectionHelper{logger: newLogger},
 	}
 }

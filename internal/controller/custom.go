@@ -23,6 +23,7 @@ import (
 
 	"github.com/go-logr/logr"
 	kedaclient "github.com/kedacore/keda/v2/pkg/generated/clientset/versioned"
+	"go.uber.org/zap"
 	apiextensionsclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/discovery"
@@ -32,6 +33,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/devzero-inc/zxporter/internal/collector"
+	telemetry_logger "github.com/devzero-inc/zxporter/internal/logger"
+	"github.com/devzero-inc/zxporter/internal/transport"
 	"github.com/devzero-inc/zxporter/internal/util"
 )
 
@@ -53,6 +56,10 @@ type EnvBasedController struct {
 func NewEnvBasedController(mgr ctrl.Manager, reconcileInterval time.Duration) (*EnvBasedController, error) {
 	// Set up basic components
 	logger := util.NewLogger("env-controller")
+	zapLogger, err := zap.NewProduction()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create zap logger: %w", err)
+	}
 
 	// Create a Kubernetes clientset
 	config := mgr.GetConfig()
@@ -84,7 +91,6 @@ func NewEnvBasedController(mgr ctrl.Manager, reconcileInterval time.Duration) (*
 	// Create a shared Telemetry metrics instance
 	sharedTelemetryMetrics := collector.NewTelemetryMetrics()
 
-	// Create the reconciler
 	reconciler := &CollectionPolicyReconciler{
 		Client:            mgr.GetClient(),
 		Scheme:            mgr.GetScheme(),
@@ -97,6 +103,7 @@ func NewEnvBasedController(mgr ctrl.Manager, reconcileInterval time.Duration) (*
 		TelemetryMetrics:  sharedTelemetryMetrics,
 		IsRunning:         false,
 		RestartInProgress: false,
+		ZapLogger:         zapLogger,
 	}
 
 	logger.Info("Checking 1st reconcile interval", "reconcile", reconcileInterval)
@@ -125,6 +132,12 @@ func NewEnvBasedController(mgr ctrl.Manager, reconcileInterval time.Duration) (*
 // Start implements the Runnable interface for manager.Add
 func (c *EnvBasedController) Start(ctx context.Context) error {
 	c.Log.Info("Starting environment-based controller", "reconcileInterval", c.reconcileInterval)
+
+	// Initialize Dakr sender and telemetry logger with context
+	if err := c.initializeTelemetryComponents(ctx); err != nil {
+		c.Log.Error(err, "Failed to initialize telemetry components")
+		return fmt.Errorf("failed to initialize telemetry components: %w", err)
+	}
 
 	// Run the first reconciliation immediately
 	if err := c.doReconcile(ctx); err != nil {
@@ -166,6 +179,51 @@ func (c *EnvBasedController) runPeriodicReconciliation(ctx context.Context) {
 			return
 		}
 	}
+}
+
+// initializeTelemetryComponents initializes the Dakr sender and telemetry logger
+func (c *EnvBasedController) initializeTelemetryComponents(ctx context.Context) error {
+	// Load environment configuration to get Dakr URL and cluster token
+	envSpec, err := util.LoadCollectionPolicySpecFromEnv()
+	if err != nil {
+		c.Log.Error(err, "Failed to load environment configuration for Dakr client setup")
+		// Continue with default values
+	}
+
+	// Create dakr client and sender
+	var dakrClient transport.DakrClient
+	if envSpec.Policies.DakrURL != "" {
+		dakrClient = transport.NewDakrClient(envSpec.Policies.DakrURL, envSpec.Policies.ClusterToken, c.Log)
+		c.Log.Info("Created Dakr client with configured URL", "url", envSpec.Policies.DakrURL)
+	} else {
+		dakrClient = transport.NewSimpleDakrClient(c.Log)
+		c.Log.Info("Created simple (logging) Dakr client because no URL was configured")
+	}
+
+	sender := transport.NewDirectSender(dakrClient, c.Log)
+
+	// Initialize telemetry logger
+	telemetryConfig := telemetry_logger.Config{
+		BatchSize:     20,
+		FlushInterval: 10 * time.Second,
+		SendTimeout:   5 * time.Second,
+		QueueSize:     100,
+	}
+
+	telemetryLogger := telemetry_logger.NewLogger(
+		ctx,
+		sender,
+		telemetryConfig,
+		c.Reconciler.ZapLogger,
+		c.Log,
+	)
+
+	c.Reconciler.DakrClient = dakrClient
+	c.Reconciler.Sender = sender
+	c.Reconciler.TelemetryLogger = telemetryLogger
+
+	c.Log.Info("Successfully initialized telemetry components")
+	return nil
 }
 
 // doReconcile performs a single reconciliation
