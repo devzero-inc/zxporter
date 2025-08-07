@@ -228,7 +228,6 @@ type PolicyConfig struct {
 // move the current state of the cluster closer to the desired state.
 func (r *CollectionPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
-	logger.Info("Reconciling CollectionPolicy", "request", req)
 
 	// Check if TelemetryLogger is nil
 	if r.TelemetryLogger == nil {
@@ -306,7 +305,9 @@ func (r *CollectionPolicyReconciler) createNewConfig(envSpec *monitoringv1.Colle
 		newConfig.NumResourceProcessors = 16
 	}
 
-	logger.Info("Disabled collectors", "name", newConfig.DisabledCollectors)
+	if len(newConfig.DisabledCollectors) > 0 {
+		logger.Info("Disabled collectors", "name", newConfig.DisabledCollectors)
+	}
 
 	// Parse and set frequency
 	frequencyStr := envSpec.Policies.Frequency

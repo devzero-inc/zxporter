@@ -134,15 +134,20 @@ func NewEnvBasedController(mgr ctrl.Manager, reconcileInterval time.Duration) (*
 func (c *EnvBasedController) Start(ctx context.Context) error {
 	// Log version information at startup
 	versionInfo := version.Get()
-	c.Log.Info("Starting zxporter operator",
-		"version", versionInfo.String(),
-		"gitCommit", versionInfo.GitCommit,
-		"gitTreeState", versionInfo.GitTreeState,
-		"buildDate", versionInfo.BuildDate,
-		"goVersion", versionInfo.GoVersion,
-		"compiler", versionInfo.Compiler,
-		"platform", versionInfo.Platform,
-		"reconcileInterval", c.reconcileInterval,
+
+	c.Log.Info(
+		"\n" +
+			"\n" +
+			"====================== ZXPORTER OPERATOR STARTING ======================\n" +
+			fmt.Sprintf(" %-20s : %s\n", "Version", versionInfo.String()) +
+			fmt.Sprintf(" %-20s : %s\n", "Git Commit", versionInfo.GitCommit) +
+			fmt.Sprintf(" %-20s : %s\n", "Git Tree State", versionInfo.GitTreeState) +
+			fmt.Sprintf(" %-20s : %s\n", "Build Date", versionInfo.BuildDate) +
+			fmt.Sprintf(" %-20s : %s\n", "Go Version", versionInfo.GoVersion) +
+			fmt.Sprintf(" %-20s : %s\n", "Compiler", versionInfo.Compiler) +
+			fmt.Sprintf(" %-20s : %s\n", "Platform", versionInfo.Platform) +
+			fmt.Sprintf(" %-20s : %s\n", "Reconcile Interval", c.reconcileInterval.String()) +
+			"=======================================================================\n",
 	)
 
 	// Initialize Dakr sender and telemetry logger with context

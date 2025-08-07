@@ -502,8 +502,6 @@ func (c *NodeCollector) collectNodeResourcesLoop(ctx context.Context) {
 
 // collectAllNodeResources collects resource metrics for all nodes
 func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
-	c.logger.Info("Collecting node resource metrics")
-
 	// Skip if metrics client is unavailable
 	if c.metricsClient == nil {
 		c.logger.Info("Metrics client not available, skipping node metrics collection")
