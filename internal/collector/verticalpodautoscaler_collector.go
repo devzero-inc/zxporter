@@ -169,11 +169,6 @@ func (c *VerticalPodAutoscalerCollector) handleVPAEvent(vpa *unstructured.Unstru
 	namespace := vpa.GetNamespace()
 	name := vpa.GetName()
 
-	c.logger.Info("Processing VerticalPodAutoscaler event",
-		"namespace", namespace,
-		"name", name,
-		"eventType", eventType.String())
-
 	// Send the raw VPA object to the batch channel
 	c.batchChan <- CollectedResource{
 		ResourceType: VerticalPodAutoscaler,

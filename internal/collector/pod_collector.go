@@ -170,11 +170,6 @@ func (c *PodCollector) handlePodEvent(pod *corev1.Pod, eventType EventType) {
 		return
 	}
 
-	c.logger.Info("Processing pod event",
-		"namespace", pod.Namespace,
-		"name", pod.Name,
-		"eventType", eventType.String())
-
 	// Send the raw pod object to the batch channel
 	c.batchChan <- CollectedResource{
 		ResourceType: Pod,

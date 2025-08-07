@@ -161,11 +161,6 @@ func (c *HorizontalPodAutoscalerCollector) handleHPAEvent(hpa *autoscalingv2.Hor
 		return
 	}
 
-	c.logger.Info("Processing HorizontalPodAutoscaler event",
-		"namespace", hpa.Namespace,
-		"name", hpa.Name,
-		"eventType", eventType.String())
-
 	// Send the raw HPA object to the batch channel
 	c.batchChan <- CollectedResource{
 		ResourceType: HorizontalPodAutoscaler,

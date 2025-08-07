@@ -158,11 +158,6 @@ func (c *ReplicationControllerCollector) handleReplicationControllerEvent(rc *co
 		return
 	}
 
-	c.logger.Info("Processing replicationcontroller event",
-		"namespace", rc.Namespace,
-		"name", rc.Name,
-		"eventType", eventType.String())
-
 	// Send the raw replicationcontroller object to the batch channel
 	c.batchChan <- CollectedResource{
 		ResourceType: ReplicationController,

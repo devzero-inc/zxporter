@@ -103,8 +103,6 @@ func (c *CRDCollector) Start(ctx context.Context) error {
 }
 
 func (c *CRDCollector) handleCRDEvent(crd *apiextv1.CustomResourceDefinition, eventType EventType) {
-	c.logger.Info("Processing CRD event", "name", crd.Name, "eventType", eventType.String())
-
 	c.batchChan <- CollectedResource{
 		ResourceType: CustomResourceDefinition,
 		Object:       getCleanCRDJSON(crd, c.logger),

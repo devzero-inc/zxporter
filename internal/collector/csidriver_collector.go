@@ -141,10 +141,6 @@ func (c *CSIDriverCollector) handleCSIDriverEvent(driver *storagev1.CSIDriver, e
 		return
 	}
 
-	c.logger.Info("Processing CSIDriver event",
-		"name", driver.Name,
-		"eventType", eventType.String())
-
 	// Send the raw CSIDriver object to the batch channel
 	c.batchChan <- CollectedResource{
 		ResourceType: CSIDriver,

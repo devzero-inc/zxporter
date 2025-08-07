@@ -142,10 +142,6 @@ func (c *ClusterRoleBindingCollector) handleClusterRoleBindingEvent(crb *rbacv1.
 		return
 	}
 
-	c.logger.Info("Processing ClusterRoleBinding event",
-		"name", crb.Name,
-		"eventType", eventType.String())
-
 	// Send the raw ClusterRoleBinding object to the batch channel
 	c.batchChan <- CollectedResource{
 		ResourceType: ClusterRoleBinding,

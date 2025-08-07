@@ -135,10 +135,6 @@ func (c *CSINodeCollector) handleCSINodeEvent(csiNode *storagev1.CSINode, eventT
 		return
 	}
 
-	c.logger.Info("Processing CSINode event",
-		"name", csiNode.Name,
-		"eventType", eventType.String())
-
 	// Convert the drivers to a more digestible format
 	drivers := make([]map[string]interface{}, 0, len(csiNode.Spec.Drivers))
 	for _, driver := range csiNode.Spec.Drivers {

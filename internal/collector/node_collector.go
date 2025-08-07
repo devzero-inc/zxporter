@@ -421,10 +421,6 @@ func (c *NodeCollector) handleNodeEvent(node *corev1.Node, eventType EventType) 
 		return
 	}
 
-	c.logger.Info("Processing node event",
-		"name", node.Name,
-		"eventType", eventType.String())
-
 	// Send node events directly to resourceChan as a single-item batch
 	c.resourceChan <- []CollectedResource{
 		{
@@ -542,8 +538,6 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 		c.logger.Error(err, "Failed to get node metrics from metrics server")
 		return
 	}
-
-	c.logger.Info("Successfully fetched node metrics from metrics server", "node_count", len(nodeMetricsList.Items))
 
 	if c.telemetryLogger != nil {
 		c.telemetryLogger.Report(
@@ -675,13 +669,6 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 					// Continue with basic metrics
 					networkMetrics = make(map[string]float64)
 				}
-
-				c.logger.Info("Successfully collected network and IO metrics for node",
-					"node", node.Name,
-					"count", len(networkMetrics))
-				c.logger.V(c.logger.GetV()+2).Info("Network and IO metrics collected for node",
-					"node", node.Name,
-					"resourceData", gpuMetrics)
 			}
 
 			// Fetch GPU metrics for the node if enabled
@@ -709,12 +696,6 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 					// Continue with other metrics
 					gpuMetrics = make(map[string]interface{})
 				}
-				c.logger.Info("Successfully collected GPU metrics for node",
-					"node", node.Name,
-					"count", len(gpuMetrics))
-				c.logger.V(c.logger.GetV()+2).Info("GPU metrics collected for node",
-					"node", node.Name,
-					"resourceData", gpuMetrics)
 			}
 
 		}

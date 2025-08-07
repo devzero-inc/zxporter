@@ -158,11 +158,6 @@ func (c *PodDisruptionBudgetCollector) handlePDBEvent(pdb *policyv1.PodDisruptio
 		return
 	}
 
-	c.logger.Info("Processing PodDisruptionBudget event",
-		"namespace", pdb.Namespace,
-		"name", pdb.Name,
-		"eventType", eventType.String())
-
 	// Send the raw PDB object to the batch channel
 	c.batchChan <- CollectedResource{
 		ResourceType: PodDisruptionBudget,

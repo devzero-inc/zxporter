@@ -109,8 +109,6 @@ func (c *ClusterCollector) collectClusterData(ctx context.Context) error {
 		}
 	}()
 
-	c.logger.Info("Collecting cluster data")
-
 	providerData, err := c.provider.GetClusterMetadata(ctx)
 	if err != nil {
 		c.logger.Error(err, "Failed to get provider-specific cluster metadata")
@@ -149,12 +147,6 @@ func (c *ClusterCollector) collectClusterData(ctx context.Context) error {
 		EventType:    EventTypeMetadata,
 		Key:          fmt.Sprintf("%s", providerData["cluster_name"]),
 	}}
-
-	c.logger.Info("Cluster data collected successfully",
-		"cluster", providerData["cluster_name"],
-		"provider", providerData["provider"],
-		"region", providerData["region"],
-		"all_data", clusterData)
 
 	return nil
 }

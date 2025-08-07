@@ -160,11 +160,6 @@ func (c *NetworkPolicyCollector) handleNetworkPolicyEvent(networkPolicy *network
 		return
 	}
 
-	c.logger.Info("Processing networkpolicy event",
-		"namespace", networkPolicy.Namespace,
-		"name", networkPolicy.Name,
-		"eventType", eventType.String())
-
 	// Send the raw networkpolicy object to the batch channel
 	c.batchChan <- CollectedResource{
 		ResourceType: NetworkPolicy,

@@ -161,11 +161,6 @@ func (c *IngressCollector) handleIngressEvent(ingress *networkingv1.Ingress, eve
 		return
 	}
 
-	c.logger.Info("Processing ingress event",
-		"namespace", ingress.Namespace,
-		"name", ingress.Name,
-		"eventType", eventType.String())
-
 	// Send the raw ingress object to the batch channel
 	c.batchChan <- CollectedResource{
 		ResourceType: Ingress,

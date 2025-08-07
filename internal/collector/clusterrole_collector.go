@@ -142,10 +142,6 @@ func (c *ClusterRoleCollector) handleClusterRoleEvent(role *rbacv1.ClusterRole, 
 		return
 	}
 
-	c.logger.Info("Processing ClusterRole event",
-		"name", role.Name,
-		"eventType", eventType.String())
-
 	// Send the raw ClusterRole object to the batch channel
 	c.batchChan <- CollectedResource{
 		ResourceType: ClusterRole,

@@ -142,10 +142,6 @@ func (c *NamespaceCollector) handleNamespaceEvent(namespace *corev1.Namespace, e
 		return
 	}
 
-	c.logger.Info("Processing namespace event",
-		"name", namespace.Name,
-		"eventType", eventType.String())
-
 	// Send the raw namespace object to the batch channel
 	c.batchChan <- CollectedResource{
 		ResourceType: Namespace,

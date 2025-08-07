@@ -158,11 +158,6 @@ func (c *ResourceQuotaCollector) handleResourceQuotaEvent(rq *corev1.ResourceQuo
 		return
 	}
 
-	c.logger.Info("Processing resourcequota event",
-		"namespace", rq.Namespace,
-		"name", rq.Name,
-		"eventType", eventType.String())
-
 	// Send the raw resourcequota object to the batch channel
 	c.batchChan <- CollectedResource{
 		ResourceType: ResourceQuota,

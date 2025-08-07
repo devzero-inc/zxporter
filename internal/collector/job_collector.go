@@ -159,11 +159,6 @@ func (c *JobCollector) handleJobEvent(job *batchv1.Job, eventType EventType) {
 		return
 	}
 
-	c.logger.Info("Processing job event",
-		"namespace", job.Namespace,
-		"name", job.Name,
-		"eventType", eventType.String())
-
 	// Send the raw job object to the batch channel
 	c.batchChan <- CollectedResource{
 		ResourceType: Job,

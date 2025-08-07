@@ -159,11 +159,6 @@ func (c *EndpointCollector) handleEndpointsEvent(endpoints *corev1.Endpoints, ev
 		return
 	}
 
-	c.logger.Info("Processing endpoints event",
-		"namespace", endpoints.Namespace,
-		"name", endpoints.Name,
-		"eventType", eventType.String())
-
 	// Send the raw endpoints object to the batch channel
 	c.batchChan <- CollectedResource{
 		ResourceType: Endpoints,

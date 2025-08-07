@@ -308,7 +308,6 @@ func (c *KarpenterCollector) handleKarpenterResourceEvent(
 ) {
 	name := obj.GetName()
 	namespace := obj.GetNamespace()
-	kind := obj.GetKind()
 
 	// Check if this resource should be excluded
 	if c.isExcluded(resource.Resource, namespace, name) {
@@ -322,13 +321,6 @@ func (c *KarpenterCollector) handleKarpenterResourceEvent(
 	} else {
 		key = fmt.Sprintf("%s/%s", resource.Resource, name)
 	}
-
-	c.logger.Info("Processing Karpenter resource event",
-		"kind", kind,
-		"apiVersion", obj.GetAPIVersion(),
-		"name", name,
-		"namespace", namespace,
-		"eventType", eventType.String())
 
 	// Process resource based on its kind
 	var processedObj map[string]interface{}
@@ -350,17 +342,6 @@ func (c *KarpenterCollector) handleKarpenterResourceEvent(
 		// Generic processing for unknown types
 		processedObj = c.processGenericResource(obj)
 	}
-
-	// Add more detailed logging before sending to batch channel
-	c.logger.Info("Karpenter resource details",
-		"resourceType", Karpenter,
-		"key", key,
-		"eventType", eventType.String(),
-		"kind", kind,
-		"name", name,
-		"namespace", namespace,
-		"apiVersion", obj.GetAPIVersion(),
-		"processedFields", processedObj)
 
 	// Send the Karpenter resource to the batch channel
 	c.batchChan <- CollectedResource{

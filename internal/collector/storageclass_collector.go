@@ -142,11 +142,6 @@ func (c *StorageClassCollector) handleStorageClassEvent(sc *storagev1.StorageCla
 		return
 	}
 
-	c.logger.Info("Processing StorageClass event",
-		"name", sc.Name,
-		"eventType", eventType.String(),
-		"provisioner", sc.Provisioner)
-
 	// Send the raw StorageClass object to the batch channel
 	c.batchChan <- CollectedResource{
 		ResourceType: StorageClass,

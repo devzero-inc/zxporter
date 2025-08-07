@@ -147,11 +147,6 @@ func NewDakrClient(dakrBaseURL string, clusterToken string, logger logr.Logger) 
 
 // SendResource sends the resource to Dakr through gRPC
 func (c *RealDakrClient) SendResource(ctx context.Context, resource collector.CollectedResource) (string, error) {
-	c.logger.Info("Sending resource to Dakr",
-		"type", resource.ResourceType,
-		"key", resource.Key,
-		"event", resource.EventType)
-
 	// Convert resource.Object to a protobuf struct
 	var dataStruct *structpb.Struct
 	var err error
@@ -205,10 +200,6 @@ func (c *RealDakrClient) SendResource(ctx context.Context, resource collector.Co
 
 // SendResourceBatch sends a batch of resources to Dakr through gRPC
 func (c *RealDakrClient) SendResourceBatch(ctx context.Context, resources []collector.CollectedResource, resourceType collector.ResourceType) (string, error) {
-	c.logger.Info("Sending resource batch to Dakr",
-		"type", resourceType,
-		"count", len(resources))
-
 	resourceItems := make([]*gen.ResourceItem, 0, len(resources))
 
 	for _, resource := range resources {
@@ -276,14 +267,11 @@ func (c *RealDakrClient) SendResourceBatch(ctx context.Context, resources []coll
 		return "", fmt.Errorf("failed to send resource batch to Dakr: %w", err)
 	}
 
-	c.logger.Info("Successfully sent resource batch to Dakr", "type", resourceType, "count", len(resourceItems))
 	return resp.Msg.ClusterIdentifier, nil
 }
 
 // SendTelemetryMetrics sends telemetry metrics to Dakr
 func (c *RealDakrClient) SendTelemetryMetrics(ctx context.Context, metrics []*dto.MetricFamily) (int32, error) {
-	c.logger.Info("Sending telemetry metrics to Dakr", "count", len(metrics))
-
 	// Create the request
 	telemetryReq := &gen.SendTelemetryMetricsRequest{
 		MetricFamilies: metrics,
@@ -305,10 +293,6 @@ func (c *RealDakrClient) SendTelemetryMetrics(ctx context.Context, metrics []*dt
 		return 0, fmt.Errorf("failed to send telemetry metrics to Dakr: %w", err)
 	}
 
-	c.logger.Info("Successfully sent telemetry metrics to Dakr",
-		"count", len(metrics),
-		"processed", resp.Msg.ProcessedCount)
-
 	return resp.Msg.ProcessedCount, nil
 }
 
@@ -318,7 +302,7 @@ func attachClusterToken[T any](req *connect.Request[T], clusterToken string) {
 
 // SendClusterSnapshotStream sends cluster snapshot data in chunks via streaming
 func (c *RealDakrClient) SendClusterSnapshotStream(ctx context.Context, snapshot *gen.ClusterSnapshot, snapshotID string, timestamp time.Time) (string, *gen.ClusterSnapshot, error) {
-	c.logger.Info("Sending cluster snapshot via streaming", "snapshotId", snapshotID)
+	c.logger.Info("Sending cluster snapshot", "snapshotId", snapshotID)
 
 	protoBytes, err := proto.Marshal(snapshot)
 	if err != nil {
@@ -328,11 +312,6 @@ func (c *RealDakrClient) SendClusterSnapshotStream(ctx context.Context, snapshot
 
 	totalSize := len(protoBytes)
 	totalChunks := int(math.Ceil(float64(totalSize) / float64(maxChunkSize)))
-
-	c.logger.Info("Preparing to stream cluster snapshot",
-		"totalSize", totalSize,
-		"totalChunks", totalChunks,
-		"maxChunkSize", maxChunkSize)
 
 	// Establish the stream
 	stream := c.client.SendClusterSnapshotStream(ctx)

@@ -2550,9 +2550,6 @@ func (r *CollectionPolicyReconciler) processCollectedResources(ctx context.Conte
 				// Update metrics for the number of resources processed
 				r.TelemetryMetrics.MessagesSent.WithLabelValues(
 					resources[0].ResourceType.String()).Add(float64(len(resources)))
-				logger.Info("Sent resource to Dakr",
-					"resourcesCount", len(resources),
-					"resourceType", resources[0].ResourceType)
 			}
 		}
 	}

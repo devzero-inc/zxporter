@@ -159,11 +159,6 @@ func (c *DaemonSetCollector) handleDaemonSetEvent(daemonset *appsv1.DaemonSet, e
 		return
 	}
 
-	c.logger.Info("Processing daemonset event",
-		"namespace", daemonset.Namespace,
-		"name", daemonset.Name,
-		"eventType", eventType.String())
-
 	// Send the raw daemonset object to the batch channel
 	c.batchChan <- CollectedResource{
 		ResourceType: DaemonSet,

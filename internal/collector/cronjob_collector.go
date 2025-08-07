@@ -161,12 +161,6 @@ func (c *CronJobCollector) handleCronJobEvent(cronJob *batchv1.CronJob, eventTyp
 		return
 	}
 
-	c.logger.Info("Processing cronjob event",
-		"namespace", cronJob.Namespace,
-		"name", cronJob.Name,
-		"eventType", eventType.String(),
-		"schedule", cronJob.Spec.Schedule)
-
 	// Send the raw cronjob object to the batch channel
 	c.batchChan <- CollectedResource{
 		ResourceType: CronJob,

@@ -158,11 +158,6 @@ func (c *RoleBindingCollector) handleRoleBindingEvent(rb *rbacv1.RoleBinding, ev
 		return
 	}
 
-	c.logger.Info("Processing RoleBinding event",
-		"namespace", rb.Namespace,
-		"name", rb.Name,
-		"eventType", eventType.String())
-
 	// Send the raw RoleBinding object to the batch channel
 	c.batchChan <- CollectedResource{
 		ResourceType: RoleBinding,

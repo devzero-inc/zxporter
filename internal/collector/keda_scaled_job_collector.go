@@ -166,12 +166,6 @@ func (c *ScaledJobCollector) handleScaledJobEvent(scaledJob *kedav1alpha1.Scaled
 		return
 	}
 
-	c.logger.Info("Processing ScaledJob event",
-		"namespace", scaledJob.Namespace,
-		"name", scaledJob.Name,
-		"eventType", eventType.String(),
-		"jobTargetRef", scaledJob.Spec.JobTargetRef)
-
 	// Send the raw ScaledJob object to the batch channel
 	c.batchChan <- CollectedResource{
 		ResourceType: KedaScaledJob,
@@ -196,17 +190,11 @@ func (c *ScaledJobCollector) scaledJobChanged(oldScaledJob, newScaledJob *kedav1
 
 	// Check for spec changes (most important for KEDA jobs)
 	if !reflect.DeepEqual(oldScaledJob.Spec, newScaledJob.Spec) {
-		c.logger.V(1).Info("ScaledJob spec changed",
-			"namespace", newScaledJob.Namespace,
-			"name", newScaledJob.Name)
 		return true
 	}
 
 	// Check for status changes that matter for job execution
 	if !c.scaledJobStatusEqual(&oldScaledJob.Status, &newScaledJob.Status) {
-		c.logger.V(1).Info("ScaledJob status changed",
-			"namespace", newScaledJob.Namespace,
-			"name", newScaledJob.Name)
 		return true
 	}
 

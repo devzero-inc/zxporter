@@ -47,25 +47,31 @@ type ContainerResourceCollectorConfig struct {
 	DisableGPUMetrics bool
 }
 
+type gpuQueryState struct {
+	lastFailed bool
+}
+
 // ContainerResourceCollector collects container resource usage metrics
 type ContainerResourceCollector struct {
-	k8sClient       kubernetes.Interface
-	metricsClient   *metricsv1.Clientset
-	prometheusAPI   v1.API
-	informerFactory informers.SharedInformerFactory
-	podInformer     cache.SharedIndexInformer
-	batchChan       chan CollectedResource   // Channel for individual resources -> input to batcher
-	resourceChan    chan []CollectedResource // Channel for batched resources -> output from batcher
-	batcher         *ResourcesBatcher
-	stopCh          chan struct{}
-	ticker          *time.Ticker
-	config          ContainerResourceCollectorConfig
-	namespaces      []string
-	excludedPods    map[types.NamespacedName]bool
-	logger          logr.Logger
-	metrics         *TelemetryMetrics
-	telemetryLogger telemetry_logger.Logger
-	mu              sync.RWMutex
+	k8sClient          kubernetes.Interface
+	metricsClient      *metricsv1.Clientset
+	prometheusAPI      v1.API
+	informerFactory    informers.SharedInformerFactory
+	podInformer        cache.SharedIndexInformer
+	batchChan          chan CollectedResource   // Channel for individual resources -> input to batcher
+	resourceChan       chan []CollectedResource // Channel for batched resources -> output from batcher
+	batcher            *ResourcesBatcher
+	stopCh             chan struct{}
+	ticker             *time.Ticker
+	config             ContainerResourceCollectorConfig
+	namespaces         []string
+	excludedPods       map[types.NamespacedName]bool
+	logger             logr.Logger
+	metrics            *TelemetryMetrics
+	telemetryLogger    telemetry_logger.Logger
+	mu                 sync.RWMutex
+	gpuQueryErrorState map[string]*gpuQueryState // most of the case we are not deploying zxporter to GPU nodes which cause GPU query to fail infinitely, and we dont want to get that GPU query fails error every minute for every container
+	gpuQueryMu         sync.Mutex
 }
 
 // NewContainerResourceCollector creates a new collector for container resource metrics
@@ -119,18 +125,19 @@ func NewContainerResourceCollector(
 	)
 
 	return &ContainerResourceCollector{
-		k8sClient:       k8sClient,
-		metricsClient:   metricsClient,
-		batchChan:       batchChan,
-		resourceChan:    resourceChan,
-		batcher:         batcher,
-		stopCh:          make(chan struct{}),
-		config:          config,
-		namespaces:      namespaces,
-		excludedPods:    excludedPodsMap,
-		logger:          logger.WithName("container-resource-collector"),
-		metrics:         metrics,
-		telemetryLogger: telemetryLogger,
+		k8sClient:          k8sClient,
+		metricsClient:      metricsClient,
+		batchChan:          batchChan,
+		resourceChan:       resourceChan,
+		batcher:            batcher,
+		stopCh:             make(chan struct{}),
+		config:             config,
+		namespaces:         namespaces,
+		excludedPods:       excludedPodsMap,
+		logger:             logger.WithName("container-resource-collector"),
+		metrics:            metrics,
+		telemetryLogger:    telemetryLogger,
+		gpuQueryErrorState: make(map[string]*gpuQueryState),
 	}
 }
 
@@ -244,8 +251,6 @@ func (c *ContainerResourceCollector) collectResourcesLoop(ctx context.Context) {
 
 // collectAllContainerResources collects resource metrics for all containers
 func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Context) {
-	c.logger.Info("Collecting container resource metrics")
-
 	// Fetch pod metrics from the metrics server
 	var podMetricsList *metricsv1beta1.PodMetricsList
 	var err error
@@ -274,8 +279,6 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 		c.logger.Error(err, "Failed to get pod metrics from metrics server")
 		return
 	}
-
-	c.logger.Info("Successfully fetched pod metrics from metrics server", "pod_count", len(podMetricsList.Items))
 
 	if c.telemetryLogger != nil {
 		c.telemetryLogger.Report(
@@ -375,17 +378,6 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 						// Continue with CPU/memory metrics
 						ioMetrics = make(map[string]float64)
 					}
-					c.logger.Info("Successfully collected IO metrics for container",
-						"namespace", podMetrics.Namespace,
-						"pod", podMetrics.Name,
-						"container", containerMetrics.Name,
-						"count", len(ioMetrics))
-
-					c.logger.V(c.logger.GetV()+2).Info("IO metrics collected for container",
-						"namespace", podMetrics.Namespace,
-						"pod", podMetrics.Name,
-						"container", containerMetrics.Name,
-						"ioMetrics", ioMetrics)
 				}
 
 				// Add GPU metrics collection if enabled
@@ -399,11 +391,6 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 						// Continue with other metrics
 						gpuMetrics = make(map[string]interface{})
 					}
-					c.logger.Info("Successfully collected GPU metrics for container",
-						"namespace", podMetrics.Namespace,
-						"pod", podMetrics.Name,
-						"container", containerMetrics.Name,
-						"count", len(gpuMetrics))
 				}
 			}
 			// Process the container metrics with optional network/IO data
@@ -673,12 +660,63 @@ func (c *ContainerResourceCollector) collectContainerGPUMetrics(ctx context.Cont
 	baseLabels := fmt.Sprintf(`namespace="%s", pod="%s", container="%s"`, namespace, podName, containerName)
 	queryTime := time.Now()
 
-	// Check if container uses GPU
+	stateKey := fmt.Sprintf("%s/%s/%s", pod.Namespace, pod.Name, containerName)
 	gpuCountQuery := fmt.Sprintf(`count(DCGM_FI_DEV_GPU_UTIL{%s})`, baseLabels)
+
+	c.gpuQueryMu.Lock()
+	state, exists := c.gpuQueryErrorState[stateKey]
+	if !exists {
+		state = &gpuQueryState{lastFailed: false}
+		c.gpuQueryErrorState[stateKey] = state
+	}
+	c.gpuQueryMu.Unlock()
+
 	result, _, err := c.prometheusAPI.Query(ctx, gpuCountQuery, queryTime)
 	if err != nil {
+		// BEGIN: latching
+		c.gpuQueryMu.Lock()
+		defer c.gpuQueryMu.Unlock()
+		if !state.lastFailed {
+			// Report/log the FIRST failure
+			c.telemetryLogger.Report(
+				gen.LogLevel_LOG_LEVEL_ERROR,
+				"ContainerResourceCollector",
+				fmt.Sprintf("Failed querying GPU metric for %s", stateKey),
+				err,
+				map[string]string{
+					"namespace":      pod.Namespace,
+					"pod":            pod.Name,
+					"container":      containerName,
+					"error_type":     "prometheus_gpu_query_failed",
+					"prometheus_url": c.config.PrometheusURL,
+					"query":          gpuCountQuery,
+				},
+			)
+			state.lastFailed = true
+		}
 		return nil, fmt.Errorf("error querying GPU availability: %w", err)
 	}
+
+	// On success, if previously had error then only log a success transition
+	c.gpuQueryMu.Lock()
+	if state.lastFailed {
+		c.telemetryLogger.Report(
+			gen.LogLevel_LOG_LEVEL_INFO,
+			"ContainerResourceCollector",
+			fmt.Sprintf("GPU metric query succeeded again for %s", stateKey),
+			nil,
+			map[string]string{
+				"namespace":      pod.Namespace,
+				"pod":            pod.Name,
+				"container":      containerName,
+				"event_type":     "prometheus_gpu_query_succeed",
+				"prometheus_url": c.config.PrometheusURL,
+				"query":          gpuCountQuery,
+			},
+		)
+		state.lastFailed = false
+	}
+	c.gpuQueryMu.Unlock()
 
 	gpuCount := 0.0
 	if result.Type() == model.ValVector {
@@ -720,6 +758,20 @@ func (c *ContainerResourceCollector) collectContainerGPUMetrics(ctx context.Cont
 
 		result, _, err := c.prometheusAPI.Query(ctx, query, queryTime)
 		if err != nil {
+			c.telemetryLogger.Report(
+				gen.LogLevel_LOG_LEVEL_ERROR,
+				"ContainerResourceCollector",
+				"Error querying GPU metric",
+				err,
+				map[string]string{
+					"namespace":      pod.Namespace,
+					"pod":            pod.Name,
+					"container":      containerName,
+					"error_type":     "prometheus_gpu_query_failed",
+					"query":          query,
+					"prometheus_url": c.config.PrometheusURL,
+				},
+			)
 			c.logger.Error(err, "Error querying GPU metric",
 				"metric", def.name, "query", query)
 			continue

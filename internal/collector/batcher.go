@@ -84,7 +84,6 @@ func (b *ResourcesBatcher) start() {
 				}
 				batch = append(batch, resource)
 				if len(batch) >= b.batchSize {
-					b.logger.Info("Sending batch due to size limit", "batchSize", len(batch))
 					b.outBatchChan <- batch
 
 					// increase the batch size cuz last batch size limit was hit, but always cap at DefaultMaxBatchSize
@@ -100,7 +99,6 @@ func (b *ResourcesBatcher) start() {
 
 			case <-ticker.C:
 				if len(batch) > 0 {
-					b.logger.Info("Sending batch due to time limit", "batchSize", len(batch))
 					b.outBatchChan <- batch
 
 					// decrease the batch size cuz last batch time limit was hit, but always cap at DefaultBatchSize

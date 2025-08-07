@@ -206,11 +206,6 @@ func (c *ArgoRolloutsCollector) handleRolloutEvent(obj *unstructured.Unstructure
 		return
 	}
 
-	c.logger.Info("Processing Argo Rollout event",
-		"name", name,
-		"namespace", namespace,
-		"eventType", eventType.String())
-
 	// Process the rollout
 	processedObj := c.processRollout(obj)
 
