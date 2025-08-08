@@ -10,6 +10,7 @@ import (
 
 	gpuconst "github.com/NVIDIA/KAI-scheduler/pkg/common/constants"
 	telemetry_logger "github.com/devzero-inc/zxporter/internal/logger"
+	"github.com/devzero-inc/zxporter/internal/version"
 	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/api"
 	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
@@ -172,7 +173,10 @@ func (c *ContainerResourceCollector) Start(ctx context.Context) error {
 				"ContainerResourceCollector",
 				"Failed to create Prometheus client",
 				err,
-				map[string]string{"prometheus_url": c.config.PrometheusURL},
+				map[string]string{
+					"prometheus_url":   c.config.PrometheusURL,
+					"zxporter_version": version.Get().String(),
+				},
 			)
 
 			c.logger.Error(err, "Failed to create Prometheus client, network/IO and GPU metrics will be disabled")
@@ -271,8 +275,9 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 				"Failed to get pod metrics from metrics server",
 				err,
 				map[string]string{
-					"namespaces": fmt.Sprintf("%v", c.namespaces),
-					"error_type": "metrics_server_query_failed",
+					"namespaces":       fmt.Sprintf("%v", c.namespaces),
+					"error_type":       "metrics_server_query_failed",
+					"zxporter_version": version.Get().String(),
 				},
 			)
 		}
@@ -287,9 +292,10 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 			"Successfully fetched pod metrics from metrics server",
 			nil,
 			map[string]string{
-				"pod_count":  fmt.Sprintf("%d", len(podMetricsList.Items)),
-				"namespaces": fmt.Sprintf("%v", c.namespaces),
-				"event_type": "metrics_server_query_success",
+				"pod_count":        fmt.Sprintf("%d", len(podMetricsList.Items)),
+				"namespaces":       fmt.Sprintf("%v", c.namespaces),
+				"event_type":       "metrics_server_query_success",
+				"zxporter_version": version.Get().String(),
 			},
 		)
 	}
@@ -330,10 +336,11 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 						"Failed to collect network metrics from Prometheus",
 						err,
 						map[string]string{
-							"namespace":      podMetrics.Namespace,
-							"pod":            podMetrics.Name,
-							"error_type":     "prometheus_network_query_failed",
-							"prometheus_url": c.config.PrometheusURL,
+							"namespace":        podMetrics.Namespace,
+							"pod":              podMetrics.Name,
+							"error_type":       "prometheus_network_query_failed",
+							"prometheus_url":   c.config.PrometheusURL,
+							"zxporter_version": version.Get().String(),
 						},
 					)
 				}
@@ -363,11 +370,12 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 								"Failed to collect I/O metrics from Prometheus",
 								err,
 								map[string]string{
-									"namespace":      podMetrics.Namespace,
-									"pod":            podMetrics.Name,
-									"container":      containerMetrics.Name,
-									"error_type":     "prometheus_io_query_failed",
-									"prometheus_url": c.config.PrometheusURL,
+									"namespace":        podMetrics.Namespace,
+									"pod":              podMetrics.Name,
+									"container":        containerMetrics.Name,
+									"error_type":       "prometheus_io_query_failed",
+									"prometheus_url":   c.config.PrometheusURL,
+									"zxporter_version": version.Get().String(),
 								},
 							)
 						}
@@ -684,12 +692,13 @@ func (c *ContainerResourceCollector) collectContainerGPUMetrics(ctx context.Cont
 				fmt.Sprintf("Failed querying GPU metric for %s", stateKey),
 				err,
 				map[string]string{
-					"namespace":      pod.Namespace,
-					"pod":            pod.Name,
-					"container":      containerName,
-					"error_type":     "prometheus_gpu_query_failed",
-					"prometheus_url": c.config.PrometheusURL,
-					"query":          gpuCountQuery,
+					"namespace":        pod.Namespace,
+					"pod":              pod.Name,
+					"container":        containerName,
+					"error_type":       "prometheus_gpu_query_failed",
+					"prometheus_url":   c.config.PrometheusURL,
+					"query":            gpuCountQuery,
+					"zxporter_version": version.Get().String(),
 				},
 			)
 			state.lastFailed = true
@@ -706,12 +715,13 @@ func (c *ContainerResourceCollector) collectContainerGPUMetrics(ctx context.Cont
 			fmt.Sprintf("GPU metric query succeeded again for %s", stateKey),
 			nil,
 			map[string]string{
-				"namespace":      pod.Namespace,
-				"pod":            pod.Name,
-				"container":      containerName,
-				"event_type":     "prometheus_gpu_query_succeed",
-				"prometheus_url": c.config.PrometheusURL,
-				"query":          gpuCountQuery,
+				"namespace":        pod.Namespace,
+				"pod":              pod.Name,
+				"container":        containerName,
+				"event_type":       "prometheus_gpu_query_succeed",
+				"prometheus_url":   c.config.PrometheusURL,
+				"query":            gpuCountQuery,
+				"zxporter_version": version.Get().String(),
 			},
 		)
 		state.lastFailed = false
@@ -764,12 +774,13 @@ func (c *ContainerResourceCollector) collectContainerGPUMetrics(ctx context.Cont
 				"Error querying GPU metric",
 				err,
 				map[string]string{
-					"namespace":      pod.Namespace,
-					"pod":            pod.Name,
-					"container":      containerName,
-					"error_type":     "prometheus_gpu_query_failed",
-					"query":          query,
-					"prometheus_url": c.config.PrometheusURL,
+					"namespace":        pod.Namespace,
+					"pod":              pod.Name,
+					"container":        containerName,
+					"error_type":       "prometheus_gpu_query_failed",
+					"query":            query,
+					"prometheus_url":   c.config.PrometheusURL,
+					"zxporter_version": version.Get().String(),
 				},
 			)
 			c.logger.Error(err, "Error querying GPU metric",
@@ -978,7 +989,8 @@ func (c *ContainerResourceCollector) IsAvailable(ctx context.Context) bool {
 			"Metrics client is not available or set properly, cannot collect container resources",
 			fmt.Errorf("metrics server client is not available or set"),
 			map[string]string{
-				"collector_type": c.GetType(),
+				"collector_type":   c.GetType(),
+				"zxporter_version": version.Get().String(),
 			},
 		)
 		return false
@@ -997,7 +1009,8 @@ func (c *ContainerResourceCollector) IsAvailable(ctx context.Context) bool {
 			"Metrics server API not available",
 			err,
 			map[string]string{
-				"collector_type": c.GetType(),
+				"collector_type":   c.GetType(),
+				"zxporter_version": version.Get().String(),
 			},
 		)
 		return false
@@ -1013,7 +1026,8 @@ func (c *ContainerResourceCollector) IsAvailable(ctx context.Context) bool {
 				"Prometheus client is not available for network/IO or GPU metrics",
 				fmt.Errorf("prometehus client not available or set properly"),
 				map[string]string{
-					"collector_type": c.GetType(),
+					"collector_type":   c.GetType(),
+					"zxporter_version": version.Get().String(),
 				},
 			)
 			// Still return true since the main metrics are available
@@ -1032,7 +1046,8 @@ func (c *ContainerResourceCollector) IsAvailable(ctx context.Context) bool {
 				"Prometheus API not available for network and I/O metrics",
 				err,
 				map[string]string{
-					"collector_type": c.GetType(),
+					"collector_type":   c.GetType(),
+					"zxporter_version": version.Get().String(),
 				},
 			)
 			c.logger.Info("Prometheus API not available for network and I/O metrics", "error", err.Error())

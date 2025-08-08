@@ -11,6 +11,7 @@ import (
 
 	gen "github.com/devzero-inc/zxporter/gen/api/v1"
 	telemetry_logger "github.com/devzero-inc/zxporter/internal/logger"
+	"github.com/devzero-inc/zxporter/internal/version"
 	"github.com/go-logr/logr"
 	"k8s.io/client-go/kubernetes"
 )
@@ -208,8 +209,9 @@ func (m *CollectionManager) StartAll(ctx context.Context) error {
 						"Failed to start collector",
 						err,
 						map[string]string{
-							"error_type":     "resource_collectors_start_failed",
-							"collector_type": collectorType,
+							"error_type":       "resource_collectors_start_failed",
+							"collector_type":   collectorType,
+							"zxporter_version": version.Get().String(),
 						},
 					)
 					m.logger.Info("Failed to start collector", "type", collectorType, "error", err.Error())
@@ -220,8 +222,9 @@ func (m *CollectionManager) StartAll(ctx context.Context) error {
 						"Successfully started collector",
 						err,
 						map[string]string{
-							"error_type":     "resource_collectors_start_succeed",
-							"collector_type": collectorType,
+							"error_type":       "resource_collectors_start_succeed",
+							"collector_type":   collectorType,
+							"zxporter_version": version.Get().String(),
 						},
 					)
 					m.logger.Info("Successfully started collector", "type", collector.GetType())
@@ -233,8 +236,9 @@ func (m *CollectionManager) StartAll(ctx context.Context) error {
 					"Timed out starting collector",
 					nil,
 					map[string]string{
-						"event_type":     "resource_collectors_start_timed_out",
-						"collector_type": collectorType,
+						"event_type":       "resource_collectors_start_timed_out",
+						"collector_type":   collectorType,
+						"zxporter_version": version.Get().String(),
 					},
 				)
 				m.logger.Error(errors.New("timeout"), "Timed out starting collector", "type", collectorType)
