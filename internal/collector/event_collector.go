@@ -200,12 +200,6 @@ func (c *EventCollector) handleEvent(event *corev1.Event, eventType EventType) {
 	c.eventCounts[typeKey]++
 	c.mu.Unlock()
 
-	c.logger.Info("Processing event",
-		"namespace", event.Namespace,
-		"name", event.Name,
-		"reason", event.Reason,
-		"eventType", eventType.String())
-
 	// Send the raw event object to the batch channel
 	c.batchChan <- CollectedResource{
 		ResourceType: Event,

@@ -158,11 +158,6 @@ func (c *ReplicaSetCollector) handleReplicaSetEvent(replicaset *appsv1.ReplicaSe
 		return
 	}
 
-	c.logger.Info("Processing replicaset event",
-		"namespace", replicaset.Namespace,
-		"name", replicaset.Name,
-		"eventType", eventType.String())
-
 	// Send the raw replicaset object to the batch channel
 	c.batchChan <- CollectedResource{
 		ResourceType: ReplicaSet,

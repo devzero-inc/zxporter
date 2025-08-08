@@ -144,11 +144,6 @@ func (c *IngressClassCollector) handleIngressClassEvent(ingressClass *networking
 		return
 	}
 
-	c.logger.Info("Processing IngressClass event",
-		"name", ingressClass.Name,
-		"eventType", eventType.String(),
-		"controller", ingressClass.Spec.Controller)
-
 	// Send the raw IngressClass object to the batch channel
 	c.batchChan <- CollectedResource{
 		ResourceType: IngressClass,

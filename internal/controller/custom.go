@@ -36,6 +36,7 @@ import (
 	telemetry_logger "github.com/devzero-inc/zxporter/internal/logger"
 	"github.com/devzero-inc/zxporter/internal/transport"
 	"github.com/devzero-inc/zxporter/internal/util"
+	"github.com/devzero-inc/zxporter/internal/version"
 )
 
 // EnvBasedController is a controller that uses environment variables instead of CRDs
@@ -131,7 +132,23 @@ func NewEnvBasedController(mgr ctrl.Manager, reconcileInterval time.Duration) (*
 
 // Start implements the Runnable interface for manager.Add
 func (c *EnvBasedController) Start(ctx context.Context) error {
-	c.Log.Info("Starting environment-based controller", "reconcileInterval", c.reconcileInterval)
+	// Log version information at startup
+	versionInfo := version.Get()
+
+	c.Log.Info(
+		"\n" +
+			"\n" +
+			"====================== ZXPORTER OPERATOR STARTING ======================\n" +
+			fmt.Sprintf(" %-20s : %s\n", "Version", versionInfo.String()) +
+			fmt.Sprintf(" %-20s : %s\n", "Git Commit", versionInfo.GitCommit) +
+			fmt.Sprintf(" %-20s : %s\n", "Git Tree State", versionInfo.GitTreeState) +
+			fmt.Sprintf(" %-20s : %s\n", "Build Date", versionInfo.BuildDate) +
+			fmt.Sprintf(" %-20s : %s\n", "Go Version", versionInfo.GoVersion) +
+			fmt.Sprintf(" %-20s : %s\n", "Compiler", versionInfo.Compiler) +
+			fmt.Sprintf(" %-20s : %s\n", "Platform", versionInfo.Platform) +
+			fmt.Sprintf(" %-20s : %s\n", "Reconcile Interval", c.reconcileInterval.String()) +
+			"=======================================================================\n",
+	)
 
 	// Initialize Dakr sender and telemetry logger with context
 	if err := c.initializeTelemetryComponents(ctx); err != nil {

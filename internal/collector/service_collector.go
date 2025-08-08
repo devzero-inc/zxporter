@@ -158,11 +158,6 @@ func (c *ServiceCollector) handleServiceEvent(service *corev1.Service, eventType
 		return
 	}
 
-	c.logger.Info("Processing service event",
-		"namespace", service.Namespace,
-		"name", service.Name,
-		"eventType", eventType.String())
-
 	// Send the raw service object to the batch channel
 	c.batchChan <- CollectedResource{
 		ResourceType: Service,

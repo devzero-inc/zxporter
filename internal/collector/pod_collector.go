@@ -9,6 +9,7 @@ import (
 
 	gen "github.com/devzero-inc/zxporter/gen/api/v1"
 	telemetry_logger "github.com/devzero-inc/zxporter/internal/logger"
+	"github.com/devzero-inc/zxporter/internal/version"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -121,7 +122,10 @@ func (c *PodCollector) Start(ctx context.Context) error {
 				"PodCollector",
 				"Failed to add event handler",
 				err,
-				map[string]string{"namespaces": fmt.Sprintf("%v", c.namespaces)},
+				map[string]string{
+					"namespaces":       fmt.Sprintf("%v", c.namespaces),
+					"zxporter_version": version.Get().String(),
+				},
 			)
 		}
 		return fmt.Errorf("failed to add event handler: %w", err)
@@ -139,7 +143,10 @@ func (c *PodCollector) Start(ctx context.Context) error {
 				"PodCollector",
 				"Timed out waiting for caches to sync",
 				fmt.Errorf("cache sync timeout"),
-				map[string]string{"namespaces": fmt.Sprintf("%v", c.namespaces)},
+				map[string]string{
+					"namespaces":       fmt.Sprintf("%v", c.namespaces),
+					"zxporter_version": version.Get().String(),
+				},
 			)
 		}
 		return fmt.Errorf("timed out waiting for caches to sync")
@@ -169,11 +176,6 @@ func (c *PodCollector) handlePodEvent(pod *corev1.Pod, eventType EventType) {
 	if c.isExcluded(pod) {
 		return
 	}
-
-	c.logger.Info("Processing pod event",
-		"namespace", pod.Namespace,
-		"name", pod.Name,
-		"eventType", eventType.String())
 
 	// Send the raw pod object to the batch channel
 	c.batchChan <- CollectedResource{
@@ -253,6 +255,7 @@ func (c *PodCollector) checkForContainerEvents(oldPod, newPod *corev1.Pod) {
 							"restartCount":      fmt.Sprintf("%d", newStatus.RestartCount),
 							"exitCode":          fmt.Sprintf("%d", newStatus.LastTerminationState.Terminated.ExitCode),
 							"terminationReason": newStatus.LastTerminationState.Terminated.Reason,
+							"zxporter_version":  version.Get().String(),
 						},
 					)
 				}

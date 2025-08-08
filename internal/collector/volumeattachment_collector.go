@@ -141,10 +141,6 @@ func (c *VolumeAttachmentCollector) handleVolumeAttachmentEvent(va *storagev1.Vo
 		return
 	}
 
-	c.logger.Info("Processing VolumeAttachment event",
-		"name", va.Name,
-		"eventType", eventType.String())
-
 	// Send the raw VolumeAttachment object to the batch channel
 	c.batchChan <- CollectedResource{
 		ResourceType: VolumeAttachment,

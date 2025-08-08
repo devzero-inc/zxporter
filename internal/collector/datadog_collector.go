@@ -206,11 +206,6 @@ func (c *DatadogCollector) handleReplicaSetEvent(obj *unstructured.Unstructured,
 		return
 	}
 
-	c.logger.Info("Processing ExtendedDaemonSetReplicaSet event",
-		"name", name,
-		"namespace", namespace,
-		"eventType", eventType.String())
-
 	// Create a resource key
 	key := fmt.Sprintf("%s/%s", namespace, name)
 

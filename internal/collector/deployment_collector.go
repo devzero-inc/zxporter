@@ -159,11 +159,6 @@ func (c *DeploymentCollector) handleDeploymentEvent(deployment *appsv1.Deploymen
 		return
 	}
 
-	c.logger.Info("Processing deployment event",
-		"namespace", deployment.Namespace,
-		"name", deployment.Name,
-		"eventType", eventType.String())
-
 	// Send the raw deployment object to the batch channel
 	c.batchChan <- CollectedResource{
 		ResourceType: Deployment,

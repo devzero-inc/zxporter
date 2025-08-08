@@ -115,14 +115,11 @@ func (s *TelemetrySender) sendMetrics(ctx context.Context) error {
 	}
 
 	// Send the metrics to the DAKR server using the dedicated method
-	processedCount, err := s.dakrClient.SendTelemetryMetrics(ctx, telemetryMetrics)
+	_, err = s.dakrClient.SendTelemetryMetrics(ctx, telemetryMetrics)
 	if err != nil {
 		return fmt.Errorf("failed to send metrics to DAKR: %w", err)
 	}
 
-	s.logger.Info("Successfully sent metrics to DAKR",
-		"metricCount", len(telemetryMetrics),
-		"processedCount", processedCount)
 	return nil
 }
 
@@ -163,7 +160,6 @@ func (s *TelemetrySender) collectAndResetTelemetryMetrics(metrics []collector.Re
 		// Reset the metric after collection
 		metric.Reset()
 	}
-	s.logger.Info("Collected telemetry metrics", "count", len(telemetryMetrics))
 	return telemetryMetrics, nil
 }
 

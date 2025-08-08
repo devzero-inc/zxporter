@@ -159,11 +159,6 @@ func (c *LimitRangeCollector) handleLimitRangeEvent(lr *corev1.LimitRange, event
 		return
 	}
 
-	c.logger.Info("Processing limitrange event",
-		"namespace", lr.Namespace,
-		"name", lr.Name,
-		"eventType", eventType.String())
-
 	// Send the raw limitrange object to the batch channel
 	c.batchChan <- CollectedResource{
 		ResourceType: LimitRange,

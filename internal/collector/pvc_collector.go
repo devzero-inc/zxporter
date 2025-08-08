@@ -158,11 +158,6 @@ func (c *PersistentVolumeClaimCollector) handlePVCEvent(pvc *corev1.PersistentVo
 		return
 	}
 
-	c.logger.Info("Processing PVC event",
-		"namespace", pvc.Namespace,
-		"name", pvc.Name,
-		"eventType", eventType.String())
-
 	// Send the raw PVC object to the batch channel
 	c.batchChan <- CollectedResource{
 		ResourceType: PersistentVolumeClaim,

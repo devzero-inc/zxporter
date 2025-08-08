@@ -45,6 +45,7 @@ import (
 	telemetry_logger "github.com/devzero-inc/zxporter/internal/logger"
 	"github.com/devzero-inc/zxporter/internal/transport"
 	"github.com/devzero-inc/zxporter/internal/util"
+	"github.com/devzero-inc/zxporter/internal/version"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
@@ -228,7 +229,6 @@ type PolicyConfig struct {
 // move the current state of the cluster closer to the desired state.
 func (r *CollectionPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
-	logger.Info("Reconciling CollectionPolicy", "request", req)
 
 	// Check if TelemetryLogger is nil
 	if r.TelemetryLogger == nil {
@@ -244,7 +244,8 @@ func (r *CollectionPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Req
 			"Failed to load collection policy spec from environment variables",
 			err,
 			map[string]string{
-				"error_type": "env_config_load_failed",
+				"error_type":       "env_config_load_failed",
+				"zxporter_version": version.Get().String(),
 			},
 		)
 		logger.Error(err, "Error loading ENV varaibles")
@@ -261,7 +262,8 @@ func (r *CollectionPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Req
 			"Configuration changed, restarting collectors",
 			nil,
 			map[string]string{
-				"config_changed": fmt.Sprintf("%t", configChanged),
+				"config_changed":   fmt.Sprintf("%t", configChanged),
+				"zxporter_version": version.Get().String(),
 			},
 		)
 		logger.Info("Configuration changed, restarting collectors")
@@ -306,7 +308,9 @@ func (r *CollectionPolicyReconciler) createNewConfig(envSpec *monitoringv1.Colle
 		newConfig.NumResourceProcessors = 16
 	}
 
-	logger.Info("Disabled collectors", "name", newConfig.DisabledCollectors)
+	if len(newConfig.DisabledCollectors) > 0 {
+		logger.Info("Disabled collectors", "name", newConfig.DisabledCollectors)
+	}
 
 	// Parse and set frequency
 	frequencyStr := envSpec.Policies.Frequency
@@ -774,7 +778,8 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 			"Prometheus or metrics configuration changed",
 			nil,
 			map[string]string{
-				"prometheus_url": fmt.Sprintf("%v", newConfig.PrometheusURL),
+				"prometheus_url":   fmt.Sprintf("%v", newConfig.PrometheusURL),
+				"zxporter_version": version.Get().String(),
 			},
 		)
 
@@ -798,8 +803,9 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				"Error handling disabled collectors change",
 				err,
 				map[string]string{
-					"current_config": fmt.Sprintf("%v", r.CurrentConfig),
-					"new_config":     fmt.Sprintf("%v", newConfig),
+					"current_config":   fmt.Sprintf("%v", r.CurrentConfig),
+					"new_config":       fmt.Sprintf("%v", newConfig),
+					"zxporter_version": version.Get().String(),
 				},
 			)
 			// Continue with other updates despite error
@@ -818,8 +824,9 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 			"Major configuration change detected, performing full restart",
 			nil,
 			map[string]string{
-				"current_config": fmt.Sprintf("%v", r.CurrentConfig),
-				"new_config":     fmt.Sprintf("%v", newConfig),
+				"current_config":   fmt.Sprintf("%v", r.CurrentConfig),
+				"new_config":       fmt.Sprintf("%v", newConfig),
+				"zxporter_version": version.Get().String(),
 			},
 		)
 
@@ -834,8 +841,9 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 					"Error stopping collection manager",
 					fmt.Errorf("error stopping collection manager"),
 					map[string]string{
-						"current_config": fmt.Sprintf("%v", r.CurrentConfig),
-						"new_config":     fmt.Sprintf("%v", newConfig),
+						"current_config":   fmt.Sprintf("%v", r.CurrentConfig),
+						"new_config":       fmt.Sprintf("%v", newConfig),
+						"zxporter_version": version.Get().String(),
 					},
 				)
 			}
@@ -853,8 +861,9 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 			"Initialize collectors with new config due to major config changes",
 			nil,
 			map[string]string{
-				"current_config": fmt.Sprintf("%v", r.CurrentConfig),
-				"new_config":     fmt.Sprintf("%v", newConfig),
+				"current_config":   fmt.Sprintf("%v", r.CurrentConfig),
+				"new_config":       fmt.Sprintf("%v", newConfig),
+				"zxporter_version": version.Get().String(),
 			},
 		)
 		return r.initializeCollectors(ctx, newConfig)
@@ -869,8 +878,9 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 			"No collectors affected by this configuration change",
 			nil,
 			map[string]string{
-				"current_config": fmt.Sprintf("%v", r.CurrentConfig),
-				"new_config":     fmt.Sprintf("%v", newConfig),
+				"current_config":   fmt.Sprintf("%v", r.CurrentConfig),
+				"new_config":       fmt.Sprintf("%v", newConfig),
+				"zxporter_version": version.Get().String(),
 			},
 		)
 		r.CurrentConfig = newConfig
@@ -886,6 +896,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 		map[string]string{
 			"affected_count":      fmt.Sprintf("%v", len(affectedCollectors)),
 			"affected_collectors": fmt.Sprintf("%v", affectedCollectors),
+			"zxporter_version":    version.Get().String(),
 		},
 	)
 
@@ -923,7 +934,8 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				"Error stopping telemetry sender",
 				err,
 				map[string]string{
-					"error_type": "error_telemetry_sender",
+					"error_type":       "error_telemetry_sender",
+					"zxporter_version": version.Get().String(),
 				},
 			)
 		}
@@ -944,7 +956,8 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				"Failed to restart telemetry sender",
 				err,
 				map[string]string{
-					"error_type": "error_telemetry_sender",
+					"error_type":       "error_telemetry_sender",
+					"zxporter_version": version.Get().String(),
 				},
 			)
 		} else {
@@ -962,7 +975,8 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 			"Failed to create metrics client, some collectors may be limited",
 			err,
 			map[string]string{
-				"client_config": fmt.Sprintf("%v", clientConfig),
+				"client_config":    fmt.Sprintf("%v", clientConfig),
+				"zxporter_version": version.Get().String(),
 			},
 		)
 		logger.Error(err, "Failed to create metrics client, some collectors may be limited")
@@ -1408,8 +1422,9 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				"Failed to start collector",
 				err,
 				map[string]string{
-					"event_type":     "resource_collectors_restart_failed",
-					"collector_type": collectorType,
+					"event_type":       "resource_collectors_restart_failed",
+					"collector_type":   collectorType,
+					"zxporter_version": version.Get().String(),
 				},
 			)
 		} else {
@@ -1419,8 +1434,9 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				"Successfully restarted collector",
 				nil,
 				map[string]string{
-					"event_type":     "resource_collectors_restart_succeed",
-					"collector_type": collectorType,
+					"event_type":       "resource_collectors_restart_succeed",
+					"collector_type":   collectorType,
+					"zxporter_version": version.Get().String(),
 				},
 			)
 			logger.Info("Successfully restarted collector", "type", collectorType)
@@ -1434,7 +1450,8 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 		"Completed selective restart of collectors",
 		nil,
 		map[string]string{
-			"affected_count": fmt.Sprintf("%v", len(affectedCollectors)),
+			"affected_count":   fmt.Sprintf("%v", len(affectedCollectors)),
+			"zxporter_version": version.Get().String(),
 		},
 	)
 	return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
@@ -1457,7 +1474,8 @@ func (r *CollectionPolicyReconciler) initializeCollectors(ctx context.Context, c
 				"Prometheus is not available after waiting, will continue initialization but metrics may be limited",
 				nil,
 				map[string]string{
-					"prometheus_url": fmt.Sprintf("%v", config.PrometheusURL),
+					"prometheus_url":   fmt.Sprintf("%v", config.PrometheusURL),
+					"zxporter_version": version.Get().String(),
 				},
 			)
 			// We continue initialization, but log the warning
@@ -1468,7 +1486,8 @@ func (r *CollectionPolicyReconciler) initializeCollectors(ctx context.Context, c
 				"Prometheus is available, continuing with full metrics collection",
 				nil,
 				map[string]string{
-					"prometheus_url": fmt.Sprintf("%v", config.PrometheusURL),
+					"prometheus_url":   fmt.Sprintf("%v", config.PrometheusURL),
+					"zxporter_version": version.Get().String(),
 				},
 			)
 			logger.Info("Prometheus is available, continuing with full metrics collection")
@@ -1480,7 +1499,8 @@ func (r *CollectionPolicyReconciler) initializeCollectors(ctx context.Context, c
 			"Prometheus URL is empty in config, metrics will be limited",
 			nil,
 			map[string]string{
-				"prometheus_url": fmt.Sprintf("%v", config.PrometheusURL),
+				"prometheus_url":   fmt.Sprintf("%v", config.PrometheusURL),
+				"zxporter_version": version.Get().String(),
 			},
 		)
 	}
@@ -1494,8 +1514,9 @@ func (r *CollectionPolicyReconciler) initializeCollectors(ctx context.Context, c
 				"Failed to setup collection manager and basic services",
 				err,
 				map[string]string{
-					"error_type": "collection_manager_setup_failed",
-					"dakr_url":   config.DakrURL,
+					"error_type":       "collection_manager_setup_failed",
+					"dakr_url":         config.DakrURL,
+					"zxporter_version": version.Get().String(),
 				},
 			)
 		}
@@ -1508,8 +1529,9 @@ func (r *CollectionPolicyReconciler) initializeCollectors(ctx context.Context, c
 		"Successfully setup collection manager and basic services",
 		nil,
 		map[string]string{
-			"event_type": "collection_manager_setup_success",
-			"dakr_url":   config.DakrURL,
+			"event_type":       "collection_manager_setup_success",
+			"dakr_url":         config.DakrURL,
+			"zxporter_version": version.Get().String(),
 		},
 	)
 
@@ -1523,7 +1545,8 @@ func (r *CollectionPolicyReconciler) initializeCollectors(ctx context.Context, c
 				"Failed to setup cluster collector",
 				err,
 				map[string]string{
-					"error_type": "cluster_collector_setup_failed",
+					"error_type":       "cluster_collector_setup_failed",
+					"zxporter_version": version.Get().String(),
 				},
 			)
 		}
@@ -1537,7 +1560,8 @@ func (r *CollectionPolicyReconciler) initializeCollectors(ctx context.Context, c
 			"Successfully setup cluster collector",
 			nil,
 			map[string]string{
-				"event_type": "cluster_collector_setup_success",
+				"event_type":       "cluster_collector_setup_success",
+				"zxporter_version": version.Get().String(),
 			},
 		)
 	}
@@ -1551,8 +1575,9 @@ func (r *CollectionPolicyReconciler) initializeCollectors(ctx context.Context, c
 			"Failed to register cluster with Dakr",
 			fmt.Errorf("cluster registration failed or timed out"),
 			map[string]string{
-				"error_type": "cluster_registration_failed",
-				"dakr_url":   config.DakrURL,
+				"error_type":       "cluster_registration_failed",
+				"dakr_url":         config.DakrURL,
+				"zxporter_version": version.Get().String(),
 			},
 		)
 		// Clean up and return the error result
@@ -1566,8 +1591,9 @@ func (r *CollectionPolicyReconciler) initializeCollectors(ctx context.Context, c
 		"Successfully registered cluster with Dakr",
 		nil,
 		map[string]string{
-			"event_type": "cluster_registration_success",
-			"dakr_url":   config.DakrURL,
+			"event_type":       "cluster_registration_success",
+			"dakr_url":         config.DakrURL,
+			"zxporter_version": version.Get().String(),
 		},
 	)
 
@@ -1645,7 +1671,8 @@ func (r *CollectionPolicyReconciler) setupClusterCollector(ctx context.Context, 
 			"Failed to create metrics client",
 			err,
 			map[string]string{
-				"client_config": fmt.Sprintf("%v", clientConfig),
+				"client_config":    fmt.Sprintf("%v", clientConfig),
+				"zxporter_version": version.Get().String(),
 			},
 		)
 		logger.Error(err, "Failed to create metrics client")
@@ -1703,7 +1730,8 @@ func (r *CollectionPolicyReconciler) waitForClusterRegistration(ctx context.Cont
 			"Cluster registration completed, proceeding with other collectors",
 			nil,
 			map[string]string{
-				"error_type": "cluster_registration_succeed",
+				"error_type":       "cluster_registration_succeed",
+				"zxporter_version": version.Get().String(),
 			},
 		)
 		return nil
@@ -1718,7 +1746,8 @@ func (r *CollectionPolicyReconciler) waitForClusterRegistration(ctx context.Cont
 			"Timeout waiting for cluster data",
 			fmt.Errorf("timeout waiting for cluster data"),
 			map[string]string{
-				"error_type": "cluster_registration_failed",
+				"error_type":       "cluster_registration_failed",
+				"zxporter_version": version.Get().String(),
 			},
 		)
 		return &ctrl.Result{Requeue: true, RequeueAfter: 1 * time.Minute}
@@ -1749,7 +1778,8 @@ func (r *CollectionPolicyReconciler) monitorClusterRegistration(
 				"Resource channel closed while waiting for cluster data",
 				fmt.Errorf("resourceChan closed unexpectedly"),
 				map[string]string{
-					"error_type": "cluster_registration_failed",
+					"error_type":       "cluster_registration_failed",
+					"zxporter_version": version.Get().String(),
 				},
 			)
 			close(clusterFailedCh)
@@ -1768,7 +1798,8 @@ func (r *CollectionPolicyReconciler) monitorClusterRegistration(
 					"Failed to send cluster data for cluster registration",
 					err,
 					map[string]string{
-						"error_type": "cluster_registration_failed",
+						"error_type":       "cluster_registration_failed",
+						"zxporter_version": version.Get().String(),
 					},
 				)
 				close(clusterFailedCh)
@@ -1782,7 +1813,8 @@ func (r *CollectionPolicyReconciler) monitorClusterRegistration(
 					"Successfully sent cluster data to Dakr",
 					nil,
 					map[string]string{
-						"event_type": "cluster_data_sent",
+						"event_type":       "cluster_data_sent",
+						"zxporter_version": version.Get().String(),
 					},
 				)
 				close(clusterRegisteredCh)
@@ -1800,7 +1832,8 @@ func (r *CollectionPolicyReconciler) monitorClusterRegistration(
 				"non cluster resource received",
 				fmt.Errorf("expected cluster resource, got non cluster resource"),
 				map[string]string{
-					"error_type": "cluster_registration_failed",
+					"error_type":       "cluster_registration_failed",
+					"zxporter_version": version.Get().String(),
 				},
 			)
 			logger.Error(fmt.Errorf("non cluster resource received"),
@@ -1866,7 +1899,8 @@ func (r *CollectionPolicyReconciler) setupAllCollectors(
 			"Error stopping collection manager",
 			err,
 			map[string]string{
-				"error_type": "resource_collectors_stopping_failed",
+				"error_type":       "resource_collectors_stopping_failed",
+				"zxporter_version": version.Get().String(),
 			},
 		)
 		logger.Error(err, "Error stopping collection manager")
@@ -1882,7 +1916,8 @@ func (r *CollectionPolicyReconciler) setupAllCollectors(
 			"Failed to create metrics client, some collectors may be limited",
 			err,
 			map[string]string{
-				"client_config": fmt.Sprintf("%v", clientConfig),
+				"client_config":    fmt.Sprintf("%v", clientConfig),
+				"zxporter_version": version.Get().String(),
 			},
 		)
 		logger.Error(err, "Failed to create metrics client, some collectors may be limited")
@@ -1896,7 +1931,8 @@ func (r *CollectionPolicyReconciler) setupAllCollectors(
 			"Failed to register resource collectors",
 			err,
 			map[string]string{
-				"error_type": "resource_collectors_registration_failed",
+				"error_type":       "resource_collectors_registration_failed",
+				"zxporter_version": version.Get().String(),
 			},
 		)
 		return err
@@ -1908,7 +1944,8 @@ func (r *CollectionPolicyReconciler) setupAllCollectors(
 		"Successfully registered all resource collectors",
 		nil,
 		map[string]string{
-			"event_type": "resource_collectors_registration_success",
+			"event_type":       "resource_collectors_registration_success",
+			"zxporter_version": version.Get().String(),
 		},
 	)
 
@@ -1920,7 +1957,8 @@ func (r *CollectionPolicyReconciler) setupAllCollectors(
 			"Failed to start collection manager with all collectors",
 			err,
 			map[string]string{
-				"error_type": "resource_collectors_start_all_failed",
+				"error_type":       "resource_collectors_start_all_failed",
+				"zxporter_version": version.Get().String(),
 			},
 		)
 		logger.Error(err, "Failed to start collection manager with all collectors")
@@ -2458,8 +2496,9 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				"Collector is disabled, skipping registration",
 				nil,
 				map[string]string{
-					"collector_type": c.name.String(),
-					"event_type":     "collector_disabled",
+					"collector_type":   c.name.String(),
+					"event_type":       "collector_disabled",
+					"zxporter_version": version.Get().String(),
 				},
 			)
 			logger.Info("Skipping disabled collector", "type", c.name.String())
@@ -2474,8 +2513,9 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 					"Failed to register collector",
 					err,
 					map[string]string{
-						"collector_type": c.name.String(),
-						"error_type":     "collector_registration_failed",
+						"collector_type":   c.name.String(),
+						"error_type":       "collector_registration_failed",
+						"zxporter_version": version.Get().String(),
 					},
 				)
 				logger.Error(err, "Failed to register collector", "collector", c.name.String())
@@ -2486,8 +2526,9 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 					"Successfully registered collector",
 					nil,
 					map[string]string{
-						"collector_type": c.name.String(),
-						"event_type":     "collector_registration_success",
+						"collector_type":   c.name.String(),
+						"event_type":       "collector_registration_success",
+						"zxporter_version": version.Get().String(),
 					},
 				)
 				logger.Info("Registered collector", "collector", c.name.String())
@@ -2499,8 +2540,9 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				"Collector is not available, skipping registration",
 				nil,
 				map[string]string{ // Note: we should get the reason of why its not available
-					"collector_type": c.name.String(),
-					"event_type":     "collector_not_available",
+					"collector_type":   c.name.String(),
+					"event_type":       "collector_not_available",
+					"zxporter_version": version.Get().String(),
 				},
 			)
 			logger.Info("Collector not available, skipping registration", "type", c.name.String())
@@ -2540,7 +2582,8 @@ func (r *CollectionPolicyReconciler) processCollectedResources(ctx context.Conte
 					"Failed to send resource to Dakr",
 					err,
 					map[string]string{
-						"resources_count": fmt.Sprintf("%v", len(resources)),
+						"resources_count":  fmt.Sprintf("%v", len(resources)),
+						"zxporter_version": version.Get().String(),
 					},
 				)
 				logger.Error(err, "Failed to send resource to Dakr",
@@ -2550,9 +2593,6 @@ func (r *CollectionPolicyReconciler) processCollectedResources(ctx context.Conte
 				// Update metrics for the number of resources processed
 				r.TelemetryMetrics.MessagesSent.WithLabelValues(
 					resources[0].ResourceType.String()).Add(float64(len(resources)))
-				logger.Info("Sent resource to Dakr",
-					"resourcesCount", len(resources),
-					"resourceType", resources[0].ResourceType)
 			}
 		}
 	}
@@ -2591,7 +2631,8 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					"Failed to deregister collector",
 					err,
 					map[string]string{
-						"collector_type": fmt.Sprintf("%v", collectorType),
+						"collector_type":   fmt.Sprintf("%v", collectorType),
+						"zxporter_version": version.Get().String(),
 					},
 				)
 				// Continue with other collectors even if one fails
@@ -2609,7 +2650,8 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 			"Failed to create metrics client for newly enabled collectors",
 			err,
 			map[string]string{
-				"client_config": fmt.Sprintf("%v", clientConfig),
+				"client_config":    fmt.Sprintf("%v", clientConfig),
+				"zxporter_version": version.Get().String(),
 			},
 		)
 		logger.Error(err, "Failed to create metrics client for newly enabled collectors")
@@ -3064,7 +3106,8 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					"Failed to register collector",
 					err,
 					map[string]string{
-						"collector_type": fmt.Sprintf("%v", collectorType),
+						"collector_type":   fmt.Sprintf("%v", collectorType),
+						"zxporter_version": version.Get().String(),
 					},
 				)
 				continue
@@ -3078,7 +3121,8 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					"Failed to start collector",
 					err,
 					map[string]string{
-						"collector_type": fmt.Sprintf("%v", collectorType),
+						"collector_type":   fmt.Sprintf("%v", collectorType),
+						"zxporter_version": version.Get().String(),
 					},
 				)
 			}
@@ -3132,7 +3176,8 @@ func (r *CollectionPolicyReconciler) waitForPrometheusAvailability(ctx context.C
 					"Failed to start collector",
 					err,
 					map[string]string{
-						"prometheus_url": prometheusURL,
+						"prometheus_url":   prometheusURL,
+						"zxporter_version": version.Get().String(),
 					},
 				)
 				time.Sleep(backoff)
@@ -3169,7 +3214,8 @@ func (r *CollectionPolicyReconciler) waitForPrometheusAvailability(ctx context.C
 				"Prometheus returned non-OK status",
 				err,
 				map[string]string{
-					"prometheus_url": prometheusURL,
+					"prometheus_url":   prometheusURL,
+					"zxporter_version": version.Get().String(),
 				},
 			)
 			resp.Body.Close()
@@ -3185,8 +3231,9 @@ func (r *CollectionPolicyReconciler) waitForPrometheusAvailability(ctx context.C
 		"Prometheus availability check failed after maximum retries",
 		fmt.Errorf("prometheus not available"),
 		map[string]string{
-			"prometheus_url": prometheusURL,
-			"max_retries":    fmt.Sprintf("%v", maxRetries),
+			"prometheus_url":   prometheusURL,
+			"max_retries":      fmt.Sprintf("%v", maxRetries),
+			"zxporter_version": version.Get().String(),
 		},
 	)
 	return false

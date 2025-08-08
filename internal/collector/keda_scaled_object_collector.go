@@ -166,12 +166,6 @@ func (c *ScaledObjectCollector) handleScaledObjectEvent(scaledObject *kedav1alph
 		return
 	}
 
-	c.logger.Info("Processing ScaledObject event",
-		"namespace", scaledObject.Namespace,
-		"name", scaledObject.Name,
-		"eventType", eventType.String(),
-		"scaleTargetRef", scaledObject.Spec.ScaleTargetRef.Name)
-
 	// Send the raw ScaledObject object to the batch channel
 	c.batchChan <- CollectedResource{
 		ResourceType: KedaScaledObject,
@@ -196,17 +190,11 @@ func (c *ScaledObjectCollector) scaledObjectChanged(oldScaledObject, newScaledOb
 
 	// Check for spec changes (most important for KEDA)
 	if !reflect.DeepEqual(oldScaledObject.Spec, newScaledObject.Spec) {
-		c.logger.V(1).Info("ScaledObject spec changed",
-			"namespace", newScaledObject.Namespace,
-			"name", newScaledObject.Name)
 		return true
 	}
 
 	// Check for status changes that matter for scaling decisions
 	if !c.scaledObjectStatusEqual(&oldScaledObject.Status, &newScaledObject.Status) {
-		c.logger.V(1).Info("ScaledObject status changed",
-			"namespace", newScaledObject.Namespace,
-			"name", newScaledObject.Name)
 		return true
 	}
 

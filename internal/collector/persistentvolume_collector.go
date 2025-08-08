@@ -141,11 +141,6 @@ func (c *PersistentVolumeCollector) handlePVEvent(pv *corev1.PersistentVolume, e
 		return
 	}
 
-	c.logger.Info("Processing PersistentVolume event",
-		"name", pv.Name,
-		"eventType", eventType.String(),
-		"phase", pv.Status.Phase)
-
 	// Send the raw PV object to the batch channel
 	c.batchChan <- CollectedResource{
 		ResourceType: PersistentVolume,

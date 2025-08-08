@@ -12,6 +12,7 @@ import (
 	gpuconst "github.com/NVIDIA/KAI-scheduler/pkg/common/constants"
 	gen "github.com/devzero-inc/zxporter/gen/api/v1"
 	telemetry_logger "github.com/devzero-inc/zxporter/internal/logger"
+	"github.com/devzero-inc/zxporter/internal/version"
 	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/api"
 	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
@@ -149,7 +150,10 @@ func (c *NodeCollector) initPrometheusClient(ctx context.Context) error {
 				"NodeCollector",
 				"Failed to create Prometheus client",
 				err,
-				map[string]string{"prometheus_url": c.config.PrometheusURL},
+				map[string]string{
+					"prometheus_url":   c.config.PrometheusURL,
+					"zxporter_version": version.Get().String(),
+				},
 			)
 		}
 		c.logger.Error(err, "Failed to create Prometheus client, node network, I/O and GPU metrics will be disabled")
@@ -270,7 +274,10 @@ func (c *NodeCollector) Start(ctx context.Context) error {
 				"NodeCollector",
 				"Timed out waiting for caches to sync",
 				fmt.Errorf("cache sync timeout"),
-				map[string]string{"excluded_nodes": fmt.Sprintf("%v", c.excludedNodes)},
+				map[string]string{
+					"excluded_nodes":   fmt.Sprintf("%v", c.excludedNodes),
+					"zxporter_version": version.Get().String(),
+				},
 			)
 		}
 		return fmt.Errorf("timed out waiting for caches to sync")
@@ -421,10 +428,6 @@ func (c *NodeCollector) handleNodeEvent(node *corev1.Node, eventType EventType) 
 		return
 	}
 
-	c.logger.Info("Processing node event",
-		"name", node.Name,
-		"eventType", eventType.String())
-
 	// Send node events directly to resourceChan as a single-item batch
 	c.resourceChan <- []CollectedResource{
 		{
@@ -506,8 +509,6 @@ func (c *NodeCollector) collectNodeResourcesLoop(ctx context.Context) {
 
 // collectAllNodeResources collects resource metrics for all nodes
 func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
-	c.logger.Info("Collecting node resource metrics")
-
 	// Skip if metrics client is unavailable
 	if c.metricsClient == nil {
 		c.logger.Info("Metrics client not available, skipping node metrics collection")
@@ -517,8 +518,9 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 			"Metrics client not available, skipping node metrics collection",
 			fmt.Errorf("metrics server client not available or properly set"),
 			map[string]string{
-				"collector_type": c.GetType(),
-				"error_type":     "nil_metrics_server_client",
+				"collector_type":   c.GetType(),
+				"error_type":       "nil_metrics_server_client",
+				"zxporter_version": version.Get().String(),
 			},
 		)
 		return
@@ -534,16 +536,15 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 				"Failed to get node metrics from metrics server",
 				err,
 				map[string]string{
-					"excluded_nodes": fmt.Sprintf("%v", c.excludedNodes),
-					"error_type":     "metrics_server_query_failed",
+					"excluded_nodes":   fmt.Sprintf("%v", c.excludedNodes),
+					"error_type":       "metrics_server_query_failed",
+					"zxporter_version": version.Get().String(),
 				},
 			)
 		}
 		c.logger.Error(err, "Failed to get node metrics from metrics server")
 		return
 	}
-
-	c.logger.Info("Successfully fetched node metrics from metrics server", "node_count", len(nodeMetricsList.Items))
 
 	if c.telemetryLogger != nil {
 		c.telemetryLogger.Report(
@@ -552,9 +553,10 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 			"Successfully fetched node metrics from metrics server",
 			nil,
 			map[string]string{
-				"node_count":     fmt.Sprintf("%d", len(nodeMetricsList.Items)),
-				"excluded_nodes": fmt.Sprintf("%v", c.excludedNodes),
-				"event_type":     "metrics_server_query_success",
+				"node_count":       fmt.Sprintf("%d", len(nodeMetricsList.Items)),
+				"excluded_nodes":   fmt.Sprintf("%v", c.excludedNodes),
+				"event_type":       "metrics_server_query_success",
+				"zxporter_version": version.Get().String(),
 			},
 		)
 	}
@@ -579,6 +581,7 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 					"collector_type":    c.GetType(),
 					"node_metrics_name": nodeMetrics.Name,
 					"error_type":        "node_cache_fail",
+					"zxporter_version":  version.Get().String(),
 				},
 			)
 			continue
@@ -595,6 +598,7 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 					"collector_type":    c.GetType(),
 					"node_metrics_name": nodeMetrics.Name,
 					"error_type":        "node_cache_fail",
+					"zxporter_version":  version.Get().String(),
 				},
 			)
 			continue
@@ -612,6 +616,7 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 					"collector_type":    c.GetType(),
 					"node_metrics_name": nodeMetrics.Name,
 					"error_type":        "node_object",
+					"zxporter_version":  version.Get().String(),
 				},
 			)
 			continue
@@ -664,9 +669,10 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 							"Failed to collect node network and I/O metrics from Prometheus",
 							err,
 							map[string]string{
-								"node":           node.Name,
-								"error_type":     "prometheus_network_io_query_failed",
-								"prometheus_url": c.config.PrometheusURL,
+								"node":             node.Name,
+								"error_type":       "prometheus_network_io_query_failed",
+								"prometheus_url":   c.config.PrometheusURL,
+								"zxporter_version": version.Get().String(),
 							},
 						)
 					}
@@ -675,13 +681,6 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 					// Continue with basic metrics
 					networkMetrics = make(map[string]float64)
 				}
-
-				c.logger.Info("Successfully collected network and IO metrics for node",
-					"node", node.Name,
-					"count", len(networkMetrics))
-				c.logger.V(c.logger.GetV()+2).Info("Network and IO metrics collected for node",
-					"node", node.Name,
-					"resourceData", gpuMetrics)
 			}
 
 			// Fetch GPU metrics for the node if enabled
@@ -698,9 +697,10 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 							"Failed to collect node GPU metrics from Prometheus",
 							err,
 							map[string]string{
-								"node":           node.Name,
-								"error_type":     "prometheus_gpu_query_failed",
-								"prometheus_url": c.config.PrometheusURL,
+								"node":             node.Name,
+								"error_type":       "prometheus_gpu_query_failed",
+								"prometheus_url":   c.config.PrometheusURL,
+								"zxporter_version": version.Get().String(),
 							},
 						)
 					}
@@ -709,12 +709,6 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 					// Continue with other metrics
 					gpuMetrics = make(map[string]interface{})
 				}
-				c.logger.Info("Successfully collected GPU metrics for node",
-					"node", node.Name,
-					"count", len(gpuMetrics))
-				c.logger.V(c.logger.GetV()+2).Info("GPU metrics collected for node",
-					"node", node.Name,
-					"resourceData", gpuMetrics)
 			}
 
 		}
@@ -1059,7 +1053,8 @@ func (c *NodeCollector) IsAvailable(ctx context.Context) bool {
 			"Metrics client is not available, cannot collect node metrics",
 			fmt.Errorf("metrics client is not available or properly set"),
 			map[string]string{
-				"collector_type": c.GetType(),
+				"collector_type":   c.GetType(),
+				"zxporter_version": version.Get().String(),
 			},
 		)
 		return false
@@ -1076,7 +1071,8 @@ func (c *NodeCollector) IsAvailable(ctx context.Context) bool {
 			"Metrics server API not available for node metrics",
 			err,
 			map[string]string{
-				"collector_type": c.GetType(),
+				"collector_type":   c.GetType(),
+				"zxporter_version": version.Get().String(),
 			},
 		)
 		c.logger.Info("Metrics server API not available for node metrics", "error", err.Error())

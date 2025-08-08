@@ -158,11 +158,6 @@ func (c *RoleCollector) handleRoleEvent(role *rbacv1.Role, eventType EventType) 
 		return
 	}
 
-	c.logger.Info("Processing Role event",
-		"namespace", role.Namespace,
-		"name", role.Name,
-		"eventType", eventType.String())
-
 	// Send the raw Role object to the batch channel
 	c.batchChan <- CollectedResource{
 		ResourceType: Role,

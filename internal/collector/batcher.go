@@ -84,13 +84,14 @@ func (b *ResourcesBatcher) start() {
 				}
 				batch = append(batch, resource)
 				if len(batch) >= b.batchSize {
-					b.logger.Info("Sending batch due to size limit", "batchSize", len(batch))
 					b.outBatchChan <- batch
 
 					// increase the batch size cuz last batch size limit was hit, but always cap at DefaultMaxBatchSize
 					newBatchSize := int(math.Min(DefaultMaxBatchSize, 1.5*float64(b.batchSize)))
-					b.logger.Info("Batch size resizing due to size limit being hit", "old", b.batchSize, "new", newBatchSize)
-					b.batchSize = newBatchSize
+					if newBatchSize != b.batchSize {
+						b.logger.Info("Increasing batch size due to size trigger", "old", b.batchSize, "new", newBatchSize)
+						b.batchSize = newBatchSize
+					}
 
 					batch = make([]CollectedResource, 0, b.batchSize) // Reset batch
 					// Reset the timer only when a batch is sent due to size
@@ -100,13 +101,14 @@ func (b *ResourcesBatcher) start() {
 
 			case <-ticker.C:
 				if len(batch) > 0 {
-					b.logger.Info("Sending batch due to time limit", "batchSize", len(batch))
 					b.outBatchChan <- batch
 
 					// decrease the batch size cuz last batch time limit was hit, but always cap at DefaultBatchSize
 					newBatchSize := int(math.Max(DefaultBatchSize, 0.8*float64(b.batchSize)))
-					b.logger.Info("Batch size resizing due to time limit being hit", "old", b.batchSize, "new", newBatchSize)
-					b.batchSize = newBatchSize
+					if newBatchSize != b.batchSize {
+						b.logger.Info("Decreasing batch size due to timeout", "old", b.batchSize, "new", newBatchSize)
+						b.batchSize = newBatchSize
+					}
 
 					batch = make([]CollectedResource, 0, b.batchSize) // Reset batch
 				}

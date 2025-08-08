@@ -160,11 +160,6 @@ func (c *ServiceAccountCollector) handleServiceAccountEvent(sa *corev1.ServiceAc
 		return
 	}
 
-	c.logger.Info("Processing serviceaccount event",
-		"namespace", sa.Namespace,
-		"name", sa.Name,
-		"eventType", eventType.String())
-
 	// Send the raw serviceaccount object to the batch channel
 	c.batchChan <- CollectedResource{
 		ResourceType: ServiceAccount,

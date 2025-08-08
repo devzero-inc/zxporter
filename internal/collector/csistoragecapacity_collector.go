@@ -158,11 +158,6 @@ func (c *CSIStorageCapacityCollector) handleCSIStorageCapacityEvent(csc *storage
 		return
 	}
 
-	c.logger.Info("Processing CSIStorageCapacity event",
-		"namespace", csc.Namespace,
-		"name", csc.Name,
-		"eventType", eventType.String())
-
 	// Send the raw CSIStorageCapacity object to the batch channel
 	c.batchChan <- CollectedResource{
 		ResourceType: CSIStorageCapacity,

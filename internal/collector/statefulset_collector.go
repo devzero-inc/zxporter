@@ -158,11 +158,6 @@ func (c *StatefulSetCollector) handleStatefulSetEvent(statefulset *appsv1.Statef
 		return
 	}
 
-	c.logger.Info("Processing statefulset event",
-		"namespace", statefulset.Namespace,
-		"name", statefulset.Name,
-		"eventType", eventType.String())
-
 	// Send the raw statefulset object to the batch channel
 	c.batchChan <- CollectedResource{
 		ResourceType: StatefulSet,
