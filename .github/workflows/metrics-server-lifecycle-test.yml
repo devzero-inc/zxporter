@@ -152,11 +152,6 @@ jobs:
             echo "✅ Metrics API is unavailable as expected"
           fi
 
-      - name: Create namespace for zxporter
-        run: |
-          echo "Creating devzero-zxporter namespace..."
-          kubectl create namespace devzero-zxporter --dry-run=client -o yaml | kubectl apply -f -
-
       - name: Deploy ZXporter
         run: |
           echo "Deploying ZXporter using manifest deployment..."
@@ -180,7 +175,7 @@ jobs:
           ZXPORTER_POD=$(kubectl get pods -n devzero-zxporter -l control-plane=controller-manager -o jsonpath='{.items[0].metadata.name}')
           
           echo "Getting initial ZXporter logs..."
-          kubectl logs $ZXPORTER_POD -n devzero-zxporter --tail=50
+          kubectl logs $ZXPORTER_POD -n devzero-zxporter | head -n 100
           
           echo "Waiting and monitoring for apiservice configuration and 'metrics-server is now ready' messages..."
           ATTEMPTS=0
@@ -189,7 +184,7 @@ jobs:
           FOUND_READY_MESSAGE=false
           
           while [ $ATTEMPTS -lt $MAX_ATTEMPTS ]; do
-            LOGS=$(kubectl logs $ZXPORTER_POD -n devzero-zxporter --tail=100)
+            LOGS=$(kubectl logs $ZXPORTER_POD -n devzero-zxporter)
             
             if echo "$LOGS" | grep -q "apiservice.apiregistration.k8s.io/v1beta1.metrics.k8s.io configured"; then
               if [ "$FOUND_APISERVICE_MESSAGE" = false ]; then
