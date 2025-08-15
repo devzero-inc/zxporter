@@ -156,7 +156,6 @@ rules:
   - apiservices
   verbs:
   - create
-  - delete
   - get
   - list
   - patch
@@ -334,7 +333,6 @@ rules:
   - rolebindings
   verbs:
   - create
-  - delete
   - get
   - list
   - patch
