@@ -1,0 +1,340 @@
+name: Metrics Server Lifecycle Test
+
+on:
+  workflow_dispatch:
+  pull_request:
+
+jobs:
+  build:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.set-image.outputs.image }}
+    
+    steps:
+      - name: Set Docker image names
+        id: set-image
+        run: |
+          ZXPORTER_IMG="ttl.sh/$(uuidgen):2h"
+          MAJOR="0"
+          MINOR="0"
+          PATCH="1-metrics-lifecycle-test"
+          echo "ZXPORTER_IMG=$ZXPORTER_IMG" >> $GITHUB_ENV
+          echo "MAJOR=$MAJOR" >> $GITHUB_ENV
+          echo "MINOR=$MINOR" >> $GITHUB_ENV
+          echo "PATCH=$PATCH" >> $GITHUB_ENV
+          echo "image=$ZXPORTER_IMG" >> $GITHUB_OUTPUT
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: true
+
+      - name: Build and push Docker image
+        run: |
+          echo "Building and pushing zxporter image: ${{ env.ZXPORTER_IMG }}"
+          make docker-build docker-push IMG=${{ env.ZXPORTER_IMG }}
+
+  test:
+    name: Test Metrics Server Lifecycle on K8s v1.32.3
+    needs: build
+    runs-on: ubuntu-xl
+    
+    steps:
+      - name: Set Docker image names
+        run: |
+          echo "ZXPORTER_IMG=${{ needs.build.outputs.image }}" >> $GITHUB_ENV
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: true
+
+      - name: Install yq
+        run: |
+          YQ_VERSION=v4.40.5
+          curl -sSL "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64" -o /usr/local/bin/yq
+          chmod +x /usr/local/bin/yq
+
+      - name: Create k8s Kind Cluster
+        uses: helm/kind-action@v1
+        with:
+          version: v0.27.0
+          node_image: kindest/node:v1.32.3
+          cluster_name: kind-metrics-test
+          wait: 120s
+
+      - name: Verify cluster is ready
+        run: |
+          echo "Verifying cluster is ready..."
+          kubectl cluster-info
+          kubectl get nodes -o wide
+          kubectl get pods -A
+
+      - name: Install Metrics Server
+        run: |
+          echo "Installing metrics-server..."
+          helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
+          helm repo update
+          helm upgrade --install --set args={--kubelet-insecure-tls} metrics-server metrics-server/metrics-server --namespace kube-system
+          
+          echo "Waiting for metrics-server to be ready..."
+          kubectl wait --for=condition=available --timeout=300s deployment/metrics-server -n kube-system
+          
+          echo "Waiting for metrics API to be available..."
+          ATTEMPTS=0
+          MAX_ATTEMPTS=30
+          while [ $ATTEMPTS -lt $MAX_ATTEMPTS ]; do
+            if kubectl get --raw "/apis/metrics.k8s.io/v1beta1/nodes" &>/dev/null; then
+              echo "✅ Metrics API is available"
+              break
+            fi
+            ATTEMPTS=$((ATTEMPTS+1))
+            echo "Waiting for metrics API (attempt $ATTEMPTS/$MAX_ATTEMPTS)..."
+            sleep 10
+          done
+          
+          if [ $ATTEMPTS -eq $MAX_ATTEMPTS ]; then
+            echo "❌ Metrics API did not become available in time"
+            exit 1
+          fi
+
+      - name: Verify metrics server is working
+        run: |
+          echo "Testing kubectl top nodes command..."
+          if kubectl top nodes; then
+            echo "✅ kubectl top nodes is working - metrics server is functional"
+          else
+            echo "❌ kubectl top nodes failed - metrics server is not working properly"
+            exit 1
+          fi
+          
+          echo "Testing kubectl top pods command..."
+          kubectl top pods -A || echo "No pods consuming resources yet"
+
+      - name: Delete metrics server deployment
+        run: |
+          echo "Deleting metrics-server deployment (keeping apiservice)..."
+          kubectl delete deployment metrics-server -n kube-system
+          
+          echo "Waiting for metrics-server pods to be terminated..."
+          kubectl wait --for=delete pod -l k8s-app=metrics-server -n kube-system --timeout=120s || true
+          
+          echo "Verifying metrics-server deployment is removed but apiservice remains..."
+          kubectl get deployment metrics-server -n kube-system || echo "Deployment removed (expected)"
+          kubectl get pods -n kube-system -l k8s-app=metrics-server || echo "No metrics-server pods found (expected)"
+          
+          echo "Checking that apiservice still exists..."
+          kubectl get apiservice v1beta1.metrics.k8s.io && echo "✅ APIService still exists (expected)"
+
+      - name: Validate metrics server is not working
+        run: |
+          echo "Waiting for metrics API to become unavailable..."
+          sleep 30
+          
+          echo "Testing kubectl top nodes command (should fail)..."
+          if kubectl top nodes 2>&1; then
+            echo "❌ kubectl top nodes is still working - this should not happen"
+            exit 1
+          else
+            echo "✅ kubectl top nodes failed as expected - metrics server is properly removed"
+          fi
+          
+          echo "Testing metrics API endpoint directly..."
+          if kubectl get --raw "/apis/metrics.k8s.io/v1beta1/nodes" 2>&1; then
+            echo "❌ Metrics API is still available - this should not happen"
+            exit 1
+          else
+            echo "✅ Metrics API is unavailable as expected"
+          fi
+
+      - name: Create namespace for zxporter
+        run: |
+          echo "Creating devzero-zxporter namespace..."
+          kubectl create namespace devzero-zxporter --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Deploy ZXporter
+        run: |
+          echo "Deploying ZXporter using manifest deployment..."
+          make deploy IMG=${{ env.ZXPORTER_IMG }}
+
+      - name: Wait for ZXporter deployment to be ready
+        run: |
+          echo "Waiting for ZXporter deployment to be ready..."
+          kubectl wait --for=condition=available --timeout=300s deployment/devzero-zxporter-controller-manager -n devzero-zxporter
+          
+          echo "Getting ZXporter pod status..."
+          kubectl get pods -n devzero-zxporter -o wide
+          
+          echo "Getting ZXporter pod name..."
+          ZXPORTER_POD=$(kubectl get pods -n devzero-zxporter -l control-plane=controller-manager -o jsonpath='{.items[0].metadata.name}')
+          echo "ZXporter pod: $ZXPORTER_POD"
+
+      - name: Monitor ZXporter logs for metrics-server installation
+        run: |
+          echo "Monitoring ZXporter logs for metrics-server installation..."
+          ZXPORTER_POD=$(kubectl get pods -n devzero-zxporter -l control-plane=controller-manager -o jsonpath='{.items[0].metadata.name}')
+          
+          echo "Getting initial ZXporter logs..."
+          kubectl logs $ZXPORTER_POD -n devzero-zxporter --tail=50
+          
+          echo "Waiting and monitoring for apiservice configuration and 'metrics-server is now ready' messages..."
+          ATTEMPTS=0
+          MAX_ATTEMPTS=60
+          FOUND_APISERVICE_MESSAGE=false
+          FOUND_READY_MESSAGE=false
+          
+          while [ $ATTEMPTS -lt $MAX_ATTEMPTS ]; do
+            LOGS=$(kubectl logs $ZXPORTER_POD -n devzero-zxporter --tail=100)
+            
+            if echo "$LOGS" | grep -q "apiservice.apiregistration.k8s.io/v1beta1.metrics.k8s.io configured"; then
+              if [ "$FOUND_APISERVICE_MESSAGE" = false ]; then
+                echo "✅ Found 'apiservice.apiregistration.k8s.io/v1beta1.metrics.k8s.io configured' message in ZXporter logs!"
+                FOUND_APISERVICE_MESSAGE=true
+              fi
+            fi
+            
+            if echo "$LOGS" | grep -q "metrics-server is now ready"; then
+              echo "✅ Found 'metrics-server is now ready' message in ZXporter logs!"
+              FOUND_READY_MESSAGE=true
+              break
+            fi
+            
+            if echo "$LOGS" | grep -q "metrics-server installed successfully"; then
+              echo "📝 Found 'metrics-server installed successfully' message"
+            fi
+            
+            if echo "$LOGS" | grep -q "metrics-server not found, installing it now"; then
+              echo "📝 Found 'metrics-server not found, installing it now' message"
+            fi
+            
+            ATTEMPTS=$((ATTEMPTS+1))
+            echo "Waiting for 'metrics-server is now ready' message (attempt $ATTEMPTS/$MAX_ATTEMPTS)..."
+            sleep 10
+          done
+          
+          if [ "$FOUND_APISERVICE_MESSAGE" = false ]; then
+            echo "❌ Did not find 'apiservice.apiregistration.k8s.io/v1beta1.metrics.k8s.io configured' message in ZXporter logs"
+            echo "Final ZXporter logs:"
+            kubectl logs $ZXPORTER_POD -n devzero-zxporter --tail=200
+            exit 1
+          fi
+          
+          if [ "$FOUND_READY_MESSAGE" = false ]; then
+            echo "❌ Did not find 'metrics-server is now ready' message in ZXporter logs within timeout"
+            echo "Final ZXporter logs:"
+            kubectl logs $ZXPORTER_POD -n devzero-zxporter --tail=200
+            exit 1
+          fi
+
+      - name: Verify metrics server is working again
+        run: |
+          echo "Verifying that metrics server is working again..."
+          
+          echo "Checking if metrics-server pods are running..."
+          kubectl get pods -n kube-system -l k8s-app=metrics-server -o wide || echo "No metrics-server pods found yet"
+          
+          echo "Waiting for metrics API to be available again..."
+          ATTEMPTS=0
+          MAX_ATTEMPTS=30
+          while [ $ATTEMPTS -lt $MAX_ATTEMPTS ]; do
+            if kubectl get --raw "/apis/metrics.k8s.io/v1beta1/nodes" &>/dev/null; then
+              echo "✅ Metrics API is available again"
+              break
+            fi
+            ATTEMPTS=$((ATTEMPTS+1))
+            echo "Waiting for metrics API to be available (attempt $ATTEMPTS/$MAX_ATTEMPTS)..."
+            sleep 10
+          done
+          
+          if [ $ATTEMPTS -eq $MAX_ATTEMPTS ]; then
+            echo "❌ Metrics API did not become available again"
+            kubectl get pods -n kube-system -l k8s-app=metrics-server
+            kubectl describe pods -n kube-system -l k8s-app=metrics-server
+            exit 1
+          fi
+          
+          echo "Testing kubectl top nodes command again..."
+          if kubectl top nodes; then
+            echo "✅ kubectl top nodes is working again - metrics server has been restored by ZXporter"
+          else
+            echo "❌ kubectl top nodes is still failing"
+            exit 1
+          fi
+
+      - name: Verify ZXporter metrics server deployment
+        run: |
+          echo "Verifying ZXporter installed metrics-server correctly..."
+          
+          echo "Checking metrics-server deployment..."
+          kubectl get deployment -n kube-system -l k8s-app=metrics-server -o wide
+          
+          echo "Checking metrics-server pods..."
+          kubectl get pods -n kube-system -l k8s-app=metrics-server -o wide
+          
+          echo "Checking metrics-server service..."
+          kubectl get service -n kube-system -l k8s-app=metrics-server -o wide
+          
+          echo "Describing metrics-server deployment..."
+          kubectl describe deployment -n kube-system -l k8s-app=metrics-server
+
+      - name: Final validation and cleanup
+        run: |
+          echo "Running final validation..."
+          
+          echo "Final ZXporter logs:"
+          ZXPORTER_POD=$(kubectl get pods -n devzero-zxporter -l control-plane=controller-manager -o jsonpath='{.items[0].metadata.name}')
+          kubectl logs $ZXPORTER_POD -n devzero-zxporter --tail=100
+          
+          echo "Final kubectl top nodes test:"
+          kubectl top nodes
+          
+          echo "Final kubectl top pods test:"
+          kubectl top pods -A
+          
+          echo "✅ Metrics Server Lifecycle Test completed successfully!"
+          echo "✅ ZXporter successfully detected missing metrics-server and reinstalled it"
+          echo "✅ Found 'metrics-server is now ready' log message"
+          echo "✅ Metrics server is functional after ZXporter installation"
+
+      - name: Debug on failure
+        if: failure()
+        run: |
+          echo "=== DEBUG INFORMATION ==="
+          
+          echo "Cluster info:"
+          kubectl cluster-info
+          
+          echo "All pods in kube-system:"
+          kubectl get pods -n kube-system -o wide
+          
+          echo "All pods in devzero-zxporter:"
+          kubectl get pods -n devzero-zxporter -o wide
+          
+          echo "ZXporter deployment status:"
+          kubectl describe deployment devzero-zxporter-controller-manager -n devzero-zxporter
+          
+          echo "ZXporter pod logs:"
+          ZXPORTER_POD=$(kubectl get pods -n devzero-zxporter -l control-plane=controller-manager -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
+          if [ ! -z "$ZXPORTER_POD" ]; then
+            kubectl logs $ZXPORTER_POD -n devzero-zxporter --tail=200
+          else
+            echo "No ZXporter pod found"
+          fi
+          
+          echo "Metrics server pods (if any):"
+          kubectl get pods -n kube-system -l k8s-app=metrics-server -o wide || echo "No metrics-server pods found"
+          
+          echo "Events in devzero-zxporter namespace:"
+          kubectl get events -n devzero-zxporter --sort-by='.lastTimestamp'
+          
+          echo "Events in kube-system namespace (last 20):"
+          kubectl get events -n kube-system --sort-by='.lastTimestamp' | tail -20
