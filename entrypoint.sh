@@ -38,7 +38,7 @@ if ! kubectl get apiservice v1beta1.metrics.k8s.io &>/dev/null || ! kubectl top 
     MAX_ATTEMPTS=30
 
     while [ $ATTEMPTS -lt $MAX_ATTEMPTS ]; do
-      if kubectl get apiservice v1beta1.metrics.k8s.io &>/dev/null; then
+      if kubectl get --raw "/apis/metrics.k8s.io/v1beta1/nodes" &>/dev/null; then
         log "metrics-server is now ready"
         break
       fi
