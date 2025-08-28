@@ -1,0 +1,98 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "chart.fullname" . }}-z-prometheus-node-exporter
+  labels:
+    app.kubernetes.io/component: metrics
+    app.kubernetes.io/part-of: dz-prometheus-node-exporter
+  {{- include "chart.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: node-exporter
+      app.kubernetes.io/name: dz-prometheus-node-exporter
+    {{- include "chart.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: metrics
+        app.kubernetes.io/instance: node-exporter
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: dz-prometheus-node-exporter
+        app.kubernetes.io/part-of: dz-prometheus-node-exporter
+        app.kubernetes.io/version: 1.7.0
+        helm.sh/chart: prometheus-node-exporter-4.24.0
+      {{- include "chart.selectorLabels" . | nindent 8 }}
+      annotations:
+        cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
+    spec:
+      automountServiceAccountToken: false
+      containers:
+      - args: {{- toYaml .Values.zPrometheusNodeExporter.nodeExporter.args | nindent 8
+          }}
+        env:
+        - name: HOST_IP
+          value: {{ quote .Values.zPrometheusNodeExporter.nodeExporter.env.hostIp }}
+        - name: KUBERNETES_CLUSTER_DOMAIN
+          value: {{ quote .Values.kubernetesClusterDomain }}
+        image: {{ .Values.zPrometheusNodeExporter.nodeExporter.image.repository }}:{{ .Values.zPrometheusNodeExporter.nodeExporter.image.tag
+          | default .Chart.AppVersion }}
+        imagePullPolicy: {{ .Values.zPrometheusNodeExporter.nodeExporter.imagePullPolicy
+          }}
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /
+            port: 9101
+            scheme: HTTP
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 1
+        name: node-exporter
+        ports:
+        - containerPort: 9101
+          name: metrics
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /
+            port: 9101
+            scheme: HTTP
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 1
+        resources: {}
+        securityContext: {{- toYaml .Values.zPrometheusNodeExporter.nodeExporter.containerSecurityContext
+          | nindent 10 }}
+        volumeMounts:
+        - mountPath: /host/proc
+          name: proc
+          readOnly: true
+        - mountPath: /host/sys
+          name: sys
+          readOnly: true
+        - mountPath: /host/root
+          mountPropagation: HostToContainer
+          name: root
+          readOnly: true
+      hostNetwork: true
+      hostPID: true
+      nodeSelector: {{- toYaml .Values.zPrometheusNodeExporter.nodeSelector | nindent 8
+        }}
+      securityContext: {{- toYaml .Values.zPrometheusNodeExporter.podSecurityContext |
+        nindent 8 }}
+      serviceAccountName: {{ include "chart.fullname" . }}-z-prometheus-node-exporter
+      tolerations:
+      - effect: NoSchedule
+        operator: Exists
+      volumes:
+      - hostPath:
+          path: /proc
+        name: proc
+      - hostPath:
+          path: /sys
+        name: sys
+      - hostPath:
+          path: /
+        name: root
