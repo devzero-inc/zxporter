@@ -228,6 +228,26 @@ func (c *ClusterSnapshotter) captureOtherResources(ctx context.Context, namespac
 		}
 	}
 
+	// Capture KEDA ScaledJobs
+	if c.kedaClient != nil {
+		if scaledJobs, err := c.kedaClient.KedaV1alpha1().ScaledJobs(namespace).List(ctx, metav1.ListOptions{}); err == nil {
+			for _, scaledJob := range scaledJobs.Items {
+				uid := string(scaledJob.UID)
+				nsData.KedaScaledJobs[uid] = &ResourceIdentifier{Name: scaledJob.Name}
+			}
+		}
+	}
+
+	// Capture KEDA ScaledObjects
+	if c.kedaClient != nil {
+		if scaledObjects, err := c.kedaClient.KedaV1alpha1().ScaledObjects(namespace).List(ctx, metav1.ListOptions{}); err == nil {
+			for _, scaledObject := range scaledObjects.Items {
+				uid := string(scaledObject.UID)
+				nsData.KedaScaledObjects[uid] = &ResourceIdentifier{Name: scaledObject.Name}
+			}
+		}
+	}
+
 	if csiStorageCapacities, err := c.client.StorageV1().CSIStorageCapacities(namespace).List(ctx, metav1.ListOptions{}); err == nil {
 		for _, csc := range csiStorageCapacities.Items {
 			uid := string(csc.UID)

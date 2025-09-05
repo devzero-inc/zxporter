@@ -13,6 +13,7 @@ import (
 
 	gen "github.com/devzero-inc/zxporter/gen/api/v1"
 	"github.com/go-logr/logr"
+	kedaclient "github.com/kedacore/keda/v2/pkg/generated/clientset/versioned"
 	appsv1 "k8s.io/api/apps/v1"
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	batchv1 "k8s.io/api/batch/v1"
@@ -57,6 +58,7 @@ type NamespacedResourceHandler struct {
 // ClusterSnapshotter takes periodic snapshots and computes deltas
 type ClusterSnapshotter struct {
 	client             kubernetes.Interface
+	kedaClient         kedaclient.Interface
 	logger             logr.Logger
 	sender             transport.DirectSender
 	collectorManager   *collector.CollectionManager
@@ -73,6 +75,7 @@ type ClusterSnapshotter struct {
 
 func NewClusterSnapshotter(
 	client kubernetes.Interface,
+	kedaClient kedaclient.Interface,
 	interval time.Duration,
 	sender transport.DirectSender,
 	collectorManager *collector.CollectionManager,
@@ -98,6 +101,7 @@ func NewClusterSnapshotter(
 
 	cs := &ClusterSnapshotter{
 		client:           client,
+		kedaClient:       kedaClient,
 		logger:           logger.WithName("cluster-snapshotter"),
 		sender:           sender,
 		collectorManager: collectorManager,

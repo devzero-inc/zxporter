@@ -1360,6 +1360,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 		case "cluster_snapshot":
 			replacedCollector = snap.NewClusterSnapshotter(
 				r.K8sClient,
+				r.KEDAClient,
 				15*time.Minute,
 				r.Sender,
 				r.CollectionManager,
@@ -2441,6 +2442,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 		{
 			collector: snap.NewClusterSnapshotter(
 				r.K8sClient,
+				r.KEDAClient,
 				15*time.Minute,
 				r.Sender,
 				r.CollectionManager,
@@ -3056,6 +3058,7 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 			case "cluster_snapshot":
 				replacedCollector = snap.NewClusterSnapshotter(
 					r.K8sClient,
+					r.KEDAClient,
 					15*time.Minute,
 					r.Sender,
 					r.CollectionManager,
