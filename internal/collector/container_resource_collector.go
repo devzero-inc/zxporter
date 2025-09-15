@@ -73,12 +73,6 @@ type ContainerResourceCollector struct {
 	mu                 sync.RWMutex
 	gpuQueryErrorState map[string]*gpuQueryState // most of the case we are not deploying zxporter to GPU nodes which cause GPU query to fail infinitely, and we dont want to get that GPU query fails error every minute for every container
 	gpuQueryMu         sync.Mutex
-
-	// Metrics server availability tracking
-	metricsServerAvailable          bool
-	lastMetricsServerCheck          time.Time
-	metricsServerCheckInterval      time.Duration
-	metricsServerUnavailableLogged  bool
 }
 
 // NewContainerResourceCollector creates a new collector for container resource metrics
@@ -145,8 +139,6 @@ func NewContainerResourceCollector(
 		metrics:            metrics,
 		telemetryLogger:    telemetryLogger,
 		gpuQueryErrorState: make(map[string]*gpuQueryState),
-		metricsServerCheckInterval: 60 * time.Second, // Check every minute
-		metricsServerAvailable:     false,
 	}
 }
 
