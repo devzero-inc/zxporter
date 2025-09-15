@@ -26,7 +26,12 @@ const (
 	// Maximum size per chunk (in bytes) - set conservatively to avoid gRPC limits
 	maxChunkSize = 3 * 1024 * 1024 // 3MB per chunk
 	// Maximum batch size for regular resource sends (leaving buffer for headers)
-	maxBatchSize = 15 * 1024 * 1024 // 15MB max per batch (16MB limit - 1MB buffer)
+	maxBatchSize = 25 * 1024 * 1024 // 25MB max per batch
+
+	// Maximum send batch size for grpc client
+	maxSendBatchSize = 30 * 1024 * 1024 // 30MB
+	// Maximum read batch size for grpc client
+	maxReadBatchSize = 30 * 1024 * 1024 // 30MB
 )
 
 // RetryPolicy defines the parameters for retrying.
@@ -136,8 +141,8 @@ func NewDakrClient(dakrBaseURL string, clusterToken string, logger logr.Logger) 
 		dakrBaseURL,
 		connect.WithGRPC(),
 		connect.WithInterceptors(retryInterceptor),
-		connect.WithSendMaxBytes(1024*1024*16), // 16MB max send size
-		connect.WithReadMaxBytes(1024*1024*16), // 16MB max read size
+		connect.WithSendMaxBytes(maxSendBatchSize),
+		connect.WithReadMaxBytes(maxReadBatchSize),
 	)
 
 	return &RealDakrClient{
