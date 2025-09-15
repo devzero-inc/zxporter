@@ -25,9 +25,6 @@ import (
 const (
 	// Maximum size per chunk (in bytes) - set conservatively to avoid gRPC limits
 	maxChunkSize = 3 * 1024 * 1024 // 3MB per chunk
-	// Maximum batch size for regular resource sends (leaving buffer for headers)
-	maxBatchSize = 30 * 1024 * 1024 // 30MB max per batch
-
 	// Maximum send batch size for grpc client
 	maxSendBatchSize = 32 * 1024 * 1024 // 32MB
 	// Maximum read batch size for grpc client
@@ -216,7 +213,7 @@ func estimateResourceSize(item *gen.ResourceItem) int {
 	return len(data)
 }
 
-// splitBatchBySize splits resources into batches that don't exceed maxBatchSize
+// splitBatchBySize splits resources into batches that don't exceed maxSendBatchSize
 func (c *RealDakrClient) splitBatchBySize(resourceItems []*gen.ResourceItem) [][]*gen.ResourceItem {
 	var batches [][]*gen.ResourceItem
 	var currentBatch []*gen.ResourceItem
@@ -226,9 +223,9 @@ func (c *RealDakrClient) splitBatchBySize(resourceItems []*gen.ResourceItem) [][
 		itemSize := estimateResourceSize(item)
 
 		// If single item exceeds max size, send it alone (will likely fail but log it)
-		if itemSize > maxBatchSize {
+		if itemSize > maxSendBatchSize {
 			c.logger.Error(nil, "Single resource exceeds max batch size",
-				"size", itemSize, "maxSize", maxBatchSize, "key", item.Key)
+				"size", itemSize, "maxSize", maxSendBatchSize, "key", item.Key)
 			// Add current batch if not empty
 			if len(currentBatch) > 0 {
 				batches = append(batches, currentBatch)
@@ -241,7 +238,7 @@ func (c *RealDakrClient) splitBatchBySize(resourceItems []*gen.ResourceItem) [][
 		}
 
 		// If adding this item would exceed the limit, start a new batch
-		if currentSize+itemSize > maxBatchSize && len(currentBatch) > 0 {
+		if currentSize+itemSize > maxSendBatchSize && len(currentBatch) > 0 {
 			batches = append(batches, currentBatch)
 			currentBatch = nil
 			currentSize = 0
