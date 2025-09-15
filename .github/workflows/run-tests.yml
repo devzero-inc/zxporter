@@ -11,7 +11,7 @@ on:
 jobs:
   test:
     name: Run make test
-    runs-on: ubuntu-latest
+    runs-on: namespace-profile-dz-generic
     
     steps:
       - name: Checkout code

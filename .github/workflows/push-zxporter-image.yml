@@ -19,7 +19,7 @@ permissions:
 jobs:
   package-and-push:
     name: Package & Push Docker image
-    runs-on: ubuntu-latest
+    runs-on: namespace-profile-dz-generic
     outputs:
       is_release: ${{ steps.version.outputs.is_release }}
 
