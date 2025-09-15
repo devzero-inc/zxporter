@@ -1057,7 +1057,7 @@ func (c *NodeCollector) IsAvailable(ctx context.Context) bool {
 				"zxporter_version": version.Get().String(),
 			},
 		)
-		return false
+		// return false
 	}
 
 	// Try a simple query to check if the metrics server is available
@@ -1076,11 +1076,9 @@ func (c *NodeCollector) IsAvailable(ctx context.Context) bool {
 			},
 		)
 		c.logger.Info("Metrics server API not available for node metrics", "error", err.Error())
-		return false
+		// return false
 	}
 
-	// Even if Prometheus is not available, we can still collect basic node metrics
-	// so we return true here
 	return true
 }
 

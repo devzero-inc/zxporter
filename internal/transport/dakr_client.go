@@ -25,6 +25,10 @@ import (
 const (
 	// Maximum size per chunk (in bytes) - set conservatively to avoid gRPC limits
 	maxChunkSize = 3 * 1024 * 1024 // 3MB per chunk
+	// Maximum send batch size for grpc client
+	maxSendBatchSize = 32 * 1024 * 1024 // 32MB
+	// Maximum read batch size for grpc client
+	maxReadBatchSize = 32 * 1024 * 1024 // 32MB
 )
 
 // RetryPolicy defines the parameters for retrying.
@@ -111,16 +115,16 @@ func NewDakrClient(dakrBaseURL string, clusterToken string, logger logr.Logger) 
 		})
 	})
 
-	// Create custom HTTP client with 30-second timeout and keepalive
+	// Create custom HTTP client with improved timeout and connection pool settings
 	httpClient := &http.Client{
-		Timeout: 30 * time.Second,
+		Timeout: 120 * time.Second,
 		Transport: &http.Transport{
 			DialContext: (&net.Dialer{
 				Timeout:   30 * time.Second,
 				KeepAlive: 30 * time.Second,
 			}).DialContext,
 			MaxIdleConns:        100,
-			MaxIdleConnsPerHost: 10,
+			MaxIdleConnsPerHost: 20,
 			IdleConnTimeout:     90 * time.Second,
 			TLSHandshakeTimeout: 10 * time.Second,
 			DisableKeepAlives:   false,
@@ -134,8 +138,8 @@ func NewDakrClient(dakrBaseURL string, clusterToken string, logger logr.Logger) 
 		dakrBaseURL,
 		connect.WithGRPC(),
 		connect.WithInterceptors(retryInterceptor),
-		connect.WithSendMaxBytes(1024*1024*16), // 16MB max send size
-		connect.WithReadMaxBytes(1024*1024*16), // 16MB max read size
+		connect.WithSendMaxBytes(maxSendBatchSize),
+		connect.WithReadMaxBytes(maxReadBatchSize),
 	)
 
 	return &RealDakrClient{
@@ -198,6 +202,60 @@ func (c *RealDakrClient) SendResource(ctx context.Context, resource collector.Co
 	return resp.Msg.ClusterIdentifier, nil
 }
 
+// estimateResourceSize estimates the size of a resource item in bytes
+func estimateResourceSize(item *gen.ResourceItem) int {
+	// Marshal to get accurate size
+	data, err := proto.Marshal(item)
+	if err != nil {
+		// Fallback to rough estimate if marshaling fails
+		return 1024 // 1KB default estimate
+	}
+	return len(data)
+}
+
+// splitBatchBySize splits resources into batches that don't exceed maxSendBatchSize
+func (c *RealDakrClient) splitBatchBySize(resourceItems []*gen.ResourceItem) [][]*gen.ResourceItem {
+	var batches [][]*gen.ResourceItem
+	var currentBatch []*gen.ResourceItem
+	currentSize := 0
+
+	for _, item := range resourceItems {
+		itemSize := estimateResourceSize(item)
+
+		// If single item exceeds max size, send it alone (will likely fail but log it)
+		if itemSize > maxSendBatchSize {
+			c.logger.Error(nil, "Single resource exceeds max batch size",
+				"size", itemSize, "maxSize", maxSendBatchSize, "key", item.Key)
+			// Add current batch if not empty
+			if len(currentBatch) > 0 {
+				batches = append(batches, currentBatch)
+				currentBatch = nil
+				currentSize = 0
+			}
+			// Add oversized item alone
+			batches = append(batches, []*gen.ResourceItem{item})
+			continue
+		}
+
+		// If adding this item would exceed the limit, start a new batch
+		if currentSize+itemSize > maxSendBatchSize && len(currentBatch) > 0 {
+			batches = append(batches, currentBatch)
+			currentBatch = nil
+			currentSize = 0
+		}
+
+		currentBatch = append(currentBatch, item)
+		currentSize += itemSize
+	}
+
+	// Add remaining batch
+	if len(currentBatch) > 0 {
+		batches = append(batches, currentBatch)
+	}
+
+	return batches
+}
+
 // SendResourceBatch sends a batch of resources to Dakr through gRPC
 func (c *RealDakrClient) SendResourceBatch(ctx context.Context, resources []collector.CollectedResource, resourceType collector.ResourceType) (string, error) {
 	resourceItems := make([]*gen.ResourceItem, 0, len(resources))
@@ -242,32 +300,63 @@ func (c *RealDakrClient) SendResourceBatch(ctx context.Context, resources []coll
 
 	if len(resourceItems) == 0 {
 		c.logger.Info("No valid resources to send in the batch", "type", resourceType)
-		// Return empty string and nil error, as technically no send operation failed
-		// Or potentially return an error indicating an empty batch? Let's return nil for now.
 		return "", nil
 	}
 
-	// Create the batch request
-	batchReq := &gen.SendResourceBatchRequest{
-		Resources: resourceItems,
+	// Split into smaller batches if needed
+	batches := c.splitBatchBySize(resourceItems)
+	c.logger.Info("Splitting resources into batches",
+		"originalCount", len(resourceItems),
+		"batchCount", len(batches),
+		"resourceType", resourceType)
+
+	var lastClusterID string
+	var lastError error
+
+	// Send each batch
+	for i, batch := range batches {
+		// Create the batch request
+		batchReq := &gen.SendResourceBatchRequest{
+			Resources: batch,
+		}
+
+		req := connect.NewRequest(batchReq)
+		attachClusterToken(req, c.clusterToken)
+
+		if ctx.Value("cluster_id") != nil {
+			clusterString, _ := ctx.Value("cluster_id").(string)
+			req.Header().Set("cluster_id", clusterString)
+		}
+
+		// Send to Dakr
+		resp, err := c.client.SendResourceBatch(ctx, req)
+		if err != nil {
+			c.logger.Error(err, "Failed to send resource batch to Dakr",
+				"batchIndex", i+1,
+				"totalBatches", len(batches),
+				"batchSize", len(batch),
+				"type", resourceType)
+			lastError = err
+			// Continue trying other batches even if one fails
+			continue
+		}
+
+		if resp.Msg != nil {
+			lastClusterID = resp.Msg.ClusterIdentifier
+		}
+
+		c.logger.Info("Successfully sent batch",
+			"batchIndex", i+1,
+			"totalBatches", len(batches),
+			"batchSize", len(batch))
 	}
 
-	req := connect.NewRequest(batchReq)
-	attachClusterToken(req, c.clusterToken)
-
-	if ctx.Value("cluster_id") != nil {
-		clusterString, _ := ctx.Value("cluster_id").(string)
-		req.Header().Set("cluster_id", clusterString)
+	// If all batches failed, return the last error
+	if lastError != nil && lastClusterID == "" {
+		return "", fmt.Errorf("failed to send resource batch to Dakr: %w", lastError)
 	}
 
-	// Send to Dakr
-	resp, err := c.client.SendResourceBatch(ctx, req)
-	if err != nil {
-		c.logger.Error(err, "Failed to send resource batch to Dakr", "type", resourceType)
-		return "", fmt.Errorf("failed to send resource batch to Dakr: %w", err)
-	}
-
-	return resp.Msg.ClusterIdentifier, nil
+	return lastClusterID, nil
 }
 
 // SendTelemetryMetrics sends telemetry metrics to Dakr

@@ -3,14 +3,25 @@ package transport
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/devzero-inc/zxporter/internal/collector"
 	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
+)
+
+const (
+	// Circuit breaker configuration
+	maxConsecutiveFailures = 5
+	initialBackoff         = 15 * time.Second
+	maxBackoff             = 5 * time.Minute
+	// Timeout for collecting metrics from a single collector
+	metricCollectionTimeout = 5 * time.Second
 )
 
 // TelemetrySender is responsible for periodically sending metrics to the DAKR server
@@ -21,6 +32,12 @@ type TelemetrySender struct {
 	interval   time.Duration
 	stopCh     chan struct{}
 	isRunning  bool
+
+	// Circuit breaker fields
+	mu                  sync.RWMutex
+	consecutiveFailures int
+	lastFailureTime     time.Time
+	circuitOpenUntil    time.Time
 }
 
 // NewTelemetrySender creates a new TelemetrySender
@@ -69,6 +86,45 @@ func (s *TelemetrySender) Stop() error {
 	return nil
 }
 
+// isCircuitOpen checks if the circuit breaker is open
+func (s *TelemetrySender) isCircuitOpen() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return time.Now().Before(s.circuitOpenUntil)
+}
+
+// recordSuccess resets the failure counter on successful send
+func (s *TelemetrySender) recordSuccess() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.consecutiveFailures = 0
+	s.circuitOpenUntil = time.Time{}
+}
+
+// recordFailure increments failure counter and opens circuit if needed
+func (s *TelemetrySender) recordFailure() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.consecutiveFailures++
+	s.lastFailureTime = time.Now()
+
+	if s.consecutiveFailures >= maxConsecutiveFailures {
+		// Calculate backoff duration with exponential increase
+		backoffMultiplier := s.consecutiveFailures - maxConsecutiveFailures + 1
+		backoffDuration := time.Duration(backoffMultiplier) * initialBackoff
+		if backoffDuration > maxBackoff {
+			backoffDuration = maxBackoff
+		}
+
+		s.circuitOpenUntil = time.Now().Add(backoffDuration)
+		s.logger.Info("Circuit breaker opened",
+			"failures", s.consecutiveFailures,
+			"reopenAt", s.circuitOpenUntil.Format(time.RFC3339),
+			"backoffDuration", backoffDuration.String())
+	}
+}
+
 // run is the main loop that periodically sends metrics
 func (s *TelemetrySender) run(ctx context.Context) {
 	ticker := time.NewTicker(s.interval)
@@ -77,8 +133,17 @@ func (s *TelemetrySender) run(ctx context.Context) {
 	for {
 		select {
 		case <-ticker.C:
+			// Check circuit breaker
+			if s.isCircuitOpen() {
+				s.logger.V(1).Info("Circuit breaker is open, skipping metric send")
+				continue
+			}
+
 			if err := s.sendMetrics(ctx); err != nil {
 				s.logger.Error(err, "Failed to send metrics")
+				s.recordFailure()
+			} else {
+				s.recordSuccess()
 			}
 		case <-s.stopCh:
 			s.logger.Info("Telemetry sender stopped")
@@ -138,23 +203,56 @@ func (s *TelemetrySender) collectAndResetTelemetryMetrics(metrics []collector.Re
 		// Create a channel to receive metrics
 		metricCh := make(chan prometheus.Metric, 1024)
 
-		// Collect metrics into the channel
+		// Create done channel for timeout
+		done := make(chan struct{})
+
+		// Collect metrics with timeout protection
 		go func(m prometheus.Collector) {
-			m.Collect(metricCh)
-			close(metricCh)
+			defer func() {
+				if r := recover(); r != nil {
+					s.logger.Error(fmt.Errorf("panic in metric collection: %v", r),
+						"Recovered from panic during metric collection")
+				}
+				close(done)
+				close(metricCh)
+			}()
+
+			// Collect with timeout
+			collectDone := make(chan struct{})
+			go func() {
+				defer close(collectDone)
+				m.Collect(metricCh)
+			}()
+
+			// Wait for collection or timeout
+			select {
+			case <-collectDone:
+				// Collection completed successfully
+			case <-time.After(metricCollectionTimeout):
+				s.logger.Error(errors.New("metric collection timeout"),
+					"Metric collection timed out",
+					"timeout", metricCollectionTimeout)
+			}
 		}(metric)
 
-		// Process each collected metric
-		for m := range metricCh {
-			dtoMetric := &dto.Metric{}
-			m.Write(dtoMetric)
-			metricName := getMetricName(m.Desc().String())
-			telemetryMetrics = append(telemetryMetrics,
-				&dto.MetricFamily{
-					Name:   &metricName,
-					Metric: []*dto.Metric{dtoMetric},
-				},
-			)
+		// Wait for goroutine to complete or timeout
+		select {
+		case <-done:
+			// Process collected metrics
+			for m := range metricCh {
+				dtoMetric := &dto.Metric{}
+				m.Write(dtoMetric)
+				metricName := getMetricName(m.Desc().String())
+				telemetryMetrics = append(telemetryMetrics,
+					&dto.MetricFamily{
+						Name:   &metricName,
+						Metric: []*dto.Metric{dtoMetric},
+					},
+				)
+			}
+		case <-time.After(metricCollectionTimeout + time.Second):
+			s.logger.Error(errors.New("metric processing timeout"),
+				"Failed to process metrics within timeout")
 		}
 
 		// Reset the metric after collection

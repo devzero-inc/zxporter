@@ -276,7 +276,6 @@ func (r *CollectionPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		return r.initializeCollectors(ctx, newConfig)
 	}
 
-	// No changes needed
 	return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
 }
 
@@ -2541,7 +2540,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				"CollectionPolicyReconciler_registerResourceCollectors",
 				"Collector is not available, skipping registration",
 				nil,
-				map[string]string{ // Note: we should get the reason of why its not available
+				map[string]string{ // Note: we should get the reason why it's not available
 					"collector_type":   c.name.String(),
 					"event_type":       "collector_not_available",
 					"zxporter_version": version.Get().String(),
