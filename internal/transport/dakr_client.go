@@ -114,22 +114,19 @@ func NewDakrClient(dakrBaseURL string, clusterToken string, logger logr.Logger) 
 	})
 
 	// Create custom HTTP client with improved timeout and connection pool settings
-	// Increased timeout to handle large batches and better connection pool for high throughput
 	httpClient := &http.Client{
-		Timeout: 120 * time.Second, // Increased from 30s to handle large batches
+		Timeout: 120 * time.Second,
 		Transport: &http.Transport{
 			DialContext: (&net.Dialer{
 				Timeout:   30 * time.Second,
 				KeepAlive: 30 * time.Second,
 			}).DialContext,
-			MaxIdleConns:        500,  // Increased from 100 for better throughput
-			MaxIdleConnsPerHost: 100,  // Increased from 10 to handle concurrent requests
-			MaxConnsPerHost:     100,  // Add limit to prevent connection exhaustion
+			MaxIdleConns:        100,
+			MaxIdleConnsPerHost: 20,
 			IdleConnTimeout:     90 * time.Second,
 			TLSHandshakeTimeout: 10 * time.Second,
 			DisableKeepAlives:   false,
 			DisableCompression:  false,
-			ForceAttemptHTTP2:   true,  // Enable HTTP/2 for better multiplexing
 		},
 	}
 
