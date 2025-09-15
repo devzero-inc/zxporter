@@ -1044,8 +1044,41 @@ func (c *NodeCollector) GetType() string {
 
 // IsAvailable checks if Node resources can be accessed in the cluster
 func (c *NodeCollector) IsAvailable(ctx context.Context) bool {
-	// Always return true so the collector gets registered
-	// Actual metrics server availability will be checked during collection
+	// Check if the metrics client is available - this is required for basic metrics
+	if c.metricsClient == nil {
+		c.logger.Info("Metrics client is not available, cannot collect node metrics")
+		c.telemetryLogger.Report(
+			gen.LogLevel_LOG_LEVEL_WARN,
+			"NodeCollector",
+			"Metrics client is not available, cannot collect node metrics",
+			fmt.Errorf("metrics client is not available or properly set"),
+			map[string]string{
+				"collector_type":   c.GetType(),
+				"zxporter_version": version.Get().String(),
+			},
+		)
+		// return false
+	}
+
+	// Try a simple query to check if the metrics server is available
+	_, err := c.metricsClient.MetricsV1beta1().NodeMetricses().List(ctx, metav1.ListOptions{
+		Limit: 1, // Only request a single item to minimize load
+	})
+	if err != nil {
+		c.telemetryLogger.Report(
+			gen.LogLevel_LOG_LEVEL_WARN,
+			"NodeCollector",
+			"Metrics server API not available for node metrics",
+			err,
+			map[string]string{
+				"collector_type":   c.GetType(),
+				"zxporter_version": version.Get().String(),
+			},
+		)
+		c.logger.Info("Metrics server API not available for node metrics", "error", err.Error())
+		// return false
+	}
+
 	return true
 }
 

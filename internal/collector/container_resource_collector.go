@@ -980,8 +980,80 @@ func (c *ContainerResourceCollector) GetType() string {
 
 // IsAvailable always returns true - actual availability is checked during collection
 func (c *ContainerResourceCollector) IsAvailable(ctx context.Context) bool {
-	// Always return true so the collector gets registered
-	// Actual metrics server availability will be checked during collection
+	if c.metricsClient == nil {
+		c.logger.Info("Metrics client is not available, cannot collect container resources")
+		c.telemetryLogger.Report(
+			gen.LogLevel_LOG_LEVEL_ERROR,
+			"ContainerResourceCollector",
+			"Metrics client is not available or set properly, cannot collect container resources",
+			fmt.Errorf("metrics server client is not available or set"),
+			map[string]string{
+				"collector_type":   c.GetType(),
+				"zxporter_version": version.Get().String(),
+			},
+		)
+		// return false
+	}
+
+	// Try to list pod metrics to check metrics API availability
+	_, err := c.metricsClient.MetricsV1beta1().PodMetricses("").List(ctx, metav1.ListOptions{
+		Limit: 1, // Only request a single item to minimize load
+	})
+
+	if err != nil {
+		c.logger.Info("Metrics server API not available", "error", err.Error())
+		c.telemetryLogger.Report(
+			gen.LogLevel_LOG_LEVEL_ERROR,
+			"ContainerResourceCollector",
+			"Metrics server API not available",
+			err,
+			map[string]string{
+				"collector_type":   c.GetType(),
+				"zxporter_version": version.Get().String(),
+			},
+		)
+		// return false
+	}
+
+	// If network/IO and GPU metrics are not disabled, also check Prometheus availability
+	if !c.config.DisableNetworkIOMetrics && !c.config.DisableGPUMetrics {
+		if c.prometheusAPI == nil {
+			c.logger.Info("Prometheus client is not available for network/IO or GPU metrics")
+			c.telemetryLogger.Report(
+				gen.LogLevel_LOG_LEVEL_ERROR,
+				"ContainerResourceCollector",
+				"Prometheus client is not available for network/IO or GPU metrics",
+				fmt.Errorf("prometehus client not available or set properly"),
+				map[string]string{
+					"collector_type":   c.GetType(),
+					"zxporter_version": version.Get().String(),
+				},
+			)
+			// Still return true since the main metrics are available
+			// return true
+		}
+
+		// Try a simple query to check if Prometheus is available
+		queryCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		defer cancel()
+
+		_, _, err = c.prometheusAPI.Query(queryCtx, "up", time.Now())
+		if err != nil {
+			c.telemetryLogger.Report(
+				gen.LogLevel_LOG_LEVEL_ERROR,
+				"ContainerResourceCollector",
+				"Prometheus API not available for network and I/O metrics",
+				err,
+				map[string]string{
+					"collector_type":   c.GetType(),
+					"zxporter_version": version.Get().String(),
+				},
+			)
+			c.logger.Info("Prometheus API not available for network and I/O metrics", "error", err.Error())
+			// Still return true since the main metrics are available
+		}
+	}
+
 	return true
 }
 
