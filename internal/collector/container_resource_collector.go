@@ -1034,23 +1034,25 @@ func (c *ContainerResourceCollector) IsAvailable(ctx context.Context) bool {
 		}
 
 		// Try a simple query to check if Prometheus is available
-		queryCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-		defer cancel()
+		if c.prometheusAPI != nil {
+			queryCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+			defer cancel()
 
-		_, _, err = c.prometheusAPI.Query(queryCtx, "up", time.Now())
-		if err != nil {
-			c.telemetryLogger.Report(
-				gen.LogLevel_LOG_LEVEL_ERROR,
-				"ContainerResourceCollector",
-				"Prometheus API not available for network and I/O metrics",
-				err,
-				map[string]string{
-					"collector_type":   c.GetType(),
-					"zxporter_version": version.Get().String(),
-				},
-			)
-			c.logger.Info("Prometheus API not available for network and I/O metrics", "error", err.Error())
-			// Still return true since the main metrics are available
+			_, _, err = c.prometheusAPI.Query(queryCtx, "up", time.Now())
+			if err != nil {
+				c.telemetryLogger.Report(
+					gen.LogLevel_LOG_LEVEL_ERROR,
+					"ContainerResourceCollector",
+					"Prometheus API not available for network and I/O metrics",
+					err,
+					map[string]string{
+						"collector_type":   c.GetType(),
+						"zxporter_version": version.Get().String(),
+					},
+				)
+				c.logger.Info("Prometheus API not available for network and I/O metrics", "error", err.Error())
+				// Still return true since the main metrics are available
+			}
 		}
 	}
 
