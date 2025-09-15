@@ -26,12 +26,12 @@ const (
 	// Maximum size per chunk (in bytes) - set conservatively to avoid gRPC limits
 	maxChunkSize = 3 * 1024 * 1024 // 3MB per chunk
 	// Maximum batch size for regular resource sends (leaving buffer for headers)
-	maxBatchSize = 25 * 1024 * 1024 // 25MB max per batch
+	maxBatchSize = 30 * 1024 * 1024 // 30MB max per batch
 
 	// Maximum send batch size for grpc client
-	maxSendBatchSize = 30 * 1024 * 1024 // 30MB
+	maxSendBatchSize = 32 * 1024 * 1024 // 32MB
 	// Maximum read batch size for grpc client
-	maxReadBatchSize = 30 * 1024 * 1024 // 30MB
+	maxReadBatchSize = 32 * 1024 * 1024 // 32MB
 )
 
 // RetryPolicy defines the parameters for retrying.
