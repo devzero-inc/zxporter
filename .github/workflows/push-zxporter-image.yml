@@ -11,8 +11,8 @@ on:
   push:
     branches:
       - garvit/ecr-push
-    tags:
-      - 'v*'
+    # tags:
+    #   - 'v*'
 
 permissions:
   contents: write
