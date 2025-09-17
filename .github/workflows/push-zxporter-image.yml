@@ -1,4 +1,4 @@
-name: 'Push zxporter to Docker Hub'
+name: 'Push zxporter to Docker Hub and ECR'
 
 on:
   workflow_dispatch:
@@ -9,10 +9,8 @@ on:
         type: boolean
         default: false
   push:
-    branches:
-      - garvit/ecr-push
-    # tags:
-    #   - 'v*'
+    tags:
+      - 'v*'
 
 permissions:
   contents: write
@@ -189,7 +187,6 @@ jobs:
           GIT_TREE_STATE: ${{ env.GIT_TREE_STATE }}
           BUILD_DATE: ${{ env.BUILD_DATE }}
           VALIDATED_TAGS: ${{ steps.validate_tags.outputs.VALIDATED_TAGS }}
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         run: |
           # Use the validated tags from the previous step
           read -ra TAGS <<< "$VALIDATED_TAGS"
