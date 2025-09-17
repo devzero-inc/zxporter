@@ -9,6 +9,8 @@ on:
         type: boolean
         default: false
   push:
+    branches:
+      - garvit/ecr-push
     tags:
       - 'v*'
 
@@ -163,6 +165,17 @@ jobs:
           echo "VALIDATED_TAGS=${TAGS_STRING}" >> $GITHUB_OUTPUT
           echo "Validated tags to build: ${TAGS_STRING}"
 
+      - name: Configure AWS credentials for ECR using OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ECR_PUSH_ROLE_ARN }}
+          role-session-name: GitHubActions-ZxporterBuild
+          aws-region: us-west-2
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
       - name: Build and push multi-arch images
         env:
           MAJOR: ${{ env.MAJOR }}
@@ -173,6 +186,7 @@ jobs:
           GIT_TREE_STATE: ${{ env.GIT_TREE_STATE }}
           BUILD_DATE: ${{ env.BUILD_DATE }}
           VALIDATED_TAGS: ${{ steps.validate_tags.outputs.VALIDATED_TAGS }}
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         run: |
           # Use the validated tags from the previous step
           read -ra TAGS <<< "$VALIDATED_TAGS"
@@ -180,11 +194,13 @@ jobs:
           echo "Building and pushing validated tags: ${TAGS[@]}"
 
           for tag in "${TAGS[@]}"; do
-            echo "Building and pushing tag: $tag"
+            echo "Building and pushing tag: $tag to both Docker Hub and ECR"
+            
             docker buildx build \
               --platform linux/amd64,linux/arm64 \
               --push \
               -t devzeroinc/zxporter:$tag \
+              -t $ECR_REGISTRY/zxporter:$tag \
               --build-arg TARGETOS \
               --build-arg TARGETARCH \
               --build-arg MAJOR=$MAJOR \
