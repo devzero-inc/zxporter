@@ -1,4 +1,4 @@
-name: 'Push zxporter to Docker Hub'
+name: 'Push zxporter to Docker Hub and ECR'
 
 on:
   workflow_dispatch:
@@ -15,6 +15,7 @@ on:
 permissions:
   contents: write
   packages: write
+  id-token: write
 
 jobs:
   package-and-push:
@@ -163,6 +164,19 @@ jobs:
           echo "VALIDATED_TAGS=${TAGS_STRING}" >> $GITHUB_OUTPUT
           echo "Validated tags to build: ${TAGS_STRING}"
 
+      - name: Configure AWS credentials for ECR using OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ECR_PUSH_ROLE_ARN }}
+          role-session-name: GitHubActions-ZxporterBuild
+          aws-region: us-east-1
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+        with:
+          registry-type: public
+
       - name: Build and push multi-arch images
         env:
           MAJOR: ${{ env.MAJOR }}
@@ -180,11 +194,13 @@ jobs:
           echo "Building and pushing validated tags: ${TAGS[@]}"
 
           for tag in "${TAGS[@]}"; do
-            echo "Building and pushing tag: $tag"
+            echo "Building and pushing tag: $tag to both Docker Hub and ECR"
+            
             docker buildx build \
               --platform linux/amd64,linux/arm64 \
               --push \
               -t devzeroinc/zxporter:$tag \
+              -t public.ecr.aws/devzeroinc/zxporter:$tag \
               --build-arg TARGETOS \
               --build-arg TARGETARCH \
               --build-arg MAJOR=$MAJOR \
