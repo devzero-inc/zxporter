@@ -338,17 +338,17 @@ func (r *CollectionPolicyReconciler) createNewConfig(envSpec *monitoringv1.Colle
 		newConfig.NodeMetricsInterval = max(newConfig.UpdateInterval*6, 60*time.Second)
 	}
 
-	// Set cluster snapshot interval (defaults to 15m for reduced network usage)
+	// Set cluster snapshot interval (defaults to 3h for reduced network usage)
 	clusterSnapshotIntervalStr := envSpec.Policies.ClusterSnapshotInterval
 	if clusterSnapshotIntervalStr != "" {
 		if interval, err := time.ParseDuration(clusterSnapshotIntervalStr); err == nil {
 			newConfig.ClusterSnapshotInterval = interval
 		} else {
 			logger.Error(err, "Error parsing cluster snapshot interval", "interval", clusterSnapshotIntervalStr)
-			newConfig.ClusterSnapshotInterval = 15 * time.Minute // Default to 15 minutes
+			newConfig.ClusterSnapshotInterval = 3 * time.Hour // Default to 3 hours
 		}
 	} else {
-		newConfig.ClusterSnapshotInterval = 15 * time.Minute // Default to 15 minutes
+		newConfig.ClusterSnapshotInterval = 3 * time.Hour // Default to 3 hours
 	}
 
 	// Convert all excluded resources

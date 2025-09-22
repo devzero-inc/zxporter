@@ -72,7 +72,7 @@ const (
 	_ENV_NODE_METRICS_INTERVAL = "NODE_METRICS_INTERVAL"
 
 	// CLUSTER_SNAPSHOT_INTERVAL is how often to take cluster snapshots.
-	// Default value: 15m
+	// Default value: 3h
 	_ENV_CLUSTER_SNAPSHOT_INTERVAL = "CLUSTER_SNAPSHOT_INTERVAL"
 
 	// WATCHED_CRDS is a list of custom resource definitions to explicitly watch.

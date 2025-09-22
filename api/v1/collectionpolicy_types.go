@@ -420,7 +420,7 @@ type Policies struct {
 	// NodeMetricsInterval is how often to collect node metrics (defaults to 6x regular frequency)
 	NodeMetricsInterval string `json:"nodeMetricsInterval,omitempty"`
 
-	// ClusterSnapshotInterval is how often to take cluster snapshots (defaults to 15m)
+	// ClusterSnapshotInterval is how often to take cluster snapshots (defaults to 3h)
 	ClusterSnapshotInterval string `json:"clusterSnapshotInterval,omitempty"`
 
 	// WatchedCRDs is a list of custom resource definitions to explicitly watch

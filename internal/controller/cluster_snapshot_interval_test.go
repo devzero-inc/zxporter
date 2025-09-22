@@ -18,7 +18,7 @@ func TestClusterSnapshotIntervalConfiguration(t *testing.T) {
 		{
 			name:           "Default interval when not specified",
 			envValue:       "",
-			expectedResult: 15 * time.Minute,
+			expectedResult: 3 * time.Hour,
 			expectError:    false,
 		},
 		{
@@ -78,13 +78,13 @@ func TestClusterSnapshotIntervalNetworkOptimization(t *testing.T) {
 	}{
 		{
 			name:         "Extended interval reduces network traffic",
-			interval:     "60m",
-			expectedText: "1h0m0s",
+			interval:     "6h",
+			expectedText: "6h0m0s",
 		},
 		{
 			name:         "Very long interval for cost optimization",
-			interval:     "4h",
-			expectedText: "4h0m0s",
+			interval:     "12h",
+			expectedText: "12h0m0s",
 		},
 	}
 
@@ -104,14 +104,14 @@ func TestClusterSnapshotIntervalNetworkOptimization(t *testing.T) {
 				t.Errorf("Expected interval %s, got %s", tc.expectedText, config.ClusterSnapshotInterval.String())
 			}
 
-			// Verify the interval is longer than the default 15 minutes
-			if config.ClusterSnapshotInterval <= 15*time.Minute {
-				t.Errorf("Expected interval %v to be longer than default 15m", config.ClusterSnapshotInterval)
+			// Verify the interval is longer than the new default 3 hours for extended optimization
+			if config.ClusterSnapshotInterval <= 3*time.Hour {
+				t.Errorf("Expected interval %v to be longer than default 3h", config.ClusterSnapshotInterval)
 			}
 
 			t.Logf("✅ Successfully configured cluster snapshot interval: %v", config.ClusterSnapshotInterval)
 			t.Logf("   This provides %.1fx reduction in snapshot frequency compared to default",
-				float64(config.ClusterSnapshotInterval)/float64(15*time.Minute))
+				float64(config.ClusterSnapshotInterval)/float64(3*time.Hour))
 		})
 	}
 }
