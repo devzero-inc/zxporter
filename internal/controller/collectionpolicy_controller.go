@@ -129,6 +129,7 @@ type PolicyConfig struct {
 	DisableGPUMetrics       bool
 	UpdateInterval          time.Duration
 	NodeMetricsInterval     time.Duration
+	ClusterSnapshotInterval time.Duration
 	BufferSize              int
 	MaskSecretData          bool
 	NumResourceProcessors   int
@@ -335,6 +336,19 @@ func (r *CollectionPolicyReconciler) createNewConfig(envSpec *monitoringv1.Colle
 		}
 	} else {
 		newConfig.NodeMetricsInterval = max(newConfig.UpdateInterval*6, 60*time.Second)
+	}
+
+	// Set cluster snapshot interval (defaults to 15m for reduced network usage)
+	clusterSnapshotIntervalStr := envSpec.Policies.ClusterSnapshotInterval
+	if clusterSnapshotIntervalStr != "" {
+		if interval, err := time.ParseDuration(clusterSnapshotIntervalStr); err == nil {
+			newConfig.ClusterSnapshotInterval = interval
+		} else {
+			logger.Error(err, "Error parsing cluster snapshot interval", "interval", clusterSnapshotIntervalStr)
+			newConfig.ClusterSnapshotInterval = 15 * time.Minute // Default to 15 minutes
+		}
+	} else {
+		newConfig.ClusterSnapshotInterval = 15 * time.Minute // Default to 15 minutes
 	}
 
 	// Convert all excluded resources
@@ -705,6 +719,10 @@ func (r *CollectionPolicyReconciler) identifyAffectedCollectors(oldConfig, newCo
 
 	if oldConfig.NodeMetricsInterval != newConfig.NodeMetricsInterval {
 		affectedCollectors["node_resource"] = true
+	}
+
+	if oldConfig.ClusterSnapshotInterval != newConfig.ClusterSnapshotInterval {
+		affectedCollectors["cluster_snapshot"] = true
 	}
 
 	if !reflect.DeepEqual(oldConfig.ExcludedCSINodes, newConfig.ExcludedCSINodes) {
@@ -1360,7 +1378,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 			replacedCollector = snap.NewClusterSnapshotter(
 				r.K8sClient,
 				r.KEDAClient,
-				15*time.Minute,
+				newConfig.ClusterSnapshotInterval,
 				r.Sender,
 				r.CollectionManager,
 				newConfig.TargetNamespaces,
@@ -2442,7 +2460,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 			collector: snap.NewClusterSnapshotter(
 				r.K8sClient,
 				r.KEDAClient,
-				15*time.Minute,
+				config.ClusterSnapshotInterval,
 				r.Sender,
 				r.CollectionManager,
 				config.TargetNamespaces,
@@ -3058,7 +3076,7 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 				replacedCollector = snap.NewClusterSnapshotter(
 					r.K8sClient,
 					r.KEDAClient,
-					15*time.Minute,
+					newConfig.ClusterSnapshotInterval,
 					r.Sender,
 					r.CollectionManager,
 					newConfig.TargetNamespaces,

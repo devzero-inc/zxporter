@@ -560,6 +560,10 @@ spec:
                   bufferSize:
                     description: BufferSize is the size of the sender buffer
                     type: integer
+                  clusterSnapshotInterval:
+                    description: ClusterSnapshotInterval is how often to take cluster
+                      snapshots (defaults to 15m)
+                    type: string
                   clusterToken:
                     description: ClusterToken is the token used to authenticate as
                       a cluster

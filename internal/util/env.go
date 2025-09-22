@@ -71,6 +71,10 @@ const (
 	// Default value: collection frequency * 6
 	_ENV_NODE_METRICS_INTERVAL = "NODE_METRICS_INTERVAL"
 
+	// CLUSTER_SNAPSHOT_INTERVAL is how often to take cluster snapshots.
+	// Default value: 15m
+	_ENV_CLUSTER_SNAPSHOT_INTERVAL = "CLUSTER_SNAPSHOT_INTERVAL"
+
 	// WATCHED_CRDS is a list of custom resource definitions to explicitly watch.
 	// This is a comma-separated list.
 	// Default value: []
@@ -526,6 +530,9 @@ func LoadCollectionPolicySpecFromEnv() (v1.CollectionPolicySpec, error) {
 	}
 	if v := getEnv(_ENV_NODE_METRICS_INTERVAL); v != "" {
 		newSpec.Policies.NodeMetricsInterval = v
+	}
+	if v := getEnv(_ENV_CLUSTER_SNAPSHOT_INTERVAL); v != "" {
+		newSpec.Policies.ClusterSnapshotInterval = v
 	}
 	if list := splitCSV(_ENV_WATCHED_CRDS); list != nil {
 		newSpec.Policies.WatchedCRDs = list
