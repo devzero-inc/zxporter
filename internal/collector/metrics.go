@@ -112,7 +112,7 @@ func NewPrometheusClient(metrics *TelemetryMetrics) *http.Client {
 	// Create a transport with compression enabled for Prometheus API calls
 	// This is especially beneficial for large query results
 	transport := &http.Transport{
-		DisableCompression: false,  // Enable gzip compression for responses
+		DisableCompression: false, // Enable gzip compression for responses
 		// Use reasonable defaults for connection pooling
 		MaxIdleConns:        10,
 		MaxIdleConnsPerHost: 2,
@@ -121,6 +121,6 @@ func NewPrometheusClient(metrics *TelemetryMetrics) *http.Client {
 
 	return &http.Client{
 		Transport: NewPrometheusRoundTripper(transport, metrics),
-		Timeout:   30 * time.Second,  // Add reasonable timeout
+		Timeout:   30 * time.Second,
 	}
 }

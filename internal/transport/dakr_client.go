@@ -138,8 +138,8 @@ func NewDakrClient(dakrBaseURL string, clusterToken string, logger logr.Logger) 
 		httpClient,
 		dakrBaseURL,
 		connect.WithGRPC(),
-		connect.WithSendGzip(),                    // Enable gzip compression for requests
-		connect.WithCompressMinBytes(1024),        // Only compress if payload > 1KB
+		connect.WithSendGzip(),             // Enable gzip compression for requests
+		connect.WithCompressMinBytes(1024), // Only compress if payload > 1KB
 		connect.WithInterceptors(retryInterceptor),
 		connect.WithSendMaxBytes(maxSendBatchSize),
 		connect.WithReadMaxBytes(maxReadBatchSize),
@@ -275,7 +275,6 @@ func (c *RealDakrClient) SendResourceBatch(ctx context.Context, resources []coll
 	resourceItems := make([]*gen.ResourceItem, 0, len(resources))
 
 	for _, resource := range resources {
-		// Optimize: Use data_bytes directly instead of inefficient JSON→structpb conversion
 		// This skips the structpb.Struct entirely and lets Connect RPC compress the JSON
 		jsonBytes, err := json.Marshal(resource.Object)
 		if err != nil {
@@ -289,7 +288,7 @@ func (c *RealDakrClient) SendResourceBatch(ctx context.Context, resources []coll
 			Key:          resource.Key,
 			Timestamp:    timestamppb.New(resource.Timestamp),
 			EventType:    resource.EventType.ProtoType(),
-			DataBytes:    jsonBytes,                        // ✅ Direct JSON bytes - much more compressible
+			DataBytes:    jsonBytes,
 			ResourceType: resource.ResourceType.ProtoType(),
 		}
 		resourceItems = append(resourceItems, item)
