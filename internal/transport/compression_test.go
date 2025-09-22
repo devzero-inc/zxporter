@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"encoding/json"
 	"fmt"
+	"math"
 	"testing"
 	"time"
 
@@ -365,9 +366,7 @@ func BenchmarkResourceCompression(b *testing.B) {
 	})
 }
 
+// abs returns the absolute value of x using math.Abs from standard library
 func abs(x int) int {
-	if x < 0 {
-		return -x
-	}
-	return x
+	return int(math.Abs(float64(x)))
 }
