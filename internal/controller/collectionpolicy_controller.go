@@ -3155,7 +3155,7 @@ func (r *CollectionPolicyReconciler) waitForPrometheusAvailability(ctx context.C
 	client := &http.Client{
 		Timeout: 5 * time.Second,
 		Transport: &http.Transport{
-			DisableCompression: false,  // Enable gzip compression for responses
+			DisableCompression: false, // Enable gzip compression for responses
 		},
 	}
 
