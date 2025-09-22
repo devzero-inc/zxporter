@@ -3170,11 +3170,12 @@ func (r *CollectionPolicyReconciler) waitForPrometheusAvailability(ctx context.C
 	backoff := initialBackoff
 	maxRetries := 12 // About 25 minutes total with exponential backoff
 
+	// Clone DefaultTransport to preserve proxy settings, TLS config, and connection pooling
+	tr := http.DefaultTransport.(*http.Transport).Clone()
+	tr.DisableCompression = false // Ensure gzip compression is enabled for responses
 	client := &http.Client{
-		Timeout: 5 * time.Second,
-		Transport: &http.Transport{
-			DisableCompression: false, // Enable gzip compression for responses
-		},
+		Timeout:   5 * time.Second,
+		Transport: tr,
 	}
 
 	// Endpoint to verify prometheus is ready

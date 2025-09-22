@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -288,23 +289,28 @@ func TestEstimateResourceSizeOptimization(t *testing.T) {
 	pod := createSampleKubernetesResource()
 	jsonBytes, _ := json.Marshal(pod)
 
-	// Create ResourceItem using our optimized approach
+	// Create ResourceItem using current approach (structpb)
+	// Convert to structpb first
+	var dataMap map[string]interface{}
+	json.Unmarshal(jsonBytes, &dataMap)
+	dataStruct, _ := structpb.NewStruct(dataMap)
+
 	item := &gen.ResourceItem{
 		Key:          "test-key",
 		Timestamp:    timestamppb.New(time.Now()),
 		EventType:    gen.EventType_EVENT_TYPE_ADD,
-		DataBytes:    jsonBytes,
+		Data:         dataStruct,
 		ResourceType: gen.ResourceType_RESOURCE_TYPE_POD,
 	}
 
-	// Test the current estimateResourceSize function with compression awareness
+	// Test the current estimateResourceSize function for uncompressed size estimation
 	estimatedSize := estimateResourceSize(item)
 
 	// Marshal to get actual size
 	protoBytes, _ := proto.Marshal(item)
 	actualSize := len(protoBytes)
 
-	// Test compression to get actual compressed size
+	// Test compression to show compression benefits (for reference)
 	_, result, _ := compressData(protoBytes)
 	actualCompressedSize := result.CompressedSize
 
@@ -312,14 +318,19 @@ func TestEstimateResourceSizeOptimization(t *testing.T) {
 	t.Logf("Actual uncompressed size: %d bytes", actualSize)
 	t.Logf("Actual compressed size: %d bytes", actualCompressedSize)
 
-	// Verify our estimation is reasonably close to actual compressed size
-	estimationError := float64(abs(estimatedSize-actualCompressedSize)) / float64(actualCompressedSize)
-	t.Logf("Estimation error: %.1f%%", estimationError*100)
+	// Verify our estimation is reasonably close to actual uncompressed size
+	// (not compressed size, because Connect RPC limits apply to uncompressed messages)
+	estimationError := float64(abs(estimatedSize-actualSize)) / float64(actualSize)
+	t.Logf("Uncompressed size estimation error: %.1f%%", estimationError*100)
 
-	if estimationError > 0.5 { // Within 50% is reasonable for estimation
-		t.Errorf("Size estimation is too far off: estimated %d, actual compressed %d (%.1f%% error)",
-			estimatedSize, actualCompressedSize, estimationError*100)
+	if estimationError > 0.2 { // Within 20% is reasonable for proto size estimation
+		t.Errorf("Size estimation is too far off: estimated %d, actual uncompressed %d (%.1f%% error)",
+			estimatedSize, actualSize, estimationError*100)
 	}
+
+	// Log compression ratio for reference
+	compressionRatio := float64(actualCompressedSize) / float64(actualSize)
+	t.Logf("Compression ratio: %.1f%% (%.2fx smaller)", compressionRatio*100, 1.0/compressionRatio)
 }
 
 func BenchmarkResourceCompression(b *testing.B) {

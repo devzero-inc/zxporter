@@ -109,15 +109,14 @@ func (rt *PrometheusRoundTripper) RoundTrip(req *http.Request) (*http.Response, 
 
 // NewPrometheusClient creates a new Prometheus HTTP client with metrics and compression
 func NewPrometheusClient(metrics *TelemetryMetrics) *http.Client {
-	// Create a transport with compression enabled for Prometheus API calls
-	// This is especially beneficial for large query results
-	transport := &http.Transport{
-		DisableCompression: false, // Enable gzip compression for responses
-		// Use reasonable defaults for connection pooling
-		MaxIdleConns:        10,
-		MaxIdleConnsPerHost: 2,
-		IdleConnTimeout:     30 * time.Second,
-	}
+	// Clone DefaultTransport to preserve proxy settings, TLS config, and defaults
+	// Then customize for Prometheus API calls
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.DisableCompression = false // Enable gzip compression for responses
+	// Customize connection pooling for Prometheus
+	transport.MaxIdleConns = 10
+	transport.MaxIdleConnsPerHost = 2
+	transport.IdleConnTimeout = 30 * time.Second
 
 	return &http.Client{
 		Transport: NewPrometheusRoundTripper(transport, metrics),

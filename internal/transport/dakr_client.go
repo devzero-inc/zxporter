@@ -26,10 +26,11 @@ const (
 	// Maximum size per chunk (in bytes) - larger chunks are OK with compression
 	// Connect RPC will compress these chunks automatically, reducing them by ~70-80%
 	maxChunkSize = 8 * 1024 * 1024 // 8MB per chunk (will compress to ~2MB)
-	// Maximum send batch size for grpc client
-	maxSendBatchSize = 32 * 1024 * 1024 // 32MB
-	// Maximum read batch size for grpc client
-	maxReadBatchSize = 32 * 1024 * 1024 // 32MB
+	// Maximum send batch size for grpc client (uncompressed size limit)
+	// Connect RPC applies limits to uncompressed message size, not compressed
+	maxSendBatchSize = 32 * 1024 * 1024 // 32MB uncompressed
+	// Maximum read batch size for grpc client (uncompressed size limit)
+	maxReadBatchSize = 32 * 1024 * 1024 // 32MB uncompressed
 )
 
 // RetryPolicy defines the parameters for retrying.
@@ -206,26 +207,29 @@ func (c *RealDakrClient) SendResource(ctx context.Context, resource collector.Co
 	return resp.Msg.ClusterIdentifier, nil
 }
 
-// estimateResourceSize estimates the compressed size of a resource item in bytes
+// estimateResourceSize estimates the uncompressed size of a resource item in bytes
+// This is important because Connect RPC applies size limits to the uncompressed message,
+// not the compressed size.
 func estimateResourceSize(item *gen.ResourceItem) int {
-	// Marshal to get accurate size
-	data, err := proto.Marshal(item)
-	if err != nil {
-		// Fallback to rough estimate if marshaling fails
+	// Use proto.Size for efficient size calculation without marshaling
+	// This returns the exact encoded protobuf size
+	size := proto.Size(item)
+	if size <= 0 {
+		// Fallback to a reasonable default if size calculation fails
 		return 1024 // 1KB default estimate
 	}
 
-	// Account for gzip compression - Kubernetes JSON typically compresses to 20-30% of original size
-	// We use 0.3 (30%) as a conservative estimate for batch sizing
-	compressionRatio := 0.3
-	estimatedCompressedSize := int(float64(len(data)) * compressionRatio)
+	// Add small per-item framing overhead for the repeated field encoding
+	// (field tag + length varint when this item is part of a repeated field)
+	const perItemOverhead = 10 // Conservative overhead for tag and varint
+	estimatedSize := size + perItemOverhead
 
-	// Always return at least 256 bytes to account for protobuf overhead
-	if estimatedCompressedSize < 256 {
-		estimatedCompressedSize = 256
+	// Ensure minimum size to account for any additional protocol overhead
+	if estimatedSize < 256 {
+		estimatedSize = 256
 	}
 
-	return estimatedCompressedSize
+	return estimatedSize
 }
 
 // splitBatchBySize splits resources into batches that don't exceed maxSendBatchSize
