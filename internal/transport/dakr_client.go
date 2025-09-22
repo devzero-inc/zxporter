@@ -152,30 +152,31 @@ func NewDakrClient(dakrBaseURL string, clusterToken string, logger logr.Logger) 
 	}
 }
 
+// toStructpb converts an arbitrary object to structpb.Struct
+func (c *RealDakrClient) toStructpb(data interface{}) (*structpb.Struct, error) {
+	// First convert to JSON
+	jsonBytes, err := json.Marshal(data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal to JSON: %w", err)
+	}
+
+	// Then unmarshal into a map
+	var jsonMap map[string]interface{}
+	if err := json.Unmarshal(jsonBytes, &jsonMap); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal JSON to map: %w", err)
+	}
+
+	// Finally convert to structpb
+	return structpb.NewStruct(jsonMap)
+}
+
 // SendResource sends the resource to Dakr through gRPC
 func (c *RealDakrClient) SendResource(ctx context.Context, resource collector.CollectedResource) (string, error) {
-	// Convert resource.Object to a protobuf struct
-	var dataStruct *structpb.Struct
-	var err error
-
-	// First try to convert directly
-	dataStruct, err = structpb.NewStruct(map[string]interface{}{})
+	// Convert resource.Object to a protobuf struct using the helper
+	dataStruct, err := c.toStructpb(resource.Object)
 	if err != nil {
-		c.logger.Error(err, "Failed to create empty struct")
-		return "", err
-	}
-
-	// Marshal the object to JSON then unmarshal to the struct
-	jsonBytes, err := json.Marshal(resource.Object)
-	if err != nil {
-		c.logger.Error(err, "Failed to marshal resource data to JSON")
-		return "", fmt.Errorf("failed to marshal resource data: %w", err)
-	}
-
-	err = dataStruct.UnmarshalJSON(jsonBytes)
-	if err != nil {
-		c.logger.Error(err, "Failed to unmarshal JSON to protobuf struct")
-		return "", fmt.Errorf("failed to convert resource data to protobuf struct: %w", err)
+		c.logger.Error(err, "Failed to convert resource data to structpb")
+		return "", fmt.Errorf("failed to convert resource data to structpb: %w", err)
 	}
 
 	// Create the request
@@ -275,20 +276,31 @@ func (c *RealDakrClient) SendResourceBatch(ctx context.Context, resources []coll
 	resourceItems := make([]*gen.ResourceItem, 0, len(resources))
 
 	for _, resource := range resources {
-		// This skips the structpb.Struct entirely and lets Connect RPC compress the JSON
-		jsonBytes, err := json.Marshal(resource.Object)
+		// Convert resource data to structpb for protobuf serialization
+		data, err := c.toStructpb(resource.Object)
 		if err != nil {
-			c.logger.Error(err, "Failed to marshal resource data to JSON for batch item", "key", resource.Key)
+			c.logger.Error(err, "Failed to convert resource data to structpb for batch item", "key", resource.Key)
 			// Skip this item
 			continue
 		}
 
-		// Create the resource item using data_bytes field for better compression
+		// Create the resource item
+		// TODO: Future optimization - use data_bytes field instead of data field
+		// This would avoid the JSON->structpb conversion overhead and slightly reduce payload size
+		// Example future implementation:
+		// jsonBytes, _ := json.Marshal(resource.Object)
+		// item := &gen.ResourceItem{
+		//     Key:          resource.Key,
+		//     Timestamp:    timestamppb.New(resource.Timestamp),
+		//     EventType:    resource.EventType.ProtoType(),
+		//     DataBytes:    jsonBytes,  // Direct JSON bytes, no structpb conversion
+		//     ResourceType: resource.ResourceType.ProtoType(),
+		// }
 		item := &gen.ResourceItem{
 			Key:          resource.Key,
 			Timestamp:    timestamppb.New(resource.Timestamp),
 			EventType:    resource.EventType.ProtoType(),
-			DataBytes:    jsonBytes,
+			Data:         data, // Using structpb for now
 			ResourceType: resource.ResourceType.ProtoType(),
 		}
 		resourceItems = append(resourceItems, item)

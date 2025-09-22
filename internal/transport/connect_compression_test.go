@@ -212,16 +212,25 @@ func TestConnectRPCCompressionIntegration(t *testing.T) {
 				t.Errorf("Expected %d resources, got %d", len(resources), len(batch.Resources))
 			}
 
-			// Verify using data_bytes field
+			// Verify using data field (structpb format)
 			for i, item := range batch.Resources {
-				if len(item.DataBytes) == 0 {
-					t.Errorf("Resource %d missing DataBytes field", i)
+				if item.Data == nil {
+					t.Errorf("Resource %d missing Data field", i)
+					continue
+				}
+
+				// Convert structpb back to JSON for verification
+				jsonData, err := item.Data.MarshalJSON()
+				if err != nil {
+					t.Errorf("Failed to marshal resource %d Data to JSON: %v", i, err)
+					continue
 				}
 
 				// Verify we can deserialize the JSON
 				var pod corev1.Pod
-				if err := json.Unmarshal(item.DataBytes, &pod); err != nil {
-					t.Errorf("Failed to unmarshal resource %d DataBytes: %v", i, err)
+				if err := json.Unmarshal(jsonData, &pod); err != nil {
+					t.Errorf("Failed to unmarshal resource %d Data: %v", i, err)
+					continue
 				}
 
 				if pod.Name == "" {
@@ -247,8 +256,8 @@ func TestCompressionEffectivenessComparison(t *testing.T) {
 		resources = append(resources, resource)
 	}
 
-	// Test old approach (JSON -> structpb)
-	t.Run("OldApproach_JSONToStructpb", func(t *testing.T) {
+	// Test current approach (JSON -> structpb)
+	t.Run("CurrentApproach_JSONToStructpb", func(t *testing.T) {
 		var totalSize int
 		for _, resource := range resources {
 			jsonBytes, err := json.Marshal(resource.Object)
@@ -256,15 +265,16 @@ func TestCompressionEffectivenessComparison(t *testing.T) {
 				t.Fatalf("Failed to marshal to JSON: %v", err)
 			}
 
-			// Simulate old structpb approach overhead
+			// Simulate structpb approach overhead
 			structpbOverhead := len(jsonBytes) + 100 // Approximate structpb overhead
 			totalSize += structpbOverhead
 		}
-		t.Logf("Old approach total size: %d bytes", totalSize)
+		t.Logf("Current approach total size: %d bytes", totalSize)
 	})
 
-	// Test new approach (direct data_bytes)
-	t.Run("NewApproach_DirectDataBytes", func(t *testing.T) {
+	// Test future optimization approach (direct data_bytes)
+	// TODO: When we migrate to data_bytes, this test shows the potential savings
+	t.Run("FutureApproach_DirectDataBytes", func(t *testing.T) {
 		resourceItems := make([]*gen.ResourceItem, 0, len(resources))
 
 		for _, resource := range resources {
