@@ -23,8 +23,9 @@ import (
 )
 
 const (
-	// Maximum size per chunk (in bytes) - set conservatively to avoid gRPC limits
-	maxChunkSize = 3 * 1024 * 1024 // 3MB per chunk
+	// Maximum size per chunk (in bytes) - larger chunks are OK with compression
+	// Connect RPC will compress these chunks automatically, reducing them by ~70-80%
+	maxChunkSize = 8 * 1024 * 1024 // 8MB per chunk (will compress to ~2MB)
 	// Maximum send batch size for grpc client
 	maxSendBatchSize = 32 * 1024 * 1024 // 32MB
 	// Maximum read batch size for grpc client
@@ -137,6 +138,8 @@ func NewDakrClient(dakrBaseURL string, clusterToken string, logger logr.Logger) 
 		httpClient,
 		dakrBaseURL,
 		connect.WithGRPC(),
+		connect.WithSendGzip(),                    // Enable gzip compression for requests
+		connect.WithCompressMinBytes(1024),        // Only compress if payload > 1KB
 		connect.WithInterceptors(retryInterceptor),
 		connect.WithSendMaxBytes(maxSendBatchSize),
 		connect.WithReadMaxBytes(maxReadBatchSize),
@@ -202,7 +205,7 @@ func (c *RealDakrClient) SendResource(ctx context.Context, resource collector.Co
 	return resp.Msg.ClusterIdentifier, nil
 }
 
-// estimateResourceSize estimates the size of a resource item in bytes
+// estimateResourceSize estimates the compressed size of a resource item in bytes
 func estimateResourceSize(item *gen.ResourceItem) int {
 	// Marshal to get accurate size
 	data, err := proto.Marshal(item)
@@ -210,7 +213,18 @@ func estimateResourceSize(item *gen.ResourceItem) int {
 		// Fallback to rough estimate if marshaling fails
 		return 1024 // 1KB default estimate
 	}
-	return len(data)
+
+	// Account for gzip compression - Kubernetes JSON typically compresses to 20-30% of original size
+	// We use 0.3 (30%) as a conservative estimate for batch sizing
+	compressionRatio := 0.3
+	estimatedCompressedSize := int(float64(len(data)) * compressionRatio)
+
+	// Always return at least 256 bytes to account for protobuf overhead
+	if estimatedCompressedSize < 256 {
+		estimatedCompressedSize = 256
+	}
+
+	return estimatedCompressedSize
 }
 
 // splitBatchBySize splits resources into batches that don't exceed maxSendBatchSize
@@ -261,18 +275,8 @@ func (c *RealDakrClient) SendResourceBatch(ctx context.Context, resources []coll
 	resourceItems := make([]*gen.ResourceItem, 0, len(resources))
 
 	for _, resource := range resources {
-		// Convert resource.Object to a protobuf struct
-		var dataStruct *structpb.Struct
-		var err error
-
-		dataStruct, err = structpb.NewStruct(map[string]interface{}{})
-		if err != nil {
-			c.logger.Error(err, "Failed to create empty struct for batch item", "key", resource.Key)
-			// For now, let's skip and log
-			continue
-		}
-
-		// Marshal the object to JSON then unmarshal to the struct
+		// Optimize: Use data_bytes directly instead of inefficient JSON→structpb conversion
+		// This skips the structpb.Struct entirely and lets Connect RPC compress the JSON
 		jsonBytes, err := json.Marshal(resource.Object)
 		if err != nil {
 			c.logger.Error(err, "Failed to marshal resource data to JSON for batch item", "key", resource.Key)
@@ -280,20 +284,13 @@ func (c *RealDakrClient) SendResourceBatch(ctx context.Context, resources []coll
 			continue
 		}
 
-		err = dataStruct.UnmarshalJSON(jsonBytes)
-		if err != nil {
-			c.logger.Error(err, "Failed to unmarshal JSON to protobuf struct for batch item", "key", resource.Key)
-			// Skip this item
-			continue
-		}
-
-		// Create the resource item
+		// Create the resource item using data_bytes field for better compression
 		item := &gen.ResourceItem{
 			Key:          resource.Key,
 			Timestamp:    timestamppb.New(resource.Timestamp),
 			EventType:    resource.EventType.ProtoType(),
-			Data:         dataStruct,
-			ResourceType: resource.ResourceType.ProtoType(), // Add ResourceType here
+			DataBytes:    jsonBytes,                        // ✅ Direct JSON bytes - much more compressible
+			ResourceType: resource.ResourceType.ProtoType(),
 		}
 		resourceItems = append(resourceItems, item)
 	}
