@@ -562,7 +562,7 @@ spec:
                     type: integer
                   clusterSnapshotInterval:
                     description: ClusterSnapshotInterval is how often to take cluster
-                      snapshots (defaults to 15m)
+                      snapshots (defaults to 3h)
                     type: string
                   clusterToken:
                     description: ClusterToken is the token used to authenticate as
