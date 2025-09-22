@@ -85,7 +85,7 @@ func NewClusterSnapshotter(
 	logger logr.Logger,
 ) *ClusterSnapshotter {
 	if interval <= 0 {
-		interval = 15 * time.Minute // Default to 15 minutes
+		interval = 3 * time.Hour // Default to 3 hours
 	}
 
 	excludedPodsMap := make(map[string]bool)

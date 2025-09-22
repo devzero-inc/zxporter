@@ -23,12 +23,14 @@ import (
 )
 
 const (
-	// Maximum size per chunk (in bytes) - set conservatively to avoid gRPC limits
-	maxChunkSize = 3 * 1024 * 1024 // 3MB per chunk
-	// Maximum send batch size for grpc client
-	maxSendBatchSize = 32 * 1024 * 1024 // 32MB
-	// Maximum read batch size for grpc client
-	maxReadBatchSize = 32 * 1024 * 1024 // 32MB
+	// Maximum size per chunk (in bytes) - larger chunks are OK with compression
+	// Connect RPC will compress these chunks automatically, reducing them by ~70-80%
+	maxChunkSize = 8 * 1024 * 1024 // 8MB per chunk (will compress to ~2MB)
+	// Maximum send batch size for grpc client (uncompressed size limit)
+	// Connect RPC applies limits to uncompressed message size, not compressed
+	maxSendBatchSize = 32 * 1024 * 1024 // 32MB uncompressed
+	// Maximum read batch size for grpc client (uncompressed size limit)
+	maxReadBatchSize = 32 * 1024 * 1024 // 32MB uncompressed
 )
 
 // RetryPolicy defines the parameters for retrying.
@@ -137,6 +139,8 @@ func NewDakrClient(dakrBaseURL string, clusterToken string, logger logr.Logger) 
 		httpClient,
 		dakrBaseURL,
 		connect.WithGRPC(),
+		connect.WithSendGzip(),             // Enable gzip compression for requests
+		connect.WithCompressMinBytes(1024), // Only compress if payload > 1KB
 		connect.WithInterceptors(retryInterceptor),
 		connect.WithSendMaxBytes(maxSendBatchSize),
 		connect.WithReadMaxBytes(maxReadBatchSize),
@@ -149,30 +153,31 @@ func NewDakrClient(dakrBaseURL string, clusterToken string, logger logr.Logger) 
 	}
 }
 
+// toStructpb converts an arbitrary object to structpb.Struct
+func (c *RealDakrClient) toStructpb(data interface{}) (*structpb.Struct, error) {
+	// First convert to JSON
+	jsonBytes, err := json.Marshal(data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal to JSON: %w", err)
+	}
+
+	// Then unmarshal into a map
+	var jsonMap map[string]interface{}
+	if err := json.Unmarshal(jsonBytes, &jsonMap); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal JSON to map: %w", err)
+	}
+
+	// Finally convert to structpb
+	return structpb.NewStruct(jsonMap)
+}
+
 // SendResource sends the resource to Dakr through gRPC
 func (c *RealDakrClient) SendResource(ctx context.Context, resource collector.CollectedResource) (string, error) {
-	// Convert resource.Object to a protobuf struct
-	var dataStruct *structpb.Struct
-	var err error
-
-	// First try to convert directly
-	dataStruct, err = structpb.NewStruct(map[string]interface{}{})
+	// Convert resource.Object to a protobuf struct using the helper
+	dataStruct, err := c.toStructpb(resource.Object)
 	if err != nil {
-		c.logger.Error(err, "Failed to create empty struct")
-		return "", err
-	}
-
-	// Marshal the object to JSON then unmarshal to the struct
-	jsonBytes, err := json.Marshal(resource.Object)
-	if err != nil {
-		c.logger.Error(err, "Failed to marshal resource data to JSON")
-		return "", fmt.Errorf("failed to marshal resource data: %w", err)
-	}
-
-	err = dataStruct.UnmarshalJSON(jsonBytes)
-	if err != nil {
-		c.logger.Error(err, "Failed to unmarshal JSON to protobuf struct")
-		return "", fmt.Errorf("failed to convert resource data to protobuf struct: %w", err)
+		c.logger.Error(err, "Failed to convert resource data to structpb")
+		return "", fmt.Errorf("failed to convert resource data to structpb: %w", err)
 	}
 
 	// Create the request
@@ -202,15 +207,29 @@ func (c *RealDakrClient) SendResource(ctx context.Context, resource collector.Co
 	return resp.Msg.ClusterIdentifier, nil
 }
 
-// estimateResourceSize estimates the size of a resource item in bytes
+// estimateResourceSize estimates the uncompressed size of a resource item in bytes
+// This is important because Connect RPC applies size limits to the uncompressed message,
+// not the compressed size.
 func estimateResourceSize(item *gen.ResourceItem) int {
-	// Marshal to get accurate size
-	data, err := proto.Marshal(item)
-	if err != nil {
-		// Fallback to rough estimate if marshaling fails
+	// Use proto.Size for efficient size calculation without marshaling
+	// This returns the exact encoded protobuf size
+	size := proto.Size(item)
+	if size <= 0 {
+		// Fallback to a reasonable default if size calculation fails
 		return 1024 // 1KB default estimate
 	}
-	return len(data)
+
+	// Add small per-item framing overhead for the repeated field encoding
+	// (field tag + length varint when this item is part of a repeated field)
+	const perItemOverhead = 10 // Conservative overhead for tag and varint
+	estimatedSize := size + perItemOverhead
+
+	// Ensure minimum size to account for any additional protocol overhead
+	if estimatedSize < 256 {
+		estimatedSize = 256
+	}
+
+	return estimatedSize
 }
 
 // splitBatchBySize splits resources into batches that don't exceed maxSendBatchSize
@@ -261,39 +280,32 @@ func (c *RealDakrClient) SendResourceBatch(ctx context.Context, resources []coll
 	resourceItems := make([]*gen.ResourceItem, 0, len(resources))
 
 	for _, resource := range resources {
-		// Convert resource.Object to a protobuf struct
-		var dataStruct *structpb.Struct
-		var err error
-
-		dataStruct, err = structpb.NewStruct(map[string]interface{}{})
+		// Convert resource data to structpb for protobuf serialization
+		data, err := c.toStructpb(resource.Object)
 		if err != nil {
-			c.logger.Error(err, "Failed to create empty struct for batch item", "key", resource.Key)
-			// For now, let's skip and log
-			continue
-		}
-
-		// Marshal the object to JSON then unmarshal to the struct
-		jsonBytes, err := json.Marshal(resource.Object)
-		if err != nil {
-			c.logger.Error(err, "Failed to marshal resource data to JSON for batch item", "key", resource.Key)
-			// Skip this item
-			continue
-		}
-
-		err = dataStruct.UnmarshalJSON(jsonBytes)
-		if err != nil {
-			c.logger.Error(err, "Failed to unmarshal JSON to protobuf struct for batch item", "key", resource.Key)
+			c.logger.Error(err, "Failed to convert resource data to structpb for batch item", "key", resource.Key)
 			// Skip this item
 			continue
 		}
 
 		// Create the resource item
+		// TODO: Future optimization - use data_bytes field instead of data field
+		// This would avoid the JSON->structpb conversion overhead and slightly reduce payload size
+		// Example future implementation:
+		// jsonBytes, _ := json.Marshal(resource.Object)
+		// item := &gen.ResourceItem{
+		//     Key:          resource.Key,
+		//     Timestamp:    timestamppb.New(resource.Timestamp),
+		//     EventType:    resource.EventType.ProtoType(),
+		//     DataBytes:    jsonBytes,  // Direct JSON bytes, no structpb conversion
+		//     ResourceType: resource.ResourceType.ProtoType(),
+		// }
 		item := &gen.ResourceItem{
 			Key:          resource.Key,
 			Timestamp:    timestamppb.New(resource.Timestamp),
 			EventType:    resource.EventType.ProtoType(),
-			Data:         dataStruct,
-			ResourceType: resource.ResourceType.ProtoType(), // Add ResourceType here
+			Data:         data, // Using structpb for now
+			ResourceType: resource.ResourceType.ProtoType(),
 		}
 		resourceItems = append(resourceItems, item)
 	}
