@@ -295,7 +295,7 @@ func (r ResourceType) ProtoType() gen.ResourceType {
 	case VolumeAttachment:
 		return gen.ResourceType_RESOURCE_TYPE_VOLUME_ATTACHMENT
 	case KubeflowNotebook:
-		return gen.ResourceType_RESOURCE_TYPE_KUBEFLOW_NOTEBOOKS
+		return gen.ResourceType_RESOURCE_TYPE_KUBEFLOW_NOTEBOOK
 	default:
 		return gen.ResourceType_RESOURCE_TYPE_UNSPECIFIED
 	}
