@@ -104,6 +104,16 @@ func (m *MockMetricsServer) SendTelemetryLogs(
 	return connect.NewResponse(&gen.SendTelemetryLogsResponse{}), nil
 }
 
+func (m *MockMetricsServer) NodeMetadata(
+	ctx context.Context,
+	req *connect.Request[gen.NodeMetadataRequest],
+) (*connect.Response[gen.NodeMetadataResponse], error) {
+	// Return an empty response for the mock implementation
+	return connect.NewResponse(&gen.NodeMetadataResponse{
+		NodeToMeta: make(map[string]*gen.Node),
+	}), nil
+}
+
 func TestConnectRPCCompressionIntegration(t *testing.T) {
 	// Create mock server
 	mockServer := &MockMetricsServer{}

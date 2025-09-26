@@ -336,6 +336,14 @@ func (s *MetricsServer) SendTelemetryLogs(context.Context, *connect.Request[apiv
 	return &connect.Response[apiv1.SendTelemetryLogsResponse]{}, nil
 }
 
+// NodeMetadata implements apiv1connect.MetricsCollectorServiceHandler.
+func (s *MetricsServer) NodeMetadata(ctx context.Context, req *connect.Request[apiv1.NodeMetadataRequest]) (*connect.Response[apiv1.NodeMetadataResponse], error) {
+	// Return an empty response for the test server implementation
+	return connect.NewResponse(&apiv1.NodeMetadataResponse{
+		NodeToMeta: make(map[string]*apiv1.Node),
+	}), nil
+}
+
 // StatsHandler handles the /stats HTTP endpoint
 func (s *MetricsServer) StatsHandler(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
