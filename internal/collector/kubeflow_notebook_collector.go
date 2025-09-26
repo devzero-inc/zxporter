@@ -262,6 +262,7 @@ func (c *KubeflowNotebookCollector) handleNotebookEvent(obj *unstructured.Unstru
 	key := fmt.Sprintf("%s/%s", namespace, name)
 
 	// Send the processed resource to the batch channel
+	c.logger.Info("Collected Kubeflow Notebook resource", "key", key, "eventType", eventType, "resource", processedObj)
 	c.batchChan <- CollectedResource{
 		ResourceType: KubeflowNotebook,
 		Object:       processedObj,
