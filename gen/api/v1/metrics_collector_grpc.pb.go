@@ -24,6 +24,7 @@ const (
 	MetricsCollectorService_SendTelemetryMetrics_FullMethodName      = "/api.v1.MetricsCollectorService/SendTelemetryMetrics"
 	MetricsCollectorService_SendClusterSnapshotStream_FullMethodName = "/api.v1.MetricsCollectorService/SendClusterSnapshotStream"
 	MetricsCollectorService_SendTelemetryLogs_FullMethodName         = "/api.v1.MetricsCollectorService/SendTelemetryLogs"
+	MetricsCollectorService_NodeMetadata_FullMethodName              = "/api.v1.MetricsCollectorService/NodeMetadata"
 )
 
 // MetricsCollectorServiceClient is the client API for MetricsCollectorService service.
@@ -40,6 +41,7 @@ type MetricsCollectorServiceClient interface {
 	SendClusterSnapshotStream(ctx context.Context, opts ...grpc.CallOption) (MetricsCollectorService_SendClusterSnapshotStreamClient, error)
 	// SendTelemetryLogs ingests a batch of log messages from the cluster.
 	SendTelemetryLogs(ctx context.Context, in *SendTelemetryLogsRequest, opts ...grpc.CallOption) (*SendTelemetryLogsResponse, error)
+	NodeMetadata(ctx context.Context, in *NodeMetadataRequest, opts ...grpc.CallOption) (*NodeMetadataResponse, error)
 }
 
 type metricsCollectorServiceClient struct {
@@ -120,6 +122,15 @@ func (c *metricsCollectorServiceClient) SendTelemetryLogs(ctx context.Context, i
 	return out, nil
 }
 
+func (c *metricsCollectorServiceClient) NodeMetadata(ctx context.Context, in *NodeMetadataRequest, opts ...grpc.CallOption) (*NodeMetadataResponse, error) {
+	out := new(NodeMetadataResponse)
+	err := c.cc.Invoke(ctx, MetricsCollectorService_NodeMetadata_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // MetricsCollectorServiceServer is the server API for MetricsCollectorService service.
 // All implementations must embed UnimplementedMetricsCollectorServiceServer
 // for forward compatibility
@@ -134,6 +145,7 @@ type MetricsCollectorServiceServer interface {
 	SendClusterSnapshotStream(MetricsCollectorService_SendClusterSnapshotStreamServer) error
 	// SendTelemetryLogs ingests a batch of log messages from the cluster.
 	SendTelemetryLogs(context.Context, *SendTelemetryLogsRequest) (*SendTelemetryLogsResponse, error)
+	NodeMetadata(context.Context, *NodeMetadataRequest) (*NodeMetadataResponse, error)
 	mustEmbedUnimplementedMetricsCollectorServiceServer()
 }
 
@@ -155,6 +167,9 @@ func (UnimplementedMetricsCollectorServiceServer) SendClusterSnapshotStream(Metr
 }
 func (UnimplementedMetricsCollectorServiceServer) SendTelemetryLogs(context.Context, *SendTelemetryLogsRequest) (*SendTelemetryLogsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SendTelemetryLogs not implemented")
+}
+func (UnimplementedMetricsCollectorServiceServer) NodeMetadata(context.Context, *NodeMetadataRequest) (*NodeMetadataResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method NodeMetadata not implemented")
 }
 func (UnimplementedMetricsCollectorServiceServer) mustEmbedUnimplementedMetricsCollectorServiceServer() {
 }
@@ -268,6 +283,24 @@ func _MetricsCollectorService_SendTelemetryLogs_Handler(srv interface{}, ctx con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _MetricsCollectorService_NodeMetadata_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(NodeMetadataRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MetricsCollectorServiceServer).NodeMetadata(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MetricsCollectorService_NodeMetadata_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MetricsCollectorServiceServer).NodeMetadata(ctx, req.(*NodeMetadataRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // MetricsCollectorService_ServiceDesc is the grpc.ServiceDesc for MetricsCollectorService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -290,6 +323,10 @@ var MetricsCollectorService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SendTelemetryLogs",
 			Handler:    _MetricsCollectorService_SendTelemetryLogs_Handler,
+		},
+		{
+			MethodName: "NodeMetadata",
+			Handler:    _MetricsCollectorService_NodeMetadata_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

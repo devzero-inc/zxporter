@@ -118,6 +118,7 @@ type PolicyConfig struct {
 	ExcludedCSIDrivers             []string
 	ExcludedCSIStorageCapacities   []collector.ExcludedCSIStorageCapacity
 	ExcludedVolumeAttachments      []string
+	ExcludedKubeflowNotebooks      []collector.ExcludedKubeflowNotebook
 
 	DisabledCollectors []string
 
@@ -225,6 +226,9 @@ type PolicyConfig struct {
 //+kubebuilder:rbac:groups=keda.sh,resources=scaledjobs,verbs=get;list;watch
 //+kubebuilder:rbac:groups=keda.sh,resources=triggerauthentications,verbs=get;list;watch
 //+kubebuilder:rbac:groups=keda.sh,resources=clustertriggerauthentications,verbs=get;list;watch
+
+// Kubeflow resources
+//+kubebuilder:rbac:groups=kubeflow.org,resources=notebooks,verbs=get;list;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -747,6 +751,10 @@ func (r *CollectionPolicyReconciler) identifyAffectedCollectors(oldConfig, newCo
 
 	if !reflect.DeepEqual(oldConfig.ExcludedVolumeAttachments, newConfig.ExcludedVolumeAttachments) {
 		affectedCollectors["volume_attachment"] = true
+	}
+
+	if !reflect.DeepEqual(oldConfig.ExcludedKubeflowNotebooks, newConfig.ExcludedKubeflowNotebooks) {
+		affectedCollectors["kubeflow_notebook"] = true
 	}
 
 	// Check if the special node collectors are affected by the update interval change
@@ -1409,6 +1417,16 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 			replacedCollector = collector.NewVolumeAttachmentCollector(
 				r.K8sClient,
 				newConfig.ExcludedVolumeAttachments,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+				r.TelemetryLogger,
+			)
+		case "kubeflow_notebook":
+			replacedCollector = collector.NewKubeflowNotebookCollector(
+				r.DynamicClient,
+				newConfig.TargetNamespaces,
+				newConfig.ExcludedKubeflowNotebooks,
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
@@ -2504,6 +2522,18 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 			),
 			name: collector.VolumeAttachment,
 		},
+		{
+			collector: collector.NewKubeflowNotebookCollector(
+				r.DynamicClient,
+				config.TargetNamespaces,
+				config.ExcludedKubeflowNotebooks,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+				r.TelemetryLogger,
+			),
+			name: collector.KubeflowNotebook,
+		},
 	}
 
 	// Register all collectors
@@ -3107,6 +3137,16 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 				replacedCollector = collector.NewVolumeAttachmentCollector(
 					r.K8sClient,
 					newConfig.ExcludedVolumeAttachments,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+					r.TelemetryLogger,
+				)
+			case "kubeflow_notebook":
+				replacedCollector = collector.NewKubeflowNotebookCollector(
+					r.DynamicClient,
+					newConfig.TargetNamespaces,
+					newConfig.ExcludedKubeflowNotebooks,
 					collector.DefaultMaxBatchSize,
 					collector.DefaultMaxBatchTime,
 					logger,

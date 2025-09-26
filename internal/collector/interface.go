@@ -138,6 +138,7 @@ const (
 	CSIDriver
 	CSIStorageCapacity
 	VolumeAttachment
+	KubeflowNotebook
 )
 
 // String returns the string representation of the ResourceType
@@ -189,6 +190,7 @@ func (r ResourceType) String() string {
 		CSIDriver:                "csi_driver",
 		CSIStorageCapacity:       "csi_storage_capacity",
 		VolumeAttachment:         "volume_attachment",
+		KubeflowNotebook:         "kubeflow_notebook",
 	}
 
 	if name, ok := names[r]; ok {
@@ -292,6 +294,8 @@ func (r ResourceType) ProtoType() gen.ResourceType {
 		return gen.ResourceType_RESOURCE_TYPE_CSI_STORAGE_CAPACITY
 	case VolumeAttachment:
 		return gen.ResourceType_RESOURCE_TYPE_VOLUME_ATTACHMENT
+	case KubeflowNotebook:
+		return gen.ResourceType_RESOURCE_TYPE_KUBEFLOW_NOTEBOOKS
 	default:
 		return gen.ResourceType_RESOURCE_TYPE_UNSPECIFIED
 	}
