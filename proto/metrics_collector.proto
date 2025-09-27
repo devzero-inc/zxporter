@@ -5,6 +5,7 @@ package api.v1;
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/struct.proto";
 import "io/prometheus/client/metrics.proto";
+import "api/v1/common.proto";
 
 option go_package = "github.com/devzero-inc/services/dakr/gen/api/v1;gen";
 option java_multiple_files = true;
@@ -118,9 +119,11 @@ enum ResourceType {
   // VOLUME ATTACHMENT
   RESOURCE_TYPE_VOLUME_ATTACHMENT = 48;
 
+  // KUBEFLOW NOTEBOOKS
+  RESOURCE_TYPE_KUBEFLOW_NOTEBOOK = 49;
+
   // Cluster snapshot type
   RESOURCE_TYPE_CLUSTER_SNAPSHOT = 77;
-
 }
 
 // ResourceItem contains the data for a single resource event.
@@ -436,4 +439,15 @@ service MetricsCollectorService {
 
   // SendTelemetryLogs ingests a batch of log messages from the cluster.
   rpc SendTelemetryLogs(SendTelemetryLogsRequest) returns (SendTelemetryLogsResponse);
+
+  rpc NodeMetadata(NodeMetadataRequest) returns (NodeMetadataResponse);
+}
+
+message NodeMetadataRequest {
+    string team_id = 1; // Unique identifier for the team.
+    string cluster_id = 2; // Unique identifier for the cluster.
+}
+
+message NodeMetadataResponse {
+    map<string, Node> node_to_meta = 1; // map is node name to node
 }
