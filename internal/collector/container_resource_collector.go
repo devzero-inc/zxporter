@@ -395,16 +395,9 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 					for i := range pod.Spec.Containers {
 						if pod.Spec.Containers[i].Name == containerMetrics.Name {
 							requests := pod.Spec.Containers[i].Resources.Requests
-							limits := pod.Spec.Containers[i].Resources.Limits
 
 							if requests != nil {
 								if _, ok := requests[gpuconst.GpuResource]; ok {
-									hasGPU = true
-									break
-								}
-							}
-							if limits != nil {
-								if _, ok := limits[gpuconst.GpuResource]; ok {
 									hasGPU = true
 									break
 								}
