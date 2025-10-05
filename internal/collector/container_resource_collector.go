@@ -390,14 +390,40 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 
 				// Add GPU metrics collection if enabled
 				if !c.config.DisableGPUMetrics {
-					gpuMetrics, err = c.collectContainerGPUMetrics(queryCtx, pod, containerMetrics.Name)
-					if err != nil {
-						c.logger.Error(err, "Failed to collect container GPU metrics. If you are not using GPU, this is expected. To disable GPU metrics, set DISABLE_GPU_METRICS environment variable to true",
-							"namespace", podMetrics.Namespace,
-							"pod", podMetrics.Name,
-							"container", containerMetrics.Name)
-						// Continue with other metrics
-						gpuMetrics = make(map[string]interface{})
+					// Check if container has GPU resources BEFORE querying Prometheus
+					hasGPU := false
+					for i := range pod.Spec.Containers {
+						if pod.Spec.Containers[i].Name == containerMetrics.Name {
+							requests := pod.Spec.Containers[i].Resources.Requests
+							limits := pod.Spec.Containers[i].Resources.Limits
+
+							if requests != nil {
+								if _, ok := requests[gpuconst.GpuResource]; ok {
+									hasGPU = true
+									break
+								}
+							}
+							if limits != nil {
+								if _, ok := limits[gpuconst.GpuResource]; ok {
+									hasGPU = true
+									break
+								}
+							}
+							break
+						}
+					}
+
+					// Only query Prometheus if container has GPU resources
+					if hasGPU {
+						gpuMetrics, err = c.collectContainerGPUMetrics(queryCtx, pod, containerMetrics.Name)
+						if err != nil {
+							c.logger.Error(err, "Failed to collect container GPU metrics. If you are not using GPU, this is expected. To disable GPU metrics, set DISABLE_GPU_METRICS environment variable to true",
+								"namespace", podMetrics.Namespace,
+								"pod", podMetrics.Name,
+								"container", containerMetrics.Name)
+							// Continue with other metrics
+							gpuMetrics = make(map[string]interface{})
+						}
 					}
 				}
 			}
