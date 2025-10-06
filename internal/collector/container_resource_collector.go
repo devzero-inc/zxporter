@@ -395,11 +395,17 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 					for i := range pod.Spec.Containers {
 						if pod.Spec.Containers[i].Name == containerMetrics.Name {
 							requests := pod.Spec.Containers[i].Resources.Requests
+							limits := pod.Spec.Containers[i].Resources.Limits
 
 							if requests != nil {
-								if _, ok := requests[gpuconst.GpuResource]; ok {
+								if gpuReq, ok := requests[gpuconst.GpuResource]; ok && gpuReq.Value() > 0 {
 									hasGPU = true
-									break
+								}
+							}
+
+							if !hasGPU && limits != nil {
+								if gpuLim, ok := limits[gpuconst.GpuResource]; ok && gpuLim.Value() > 0 {
+									hasGPU = true
 								}
 							}
 							break
@@ -417,6 +423,8 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 							// Continue with other metrics
 							gpuMetrics = make(map[string]interface{})
 						}
+					} else {
+						gpuMetrics = make(map[string]interface{})
 					}
 				}
 			}
