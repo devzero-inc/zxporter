@@ -1,0 +1,84 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: nvidia-toolkit-installer
+  namespace: nvidia-device-plugin
+spec:
+  selector:
+    matchLabels:
+      name: nvidia-toolkit-installer
+  template:
+    metadata:
+      labels:
+        name: nvidia-toolkit-installer
+    spec:
+      nodeSelector:
+        nvidia.com/gpu.present: "true"
+      hostPID: true
+      tolerations:
+        - key: "nvidia.com/gpu"
+          operator: "Exists"
+          effect: "NoSchedule"
+        - key: "CriticalAddonsOnly"
+          operator: "Exists"
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/control-plane
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/master
+      containers:
+      - name: install-nvidia-toolkit
+        image: amazonlinux:2023
+        securityContext:
+          privileged: true
+        command:
+          - /bin/bash
+          - -c
+          - |
+            set -ex
+
+            # Add NVIDIA repo
+            curl -s -L https://nvidia.github.io/libnvidia-container/stable/rpm/nvidia-container-toolkit.repo \
+              -o /etc/yum.repos.d/nvidia-container-toolkit.repo
+
+            # Install toolkit
+            yum install -y nvidia-container-toolkit
+
+            # Configure containerd
+            nvidia-ctk runtime configure --runtime=containerd
+
+            # Restart containerd
+            systemctl restart containerd || true
+
+            # Exit cleanly
+            echo "NVIDIA container toolkit installed and configured."
+            sleep infinity
+        volumeMounts:
+        - name: root
+          mountPath: /host
+          mountPropagation: Bidirectional
+        - name: containerd-config
+          mountPath: /etc/containerd
+        - name: systemd
+          mountPath: /run/systemd
+        - name: modules
+          mountPath: /lib/modules
+          readOnly: true
+        - name: dev
+          mountPath: /dev
+      volumes:
+        - name: root
+          hostPath:
+            path: /
+        - name: containerd-config
+          hostPath:
+            path: /etc/containerd
+        - name: systemd
+          hostPath:
+            path: /run/systemd
+        - name: modules
+          hostPath:
+            path: /lib/modules
+        - name: dev
+          hostPath:
+            path: /dev
+      restartPolicy: Always
