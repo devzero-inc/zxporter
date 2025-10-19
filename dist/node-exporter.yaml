@@ -133,10 +133,10 @@ spec:
             timeoutSeconds: 1
           resources:
             limits:
-              memory: 2Gi
+              memory: 500Mi
             requests:
-              cpu: 500m
-              memory: 1Gi
+              cpu: 250m
+              memory: 500Mi
           volumeMounts:
             - name: proc
               mountPath: /host/proc

@@ -5,10 +5,10 @@ configmapReload:
   prometheus:
     resources:
       requests:
-        memory: "1Gi"
-        cpu: "500m"
+        memory: "500Mi"
+        cpu: "250m"
       limits:
-        memory: "2Gi"
+        memory: "500Mi"
 
 server:
   persistentVolume:
@@ -16,8 +16,8 @@ server:
   retention: "2d"
   resources:
     requests:
-      memory: "1Gi"
-      cpu: "500m"
+      memory: "2Gi"
+      cpu: "1"
     limits:
       memory: "2Gi"
 
@@ -34,10 +34,10 @@ kube-state-metrics:
   enabled: true
   resources:
     requests:
-      memory: "1Gi"
-      cpu: "500m"
+      memory: "500Mi"
+      cpu: "250m"
     limits:
-      memory: "2Gi"
+      memory: "500Mi"
   collectors:
     # - certificatesigningrequests
     # - configmaps

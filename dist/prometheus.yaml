@@ -408,10 +408,10 @@ spec:
           timeoutSeconds: 5
         resources:
           limits:
-            memory: 2Gi
+            memory: 500Mi
           requests:
-            cpu: 500m
-            memory: 1Gi
+            cpu: 250m
+            memory: 500Mi
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
@@ -481,10 +481,10 @@ spec:
             periodSeconds: 10
           resources:
             limits:
-              memory: 2Gi
+              memory: 500Mi
             requests:
-              cpu: 500m
-              memory: 1Gi
+              cpu: 250m
+              memory: 500Mi
           volumeMounts:
             - name: config-volume
               mountPath: /etc/config
@@ -526,8 +526,8 @@ spec:
             limits:
               memory: 2Gi
             requests:
-              cpu: 500m
-              memory: 1Gi
+              cpu: "1"
+              memory: 2Gi
           volumeMounts:
             - name: config-volume
               mountPath: /etc/config

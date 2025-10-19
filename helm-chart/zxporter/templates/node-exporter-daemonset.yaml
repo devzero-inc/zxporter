@@ -102,10 +102,10 @@ spec:
               readOnly: true
           resources:
             requests:
-              memory: "1Gi"
-              cpu: "500m"
+              memory: "500Mi"
+              cpu: "250m"
             limits:
-              memory: "2Gi"
+              memory: "500Mi"
       hostNetwork: true
       hostPID: true
       hostIPC: false

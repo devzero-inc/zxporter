@@ -91,10 +91,10 @@ spec:
             timeoutSeconds: 5
           resources:
             requests:
-              memory: "1Gi"
-              cpu: "500m"
+              memory: "500Mi"
+              cpu: "250m"
             limits:
-              memory: "2Gi"
+              memory: "500Mi"
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -180,10 +180,10 @@ spec:
               readOnly: true
           resources:
             requests:
-              memory: "1Gi"
-              cpu: "500m"
+              memory: "500Mi"
+              cpu: "250m"
             limits:
-              memory: "2Gi"
+              memory: "500Mi"
         - name: dz-prometheus-server
           image: "quay.io/prometheus/prometheus:v3.4.1"
           imagePullPolicy: "IfNotPresent"
@@ -224,8 +224,8 @@ spec:
               subPath: ""
           resources:
             requests:
-              memory: "1Gi"
-              cpu: "500m"
+              memory: "2Gi"
+              cpu: "1"
             limits:
               memory: "2Gi"
       dnsPolicy: ClusterFirst
