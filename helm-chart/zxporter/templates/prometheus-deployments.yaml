@@ -227,7 +227,7 @@ spec:
               memory: "2Gi"
               cpu: "1"
             limits:
-              memory: "2Gi"
+              memory: "10Gi"
       dnsPolicy: ClusterFirst
       securityContext:
         fsGroup: 65534

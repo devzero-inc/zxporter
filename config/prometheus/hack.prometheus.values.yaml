@@ -19,7 +19,7 @@ server:
       memory: "2Gi"
       cpu: "1"
     limits:
-      memory: "2Gi"
+      memory: "10Gi"
 
 alertmanager:
   enabled: false
