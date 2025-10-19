@@ -89,7 +89,12 @@ spec:
             periodSeconds: 10
             successThreshold: 1
             timeoutSeconds: 5
-          resources: {}
+          resources:
+            requests:
+              memory: "1Gi"
+              cpu: "500m"
+            limits:
+              memory: "2Gi"
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -173,11 +178,17 @@ spec:
             - name: config-volume
               mountPath: /etc/config
               readOnly: true
+          resources:
+            requests:
+              memory: "1Gi"
+              cpu: "500m"
+            limits:
+              memory: "2Gi"
         - name: dz-prometheus-server
           image: "quay.io/prometheus/prometheus:v3.4.1"
           imagePullPolicy: "IfNotPresent"
           args:
-            - --storage.tsdb.retention.time=15d
+            - --storage.tsdb.retention.time=2d
             - --config.file=/etc/config/prometheus.yml
             - --storage.tsdb.path=/data
             - --web.console.libraries=/etc/prometheus/console_libraries
@@ -211,6 +222,12 @@ spec:
             - name: storage-volume
               mountPath: /data
               subPath: ""
+          resources:
+            requests:
+              memory: "1Gi"
+              cpu: "500m"
+            limits:
+              memory: "2Gi"
       dnsPolicy: ClusterFirst
       securityContext:
         fsGroup: 65534

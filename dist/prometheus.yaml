@@ -407,7 +407,11 @@ spec:
           successThreshold: 1
           timeoutSeconds: 5
         resources:
-          {}
+          limits:
+            memory: 2Gi
+          requests:
+            cpu: 500m
+            memory: 1Gi
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
@@ -475,6 +479,12 @@ spec:
               port: metrics
               scheme: HTTP
             periodSeconds: 10
+          resources:
+            limits:
+              memory: 2Gi
+            requests:
+              cpu: 500m
+              memory: 1Gi
           volumeMounts:
             - name: config-volume
               mountPath: /etc/config
@@ -484,7 +494,7 @@ spec:
           image: "quay.io/prometheus/prometheus:v3.4.1"
           imagePullPolicy: "IfNotPresent"
           args:
-            - --storage.tsdb.retention.time=15d
+            - --storage.tsdb.retention.time=2d
             - --config.file=/etc/config/prometheus.yml
             - --storage.tsdb.path=/data
             - --web.console.libraries=/etc/prometheus/console_libraries
@@ -512,6 +522,12 @@ spec:
             timeoutSeconds: 10
             failureThreshold: 3
             successThreshold: 1
+          resources:
+            limits:
+              memory: 2Gi
+            requests:
+              cpu: 500m
+              memory: 1Gi
           volumeMounts:
             - name: config-volume
               mountPath: /etc/config

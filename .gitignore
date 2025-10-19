@@ -27,3 +27,5 @@ config/**/charts
 *.swp
 *.swo
 *~
+
+.claude

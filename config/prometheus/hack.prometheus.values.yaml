@@ -1,9 +1,25 @@
 nameOverride: dz-prometheus
 fullnameOverride: dz-prometheus
 
+configmapReload:
+  prometheus:
+    resources:
+      requests:
+        memory: "1Gi"
+        cpu: "500m"
+      limits:
+        memory: "2Gi"
+
 server:
   persistentVolume:
     enabled: false
+  retention: "2d"
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
 
 alertmanager:
   enabled: false
@@ -16,6 +32,12 @@ prometheus-node-exporter:
 
 kube-state-metrics:
   enabled: true
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
   collectors:
     # - certificatesigningrequests
     # - configmaps

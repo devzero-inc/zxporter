@@ -1,6 +1,13 @@
 nameOverride: dz-prometheus-node-exporter
 fullnameOverride: dz-prometheus-node-exporter
 
+resources:
+  requests:
+    memory: "1Gi"
+    cpu: "500m"
+  limits:
+    memory: "2Gi"
+
 rbac:
   pspEnabled: false
 
