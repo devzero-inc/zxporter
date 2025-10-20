@@ -100,6 +100,12 @@ spec:
               mountPath: /host/root
               mountPropagation: HostToContainer
               readOnly: true
+          resources:
+            requests:
+              memory: "500Mi"
+              cpu: "250m"
+            limits:
+              memory: "500Mi"
       hostNetwork: true
       hostPID: true
       hostIPC: false

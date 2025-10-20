@@ -51,6 +51,11 @@ data:
       scheme: https
       tls_config:
         ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+      metric_relabel_configs:
+      - action: keep
+        regex: 'node_network_(receive|transmit)_(bytes|packets|errs|drop)_total|node_disk_(read_bytes|written_bytes|reads_completed|writes_completed)_total'
+        source_labels:
+        - __name__
     - bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
       job_name: kubernetes-nodes-cadvisor
       kubernetes_sd_configs:
@@ -68,6 +73,13 @@ data:
       scheme: https
       tls_config:
         ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+      metric_relabel_configs:
+      - action: keep
+        regex: 'container_network_(receive|transmit)_(bytes|packets|errors|packets_dropped)_total|container_fs_(reads|writes)_(bytes_)?total'
+        source_labels:
+        - __name__
+      - action: labeldrop
+        regex: '(id|name|image)'
     - honor_labels: true
       job_name: kubernetes-pods
       kubernetes_sd_configs:
@@ -126,6 +138,11 @@ data:
         source_labels:
         - __meta_kubernetes_pod_node_name
         target_label: node
+      metric_relabel_configs:
+      - action: keep
+        regex: 'DCGM_FI_DEV_(GPU_UTIL|FB_USED|FB_FREE|POWER_USAGE|GPU_TEMP|SM_CLOCK|MEM_CLOCK)'
+        source_labels:
+        - __name__
   recording_rules.yml: |
     {}
   rules: |

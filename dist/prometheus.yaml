@@ -69,6 +69,11 @@ data:
       job_name: kubernetes-nodes
       kubernetes_sd_configs:
       - role: node
+      metric_relabel_configs:
+      - action: keep
+        regex: node_network_(receive|transmit)_(bytes|packets|errs|drop)_total|node_disk_(read_bytes|written_bytes|reads_completed|writes_completed)_total
+        source_labels:
+        - __name__
       relabel_configs:
       - action: labelmap
         regex: __meta_kubernetes_node_label_(.+)
@@ -86,6 +91,13 @@ data:
       job_name: kubernetes-nodes-cadvisor
       kubernetes_sd_configs:
       - role: node
+      metric_relabel_configs:
+      - action: keep
+        regex: container_network_(receive|transmit)_(bytes|packets|errors|packets_dropped)_total|container_fs_(reads|writes)_(bytes_)?total
+        source_labels:
+        - __name__
+      - action: labeldrop
+        regex: (id|name|image)
       relabel_configs:
       - action: labelmap
         regex: __meta_kubernetes_node_label_(.+)
@@ -103,6 +115,11 @@ data:
       job_name: kubernetes-pods
       kubernetes_sd_configs:
       - role: pod
+      metric_relabel_configs:
+      - action: keep
+        regex: DCGM_FI_DEV_(GPU_UTIL|FB_USED|FB_FREE|POWER_USAGE|GPU_TEMP|SM_CLOCK|MEM_CLOCK)
+        source_labels:
+        - __name__
       relabel_configs:
       - action: keep
         regex: true
@@ -407,7 +424,11 @@ spec:
           successThreshold: 1
           timeoutSeconds: 5
         resources:
-          {}
+          limits:
+            memory: 500Mi
+          requests:
+            cpu: 250m
+            memory: 500Mi
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
@@ -475,6 +496,12 @@ spec:
               port: metrics
               scheme: HTTP
             periodSeconds: 10
+          resources:
+            limits:
+              memory: 500Mi
+            requests:
+              cpu: 250m
+              memory: 500Mi
           volumeMounts:
             - name: config-volume
               mountPath: /etc/config
@@ -484,7 +511,7 @@ spec:
           image: "quay.io/prometheus/prometheus:v3.4.1"
           imagePullPolicy: "IfNotPresent"
           args:
-            - --storage.tsdb.retention.time=15d
+            - --storage.tsdb.retention.time=2d
             - --config.file=/etc/config/prometheus.yml
             - --storage.tsdb.path=/data
             - --web.console.libraries=/etc/prometheus/console_libraries
@@ -512,6 +539,12 @@ spec:
             timeoutSeconds: 10
             failureThreshold: 3
             successThreshold: 1
+          resources:
+            limits:
+              memory: 10Gi
+            requests:
+              cpu: "1"
+              memory: 2Gi
           volumeMounts:
             - name: config-volume
               mountPath: /etc/config
