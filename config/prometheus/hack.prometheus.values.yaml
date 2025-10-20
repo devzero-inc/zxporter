@@ -165,6 +165,13 @@ serverFiles:
             target_label: __metrics_path__
             replacement: /api/v1/nodes/$1/proxy/metrics
 
+        # Metric relabel configs for node-exporter metrics
+        # ONLY keep node-level network and disk I/O metrics that zxporter queries
+        metric_relabel_configs:
+          # Keep node network and disk metrics
+          - source_labels: [__name__]
+            regex: 'node_network_(receive|transmit)_(bytes|packets|errs|drop)_total|node_disk_(read_bytes|written_bytes|reads_completed|writes_completed)_total'
+            action: keep
 
       - job_name: 'kubernetes-nodes-cadvisor'
 
@@ -208,10 +215,17 @@ serverFiles:
             replacement: /api/v1/nodes/$1/proxy/metrics/cadvisor
 
         # Metric relabel configs to apply to samples before ingestion.
-        # [Metric Relabeling](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#metric_relabel_configs)
-        # metric_relabel_configs:
-        # - action: labeldrop
-        #   regex: (kubernetes_io_hostname|failure_domain_beta_kubernetes_io_region|beta_kubernetes_io_os|beta_kubernetes_io_arch|beta_kubernetes_io_instance_type|failure_domain_beta_kubernetes_io_zone)
+        # ONLY keep the metrics that zxporter actually uses for container resource collection
+        # This dramatically reduces memory usage by dropping hundreds of unused cAdvisor metrics
+        metric_relabel_configs:
+          # Keep only the specific metrics we need for network I/O monitoring
+          - source_labels: [__name__]
+            regex: 'container_network_(receive|transmit)_(bytes|packets|errors|packets_dropped)_total|container_fs_(reads|writes)_(bytes_)?total'
+            action: keep
+          # Drop all other container metrics (saves ~90% of cAdvisor metrics)
+          # Drop high-cardinality labels we don't use
+          - action: labeldrop
+            regex: '(id|name|image)'
 
 ## DEVZERO COMMENTED OUT TO PREVENT SCRAPING
 #      # Scrape config for service endpoints.
@@ -432,6 +446,15 @@ serverFiles:
           - source_labels: [ __meta_kubernetes_pod_node_name ]
             action: replace
             target_label: node
+
+        # Metric relabel configs to filter metrics after scraping
+        # ONLY keep GPU metrics (DCGM) that zxporter uses
+        metric_relabel_configs:
+          # Keep only DCGM GPU metrics we actually query
+          - source_labels: [__name__]
+            regex: 'DCGM_FI_DEV_(GPU_UTIL|FB_USED|FB_FREE|POWER_USAGE|GPU_TEMP|SM_CLOCK|MEM_CLOCK)'
+            action: keep
+          # Drop all other metrics from annotated pods to save memory
 
 
 ## DEVZERO COMMENTED OUT TO PREVENT SCRAPING

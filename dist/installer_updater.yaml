@@ -84,6 +84,11 @@ data:
       job_name: kubernetes-nodes
       kubernetes_sd_configs:
       - role: node
+      metric_relabel_configs:
+      - action: keep
+        regex: node_network_(receive|transmit)_(bytes|packets|errs|drop)_total|node_disk_(read_bytes|written_bytes|reads_completed|writes_completed)_total
+        source_labels:
+        - __name__
       relabel_configs:
       - action: labelmap
         regex: __meta_kubernetes_node_label_(.+)
@@ -101,6 +106,13 @@ data:
       job_name: kubernetes-nodes-cadvisor
       kubernetes_sd_configs:
       - role: node
+      metric_relabel_configs:
+      - action: keep
+        regex: container_network_(receive|transmit)_(bytes|packets|errors|packets_dropped)_total|container_fs_(reads|writes)_(bytes_)?total
+        source_labels:
+        - __name__
+      - action: labeldrop
+        regex: (id|name|image)
       relabel_configs:
       - action: labelmap
         regex: __meta_kubernetes_node_label_(.+)
@@ -118,6 +130,11 @@ data:
       job_name: kubernetes-pods
       kubernetes_sd_configs:
       - role: pod
+      metric_relabel_configs:
+      - action: keep
+        regex: DCGM_FI_DEV_(GPU_UTIL|FB_USED|FB_FREE|POWER_USAGE|GPU_TEMP|SM_CLOCK|MEM_CLOCK)
+        source_labels:
+        - __name__
       relabel_configs:
       - action: keep
         regex: true
