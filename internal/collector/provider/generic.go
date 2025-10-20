@@ -64,8 +64,14 @@ func (p *GenericProvider) Name() string {
 func (p *GenericProvider) GetClusterMetadata(ctx context.Context) (map[string]interface{}, error) {
 	p.logger.Info("Collecting generic cluster metadata")
 
+	// Get nodes to determine various cloud metadata
+	nodes, err := p.k8sClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get nodes to infer cluster metadata %w", err)
+	}
+
 	// Try to determine a cluster name
-	clusterName, err := p.discoverClusterName(ctx)
+	clusterName, err := p.discoverClusterName(ctx, nodes.Items)
 	if err != nil {
 		p.logger.Info("Could not determine cluster name", "error", err)
 		clusterName = "unknown-cluster"
@@ -79,11 +85,6 @@ func (p *GenericProvider) GetClusterMetadata(ctx context.Context) (map[string]in
 	infraRegion := ""
 	infraProvider := "generic"
 
-	// Get nodes to determine various cloud metadata
-	nodes, err := p.k8sClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to get nodes to infer cluster metadata %w", err)
-	}
 	if len(nodes.Items) > 0 {
 		// Detect infra provider from node provider IDs
 		detectedProvider := p.getProviderFromNodes(nodes.Items)
@@ -113,7 +114,15 @@ func (p *GenericProvider) GetClusterMetadata(ctx context.Context) (map[string]in
 }
 
 // discoverClusterName attempts to determine a cluster name
-func (p *GenericProvider) discoverClusterName(ctx context.Context) (string, error) {
+func (p *GenericProvider) discoverClusterName(ctx context.Context, nodes []corev1.Node) (string, error) {
+	// this bit is relevant for oracle
+	for _, node := range nodes {
+		name, found := node.Labels["name"]
+		if found {
+			return name, nil
+		}
+	}
+
 	if p.kubeContextName != "" {
 		switch {
 		case strings.HasPrefix(p.kubeContextName, awsKubeConfigClusterContextPrefix) && len(strings.Split(p.kubeContextName, awsKubeConfigClusterContextDelimiter)) >= 2:
