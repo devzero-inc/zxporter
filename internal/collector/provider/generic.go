@@ -19,12 +19,14 @@ const (
 	providerNameAzure        = "azure"
 	providerNameOpenstack    = "openstack"
 	providerNameDigitalocean = "digitalocean"
+	providerNameOracle       = "oci"
 
 	nodeProviderPrefixAws          = "aws://"
 	nodeProviderPrefixGcp          = "gce://"
 	nodeProviderPrefixAzure        = "azure://"
 	nodeProviderPrefixOpenstack    = "openstack://"
 	nodeProviderPrefixDigitalocean = "digitalocean://"
+	nodeProviderPrefixOracle       = "oci" // example- "providerID": "ocid1.instance.oc1.phx.anyhqljrh2dh5yyc2m22ve6ayias2kh7hbd6v4nhlrtvhrfcm5jyjk44phha"
 
 	awsKubeConfigClusterContextPrefix    = "arn:"
 	awsKubeConfigClusterContextDelimiter = "/"
@@ -80,7 +82,7 @@ func (p *GenericProvider) GetClusterMetadata(ctx context.Context) (map[string]in
 	// Get nodes to determine various cloud metadata
 	nodes, err := p.k8sClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("Failed to get nodes to infer cluster metadata %w", err)
+		return nil, fmt.Errorf("failed to get nodes to infer cluster metadata %w", err)
 	}
 	if len(nodes.Items) > 0 {
 		// Detect infra provider from node provider IDs
@@ -155,6 +157,8 @@ func (p *GenericProvider) getProviderFromNodes(nodes []corev1.Node) string {
 			return providerNameOpenstack
 		case strings.HasPrefix(providerID, nodeProviderPrefixDigitalocean):
 			return providerNameDigitalocean
+		case strings.HasPrefix(providerID, nodeProviderPrefixOracle):
+			return providerNameOracle
 		}
 	}
 
