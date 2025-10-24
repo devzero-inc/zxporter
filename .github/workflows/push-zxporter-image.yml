@@ -90,7 +90,7 @@ jobs:
             echo "Checking if tag '$tag' exists in registry..."
             
             # Use docker manifest inspect to check if tag exists
-            if docker manifest inspect devzeroinc/zxporter:$tag >/dev/null 2>&1; then
+            if docker manifest inspect docker.io/devzeroinc/zxporter:$tag >/dev/null 2>&1; then
               echo "Tag '$tag' exists in registry"
               return 0
             else
@@ -199,7 +199,7 @@ jobs:
             docker buildx build \
               --platform linux/amd64,linux/arm64 \
               --push \
-              -t devzeroinc/zxporter:$tag \
+              -t docker.io/devzeroinc/zxporter:$tag \
               -t public.ecr.aws/devzeroinc/zxporter:$tag \
               --build-arg TARGETOS \
               --build-arg TARGETARCH \
