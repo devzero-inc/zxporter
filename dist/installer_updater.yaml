@@ -556,7 +556,7 @@ spec:
               memory: 10Gi
             requests:
               cpu: "1"
-              memory: 2Gi
+              memory: 500Mi
           volumeMounts:
             - name: config-volume
               mountPath: /etc/config

@@ -224,7 +224,7 @@ spec:
               subPath: ""
           resources:
             requests:
-              memory: "2Gi"
+              memory: "500Mi"
               cpu: "1"
             limits:
               memory: "10Gi"
