@@ -553,10 +553,10 @@ spec:
             successThreshold: 1
           resources:
             limits:
-              memory: 10Gi
+              memory: 1Gi
             requests:
-              cpu: "1"
-              memory: 2Gi
+              cpu: 100m
+              memory: 256Mi
           volumeMounts:
             - name: config-volume
               mountPath: /etc/config
@@ -1299,7 +1299,7 @@ spec:
             - --metrics-bind-address=:8443
             - --leader-elect
             - --health-probe-bind-address=:8081
-          image: devzeroinc/zxporter:latest
+          image: docker.io/devzeroinc/zxporter:latest
           livenessProbe:
             httpGet:
               path: /healthz
