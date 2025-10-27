@@ -555,7 +555,7 @@ spec:
             limits:
               memory: 1Gi
             requests:
-              cpu: "100m"
+              cpu: 100m
               memory: 256Mi
           volumeMounts:
             - name: config-volume

@@ -555,7 +555,7 @@ spec:
             limits:
               memory: 1Gi
             requests:
-              cpu: "100m"
+              cpu: 100m
               memory: 256Mi
           volumeMounts:
             - name: config-volume
@@ -1299,7 +1299,7 @@ spec:
             - --metrics-bind-address=:8443
             - --leader-elect
             - --health-probe-bind-address=:8081
-          image: devzeroinc/zxporter:latest
+          image: docker.io/devzeroinc/zxporter:latest
           livenessProbe:
             httpGet:
               path: /healthz
