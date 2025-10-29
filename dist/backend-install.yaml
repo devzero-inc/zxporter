@@ -1047,6 +1047,14 @@ rules:
       - list
       - watch
   - apiGroups:
+      - karpenter.k8s.gcp
+    resources:
+      - gcenodeclasses
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
       - karpenter.k8s.oracle
     resources:
       - ocinodeclasses
