@@ -142,6 +142,7 @@ rules:
   resources:
   - machines
   - nodeclaims
+  - nodeoverlays
   - nodepools
   - provisioners
   verbs:

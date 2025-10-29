@@ -209,6 +209,7 @@ type PolicyConfig struct {
 //+kubebuilder:rbac:groups=karpenter.sh,resources=machines,verbs=get;list;watch
 //+kubebuilder:rbac:groups=karpenter.sh,resources=nodepools,verbs=get;list;watch
 //+kubebuilder:rbac:groups=karpenter.sh,resources=nodeclaims,verbs=get;list;watch
+//+kubebuilder:rbac:groups=karpenter.sh,resources=nodeoverlays,verbs=get;list;watch
 //+kubebuilder:rbac:groups=karpenter.k8s.aws,resources=awsnodetemplates,verbs=get;list;watch
 //+kubebuilder:rbac:groups=karpenter.k8s.aws,resources=ec2nodeclasses,verbs=get;list;watch
 
