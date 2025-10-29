@@ -267,6 +267,14 @@ rules:
   - patch
   - update
 - apiGroups:
+  - karpenter.azure.com
+  resources:
+  - aksnodeclasses
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - karpenter.k8s.aws
   resources:
   - awsnodetemplates
