@@ -284,6 +284,14 @@ rules:
   - list
   - watch
 - apiGroups:
+  - karpenter.k8s.oracle
+  resources:
+  - ocinodeclasses
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - karpenter.sh
   resources:
   - machines
