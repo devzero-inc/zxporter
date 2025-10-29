@@ -838,6 +838,12 @@ func (c *KarpenterCollector) determineKarpenterResourceType(obj *unstructured.Un
 			Resource:     "nodeoverlays",
 			Kind:         "NodeOverlay",
 		}, nil
+	case kind == "NodePool" && strings.Contains(apiVersion, "karpenter.sh/v1beta1"):
+		return KarpenterResource{
+			GroupVersion: schema.GroupVersion{Group: "karpenter.sh", Version: "v1beta1"},
+			Resource:     "nodepools",
+			Kind:         "NodePool",
+		}, nil
 	case kind == "NodePool" && strings.Contains(apiVersion, "karpenter.sh/v1"):
 		return KarpenterResource{
 			GroupVersion: schema.GroupVersion{Group: "karpenter.sh", Version: "v1"},
