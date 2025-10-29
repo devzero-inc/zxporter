@@ -118,12 +118,44 @@ func (c *KarpenterCollector) Start(ctx context.Context) error {
 			Resource:     "machines",
 			Kind:         "Machine",
 		},
+
+		// v1alpha2 resources
+		{
+			GroupVersion: schema.GroupVersion{Group: "karpenter.azure.com", Version: "v1alpha2"},
+			Resource:     "aksnodeclasses",
+			Kind:         "AKSNodeClass",
+			// https://github.com/Azure/karpenter-provider-azure/blob/main/pkg/apis/crds/karpenter.azure.com_aksnodeclasses.yaml
+			// https://github.com/Azure/karpenter-provider-azure/tree/main/pkg/apis
+		},
+
 		// v1alpha1 resources
 		{
 			GroupVersion: schema.GroupVersion{Group: "karpenter.k8s.aws", Version: "v1alpha1"},
 			Resource:     "awsnodetemplates",
 			Kind:         "AWSNodeTemplate",
 		},
+		{
+			GroupVersion: schema.GroupVersion{Group: "karpenter.sh", Version: "v1alpha1"},
+			Resource:     "nodeoverlays",
+			Kind:         "NodeOverlay",
+			// https://github.com/kubernetes-sigs/karpenter/blob/main/pkg/apis/crds/karpenter.sh_nodeoverlays.yaml
+			// https://karpenter.sh/docs/concepts/nodeoverlays/
+		},
+		{
+			GroupVersion: schema.GroupVersion{Group: "karpenter.k8s.oracle", Version: "v1alpha1"},
+			Resource:     "ocinodeclasses",
+			Kind:         "OciNodeClass",
+			// https://github.com/zoom/karpenter-oci/blob/main/pkg/apis/crds/karpenter.k8s.oracle_ocinodeclasses.yaml
+			// https://github.com/zoom/karpenter-oci/tree/main/pkg/apis
+		},
+		{
+			GroupVersion: schema.GroupVersion{Group: "karpenter.k8s.gcp", Version: "v1alpha1"},
+			Resource:     "gcenodeclasses",
+			Kind:         "GCENodeClass",
+			// https://github.com/cloudpilot-ai/karpenter-provider-gcp/blob/main/charts/karpenter/crds/karpenter.k8s.gcp_gcenodeclasses.yaml
+			// https://github.com/cloudpilot-ai/karpenter-provider-gcp/tree/main/pkg/apis
+		},
+
 		// v1beta1 resources
 		{
 			GroupVersion: schema.GroupVersion{Group: "karpenter.sh", Version: "v1beta1"},
@@ -140,6 +172,14 @@ func (c *KarpenterCollector) Start(ctx context.Context) error {
 			Resource:     "ec2nodeclasses",
 			Kind:         "EC2NodeClass",
 		},
+		{
+			GroupVersion: schema.GroupVersion{Group: "karpenter.azure.com", Version: "v1beta1"},
+			Resource:     "aksnodeclasses",
+			Kind:         "AKSNodeClass",
+			// https://github.com/Azure/karpenter-provider-azure/blob/main/pkg/apis/crds/karpenter.azure.com_aksnodeclasses.yaml
+			// https://github.com/Azure/karpenter-provider-azure/tree/main/pkg/apis
+		},
+
 		// v1 resources
 		{
 			GroupVersion: schema.GroupVersion{Group: "karpenter.sh", Version: "v1"},
