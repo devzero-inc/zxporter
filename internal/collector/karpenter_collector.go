@@ -118,12 +118,44 @@ func (c *KarpenterCollector) Start(ctx context.Context) error {
 			Resource:     "machines",
 			Kind:         "Machine",
 		},
+
+		// v1alpha2 resources
+		{
+			GroupVersion: schema.GroupVersion{Group: "karpenter.azure.com", Version: "v1alpha2"},
+			Resource:     "aksnodeclasses",
+			Kind:         "AKSNodeClass",
+			// https://github.com/Azure/karpenter-provider-azure/blob/main/pkg/apis/crds/karpenter.azure.com_aksnodeclasses.yaml
+			// https://github.com/Azure/karpenter-provider-azure/tree/main/pkg/apis
+		},
+
 		// v1alpha1 resources
 		{
 			GroupVersion: schema.GroupVersion{Group: "karpenter.k8s.aws", Version: "v1alpha1"},
 			Resource:     "awsnodetemplates",
 			Kind:         "AWSNodeTemplate",
 		},
+		{
+			GroupVersion: schema.GroupVersion{Group: "karpenter.sh", Version: "v1alpha1"},
+			Resource:     "nodeoverlays",
+			Kind:         "NodeOverlay",
+			// https://github.com/kubernetes-sigs/karpenter/blob/main/pkg/apis/crds/karpenter.sh_nodeoverlays.yaml
+			// https://karpenter.sh/docs/concepts/nodeoverlays/
+		},
+		{
+			GroupVersion: schema.GroupVersion{Group: "karpenter.k8s.oracle", Version: "v1alpha1"},
+			Resource:     "ocinodeclasses",
+			Kind:         "OciNodeClass",
+			// https://github.com/zoom/karpenter-oci/blob/main/pkg/apis/crds/karpenter.k8s.oracle_ocinodeclasses.yaml
+			// https://github.com/zoom/karpenter-oci/tree/main/pkg/apis
+		},
+		{
+			GroupVersion: schema.GroupVersion{Group: "karpenter.k8s.gcp", Version: "v1alpha1"},
+			Resource:     "gcenodeclasses",
+			Kind:         "GCENodeClass",
+			// https://github.com/cloudpilot-ai/karpenter-provider-gcp/blob/main/charts/karpenter/crds/karpenter.k8s.gcp_gcenodeclasses.yaml
+			// https://github.com/cloudpilot-ai/karpenter-provider-gcp/tree/main/pkg/apis
+		},
+
 		// v1beta1 resources
 		{
 			GroupVersion: schema.GroupVersion{Group: "karpenter.sh", Version: "v1beta1"},
@@ -140,6 +172,14 @@ func (c *KarpenterCollector) Start(ctx context.Context) error {
 			Resource:     "ec2nodeclasses",
 			Kind:         "EC2NodeClass",
 		},
+		{
+			GroupVersion: schema.GroupVersion{Group: "karpenter.azure.com", Version: "v1beta1"},
+			Resource:     "aksnodeclasses",
+			Kind:         "AKSNodeClass",
+			// https://github.com/Azure/karpenter-provider-azure/blob/main/pkg/apis/crds/karpenter.azure.com_aksnodeclasses.yaml
+			// https://github.com/Azure/karpenter-provider-azure/tree/main/pkg/apis
+		},
+
 		// v1 resources
 		{
 			GroupVersion: schema.GroupVersion{Group: "karpenter.sh", Version: "v1"},
@@ -586,6 +626,18 @@ func (c *KarpenterCollector) extractCommonFields(obj *unstructured.Unstructured)
 		result["finalizers"] = finalizers
 	}
 
+	// if status exists, pick it up
+	status, found, _ := unstructured.NestedMap(obj.Object, "status")
+	if found {
+		result["status"] = status
+	}
+
+	// if spec exists, pick it up
+	spec, found, _ := unstructured.NestedMap(obj.Object, "spec")
+	if found {
+		result["spec"] = spec
+	}
+
 	return result
 }
 
@@ -765,6 +817,7 @@ func (c *KarpenterCollector) determineKarpenterResourceType(obj *unstructured.Un
 	apiVersion := obj.GetAPIVersion()
 
 	switch {
+	// old stuff
 	case kind == "Provisioner" && strings.Contains(apiVersion, "karpenter.sh/v1alpha5"):
 		return KarpenterResource{
 			GroupVersion: schema.GroupVersion{Group: "karpenter.sh", Version: "v1alpha5"},
@@ -777,29 +830,13 @@ func (c *KarpenterCollector) determineKarpenterResourceType(obj *unstructured.Un
 			Resource:     "machines",
 			Kind:         "Machine",
 		}, nil
-	case kind == "AWSNodeTemplate" && strings.Contains(apiVersion, "karpenter.k8s.aws/v1alpha1"):
-		return KarpenterResource{
-			GroupVersion: schema.GroupVersion{Group: "karpenter.k8s.aws", Version: "v1alpha1"},
-			Resource:     "awsnodetemplates",
-			Kind:         "AWSNodeTemplate",
-		}, nil
+
+	// default types
 	case kind == "NodeClaim" && strings.Contains(apiVersion, "karpenter.sh/v1alpha5"):
 		return KarpenterResource{
 			GroupVersion: schema.GroupVersion{Group: "karpenter.sh", Version: "v1alpha5"},
 			Resource:     "nodeclaims",
 			Kind:         "NodeClaim",
-		}, nil
-	case kind == "EC2NodeClass" && strings.Contains(apiVersion, "karpenter.k8s.aws/v1beta1"):
-		return KarpenterResource{
-			GroupVersion: schema.GroupVersion{Group: "karpenter.k8s.aws", Version: "v1beta1"},
-			Resource:     "ec2nodeclasses",
-			Kind:         "EC2NodeClass",
-		}, nil
-	case kind == "NodePool" && strings.Contains(apiVersion, "karpenter.sh/v1"):
-		return KarpenterResource{
-			GroupVersion: schema.GroupVersion{Group: "karpenter.sh", Version: "v1"},
-			Resource:     "nodepools",
-			Kind:         "NodePool",
 		}, nil
 	case kind == "NodeClaim" && strings.Contains(apiVersion, "karpenter.sh/v1"):
 		return KarpenterResource{
@@ -807,12 +844,69 @@ func (c *KarpenterCollector) determineKarpenterResourceType(obj *unstructured.Un
 			Resource:     "nodeclaims",
 			Kind:         "NodeClaim",
 		}, nil
+	case kind == "NodeOverlay" && strings.Contains(apiVersion, "karpenter.sh/v1alpha1"):
+		return KarpenterResource{
+			GroupVersion: schema.GroupVersion{Group: "karpenter.sh", Version: "v1alpha1"},
+			Resource:     "nodeoverlays",
+			Kind:         "NodeOverlay",
+		}, nil
+	case kind == "NodePool" && strings.Contains(apiVersion, "karpenter.sh/v1beta1"):
+		return KarpenterResource{
+			GroupVersion: schema.GroupVersion{Group: "karpenter.sh", Version: "v1beta1"},
+			Resource:     "nodepools",
+			Kind:         "NodePool",
+		}, nil
+	case kind == "NodePool" && strings.Contains(apiVersion, "karpenter.sh/v1"):
+		return KarpenterResource{
+			GroupVersion: schema.GroupVersion{Group: "karpenter.sh", Version: "v1"},
+			Resource:     "nodepools",
+			Kind:         "NodePool",
+		}, nil
+
+	// aws specific
+	case kind == "AWSNodeTemplate" && strings.Contains(apiVersion, "karpenter.k8s.aws/v1alpha1"):
+		return KarpenterResource{
+			GroupVersion: schema.GroupVersion{Group: "karpenter.k8s.aws", Version: "v1alpha1"},
+			Resource:     "awsnodetemplates",
+			Kind:         "AWSNodeTemplate",
+		}, nil
+	case kind == "EC2NodeClass" && strings.Contains(apiVersion, "karpenter.k8s.aws/v1beta1"):
+		return KarpenterResource{
+			GroupVersion: schema.GroupVersion{Group: "karpenter.k8s.aws", Version: "v1beta1"},
+			Resource:     "ec2nodeclasses",
+			Kind:         "EC2NodeClass",
+		}, nil
 	case kind == "EC2NodeClass" && strings.Contains(apiVersion, "karpenter.k8s.aws/v1"):
 		return KarpenterResource{
 			GroupVersion: schema.GroupVersion{Group: "karpenter.k8s.aws", Version: "v1"},
 			Resource:     "ec2nodeclasses",
 			Kind:         "EC2NodeClass",
 		}, nil
+
+	// azure specific
+	case kind == "AKSNodeClass" && strings.Contains(apiVersion, "karpenter.azure.com/v1alpha2"):
+		return KarpenterResource{
+			GroupVersion: schema.GroupVersion{Group: "karpenter.azure.com", Version: "v1alpha2"},
+			Resource:     "aksnodeclasses",
+			Kind:         "AKSNodeClass",
+		}, nil
+
+	// oracle specific
+	case kind == "OciNodeClass" && strings.Contains(apiVersion, "karpenter.k8s.oracle/v1alpha1"):
+		return KarpenterResource{
+			GroupVersion: schema.GroupVersion{Group: "karpenter.k8s.oracle", Version: "v1alpha1"},
+			Resource:     "ocinodeclasses",
+			Kind:         "OciNodeClass",
+		}, nil
+
+	// gcp specific
+	case kind == "GCENodeClass" && strings.Contains(apiVersion, "karpenter.k8s.gcp/v1alpha1"):
+		return KarpenterResource{
+			GroupVersion: schema.GroupVersion{Group: "karpenter.k8s.gcp", Version: "v1alpha1"},
+			Resource:     "gcenodeclasses",
+			Kind:         "GCENodeClass",
+		}, nil
+
 	default:
 		return KarpenterResource{}, fmt.Errorf("unsupported Karpenter resource: kind=%s, apiVersion=%s", kind, apiVersion)
 	}

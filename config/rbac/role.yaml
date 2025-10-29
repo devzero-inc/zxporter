@@ -129,6 +129,14 @@ rules:
   - patch
   - update
 - apiGroups:
+  - karpenter.azure.com
+  resources:
+  - aksnodeclasses
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - karpenter.k8s.aws
   resources:
   - awsnodetemplates
@@ -138,10 +146,27 @@ rules:
   - list
   - watch
 - apiGroups:
+  - karpenter.k8s.gcp
+  resources:
+  - gcenodeclasses
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - karpenter.k8s.oracle
+  resources:
+  - ocinodeclasses
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - karpenter.sh
   resources:
   - machines
   - nodeclaims
+  - nodeoverlays
   - nodepools
   - provisioners
   verbs:
