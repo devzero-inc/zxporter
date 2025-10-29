@@ -626,6 +626,18 @@ func (c *KarpenterCollector) extractCommonFields(obj *unstructured.Unstructured)
 		result["finalizers"] = finalizers
 	}
 
+	// if status exists, pick it up
+	status, found, _ := unstructured.NestedMap(obj.Object, "status")
+	if found {
+		result["status"] = status
+	}
+
+	// if spec exists, pick it up
+	spec, found, _ := unstructured.NestedMap(obj.Object, "spec")
+	if found {
+		result["spec"] = spec
+	}
+
 	return result
 }
 
