@@ -141,6 +141,10 @@ data:
         regex: true
         source_labels:
         - __meta_kubernetes_pod_annotation_prometheus_io_scrape
+      - action: keep
+        regex: dcgm-exporter
+        source_labels:
+        - __meta_kubernetes_pod_label_app_kubernetes_io_component
       - action: drop
         regex: true
         source_labels:
