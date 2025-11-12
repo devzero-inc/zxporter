@@ -155,6 +155,7 @@ spec:
   template:
     metadata:
       labels:
+        app: nvidia-dcgm-exporter
         app.kubernetes.io/name: devzero-zxporter-dcgm
         app.kubernetes.io/component: "dcgm-exporter"
       annotations:
