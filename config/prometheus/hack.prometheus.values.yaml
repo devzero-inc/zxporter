@@ -410,9 +410,9 @@ serverFiles:
             regex: true
           # ONLY scrape DCGM exporter pods to reduce load on Prometheus
           # This prevents scraping random pods that have prometheus.io/scrape=true
-          - source_labels: [ __meta_kubernetes_pod_label_app_kubernetes_io_component ]
+          - source_labels: [ __meta_kubernetes_pod_label_app ]
             action: keep
-            regex: dcgm-exporter
+            regex: nvidia-dcgm-exporter
           - source_labels: [ __meta_kubernetes_pod_annotation_prometheus_io_scrape_slow ]
             action: drop
             regex: true
