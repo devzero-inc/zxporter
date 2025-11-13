@@ -545,7 +545,7 @@ spec:
             successThreshold: 1
           resources:
             limits:
-              memory: 1Gi
+              memory: 10Gi
             requests:
               cpu: 100m
               memory: 256Mi
