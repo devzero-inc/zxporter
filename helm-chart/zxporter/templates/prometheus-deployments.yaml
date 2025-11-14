@@ -224,10 +224,10 @@ spec:
               subPath: ""
           resources:
             requests:
-              memory: "256Mi"
+              memory: "2Gi"
               cpu: "100m"
             limits:
-              memory: "1Gi"
+              memory: "2Gi"
       dnsPolicy: ClusterFirst
       securityContext:
         fsGroup: 65534
