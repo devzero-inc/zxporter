@@ -16,10 +16,10 @@ server:
   retention: "2d"
   resources:
     requests:
-      memory: "256Mi"
+      memory: "2Gi"
       cpu: "100m"
     limits:
-      memory: "10Gi"
+      memory: "2Gi"
 
 alertmanager:
   enabled: false
