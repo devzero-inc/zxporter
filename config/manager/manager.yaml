@@ -68,7 +68,7 @@ spec:
         # - name: CLUSTER_TOKEN
         #   valueFrom:
         #     secretKeyRef:
-        #       name: devzero-zxporter-cluster-secret
+        #       name: devzero-zxporter-token
         #       key: CLUSTER_TOKEN
         securityContext:
           allowPrivilegeEscalation: false
