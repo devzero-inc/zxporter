@@ -1,6 +1,7 @@
 resources:
 - manager.yaml
 - env_configmap.yaml
+- env_secret.yaml
 # patches:
 # - path: env-patch.yaml
 #   target:
