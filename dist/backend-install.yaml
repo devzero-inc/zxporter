@@ -1285,6 +1285,15 @@ metadata:
   namespace: devzero-zxporter
 ---
 apiVersion: v1
+kind: Secret
+metadata:
+  name: devzero-zxporter-devzero-zxporter-token
+  namespace: devzero-zxporter
+stringData:
+  CLUSTER_TOKEN: '{{ .cluster_token }}'
+type: Opaque
+---
+apiVersion: v1
 kind: Service
 metadata:
   labels:

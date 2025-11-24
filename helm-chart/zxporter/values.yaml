@@ -15,6 +15,9 @@ zxporter:
   clusterToken: "TO-BE-FILLED-IN"
   kubeContextName: "TO-BE-FILLED-IN"
   k8sProvider: "TO-BE-FILLED-IN"
+  # Set to true to store CLUSTER_TOKEN in a Kubernetes Secret instead of ConfigMap
+  # Default is false for backward compatibility
+  useSecretForToken: false
 
 # Monitoring components (set to false to use your own Prometheus/Node Exporter)
 monitoring:
