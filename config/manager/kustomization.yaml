@@ -2,6 +2,8 @@ resources:
 - manager.yaml
 - env_configmap.yaml
 - env_secret.yaml
+- priorityclass.yaml
+- poddisruptionbudget.yaml
 # patches:
 # - path: env-patch.yaml
 #   target:

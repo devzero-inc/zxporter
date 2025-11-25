@@ -1311,6 +1311,15 @@ spec:
   selector:
     control-plane: controller-manager
 ---
+apiVersion: scheduling.k8s.io/v1
+description: This priority class is for critical zxporter infrastructure components.
+globalDefault: false
+kind: PriorityClass
+metadata:
+  name: devzero-zxporter-devzero-zxporter-critical
+preemptionPolicy: PreemptLowerPriority
+value: 1000000000
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -1364,6 +1373,7 @@ spec:
             - mountPath: /etc/zxporter/config
               name: config-volume
               readOnly: true
+      priorityClassName: devzero-zxporter-devzero-zxporter-critical
       securityContext:
         runAsNonRoot: true
       serviceAccountName: devzero-zxporter-controller-manager
@@ -1372,3 +1382,14 @@ spec:
         - configMap:
             name: devzero-zxporter-env-config
           name: config-volume
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: devzero-zxporter-devzero-zxporter-pdb
+  namespace: devzero-zxporter
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      control-plane: controller-manager
