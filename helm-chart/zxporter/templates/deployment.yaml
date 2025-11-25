@@ -19,6 +19,9 @@ spec:
       labels:
         control-plane: controller-manager
     spec:
+      {{- if .Values.priorityClass.enabled }}
+      priorityClassName: {{ include "zxporter.fullname" . }}-critical
+      {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

@@ -40,6 +40,9 @@ spec:
         app.kubernetes.io/instance: node-exporter
         app.kubernetes.io/version: "1.9.1"
     spec:
+      {{- if .Values.priorityClass.enabled }}
+      priorityClassName: {{ include "zxporter.fullname" . }}-critical
+      {{- end }}
       automountServiceAccountToken: false
       securityContext:
         fsGroup: 65534

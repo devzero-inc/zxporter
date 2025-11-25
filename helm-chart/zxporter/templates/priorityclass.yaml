@@ -1,0 +1,12 @@
+{{- if .Values.priorityClass.enabled }}
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: {{ include "zxporter.fullname" . }}-critical
+  labels:
+    {{- include "zxporter.labels" . | nindent 4 }}
+value: {{ .Values.priorityClass.value }}
+globalDefault: false
+description: {{ .Values.priorityClass.description | quote }}
+preemptionPolicy: {{ .Values.priorityClass.preemptionPolicy }}
+{{- end }}

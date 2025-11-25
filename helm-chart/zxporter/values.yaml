@@ -30,3 +30,19 @@ monitoring:
 nodeSelector: {}
 tolerations: []
 affinity: {}
+
+# High Availability Configuration
+highAvailability:
+  enabled: false
+  replicas: 1
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+    # Alternative: maxUnavailable: 1
+
+# Priority Class for critical workloads
+priorityClass:
+  enabled: true
+  value: 1000000000
+  description: "This priority class is for critical zxporter infrastructure components."
+  preemptionPolicy: PreemptLowerPriority
