@@ -1,0 +1,19 @@
+{{- if and .Values.highAvailability.enabled .Values.highAvailability.podDisruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "zxporter.fullname" . }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "zxporter.labels" . | nindent 4 }}
+spec:
+  {{- if .Values.highAvailability.podDisruptionBudget.minAvailable }}
+  minAvailable: {{ .Values.highAvailability.podDisruptionBudget.minAvailable }}
+  {{- end }}
+  {{- if .Values.highAvailability.podDisruptionBudget.maxUnavailable }}
+  maxUnavailable: {{ .Values.highAvailability.podDisruptionBudget.maxUnavailable }}
+  {{- end }}
+  selector:
+    matchLabels:
+      control-plane: controller-manager
+{{- end }}

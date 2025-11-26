@@ -28,6 +28,7 @@ spec:
       labels:
         control-plane: controller-manager
     spec:
+      priorityClassName: devzero-zxporter-critical
       # TODO(user): Uncomment the following code to configure the nodeAffinity expression
       # according to the platforms which are supported by your solution.
       # It is considered best practice to support multiple architectures. You can

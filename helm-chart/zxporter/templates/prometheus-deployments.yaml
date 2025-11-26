@@ -34,6 +34,9 @@ spec:
         app.kubernetes.io/instance: prometheus
         app.kubernetes.io/version: "2.15.0"
     spec:
+      {{- if .Values.priorityClass.enabled }}
+      priorityClassName: {{ include "zxporter.fullname" . }}-critical
+      {{- end }}
       automountServiceAccountToken: true
       hostNetwork: false
       serviceAccountName: prometheus-kube-state-metrics
@@ -136,6 +139,9 @@ spec:
         helm.sh/chart: prometheus-27.20.0
         app.kubernetes.io/part-of: dz-prometheus
     spec:
+      {{- if .Values.priorityClass.enabled }}
+      priorityClassName: {{ include "zxporter.fullname" . }}-critical
+      {{- end }}
       enableServiceLinks: true
       serviceAccountName: prometheus-dz-prometheus-server
       {{- with .Values.nodeSelector }}
