@@ -33,7 +33,9 @@ jobs:
       - name: Extract Version Info
         id: version
         run: |
-          GITVERSION=$(git describe --tags --always || echo "v0.0.0-$(git rev-parse --short HEAD)")
+          # Get the most recent tag that matches the release pattern (v*.*.*)
+          # Exclude chart-* tags
+          GITVERSION=$(git describe --tags --match="v[0-9]*.[0-9]*.[0-9]*" --exclude="chart-*" --always || echo "v0.0.0-$(git rev-parse --short HEAD)")
           echo "GITVERSION=${GITVERSION}" >> $GITHUB_ENV
           if [[ "$GITVERSION" =~ ^v([0-9]+)\.([0-9]+)\.(.+)$ ]]; then
             MAJOR=${BASH_REMATCH[1]}
