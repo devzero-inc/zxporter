@@ -34,7 +34,6 @@ affinity: {}
 # High Availability Configuration
 highAvailability:
   enabled: false
-  replicas: 1
   podDisruptionBudget:
     enabled: true
     minAvailable: 1
