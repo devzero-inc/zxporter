@@ -611,6 +611,11 @@ spec:
                     description: NumResourceProcessors is the number of goroutines
                       to process collected resources
                     type: integer
+                  patToken:
+                    description: |-
+                      PATToken is the Personal Access Token used for automatic cluster token exchange
+                      If ClusterToken is not provided but PATToken is, the system will exchange it for a cluster token
+                    type: string
                   prometheusURL:
                     description: |-
                       PrometheusURL is the URL of the Prometheus server to query for metrics

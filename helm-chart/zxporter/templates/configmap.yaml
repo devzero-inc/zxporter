@@ -3,6 +3,7 @@ data:
   BUFFER_SIZE: ""
   {{- if not .Values.zxporter.useSecretForToken }}
   CLUSTER_TOKEN: "{{ .Values.zxporter.clusterToken }}"
+  PAT_TOKEN: "{{ .Values.zxporter.patToken }}"
   {{- end }}
   COLLECTION_FREQUENCY: ""
   DISABLE_NETWORK_IO_METRICS: ""

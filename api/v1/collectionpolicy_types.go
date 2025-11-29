@@ -387,6 +387,10 @@ type Policies struct {
 	// ClusterToken is the token used to authenticate as a cluster
 	ClusterToken string `json:"clusterToken,omitempty"`
 
+	// PATToken is the Personal Access Token used for automatic cluster token exchange
+	// If ClusterToken is not provided but PATToken is, the system will exchange it for a cluster token
+	PATToken string `json:"patToken,omitempty"`
+
 	// PrometheusURL is the URL of the Prometheus server to query for metrics
 	// If not provided, defaults to in-cluster Prometheus at "http://prometheus-service.monitoring.svc.cluster.local:8080"
 	// +optional

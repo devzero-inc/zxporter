@@ -13,9 +13,13 @@ zxporter:
   prometheusUrl: "http://prometheus-dz-prometheus-server.devzero-zxporter.svc.cluster.local:80"
   targetNamespaces: ""
   clusterToken: "TO-BE-FILLED-IN"
+  # Personal Access Token (PAT) for automatic cluster token exchange
+  # If clusterToken is not provided but patToken is, the system will
+  # automatically exchange the PAT for a cluster token on startup
+  patToken: ""
   kubeContextName: "TO-BE-FILLED-IN"
   k8sProvider: "TO-BE-FILLED-IN"
-  # Set to true to store CLUSTER_TOKEN in a Kubernetes Secret instead of ConfigMap
+  # Set to true to store CLUSTER_TOKEN and PAT_TOKEN in Kubernetes Secrets instead of ConfigMap
   # Default is false for backward compatibility
   useSecretForToken: false
 
