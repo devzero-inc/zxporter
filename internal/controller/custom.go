@@ -19,12 +19,14 @@ package controller
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"time"
 
 	"github.com/go-logr/logr"
 	kedaclient "github.com/kedacore/keda/v2/pkg/generated/clientset/versioned"
 	"go.uber.org/zap"
 	apiextensionsclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
@@ -207,14 +209,64 @@ func (c *EnvBasedController) initializeTelemetryComponents(ctx context.Context) 
 		// Continue with default values
 	}
 
+	// Handle PAT token exchange if no cluster token is available
+	if envSpec.Policies.ClusterToken == "" && envSpec.Policies.PATToken != "" {
+		c.Log.Info("No cluster token found, attempting PAT token exchange")
+
+		// Extract domain from DakrURL for cluster service
+		clusterServiceURL := envSpec.Policies.DakrURL
+		if clusterServiceURL == "" {
+			clusterServiceURL = "dakr.devzero.io"
+		} else {
+			// Convert https://dakr.devzero.io to dakr.devzero.io:443
+			if u, err := url.Parse(clusterServiceURL); err == nil {
+				port := u.Port()
+				if port == "" && u.Scheme == "https" {
+					port = "443"
+				}
+				clusterServiceURL = fmt.Sprintf("%s:%s", u.Hostname(), port)
+			}
+		}
+
+		// Create cluster client
+		clusterClient, err := transport.NewClusterClient(clusterServiceURL, c.Log)
+		if err != nil {
+			c.Log.Error(err, "Failed to create cluster client for PAT exchange")
+		} else {
+			defer clusterClient.Close()
+
+			// Get cluster name and provider
+			clusterName, k8sProvider := transport.GetClusterNameAndProvider()
+			// Override cluster name if available from envSpec
+			if envSpec.Policies.KubeContextName != "" {
+				clusterName = envSpec.Policies.KubeContextName
+			}
+
+			// Exchange PAT for cluster token
+			token, clusterId, err := clusterClient.ExchangePATForClusterToken(ctx, envSpec.Policies.PATToken, clusterName, k8sProvider)
+			if err != nil {
+				c.Log.Error(err, "Failed to exchange PAT for cluster token")
+			} else {
+				c.Log.Info("Successfully obtained cluster token", "clusterId", clusterId)
+				envSpec.Policies.ClusterToken = token
+
+				// Persist the token to ConfigMap
+				if err := c.persistClusterToken(ctx, token); err != nil {
+					c.Log.Error(err, "Failed to persist cluster token to ConfigMap")
+					// Continue anyway - the token is in memory
+				}
+			}
+		}
+	}
+
 	// Create dakr client and sender
 	var dakrClient transport.DakrClient
-	if envSpec.Policies.DakrURL != "" {
+	if envSpec.Policies.DakrURL != "" && envSpec.Policies.ClusterToken != "" {
 		dakrClient = transport.NewDakrClient(envSpec.Policies.DakrURL, envSpec.Policies.ClusterToken, c.Log)
 		c.Log.Info("Created Dakr client with configured URL", "url", envSpec.Policies.DakrURL)
 	} else {
 		dakrClient = transport.NewSimpleDakrClient(c.Log)
-		c.Log.Info("Created simple (logging) Dakr client because no URL was configured")
+		c.Log.Info("Created simple (logging) Dakr client because no URL or token was configured")
 	}
 
 	sender := transport.NewDirectSender(dakrClient, c.Log)
@@ -257,5 +309,32 @@ func (c *EnvBasedController) doReconcile(ctx context.Context) error {
 	}
 
 	// c.Log.Info("Reconciliation completed successfully")
+	return nil
+}
+
+// persistClusterToken persists the cluster token to the ConfigMap
+func (c *EnvBasedController) persistClusterToken(ctx context.Context, token string) error {
+	namespace := "devzero-zxporter"
+	configMapName := "devzero-zxporter-env-config"
+
+	// Get the existing ConfigMap
+	configMap, err := c.K8sClient.CoreV1().ConfigMaps(namespace).Get(ctx, configMapName, metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to get ConfigMap: %w", err)
+	}
+
+	// Update the CLUSTER_TOKEN in the ConfigMap data
+	if configMap.Data == nil {
+		configMap.Data = make(map[string]string)
+	}
+	configMap.Data["CLUSTER_TOKEN"] = token
+
+	// Update the ConfigMap
+	_, err = c.K8sClient.CoreV1().ConfigMaps(namespace).Update(ctx, configMap, metav1.UpdateOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to update ConfigMap with cluster token: %w", err)
+	}
+
+	c.Log.Info("Successfully persisted cluster token to ConfigMap", "configMap", configMapName)
 	return nil
 }

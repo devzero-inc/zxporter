@@ -24,6 +24,10 @@ const (
 	// Default value: ""
 	_ENV_CLUSTER_TOKEN = "CLUSTER_TOKEN"
 
+	// PAT_TOKEN is the Personal Access Token used for automatic cluster token exchange
+	// Default value: ""
+	_ENV_PAT_TOKEN = "PAT_TOKEN"
+
 	// DAKR_URL is the URL of the Dakr service.
 	// Default value: ""
 	_ENV_DAKR_URL = "DAKR_URL"
@@ -490,6 +494,9 @@ func LoadCollectionPolicySpecFromEnv() (v1.CollectionPolicySpec, error) {
 	}
 	if v := getEnv(_ENV_CLUSTER_TOKEN); v != "" {
 		newSpec.Policies.ClusterToken = v
+	}
+	if v := getEnv(_ENV_PAT_TOKEN); v != "" {
+		newSpec.Policies.PATToken = v
 	}
 	if v := getEnv(_ENV_DAKR_URL); v != "" {
 		newSpec.Policies.DakrURL = v
