@@ -64,8 +64,13 @@ spec:
           - --health-probe-bind-address=:8081
         image: controller:latest
         name: manager
+        env:
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
         # Uncomment the following to inject tokens from a Secret (recommended for production)
-        # env:
+        # Additional env vars can be added below:
         # - name: CLUSTER_TOKEN
         #   valueFrom:
         #     secretKeyRef:

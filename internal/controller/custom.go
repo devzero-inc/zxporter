@@ -20,6 +20,8 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -314,7 +316,18 @@ func (c *EnvBasedController) doReconcile(ctx context.Context) error {
 
 // persistClusterToken persists the cluster token to the ConfigMap
 func (c *EnvBasedController) persistClusterToken(ctx context.Context, token string) error {
-	namespace := "devzero-zxporter"
+	// Get namespace from environment variable or use default
+	namespace := os.Getenv("POD_NAMESPACE")
+	if namespace == "" {
+		// Try to read from service account namespace file
+		if data, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace"); err == nil {
+			namespace = strings.TrimSpace(string(data))
+		} else {
+			// Fall back to default if all else fails
+			namespace = "devzero-zxporter"
+			c.Log.Info("Could not determine namespace, using default", "namespace", namespace)
+		}
+	}
 	configMapName := "devzero-zxporter-env-config"
 
 	// Get the existing ConfigMap
