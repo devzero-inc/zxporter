@@ -8,6 +8,14 @@ rules:
   - ""
   resources:
   - configmaps
+  verbs:
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
   - endpoints
   - events
   - limitranges
@@ -18,8 +26,6 @@ rules:
   - pods
   - replicationcontrollers
   - resourcequotas
-  - serviceaccounts
-  - services
   verbs:
   - get
   - list
@@ -32,6 +38,18 @@ rules:
   - pods/status
   verbs:
   - get
+- apiGroups:
+  - ""
+  resources:
+  - serviceaccounts
+  - services
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - watch
 - apiGroups:
   - apiextensions.k8s.io
   resources:
@@ -50,16 +68,27 @@ rules:
   - list
   - patch
   - update
+  - watch
 - apiGroups:
   - apps
   resources:
   - daemonsets
-  - deployments
   - replicasets
   - statefulsets
   verbs:
   - get
   - list
+  - watch
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
   - watch
 - apiGroups:
   - argoproj.io
@@ -224,7 +253,6 @@ rules:
   resources:
   - clusterrolebindings
   - clusterroles
-  - role
   - rolebindings
   verbs:
   - create
