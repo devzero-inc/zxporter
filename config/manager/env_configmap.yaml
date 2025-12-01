@@ -4,7 +4,6 @@ metadata:
   name: env-config
   namespace: system
 data:
-  # Note: For production use, store tokens in the Secret (env_secret.yaml) instead of ConfigMap
   # If using PAT token, you can comment out CLUSTER_TOKEN and use PAT_TOKEN in the Secret
   CLUSTER_TOKEN: "{{ .cluster_token }}"
   # PAT_TOKEN: "{{ .pat_token }}"  # Uncomment to use PAT token (recommended to use Secret instead)
