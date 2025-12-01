@@ -23,6 +23,8 @@ type DakrClient interface {
 	SendClusterSnapshotStream(ctx context.Context, snapshot *gen.ClusterSnapshot, snapshotID string, timestamp time.Time) (string, *gen.ClusterSnapshot, error)
 	// telemetry_logger.TelemetryLogSender sends a batch of log entries to Dakr
 	telemetry_logger.TelemetryLogSender
+	// ExchangePATForClusterToken exchanges a PAT token for a cluster token
+	ExchangePATForClusterToken(ctx context.Context, patToken, clusterName, k8sProvider string) (string, string, error)
 }
 
 // Sender defines methods for sending data to external systems

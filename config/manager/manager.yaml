@@ -64,13 +64,24 @@ spec:
           - --health-probe-bind-address=:8081
         image: controller:latest
         name: manager
-        # Uncomment the following to inject CLUSTER_TOKEN from a Secret
-        # env:
+        env:
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        # Uncomment the following to inject tokens from a Secret (recommended for production)
+        # Additional env vars can be added below:
         # - name: CLUSTER_TOKEN
         #   valueFrom:
         #     secretKeyRef:
         #       name: devzero-zxporter-token
         #       key: CLUSTER_TOKEN
+        # # Uncomment if using PAT token instead of or in addition to CLUSTER_TOKEN
+        # - name: PAT_TOKEN
+        #   valueFrom:
+        #     secretKeyRef:
+        #       name: devzero-zxporter-token
+        #       key: PAT_TOKEN
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:

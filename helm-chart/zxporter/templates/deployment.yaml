@@ -40,13 +40,26 @@ spec:
             - --leader-elect
             - --health-probe-bind-address=:8081
           image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
-          {{- if and .Values.zxporter.clusterToken .Values.zxporter.useSecretForToken }}
           env:
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          {{- if .Values.zxporter.useSecretForToken }}
+            {{- if .Values.zxporter.clusterToken }}
             - name: CLUSTER_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: devzero-zxporter-token
                   key: CLUSTER_TOKEN
+            {{- end }}
+            {{- if .Values.zxporter.patToken }}
+            - name: PAT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: devzero-zxporter-token
+                  key: PAT_TOKEN
+            {{- end }}
           {{- end }}
           livenessProbe:
             httpGet:
