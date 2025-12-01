@@ -19,7 +19,6 @@ package controller
 import (
 	"context"
 	"fmt"
-	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -215,48 +214,38 @@ func (c *EnvBasedController) initializeTelemetryComponents(ctx context.Context) 
 	if envSpec.Policies.ClusterToken == "" && envSpec.Policies.PATToken != "" {
 		c.Log.Info("No cluster token found, attempting PAT token exchange")
 
-		// Extract domain from DakrURL for cluster service
-		clusterServiceURL := envSpec.Policies.DakrURL
-		if clusterServiceURL == "" {
-			clusterServiceURL = "dakr.devzero.io"
-		} else {
-			// Convert https://dakr.devzero.io to dakr.devzero.io:443
-			if u, err := url.Parse(clusterServiceURL); err == nil {
-				port := u.Port()
-				if port == "" && u.Scheme == "https" {
-					port = "443"
-				}
-				clusterServiceURL = fmt.Sprintf("%s:%s", u.Hostname(), port)
-			}
+		// Get cluster name and provider
+		clusterName := envSpec.Policies.KubeContextName
+		if clusterName == "" {
+			clusterName = "zxporter-cluster"
+		}
+		
+		k8sProvider := "other"
+		if provider := os.Getenv("K8S_PROVIDER"); provider != "" {
+			k8sProvider = provider
 		}
 
-		// Create cluster client
-		clusterClient, err := transport.NewClusterClient(clusterServiceURL, c.Log)
+		// Use a temporary DakrClient just for PAT exchange
+		dakrURL := envSpec.Policies.DakrURL
+		if dakrURL == "" {
+			dakrURL = "https://dakr.devzero.io"
+		}
+		
+		// Create a temporary client with empty cluster token for PAT exchange
+		tempClient := transport.NewDakrClient(dakrURL, "", c.Log)
+		
+		// Exchange PAT for cluster token
+		token, clusterId, err := tempClient.ExchangePATForClusterToken(ctx, envSpec.Policies.PATToken, clusterName, k8sProvider)
 		if err != nil {
-			c.Log.Error(err, "Failed to create cluster client for PAT exchange")
+			c.Log.Error(err, "Failed to exchange PAT for cluster token")
 		} else {
-			defer clusterClient.Close()
+			c.Log.Info("Successfully obtained cluster token", "clusterId", clusterId)
+			envSpec.Policies.ClusterToken = token
 
-			// Get cluster name and provider
-			clusterName, k8sProvider := transport.GetClusterNameAndProvider()
-			// Override cluster name if available from envSpec
-			if envSpec.Policies.KubeContextName != "" {
-				clusterName = envSpec.Policies.KubeContextName
-			}
-
-			// Exchange PAT for cluster token
-			token, clusterId, err := clusterClient.ExchangePATForClusterToken(ctx, envSpec.Policies.PATToken, clusterName, k8sProvider)
-			if err != nil {
-				c.Log.Error(err, "Failed to exchange PAT for cluster token")
-			} else {
-				c.Log.Info("Successfully obtained cluster token", "clusterId", clusterId)
-				envSpec.Policies.ClusterToken = token
-
-				// Persist the token to ConfigMap
-				if err := c.persistClusterToken(ctx, token); err != nil {
-					c.Log.Error(err, "Failed to persist cluster token to ConfigMap")
-					// Continue anyway - the token is in memory
-				}
+			// Persist the token to ConfigMap
+			if err := c.persistClusterToken(ctx, token); err != nil {
+				c.Log.Error(err, "Failed to persist cluster token to ConfigMap")
+				// Continue anyway - the token is in memory
 			}
 		}
 	}

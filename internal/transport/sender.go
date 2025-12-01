@@ -168,3 +168,12 @@ func (c *SimpleDakrClient) SendTelemetryLogs(ctx context.Context, in *gen.SendTe
 	//
 	return nil, nil
 }
+
+// ExchangePATForClusterToken implements SimpleDakrClient.
+func (c *SimpleDakrClient) ExchangePATForClusterToken(ctx context.Context, patToken, clusterName, k8sProvider string) (string, string, error) {
+	c.logger.Info("Would exchange PAT token for cluster token",
+		"clusterName", clusterName,
+		"k8sProvider", k8sProvider)
+	// Return empty values for simple client
+	return "", "", fmt.Errorf("PAT token exchange not supported in simple client")
+}

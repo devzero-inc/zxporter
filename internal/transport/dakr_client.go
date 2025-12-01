@@ -43,9 +43,10 @@ type RetryPolicy struct {
 
 // RealDakrClient implements communication with Dakr service
 type RealDakrClient struct {
-	logger       logr.Logger
-	client       genconnect.MetricsCollectorServiceClient
-	clusterToken string
+	logger         logr.Logger
+	client         genconnect.MetricsCollectorServiceClient
+	clusterClient  genconnect.ClusterServiceClient
+	clusterToken   string
 }
 
 // NewDakrClient creates a new client for Dakr service
@@ -134,22 +135,35 @@ func NewDakrClient(dakrBaseURL string, clusterToken string, logger logr.Logger) 
 		},
 	}
 
-	// We're using the connect client for the Dakr service
-	client := genconnect.NewMetricsCollectorServiceClient(
-		httpClient,
-		dakrBaseURL,
+	// Common options for all clients
+	clientOptions := []connect.ClientOption{
 		connect.WithGRPC(),
 		connect.WithSendGzip(),             // Enable gzip compression for requests
 		connect.WithCompressMinBytes(1024), // Only compress if payload > 1KB
 		connect.WithInterceptors(retryInterceptor),
 		connect.WithSendMaxBytes(maxSendBatchSize),
 		connect.WithReadMaxBytes(maxReadBatchSize),
+	}
+
+	// We're using the connect client for the Dakr service
+	client := genconnect.NewMetricsCollectorServiceClient(
+		httpClient,
+		dakrBaseURL,
+		clientOptions...,
+	)
+
+	// Create cluster service client
+	clusterClient := genconnect.NewClusterServiceClient(
+		httpClient,
+		dakrBaseURL,
+		clientOptions...,
 	)
 
 	return &RealDakrClient{
-		logger:       logger.WithName("dakr-client"),
-		client:       client,
-		clusterToken: clusterToken,
+		logger:        logger.WithName("dakr-client"),
+		client:        client,
+		clusterClient: clusterClient,
+		clusterToken:  clusterToken,
 	}
 }
 
@@ -500,4 +514,26 @@ func (c *RealDakrClient) SendTelemetryLogs(ctx context.Context, in *gen.SendTele
 
 	c.logger.V(1).Info("Successfully sent telemetry logs to Dakr", "processed_count", resp.Msg.ProcessedCount)
 	return resp.Msg, nil
+}
+
+// ExchangePATForClusterToken exchanges a PAT token for a cluster token
+func (c *RealDakrClient) ExchangePATForClusterToken(ctx context.Context, patToken, clusterName, k8sProvider string) (string, string, error) {
+	// Create the request
+	req := connect.NewRequest(&gen.CreateClusterTokenRequest{
+		ClusterName: clusterName,
+		K8SProvider: k8sProvider,
+	})
+
+	// Add PAT token to the request header
+	req.Header().Set("Authorization", fmt.Sprintf("Bearer %s", patToken))
+
+	// Call the cluster service
+	resp, err := c.clusterClient.CreateClusterToken(ctx, req)
+	if err != nil {
+		c.logger.Error(err, "Failed to exchange PAT for cluster token")
+		return "", "", fmt.Errorf("failed to exchange PAT for cluster token: %w", err)
+	}
+
+	c.logger.Info("Successfully exchanged PAT for cluster token", "clusterId", resp.Msg.ClusterId)
+	return resp.Msg.Token, resp.Msg.ClusterId, nil
 }
