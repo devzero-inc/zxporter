@@ -136,36 +136,58 @@ type PolicyConfig struct {
 	NumResourceProcessors   int
 }
 
+// ========================================
+// COLLECTION POLICY CRD MANAGEMENT
+// ========================================
 //+kubebuilder:rbac:groups=devzero.io,resources=collectionpolicies,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=devzero.io,resources=collectionpolicies/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=devzero.io,resources=collectionpolicies/finalizers,verbs=update
 
-// Metric server installation permissions
+// ========================================
+// BOOTSTRAP PERMISSIONS (entrypoint.sh)
+// ========================================
+// These permissions are required for automatic metrics-server installation
+// via kubectl apply in entrypoint.sh when metrics-server is not detected
+
+// ServiceAccount creation for metrics-server
+//+kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;create;update;patch
+
+// RBAC setup for metrics-server (ClusterRoles, ClusterRoleBindings, RoleBindings)
 //+kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=clusterroles,verbs=get;list;watch;create;update;patch
 //+kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=clusterrolebindings,verbs=get;list;watch;create;update;patch
 //+kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=rolebindings,verbs=get;list;watch;create;update;patch
-//+kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=role,verbs=get;list;watch;create;update;patch
-//+kubebuilder:rbac:groups=apiregistration.k8s.io,resources=apiservices,verbs=get;list;create;update;patch
-//+kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch
-//+kubebuilder:rbac:groups=core,resources=nodes/metrics,verbs=get
 
-// Core API Group resources
-//+kubebuilder:rbac:groups=core,resources=pods,verbs=get;list;watch
-//+kubebuilder:rbac:groups=core,resources=pods/status,verbs=get
-//+kubebuilder:rbac:groups=core,resources=nodes,verbs=get;list;watch
-//+kubebuilder:rbac:groups=core,resources=nodes/status,verbs=get
-//+kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch
-//+kubebuilder:rbac:groups=core,resources=namespaces,verbs=get;list;watch
-//+kubebuilder:rbac:groups=core,resources=persistentvolumeclaims,verbs=get;list;watch
-//+kubebuilder:rbac:groups=core,resources=events,verbs=get;list;watch
-//+kubebuilder:rbac:groups=core,resources=serviceaccounts,verbs=get;list;watch
-//+kubebuilder:rbac:groups=core,resources=limitranges,verbs=get;list;watch
-//+kubebuilder:rbac:groups=core,resources=resourcequotas,verbs=get;list;watch
-//+kubebuilder:rbac:groups=core,resources=replicationcontrollers,verbs=get;list;watch
-//+kubebuilder:rbac:groups=core,resources=persistentvolumes,verbs=get;list;watch
+// Service and Deployment creation for metrics-server
+//+kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch
+//+kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch
 
-// Apps API Group resources
-//+kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch
+// APIService registration for metrics-server API
+//+kubebuilder:rbac:groups=apiregistration.k8s.io,resources=apiservices,verbs=get;list;watch;create;update;patch
+
+// ========================================
+// RUNTIME PERMISSIONS
+// ========================================
+// ConfigMap access for cluster token persistence (ONLY write permission in runtime)
+//+kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;update
+
+// Metrics access
+//+kubebuilder:rbac:groups="",resources=nodes/metrics,verbs=get
+
+// Core Kubernetes resources (READ-ONLY monitoring and collection)
+//+kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch
+//+kubebuilder:rbac:groups="",resources=pods/status,verbs=get
+//+kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch
+//+kubebuilder:rbac:groups="",resources=nodes/status,verbs=get
+//+kubebuilder:rbac:groups="",resources=namespaces,verbs=get;list;watch
+//+kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch
+//+kubebuilder:rbac:groups="",resources=events,verbs=get;list;watch
+//+kubebuilder:rbac:groups="",resources=limitranges,verbs=get;list;watch
+//+kubebuilder:rbac:groups="",resources=resourcequotas,verbs=get;list;watch
+//+kubebuilder:rbac:groups="",resources=replicationcontrollers,verbs=get;list;watch
+//+kubebuilder:rbac:groups="",resources=persistentvolumes,verbs=get;list;watch
+//+kubebuilder:rbac:groups="",resources=endpoints,verbs=get;list;watch
+
+// Apps API Group resources (READ-ONLY monitoring - note: deployments also needs write for metrics-server bootstrap)
 //+kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch
 //+kubebuilder:rbac:groups=apps,resources=daemonsets,verbs=get;list;watch
 //+kubebuilder:rbac:groups=apps,resources=replicasets,verbs=get;list;watch
@@ -183,12 +205,8 @@ type PolicyConfig struct {
 //+kubebuilder:rbac:groups=networking.k8s.io,resources=networkpolicies,verbs=get;list;watch
 //+kubebuilder:rbac:groups=networking.k8s.io,resources=ingressclasses,verbs=get;list;watch
 
-// RBAC API Group resources
+// RBAC resources (READ-ONLY monitoring - note: write permissions declared above for bootstrap)
 //+kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=roles,verbs=get;list;watch
-//+kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=rolebindings,verbs=get;list;watch
-//+kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=clusterroles,verbs=get;list;watch
-//+kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=clusterrolebindings,verbs=get;list;watch
-//+kubebuilder:rbac:groups=core,resources=endpoints,verbs=get;list;watch
 
 // Autoscaling API Group resources
 //+kubebuilder:rbac:groups=autoscaling,resources=horizontalpodautoscalers,verbs=get;list;watch
@@ -204,34 +222,26 @@ type PolicyConfig struct {
 //+kubebuilder:rbac:groups=storage.k8s.io,resources=csistoragecapacities,verbs=get;list;watch
 //+kubebuilder:rbac:groups=storage.k8s.io,resources=volumeattachments,verbs=get;list;watch
 
-// Karpenter resources
-//+kubebuilder:rbac:groups=karpenter.sh,resources=provisioners,verbs=get;list;watch
-//+kubebuilder:rbac:groups=karpenter.sh,resources=machines,verbs=get;list;watch
-//+kubebuilder:rbac:groups=karpenter.sh,resources=nodepools,verbs=get;list;watch
-//+kubebuilder:rbac:groups=karpenter.sh,resources=nodeclaims,verbs=get;list;watch
-//+kubebuilder:rbac:groups=karpenter.sh,resources=nodeoverlays,verbs=get;list;watch
-//+kubebuilder:rbac:groups=karpenter.k8s.aws,resources=awsnodetemplates,verbs=get;list;watch
-//+kubebuilder:rbac:groups=karpenter.k8s.aws,resources=ec2nodeclasses,verbs=get;list;watch
+// ========================================
+// OPTIONAL THIRD-PARTY RESOURCES
+// ========================================
+// These permissions are for optional third-party operators.
+// All collectors gracefully handle missing CRDs and can be disabled via DisabledCollectors config.
+
+// Karpenter node provisioning (optional - only if Karpenter operator installed)
+//+kubebuilder:rbac:groups=karpenter.sh,resources=provisioners;machines;nodepools;nodeclaims;nodeoverlays,verbs=get;list;watch
+//+kubebuilder:rbac:groups=karpenter.k8s.aws,resources=awsnodetemplates;ec2nodeclasses,verbs=get;list;watch
 //+kubebuilder:rbac:groups=karpenter.azure.com,resources=aksnodeclasses,verbs=get;list;watch
 //+kubebuilder:rbac:groups=karpenter.k8s.oracle,resources=ocinodeclasses,verbs=get;list;watch
 //+kubebuilder:rbac:groups=karpenter.k8s.gcp,resources=gcenodeclasses,verbs=get;list;watch
 
-// CRD API Group resources
+// API Extensions (READ-ONLY for CRD discovery)
 //+kubebuilder:rbac:groups=apiextensions.k8s.io,resources=customresourcedefinitions,verbs=get;list;watch
 
-// DataDog resources
+// Optional third-party monitoring integrations
 //+kubebuilder:rbac:groups=datadoghq.com,resources=extendeddaemonsetreplicasets,verbs=get;list;watch
-
-// Argo Rollouts resources
 //+kubebuilder:rbac:groups=argoproj.io,resources=rollouts,verbs=get;list;watch
-
-// KEDA resources
-//+kubebuilder:rbac:groups=keda.sh,resources=scaledobjects,verbs=get;list;watch
-//+kubebuilder:rbac:groups=keda.sh,resources=scaledjobs,verbs=get;list;watch
-//+kubebuilder:rbac:groups=keda.sh,resources=triggerauthentications,verbs=get;list;watch
-//+kubebuilder:rbac:groups=keda.sh,resources=clustertriggerauthentications,verbs=get;list;watch
-
-// Kubeflow resources
+//+kubebuilder:rbac:groups=keda.sh,resources=scaledobjects;scaledjobs;triggerauthentications;clustertriggerauthentications,verbs=get;list;watch
 //+kubebuilder:rbac:groups=kubeflow.org,resources=notebooks,verbs=get;list;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to

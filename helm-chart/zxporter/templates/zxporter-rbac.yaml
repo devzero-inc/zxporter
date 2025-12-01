@@ -1,3 +1,9 @@
+# ==========================================
+# LEADER ELECTION AND BOOTSTRAP PERMISSIONS
+# ==========================================
+# This role contains permissions needed for:
+# 1. Controller leader election coordination
+# 2. Metrics server bootstrap installation (entrypoint.sh)
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
@@ -7,33 +13,7 @@ metadata:
   name: devzero-zxporter-leader-election-role
   namespace: {{ .Values.namespace }}
 rules:
-  - apiGroups:
-      - ""
-    resources:
-      - configmaps
-      - deployments
-      - serviceaccounts
-      - services
-    verbs:
-      - get
-      - list
-      - watch
-      - create
-      - update
-      - patch
-      - delete
-  - apiGroups:
-      - apps
-    resources:
-      - deployments
-    verbs:
-      - get
-      - list
-      - watch
-      - create
-      - update
-      - patch
-      - delete
+  # Leader election coordination
   - apiGroups:
       - coordination.k8s.io
     resources:
@@ -46,6 +26,7 @@ rules:
       - update
       - patch
       - delete
+  # Event creation for leader election
   - apiGroups:
       - ""
     resources:
@@ -53,21 +34,19 @@ rules:
     verbs:
       - create
       - patch
+  # ConfigMap access for token persistence and general config
   - apiGroups:
-      - rbac.authorization.k8s.io
+      - ""
     resources:
-      - rolebindings
-      - roles
-      - clusterrolebindings
-      - clusterroles
+      - configmaps
     verbs:
-      - create
-      - delete
       - get
       - list
-      - patch
-      - update
       - watch
+      - create
+      - update
+      - patch
+      - delete
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -119,11 +98,87 @@ rules:
     verbs:
       - get
 ---
+# ==========================================
+# MAIN CLUSTER ROLE - COMPREHENSIVE PERMISSIONS
+# ==========================================
+# This ClusterRole contains all permissions needed for:
+# 1. Metrics server bootstrap installation (entrypoint.sh phase)
+# 2. Runtime monitoring and data collection
+# 3. Optional third-party resource monitoring
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: devzero-zxporter-manager-role
 rules:
+# ==========================================
+# BOOTSTRAP PERMISSIONS (entrypoint.sh)
+# ==========================================
+# ServiceAccount creation for metrics server
+- apiGroups:
+  - ""
+  resources:
+  - serviceaccounts
+  verbs:
+  - create
+  - get
+  - list
+  - update
+  - patch
+  - watch
+# Service creation for metrics server
+- apiGroups:
+  - ""
+  resources:
+  - services
+  verbs:
+  - create
+  - get
+  - list
+  - update
+  - patch
+  - watch
+# Deployment creation for metrics server
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  verbs:
+  - create
+  - get
+  - list
+  - update
+  - patch
+  - watch
+# RBAC creation for metrics server
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - clusterrolebindings
+  - clusterroles
+  - rolebindings
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - watch
+# APIService registration for metrics server
+- apiGroups:
+  - apiregistration.k8s.io
+  resources:
+  - apiservices
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+
+# ==========================================
+# RUNTIME MONITORING PERMISSIONS
+# ==========================================
+# Core Kubernetes resources (READ-ONLY monitoring)
 - apiGroups:
   - ""
   resources:
@@ -138,8 +193,6 @@ rules:
   - pods
   - replicationcontrollers
   - resourcequotas
-  - serviceaccounts
-  - services
   verbs:
   - get
   - list
@@ -170,11 +223,11 @@ rules:
   - list
   - patch
   - update
+# Apps resources (READ-ONLY monitoring - note: deployments already has write perms above for bootstrap)
 - apiGroups:
   - apps
   resources:
   - daemonsets
-  - deployments
   - replicasets
   - statefulsets
   verbs:
@@ -248,10 +301,21 @@ rules:
   - get
   - patch
   - update
+# ==========================================
+# OPTIONAL THIRD-PARTY RESOURCES
+# ==========================================
+# These resources are optional - collectors gracefully handle missing CRDs
+# Can be disabled via DisabledCollectors configuration
+
+# Karpenter node provisioning (optional)
 - apiGroups:
-  - karpenter.azure.com
+  - karpenter.sh
   resources:
-  - aksnodeclasses
+  - machines
+  - nodeclaims
+  - nodeoverlays
+  - nodepools
+  - provisioners
   verbs:
   - get
   - list
@@ -261,6 +325,14 @@ rules:
   resources:
   - awsnodetemplates
   - ec2nodeclasses
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - karpenter.azure.com
+  resources:
+  - aksnodeclasses
   verbs:
   - get
   - list
@@ -281,18 +353,7 @@ rules:
   - get
   - list
   - watch
-- apiGroups:
-  - karpenter.sh
-  resources:
-  - machines
-  - nodeclaims
-  - nodeoverlays
-  - nodepools
-  - provisioners
-  verbs:
-  - get
-  - list
-  - watch
+# Other optional third-party integrations
 - apiGroups:
   - keda.sh
   resources:
@@ -339,20 +400,7 @@ rules:
   - get
   - list
   - watch
-- apiGroups:
-  - rbac.authorization.k8s.io
-  resources:
-  - clusterrolebindings
-  - clusterroles
-  - role
-  - rolebindings
-  verbs:
-  - create
-  - get
-  - list
-  - patch
-  - update
-  - watch
+# RBAC monitoring (READ-ONLY - write permissions declared above for bootstrap)
 - apiGroups:
   - rbac.authorization.k8s.io
   resources:
@@ -374,6 +422,10 @@ rules:
   - list
   - watch
 ---
+# ==========================================
+# METRICS AUTHENTICATION ROLE
+# ==========================================
+# Role for authenticating metrics endpoint access
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
