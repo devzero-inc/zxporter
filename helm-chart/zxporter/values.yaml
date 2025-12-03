@@ -5,7 +5,7 @@ namespace: devzero-zxporter
 image:
   repository: docker.io/devzeroinc/zxporter
   pullPolicy: IfNotPresent
-  tag: "v0.0.29"
+  tag: "v0.0.47"
 
 # ZXPorter configuration
 zxporter:
