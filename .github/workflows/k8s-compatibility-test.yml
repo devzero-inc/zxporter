@@ -199,6 +199,9 @@ jobs:
             yq eval '.image.tag = "'"${ZXPORTER_IMG##*:}"'"' -i helm-chart/zxporter/values.yaml
             yq eval '.zxporter.dakrUrl = "http://testserver.devzero-zxporter.svc.cluster.local:50051"' -i helm-chart/zxporter/values.yaml
             yq eval '.zxporter.targetNamespaces = "dztest"' -i helm-chart/zxporter/values.yaml
+            yq eval '.zxporter.clusterToken = "test-token-for-ci"' -i helm-chart/zxporter/values.yaml
+            yq eval '.zxporter.kubeContextName = "test-kind-cluster"' -i helm-chart/zxporter/values.yaml
+            yq eval '.zxporter.k8sProvider = "other"' -i helm-chart/zxporter/values.yaml
             echo "Updated values.yaml:"
             cat helm-chart/zxporter/values.yaml
             
