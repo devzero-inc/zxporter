@@ -1,4 +1,12 @@
 # Default values for zxporter.
+# 
+# REQUIRED FIELDS:
+# The following fields MUST be configured before deployment:
+# 1. zxporter.clusterToken OR zxporter.patToken (at least one required)
+# 2. zxporter.kubeContextName - unique identifier for your cluster
+# 3. zxporter.k8sProvider - one of: aws, gcp, azure, oci, other
+#
+# For production deployments, we recommend using patToken for automatic token exchange.
 
 namespace: devzero-zxporter
 
@@ -12,13 +20,31 @@ zxporter:
   dakrUrl: "https://dakr.devzero.io"
   prometheusUrl: "http://prometheus-dz-prometheus-server.devzero-zxporter.svc.cluster.local:80"
   targetNamespaces: ""
-  clusterToken: "TO-BE-FILLED-IN"
+  # Cluster token for authentication with the DevZero platform
+  # Required: Either clusterToken or patToken must be provided
+  clusterToken: ""
+  
   # Personal Access Token (PAT) for automatic cluster token exchange
   # If clusterToken is not provided but patToken is, the system will
   # automatically exchange the PAT for a cluster token on startup
+  # This is the recommended approach for production deployments
+  # Example: "dzu-aKAAyJgsrblR0dFmgnoB_sQjiVNs-I3Y4gI7jJnePgs="
   patToken: ""
-  kubeContextName: "TO-BE-FILLED-IN"
-  k8sProvider: "TO-BE-FILLED-IN"
+  
+  # Kubernetes context name to identify this cluster
+  # Required: Must be set to a unique identifier for your cluster
+  # Examples:
+  #   - EKS: "arn:aws:eks:us-west-2:123456789012:cluster/my-cluster"
+  #   - GKE: "gke_my-project_us-central1-a_my-cluster"
+  #   - AKS: "my-aks-cluster"
+  #   - OCI: "ocid1.cluster.oc1.iad.aaaaaaaa..."
+  #   - Other: "production-cluster" or "staging-cluster"
+  kubeContextName: ""
+  
+  # Kubernetes provider type
+  # Required: Must be one of: "aws", "gcp", "azure", "oci", "other"
+  # This helps optimize collection for specific cloud providers
+  k8sProvider: ""
   # Set to true to store CLUSTER_TOKEN and PAT_TOKEN in Kubernetes Secrets instead of ConfigMap
   # Default is false for backward compatibility
   useSecretForToken: false
