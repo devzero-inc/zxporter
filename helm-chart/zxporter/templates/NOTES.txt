@@ -1,0 +1,92 @@
+Thank you for installing {{ .Chart.Name }}.
+
+Your release is named {{ .Release.Name }}.
+
+To learn more about the release, try:
+
+  $ helm status {{ .Release.Name }}
+  $ helm get all {{ .Release.Name }}
+
+{{- if and (not .Values.zxporter.clusterToken) (not .Values.zxporter.patToken) }}
+
+NOTE: No authentication token configuration detected.
+
+ZXPorter requires either a cluster token or PAT token to authenticate with the DevZero platform.
+Please configure one of the following:
+1. Set zxporter.clusterToken with your cluster token from the DevZero dashboard
+2. Set zxporter.patToken with your Personal Access Token for automatic token exchange (recommended for production)
+
+{{- end }}
+
+{{- if not .Values.zxporter.kubeContextName }}
+
+NOTE: No cluster context name configured.
+Please set zxporter.kubeContextName to a unique identifier for your cluster.
+
+{{- end }}
+
+{{- if not .Values.zxporter.k8sProvider }}
+
+NOTE: No Kubernetes provider configured.
+Please set zxporter.k8sProvider to one of: aws, gcp, azure, oci, other
+
+{{- end }}
+
+{{- if eq .Values.zxporter.targetNamespaces "" }}
+
+NOTE: ZXPorter is configured to monitor ALL namespaces.
+To limit the scope, set zxporter.targetNamespaces to a comma-separated list of namespaces.
+
+{{- end }}
+
+{{- if not .Values.zxporter.useSecretForToken }}
+
+NOTE: Tokens are stored in ConfigMap (less secure).
+For production deployments, consider setting zxporter.useSecretForToken: true
+to store tokens in Kubernetes Secrets instead.
+
+{{- end }}
+
+{{- if not .Values.monitoring.enabled }}
+
+WARNING: Monitoring components are disabled.
+ZXPorter requires Prometheus to collect metrics. Ensure you have:
+1. A running Prometheus instance accessible at the configured URL
+2. Node Exporter running on cluster nodes
+3. Proper network connectivity between ZXPorter and monitoring components
+
+{{- else }}
+{{- if not .Values.monitoring.prometheus.enabled }}
+
+NOTE: Built-in Prometheus is disabled.
+Ensure your external Prometheus instance is accessible at: {{ .Values.zxporter.prometheusUrl }}
+
+{{- end }}
+{{- if not .Values.monitoring.nodeExporter.enabled }}
+
+NOTE: Built-in Node Exporter is disabled.
+Ensure Node Exporter is running on all nodes for complete metrics collection.
+
+{{- end }}
+{{- end }}
+
+{{- if .Values.priorityClass.enabled }}
+
+High priority class has been configured for critical workload scheduling.
+
+{{- end }}
+
+{{- if .Values.highAvailability.enabled }}
+
+High availability configuration is enabled with Pod Disruption Budget.
+
+{{- end }}
+
+To check the ZXPorter status:
+  $ kubectl get pods -n {{ .Values.namespace }} -l control-plane=controller-manager
+  $ kubectl logs -f deployment/devzero-zxporter-controller-manager -n {{ .Values.namespace }}
+
+For troubleshooting:
+  $ kubectl describe deployment devzero-zxporter-controller-manager -n {{ .Values.namespace }}
+
+For more information, visit: https://devzero.io/docs
