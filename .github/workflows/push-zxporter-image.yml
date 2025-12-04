@@ -271,11 +271,11 @@ jobs:
           git checkout -b "$branch"
 
           # Check if anything in target paths actually changed
-          if git diff --quiet helm/*; then
+          if git diff --quiet helm-chart/*; then
             echo "No changes to commit. Skipping push and PR."
             echo "SHOULD_CREATE_PR=false" >> $GITHUB_ENV
           else
-            git add helm/*
+            git add helm-chart/*
             git commit -m "update image.tag in Helm values.yaml to ${{ env.FULLV }}"
             git push origin "$branch"
             echo "SHOULD_CREATE_PR=true" >> $GITHUB_ENV
