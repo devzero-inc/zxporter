@@ -12,7 +12,7 @@ func AllResourceTypes() []ResourceType {
 		Cluster, ContainerResource,
 		Namespace, CSINode, Karpenter, Datadog, ArgoRollouts, KedaScaledJob,
 		KedaScaledObject, ClusterSnapshot, CSIDriver, CSIStorageCapacity,
-		VolumeAttachment, KubeflowNotebook,
+		VolumeAttachment, KubeflowNotebook, VolcanoJob,
 	}
 }
 
