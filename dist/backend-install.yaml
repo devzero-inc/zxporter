@@ -946,6 +946,22 @@ rules:
   - apiGroups:
       - ""
     resources:
+      - secrets
+    verbs:
+      - create
+  - apiGroups:
+      - ""
+    resourceNames:
+      - devzero-zxporter-devzero-zxporter-token
+    resources:
+      - secrets
+    verbs:
+      - get
+      - patch
+      - update
+  - apiGroups:
+      - ""
+    resources:
       - serviceaccounts
       - services
     verbs:
@@ -1266,7 +1282,7 @@ data:
   BUFFER_SIZE: ""
   CLUSTER_TOKEN: '{{ .cluster_token }}'
   COLLECTION_FREQUENCY: ""
-  DAKR_URL: '{{ .api_url }}/dakr'
+  DAKR_URL: https://dakr.devzero.io
   DISABLE_NETWORK_IO_METRICS: ""
   DISABLED_COLLECTORS: ""
   EXCLUDED_CLUSTERROLEBINDINGS: ""
@@ -1306,10 +1322,13 @@ data:
   NODE_METRICS_INTERVAL: ""
   PROMETHEUS_URL: http://prometheus-dz-prometheus-server.devzero-zxporter.svc.cluster.local:80
   TARGET_NAMESPACES: ""
+  TOKEN_CONFIGMAP_NAME: devzero-zxporter-env-config
+  TOKEN_SECRET_NAME: devzero-zxporter-token
+  USE_SECRET_FOR_TOKEN: "false"
   WATCHED_CRDS: ""
 kind: ConfigMap
 metadata:
-  name: devzero-zxporter-env-config
+  name: devzero-zxporter-devzero-zxporter-env-config
   namespace: devzero-zxporter
 ---
 apiVersion: v1
@@ -1413,7 +1432,7 @@ spec:
       terminationGracePeriodSeconds: 10
       volumes:
         - configMap:
-            name: devzero-zxporter-env-config
+            name: devzero-zxporter-devzero-zxporter-env-config
           name: config-volume
 ---
 apiVersion: policy/v1

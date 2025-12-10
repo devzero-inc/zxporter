@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: env-config
+  name: devzero-zxporter-env-config
   namespace: system
 data:
   # If using PAT token, you can comment out CLUSTER_TOKEN and use PAT_TOKEN in the Secret
@@ -52,5 +52,5 @@ data:
   EXCLUDED_CRDGROUPS: ""
   # Resource names for token storage (configurable for different environments)
   TOKEN_SECRET_NAME: "devzero-zxporter-token"
-  TOKEN_CONFIGMAP_NAME: "env-config"
+  TOKEN_CONFIGMAP_NAME: "devzero-zxporter-env-config"
   USE_SECRET_FOR_TOKEN: "false"
