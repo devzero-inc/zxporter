@@ -214,7 +214,13 @@ func (c *EnvBasedController) initializeTelemetryComponents(ctx context.Context) 
 
 	// Handle PAT token exchange if no cluster token is available
 	if envSpec.Policies.ClusterToken == "" && envSpec.Policies.PATToken != "" {
-		c.Log.Info("No cluster token found, attempting PAT token exchange")
+		// First try to recover existing stored token
+		if storedToken := c.tryRecoverStoredClusterToken(ctx); storedToken != "" {
+			c.Log.Info("Found existing cluster token in storage, skipping PAT exchange")
+			envSpec.Policies.ClusterToken = storedToken
+		} else {
+			// Only do PAT exchange if no stored token found
+			c.Log.Info("No stored cluster token found, attempting PAT token exchange")
 
 		// Get cluster name and provider
 		clusterName := envSpec.Policies.KubeContextName
@@ -249,6 +255,7 @@ func (c *EnvBasedController) initializeTelemetryComponents(ctx context.Context) 
 				c.Log.Error(err, "Failed to persist cluster token")
 				// Continue anyway - the token is in memory
 			}
+		}
 		}
 	}
 
@@ -454,4 +461,121 @@ func (c *EnvBasedController) persistClusterTokenToSecret(ctx context.Context, to
 	}
 
 	return nil
+}
+
+// tryRecoverStoredClusterToken attempts to read a previously stored cluster token
+func (c *EnvBasedController) tryRecoverStoredClusterToken(ctx context.Context) string {
+	if c.shouldUseSecretStorage() {
+		return c.readClusterTokenFromSecret(ctx)
+	}
+	return c.readClusterTokenFromConfigMap(ctx)
+}
+
+// readClusterTokenFromSecret reads cluster token from runtime secret
+func (c *EnvBasedController) readClusterTokenFromSecret(ctx context.Context) string {
+	// Get namespace from environment variable or use default
+	namespace := os.Getenv("POD_NAMESPACE")
+	if namespace == "" {
+		// Try to read from service account namespace file
+		if data, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace"); err == nil {
+			namespace = strings.TrimSpace(string(data))
+		} else {
+			// Fall back to default if all else fails
+			namespace = "devzero-zxporter"
+		}
+	}
+	
+	// Get runtime Secret name from environment variable with fallback to default
+	runtimeSecretName := os.Getenv("TOKEN_RUNTIME_SECRET_NAME")
+	if runtimeSecretName == "" {
+		// Try to read from file mounted at /etc/zxporter/config/TOKEN_RUNTIME_SECRET_NAME
+		if data, err := os.ReadFile("/etc/zxporter/config/TOKEN_RUNTIME_SECRET_NAME"); err == nil {
+			runtimeSecretName = strings.TrimSpace(string(data))
+		}
+		if runtimeSecretName == "" {
+			// Fallback to TOKEN_SECRET_NAME for backward compatibility
+			runtimeSecretName = os.Getenv("TOKEN_SECRET_NAME")
+			if runtimeSecretName == "" {
+				if data, err := os.ReadFile("/etc/zxporter/config/TOKEN_SECRET_NAME"); err == nil {
+					runtimeSecretName = strings.TrimSpace(string(data))
+				}
+				if runtimeSecretName == "" {
+					// Final fallback to default
+					runtimeSecretName = "devzero-zxporter-token"
+				}
+			}
+		}
+	}
+
+	// Try to read the Secret
+	secret, err := c.K8sClient.CoreV1().Secrets(namespace).Get(ctx, runtimeSecretName, metav1.GetOptions{})
+	if err != nil {
+		// Log the error but don't fail - this is a recovery attempt
+		c.Log.Info("Could not read cluster token from Secret", "error", err.Error(), "secret", runtimeSecretName)
+		return ""
+	}
+
+	// Extract CLUSTER_TOKEN from Secret data
+	if secret.Data != nil {
+		if tokenBytes, exists := secret.Data["CLUSTER_TOKEN"]; exists {
+			token := strings.TrimSpace(string(tokenBytes))
+			if token != "" {
+				c.Log.Info("Successfully recovered cluster token from Secret", "secret", runtimeSecretName)
+				return token
+			}
+		}
+	}
+
+	c.Log.Info("No cluster token found in Secret", "secret", runtimeSecretName)
+	return ""
+}
+
+// readClusterTokenFromConfigMap reads cluster token from configmap
+func (c *EnvBasedController) readClusterTokenFromConfigMap(ctx context.Context) string {
+	// Get namespace from environment variable or use default
+	namespace := os.Getenv("POD_NAMESPACE")
+	if namespace == "" {
+		// Try to read from service account namespace file
+		if data, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace"); err == nil {
+			namespace = strings.TrimSpace(string(data))
+		} else {
+			// Fall back to default if all else fails
+			namespace = "devzero-zxporter"
+		}
+	}
+	
+	// Get ConfigMap name from environment variable with fallback to default
+	configMapName := os.Getenv("TOKEN_CONFIGMAP_NAME")
+	if configMapName == "" {
+		// Try to read from file mounted at /etc/zxporter/config/TOKEN_CONFIGMAP_NAME
+		if data, err := os.ReadFile("/etc/zxporter/config/TOKEN_CONFIGMAP_NAME"); err == nil {
+			configMapName = strings.TrimSpace(string(data))
+		}
+		if configMapName == "" {
+			// Fallback to default for backward compatibility
+			configMapName = "devzero-zxporter-env-config"
+		}
+	}
+
+	// Try to read the ConfigMap
+	configMap, err := c.K8sClient.CoreV1().ConfigMaps(namespace).Get(ctx, configMapName, metav1.GetOptions{})
+	if err != nil {
+		// Log the error but don't fail - this is a recovery attempt
+		c.Log.Info("Could not read cluster token from ConfigMap", "error", err.Error(), "configMap", configMapName)
+		return ""
+	}
+
+	// Extract CLUSTER_TOKEN from ConfigMap data
+	if configMap.Data != nil {
+		if token, exists := configMap.Data["CLUSTER_TOKEN"]; exists {
+			token = strings.TrimSpace(token)
+			if token != "" {
+				c.Log.Info("Successfully recovered cluster token from ConfigMap", "configMap", configMapName)
+				return token
+			}
+		}
+	}
+
+	c.Log.Info("No cluster token found in ConfigMap", "configMap", configMapName)
+	return ""
 }
