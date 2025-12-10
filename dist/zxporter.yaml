@@ -563,7 +563,7 @@ data:
   WATCHED_CRDS: ""
 kind: ConfigMap
 metadata:
-  name: devzero-zxporter-devzero-zxporter-env-config
+  name: devzero-zxporter-env-config
   namespace: devzero-zxporter
 ---
 apiVersion: v1
@@ -667,7 +667,7 @@ spec:
       terminationGracePeriodSeconds: 10
       volumes:
       - configMap:
-          name: devzero-zxporter-devzero-zxporter-env-config
+          name: devzero-zxporter-env-config
         name: config-volume
 ---
 apiVersion: policy/v1

@@ -1282,7 +1282,7 @@ data:
   BUFFER_SIZE: ""
   CLUSTER_TOKEN: '{{ .cluster_token }}'
   COLLECTION_FREQUENCY: ""
-  DAKR_URL: https://dakr.devzero.io
+  DAKR_URL: '{{ .api_url }}/dakr'
   DISABLE_NETWORK_IO_METRICS: ""
   DISABLED_COLLECTORS: ""
   EXCLUDED_CLUSTERROLEBINDINGS: ""
@@ -1330,7 +1330,7 @@ data:
   WATCHED_CRDS: ""
 kind: ConfigMap
 metadata:
-  name: devzero-zxporter-devzero-zxporter-env-config
+  name: devzero-zxporter-env-config
   namespace: devzero-zxporter
 ---
 apiVersion: v1
@@ -1434,7 +1434,7 @@ spec:
       terminationGracePeriodSeconds: 10
       volumes:
         - configMap:
-            name: devzero-zxporter-devzero-zxporter-env-config
+            name: devzero-zxporter-env-config
           name: config-volume
 ---
 apiVersion: policy/v1
