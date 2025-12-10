@@ -44,6 +44,13 @@ rules:
   - secrets
   verbs:
   - create
+- apiGroups:
+  - ""
+  resourceNames:
+  - devzero-zxporter-token
+  resources:
+  - secrets
+  verbs:
   - get
   - patch
   - update
