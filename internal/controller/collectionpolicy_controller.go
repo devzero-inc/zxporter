@@ -43,6 +43,7 @@ import (
 	"github.com/devzero-inc/zxporter/internal/collector/provider"
 	"github.com/devzero-inc/zxporter/internal/collector/snap"
 	telemetry_logger "github.com/devzero-inc/zxporter/internal/logger"
+	"github.com/devzero-inc/zxporter/internal/server"
 	"github.com/devzero-inc/zxporter/internal/transport"
 	"github.com/devzero-inc/zxporter/internal/util"
 	"github.com/devzero-inc/zxporter/internal/version"
@@ -63,6 +64,7 @@ type CollectionPolicyReconciler struct {
 	DakrClient        transport.DakrClient
 	ApiExtensions     *apiextensionsclientset.Clientset
 	CollectionManager *collector.CollectionManager
+	FastReactionServer *server.FastReactionServer
 	Sender            transport.DirectSender
 	TelemetrySender   *transport.TelemetrySender
 	TelemetryMetrics  *collector.TelemetryMetrics
@@ -1573,6 +1575,12 @@ func (r *CollectionPolicyReconciler) initializeCollectors(ctx context.Context, c
 		return ctrl.Result{}, err
 	}
 
+	// Setup and start Fast Reaction Server
+	if err := r.setupFastReactionServer(logger); err != nil {
+		logger.Error(err, "Failed to setup fast reaction server")
+		// We can continue even if this fails
+	}
+
 	r.TelemetryLogger.Report(
 		gen.LogLevel_LOG_LEVEL_INFO,
 		"CollectionPolicyReconciler_initializeCollectors",
@@ -1704,6 +1712,16 @@ func (r *CollectionPolicyReconciler) setupCollectionManager(ctx context.Context,
 		logger.Info("Started telemetry sender")
 	}
 
+	return nil
+}
+
+// setupFastReactionServer initializes and starts the gRPC server
+func (r *CollectionPolicyReconciler) setupFastReactionServer(logger logr.Logger) error {
+	r.FastReactionServer = server.NewFastReactionServer(logger)
+	// Hardcoded port 50051 for now as per plan
+	if err := r.FastReactionServer.Start(50051); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -1922,6 +1940,11 @@ func (r *CollectionPolicyReconciler) cleanupOnFailure(logger logr.Logger) {
 			logger.Error(err, "Error stopping telemetry sender during failure")
 		}
 		r.TelemetrySender = nil
+	}
+
+	if r.FastReactionServer != nil {
+		r.FastReactionServer.Stop()
+		r.FastReactionServer = nil
 	}
 
 	// Reset state
@@ -2656,6 +2679,15 @@ func (r *CollectionPolicyReconciler) processCollectedResources(ctx context.Conte
 				// Update metrics for the number of resources processed
 				r.TelemetryMetrics.MessagesSent.WithLabelValues(
 					resources[0].ResourceType.String()).Add(float64(len(resources)))
+			}
+
+			// Broadcast to Fast Reaction subscribers if it's container metrics
+			if r.FastReactionServer != nil && resources[0].ResourceType == collector.ContainerResource {
+				for _, res := range resources {
+					if data, ok := res.Object.(map[string]interface{}); ok {
+						r.FastReactionServer.PublishMetrics(data, res.Timestamp)
+					}
+				}
 			}
 		}
 	}

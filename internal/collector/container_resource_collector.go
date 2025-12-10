@@ -501,6 +501,16 @@ func (c *ContainerResourceCollector) processContainerMetrics(
 		}
 	}
 
+	// Extract restart count and last termination reason
+	restartCount := int32(0)
+	lastTerminationReason := ""
+	if containerStatus != nil {
+		restartCount = containerStatus.RestartCount
+		if containerStatus.LastTerminationState.Terminated != nil {
+			lastTerminationReason = containerStatus.LastTerminationState.Terminated.Reason
+		}
+	}
+
 	// Create resource data with both metrics and pod info
 	containerKey := fmt.Sprintf("%s/%s/%s", pod.Namespace, pod.Name, containerMetrics.Name)
 	resourceData := map[string]interface{}{
@@ -527,8 +537,10 @@ func (c *ContainerResourceCollector) processContainerMetrics(
 		"containerImage": containerSpec.Image,
 
 		// Status info
-		"containerRunning":  containerStatus != nil && containerStatus.State.Running != nil,
-		"containerRestarts": containerStatus != nil && containerStatus.RestartCount != 0,
+		"containerRunning":      containerStatus != nil && containerStatus.State.Running != nil,
+		"containerRestarts":     containerStatus != nil && containerStatus.RestartCount != 0,
+		"restartCount":          int64(restartCount),
+		"lastTerminationReason": lastTerminationReason,
 	}
 
 	// Add network metrics if available

@@ -37,6 +37,9 @@ const (
 // reflection-formatted method names, remove the leading slash and convert the remaining slash to a
 // period.
 const (
+	// K8SServiceGetWorkloadsStatsProcedure is the fully-qualified name of the K8SService's
+	// GetWorkloadsStats RPC.
+	K8SServiceGetWorkloadsStatsProcedure = "/api.v1.K8SService/GetWorkloadsStats"
 	// K8SServiceGetClustersProcedure is the fully-qualified name of the K8SService's GetClusters RPC.
 	K8SServiceGetClustersProcedure = "/api.v1.K8SService/GetClusters"
 	// K8SServiceListClustersProcedure is the fully-qualified name of the K8SService's ListClusters RPC.
@@ -155,6 +158,8 @@ const (
 
 // K8SServiceClient is a client for the api.v1.K8SService service.
 type K8SServiceClient interface {
+	// GetWorkloadsStats retrieves stats for workloads in a specific cluster.
+	GetWorkloadsStats(context.Context, *connect.Request[v1.GetWorkloadsStatsRequest]) (*connect.Response[v1.GetWorkloadsStatsResponse], error)
 	// GetClusters retrieves all clusters for a team.
 	GetClusters(context.Context, *connect.Request[v1.GetClustersRequest]) (*connect.Response[v1.GetClustersResponse], error)
 	// ListClusters retrieves clusters for a team with pagination.
@@ -228,6 +233,11 @@ type K8SServiceClient interface {
 func NewK8SServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...connect.ClientOption) K8SServiceClient {
 	baseURL = strings.TrimRight(baseURL, "/")
 	return &k8SServiceClient{
+		getWorkloadsStats: connect.NewClient[v1.GetWorkloadsStatsRequest, v1.GetWorkloadsStatsResponse](
+			httpClient,
+			baseURL+K8SServiceGetWorkloadsStatsProcedure,
+			opts...,
+		),
 		getClusters: connect.NewClient[v1.GetClustersRequest, v1.GetClustersResponse](
 			httpClient,
 			baseURL+K8SServiceGetClustersProcedure,
@@ -403,6 +413,7 @@ func NewK8SServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...
 
 // k8SServiceClient implements K8SServiceClient.
 type k8SServiceClient struct {
+	getWorkloadsStats            *connect.Client[v1.GetWorkloadsStatsRequest, v1.GetWorkloadsStatsResponse]
 	getClusters                  *connect.Client[v1.GetClustersRequest, v1.GetClustersResponse]
 	listClusters                 *connect.Client[v1.ListClustersRequest, v1.ListClustersResponse]
 	getCluster                   *connect.Client[v1.GetClusterRequest, v1.GetClusterResponse]
@@ -437,6 +448,11 @@ type k8SServiceClient struct {
 	getClusterType               *connect.Client[v1.GetClusterTypeRequest, v1.GetClusterTypeResponse]
 	getRelationsForKind          *connect.Client[v1.GetRelatedResourcesRequest, v1.GetRelatedResourcesResponse]
 	lookupNodeInstance           *connect.Client[v1.LookupNodeInstanceRequest, v1.LookupNodeInstanceResponse]
+}
+
+// GetWorkloadsStats calls api.v1.K8SService.GetWorkloadsStats.
+func (c *k8SServiceClient) GetWorkloadsStats(ctx context.Context, req *connect.Request[v1.GetWorkloadsStatsRequest]) (*connect.Response[v1.GetWorkloadsStatsResponse], error) {
+	return c.getWorkloadsStats.CallUnary(ctx, req)
 }
 
 // GetClusters calls api.v1.K8SService.GetClusters.
@@ -613,6 +629,8 @@ func (c *k8SServiceClient) LookupNodeInstance(ctx context.Context, req *connect.
 
 // K8SServiceHandler is an implementation of the api.v1.K8SService service.
 type K8SServiceHandler interface {
+	// GetWorkloadsStats retrieves stats for workloads in a specific cluster.
+	GetWorkloadsStats(context.Context, *connect.Request[v1.GetWorkloadsStatsRequest]) (*connect.Response[v1.GetWorkloadsStatsResponse], error)
 	// GetClusters retrieves all clusters for a team.
 	GetClusters(context.Context, *connect.Request[v1.GetClustersRequest]) (*connect.Response[v1.GetClustersResponse], error)
 	// ListClusters retrieves clusters for a team with pagination.
@@ -682,6 +700,11 @@ type K8SServiceHandler interface {
 // By default, handlers support the Connect, gRPC, and gRPC-Web protocols with the binary Protobuf
 // and JSON codecs. They also support gzip compression.
 func NewK8SServiceHandler(svc K8SServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
+	k8SServiceGetWorkloadsStatsHandler := connect.NewUnaryHandler(
+		K8SServiceGetWorkloadsStatsProcedure,
+		svc.GetWorkloadsStats,
+		opts...,
+	)
 	k8SServiceGetClustersHandler := connect.NewUnaryHandler(
 		K8SServiceGetClustersProcedure,
 		svc.GetClusters,
@@ -854,6 +877,8 @@ func NewK8SServiceHandler(svc K8SServiceHandler, opts ...connect.HandlerOption) 
 	)
 	return "/api.v1.K8SService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
+		case K8SServiceGetWorkloadsStatsProcedure:
+			k8SServiceGetWorkloadsStatsHandler.ServeHTTP(w, r)
 		case K8SServiceGetClustersProcedure:
 			k8SServiceGetClustersHandler.ServeHTTP(w, r)
 		case K8SServiceListClustersProcedure:
@@ -930,6 +955,10 @@ func NewK8SServiceHandler(svc K8SServiceHandler, opts ...connect.HandlerOption) 
 
 // UnimplementedK8SServiceHandler returns CodeUnimplemented from all methods.
 type UnimplementedK8SServiceHandler struct{}
+
+func (UnimplementedK8SServiceHandler) GetWorkloadsStats(context.Context, *connect.Request[v1.GetWorkloadsStatsRequest]) (*connect.Response[v1.GetWorkloadsStatsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.K8SService.GetWorkloadsStats is not implemented"))
+}
 
 func (UnimplementedK8SServiceHandler) GetClusters(context.Context, *connect.Request[v1.GetClustersRequest]) (*connect.Response[v1.GetClustersResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.K8SService.GetClusters is not implemented"))

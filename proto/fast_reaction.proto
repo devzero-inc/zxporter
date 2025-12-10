@@ -1,0 +1,48 @@
+syntax = "proto3";
+
+package api.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/devzero-inc/services/dakr/gen/api/v1;gen";
+option java_multiple_files = true;
+option java_package = "gen.api.v1";
+
+// FastReactionService provides real-time metric streaming for fast-reaction autoscaling
+service FastReactionService {
+  // StreamWorkloadMetrics establishes a bidirectional stream where the client (Dakr)
+  // subscribes to workloads, and the server (Zxporter) pushes metric updates.
+  rpc StreamWorkloadMetrics(stream WorkloadSubscription) returns (stream ContainerMetricsBatch);
+}
+
+// WorkloadSubscription is a message sent by the client to update the subscription list
+// WorkloadSubscription is sent by ID clients (dakr) to subscribe to specific workloads
+message WorkloadSubscription {
+  repeated FastReactionWorkloadIdentifier workloads = 1;
+}
+
+message FastReactionWorkloadIdentifier {
+  string namespace = 1;
+  string name = 2; // Workload name (e.g., deployment name)
+  string kind = 3; // Workload kind (e.g., Deployment)
+  map<string, string> match_labels = 4; // Selectors to match pods
+}
+
+// ContainerMetricsBatch contains a batch of metrics for containers belonging to subscribed workloads
+message ContainerMetricsBatch {
+  repeated ContainerMetricItem items = 1;
+}
+
+message ContainerMetricItem {
+  FastReactionWorkloadIdentifier workload = 1; // The workload this container belongs to
+  string pod_name = 2;
+  string container_name = 3;
+  
+  // The metric data
+  google.protobuf.Timestamp timestamp = 4;
+  int64 cpu_usage_millis = 5;
+  int64 memory_usage_bytes = 6;
+  int64 oom_kill_count = 7; // Cumulative if available, otherwise 0
+  int32 restart_count = 8;
+  string last_termination_reason = 9; // e.g. "OOMKilled"
+}
