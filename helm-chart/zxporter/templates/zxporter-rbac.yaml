@@ -47,6 +47,25 @@ rules:
       - update
       - patch
       - delete
+{{- if .Values.useSecretForToken }}
+  # Secret access for cluster token persistence when useSecretForToken is enabled
+  - apiGroups:
+      - ""
+    resources:
+      - secrets
+    verbs:
+      - create
+  - apiGroups:
+      - ""
+    resourceNames:
+      - devzero-zxporter-token
+    resources:
+      - secrets
+    verbs:
+      - get
+      - patch
+      - update
+{{- end }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -178,11 +197,39 @@ rules:
 # ==========================================
 # RUNTIME MONITORING PERMISSIONS
 # ==========================================
-# Core Kubernetes resources (READ-ONLY monitoring)
+# ConfigMap access for token persistence (UPDATE permission)
 - apiGroups:
   - ""
   resources:
   - configmaps
+  verbs:
+  - get
+  - list
+  - watch
+  - update
+{{- if .Values.useSecretForToken }}
+# Secret access for cluster token persistence when useSecretForToken is enabled
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - create
+- apiGroups:
+  - ""
+  resourceNames:
+  - devzero-zxporter-token
+  resources:
+  - secrets
+  verbs:
+  - get
+  - patch
+  - update
+{{- end }}
+# Core Kubernetes resources (READ-ONLY monitoring)
+- apiGroups:
+  - ""
+  resources:
   - endpoints
   - events
   - limitranges

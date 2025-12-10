@@ -46,6 +46,7 @@ data:
   PROMETHEUS_URL: "{{ .Values.zxporter.prometheusUrl }}"
   DAKR_URL: "{{ .Values.zxporter.dakrUrl }}"
   TARGET_NAMESPACES: "{{ .Values.zxporter.targetNamespaces }}"
+  USE_SECRET_FOR_TOKEN: "{{ .Values.zxporter.useSecretForToken }}"
   WATCHED_CRDS: ""
 kind: ConfigMap
 metadata:
