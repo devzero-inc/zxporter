@@ -11,7 +11,7 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/name: devzero-zxporter
   name: devzero-zxporter-leader-election-role
-  namespace: {{ .Values.namespace }}
+  namespace: { { .Values.namespace } }
 rules:
   # Leader election coordination
   - apiGroups:
@@ -44,9 +44,16 @@ rules:
       - list
       - watch
       - create
+  # Secret access for cluster token persistence when useSecretForToken is enabled
+  - apiGroups:
+      - ""
+    resources:
+      - secrets
+    verbs:
+      - get
+      - create
       - update
       - patch
-      - delete
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -110,317 +117,317 @@ kind: ClusterRole
 metadata:
   name: devzero-zxporter-manager-role
 rules:
-# ==========================================
-# BOOTSTRAP PERMISSIONS (entrypoint.sh)
-# ==========================================
-# ServiceAccount creation for metrics server
-- apiGroups:
-  - ""
-  resources:
-  - serviceaccounts
-  verbs:
-  - create
-  - get
-  - list
-  - update
-  - patch
-  - watch
-# Service creation for metrics server
-- apiGroups:
-  - ""
-  resources:
-  - services
-  verbs:
-  - create
-  - get
-  - list
-  - update
-  - patch
-  - watch
-# Deployment creation for metrics server
-- apiGroups:
-  - apps
-  resources:
-  - deployments
-  verbs:
-  - create
-  - get
-  - list
-  - update
-  - patch
-  - watch
-# RBAC creation for metrics server
-- apiGroups:
-  - rbac.authorization.k8s.io
-  resources:
-  - clusterrolebindings
-  - clusterroles
-  - rolebindings
-  verbs:
-  - create
-  - get
-  - list
-  - patch
-  - update
-  - watch
-# APIService registration for metrics server
-- apiGroups:
-  - apiregistration.k8s.io
-  resources:
-  - apiservices
-  verbs:
-  - create
-  - get
-  - list
-  - patch
-  - update
+  # ==========================================
+  # BOOTSTRAP PERMISSIONS (entrypoint.sh)
+  # ==========================================
+  # ServiceAccount creation for metrics server
+  - apiGroups:
+      - ""
+    resources:
+      - serviceaccounts
+    verbs:
+      - create
+      - get
+      - list
+      - update
+      - patch
+      - watch
+  # Service creation for metrics server
+  - apiGroups:
+      - ""
+    resources:
+      - services
+    verbs:
+      - create
+      - get
+      - list
+      - update
+      - patch
+      - watch
+  # Deployment creation for metrics server
+  - apiGroups:
+      - apps
+    resources:
+      - deployments
+    verbs:
+      - create
+      - get
+      - list
+      - update
+      - patch
+      - watch
+  # RBAC creation for metrics server
+  - apiGroups:
+      - rbac.authorization.k8s.io
+    resources:
+      - clusterrolebindings
+      - clusterroles
+      - rolebindings
+    verbs:
+      - create
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  # APIService registration for metrics server
+  - apiGroups:
+      - apiregistration.k8s.io
+    resources:
+      - apiservices
+    verbs:
+      - create
+      - get
+      - list
+      - patch
+      - update
 
-# ==========================================
-# RUNTIME MONITORING PERMISSIONS
-# ==========================================
-# Core Kubernetes resources (READ-ONLY monitoring)
-- apiGroups:
-  - ""
-  resources:
-  - configmaps
-  - endpoints
-  - events
-  - limitranges
-  - namespaces
-  - nodes
-  - persistentvolumeclaims
-  - persistentvolumes
-  - pods
-  - replicationcontrollers
-  - resourcequotas
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - nodes/metrics
-  - nodes/status
-  - pods/status
-  verbs:
-  - get
-- apiGroups:
-  - apiextensions.k8s.io
-  resources:
-  - customresourcedefinitions
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - apiregistration.k8s.io
-  resources:
-  - apiservices
-  verbs:
-  - create
-  - get
-  - list
-  - patch
-  - update
-# Apps resources (READ-ONLY monitoring - note: deployments already has write perms above for bootstrap)
-- apiGroups:
-  - apps
-  resources:
-  - daemonsets
-  - replicasets
-  - statefulsets
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - argoproj.io
-  resources:
-  - rollouts
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - autoscaling
-  resources:
-  - horizontalpodautoscalers
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - autoscaling.k8s.io
-  resources:
-  - verticalpodautoscalers
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - batch
-  resources:
-  - cronjobs
-  - jobs
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - datadoghq.com
-  resources:
-  - extendeddaemonsetreplicasets
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - devzero.io
-  resources:
-  - collectionpolicies
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - devzero.io
-  resources:
-  - collectionpolicies/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - devzero.io
-  resources:
-  - collectionpolicies/status
-  verbs:
-  - get
-  - patch
-  - update
-# ==========================================
-# OPTIONAL THIRD-PARTY RESOURCES
-# ==========================================
-# These resources are optional - collectors gracefully handle missing CRDs
-# Can be disabled via DisabledCollectors configuration
+  # ==========================================
+  # RUNTIME MONITORING PERMISSIONS
+  # ==========================================
+  # Core Kubernetes resources (READ-ONLY monitoring)
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+      - endpoints
+      - events
+      - limitranges
+      - namespaces
+      - nodes
+      - persistentvolumeclaims
+      - persistentvolumes
+      - pods
+      - replicationcontrollers
+      - resourcequotas
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - ""
+    resources:
+      - nodes/metrics
+      - nodes/status
+      - pods/status
+    verbs:
+      - get
+  - apiGroups:
+      - apiextensions.k8s.io
+    resources:
+      - customresourcedefinitions
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - apiregistration.k8s.io
+    resources:
+      - apiservices
+    verbs:
+      - create
+      - get
+      - list
+      - patch
+      - update
+  # Apps resources (READ-ONLY monitoring - note: deployments already has write perms above for bootstrap)
+  - apiGroups:
+      - apps
+    resources:
+      - daemonsets
+      - replicasets
+      - statefulsets
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - argoproj.io
+    resources:
+      - rollouts
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - autoscaling
+    resources:
+      - horizontalpodautoscalers
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - autoscaling.k8s.io
+    resources:
+      - verticalpodautoscalers
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - batch
+    resources:
+      - cronjobs
+      - jobs
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - datadoghq.com
+    resources:
+      - extendeddaemonsetreplicasets
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - devzero.io
+    resources:
+      - collectionpolicies
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - devzero.io
+    resources:
+      - collectionpolicies/finalizers
+    verbs:
+      - update
+  - apiGroups:
+      - devzero.io
+    resources:
+      - collectionpolicies/status
+    verbs:
+      - get
+      - patch
+      - update
+  # ==========================================
+  # OPTIONAL THIRD-PARTY RESOURCES
+  # ==========================================
+  # These resources are optional - collectors gracefully handle missing CRDs
+  # Can be disabled via DisabledCollectors configuration
 
-# Karpenter node provisioning (optional)
-- apiGroups:
-  - karpenter.sh
-  resources:
-  - machines
-  - nodeclaims
-  - nodeoverlays
-  - nodepools
-  - provisioners
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - karpenter.k8s.aws
-  resources:
-  - awsnodetemplates
-  - ec2nodeclasses
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - karpenter.azure.com
-  resources:
-  - aksnodeclasses
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - karpenter.k8s.gcp
-  resources:
-  - gcenodeclasses
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - karpenter.k8s.oracle
-  resources:
-  - ocinodeclasses
-  verbs:
-  - get
-  - list
-  - watch
-# Other optional third-party integrations
-- apiGroups:
-  - keda.sh
-  resources:
-  - clustertriggerauthentications
-  - scaledjobs
-  - scaledobjects
-  - triggerauthentications
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - kubeflow.org
-  resources:
-  - notebooks
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - metrics.k8s.io
-  resources:
-  - nodes
-  - pods
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - networking.k8s.io
-  resources:
-  - ingressclasses
-  - ingresses
-  - networkpolicies
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - policy
-  resources:
-  - poddisruptionbudgets
-  verbs:
-  - get
-  - list
-  - watch
-# RBAC monitoring (READ-ONLY - write permissions declared above for bootstrap)
-- apiGroups:
-  - rbac.authorization.k8s.io
-  resources:
-  - roles
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - storage.k8s.io
-  resources:
-  - csidrivers
-  - csinodes
-  - csistoragecapacities
-  - storageclasses
-  - volumeattachments
-  verbs:
-  - get
-  - list
-  - watch
+  # Karpenter node provisioning (optional)
+  - apiGroups:
+      - karpenter.sh
+    resources:
+      - machines
+      - nodeclaims
+      - nodeoverlays
+      - nodepools
+      - provisioners
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - karpenter.k8s.aws
+    resources:
+      - awsnodetemplates
+      - ec2nodeclasses
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - karpenter.azure.com
+    resources:
+      - aksnodeclasses
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - karpenter.k8s.gcp
+    resources:
+      - gcenodeclasses
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - karpenter.k8s.oracle
+    resources:
+      - ocinodeclasses
+    verbs:
+      - get
+      - list
+      - watch
+  # Other optional third-party integrations
+  - apiGroups:
+      - keda.sh
+    resources:
+      - clustertriggerauthentications
+      - scaledjobs
+      - scaledobjects
+      - triggerauthentications
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - kubeflow.org
+    resources:
+      - notebooks
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - metrics.k8s.io
+    resources:
+      - nodes
+      - pods
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - networking.k8s.io
+    resources:
+      - ingressclasses
+      - ingresses
+      - networkpolicies
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - policy
+    resources:
+      - poddisruptionbudgets
+    verbs:
+      - get
+      - list
+      - watch
+  # RBAC monitoring (READ-ONLY - write permissions declared above for bootstrap)
+  - apiGroups:
+      - rbac.authorization.k8s.io
+    resources:
+      - roles
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - storage.k8s.io
+    resources:
+      - csidrivers
+      - csinodes
+      - csistoragecapacities
+      - storageclasses
+      - volumeattachments
+    verbs:
+      - get
+      - list
+      - watch
 ---
 # ==========================================
 # METRICS AUTHENTICATION ROLE
@@ -461,7 +468,7 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/name: devzero-zxporter
   name: devzero-zxporter-leader-election-rolebinding
-  namespace: {{ .Values.namespace }}
+  namespace: { { .Values.namespace } }
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
@@ -469,7 +476,7 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: devzero-zxporter-controller-manager
-    namespace: {{ .Values.namespace }}
+    namespace: { { .Values.namespace } }
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -485,7 +492,7 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: devzero-zxporter-controller-manager
-    namespace: {{ .Values.namespace }}
+    namespace: { { .Values.namespace } }
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -498,4 +505,4 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: devzero-zxporter-controller-manager
-    namespace: {{ .Values.namespace }}
+    namespace: { { .Values.namespace } }

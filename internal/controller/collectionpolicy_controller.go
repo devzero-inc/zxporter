@@ -55,25 +55,25 @@ import (
 // CollectionPolicyReconciler reconciles a CollectionPolicy object
 type CollectionPolicyReconciler struct {
 	client.Client
-	Scheme            *runtime.Scheme
-	Log               logr.Logger
-	KEDAClient        *kedaclient.Clientset
-	K8sClient         *kubernetes.Clientset
-	DynamicClient     *dynamic.DynamicClient
-	DiscoveryClient   *discovery.DiscoveryClient
-	DakrClient        transport.DakrClient
-	ApiExtensions     *apiextensionsclientset.Clientset
-	CollectionManager *collector.CollectionManager
+	Scheme             *runtime.Scheme
+	Log                logr.Logger
+	KEDAClient         *kedaclient.Clientset
+	K8sClient          *kubernetes.Clientset
+	DynamicClient      *dynamic.DynamicClient
+	DiscoveryClient    *discovery.DiscoveryClient
+	DakrClient         transport.DakrClient
+	ApiExtensions      *apiextensionsclientset.Clientset
+	CollectionManager  *collector.CollectionManager
 	FastReactionServer *server.FastReactionServer
-	Sender            transport.DirectSender
-	TelemetrySender   *transport.TelemetrySender
-	TelemetryMetrics  *collector.TelemetryMetrics
-	TelemetryLogger   telemetry_logger.Logger
-	ZapLogger         *zap.Logger
-	IsRunning         bool
-	CurrentPolicyHash string
-	CurrentConfig     *PolicyConfig
-	RestartInProgress bool
+	Sender             transport.DirectSender
+	TelemetrySender    *transport.TelemetrySender
+	TelemetryMetrics   *collector.TelemetryMetrics
+	TelemetryLogger    telemetry_logger.Logger
+	ZapLogger          *zap.Logger
+	IsRunning          bool
+	CurrentPolicyHash  string
+	CurrentConfig      *PolicyConfig
+	RestartInProgress  bool
 }
 
 // PolicyConfig holds the current configuration
@@ -171,6 +171,9 @@ type PolicyConfig struct {
 // ========================================
 // ConfigMap access for cluster token persistence (ONLY write permission in runtime)
 //+kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;update
+
+// Secret access for cluster token persistence when useSecretForToken is enabled
+//+kubebuilder:rbac:groups="",resources=secrets,verbs=get;create;update;patch
 
 // Metrics access
 //+kubebuilder:rbac:groups="",resources=nodes/metrics,verbs=get

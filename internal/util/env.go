@@ -230,6 +230,10 @@ const (
 	// EXCLUDED_CRDGROUPS is a comma-separated list of custom resource definition groups to exclude.
 	// Default value: []
 	_ENV_EXCLUDED_CRDGROUPS = "EXCLUDED_CRDGROUPS"
+
+	// USE_SECRET_FOR_TOKEN determines whether to store tokens in Secrets vs ConfigMap
+	// Default value: false (ConfigMap storage for backward compatibility)
+	_ENV_USE_SECRET_FOR_TOKEN = "USE_SECRET_FOR_TOKEN"
 )
 
 const configVolumeMountPath = "/etc/zxporter/config"

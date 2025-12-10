@@ -26,7 +26,9 @@ import (
 	"github.com/go-logr/logr"
 	kedaclient "github.com/kedacore/keda/v2/pkg/generated/clientset/versioned"
 	"go.uber.org/zap"
+	corev1 "k8s.io/api/core/v1"
 	apiextensionsclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/discovery"
@@ -219,7 +221,7 @@ func (c *EnvBasedController) initializeTelemetryComponents(ctx context.Context) 
 		if clusterName == "" {
 			clusterName = "zxporter-cluster"
 		}
-		
+
 		k8sProvider := "other"
 		if provider := os.Getenv("K8S_PROVIDER"); provider != "" {
 			k8sProvider = provider
@@ -230,10 +232,10 @@ func (c *EnvBasedController) initializeTelemetryComponents(ctx context.Context) 
 		if dakrURL == "" {
 			dakrURL = "https://dakr.devzero.io"
 		}
-		
+
 		// Create a temporary client with empty cluster token for PAT exchange
 		tempClient := transport.NewDakrClient(dakrURL, "", c.Log)
-		
+
 		// Exchange PAT for cluster token
 		token, clusterId, err := tempClient.ExchangePATForClusterToken(ctx, envSpec.Policies.PATToken, clusterName, k8sProvider)
 		if err != nil {
@@ -303,8 +305,34 @@ func (c *EnvBasedController) doReconcile(ctx context.Context) error {
 	return nil
 }
 
-// persistClusterToken persists the cluster token to the ConfigMap
+// shouldUseSecretStorage determines whether to store tokens in Secrets vs ConfigMap
+func (c *EnvBasedController) shouldUseSecretStorage() bool {
+	// Check environment variable first
+	if os.Getenv("USE_SECRET_FOR_TOKEN") == "true" {
+		return true
+	}
+	// Check file-mounted config as fallback (reusing util.getEnv pattern)
+	if data := os.Getenv("USE_SECRET_FOR_TOKEN"); data != "" {
+		return data == "true"
+	}
+	// Fallback to reading from file mounted at /etc/zxporter/config/USE_SECRET_FOR_TOKEN
+	filePath := "/etc/zxporter/config/USE_SECRET_FOR_TOKEN"
+	if data, err := os.ReadFile(filePath); err == nil {
+		return strings.TrimSpace(string(data)) == "true"
+	}
+	return false
+}
+
+// persistClusterToken persists the cluster token to either ConfigMap or Secret based on configuration
 func (c *EnvBasedController) persistClusterToken(ctx context.Context, token string) error {
+	if c.shouldUseSecretStorage() {
+		return c.persistClusterTokenToSecret(ctx, token)
+	}
+	return c.persistClusterTokenToConfigMap(ctx, token)
+}
+
+// persistClusterTokenToConfigMap persists the cluster token to the ConfigMap (original implementation)
+func (c *EnvBasedController) persistClusterTokenToConfigMap(ctx context.Context, token string) error {
 	// Get namespace from environment variable or use default
 	namespace := os.Getenv("POD_NAMESPACE")
 	if namespace == "" {
@@ -338,5 +366,74 @@ func (c *EnvBasedController) persistClusterToken(ctx context.Context, token stri
 	}
 
 	c.Log.Info("Successfully persisted cluster token to ConfigMap", "configMap", configMapName)
+	return nil
+}
+
+// persistClusterTokenToSecret persists the cluster token to a Kubernetes Secret
+func (c *EnvBasedController) persistClusterTokenToSecret(ctx context.Context, token string) error {
+	// Hardcode Secret name for security validation
+	const allowedSecretName = "devzero-zxporter-token"
+
+	// Get namespace from environment variable or use default
+	namespace := os.Getenv("POD_NAMESPACE")
+	if namespace == "" {
+		// Try to read from service account namespace file
+		if data, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace"); err == nil {
+			namespace = strings.TrimSpace(string(data))
+		} else {
+			// Fall back to default if all else fails
+			namespace = "devzero-zxporter"
+			c.Log.Info("Could not determine namespace, using default", "namespace", namespace)
+		}
+	}
+
+	// Additional security validation - ensure we're only operating in expected namespace
+	expectedNamespace := "devzero-zxporter"
+	if namespace != expectedNamespace && namespace != os.Getenv("POD_NAMESPACE") {
+		c.Log.Info("Namespace validation warning", "detected", namespace, "expected", expectedNamespace)
+	}
+
+	c.Log.Info("Persisting cluster token to Secret", "secret", allowedSecretName, "namespace", namespace)
+
+	// Try to get the existing Secret first
+	secret, err := c.K8sClient.CoreV1().Secrets(namespace).Get(ctx, allowedSecretName, metav1.GetOptions{})
+	if err != nil {
+		// If Secret doesn't exist, create it
+		if errors.IsNotFound(err) {
+			secret = &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      allowedSecretName,
+					Namespace: namespace,
+				},
+				Type: corev1.SecretTypeOpaque,
+				Data: map[string][]byte{
+					"CLUSTER_TOKEN": []byte(token),
+				},
+			}
+
+			_, err = c.K8sClient.CoreV1().Secrets(namespace).Create(ctx, secret, metav1.CreateOptions{})
+			if err != nil {
+				return fmt.Errorf("failed to create Secret with cluster token: %w", err)
+			}
+
+			c.Log.Info("Successfully created Secret with cluster token", "secret", allowedSecretName)
+			return nil
+		}
+		return fmt.Errorf("failed to get Secret: %w", err)
+	}
+
+	// Update the CLUSTER_TOKEN in the existing Secret
+	if secret.Data == nil {
+		secret.Data = make(map[string][]byte)
+	}
+	secret.Data["CLUSTER_TOKEN"] = []byte(token)
+
+	// Update the Secret
+	_, err = c.K8sClient.CoreV1().Secrets(namespace).Update(ctx, secret, metav1.UpdateOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to update Secret with cluster token: %w", err)
+	}
+
+	c.Log.Info("Successfully persisted cluster token to Secret", "secret", allowedSecretName)
 	return nil
 }

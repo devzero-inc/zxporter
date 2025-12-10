@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"net"
 	"google.golang.org/grpc"
+	"net"
 
 	gen "github.com/devzero-inc/zxporter/gen/api/v1"
 	"github.com/go-logr/logr"
