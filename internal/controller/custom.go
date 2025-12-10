@@ -389,27 +389,37 @@ func (c *EnvBasedController) persistClusterTokenToSecret(ctx context.Context, to
 		}
 	}
 	
-	// Get Secret name from environment variable with fallback to default
-	secretName := os.Getenv("TOKEN_SECRET_NAME")
-	if secretName == "" {
-		// Try to read from file mounted at /etc/zxporter/config/TOKEN_SECRET_NAME
-		if data, err := os.ReadFile("/etc/zxporter/config/TOKEN_SECRET_NAME"); err == nil {
-			secretName = strings.TrimSpace(string(data))
+	// Get runtime Secret name from environment variable with fallback to default
+	// This is the Secret where exchanged tokens are stored (system-managed)
+	runtimeSecretName := os.Getenv("TOKEN_RUNTIME_SECRET_NAME")
+	if runtimeSecretName == "" {
+		// Try to read from file mounted at /etc/zxporter/config/TOKEN_RUNTIME_SECRET_NAME
+		if data, err := os.ReadFile("/etc/zxporter/config/TOKEN_RUNTIME_SECRET_NAME"); err == nil {
+			runtimeSecretName = strings.TrimSpace(string(data))
 		}
-		if secretName == "" {
-			// Fallback to default for backward compatibility
-			secretName = "devzero-zxporter-token"
+		if runtimeSecretName == "" {
+			// Fallback to TOKEN_SECRET_NAME for backward compatibility
+			runtimeSecretName = os.Getenv("TOKEN_SECRET_NAME")
+			if runtimeSecretName == "" {
+				if data, err := os.ReadFile("/etc/zxporter/config/TOKEN_SECRET_NAME"); err == nil {
+					runtimeSecretName = strings.TrimSpace(string(data))
+				}
+				if runtimeSecretName == "" {
+					// Final fallback to default
+					runtimeSecretName = "devzero-zxporter-token"
+				}
+			}
 		}
 	}
 
 	// Try to get the existing Secret first
-	secret, err := c.K8sClient.CoreV1().Secrets(namespace).Get(ctx, secretName, metav1.GetOptions{})
+	secret, err := c.K8sClient.CoreV1().Secrets(namespace).Get(ctx, runtimeSecretName, metav1.GetOptions{})
 	if err != nil {
 		if errors.IsNotFound(err) {
 			// Create new Secret if it doesn't exist
 			secret = &corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      secretName,
+					Name:      runtimeSecretName,
 					Namespace: namespace,
 					Labels: map[string]string{
 						"app.kubernetes.io/name": "zxporter",
@@ -425,7 +435,7 @@ func (c *EnvBasedController) persistClusterTokenToSecret(ctx context.Context, to
 			if err != nil {
 				return fmt.Errorf("failed to create Secret: %w", err)
 			}
-			c.Log.Info("Successfully created Secret with cluster token", "secret", secretName)
+			c.Log.Info("Successfully created Secret with cluster token", "secret", runtimeSecretName)
 		} else {
 			return fmt.Errorf("failed to get Secret: %w", err)
 		}
@@ -440,7 +450,7 @@ func (c *EnvBasedController) persistClusterTokenToSecret(ctx context.Context, to
 		if err != nil {
 			return fmt.Errorf("failed to update Secret with cluster token: %w", err)
 		}
-		c.Log.Info("Successfully updated Secret with cluster token", "secret", secretName)
+		c.Log.Info("Successfully updated Secret with cluster token", "secret", runtimeSecretName)
 	}
 
 	return nil

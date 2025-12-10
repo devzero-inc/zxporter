@@ -51,14 +51,14 @@ spec:
             - name: CLUSTER_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.zxporter.tokenSecretName }}
+                  name: {{ .Values.zxporter.tokenCredentialsSecretName }}
                   key: CLUSTER_TOKEN
             {{- end }}
             {{- if .Values.zxporter.patToken }}
             - name: PAT_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.zxporter.tokenSecretName }}
+                  name: {{ .Values.zxporter.tokenCredentialsSecretName }}
                   key: PAT_TOKEN
             {{- end }}
           {{- end }}

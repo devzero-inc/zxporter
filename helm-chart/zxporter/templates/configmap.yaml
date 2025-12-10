@@ -47,6 +47,8 @@ data:
   DAKR_URL: "{{ .Values.zxporter.dakrUrl }}"
   TARGET_NAMESPACES: "{{ .Values.zxporter.targetNamespaces }}"
   TOKEN_CONFIGMAP_NAME: "{{ .Values.zxporter.tokenConfigMapName }}"
+  TOKEN_CREDENTIALS_SECRET_NAME: "{{ .Values.zxporter.tokenCredentialsSecretName }}"
+  TOKEN_RUNTIME_SECRET_NAME: "{{ .Values.zxporter.tokenSecretName }}"
   TOKEN_SECRET_NAME: "{{ .Values.zxporter.tokenSecretName }}"
   USE_SECRET_FOR_TOKEN: "{{ .Values.zxporter.useSecretForToken }}"
   WATCHED_CRDS: ""

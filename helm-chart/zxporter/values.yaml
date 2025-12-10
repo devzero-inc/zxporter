@@ -50,8 +50,11 @@ zxporter:
   useSecretForToken: false
   
   # Resource names for token storage (configurable for different environments)
-  # These names are used for the Secret (when useSecretForToken=true) and ConfigMap
+  # Input credentials Secret: Contains initial PAT/CLUSTER tokens (user-managed)
+  tokenCredentialsSecretName: "devzero-zxporter-credentials"
+  # Runtime token Secret: Contains exchanged tokens (system-managed)
   tokenSecretName: "devzero-zxporter-token"
+  # ConfigMap: Contains configuration and tokens when useSecretForToken=false
   tokenConfigMapName: "devzero-zxporter-env-config"
 
 # Monitoring components (set to false to use your own Prometheus/Node Exporter)

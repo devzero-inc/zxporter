@@ -51,6 +51,8 @@ data:
   EXCLUDED_CRDS: ""
   EXCLUDED_CRDGROUPS: ""
   # Resource names for token storage (configurable for different environments)
-  TOKEN_SECRET_NAME: "devzero-zxporter-token"
+  TOKEN_CREDENTIALS_SECRET_NAME: "devzero-zxporter-credentials"
+  TOKEN_RUNTIME_SECRET_NAME: "devzero-zxporter-token"
+  TOKEN_SECRET_NAME: "devzero-zxporter-token" # Deprecated, use TOKEN_RUNTIME_SECRET_NAME
   TOKEN_CONFIGMAP_NAME: "devzero-zxporter-env-config"
   USE_SECRET_FOR_TOKEN: "false"

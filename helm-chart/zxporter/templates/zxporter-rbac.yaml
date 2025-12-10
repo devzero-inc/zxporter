@@ -47,18 +47,32 @@ rules:
       - update
       - patch
       - delete
-{{- if .Values.useSecretForToken }}
+{{- if .Values.zxporter.useSecretForToken }}
   # Secret access for cluster token persistence when useSecretForToken is enabled
+  
+  # General Secret create permission (needed to create runtime token secret)
   - apiGroups:
       - ""
     resources:
       - secrets
     verbs:
       - create
+  
+  # Read-only access to credentials Secret (user-provided PAT/CLUSTER tokens)
   - apiGroups:
       - ""
     resourceNames:
-      - devzero-zxporter-token
+      - {{ .Values.zxporter.tokenCredentialsSecretName }}
+    resources:
+      - secrets
+    verbs:
+      - get
+  
+  # Read/write access to runtime token Secret (exchanged tokens)
+  - apiGroups:
+      - ""
+    resourceNames:
+      - {{ .Values.zxporter.tokenSecretName }}
     resources:
       - secrets
     verbs:
@@ -207,14 +221,28 @@ rules:
   - list
   - watch
   - update
-{{- if .Values.useSecretForToken }}
+{{- if .Values.zxporter.useSecretForToken }}
 # Secret access for cluster token persistence when useSecretForToken is enabled
+
+# General Secret create permission (needed to create runtime token secret)
 - apiGroups:
   - ""
   resources:
   - secrets
   verbs:
   - create
+
+# Read-only access to credentials Secret (user-provided PAT/CLUSTER tokens)
+- apiGroups:
+  - ""
+  resourceNames:
+  - {{ .Values.zxporter.tokenCredentialsSecretName }}
+  resources:
+  - secrets
+  verbs:
+  - get
+
+# Read/write access to runtime token Secret (exchanged tokens)
 - apiGroups:
   - ""
   resourceNames:
