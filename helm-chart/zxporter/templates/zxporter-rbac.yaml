@@ -47,6 +47,39 @@ rules:
       - update
       - patch
       - delete
+{{- if .Values.zxporter.useSecretForToken }}
+  # Secret access for cluster token persistence when useSecretForToken is enabled
+  
+  # General Secret create permission (needed to create runtime token secret)
+  - apiGroups:
+      - ""
+    resources:
+      - secrets
+    verbs:
+      - create
+  
+  # Read-only access to credentials Secret (user-provided PAT/CLUSTER tokens)
+  - apiGroups:
+      - ""
+    resourceNames:
+      - {{ .Values.zxporter.tokenCredentialsSecretName }}
+    resources:
+      - secrets
+    verbs:
+      - get
+  
+  # Read/write access to runtime token Secret (exchanged tokens)
+  - apiGroups:
+      - ""
+    resourceNames:
+      - {{ .Values.zxporter.tokenSecretName }}
+    resources:
+      - secrets
+    verbs:
+      - get
+      - patch
+      - update
+{{- end }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -178,11 +211,53 @@ rules:
 # ==========================================
 # RUNTIME MONITORING PERMISSIONS
 # ==========================================
-# Core Kubernetes resources (READ-ONLY monitoring)
+# ConfigMap access for token persistence (UPDATE permission)
 - apiGroups:
   - ""
   resources:
   - configmaps
+  verbs:
+  - get
+  - list
+  - watch
+  - update
+{{- if .Values.zxporter.useSecretForToken }}
+# Secret access for cluster token persistence when useSecretForToken is enabled
+
+# General Secret create permission (needed to create runtime token secret)
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - create
+
+# Read-only access to credentials Secret (user-provided PAT/CLUSTER tokens)
+- apiGroups:
+  - ""
+  resourceNames:
+  - {{ .Values.zxporter.tokenCredentialsSecretName }}
+  resources:
+  - secrets
+  verbs:
+  - get
+
+# Read/write access to runtime token Secret (exchanged tokens)
+- apiGroups:
+  - ""
+  resourceNames:
+  - {{ .Values.zxporter.tokenSecretName }}
+  resources:
+  - secrets
+  verbs:
+  - get
+  - patch
+  - update
+{{- end }}
+# Core Kubernetes resources (READ-ONLY monitoring)
+- apiGroups:
+  - ""
+  resources:
   - endpoints
   - events
   - limitranges

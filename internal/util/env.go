@@ -230,6 +230,26 @@ const (
 	// EXCLUDED_CRDGROUPS is a comma-separated list of custom resource definition groups to exclude.
 	// Default value: []
 	_ENV_EXCLUDED_CRDGROUPS = "EXCLUDED_CRDGROUPS"
+
+	// USE_SECRET_FOR_TOKEN determines whether to store tokens in Secrets vs ConfigMap
+	// Default value: false (ConfigMap storage for backward compatibility)
+	_ENV_USE_SECRET_FOR_TOKEN = "USE_SECRET_FOR_TOKEN"
+
+	// TOKEN_CREDENTIALS_SECRET_NAME specifies the name of the Secret for input credentials (PAT/CLUSTER tokens)
+	// Default value: "devzero-zxporter-credentials"
+	_ENV_TOKEN_CREDENTIALS_SECRET_NAME = "TOKEN_CREDENTIALS_SECRET_NAME"
+
+	// TOKEN_RUNTIME_SECRET_NAME specifies the name of the Secret for runtime token storage (exchanged tokens)
+	// Default value: "devzero-zxporter-token"
+	_ENV_TOKEN_RUNTIME_SECRET_NAME = "TOKEN_RUNTIME_SECRET_NAME"
+
+	// TOKEN_SECRET_NAME specifies the name of the Secret for token storage (deprecated, use TOKEN_RUNTIME_SECRET_NAME)
+	// Default value: "devzero-zxporter-token"
+	_ENV_TOKEN_SECRET_NAME = "TOKEN_SECRET_NAME"
+
+	// TOKEN_CONFIGMAP_NAME specifies the name of the ConfigMap for token storage
+	// Default value: "devzero-zxporter-env-config"
+	_ENV_TOKEN_CONFIGMAP_NAME = "TOKEN_CONFIGMAP_NAME"
 )
 
 const configVolumeMountPath = "/etc/zxporter/config"

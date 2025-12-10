@@ -19,6 +19,7 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
+	K8SService_GetWorkloadsStats_FullMethodName            = "/api.v1.K8SService/GetWorkloadsStats"
 	K8SService_GetClusters_FullMethodName                  = "/api.v1.K8SService/GetClusters"
 	K8SService_ListClusters_FullMethodName                 = "/api.v1.K8SService/ListClusters"
 	K8SService_GetCluster_FullMethodName                   = "/api.v1.K8SService/GetCluster"
@@ -59,6 +60,8 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type K8SServiceClient interface {
+	// GetWorkloadsStats retrieves stats for workloads in a specific cluster.
+	GetWorkloadsStats(ctx context.Context, in *GetWorkloadsStatsRequest, opts ...grpc.CallOption) (*GetWorkloadsStatsResponse, error)
 	// GetClusters retrieves all clusters for a team.
 	GetClusters(ctx context.Context, in *GetClustersRequest, opts ...grpc.CallOption) (*GetClustersResponse, error)
 	// Deprecated: Do not use.
@@ -127,6 +130,15 @@ type k8SServiceClient struct {
 
 func NewK8SServiceClient(cc grpc.ClientConnInterface) K8SServiceClient {
 	return &k8SServiceClient{cc}
+}
+
+func (c *k8SServiceClient) GetWorkloadsStats(ctx context.Context, in *GetWorkloadsStatsRequest, opts ...grpc.CallOption) (*GetWorkloadsStatsResponse, error) {
+	out := new(GetWorkloadsStatsResponse)
+	err := c.cc.Invoke(ctx, K8SService_GetWorkloadsStats_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *k8SServiceClient) GetClusters(ctx context.Context, in *GetClustersRequest, opts ...grpc.CallOption) (*GetClustersResponse, error) {
@@ -440,6 +452,8 @@ func (c *k8SServiceClient) LookupNodeInstance(ctx context.Context, in *LookupNod
 // All implementations must embed UnimplementedK8SServiceServer
 // for forward compatibility
 type K8SServiceServer interface {
+	// GetWorkloadsStats retrieves stats for workloads in a specific cluster.
+	GetWorkloadsStats(context.Context, *GetWorkloadsStatsRequest) (*GetWorkloadsStatsResponse, error)
 	// GetClusters retrieves all clusters for a team.
 	GetClusters(context.Context, *GetClustersRequest) (*GetClustersResponse, error)
 	// Deprecated: Do not use.
@@ -507,6 +521,9 @@ type K8SServiceServer interface {
 type UnimplementedK8SServiceServer struct {
 }
 
+func (UnimplementedK8SServiceServer) GetWorkloadsStats(context.Context, *GetWorkloadsStatsRequest) (*GetWorkloadsStatsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetWorkloadsStats not implemented")
+}
 func (UnimplementedK8SServiceServer) GetClusters(context.Context, *GetClustersRequest) (*GetClustersResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetClusters not implemented")
 }
@@ -620,6 +637,24 @@ type UnsafeK8SServiceServer interface {
 
 func RegisterK8SServiceServer(s grpc.ServiceRegistrar, srv K8SServiceServer) {
 	s.RegisterService(&K8SService_ServiceDesc, srv)
+}
+
+func _K8SService_GetWorkloadsStats_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetWorkloadsStatsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(K8SServiceServer).GetWorkloadsStats(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: K8SService_GetWorkloadsStats_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(K8SServiceServer).GetWorkloadsStats(ctx, req.(*GetWorkloadsStatsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _K8SService_GetClusters_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -1241,6 +1276,10 @@ var K8SService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "api.v1.K8SService",
 	HandlerType: (*K8SServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "GetWorkloadsStats",
+			Handler:    _K8SService_GetWorkloadsStats_Handler,
+		},
 		{
 			MethodName: "GetClusters",
 			Handler:    _K8SService_GetClusters_Handler,

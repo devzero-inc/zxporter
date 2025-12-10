@@ -179,6 +179,22 @@ rules:
 - apiGroups:
   - ""
   resources:
+  - secrets
+  verbs:
+  - create
+- apiGroups:
+  - ""
+  resourceNames:
+  - devzero-zxporter-devzero-zxporter-token
+  resources:
+  - secrets
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - ""
+  resources:
   - serviceaccounts
   - services
   verbs:
@@ -539,6 +555,11 @@ data:
   NODE_METRICS_INTERVAL: ""
   PROMETHEUS_URL: http://prometheus-dz-prometheus-server.devzero-zxporter.svc.cluster.local:80
   TARGET_NAMESPACES: ""
+  TOKEN_CONFIGMAP_NAME: devzero-zxporter-env-config
+  TOKEN_CREDENTIALS_SECRET_NAME: devzero-zxporter-credentials
+  TOKEN_RUNTIME_SECRET_NAME: devzero-zxporter-token
+  TOKEN_SECRET_NAME: devzero-zxporter-token
+  USE_SECRET_FOR_TOKEN: "false"
   WATCHED_CRDS: ""
 kind: ConfigMap
 metadata:
