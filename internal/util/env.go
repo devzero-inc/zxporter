@@ -234,6 +234,14 @@ const (
 	// USE_SECRET_FOR_TOKEN determines whether to store tokens in Secrets vs ConfigMap
 	// Default value: false (ConfigMap storage for backward compatibility)
 	_ENV_USE_SECRET_FOR_TOKEN = "USE_SECRET_FOR_TOKEN"
+
+	// TOKEN_SECRET_NAME specifies the name of the Secret for token storage
+	// Default value: "devzero-zxporter-token"
+	_ENV_TOKEN_SECRET_NAME = "TOKEN_SECRET_NAME"
+
+	// TOKEN_CONFIGMAP_NAME specifies the name of the ConfigMap for token storage
+	// Default value: "devzero-zxporter-env-config"
+	_ENV_TOKEN_CONFIGMAP_NAME = "TOKEN_CONFIGMAP_NAME"
 )
 
 const configVolumeMountPath = "/etc/zxporter/config"

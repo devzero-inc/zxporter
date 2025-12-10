@@ -50,3 +50,7 @@ data:
   EXCLUDED_STORAGECLASSES: ""
   EXCLUDED_CRDS: ""
   EXCLUDED_CRDGROUPS: ""
+  # Resource names for token storage (configurable for different environments)
+  TOKEN_SECRET_NAME: "devzero-zxporter-token"
+  TOKEN_CONFIGMAP_NAME: "env-config"
+  USE_SECRET_FOR_TOKEN: "false"

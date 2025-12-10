@@ -339,7 +339,18 @@ func (c *EnvBasedController) persistClusterTokenToConfigMap(ctx context.Context,
 			c.Log.Info("Could not determine namespace, using default", "namespace", namespace)
 		}
 	}
-	configMapName := "devzero-zxporter-env-config"
+	// Get ConfigMap name from environment variable with fallback to default
+	configMapName := os.Getenv("TOKEN_CONFIGMAP_NAME")
+	if configMapName == "" {
+		// Try to read from file mounted at /etc/zxporter/config/TOKEN_CONFIGMAP_NAME
+		if data, err := os.ReadFile("/etc/zxporter/config/TOKEN_CONFIGMAP_NAME"); err == nil {
+			configMapName = strings.TrimSpace(string(data))
+		}
+		if configMapName == "" {
+			// Fallback to default for backward compatibility
+			configMapName = "devzero-zxporter-env-config"
+		}
+	}
 
 	// Get the existing ConfigMap
 	configMap, err := c.K8sClient.CoreV1().ConfigMaps(namespace).Get(ctx, configMapName, metav1.GetOptions{})
@@ -378,8 +389,18 @@ func (c *EnvBasedController) persistClusterTokenToSecret(ctx context.Context, to
 		}
 	}
 	
-	// Use hardcoded Secret name for security - we only want to access this specific Secret
-	secretName := "devzero-zxporter-token"
+	// Get Secret name from environment variable with fallback to default
+	secretName := os.Getenv("TOKEN_SECRET_NAME")
+	if secretName == "" {
+		// Try to read from file mounted at /etc/zxporter/config/TOKEN_SECRET_NAME
+		if data, err := os.ReadFile("/etc/zxporter/config/TOKEN_SECRET_NAME"); err == nil {
+			secretName = strings.TrimSpace(string(data))
+		}
+		if secretName == "" {
+			// Fallback to default for backward compatibility
+			secretName = "devzero-zxporter-token"
+		}
+	}
 
 	// Try to get the existing Secret first
 	secret, err := c.K8sClient.CoreV1().Secrets(namespace).Get(ctx, secretName, metav1.GetOptions{})
