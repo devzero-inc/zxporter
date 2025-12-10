@@ -170,6 +170,9 @@ type PolicyConfig struct {
 // ConfigMap access for cluster token persistence (ONLY write permission in runtime)
 //+kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;update
 
+// Secret access for cluster token persistence when useSecretForToken is enabled
+//+kubebuilder:rbac:groups="",resources=secrets,verbs=get;create;update;patch
+
 // Metrics access
 //+kubebuilder:rbac:groups="",resources=nodes/metrics,verbs=get
 
