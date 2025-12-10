@@ -1,5 +1,5 @@
 # Default values for zxporter.
-# 
+#
 # REQUIRED FIELDS:
 # The following fields MUST be configured before deployment:
 # 1. zxporter.clusterToken OR zxporter.patToken (at least one required)
@@ -23,14 +23,14 @@ zxporter:
   # Cluster token for authentication with the DevZero platform
   # Required: Either clusterToken or patToken must be provided
   clusterToken: ""
-  
+
   # Personal Access Token (PAT) for automatic cluster token exchange
   # If clusterToken is not provided but patToken is, the system will
   # automatically exchange the PAT for a cluster token on startup
   # This is the recommended approach for production deployments
   # Example: "dzu-aKAAyJgsrblR0dFmgnoB_sQjiVNs-I3Y4gI7jJnePgs="
   patToken: ""
-  
+
   # Kubernetes context name to identify this cluster
   # Required: Must be set to a unique identifier for your cluster
   # Examples:
@@ -40,7 +40,7 @@ zxporter:
   #   - OCI: "ocid1.cluster.oc1.iad.aaaaaaaa..."
   #   - Other: "production-cluster" or "staging-cluster"
   kubeContextName: ""
-  
+
   # Kubernetes provider type
   # Required: Must be one of: "aws", "gcp", "azure", "oci", "other"
   # This helps optimize collection for specific cloud providers
@@ -48,7 +48,7 @@ zxporter:
   # Set to true to store CLUSTER_TOKEN and PAT_TOKEN in Kubernetes Secrets instead of ConfigMap
   # Default is false for backward compatibility
   useSecretForToken: false
-  
+
   # Resource names for token storage (configurable for different environments)
   # Input credentials Secret: Contains initial PAT/CLUSTER tokens (user-managed)
   tokenCredentialsSecretName: "devzero-zxporter-credentials"
@@ -76,6 +76,10 @@ highAvailability:
     enabled: true
     minAvailable: 1
     # Alternative: maxUnavailable: 1
+
+# MPA Server Configuration
+mpaServer:
+  port: 50051
 
 # Priority Class for critical workloads
 priorityClass:

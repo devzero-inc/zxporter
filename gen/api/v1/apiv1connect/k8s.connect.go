@@ -133,6 +133,9 @@ const (
 	// K8SServiceLookupNodeInstanceProcedure is the fully-qualified name of the K8SService's
 	// LookupNodeInstance RPC.
 	K8SServiceLookupNodeInstanceProcedure = "/api.v1.K8SService/LookupNodeInstance"
+	// K8SServiceGetWorkloadPodHistoryProcedure is the fully-qualified name of the K8SService's
+	// GetWorkloadPodHistory RPC.
+	K8SServiceGetWorkloadPodHistoryProcedure = "/api.v1.K8SService/GetWorkloadPodHistory"
 	// ClusterMutationServiceCreateClusterProcedure is the fully-qualified name of the
 	// ClusterMutationService's CreateCluster RPC.
 	ClusterMutationServiceCreateClusterProcedure = "/api.v1.ClusterMutationService/CreateCluster"
@@ -221,6 +224,8 @@ type K8SServiceClient interface {
 	GetRelationsForKind(context.Context, *connect.Request[v1.GetRelatedResourcesRequest]) (*connect.Response[v1.GetRelatedResourcesResponse], error)
 	// LookupNodeInstance retrieves instance information for a node, including both dynamic cache lookup and cached instance data
 	LookupNodeInstance(context.Context, *connect.Request[v1.LookupNodeInstanceRequest]) (*connect.Response[v1.LookupNodeInstanceResponse], error)
+	// GetWorkloadPodHistory retrieves historical pods for a workload.
+	GetWorkloadPodHistory(context.Context, *connect.Request[v1.GetWorkloadPodHistoryRequest]) (*connect.Response[v1.GetWorkloadPodHistoryResponse], error)
 }
 
 // NewK8SServiceClient constructs a client for the api.v1.K8SService service. By default, it uses
@@ -408,6 +413,11 @@ func NewK8SServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...
 			baseURL+K8SServiceLookupNodeInstanceProcedure,
 			opts...,
 		),
+		getWorkloadPodHistory: connect.NewClient[v1.GetWorkloadPodHistoryRequest, v1.GetWorkloadPodHistoryResponse](
+			httpClient,
+			baseURL+K8SServiceGetWorkloadPodHistoryProcedure,
+			opts...,
+		),
 	}
 }
 
@@ -448,6 +458,7 @@ type k8SServiceClient struct {
 	getClusterType               *connect.Client[v1.GetClusterTypeRequest, v1.GetClusterTypeResponse]
 	getRelationsForKind          *connect.Client[v1.GetRelatedResourcesRequest, v1.GetRelatedResourcesResponse]
 	lookupNodeInstance           *connect.Client[v1.LookupNodeInstanceRequest, v1.LookupNodeInstanceResponse]
+	getWorkloadPodHistory        *connect.Client[v1.GetWorkloadPodHistoryRequest, v1.GetWorkloadPodHistoryResponse]
 }
 
 // GetWorkloadsStats calls api.v1.K8SService.GetWorkloadsStats.
@@ -627,6 +638,11 @@ func (c *k8SServiceClient) LookupNodeInstance(ctx context.Context, req *connect.
 	return c.lookupNodeInstance.CallUnary(ctx, req)
 }
 
+// GetWorkloadPodHistory calls api.v1.K8SService.GetWorkloadPodHistory.
+func (c *k8SServiceClient) GetWorkloadPodHistory(ctx context.Context, req *connect.Request[v1.GetWorkloadPodHistoryRequest]) (*connect.Response[v1.GetWorkloadPodHistoryResponse], error) {
+	return c.getWorkloadPodHistory.CallUnary(ctx, req)
+}
+
 // K8SServiceHandler is an implementation of the api.v1.K8SService service.
 type K8SServiceHandler interface {
 	// GetWorkloadsStats retrieves stats for workloads in a specific cluster.
@@ -692,6 +708,8 @@ type K8SServiceHandler interface {
 	GetRelationsForKind(context.Context, *connect.Request[v1.GetRelatedResourcesRequest]) (*connect.Response[v1.GetRelatedResourcesResponse], error)
 	// LookupNodeInstance retrieves instance information for a node, including both dynamic cache lookup and cached instance data
 	LookupNodeInstance(context.Context, *connect.Request[v1.LookupNodeInstanceRequest]) (*connect.Response[v1.LookupNodeInstanceResponse], error)
+	// GetWorkloadPodHistory retrieves historical pods for a workload.
+	GetWorkloadPodHistory(context.Context, *connect.Request[v1.GetWorkloadPodHistoryRequest]) (*connect.Response[v1.GetWorkloadPodHistoryResponse], error)
 }
 
 // NewK8SServiceHandler builds an HTTP handler from the service implementation. It returns the path
@@ -875,6 +893,11 @@ func NewK8SServiceHandler(svc K8SServiceHandler, opts ...connect.HandlerOption) 
 		svc.LookupNodeInstance,
 		opts...,
 	)
+	k8SServiceGetWorkloadPodHistoryHandler := connect.NewUnaryHandler(
+		K8SServiceGetWorkloadPodHistoryProcedure,
+		svc.GetWorkloadPodHistory,
+		opts...,
+	)
 	return "/api.v1.K8SService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case K8SServiceGetWorkloadsStatsProcedure:
@@ -947,6 +970,8 @@ func NewK8SServiceHandler(svc K8SServiceHandler, opts ...connect.HandlerOption) 
 			k8SServiceGetRelationsForKindHandler.ServeHTTP(w, r)
 		case K8SServiceLookupNodeInstanceProcedure:
 			k8SServiceLookupNodeInstanceHandler.ServeHTTP(w, r)
+		case K8SServiceGetWorkloadPodHistoryProcedure:
+			k8SServiceGetWorkloadPodHistoryHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -1094,6 +1119,10 @@ func (UnimplementedK8SServiceHandler) GetRelationsForKind(context.Context, *conn
 
 func (UnimplementedK8SServiceHandler) LookupNodeInstance(context.Context, *connect.Request[v1.LookupNodeInstanceRequest]) (*connect.Response[v1.LookupNodeInstanceResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.K8SService.LookupNodeInstance is not implemented"))
+}
+
+func (UnimplementedK8SServiceHandler) GetWorkloadPodHistory(context.Context, *connect.Request[v1.GetWorkloadPodHistoryRequest]) (*connect.Response[v1.GetWorkloadPodHistoryResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.K8SService.GetWorkloadPodHistory is not implemented"))
 }
 
 // ClusterMutationServiceClient is a client for the api.v1.ClusterMutationService service.
