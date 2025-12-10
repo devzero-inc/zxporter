@@ -3,6 +3,9 @@ managed:
   enabled: true
   go_package_prefix:
     default: github.com/devzero-inc/zxporter/gen
+    except:
+    - buf.build/prometheus/client-model
+    - buf.build/googleapis/googleapis
 plugins:
   # Generate go files
   - plugin: buf.build/protocolbuffers/go:v1.31.0
@@ -16,4 +19,3 @@ plugins:
   - plugin: buf.build/connectrpc/go:v1.12.0
     out: gen
     opt: paths=source_relative
-

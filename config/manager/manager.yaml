@@ -27,6 +27,8 @@ spec:
         kubectl.kubernetes.io/default-container: manager
       labels:
         control-plane: controller-manager
+        app.kubernetes.io/name: zxporter
+        app.kubernetes.io/instance: zxporter
     spec:
       priorityClassName: devzero-zxporter-critical
       # TODO(user): Uncomment the following code to configure the nodeAffinity expression
@@ -59,62 +61,67 @@ spec:
         # seccompProfile:
         #   type: RuntimeDefault
       containers:
-      - args:
-          - --leader-elect
-          - --health-probe-bind-address=:8081
-        image: controller:latest
-        name: manager
-        env:
-        - name: POD_NAMESPACE
-          valueFrom:
-            fieldRef:
-              fieldPath: metadata.namespace
-        # Uncomment the following to inject tokens from a Secret (recommended for production)
-        # Additional env vars can be added below:
-        # - name: CLUSTER_TOKEN
-        #   valueFrom:
-        #     secretKeyRef:
-        #       name: devzero-zxporter-token
-        #       key: CLUSTER_TOKEN
-        # # Uncomment if using PAT token instead of or in addition to CLUSTER_TOKEN
-        # - name: PAT_TOKEN
-        #   valueFrom:
-        #     secretKeyRef:
-        #       name: devzero-zxporter-token
-        #       key: PAT_TOKEN
-        securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-            - "ALL"
-        livenessProbe:
-          httpGet:
-            path: /healthz
-            port: 8081
-          initialDelaySeconds: 15
-          periodSeconds: 20
-        readinessProbe:
-          httpGet:
-            path: /readyz
-            port: 8081
-          initialDelaySeconds: 5
-          periodSeconds: 10
-        # TODO(user): Configure the resources accordingly based on the project requirements.
-        # More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
-        resources:
-          #limits:
-          #  cpu: 500m
-          #  memory: 128Mi
-          requests:
-            cpu: 200m
-            memory: 128Mi
-        volumeMounts:
-        - name: config-volume
-          mountPath: /etc/zxporter/config
-          readOnly: true
+        - args:
+            - --leader-elect
+            - --mpa-server-port=50051
+            - --health-probe-bind-address=:8081
+          image: controller:latest
+          name: manager
+          ports:
+            - containerPort: 50051
+              name: mpa-grpc
+              protocol: TCP
+          env:
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          # Uncomment the following to inject tokens from a Secret (recommended for production)
+          # Additional env vars can be added below:
+          # - name: CLUSTER_TOKEN
+          #   valueFrom:
+          #     secretKeyRef:
+          #       name: devzero-zxporter-token
+          #       key: CLUSTER_TOKEN
+          # # Uncomment if using PAT token instead of or in addition to CLUSTER_TOKEN
+          # - name: PAT_TOKEN
+          #   valueFrom:
+          #     secretKeyRef:
+          #       name: devzero-zxporter-token
+          #       key: PAT_TOKEN
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - "ALL"
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8081
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8081
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          # TODO(user): Configure the resources accordingly based on the project requirements.
+          # More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+          resources:
+            #limits:
+            #  cpu: 500m
+            #  memory: 128Mi
+            requests:
+              cpu: 200m
+              memory: 128Mi
+          volumeMounts:
+            - name: config-volume
+              mountPath: /etc/zxporter/config
+              readOnly: true
       volumes:
-      - name: config-volume
-        configMap:
-          name: devzero-zxporter-env-config
+        - name: config-volume
+          configMap:
+            name: devzero-zxporter-env-config
       serviceAccountName: controller-manager
       terminationGracePeriodSeconds: 10
