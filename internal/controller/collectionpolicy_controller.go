@@ -119,6 +119,7 @@ type PolicyConfig struct {
 	ExcludedCSIStorageCapacities   []collector.ExcludedCSIStorageCapacity
 	ExcludedVolumeAttachments      []string
 	ExcludedKubeflowNotebooks      []collector.ExcludedKubeflowNotebook
+	ExcludedVolcanoJobs            []collector.ExcludedVolcanoJob
 
 	DisabledCollectors []string
 
@@ -247,6 +248,7 @@ type PolicyConfig struct {
 //+kubebuilder:rbac:groups=argoproj.io,resources=rollouts,verbs=get;list;watch
 //+kubebuilder:rbac:groups=keda.sh,resources=scaledobjects;scaledjobs;triggerauthentications;clustertriggerauthentications,verbs=get;list;watch
 //+kubebuilder:rbac:groups=kubeflow.org,resources=notebooks,verbs=get;list;watch
+//+kubebuilder:rbac:groups=batch.volcano.sh,resources=jobs,verbs=get;list;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -773,6 +775,10 @@ func (r *CollectionPolicyReconciler) identifyAffectedCollectors(oldConfig, newCo
 
 	if !reflect.DeepEqual(oldConfig.ExcludedKubeflowNotebooks, newConfig.ExcludedKubeflowNotebooks) {
 		affectedCollectors["kubeflow_notebook"] = true
+	}
+
+	if !reflect.DeepEqual(oldConfig.ExcludedVolcanoJobs, newConfig.ExcludedVolcanoJobs) {
+		affectedCollectors["volcano_job"] = true
 	}
 
 	// Check if the special node collectors are affected by the update interval change
@@ -1445,6 +1451,16 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				r.DynamicClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedKubeflowNotebooks,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+				r.TelemetryLogger,
+			)
+		case "volcano_job":
+			replacedCollector = collector.NewVolcanoJobCollector(
+				r.DynamicClient,
+				newConfig.TargetNamespaces,
+				newConfig.ExcludedVolcanoJobs,
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
@@ -2552,6 +2568,18 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 			),
 			name: collector.KubeflowNotebook,
 		},
+		{
+			collector: collector.NewVolcanoJobCollector(
+				r.DynamicClient,
+				config.TargetNamespaces,
+				config.ExcludedVolcanoJobs,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+				r.TelemetryLogger,
+			),
+			name: collector.VolcanoJob,
+		},
 	}
 
 	// Register all collectors
@@ -3165,6 +3193,16 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					r.DynamicClient,
 					newConfig.TargetNamespaces,
 					newConfig.ExcludedKubeflowNotebooks,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+					r.TelemetryLogger,
+				)
+			case "volcano_job":
+				replacedCollector = collector.NewVolcanoJobCollector(
+					r.DynamicClient,
+					newConfig.TargetNamespaces,
+					newConfig.ExcludedVolcanoJobs,
 					collector.DefaultMaxBatchSize,
 					collector.DefaultMaxBatchTime,
 					logger,
