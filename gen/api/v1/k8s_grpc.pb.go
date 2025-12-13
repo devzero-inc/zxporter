@@ -54,6 +54,7 @@ const (
 	K8SService_GetClusterType_FullMethodName               = "/api.v1.K8SService/GetClusterType"
 	K8SService_GetRelationsForKind_FullMethodName          = "/api.v1.K8SService/GetRelationsForKind"
 	K8SService_LookupNodeInstance_FullMethodName           = "/api.v1.K8SService/LookupNodeInstance"
+	K8SService_GetWorkloadPodHistory_FullMethodName        = "/api.v1.K8SService/GetWorkloadPodHistory"
 )
 
 // K8SServiceClient is the client API for K8SService service.
@@ -122,6 +123,8 @@ type K8SServiceClient interface {
 	GetRelationsForKind(ctx context.Context, in *GetRelatedResourcesRequest, opts ...grpc.CallOption) (*GetRelatedResourcesResponse, error)
 	// LookupNodeInstance retrieves instance information for a node, including both dynamic cache lookup and cached instance data
 	LookupNodeInstance(ctx context.Context, in *LookupNodeInstanceRequest, opts ...grpc.CallOption) (*LookupNodeInstanceResponse, error)
+	// GetWorkloadPodHistory retrieves historical pods for a workload.
+	GetWorkloadPodHistory(ctx context.Context, in *GetWorkloadPodHistoryRequest, opts ...grpc.CallOption) (*GetWorkloadPodHistoryResponse, error)
 }
 
 type k8SServiceClient struct {
@@ -448,6 +451,15 @@ func (c *k8SServiceClient) LookupNodeInstance(ctx context.Context, in *LookupNod
 	return out, nil
 }
 
+func (c *k8SServiceClient) GetWorkloadPodHistory(ctx context.Context, in *GetWorkloadPodHistoryRequest, opts ...grpc.CallOption) (*GetWorkloadPodHistoryResponse, error) {
+	out := new(GetWorkloadPodHistoryResponse)
+	err := c.cc.Invoke(ctx, K8SService_GetWorkloadPodHistory_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // K8SServiceServer is the server API for K8SService service.
 // All implementations must embed UnimplementedK8SServiceServer
 // for forward compatibility
@@ -514,6 +526,8 @@ type K8SServiceServer interface {
 	GetRelationsForKind(context.Context, *GetRelatedResourcesRequest) (*GetRelatedResourcesResponse, error)
 	// LookupNodeInstance retrieves instance information for a node, including both dynamic cache lookup and cached instance data
 	LookupNodeInstance(context.Context, *LookupNodeInstanceRequest) (*LookupNodeInstanceResponse, error)
+	// GetWorkloadPodHistory retrieves historical pods for a workload.
+	GetWorkloadPodHistory(context.Context, *GetWorkloadPodHistoryRequest) (*GetWorkloadPodHistoryResponse, error)
 	mustEmbedUnimplementedK8SServiceServer()
 }
 
@@ -625,6 +639,9 @@ func (UnimplementedK8SServiceServer) GetRelationsForKind(context.Context, *GetRe
 }
 func (UnimplementedK8SServiceServer) LookupNodeInstance(context.Context, *LookupNodeInstanceRequest) (*LookupNodeInstanceResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method LookupNodeInstance not implemented")
+}
+func (UnimplementedK8SServiceServer) GetWorkloadPodHistory(context.Context, *GetWorkloadPodHistoryRequest) (*GetWorkloadPodHistoryResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetWorkloadPodHistory not implemented")
 }
 func (UnimplementedK8SServiceServer) mustEmbedUnimplementedK8SServiceServer() {}
 
@@ -1269,6 +1286,24 @@ func _K8SService_LookupNodeInstance_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _K8SService_GetWorkloadPodHistory_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetWorkloadPodHistoryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(K8SServiceServer).GetWorkloadPodHistory(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: K8SService_GetWorkloadPodHistory_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(K8SServiceServer).GetWorkloadPodHistory(ctx, req.(*GetWorkloadPodHistoryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // K8SService_ServiceDesc is the grpc.ServiceDesc for K8SService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1415,6 +1450,10 @@ var K8SService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "LookupNodeInstance",
 			Handler:    _K8SService_LookupNodeInstance_Handler,
+		},
+		{
+			MethodName: "GetWorkloadPodHistory",
+			Handler:    _K8SService_GetWorkloadPodHistory_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -61,6 +61,7 @@ func main() {
 	var secureMetrics bool
 	var enableHTTP2 bool
 	var reconcileInterval time.Duration
+	var mpaServerPort int
 	var tlsOpts []func(*tls.Config)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", "0", "The address the metrics endpoint binds to. "+
 		"Use :8443 for HTTPS or :8080 for HTTP, or leave as 0 to disable the metrics service.")
@@ -74,6 +75,7 @@ func main() {
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
 	flag.DurationVar(&reconcileInterval, "reconcile-interval", 5*time.Second,
 		"The interval at which the controller will perform reconciliation.")
+	flag.IntVar(&mpaServerPort, "mpa-server-port", 50051, "The port for the MPA gRPC server.")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -144,7 +146,7 @@ func main() {
 	}
 
 	// Setup the env-based controller instead of the standard controller
-	envController, err := controller.NewEnvBasedController(mgr, reconcileInterval)
+	envController, err := controller.NewEnvBasedController(mgr, reconcileInterval, mpaServerPort)
 	if err != nil {
 		setupLog.Error(err, "unable to create environment-based controller")
 		os.Exit(1)

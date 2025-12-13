@@ -20,6 +20,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
+	appslisters "k8s.io/client-go/listers/apps/v1"
 	"k8s.io/client-go/tools/cache"
 	metricsv1beta1 "k8s.io/metrics/pkg/apis/metrics/v1beta1"
 	metricsv1 "k8s.io/metrics/pkg/client/clientset/versioned"
@@ -73,6 +74,9 @@ type ContainerResourceCollector struct {
 	mu                 sync.RWMutex
 	gpuQueryErrorState map[string]*gpuQueryState // most of the case we are not deploying zxporter to GPU nodes which cause GPU query to fail infinitely, and we dont want to get that GPU query fails error every minute for every container
 	gpuQueryMu         sync.Mutex
+	// Removed manual cache
+	rsLister   appslisters.ReplicaSetLister
+	rsInformer cache.SharedIndexInformer
 }
 
 // NewContainerResourceCollector creates a new collector for container resource metrics
@@ -203,12 +207,16 @@ func (c *ContainerResourceCollector) Start(ctx context.Context) error {
 	// Create pod informer to maintain a cache of pod information
 	c.podInformer = c.informerFactory.Core().V1().Pods().Informer()
 
+	// Create ReplicaSet informer for workload resolution
+	c.rsInformer = c.informerFactory.Apps().V1().ReplicaSets().Informer()
+	c.rsLister = c.informerFactory.Apps().V1().ReplicaSets().Lister()
+
 	// Start the informer factories
 	c.informerFactory.Start(c.stopCh)
 
 	// Wait for cache sync
 	c.logger.Info("Waiting for informer caches to sync")
-	if !cache.WaitForCacheSync(c.stopCh, c.podInformer.HasSynced) {
+	if !cache.WaitForCacheSync(c.stopCh, c.podInformer.HasSynced, c.rsInformer.HasSynced) {
 		return fmt.Errorf("timed out waiting for pod cache to sync")
 	}
 	c.logger.Info("Informer caches synced successfully")
@@ -501,78 +509,98 @@ func (c *ContainerResourceCollector) processContainerMetrics(
 		}
 	}
 
+	// Extract restart count and last termination reason
+	restartCount := int32(0)
+	lastTerminationReason := ""
+	if containerStatus != nil {
+		restartCount = containerStatus.RestartCount
+		if containerStatus.LastTerminationState.Terminated != nil {
+			lastTerminationReason = containerStatus.LastTerminationState.Terminated.Reason
+		}
+	}
+
 	// Create resource data with both metrics and pod info
 	containerKey := fmt.Sprintf("%s/%s/%s", pod.Namespace, pod.Name, containerMetrics.Name)
-	resourceData := map[string]interface{}{
+
+	metricsSnapshot := &ContainerMetricsSnapshot{
 		// Container identification
-		"containerName": containerMetrics.Name,
-		"podName":       pod.Name,
-		"namespace":     pod.Namespace,
-		"nodeName":      pod.Spec.NodeName,
+		ContainerName: containerMetrics.Name,
+		PodName:       pod.Name,
+		Namespace:     pod.Namespace,
+		NodeName:      pod.Spec.NodeName,
 
 		// CPU/Memory resource usage
-		"cpuUsageMillis":   cpuUsage,
-		"memoryUsageBytes": memoryUsage,
+		CpuUsageMillis:   cpuUsage,
+		MemoryUsageBytes: memoryUsage,
 
 		// Resource requests and limits
-		"cpuRequestMillis":   cpuRequestMillis,
-		"cpuLimitMillis":     cpuLimitMillis,
-		"memoryRequestBytes": memoryRequestBytes,
-		"memoryLimitBytes":   memoryLimitBytes,
+		CpuRequestMillis:   cpuRequestMillis,
+		CpuLimitMillis:     cpuLimitMillis,
+		MemoryRequestBytes: memoryRequestBytes,
+		MemoryLimitBytes:   memoryLimitBytes,
 
 		// Labels from the pod for correlation
-		"podLabels": pod.Labels,
+		PodLabels: pod.Labels,
 
 		// Container metadata for reference
-		"containerImage": containerSpec.Image,
+		ContainerImage: containerSpec.Image,
 
 		// Status info
-		"containerRunning":  containerStatus != nil && containerStatus.State.Running != nil,
-		"containerRestarts": containerStatus != nil && containerStatus.RestartCount != 0,
+		ContainerRunning:      containerStatus != nil && containerStatus.State.Running != nil,
+		ContainerRestarts:     containerStatus != nil && containerStatus.RestartCount != 0,
+		RestartCount:          int64(restartCount),
+		LastTerminationReason: lastTerminationReason,
+	}
+
+	// Resolve Top-Level Workload
+	wKind, wName := c.resolveWorkload(pod)
+	if wKind != "" && wName != "" {
+		metricsSnapshot.WorkloadKind = wKind
+		metricsSnapshot.WorkloadName = wName
 	}
 
 	// Add network metrics if available
 	if len(networkMetrics) > 0 {
-		resourceData["networkReceiveBytes"] = networkMetrics["NetworkReceiveBytes"]
-		resourceData["networkTransmitBytes"] = networkMetrics["NetworkTransmitBytes"]
-		resourceData["networkReceivePackets"] = networkMetrics["NetworkReceivePackets"]
-		resourceData["networkTransmitPackets"] = networkMetrics["NetworkTransmitPackets"]
-		resourceData["networkReceiveErrors"] = networkMetrics["NetworkReceiveErrors"]
-		resourceData["networkTransmitErrors"] = networkMetrics["NetworkTransmitErrors"]
-		resourceData["networkReceiveDropped"] = networkMetrics["NetworkReceiveDropped"]
-		resourceData["networkTransmitDropped"] = networkMetrics["NetworkTransmitDropped"]
+		metricsSnapshot.NetworkReceiveBytes = networkMetrics["NetworkReceiveBytes"]
+		metricsSnapshot.NetworkTransmitBytes = networkMetrics["NetworkTransmitBytes"]
+		metricsSnapshot.NetworkReceivePackets = networkMetrics["NetworkReceivePackets"]
+		metricsSnapshot.NetworkTransmitPackets = networkMetrics["NetworkTransmitPackets"]
+		metricsSnapshot.NetworkReceiveErrors = networkMetrics["NetworkReceiveErrors"]
+		metricsSnapshot.NetworkTransmitErrors = networkMetrics["NetworkTransmitErrors"]
+		metricsSnapshot.NetworkReceiveDropped = networkMetrics["NetworkReceiveDropped"]
+		metricsSnapshot.NetworkTransmitDropped = networkMetrics["NetworkTransmitDropped"]
 	}
 
 	// Add I/O metrics if available
 	if len(ioMetrics) > 0 {
-		resourceData["fsReadBytes"] = ioMetrics["FSReadBytes"]
-		resourceData["fsWriteBytes"] = ioMetrics["FSWriteBytes"]
-		resourceData["fsReads"] = ioMetrics["FSReads"]
-		resourceData["fsWrites"] = ioMetrics["FSWrites"]
+		metricsSnapshot.FsReadBytes = ioMetrics["FSReadBytes"]
+		metricsSnapshot.FsWriteBytes = ioMetrics["FSWriteBytes"]
+		metricsSnapshot.FsReads = ioMetrics["FSReads"]
+		metricsSnapshot.FsWrites = ioMetrics["FSWrites"]
 	}
 
 	if len(gpuMetrics) > 0 {
-		resourceData["gpuUsage"] = gpuMetrics["GPUUsage"]
-		resourceData["gpuMetricsCount"] = gpuMetrics["GPUMetricsCount"]
-		resourceData["gpuUtilizationPercentage"] = gpuMetrics["GPUUtilizationPercentage"]
-		resourceData["gpuMemoryUsedMb"] = gpuMetrics["GPUMemoryUsedMb"]
-		resourceData["gpuMemoryFreeMb"] = gpuMetrics["GPUMemoryFreeMb"]
-		resourceData["gpuPowerUsageWatts"] = gpuMetrics["GPUPowerUsageWatts"]
-		resourceData["gpuTemperatureCelsius"] = gpuMetrics["GPUTemperatureCelsius"]
-		resourceData["gpuSMClockMHz"] = gpuMetrics["GPUSMClockMHz"]
-		resourceData["gpuMemClockMHz"] = gpuMetrics["GPUMemClockMHz"]
-		resourceData["gpuModels"] = gpuMetrics["GPUModels"]
-		resourceData["gpuUUIDs"] = gpuMetrics["GPUUUIDs"]
-		resourceData["gpuRequestCount"] = gpuMetrics["GPURequestCount"]
-		resourceData["gpuLimitCount"] = gpuMetrics["GPULimitCount"]
-		resourceData["gpuTotalMemoryMb"] = gpuMetrics["GPUTotalMemoryMb"]
+		metricsSnapshot.GpuUsage = gpuMetrics["GPUUsage"]
+		metricsSnapshot.GpuMetricsCount = gpuMetrics["GPUMetricsCount"]
+		metricsSnapshot.GpuUtilizationPercentage = gpuMetrics["GPUUtilizationPercentage"]
+		metricsSnapshot.GpuMemoryUsedMb = gpuMetrics["GPUMemoryUsedMb"]
+		metricsSnapshot.GpuMemoryFreeMb = gpuMetrics["GPUMemoryFreeMb"]
+		metricsSnapshot.GpuPowerUsageWatts = gpuMetrics["GPUPowerUsageWatts"]
+		metricsSnapshot.GpuTemperatureCelsius = gpuMetrics["GPUTemperatureCelsius"]
+		metricsSnapshot.GpuSMClockMHz = gpuMetrics["GPUSMClockMHz"]
+		metricsSnapshot.GpuMemClockMHz = gpuMetrics["GPUMemClockMHz"]
+		metricsSnapshot.GpuModels = gpuMetrics["GPUModels"]
+		metricsSnapshot.GpuUUIDs = gpuMetrics["GPUUUIDs"]
+		metricsSnapshot.GpuRequestCount = gpuMetrics["GPURequestCount"]
+		metricsSnapshot.GpuLimitCount = gpuMetrics["GPULimitCount"]
+		metricsSnapshot.GpuTotalMemoryMb = gpuMetrics["GPUTotalMemoryMb"]
 		if individualGPUs, ok := gpuMetrics["IndividualGPUs"]; ok {
 			individualJSON, err := json.Marshal(individualGPUs)
 			if err != nil {
 				c.logger.Error(err, "Failed to marshal individual GPU metrics",
 					"error", err)
 			} else {
-				resourceData["individualGPUMetrics"] = string(individualJSON)
+				metricsSnapshot.IndividualGPUMetrics = string(individualJSON)
 			}
 		}
 	}
@@ -580,7 +608,7 @@ func (c *ContainerResourceCollector) processContainerMetrics(
 	// Send the resource usage data to the batch channel
 	c.batchChan <- CollectedResource{
 		ResourceType: ContainerResource,
-		Object:       resourceData,
+		Object:       metricsSnapshot,
 		Timestamp:    time.Now(),
 		EventType:    EventTypeMetrics,
 		Key:          containerKey,
@@ -1068,4 +1096,40 @@ func (c *ContainerResourceCollector) IsAvailable(ctx context.Context) bool {
 func (c *ContainerResourceCollector) AddResource(resource interface{}) error {
 	// Container resources are collected automatically via metrics scraping, not via individual resource refresh
 	return nil
+}
+
+func (c *ContainerResourceCollector) resolveWorkload(pod *corev1.Pod) (string, string) {
+	controllerRef := metav1.GetControllerOf(pod)
+	if controllerRef == nil {
+		return "", ""
+	}
+
+	// Supported Top-Level Kinds
+	preferredKinds := map[string]bool{
+		"Rollout":     true, // Argo Rollouts
+		"Deployment":  true,
+		"StatefulSet": true,
+		"DaemonSet":   true,
+		"CronJob":     true,
+	}
+
+	// 1. Direct Owner Match (e.g. StatefulSet, DaemonSet, Job, CronJob)
+	if preferredKinds[controllerRef.Kind] {
+		return controllerRef.Kind, controllerRef.Name
+	}
+
+	// 2. ReplicaSet Owner (Deployment or Rollout)
+	if controllerRef.Kind == "ReplicaSet" {
+		rs, err := c.rsLister.ReplicaSets(pod.Namespace).Get(controllerRef.Name)
+		if err == nil {
+			rsController := metav1.GetControllerOf(rs)
+			if rsController != nil && preferredKinds[rsController.Kind] {
+				return rsController.Kind, rsController.Name
+			}
+		}
+		// Fallback to ReplicaSet if standalone
+		return "ReplicaSet", controllerRef.Name
+	}
+
+	return "", ""
 }

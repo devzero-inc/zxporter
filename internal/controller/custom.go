@@ -56,10 +56,11 @@ type EnvBasedController struct {
 	Reconciler        *CollectionPolicyReconciler
 	stopCh            chan struct{}
 	reconcileInterval time.Duration
+	mpaServerPort     int
 }
 
 // NewEnvBasedController creates a new environment-based controller
-func NewEnvBasedController(mgr ctrl.Manager, reconcileInterval time.Duration) (*EnvBasedController, error) {
+func NewEnvBasedController(mgr ctrl.Manager, reconcileInterval time.Duration, mpaServerPort int) (*EnvBasedController, error) {
 	// Set up basic components
 	logger := util.NewLogger("env-controller")
 	zapLogger, err := zap.NewProduction()
@@ -110,6 +111,7 @@ func NewEnvBasedController(mgr ctrl.Manager, reconcileInterval time.Duration) (*
 		IsRunning:         false,
 		RestartInProgress: false,
 		ZapLogger:         zapLogger,
+		MpaServerPort:     mpaServerPort,
 	}
 
 	logger.Info("Checking 1st reconcile interval", "reconcile", reconcileInterval)
@@ -132,6 +134,7 @@ func NewEnvBasedController(mgr ctrl.Manager, reconcileInterval time.Duration) (*
 		Reconciler:        reconciler,
 		stopCh:            make(chan struct{}),
 		reconcileInterval: reconcileInterval,
+		mpaServerPort:     mpaServerPort,
 	}, nil
 }
 
@@ -222,40 +225,40 @@ func (c *EnvBasedController) initializeTelemetryComponents(ctx context.Context) 
 			// Only do PAT exchange if no stored token found
 			c.Log.Info("No stored cluster token found, attempting PAT token exchange")
 
-		// Get cluster name and provider
-		clusterName := envSpec.Policies.KubeContextName
-		if clusterName == "" {
-			clusterName = "zxporter-cluster"
-		}
-		
-		k8sProvider := "other"
-		if provider := os.Getenv("K8S_PROVIDER"); provider != "" {
-			k8sProvider = provider
-		}
-
-		// Use a temporary DakrClient just for PAT exchange
-		dakrURL := envSpec.Policies.DakrURL
-		if dakrURL == "" {
-			dakrURL = "https://dakr.devzero.io"
-		}
-		
-		// Create a temporary client with empty cluster token for PAT exchange
-		tempClient := transport.NewDakrClient(dakrURL, "", c.Log)
-		
-		// Exchange PAT for cluster token
-		token, clusterId, err := tempClient.ExchangePATForClusterToken(ctx, envSpec.Policies.PATToken, clusterName, k8sProvider)
-		if err != nil {
-			c.Log.Error(err, "Failed to exchange PAT for cluster token")
-		} else {
-			c.Log.Info("Successfully obtained cluster token", "clusterId", clusterId)
-			envSpec.Policies.ClusterToken = token
-
-			// Persist the token to ConfigMap or Secret based on configuration
-			if err := c.persistClusterToken(ctx, token); err != nil {
-				c.Log.Error(err, "Failed to persist cluster token")
-				// Continue anyway - the token is in memory
+			// Get cluster name and provider
+			clusterName := envSpec.Policies.KubeContextName
+			if clusterName == "" {
+				clusterName = "zxporter-cluster"
 			}
-		}
+
+			k8sProvider := "other"
+			if provider := os.Getenv("K8S_PROVIDER"); provider != "" {
+				k8sProvider = provider
+			}
+
+			// Use a temporary DakrClient just for PAT exchange
+			dakrURL := envSpec.Policies.DakrURL
+			if dakrURL == "" {
+				dakrURL = "https://dakr.devzero.io"
+			}
+
+			// Create a temporary client with empty cluster token for PAT exchange
+			tempClient := transport.NewDakrClient(dakrURL, "", c.Log)
+
+			// Exchange PAT for cluster token
+			token, clusterId, err := tempClient.ExchangePATForClusterToken(ctx, envSpec.Policies.PATToken, clusterName, k8sProvider)
+			if err != nil {
+				c.Log.Error(err, "Failed to exchange PAT for cluster token")
+			} else {
+				c.Log.Info("Successfully obtained cluster token", "clusterId", clusterId)
+				envSpec.Policies.ClusterToken = token
+
+				// Persist the token to ConfigMap or Secret based on configuration
+				if err := c.persistClusterToken(ctx, token); err != nil {
+					c.Log.Error(err, "Failed to persist cluster token")
+					// Continue anyway - the token is in memory
+				}
+			}
 		}
 	}
 
@@ -395,7 +398,7 @@ func (c *EnvBasedController) persistClusterTokenToSecret(ctx context.Context, to
 			c.Log.Info("Could not determine namespace, using default", "namespace", namespace)
 		}
 	}
-	
+
 	// Get runtime Secret name from environment variable with fallback to default
 	// This is the Secret where exchanged tokens are stored (system-managed)
 	runtimeSecretName := os.Getenv("TOKEN_RUNTIME_SECRET_NAME")
@@ -429,7 +432,7 @@ func (c *EnvBasedController) persistClusterTokenToSecret(ctx context.Context, to
 					Name:      runtimeSecretName,
 					Namespace: namespace,
 					Labels: map[string]string{
-						"app.kubernetes.io/name": "zxporter",
+						"app.kubernetes.io/name":      "zxporter",
 						"app.kubernetes.io/component": "token-storage",
 					},
 				},
@@ -452,7 +455,7 @@ func (c *EnvBasedController) persistClusterTokenToSecret(ctx context.Context, to
 			secret.Data = make(map[string][]byte)
 		}
 		secret.Data["CLUSTER_TOKEN"] = []byte(token)
-		
+
 		_, err = c.K8sClient.CoreV1().Secrets(namespace).Update(ctx, secret, metav1.UpdateOptions{})
 		if err != nil {
 			return fmt.Errorf("failed to update Secret with cluster token: %w", err)
@@ -484,7 +487,7 @@ func (c *EnvBasedController) readClusterTokenFromSecret(ctx context.Context) str
 			namespace = "devzero-zxporter"
 		}
 	}
-	
+
 	// Get runtime Secret name from environment variable with fallback to default
 	runtimeSecretName := os.Getenv("TOKEN_RUNTIME_SECRET_NAME")
 	if runtimeSecretName == "" {
@@ -543,7 +546,7 @@ func (c *EnvBasedController) readClusterTokenFromConfigMap(ctx context.Context) 
 			namespace = "devzero-zxporter"
 		}
 	}
-	
+
 	// Get ConfigMap name from environment variable with fallback to default
 	configMapName := os.Getenv("TOKEN_CONFIGMAP_NAME")
 	if configMapName == "" {

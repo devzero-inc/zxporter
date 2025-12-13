@@ -19,6 +19,7 @@ spec:
         kubectl.kubernetes.io/default-container: manager
       labels:
         control-plane: controller-manager
+        {{- include "zxporter.selectorLabels" . | nindent 8 }}
     spec:
       {{- if .Values.priorityClass.enabled }}
       priorityClassName: {{ include "zxporter.fullname" . }}-critical
@@ -39,8 +40,16 @@ spec:
         - args:
             - --metrics-bind-address=:8443
             - --leader-elect
+            - --mpa-server-port={{ .Values.mpaServer.port }}
             - --health-probe-bind-address=:8081
           image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+          ports:
+            - name: http-metrics
+              containerPort: 8080
+              protocol: TCP
+            - name: mpa-grpc
+              containerPort: {{ .Values.mpaServer.port }}
+              protocol: TCP
           env:
             - name: POD_NAMESPACE
               valueFrom:

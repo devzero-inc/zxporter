@@ -43,6 +43,7 @@ import (
 	"github.com/devzero-inc/zxporter/internal/collector/provider"
 	"github.com/devzero-inc/zxporter/internal/collector/snap"
 	telemetry_logger "github.com/devzero-inc/zxporter/internal/logger"
+	"github.com/devzero-inc/zxporter/internal/server"
 	"github.com/devzero-inc/zxporter/internal/transport"
 	"github.com/devzero-inc/zxporter/internal/util"
 	"github.com/devzero-inc/zxporter/internal/version"
@@ -63,6 +64,7 @@ type CollectionPolicyReconciler struct {
 	DakrClient        transport.DakrClient
 	ApiExtensions     *apiextensionsclientset.Clientset
 	CollectionManager *collector.CollectionManager
+	MpaServer         *server.MpaServer
 	Sender            transport.DirectSender
 	TelemetrySender   *transport.TelemetrySender
 	TelemetryMetrics  *collector.TelemetryMetrics
@@ -72,6 +74,7 @@ type CollectionPolicyReconciler struct {
 	CurrentPolicyHash string
 	CurrentConfig     *PolicyConfig
 	RestartInProgress bool
+	MpaServerPort     int
 }
 
 // PolicyConfig holds the current configuration
@@ -1577,6 +1580,12 @@ func (r *CollectionPolicyReconciler) initializeCollectors(ctx context.Context, c
 		return ctrl.Result{}, err
 	}
 
+	// Setup and start MPA Server
+	if err := r.setupMpaServer(); err != nil {
+		logger.Error(err, "Failed to setup MPA server")
+		// Not fatal
+	}
+
 	r.TelemetryLogger.Report(
 		gen.LogLevel_LOG_LEVEL_INFO,
 		"CollectionPolicyReconciler_initializeCollectors",
@@ -1709,6 +1718,15 @@ func (r *CollectionPolicyReconciler) setupCollectionManager(ctx context.Context,
 	}
 
 	return nil
+}
+
+// setupMpaServer initializes and starts the gRPC server
+func (r *CollectionPolicyReconciler) setupMpaServer() error {
+	if r.MpaServer != nil {
+		return nil
+	}
+	r.MpaServer = server.NewMpaServer(r.Log)
+	return r.MpaServer.Start(r.MpaServerPort)
 }
 
 // setupClusterCollector creates and starts just the cluster collector
@@ -1926,6 +1944,10 @@ func (r *CollectionPolicyReconciler) cleanupOnFailure(logger logr.Logger) {
 			logger.Error(err, "Error stopping telemetry sender during failure")
 		}
 		r.TelemetrySender = nil
+	}
+
+	if r.MpaServer != nil {
+		r.MpaServer.Stop()
 	}
 
 	// Reset state
@@ -2660,6 +2682,15 @@ func (r *CollectionPolicyReconciler) processCollectedResources(ctx context.Conte
 				// Update metrics for the number of resources processed
 				r.TelemetryMetrics.MessagesSent.WithLabelValues(
 					resources[0].ResourceType.String()).Add(float64(len(resources)))
+			}
+
+			// Broadcast to MPA subscribers if it's container metrics
+			if r.MpaServer != nil && len(resources) > 0 && resources[0].ResourceType == collector.ContainerResource {
+				for _, res := range resources {
+					if metrics, ok := res.Object.(*collector.ContainerMetricsSnapshot); ok {
+						r.MpaServer.PublishMetrics(metrics, res.Timestamp)
+					}
+				}
 			}
 		}
 	}
