@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    control-plane: controller-manager
+    app.kubernetes.io/name: devzero-zxporter
+  name: controller-manager-mpa
+  namespace: system
+spec:
+  ports:
+    - name: mpa-grpc
+      port: 50051
+      protocol: TCP
+      targetPort: mpa-grpc
+  selector:
+    control-plane: controller-manager
+  type: ClusterIP

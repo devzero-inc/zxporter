@@ -43,10 +43,10 @@ type RetryPolicy struct {
 
 // RealDakrClient implements communication with Dakr service
 type RealDakrClient struct {
-	logger         logr.Logger
-	client         genconnect.MetricsCollectorServiceClient
-	clusterClient  genconnect.ClusterServiceClient
-	clusterToken   string
+	logger        logr.Logger
+	client        genconnect.MetricsCollectorServiceClient
+	clusterClient genconnect.ClusterServiceClient
+	clusterToken  string
 }
 
 // NewDakrClient creates a new client for Dakr service

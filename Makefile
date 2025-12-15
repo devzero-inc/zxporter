@@ -649,6 +649,8 @@ DAKR_BUF_GEN_FILE ?= buf.gen.yaml
 DAKR_BUF_GEN ?= $(DAKR_DIR)/$(DAKR_BUF_GEN_FILE)
 DAKR_METRICS_COLLECTOR_PROTO_FILE ?= metrics_collector.proto
 DAKR_METRICS_COLLECTOR_PROTO ?= $(DAKR_DIR)/proto/api/v1/$(DAKR_METRICS_COLLECTOR_PROTO_FILE)
+DAKR_MPA_PROTO_FILE ?= mpa.proto
+DAKR_MPA_PROTO ?= internal/proto/$(DAKR_MPA_PROTO_FILE)
 DAKR_CLUSTER_PROTO_FILE ?= cluster.proto
 DAKR_CLUSTER_PROTO ?= $(DAKR_DIR)/proto/api/v1/$(DAKR_CLUSTER_PROTO_FILE)
 
@@ -675,8 +677,9 @@ generate-proto: install-buf ## Fetch latest Dakr protobuf
 	rm -rf "$$PROTO_DIR"/*; \
 	rm -rf "$(PWD)/gen"; \
 	mkdir -p "$$PROTO_DIR"; \
-	cp "$(DAKR_BUF_GEN)" "$$PROTO_DIR/"; \
-	cp "$(DAKR_METRICS_COLLECTOR_PROTO)" "$$PROTO_DIR/"; \
+	mkdir -p "$$PROTO_DIR/api/v1"; \
+	cp "$(DAKR_MPA_PROTO)" "$$PROTO_DIR/api/v1"; \
 	find "$$PROTO_DIR" -type f -name "*.yaml" -exec perl -pi -e 's|github.com/devzero-inc/services/dakr/gen|github.com/devzero-inc/zxporter/gen|g' {} +; \
 	buf build "$(DAKR_DIR)" --path "$(DAKR_METRICS_COLLECTOR_PROTO)" --path "$(DAKR_CLUSTER_PROTO)" -o "$$PROTO_DIR"/dakr_proto_descriptor.bin; \
-	buf generate --template "$$PROTO_DIR"/"$(DAKR_BUF_GEN_FILE)" --include-imports "$$PROTO_DIR"/dakr_proto_descriptor.bin;
+	buf generate --include-imports "$$PROTO_DIR"/dakr_proto_descriptor.bin; 
+	buf generate --verbose --include-imports --timeout=5m .
