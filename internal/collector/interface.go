@@ -179,6 +179,7 @@ func (r ResourceType) String() string {
 		PodSecurityPolicy:        "pod_security_policy",
 		CustomResourceDefinition: "custom_resource_definition",
 		NodeResource:             "node_resource",
+		Container:                "container",
 		ContainerResource:        "container_resource",
 		CSINode:                  "csi_node",
 		Karpenter:                "karpenter",
@@ -270,6 +271,8 @@ func (r ResourceType) ProtoType() gen.ResourceType {
 		return gen.ResourceType_RESOURCE_TYPE_CUSTOM_RESOURCE_DEFINITION
 	case NodeResource:
 		return gen.ResourceType_RESOURCE_TYPE_NODE_RESOURCE
+	case Container:
+		return gen.ResourceType_RESOURCE_TYPE_CONTAINER
 	case ContainerResource:
 		return gen.ResourceType_RESOURCE_TYPE_CONTAINER_RESOURCE
 	case Cluster:

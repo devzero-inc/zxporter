@@ -4,6 +4,7 @@ resources:
 - env_secret.yaml
 - priorityclass.yaml
 - poddisruptionbudget.yaml
+- service.yaml
 # patches:
 # - path: env-patch.yaml
 #   target:
