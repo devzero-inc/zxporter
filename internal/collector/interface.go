@@ -139,6 +139,7 @@ const (
 	CSIStorageCapacity
 	VolumeAttachment
 	KubeflowNotebook
+	VolcanoJob
 )
 
 // String returns the string representation of the ResourceType
@@ -192,6 +193,7 @@ func (r ResourceType) String() string {
 		CSIStorageCapacity:       "csi_storage_capacity",
 		VolumeAttachment:         "volume_attachment",
 		KubeflowNotebook:         "kubeflow_notebook",
+		VolcanoJob:               "volcano_job",
 	}
 
 	if name, ok := names[r]; ok {
@@ -299,6 +301,8 @@ func (r ResourceType) ProtoType() gen.ResourceType {
 		return gen.ResourceType_RESOURCE_TYPE_VOLUME_ATTACHMENT
 	case KubeflowNotebook:
 		return gen.ResourceType_RESOURCE_TYPE_KUBEFLOW_NOTEBOOK
+	case VolcanoJob:
+		return gen.ResourceType_RESOURCE_TYPE_VOLCANO_JOB
 	default:
 		return gen.ResourceType_RESOURCE_TYPE_UNSPECIFIED
 	}
