@@ -69,7 +69,6 @@ nodeSelector: {}
 tolerations: []
 affinity: {}
 
-
 # High Availability Configuration
 highAvailability:
   enabled: false
