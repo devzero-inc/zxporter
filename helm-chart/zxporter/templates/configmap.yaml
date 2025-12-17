@@ -41,6 +41,7 @@ data:
   EXCLUDED_VPAS: ""
   K8S_PROVIDER: "{{ .Values.zxporter.k8sProvider }}"
   KUBE_CONTEXT_NAME: "{{ .Values.zxporter.kubeContextName }}"
+  LOG_LEVEL: "{{ .Values.zxporter.logLevel }}"
   MASK_SECRET_DATA: ""
   NODE_METRICS_INTERVAL: ""
   PROMETHEUS_URL: "{{ .Values.zxporter.prometheusUrl }}"

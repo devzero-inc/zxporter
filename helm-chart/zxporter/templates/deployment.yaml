@@ -42,6 +42,7 @@ spec:
             - --leader-elect
             - --mpa-server-port={{ .Values.mpaServer.port }}
             - --health-probe-bind-address=:8081
+            - --zap-log-level={{ .Values.zxporter.logLevel }}
           image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
           ports:
             - name: http-metrics
