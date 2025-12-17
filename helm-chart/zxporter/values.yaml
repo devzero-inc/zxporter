@@ -50,9 +50,9 @@ zxporter:
   useSecretForToken: false
 
   # Log level for the zxporter application
-  # Valid values: debug, info, warn, error
-  # Default: warn
-  logLevel: "warn"
+  # Valid values: debug, info, error
+  # Default: error
+  logLevel: "error"
 
   # Resource names for token storage (configurable for different environments)
   # Input credentials Secret: Contains initial PAT/CLUSTER tokens (user-managed)
