@@ -343,6 +343,14 @@ rules:
   - list
   - watch
 - apiGroups:
+  - batch.volcano.sh
+  resources:
+  - jobs
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - datadoghq.com
   resources:
   - extendeddaemonsetreplicasets
