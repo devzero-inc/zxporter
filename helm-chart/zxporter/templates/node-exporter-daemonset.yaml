@@ -112,24 +112,21 @@ spec:
       hostNetwork: true
       hostPID: true
       hostIPC: false
+      {{- with .Values.affinity }}
       affinity:
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-              - matchExpressions:
-                  - key: eks.amazonaws.com/compute-type
-                    operator: NotIn
-                    values:
-                      - fargate
-                  - key: type
-                    operator: NotIn
-                    values:
-                      - virtual-kubelet
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       nodeSelector:
         kubernetes.io/os: linux
+        {{- with .Values.nodeSelector }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
       tolerations:
         - effect: NoSchedule
           operator: Exists
+        {{- with .Values.tolerations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
       volumes:
         - name: proc
           hostPath:
