@@ -49,6 +49,11 @@ zxporter:
   # Default is false for backward compatibility
   useSecretForToken: false
 
+  # Log level for the zxporter application
+  # Valid values: debug, info, warn, error
+  # Default: warn
+  logLevel: "warn"
+
   # Resource names for token storage (configurable for different environments)
   # Input credentials Secret: Contains initial PAT/CLUSTER tokens (user-managed)
   tokenCredentialsSecretName: "devzero-zxporter-credentials"

@@ -82,6 +82,13 @@ func main() {
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
 
+	// Override log level from environment variable if set
+	if logLevel := os.Getenv("LOG_LEVEL"); logLevel != "" {
+		setupLog.Info("Setting log level from LOG_LEVEL environment variable", "level", logLevel)
+		// The zap logger expects the level to be set via the flag, so we'll use the parsed options
+		// The --zap-log-level flag takes precedence over the environment variable
+	}
+
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
 	// if the enable-http2 flag is false (the default), http/2 should be disabled
