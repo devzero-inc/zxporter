@@ -250,6 +250,11 @@ const (
 	// TOKEN_CONFIGMAP_NAME specifies the name of the ConfigMap for token storage
 	// Default value: "devzero-zxporter-env-config"
 	_ENV_TOKEN_CONFIGMAP_NAME = "TOKEN_CONFIGMAP_NAME"
+
+	// LOG_LEVEL specifies the log level for the application
+	// Valid values: debug, info, warn, error
+	// Default value: "info"
+	_ENV_LOG_LEVEL = "LOG_LEVEL"
 )
 
 const configVolumeMountPath = "/etc/zxporter/config"

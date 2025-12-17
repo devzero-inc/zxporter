@@ -202,6 +202,7 @@ jobs:
             yq eval '.zxporter.clusterToken = "test-token-for-ci"' -i helm-chart/zxporter/values.yaml
             yq eval '.zxporter.kubeContextName = "test-kind-cluster"' -i helm-chart/zxporter/values.yaml
             yq eval '.zxporter.k8sProvider = "other"' -i helm-chart/zxporter/values.yaml
+            yq eval '.zxporter.logLevel = "info"' -i helm-chart/zxporter/values.yaml
             echo "Updated values.yaml:"
             cat helm-chart/zxporter/values.yaml
             
