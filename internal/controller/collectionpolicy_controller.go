@@ -75,6 +75,10 @@ type CollectionPolicyReconciler struct {
 	CurrentConfig     *PolicyConfig
 	RestartInProgress bool
 	MpaServerPort     int
+
+	// UnavailableCollectors tracks collectors that were unavailable at startup
+	// These will be periodically checked and started when they become available
+	UnavailableCollectors map[string]bool
 }
 
 // PolicyConfig holds the current configuration
@@ -302,6 +306,14 @@ func (r *CollectionPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	if !r.IsRunning {
 		logger.Info("Collection system not running, initializing")
 		return r.initializeCollectors(ctx, newConfig)
+	}
+
+	// Check for collectors that may have become available or unavailable
+	// This handles the case where resources (including CRDs like Volcano, Argo Rollouts, KEDA, Kubeflow, etc.)
+	// become available or unavailable after zxporter has started
+	if err := r.checkCollectorAvailabilityChanges(ctx, logger, newConfig); err != nil {
+		logger.Error(err, "Error checking collector availability changes")
+		// Continue even if there's an error - this is not fatal
 	}
 
 	return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
@@ -1034,442 +1046,10 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 		logger.Error(err, "Failed to create metrics client, some collectors may be limited")
 	}
 
-	// This is a simplified version of registerResourceCollectors but only for affected collectors
+	// Recreate and restart affected collectors
 	for collectorType := range affectedCollectors {
-		var replacedCollector collector.ResourceCollector
-
-		// Recreate the collector with new configuration based on type
-		switch collectorType {
-		case "pod":
-			replacedCollector = collector.NewPodCollector(
-				r.K8sClient,
-				newConfig.TargetNamespaces,
-				newConfig.ExcludedPods,
-				collector.DefaultMaxBatchSize,
-				collector.DefaultMaxBatchTime,
-				logger,
-				r.TelemetryLogger,
-			)
-		case "deployment":
-			replacedCollector = collector.NewDeploymentCollector(
-				r.K8sClient,
-				newConfig.TargetNamespaces,
-				newConfig.ExcludedDeployments,
-				collector.DefaultMaxBatchSize,
-				collector.DefaultMaxBatchTime,
-				logger,
-				r.TelemetryLogger,
-			)
-		case "stateful_set":
-			replacedCollector = collector.NewStatefulSetCollector(
-				r.K8sClient,
-				newConfig.TargetNamespaces,
-				newConfig.ExcludedStatefulSets,
-				collector.DefaultMaxBatchSize,
-				collector.DefaultMaxBatchTime,
-				logger,
-				r.TelemetryLogger,
-			)
-		case "replica_set":
-			replacedCollector = collector.NewReplicaSetCollector(
-				r.K8sClient,
-				newConfig.TargetNamespaces,
-				newConfig.ExcludedReplicaSet,
-				collector.DefaultMaxBatchSize,
-				collector.DefaultMaxBatchTime,
-				logger,
-				r.TelemetryLogger,
-			)
-		case "daemon_set":
-			replacedCollector = collector.NewDaemonSetCollector(
-				r.K8sClient,
-				newConfig.TargetNamespaces,
-				newConfig.ExcludedDaemonSets,
-				collector.DefaultMaxBatchSize,
-				collector.DefaultMaxBatchTime,
-				logger,
-				r.TelemetryLogger,
-			)
-		case "service":
-			replacedCollector = collector.NewServiceCollector(
-				r.K8sClient,
-				newConfig.TargetNamespaces,
-				newConfig.ExcludedServices,
-				collector.DefaultMaxBatchSize,
-				collector.DefaultMaxBatchTime,
-				logger,
-				r.TelemetryLogger,
-			)
-		case "container_resource":
-			replacedCollector = collector.NewContainerResourceCollector(
-				r.K8sClient,
-				metricsClient,
-				collector.ContainerResourceCollectorConfig{
-					PrometheusURL:           newConfig.PrometheusURL,
-					UpdateInterval:          newConfig.UpdateInterval,
-					QueryTimeout:            10 * time.Second,
-					DisableNetworkIOMetrics: newConfig.DisableNetworkIOMetrics,
-					DisableGPUMetrics:       newConfig.DisableGPUMetrics,
-				},
-				newConfig.TargetNamespaces,
-				newConfig.ExcludedPods,
-				collector.DefaultMaxBatchSize,
-				newConfig.UpdateInterval,
-				logger,
-				r.TelemetryMetrics,
-				r.TelemetryLogger,
-			)
-		case "node":
-			replacedCollector = collector.NewNodeCollector(
-				r.K8sClient,
-				metricsClient,
-				collector.NodeCollectorConfig{
-					PrometheusURL:           newConfig.PrometheusURL,
-					UpdateInterval:          newConfig.UpdateInterval,
-					QueryTimeout:            10 * time.Second,
-					DisableNetworkIOMetrics: newConfig.DisableNetworkIOMetrics,
-					DisableGPUMetrics:       newConfig.DisableGPUMetrics,
-				},
-				newConfig.ExcludedNodes,
-				collector.DefaultMaxBatchSize,
-				newConfig.UpdateInterval,
-				logger,
-				r.TelemetryMetrics,
-				r.TelemetryLogger,
-			)
-		case "persistent_volume_claim":
-			replacedCollector = collector.NewPersistentVolumeClaimCollector(
-				r.K8sClient,
-				newConfig.TargetNamespaces,
-				newConfig.ExcludedPVCs,
-				collector.DefaultMaxBatchSize,
-				collector.DefaultMaxBatchTime,
-				logger,
-				r.TelemetryLogger,
-			)
-		case "persistent_volume":
-			replacedCollector = collector.NewPersistentVolumeCollector(
-				r.K8sClient,
-				newConfig.ExcludedPVs,
-				collector.DefaultMaxBatchSize,
-				collector.DefaultMaxBatchTime,
-				logger,
-				r.TelemetryLogger,
-			)
-		case "event":
-			replacedCollector = collector.NewEventCollector(
-				r.K8sClient,
-				newConfig.TargetNamespaces,
-				newConfig.ExcludedEvents,
-				10,             // maxEventsPerType - keeping existing value
-				10*time.Minute, // retentionPeriod - keeping existing value
-				400,
-				collector.DefaultMaxBatchTime,
-				logger,
-				r.TelemetryLogger,
-			)
-		case "job":
-			replacedCollector = collector.NewJobCollector(
-				r.K8sClient,
-				newConfig.TargetNamespaces,
-				newConfig.ExcludedJobs,
-				collector.DefaultMaxBatchSize,
-				collector.DefaultMaxBatchTime,
-				logger,
-				r.TelemetryLogger,
-			)
-		case "cron_job":
-			replacedCollector = collector.NewCronJobCollector(
-				r.K8sClient,
-				newConfig.TargetNamespaces,
-				newConfig.ExcludedCronJobs,
-				collector.DefaultMaxBatchSize,
-				collector.DefaultMaxBatchTime,
-				logger,
-				r.TelemetryLogger,
-			)
-		case "replication_controller":
-			replacedCollector = collector.NewReplicationControllerCollector(
-				r.K8sClient,
-				newConfig.TargetNamespaces,
-				newConfig.ExcludedReplicationControllers,
-				collector.DefaultMaxBatchSize,
-				collector.DefaultMaxBatchTime,
-				logger,
-				r.TelemetryLogger,
-			)
-		case "ingress":
-			replacedCollector = collector.NewIngressCollector(
-				r.K8sClient,
-				newConfig.TargetNamespaces,
-				newConfig.ExcludedIngresses,
-				collector.DefaultMaxBatchSize,
-				collector.DefaultMaxBatchTime,
-				logger,
-				r.TelemetryLogger,
-			)
-		case "ingress_class":
-			replacedCollector = collector.NewIngressClassCollector(
-				r.K8sClient,
-				newConfig.ExcludedIngressClasses,
-				collector.DefaultMaxBatchSize,
-				collector.DefaultMaxBatchTime,
-				logger,
-				r.TelemetryLogger,
-			)
-		case "network_policy":
-			replacedCollector = collector.NewNetworkPolicyCollector(
-				r.K8sClient,
-				newConfig.TargetNamespaces,
-				newConfig.ExcludedNetworkPolicies,
-				collector.DefaultMaxBatchSize,
-				collector.DefaultMaxBatchTime,
-				logger,
-				r.TelemetryLogger,
-			)
-		case "endpoints":
-			replacedCollector = collector.NewEndpointCollector(
-				r.K8sClient,
-				newConfig.TargetNamespaces,
-				newConfig.ExcludedEndpoints,
-				collector.DefaultMaxBatchSize,
-				collector.DefaultMaxBatchTime,
-				logger,
-				r.TelemetryLogger,
-			)
-		case "service_account":
-			replacedCollector = collector.NewServiceAccountCollector(
-				r.K8sClient,
-				newConfig.TargetNamespaces,
-				newConfig.ExcludedServiceAccounts,
-				collector.DefaultMaxBatchSize,
-				collector.DefaultMaxBatchTime,
-				logger,
-				r.TelemetryLogger,
-			)
-		case "limit_range":
-			replacedCollector = collector.NewLimitRangeCollector(
-				r.K8sClient,
-				newConfig.TargetNamespaces,
-				newConfig.ExcludedLimitRanges,
-				collector.DefaultMaxBatchSize,
-				collector.DefaultMaxBatchTime,
-				logger,
-				r.TelemetryLogger,
-			)
-		case "resource_quota":
-			replacedCollector = collector.NewResourceQuotaCollector(
-				r.K8sClient,
-				newConfig.TargetNamespaces,
-				newConfig.ExcludedResourceQuotas,
-				collector.DefaultMaxBatchSize,
-				collector.DefaultMaxBatchTime,
-				logger,
-				r.TelemetryLogger,
-			)
-		case "horizontal_pod_autoscaler":
-			replacedCollector = collector.NewHorizontalPodAutoscalerCollector(
-				r.K8sClient,
-				newConfig.TargetNamespaces,
-				newConfig.ExcludedHPAs,
-				collector.DefaultMaxBatchSize,
-				collector.DefaultMaxBatchTime,
-				logger,
-				r.TelemetryLogger,
-			)
-		case "vertical_pod_autoscaler":
-			replacedCollector = collector.NewVerticalPodAutoscalerCollector(
-				r.DynamicClient,
-				newConfig.TargetNamespaces,
-				newConfig.ExcludedVPAs,
-				collector.DefaultMaxBatchSize,
-				collector.DefaultMaxBatchTime,
-				logger,
-				r.TelemetryLogger,
-			)
-		case "role":
-			replacedCollector = collector.NewRoleCollector(
-				r.K8sClient,
-				newConfig.TargetNamespaces,
-				newConfig.ExcludedRoles,
-				collector.DefaultMaxBatchSize,
-				collector.DefaultMaxBatchTime,
-				logger,
-				r.TelemetryLogger,
-			)
-		case "role_binding":
-			replacedCollector = collector.NewRoleBindingCollector(
-				r.K8sClient,
-				newConfig.TargetNamespaces,
-				newConfig.ExcludedRoleBindings,
-				collector.DefaultMaxBatchSize,
-				collector.DefaultMaxBatchTime,
-				logger,
-				r.TelemetryLogger,
-			)
-		case "cluster_role":
-			replacedCollector = collector.NewClusterRoleCollector(
-				r.K8sClient,
-				newConfig.ExcludedClusterRoles,
-				collector.DefaultMaxBatchSize,
-				collector.DefaultMaxBatchTime,
-				logger,
-				r.TelemetryLogger,
-			)
-		case "cluster_role_binding":
-			replacedCollector = collector.NewClusterRoleBindingCollector(
-				r.K8sClient,
-				newConfig.ExcludedClusterRoleBindings,
-				collector.DefaultMaxBatchSize,
-				collector.DefaultMaxBatchTime,
-				logger,
-				r.TelemetryLogger,
-			)
-		case "pod_disruption_budget":
-			replacedCollector = collector.NewPodDisruptionBudgetCollector(
-				r.K8sClient,
-				newConfig.TargetNamespaces,
-				newConfig.ExcludedPDBs,
-				collector.DefaultMaxBatchSize,
-				collector.DefaultMaxBatchTime,
-				logger,
-				r.TelemetryLogger,
-			)
-		case "storage_class":
-			replacedCollector = collector.NewStorageClassCollector(
-				r.K8sClient,
-				newConfig.ExcludedStorageClasses,
-				collector.DefaultMaxBatchSize,
-				collector.DefaultMaxBatchTime,
-				logger,
-				r.TelemetryLogger,
-			)
-		case "csi_node":
-			replacedCollector = collector.NewCSINodeCollector(
-				r.K8sClient,
-				newConfig.ExcludedNodes,
-				collector.DefaultMaxBatchSize,
-				collector.DefaultMaxBatchTime,
-				logger,
-				r.TelemetryLogger,
-			)
-		case "karpenter":
-			replacedCollector = collector.NewKarpenterCollector(
-				r.DynamicClient,
-				collector.DefaultMaxBatchSize,
-				collector.DefaultMaxBatchTime,
-				logger,
-				r.TelemetryLogger,
-			)
-		case "datadog":
-			replacedCollector = collector.NewDatadogCollector(
-				r.DynamicClient,
-				newConfig.TargetNamespaces,
-				newConfig.ExcludedDatadogReplicaSets,
-				collector.DefaultMaxBatchSize,
-				collector.DefaultMaxBatchTime,
-				logger,
-				r.TelemetryLogger,
-			)
-		case "argo_rollouts":
-			replacedCollector = collector.NewArgoRolloutsCollector(
-				r.DynamicClient,
-				newConfig.TargetNamespaces,
-				newConfig.ExcludedArgoRollouts,
-				collector.DefaultMaxBatchSize,
-				collector.DefaultMaxBatchTime,
-				logger,
-				r.TelemetryLogger,
-			)
-		case "custom_resource_definition":
-			replacedCollector = collector.NewCRDCollector(
-				r.ApiExtensions,
-				collector.DefaultMaxBatchSize,
-				collector.DefaultMaxBatchTime,
-				logger,
-				r.TelemetryLogger,
-			)
-		case "keda_scaled_job":
-			replacedCollector = collector.NewScaledJobCollector(
-				r.KEDAClient,
-				newConfig.TargetNamespaces,
-				newConfig.ExcludedKedaScaledJobs,
-				collector.DefaultMaxBatchSize,
-				collector.DefaultMaxBatchTime,
-				logger,
-				r.TelemetryLogger,
-			)
-		case "keda_scaled_object":
-			replacedCollector = collector.NewScaledObjectCollector(
-				r.KEDAClient,
-				newConfig.TargetNamespaces,
-				newConfig.ExcludedKedaScaledObjects,
-				collector.DefaultMaxBatchSize,
-				collector.DefaultMaxBatchTime,
-				logger,
-				r.TelemetryLogger,
-			)
-		case "cluster_snapshot":
-			replacedCollector = snap.NewClusterSnapshotter(
-				r.K8sClient,
-				r.KEDAClient,
-				newConfig.ClusterSnapshotInterval,
-				r.Sender,
-				r.CollectionManager,
-				newConfig.TargetNamespaces,
-				newConfig.ExcludedPods,
-				newConfig.ExcludedNodes,
-				logger,
-			)
-		case "csi_driver":
-			replacedCollector = collector.NewCSIDriverCollector(
-				r.K8sClient,
-				newConfig.ExcludedCSIDrivers,
-				collector.DefaultMaxBatchSize,
-				collector.DefaultMaxBatchTime,
-				logger,
-				r.TelemetryLogger,
-			)
-		case "csi_storage_capacity":
-			replacedCollector = collector.NewCSIStorageCapacityCollector(
-				r.K8sClient,
-				newConfig.TargetNamespaces,
-				newConfig.ExcludedCSIStorageCapacities,
-				collector.DefaultMaxBatchSize,
-				collector.DefaultMaxBatchTime,
-				logger,
-				r.TelemetryLogger,
-			)
-		case "volume_attachment":
-			replacedCollector = collector.NewVolumeAttachmentCollector(
-				r.K8sClient,
-				newConfig.ExcludedVolumeAttachments,
-				collector.DefaultMaxBatchSize,
-				collector.DefaultMaxBatchTime,
-				logger,
-				r.TelemetryLogger,
-			)
-		case "kubeflow_notebook":
-			replacedCollector = collector.NewKubeflowNotebookCollector(
-				r.DynamicClient,
-				newConfig.TargetNamespaces,
-				newConfig.ExcludedKubeflowNotebooks,
-				collector.DefaultMaxBatchSize,
-				collector.DefaultMaxBatchTime,
-				logger,
-				r.TelemetryLogger,
-			)
-		case "volcano_job":
-			replacedCollector = collector.NewVolcanoJobCollector(
-				r.DynamicClient,
-				newConfig.TargetNamespaces,
-				newConfig.ExcludedVolcanoJobs,
-				collector.DefaultMaxBatchSize,
-				collector.DefaultMaxBatchTime,
-				logger,
-				r.TelemetryLogger,
-			)
-		default:
+		replacedCollector := r.createCollectorByType(collectorType, newConfig, logger, metricsClient)
+		if replacedCollector == nil {
 			logger.Info("Collector type not handled in selective restart", "type", collectorType)
 			continue
 		}
@@ -2604,25 +2184,31 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 		},
 	}
 
+	if r.UnavailableCollectors == nil {
+		r.UnavailableCollectors = make(map[string]bool)
+	}
+
 	// Register all collectors
 	for _, c := range collectors {
-		if disabledCollectorsMap[c.name.String()] {
+		collectorTypeName := c.name.String()
+
+		if disabledCollectorsMap[collectorTypeName] {
 			r.TelemetryLogger.Report(
 				gen.LogLevel_LOG_LEVEL_WARN,
 				"CollectionPolicyReconciler_registerResourceCollectors",
 				"Collector is disabled, skipping registration",
 				nil,
 				map[string]string{
-					"collector_type":   c.name.String(),
+					"collector_type":   collectorTypeName,
 					"event_type":       "collector_disabled",
 					"zxporter_version": version.Get().String(),
 				},
 			)
-			logger.Info("Skipping disabled collector", "type", c.name.String())
+			logger.Info("Skipping disabled collector", "type", collectorTypeName)
 			continue
 		}
 		if c.collector.IsAvailable(context.Background()) {
-			logger.Info("Registering collector", "name", c.name.String())
+			logger.Info("Registering collector", "name", collectorTypeName)
 			if err := r.CollectionManager.RegisterCollector(c.collector); err != nil {
 				r.TelemetryLogger.Report(
 					gen.LogLevel_LOG_LEVEL_ERROR,
@@ -2630,12 +2216,12 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 					"Failed to register collector",
 					err,
 					map[string]string{
-						"collector_type":   c.name.String(),
+						"collector_type":   collectorTypeName,
 						"error_type":       "collector_registration_failed",
 						"zxporter_version": version.Get().String(),
 					},
 				)
-				logger.Error(err, "Failed to register collector", "collector", c.name.String())
+				logger.Error(err, "Failed to register collector", "collector", collectorTypeName)
 			} else {
 				r.TelemetryLogger.Report(
 					gen.LogLevel_LOG_LEVEL_INFO,
@@ -2643,26 +2229,28 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 					"Successfully registered collector",
 					nil,
 					map[string]string{
-						"collector_type":   c.name.String(),
+						"collector_type":   collectorTypeName,
 						"event_type":       "collector_registration_success",
 						"zxporter_version": version.Get().String(),
 					},
 				)
-				logger.Info("Registered collector", "collector", c.name.String())
+				logger.Info("Registered collector", "collector", collectorTypeName)
 			}
 		} else {
+			// Track unavailable collectors for future retry
+			r.UnavailableCollectors[collectorTypeName] = true
 			r.TelemetryLogger.Report(
 				gen.LogLevel_LOG_LEVEL_WARN,
 				"CollectionPolicyReconciler_registerResourceCollectors",
-				"Collector is not available, skipping registration",
+				"Collector not available, tracking for future retry",
 				nil,
-				map[string]string{ // Note: we should get the reason why it's not available
-					"collector_type":   c.name.String(),
-					"event_type":       "collector_not_available",
+				map[string]string{
+					"collector_type":   collectorTypeName,
+					"event_type":       "collector_unavailable_tracking",
 					"zxporter_version": version.Get().String(),
 				},
 			)
-			logger.Info("Collector not available, skipping registration", "type", c.name.String())
+			logger.Info("Collector not available, tracking for future retry", "type", collectorTypeName)
 		}
 	}
 
@@ -2788,458 +2376,9 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 		if !newDisabled[collectorType] {
 			logger.Info("Registering newly enabled collector", "type", collectorType)
 
-			// Create the collector based on type
-			var replacedCollector collector.ResourceCollector
-
-			switch collectorType {
-			//////////////////////////////////////////////////////////////////////////////////
-			/// Namespaced resources
-			//////////////////////////////////////////////////////////////////////////////////
-			case "pod":
-				replacedCollector = collector.NewPodCollector(
-					r.K8sClient,
-					newConfig.TargetNamespaces,
-					newConfig.ExcludedPods,
-					collector.DefaultMaxBatchSize,
-					collector.DefaultMaxBatchTime,
-					logger,
-					r.TelemetryLogger,
-				)
-			case "deployment":
-				replacedCollector = collector.NewDeploymentCollector(
-					r.K8sClient,
-					newConfig.TargetNamespaces,
-					newConfig.ExcludedDeployments,
-					collector.DefaultMaxBatchSize,
-					collector.DefaultMaxBatchTime,
-					logger,
-					r.TelemetryLogger,
-				)
-			case "stateful_set":
-				replacedCollector = collector.NewStatefulSetCollector(
-					r.K8sClient,
-					newConfig.TargetNamespaces,
-					newConfig.ExcludedStatefulSets,
-					collector.DefaultMaxBatchSize,
-					collector.DefaultMaxBatchTime,
-					logger,
-					r.TelemetryLogger,
-				)
-			case "replica_set":
-				replacedCollector = collector.NewReplicaSetCollector(
-					r.K8sClient,
-					newConfig.TargetNamespaces,
-					newConfig.ExcludedReplicaSet,
-					collector.DefaultMaxBatchSize,
-					collector.DefaultMaxBatchTime,
-					logger,
-					r.TelemetryLogger,
-				)
-			case "daemon_set":
-				replacedCollector = collector.NewDaemonSetCollector(
-					r.K8sClient,
-					newConfig.TargetNamespaces,
-					newConfig.ExcludedDaemonSets,
-					collector.DefaultMaxBatchSize,
-					collector.DefaultMaxBatchTime,
-					logger,
-					r.TelemetryLogger,
-				)
-			case "service":
-				replacedCollector = collector.NewServiceCollector(
-					r.K8sClient,
-					newConfig.TargetNamespaces,
-					newConfig.ExcludedServices,
-					collector.DefaultMaxBatchSize,
-					collector.DefaultMaxBatchTime,
-					logger,
-					r.TelemetryLogger,
-				)
-			case "container_resource":
-				// Use the reconciler's shared Prometheus metrics instance
-				replacedCollector = collector.NewContainerResourceCollector(
-					r.K8sClient,
-					metricsClient,
-					collector.ContainerResourceCollectorConfig{
-						PrometheusURL:           newConfig.PrometheusURL,
-						UpdateInterval:          newConfig.UpdateInterval,
-						QueryTimeout:            10 * time.Second,
-						DisableNetworkIOMetrics: newConfig.DisableNetworkIOMetrics,
-						DisableGPUMetrics:       newConfig.DisableGPUMetrics,
-					},
-					newConfig.TargetNamespaces,
-					newConfig.ExcludedPods,
-					collector.DefaultMaxBatchSize,
-					newConfig.UpdateInterval,
-					logger,
-					r.TelemetryMetrics,
-					r.TelemetryLogger,
-				)
-			case "persistent_volume_claim":
-				replacedCollector = collector.NewPersistentVolumeClaimCollector(
-					r.K8sClient,
-					newConfig.TargetNamespaces,
-					newConfig.ExcludedPVCs,
-					collector.DefaultMaxBatchSize,
-					collector.DefaultMaxBatchTime,
-					logger,
-					r.TelemetryLogger,
-				)
-			case "event":
-				replacedCollector = collector.NewEventCollector(
-					r.K8sClient,
-					newConfig.TargetNamespaces,
-					newConfig.ExcludedEvents,
-					10,
-					10*time.Minute,
-					400,
-					collector.DefaultMaxBatchTime,
-					logger,
-					r.TelemetryLogger,
-				)
-			case "job":
-				replacedCollector = collector.NewJobCollector(
-					r.K8sClient,
-					newConfig.TargetNamespaces,
-					newConfig.ExcludedJobs,
-					collector.DefaultMaxBatchSize,
-					collector.DefaultMaxBatchTime,
-					logger,
-					r.TelemetryLogger,
-				)
-			case "cron_job":
-				replacedCollector = collector.NewCronJobCollector(
-					r.K8sClient,
-					newConfig.TargetNamespaces,
-					newConfig.ExcludedCronJobs,
-					collector.DefaultMaxBatchSize,
-					collector.DefaultMaxBatchTime,
-					logger,
-					r.TelemetryLogger,
-				)
-			case "replication_controller":
-				replacedCollector = collector.NewReplicationControllerCollector(
-					r.K8sClient,
-					newConfig.TargetNamespaces,
-					newConfig.ExcludedReplicationControllers,
-					collector.DefaultMaxBatchSize,
-					collector.DefaultMaxBatchTime,
-					logger,
-					r.TelemetryLogger,
-				)
-			case "ingress":
-				replacedCollector = collector.NewIngressCollector(
-					r.K8sClient,
-					newConfig.TargetNamespaces,
-					newConfig.ExcludedIngresses,
-					collector.DefaultMaxBatchSize,
-					collector.DefaultMaxBatchTime,
-					logger,
-					r.TelemetryLogger,
-				)
-			case "network_policy":
-				replacedCollector = collector.NewNetworkPolicyCollector(
-					r.K8sClient,
-					newConfig.TargetNamespaces,
-					newConfig.ExcludedNetworkPolicies,
-					collector.DefaultMaxBatchSize,
-					collector.DefaultMaxBatchTime,
-					logger,
-					r.TelemetryLogger,
-				)
-			case "endpoints":
-				replacedCollector = collector.NewEndpointCollector(
-					r.K8sClient,
-					newConfig.TargetNamespaces,
-					newConfig.ExcludedEndpoints,
-					collector.DefaultMaxBatchSize,
-					collector.DefaultMaxBatchTime,
-					logger,
-					r.TelemetryLogger,
-				)
-			case "service_account":
-				replacedCollector = collector.NewServiceAccountCollector(
-					r.K8sClient,
-					newConfig.TargetNamespaces,
-					newConfig.ExcludedServiceAccounts,
-					collector.DefaultMaxBatchSize,
-					collector.DefaultMaxBatchTime,
-					logger,
-					r.TelemetryLogger,
-				)
-			case "limit_range":
-				replacedCollector = collector.NewLimitRangeCollector(
-					r.K8sClient,
-					newConfig.TargetNamespaces,
-					newConfig.ExcludedLimitRanges,
-					collector.DefaultMaxBatchSize,
-					collector.DefaultMaxBatchTime,
-					logger,
-					r.TelemetryLogger,
-				)
-			case "resource_quota":
-				replacedCollector = collector.NewResourceQuotaCollector(
-					r.K8sClient,
-					newConfig.TargetNamespaces,
-					newConfig.ExcludedResourceQuotas,
-					collector.DefaultMaxBatchSize,
-					collector.DefaultMaxBatchTime,
-					logger,
-					r.TelemetryLogger,
-				)
-			case "horizontal_pod_autoscaler":
-				replacedCollector = collector.NewHorizontalPodAutoscalerCollector(
-					r.K8sClient,
-					newConfig.TargetNamespaces,
-					newConfig.ExcludedHPAs,
-					collector.DefaultMaxBatchSize,
-					collector.DefaultMaxBatchTime,
-					logger,
-					r.TelemetryLogger,
-				)
-			case "vertical_pod_autoscaler":
-				replacedCollector = collector.NewVerticalPodAutoscalerCollector(
-					r.DynamicClient,
-					newConfig.TargetNamespaces,
-					newConfig.ExcludedVPAs,
-					collector.DefaultMaxBatchSize,
-					collector.DefaultMaxBatchTime,
-					logger,
-					r.TelemetryLogger,
-				)
-			case "role":
-				replacedCollector = collector.NewRoleCollector(
-					r.K8sClient,
-					newConfig.TargetNamespaces,
-					newConfig.ExcludedRoles,
-					collector.DefaultMaxBatchSize,
-					collector.DefaultMaxBatchTime,
-					logger,
-					r.TelemetryLogger,
-				)
-			case "role_binding":
-				replacedCollector = collector.NewRoleBindingCollector(
-					r.K8sClient,
-					newConfig.TargetNamespaces,
-					newConfig.ExcludedRoleBindings,
-					collector.DefaultMaxBatchSize,
-					collector.DefaultMaxBatchTime,
-					logger,
-					r.TelemetryLogger,
-				)
-			case "pod_disruption_budget":
-				replacedCollector = collector.NewPodDisruptionBudgetCollector(
-					r.K8sClient,
-					newConfig.TargetNamespaces,
-					newConfig.ExcludedPDBs,
-					collector.DefaultMaxBatchSize,
-					collector.DefaultMaxBatchTime,
-					logger,
-					r.TelemetryLogger,
-				)
-			case "datadog":
-				replacedCollector = collector.NewDatadogCollector(
-					r.DynamicClient,
-					newConfig.TargetNamespaces,
-					newConfig.ExcludedDatadogReplicaSets,
-					collector.DefaultMaxBatchSize,
-					collector.DefaultMaxBatchTime,
-					logger,
-					r.TelemetryLogger,
-				)
-			case "argo_rollouts":
-				replacedCollector = collector.NewArgoRolloutsCollector(
-					r.DynamicClient,
-					newConfig.TargetNamespaces,
-					newConfig.ExcludedArgoRollouts,
-					collector.DefaultMaxBatchSize,
-					collector.DefaultMaxBatchTime,
-					logger,
-					r.TelemetryLogger,
-				)
-			//////////////////////////////////////////////////////////////////////////////////
-			/// Cluster wide resources
-			//////////////////////////////////////////////////////////////////////////////////
-			case "node":
-				// Use the reconciler's shared Prometheus metrics instance
-
-				replacedCollector = collector.NewNodeCollector(
-					r.K8sClient,
-					metricsClient,
-					collector.NodeCollectorConfig{
-						PrometheusURL:           newConfig.PrometheusURL,
-						UpdateInterval:          newConfig.UpdateInterval,
-						QueryTimeout:            10 * time.Second,
-						DisableNetworkIOMetrics: newConfig.DisableNetworkIOMetrics,
-						DisableGPUMetrics:       newConfig.DisableGPUMetrics,
-					},
-					newConfig.ExcludedNodes,
-					collector.DefaultMaxBatchSize,
-					newConfig.UpdateInterval,
-					logger,
-					r.TelemetryMetrics,
-					r.TelemetryLogger,
-				)
-			case "persistent_volume":
-				replacedCollector = collector.NewPersistentVolumeCollector(
-					r.K8sClient,
-					newConfig.ExcludedPVs,
-					collector.DefaultMaxBatchSize,
-					collector.DefaultMaxBatchTime,
-					logger,
-					r.TelemetryLogger,
-				)
-			case "ingress_class":
-				replacedCollector = collector.NewIngressClassCollector(
-					r.K8sClient,
-					newConfig.ExcludedIngressClasses,
-					collector.DefaultMaxBatchSize,
-					collector.DefaultMaxBatchTime,
-					logger,
-					r.TelemetryLogger,
-				)
-			case "cluster_role":
-				replacedCollector = collector.NewClusterRoleCollector(
-					r.K8sClient,
-					newConfig.ExcludedClusterRoles,
-					collector.DefaultMaxBatchSize,
-					collector.DefaultMaxBatchTime,
-					logger,
-					r.TelemetryLogger,
-				)
-			case "cluster_role_binding":
-				replacedCollector = collector.NewClusterRoleBindingCollector(
-					r.K8sClient,
-					newConfig.ExcludedClusterRoleBindings,
-					collector.DefaultMaxBatchSize,
-					collector.DefaultMaxBatchTime,
-					logger,
-					r.TelemetryLogger,
-				)
-			case "storage_class":
-				replacedCollector = collector.NewStorageClassCollector(
-					r.K8sClient,
-					newConfig.ExcludedStorageClasses,
-					collector.DefaultMaxBatchSize,
-					collector.DefaultMaxBatchTime,
-					logger,
-					r.TelemetryLogger,
-				)
-			case "namespace":
-				replacedCollector = collector.NewNamespaceCollector(
-					r.K8sClient,
-					newConfig.ExcludedNamespaces,
-					collector.DefaultMaxBatchSize,
-					collector.DefaultMaxBatchTime,
-					logger,
-					r.TelemetryLogger,
-				)
-			case "csi_node":
-				replacedCollector = collector.NewCSINodeCollector(
-					r.K8sClient,
-					newConfig.ExcludedCSINodes,
-					collector.DefaultMaxBatchSize,
-					collector.DefaultMaxBatchTime,
-					logger,
-					r.TelemetryLogger,
-				)
-			case "karpenter":
-				replacedCollector = collector.NewKarpenterCollector(
-					r.DynamicClient,
-					collector.DefaultMaxBatchSize,
-					collector.DefaultMaxBatchTime,
-					logger,
-					r.TelemetryLogger,
-				)
-			case "custom_resource_definition":
-				replacedCollector = collector.NewCRDCollector(
-					r.ApiExtensions,
-					collector.DefaultMaxBatchSize,
-					collector.DefaultMaxBatchTime,
-					logger,
-					r.TelemetryLogger,
-				)
-			case "keda_scaled_job":
-				replacedCollector = collector.NewScaledJobCollector(
-					r.KEDAClient,
-					newConfig.TargetNamespaces,
-					newConfig.ExcludedKedaScaledJobs,
-					collector.DefaultMaxBatchSize,
-					collector.DefaultMaxBatchTime,
-					logger,
-					r.TelemetryLogger,
-				)
-			case "keda_scaled_object":
-				replacedCollector = collector.NewScaledObjectCollector(
-					r.KEDAClient,
-					newConfig.TargetNamespaces,
-					newConfig.ExcludedKedaScaledObjects,
-					collector.DefaultMaxBatchSize,
-					collector.DefaultMaxBatchTime,
-					logger,
-					r.TelemetryLogger,
-				)
-			case "cluster_snapshot":
-				replacedCollector = snap.NewClusterSnapshotter(
-					r.K8sClient,
-					r.KEDAClient,
-					newConfig.ClusterSnapshotInterval,
-					r.Sender,
-					r.CollectionManager,
-					newConfig.TargetNamespaces,
-					newConfig.ExcludedPods,
-					newConfig.ExcludedNodes,
-					logger,
-				)
-			case "csi_driver":
-				replacedCollector = collector.NewCSIDriverCollector(
-					r.K8sClient,
-					newConfig.ExcludedCSIDrivers,
-					collector.DefaultMaxBatchSize,
-					collector.DefaultMaxBatchTime,
-					logger,
-					r.TelemetryLogger,
-				)
-			case "csi_storage_capacity":
-				replacedCollector = collector.NewCSIStorageCapacityCollector(
-					r.K8sClient,
-					newConfig.TargetNamespaces,
-					newConfig.ExcludedCSIStorageCapacities,
-					collector.DefaultMaxBatchSize,
-					collector.DefaultMaxBatchTime,
-					logger,
-					r.TelemetryLogger,
-				)
-			case "volume_attachment":
-				replacedCollector = collector.NewVolumeAttachmentCollector(
-					r.K8sClient,
-					newConfig.ExcludedVolumeAttachments,
-					collector.DefaultMaxBatchSize,
-					collector.DefaultMaxBatchTime,
-					logger,
-					r.TelemetryLogger,
-				)
-			case "kubeflow_notebook":
-				replacedCollector = collector.NewKubeflowNotebookCollector(
-					r.DynamicClient,
-					newConfig.TargetNamespaces,
-					newConfig.ExcludedKubeflowNotebooks,
-					collector.DefaultMaxBatchSize,
-					collector.DefaultMaxBatchTime,
-					logger,
-					r.TelemetryLogger,
-				)
-			case "volcano_job":
-				replacedCollector = collector.NewVolcanoJobCollector(
-					r.DynamicClient,
-					newConfig.TargetNamespaces,
-					newConfig.ExcludedVolcanoJobs,
-					collector.DefaultMaxBatchSize,
-					collector.DefaultMaxBatchTime,
-					logger,
-					r.TelemetryLogger,
-				)
-			default:
+			// Create the collector using the unified createCollectorByType method
+			replacedCollector := r.createCollectorByType(collectorType, newConfig, logger, metricsClient)
+			if replacedCollector == nil {
 				logger.Info("Unknown collector type, skipping", "type", collectorType)
 				continue
 			}
@@ -3388,6 +2527,627 @@ func (r *CollectionPolicyReconciler) waitForPrometheusAvailability(ctx context.C
 		},
 	)
 	return false
+}
+
+// checkCollectorAvailabilityChanges checks for collectors that have become
+// available or unavailable since the last check, and starts/stops them accordingly.
+// This handles the case where resources (including CRDs like Volcano, Argo Rollouts, KEDA, Kubeflow, etc.)
+// become available or unavailable after zxporter has started.
+func (r *CollectionPolicyReconciler) checkCollectorAvailabilityChanges(
+	ctx context.Context,
+	logger logr.Logger,
+	config *PolicyConfig,
+) error {
+	if r.UnavailableCollectors == nil {
+		r.UnavailableCollectors = make(map[string]bool)
+	}
+
+	allResourceTypes := collector.AllResourceTypes()
+
+	// Get currently running collectors
+	runningCollectors := make(map[string]bool)
+	for _, collectorType := range r.CollectionManager.GetCollectorTypes() {
+		runningCollectors[collectorType] = true
+	}
+
+	disabledCollectorsMap := make(map[string]bool)
+	for _, collectorType := range config.DisabledCollectors {
+		disabledCollectorsMap[collectorType] = true
+	}
+
+	clientConfig := ctrl.GetConfigOrDie()
+	metricsClient, err := metricsv1.NewForConfig(clientConfig)
+	if err != nil {
+		logger.Error(err, "Failed to create metrics client for collector availability check")
+	}
+
+	collectorsStarted := 0
+	collectorsStopped := 0
+
+	for _, resourceType := range allResourceTypes {
+		collectorType := resourceType.String()
+		if disabledCollectorsMap[collectorType] {
+			continue
+		}
+
+		tempCollector := r.createCollectorByType(collectorType, config, logger, metricsClient)
+		if tempCollector == nil {
+			continue
+		}
+
+		isAvailable := tempCollector.IsAvailable(ctx)
+		isRunning := runningCollectors[collectorType]
+		wasUnavailable := r.UnavailableCollectors[collectorType]
+
+		// Case 1: Collector is now available but was previously unavailable (resource became available)
+		if isAvailable && wasUnavailable && !isRunning {
+			logger.Info("Collector resource became available, starting collector",
+				"type", collectorType,
+				"event", "collector_became_available")
+
+			r.TelemetryLogger.Report(
+				gen.LogLevel_LOG_LEVEL_INFO,
+				"CollectionPolicyReconciler_checkCollectorAvailabilityChanges",
+				"Collector resource became available, starting collector",
+				nil,
+				map[string]string{
+					"collector_type":   collectorType,
+					"event_type":       "collector_became_available",
+					"zxporter_version": version.Get().String(),
+				},
+			)
+
+			// Register and start the collector
+			if err := r.CollectionManager.RegisterCollector(tempCollector); err != nil {
+				logger.Error(err, "Failed to register newly available collector", "type", collectorType)
+				r.TelemetryLogger.Report(
+					gen.LogLevel_LOG_LEVEL_ERROR,
+					"CollectionPolicyReconciler_checkCollectorAvailabilityChanges",
+					"Failed to register newly available collector",
+					err,
+					map[string]string{
+						"collector_type":   collectorType,
+						"error_type":       "collector_registration_failed",
+						"zxporter_version": version.Get().String(),
+					},
+				)
+				continue
+			}
+
+			if err := r.CollectionManager.StartCollector(ctx, collectorType); err != nil {
+				logger.Error(err, "Failed to start newly available collector", "type", collectorType)
+				r.TelemetryLogger.Report(
+					gen.LogLevel_LOG_LEVEL_ERROR,
+					"CollectionPolicyReconciler_checkCollectorAvailabilityChanges",
+					"Failed to start newly available collector",
+					err,
+					map[string]string{
+						"collector_type":   collectorType,
+						"error_type":       "collector_start_failed",
+						"zxporter_version": version.Get().String(),
+					},
+				)
+				// Deregister on failure
+				r.CollectionManager.DeregisterCollector(collectorType)
+				continue
+			}
+
+			delete(r.UnavailableCollectors, collectorType)
+			collectorsStarted++
+
+			logger.Info("Successfully started previously unavailable collector",
+				"type", collectorType,
+				"event", "collector_started_after_available")
+
+			r.TelemetryLogger.Report(
+				gen.LogLevel_LOG_LEVEL_INFO,
+				"CollectionPolicyReconciler_checkCollectorAvailabilityChanges",
+				"Successfully started previously unavailable collector",
+				nil,
+				map[string]string{
+					"collector_type":   collectorType,
+					"event_type":       "collector_started_after_available",
+					"zxporter_version": version.Get().String(),
+				},
+			)
+		}
+
+		// Case 2: Collector is not available and not running - track it for future checks
+		if !isAvailable && !isRunning {
+			if !wasUnavailable {
+				logger.V(1).Info("Tracking unavailable collector for future availability checks",
+					"type", collectorType)
+			}
+			r.UnavailableCollectors[collectorType] = true
+		}
+
+		// Case 3: Collector was running but resource is no longer available (resource was removed)
+		if !isAvailable && isRunning {
+			logger.Info("Collector resource no longer available, stopping collector",
+				"type", collectorType,
+				"event", "collector_became_unavailable")
+
+			r.TelemetryLogger.Report(
+				gen.LogLevel_LOG_LEVEL_WARN,
+				"CollectionPolicyReconciler_checkCollectorAvailabilityChanges",
+				"Collector resource no longer available, stopping collector",
+				nil,
+				map[string]string{
+					"collector_type":   collectorType,
+					"event_type":       "collector_became_unavailable",
+					"zxporter_version": version.Get().String(),
+				},
+			)
+
+			if err := r.CollectionManager.DeregisterCollector(collectorType); err != nil {
+				logger.Error(err, "Failed to deregister collector after resource became unavailable", "type", collectorType)
+			} else {
+				// Add to unavailable list for future re-checking
+				r.UnavailableCollectors[collectorType] = true
+				collectorsStopped++
+			}
+		}
+	}
+
+	if collectorsStarted > 0 || collectorsStopped > 0 {
+		logger.Info("Collector availability check completed",
+			"started", collectorsStarted,
+			"stopped", collectorsStopped,
+			"unavailable", len(r.UnavailableCollectors))
+	}
+
+	return nil
+}
+
+// createCollectorByType creates a collector instance based on its type name
+func (r *CollectionPolicyReconciler) createCollectorByType(
+	collectorType string,
+	config *PolicyConfig,
+	logger logr.Logger,
+	metricsClient *metricsv1.Clientset,
+) collector.ResourceCollector {
+	switch collectorType {
+	case "endpoints":
+		return collector.NewEndpointCollector(
+			r.K8sClient,
+			config.TargetNamespaces,
+			config.ExcludedEndpoints,
+			collector.DefaultMaxBatchSize,
+			collector.DefaultMaxBatchTime,
+			logger,
+			r.TelemetryLogger,
+		)
+	case "service_account":
+		return collector.NewServiceAccountCollector(
+			r.K8sClient,
+			config.TargetNamespaces,
+			config.ExcludedServiceAccounts,
+			collector.DefaultMaxBatchSize,
+			collector.DefaultMaxBatchTime,
+			logger,
+			r.TelemetryLogger,
+		)
+	case "limit_range":
+		return collector.NewLimitRangeCollector(
+			r.K8sClient,
+			config.TargetNamespaces,
+			config.ExcludedLimitRanges,
+			collector.DefaultMaxBatchSize,
+			collector.DefaultMaxBatchTime,
+			logger,
+			r.TelemetryLogger,
+		)
+	case "resource_quota":
+		return collector.NewResourceQuotaCollector(
+			r.K8sClient,
+			config.TargetNamespaces,
+			config.ExcludedResourceQuotas,
+			collector.DefaultMaxBatchSize,
+			collector.DefaultMaxBatchTime,
+			logger,
+			r.TelemetryLogger,
+		)
+	case "persistent_volume":
+		return collector.NewPersistentVolumeCollector(
+			r.K8sClient,
+			config.ExcludedPVs,
+			collector.DefaultMaxBatchSize,
+			collector.DefaultMaxBatchTime,
+			logger,
+			r.TelemetryLogger,
+		)
+	case "pod":
+		return collector.NewPodCollector(
+			r.K8sClient,
+			config.TargetNamespaces,
+			config.ExcludedPods,
+			collector.DefaultMaxBatchSize,
+			collector.DefaultMaxBatchTime,
+			logger,
+			r.TelemetryLogger,
+		)
+	case "deployment":
+		return collector.NewDeploymentCollector(
+			r.K8sClient,
+			config.TargetNamespaces,
+			config.ExcludedDeployments,
+			collector.DefaultMaxBatchSize,
+			collector.DefaultMaxBatchTime,
+			logger,
+			r.TelemetryLogger,
+		)
+	case "stateful_set":
+		return collector.NewStatefulSetCollector(
+			r.K8sClient,
+			config.TargetNamespaces,
+			config.ExcludedStatefulSets,
+			collector.DefaultMaxBatchSize,
+			collector.DefaultMaxBatchTime,
+			logger,
+			r.TelemetryLogger,
+		)
+	case "daemon_set":
+		return collector.NewDaemonSetCollector(
+			r.K8sClient,
+			config.TargetNamespaces,
+			config.ExcludedDaemonSets,
+			collector.DefaultMaxBatchSize,
+			collector.DefaultMaxBatchTime,
+			logger,
+			r.TelemetryLogger,
+		)
+	case "namespace":
+		return collector.NewNamespaceCollector(
+			r.K8sClient,
+			config.ExcludedNamespaces,
+			collector.DefaultMaxBatchSize,
+			collector.DefaultMaxBatchTime,
+			logger,
+			r.TelemetryLogger,
+		)
+	case "replication_controller":
+		return collector.NewReplicationControllerCollector(
+			r.K8sClient,
+			config.TargetNamespaces,
+			config.ExcludedReplicationControllers,
+			collector.DefaultMaxBatchSize,
+			collector.DefaultMaxBatchTime,
+			logger,
+			r.TelemetryLogger,
+		)
+	case "ingress":
+		return collector.NewIngressCollector(
+			r.K8sClient,
+			config.TargetNamespaces,
+			config.ExcludedIngresses,
+			collector.DefaultMaxBatchSize,
+			collector.DefaultMaxBatchTime,
+			logger,
+			r.TelemetryLogger,
+		)
+	case "ingress_class":
+		return collector.NewIngressClassCollector(
+			r.K8sClient,
+			config.ExcludedIngressClasses,
+			collector.DefaultMaxBatchSize,
+			collector.DefaultMaxBatchTime,
+			logger,
+			r.TelemetryLogger,
+		)
+	case "persistent_volume_claim":
+		return collector.NewPersistentVolumeClaimCollector(
+			r.K8sClient,
+			config.TargetNamespaces,
+			config.ExcludedPVCs,
+			collector.DefaultMaxBatchSize,
+			collector.DefaultMaxBatchTime,
+			logger,
+			r.TelemetryLogger,
+		)
+	case "event":
+		return collector.NewEventCollector(
+			r.K8sClient,
+			config.TargetNamespaces,
+			config.ExcludedEvents,
+			10,
+			10*time.Minute,
+			400,
+			collector.DefaultMaxBatchTime,
+			logger,
+			r.TelemetryLogger,
+		)
+	case "service":
+		return collector.NewServiceCollector(
+			r.K8sClient,
+			config.TargetNamespaces,
+			config.ExcludedServices,
+			collector.DefaultMaxBatchSize,
+			collector.DefaultMaxBatchTime,
+			logger,
+			r.TelemetryLogger,
+		)
+	case "job":
+		return collector.NewJobCollector(
+			r.K8sClient,
+			config.TargetNamespaces,
+			config.ExcludedJobs,
+			collector.DefaultMaxBatchSize,
+			collector.DefaultMaxBatchTime,
+			logger,
+			r.TelemetryLogger,
+		)
+	case "network_policy":
+		return collector.NewNetworkPolicyCollector(
+			r.K8sClient,
+			config.TargetNamespaces,
+			config.ExcludedNetworkPolicies,
+			collector.DefaultMaxBatchSize,
+			collector.DefaultMaxBatchTime,
+			logger,
+			r.TelemetryLogger,
+		)
+	case "cron_job":
+		return collector.NewCronJobCollector(
+			r.K8sClient,
+			config.TargetNamespaces,
+			config.ExcludedCronJobs,
+			collector.DefaultMaxBatchSize,
+			collector.DefaultMaxBatchTime,
+			logger,
+			r.TelemetryLogger,
+		)
+	case "container_resource":
+		return collector.NewContainerResourceCollector(
+			r.K8sClient,
+			metricsClient,
+			collector.ContainerResourceCollectorConfig{
+				PrometheusURL:           config.PrometheusURL,
+				UpdateInterval:          config.UpdateInterval,
+				QueryTimeout:            10 * time.Second,
+				DisableNetworkIOMetrics: config.DisableNetworkIOMetrics,
+				DisableGPUMetrics:       config.DisableGPUMetrics,
+			},
+			config.TargetNamespaces,
+			config.ExcludedPods,
+			collector.DefaultMaxBatchSize,
+			config.UpdateInterval,
+			logger,
+			r.TelemetryMetrics,
+			r.TelemetryLogger,
+		)
+	case "node":
+		return collector.NewNodeCollector(
+			r.K8sClient,
+			metricsClient,
+			collector.NodeCollectorConfig{
+				PrometheusURL:           config.PrometheusURL,
+				UpdateInterval:          config.UpdateInterval,
+				QueryTimeout:            10 * time.Second,
+				DisableNetworkIOMetrics: config.DisableNetworkIOMetrics,
+				DisableGPUMetrics:       config.DisableGPUMetrics,
+			},
+			config.ExcludedNodes,
+			collector.DefaultMaxBatchSize,
+			config.UpdateInterval,
+			logger,
+			r.TelemetryMetrics,
+			r.TelemetryLogger,
+		)
+	case "role":
+		return collector.NewRoleCollector(
+			r.K8sClient,
+			config.TargetNamespaces,
+			config.ExcludedRoles,
+			collector.DefaultMaxBatchSize,
+			collector.DefaultMaxBatchTime,
+			logger,
+			r.TelemetryLogger,
+		)
+	case "role_binding":
+		return collector.NewRoleBindingCollector(
+			r.K8sClient,
+			config.TargetNamespaces,
+			config.ExcludedRoleBindings,
+			collector.DefaultMaxBatchSize,
+			collector.DefaultMaxBatchTime,
+			logger,
+			r.TelemetryLogger,
+		)
+	case "cluster_role":
+		return collector.NewClusterRoleCollector(
+			r.K8sClient,
+			config.ExcludedClusterRoles,
+			collector.DefaultMaxBatchSize,
+			collector.DefaultMaxBatchTime,
+			logger,
+			r.TelemetryLogger,
+		)
+	case "cluster_role_binding":
+		return collector.NewClusterRoleBindingCollector(
+			r.K8sClient,
+			config.ExcludedClusterRoleBindings,
+			collector.DefaultMaxBatchSize,
+			collector.DefaultMaxBatchTime,
+			logger,
+			r.TelemetryLogger,
+		)
+	case "horizontal_pod_autoscaler":
+		return collector.NewHorizontalPodAutoscalerCollector(
+			r.K8sClient,
+			config.TargetNamespaces,
+			config.ExcludedHPAs,
+			collector.DefaultMaxBatchSize,
+			collector.DefaultMaxBatchTime,
+			logger,
+			r.TelemetryLogger,
+		)
+	case "vertical_pod_autoscaler":
+		return collector.NewVerticalPodAutoscalerCollector(
+			r.DynamicClient,
+			config.TargetNamespaces,
+			config.ExcludedVPAs,
+			collector.DefaultMaxBatchSize,
+			collector.DefaultMaxBatchTime,
+			logger,
+			r.TelemetryLogger,
+		)
+	case "pod_disruption_budget":
+		return collector.NewPodDisruptionBudgetCollector(
+			r.K8sClient,
+			config.TargetNamespaces,
+			config.ExcludedPDBs,
+			collector.DefaultMaxBatchSize,
+			collector.DefaultMaxBatchTime,
+			logger,
+			r.TelemetryLogger,
+		)
+	case "storage_class":
+		return collector.NewStorageClassCollector(
+			r.K8sClient,
+			config.ExcludedStorageClasses,
+			collector.DefaultMaxBatchSize,
+			collector.DefaultMaxBatchTime,
+			logger,
+			r.TelemetryLogger,
+		)
+	case "replica_set":
+		return collector.NewReplicaSetCollector(
+			r.K8sClient,
+			config.TargetNamespaces,
+			config.ExcludedReplicaSet,
+			collector.DefaultMaxBatchSize,
+			collector.DefaultMaxBatchTime,
+			logger,
+			r.TelemetryLogger,
+		)
+	case "csi_node":
+		return collector.NewCSINodeCollector(
+			r.K8sClient,
+			config.ExcludedCSINodes,
+			collector.DefaultMaxBatchSize,
+			collector.DefaultMaxBatchTime,
+			logger,
+			r.TelemetryLogger,
+		)
+	case "karpenter":
+		return collector.NewKarpenterCollector(
+			r.DynamicClient,
+			collector.DefaultMaxBatchSize,
+			collector.DefaultMaxBatchTime,
+			logger,
+			r.TelemetryLogger,
+		)
+	case "datadog":
+		return collector.NewDatadogCollector(
+			r.DynamicClient,
+			config.TargetNamespaces,
+			config.ExcludedDatadogReplicaSets,
+			collector.DefaultMaxBatchSize,
+			collector.DefaultMaxBatchTime,
+			logger,
+			r.TelemetryLogger,
+		)
+	case "argo_rollouts":
+		return collector.NewArgoRolloutsCollector(
+			r.DynamicClient,
+			config.TargetNamespaces,
+			config.ExcludedArgoRollouts,
+			collector.DefaultMaxBatchSize,
+			collector.DefaultMaxBatchTime,
+			logger,
+			r.TelemetryLogger,
+		)
+	case "custom_resource_definition":
+		return collector.NewCRDCollector(
+			r.ApiExtensions,
+			collector.DefaultMaxBatchSize,
+			collector.DefaultMaxBatchTime,
+			logger,
+			r.TelemetryLogger,
+		)
+	case "keda_scaled_job":
+		return collector.NewScaledJobCollector(
+			r.KEDAClient,
+			config.TargetNamespaces,
+			config.ExcludedKedaScaledJobs,
+			collector.DefaultMaxBatchSize,
+			collector.DefaultMaxBatchTime,
+			logger,
+			r.TelemetryLogger,
+		)
+	case "keda_scaled_object":
+		return collector.NewScaledObjectCollector(
+			r.KEDAClient,
+			config.TargetNamespaces,
+			config.ExcludedKedaScaledObjects,
+			collector.DefaultMaxBatchSize,
+			collector.DefaultMaxBatchTime,
+			logger,
+			r.TelemetryLogger,
+		)
+	case "cluster_snapshot":
+		return snap.NewClusterSnapshotter(
+			r.K8sClient,
+			r.KEDAClient,
+			config.ClusterSnapshotInterval,
+			r.Sender,
+			r.CollectionManager,
+			config.TargetNamespaces,
+			config.ExcludedPods,
+			config.ExcludedNodes,
+			logger,
+		)
+	case "csi_driver":
+		return collector.NewCSIDriverCollector(
+			r.K8sClient,
+			config.ExcludedCSIDrivers,
+			collector.DefaultMaxBatchSize,
+			collector.DefaultMaxBatchTime,
+			logger,
+			r.TelemetryLogger,
+		)
+	case "csi_storage_capacity":
+		return collector.NewCSIStorageCapacityCollector(
+			r.K8sClient,
+			config.TargetNamespaces,
+			config.ExcludedCSIStorageCapacities,
+			collector.DefaultMaxBatchSize,
+			collector.DefaultMaxBatchTime,
+			logger,
+			r.TelemetryLogger,
+		)
+	case "volume_attachment":
+		return collector.NewVolumeAttachmentCollector(
+			r.K8sClient,
+			config.ExcludedVolumeAttachments,
+			collector.DefaultMaxBatchSize,
+			collector.DefaultMaxBatchTime,
+			logger,
+			r.TelemetryLogger,
+		)
+	case "kubeflow_notebook":
+		return collector.NewKubeflowNotebookCollector(
+			r.DynamicClient,
+			config.TargetNamespaces,
+			config.ExcludedKubeflowNotebooks,
+			collector.DefaultMaxBatchSize,
+			collector.DefaultMaxBatchTime,
+			logger,
+			r.TelemetryLogger,
+		)
+	case "volcano_job":
+		return collector.NewVolcanoJobCollector(
+			r.DynamicClient,
+			config.TargetNamespaces,
+			config.ExcludedVolcanoJobs,
+			collector.DefaultMaxBatchSize,
+			collector.DefaultMaxBatchTime,
+			logger,
+			r.TelemetryLogger,
+		)
+	default:
+		return nil
+	}
 }
 
 // SetupWithManager sets up the controller with the Manager.
