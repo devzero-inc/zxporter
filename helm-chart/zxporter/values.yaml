@@ -13,7 +13,7 @@ namespace: devzero-zxporter
 image:
   repository: docker.io/devzeroinc/zxporter
   pullPolicy: IfNotPresent
-  tag: "v0.0.49"
+  tag: "v0.0.51"
 
 # ZXPorter configuration
 zxporter:
@@ -48,6 +48,11 @@ zxporter:
   # Set to true to store CLUSTER_TOKEN and PAT_TOKEN in Kubernetes Secrets instead of ConfigMap
   # Default is false for backward compatibility
   useSecretForToken: false
+
+  # Log level for the zxporter application
+  # Valid values: debug, info, warn, error
+  # Default: warn
+  logLevel: "warn"
 
   # Resource names for token storage (configurable for different environments)
   # Input credentials Secret: Contains initial PAT/CLUSTER tokens (user-managed)
