@@ -42,6 +42,9 @@ const (
 	// ClusterServiceCreateClusterTokenProcedure is the fully-qualified name of the ClusterService's
 	// CreateClusterToken RPC.
 	ClusterServiceCreateClusterTokenProcedure = "/api.v1.ClusterService/CreateClusterToken"
+	// ClusterServiceGetNetworkDependenciesProcedure is the fully-qualified name of the ClusterService's
+	// GetNetworkDependencies RPC.
+	ClusterServiceGetNetworkDependenciesProcedure = "/api.v1.ClusterService/GetNetworkDependencies"
 )
 
 // ClusterServiceClient is a client for the api.v1.ClusterService service.
@@ -52,6 +55,8 @@ type ClusterServiceClient interface {
 	GetClustersWithMetrics(context.Context, *connect.Request[v1.GetClustersWithMetricsRequest]) (*connect.Response[v1.GetClustersWithMetricsResponse], error)
 	// CreateClusterToken creates a new cluster registration with authentication token
 	CreateClusterToken(context.Context, *connect.Request[v1.CreateClusterTokenRequest]) (*connect.Response[v1.CreateClusterTokenResponse], error)
+	// GetNetworkDependencies returns workload-level network dependencies for visualization
+	GetNetworkDependencies(context.Context, *connect.Request[v1.GetNetworkDependenciesRequest]) (*connect.Response[v1.GetNetworkDependenciesResponse], error)
 }
 
 // NewClusterServiceClient constructs a client for the api.v1.ClusterService service. By default, it
@@ -79,6 +84,11 @@ func NewClusterServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			baseURL+ClusterServiceCreateClusterTokenProcedure,
 			opts...,
 		),
+		getNetworkDependencies: connect.NewClient[v1.GetNetworkDependenciesRequest, v1.GetNetworkDependenciesResponse](
+			httpClient,
+			baseURL+ClusterServiceGetNetworkDependenciesProcedure,
+			opts...,
+		),
 	}
 }
 
@@ -87,6 +97,7 @@ type clusterServiceClient struct {
 	getClustersBasicInfo   *connect.Client[v1.GetClustersBasicInfoRequest, v1.GetClustersBasicInfoResponse]
 	getClustersWithMetrics *connect.Client[v1.GetClustersWithMetricsRequest, v1.GetClustersWithMetricsResponse]
 	createClusterToken     *connect.Client[v1.CreateClusterTokenRequest, v1.CreateClusterTokenResponse]
+	getNetworkDependencies *connect.Client[v1.GetNetworkDependenciesRequest, v1.GetNetworkDependenciesResponse]
 }
 
 // GetClustersBasicInfo calls api.v1.ClusterService.GetClustersBasicInfo.
@@ -104,6 +115,11 @@ func (c *clusterServiceClient) CreateClusterToken(ctx context.Context, req *conn
 	return c.createClusterToken.CallUnary(ctx, req)
 }
 
+// GetNetworkDependencies calls api.v1.ClusterService.GetNetworkDependencies.
+func (c *clusterServiceClient) GetNetworkDependencies(ctx context.Context, req *connect.Request[v1.GetNetworkDependenciesRequest]) (*connect.Response[v1.GetNetworkDependenciesResponse], error) {
+	return c.getNetworkDependencies.CallUnary(ctx, req)
+}
+
 // ClusterServiceHandler is an implementation of the api.v1.ClusterService service.
 type ClusterServiceHandler interface {
 	// GetClustersBasicInfo retrieves basic information for all clusters in a team
@@ -112,6 +128,8 @@ type ClusterServiceHandler interface {
 	GetClustersWithMetrics(context.Context, *connect.Request[v1.GetClustersWithMetricsRequest]) (*connect.Response[v1.GetClustersWithMetricsResponse], error)
 	// CreateClusterToken creates a new cluster registration with authentication token
 	CreateClusterToken(context.Context, *connect.Request[v1.CreateClusterTokenRequest]) (*connect.Response[v1.CreateClusterTokenResponse], error)
+	// GetNetworkDependencies returns workload-level network dependencies for visualization
+	GetNetworkDependencies(context.Context, *connect.Request[v1.GetNetworkDependenciesRequest]) (*connect.Response[v1.GetNetworkDependenciesResponse], error)
 }
 
 // NewClusterServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -135,6 +153,11 @@ func NewClusterServiceHandler(svc ClusterServiceHandler, opts ...connect.Handler
 		svc.CreateClusterToken,
 		opts...,
 	)
+	clusterServiceGetNetworkDependenciesHandler := connect.NewUnaryHandler(
+		ClusterServiceGetNetworkDependenciesProcedure,
+		svc.GetNetworkDependencies,
+		opts...,
+	)
 	return "/api.v1.ClusterService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case ClusterServiceGetClustersBasicInfoProcedure:
@@ -143,6 +166,8 @@ func NewClusterServiceHandler(svc ClusterServiceHandler, opts ...connect.Handler
 			clusterServiceGetClustersWithMetricsHandler.ServeHTTP(w, r)
 		case ClusterServiceCreateClusterTokenProcedure:
 			clusterServiceCreateClusterTokenHandler.ServeHTTP(w, r)
+		case ClusterServiceGetNetworkDependenciesProcedure:
+			clusterServiceGetNetworkDependenciesHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -162,4 +187,8 @@ func (UnimplementedClusterServiceHandler) GetClustersWithMetrics(context.Context
 
 func (UnimplementedClusterServiceHandler) CreateClusterToken(context.Context, *connect.Request[v1.CreateClusterTokenRequest]) (*connect.Response[v1.CreateClusterTokenResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.ClusterService.CreateClusterToken is not implemented"))
+}
+
+func (UnimplementedClusterServiceHandler) GetNetworkDependencies(context.Context, *connect.Request[v1.GetNetworkDependenciesRequest]) (*connect.Response[v1.GetNetworkDependenciesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.ClusterService.GetNetworkDependencies is not implemented"))
 }

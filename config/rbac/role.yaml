@@ -305,3 +305,12 @@ rules:
   - get
   - list
   - watch
+- apiGroups:
+  - sparkoperator.k8s.io
+  resources:
+  - sparkapplications
+  - scheduledsparkapplications
+  verbs:
+  - get
+  - list
+  - watch

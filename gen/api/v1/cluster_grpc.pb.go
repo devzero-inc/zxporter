@@ -22,6 +22,7 @@ const (
 	ClusterService_GetClustersBasicInfo_FullMethodName   = "/api.v1.ClusterService/GetClustersBasicInfo"
 	ClusterService_GetClustersWithMetrics_FullMethodName = "/api.v1.ClusterService/GetClustersWithMetrics"
 	ClusterService_CreateClusterToken_FullMethodName     = "/api.v1.ClusterService/CreateClusterToken"
+	ClusterService_GetNetworkDependencies_FullMethodName = "/api.v1.ClusterService/GetNetworkDependencies"
 )
 
 // ClusterServiceClient is the client API for ClusterService service.
@@ -34,6 +35,8 @@ type ClusterServiceClient interface {
 	GetClustersWithMetrics(ctx context.Context, in *GetClustersWithMetricsRequest, opts ...grpc.CallOption) (*GetClustersWithMetricsResponse, error)
 	// CreateClusterToken creates a new cluster registration with authentication token
 	CreateClusterToken(ctx context.Context, in *CreateClusterTokenRequest, opts ...grpc.CallOption) (*CreateClusterTokenResponse, error)
+	// GetNetworkDependencies returns workload-level network dependencies for visualization
+	GetNetworkDependencies(ctx context.Context, in *GetNetworkDependenciesRequest, opts ...grpc.CallOption) (*GetNetworkDependenciesResponse, error)
 }
 
 type clusterServiceClient struct {
@@ -71,6 +74,15 @@ func (c *clusterServiceClient) CreateClusterToken(ctx context.Context, in *Creat
 	return out, nil
 }
 
+func (c *clusterServiceClient) GetNetworkDependencies(ctx context.Context, in *GetNetworkDependenciesRequest, opts ...grpc.CallOption) (*GetNetworkDependenciesResponse, error) {
+	out := new(GetNetworkDependenciesResponse)
+	err := c.cc.Invoke(ctx, ClusterService_GetNetworkDependencies_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ClusterServiceServer is the server API for ClusterService service.
 // All implementations must embed UnimplementedClusterServiceServer
 // for forward compatibility
@@ -81,6 +93,8 @@ type ClusterServiceServer interface {
 	GetClustersWithMetrics(context.Context, *GetClustersWithMetricsRequest) (*GetClustersWithMetricsResponse, error)
 	// CreateClusterToken creates a new cluster registration with authentication token
 	CreateClusterToken(context.Context, *CreateClusterTokenRequest) (*CreateClusterTokenResponse, error)
+	// GetNetworkDependencies returns workload-level network dependencies for visualization
+	GetNetworkDependencies(context.Context, *GetNetworkDependenciesRequest) (*GetNetworkDependenciesResponse, error)
 	mustEmbedUnimplementedClusterServiceServer()
 }
 
@@ -96,6 +110,9 @@ func (UnimplementedClusterServiceServer) GetClustersWithMetrics(context.Context,
 }
 func (UnimplementedClusterServiceServer) CreateClusterToken(context.Context, *CreateClusterTokenRequest) (*CreateClusterTokenResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateClusterToken not implemented")
+}
+func (UnimplementedClusterServiceServer) GetNetworkDependencies(context.Context, *GetNetworkDependenciesRequest) (*GetNetworkDependenciesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetNetworkDependencies not implemented")
 }
 func (UnimplementedClusterServiceServer) mustEmbedUnimplementedClusterServiceServer() {}
 
@@ -164,6 +181,24 @@ func _ClusterService_CreateClusterToken_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ClusterService_GetNetworkDependencies_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetNetworkDependenciesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterServiceServer).GetNetworkDependencies(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterService_GetNetworkDependencies_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterServiceServer).GetNetworkDependencies(ctx, req.(*GetNetworkDependenciesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ClusterService_ServiceDesc is the grpc.ServiceDesc for ClusterService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -182,6 +217,10 @@ var ClusterService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CreateClusterToken",
 			Handler:    _ClusterService_CreateClusterToken_Handler,
+		},
+		{
+			MethodName: "GetNetworkDependencies",
+			Handler:    _ClusterService_GetNetworkDependencies_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
