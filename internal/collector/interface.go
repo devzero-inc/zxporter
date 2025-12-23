@@ -140,60 +140,64 @@ const (
 	VolumeAttachment
 	KubeflowNotebook
 	VolcanoJob
+	SparkApplication
+	ScheduledSparkApplication
 )
 
 // String returns the string representation of the ResourceType
 func (r ResourceType) String() string {
 	names := map[ResourceType]string{
-		Unknown:                  "unknown",
-		Cluster:                  "cluster",
-		Node:                     "node",
-		Pod:                      "pod",
-		Namespace:                "namespace",
-		Event:                    "event",
-		Endpoints:                "endpoints",
-		ServiceAccount:           "service_account",
-		LimitRange:               "limit_range",
-		ResourceQuota:            "resource_quota",
-		Deployment:               "deployment",
-		StatefulSet:              "stateful_set",
-		DaemonSet:                "daemon_set",
-		ReplicaSet:               "replica_set",
-		ReplicationController:    "replication_controller",
-		Job:                      "job",
-		CronJob:                  "cron_job",
-		PersistentVolumeClaim:    "persistent_volume_claim",
-		PersistentVolume:         "persistent_volume",
-		StorageClass:             "storage_class",
-		Service:                  "service",
-		Ingress:                  "ingress",
-		IngressClass:             "ingress_class",
-		NetworkPolicy:            "network_policy",
-		Role:                     "role",
-		RoleBinding:              "role_binding",
-		ClusterRole:              "cluster_role",
-		ClusterRoleBinding:       "cluster_role_binding",
-		HorizontalPodAutoscaler:  "horizontal_pod_autoscaler",
-		VerticalPodAutoscaler:    "vertical_pod_autoscaler",
-		PodDisruptionBudget:      "pod_disruption_budget",
-		PodSecurityPolicy:        "pod_security_policy",
-		CustomResourceDefinition: "custom_resource_definition",
-		NodeResource:             "node_resource",
-		Container:                "container",
-		ContainerResource:        "container_resource",
-		CSINode:                  "csi_node",
-		Karpenter:                "karpenter",
-		Datadog:                  "datadog",
-		ArgoRollouts:             "argo_rollouts",
-		Keda:                     "keda",
-		KedaScaledJob:            "keda_scaled_job",
-		KedaScaledObject:         "keda_scaled_object",
-		ClusterSnapshot:          "cluster_snapshot",
-		CSIDriver:                "csi_driver",
-		CSIStorageCapacity:       "csi_storage_capacity",
-		VolumeAttachment:         "volume_attachment",
-		KubeflowNotebook:         "kubeflow_notebook",
-		VolcanoJob:               "volcano_job",
+		Unknown:                   "unknown",
+		Cluster:                   "cluster",
+		Node:                      "node",
+		Pod:                       "pod",
+		Namespace:                 "namespace",
+		Event:                     "event",
+		Endpoints:                 "endpoints",
+		ServiceAccount:            "service_account",
+		LimitRange:                "limit_range",
+		ResourceQuota:             "resource_quota",
+		Deployment:                "deployment",
+		StatefulSet:               "stateful_set",
+		DaemonSet:                 "daemon_set",
+		ReplicaSet:                "replica_set",
+		ReplicationController:     "replication_controller",
+		Job:                       "job",
+		CronJob:                   "cron_job",
+		PersistentVolumeClaim:     "persistent_volume_claim",
+		PersistentVolume:          "persistent_volume",
+		StorageClass:              "storage_class",
+		Service:                   "service",
+		Ingress:                   "ingress",
+		IngressClass:              "ingress_class",
+		NetworkPolicy:             "network_policy",
+		Role:                      "role",
+		RoleBinding:               "role_binding",
+		ClusterRole:               "cluster_role",
+		ClusterRoleBinding:        "cluster_role_binding",
+		HorizontalPodAutoscaler:   "horizontal_pod_autoscaler",
+		VerticalPodAutoscaler:     "vertical_pod_autoscaler",
+		PodDisruptionBudget:       "pod_disruption_budget",
+		PodSecurityPolicy:         "pod_security_policy",
+		CustomResourceDefinition:  "custom_resource_definition",
+		NodeResource:              "node_resource",
+		Container:                 "container",
+		ContainerResource:         "container_resource",
+		CSINode:                   "csi_node",
+		Karpenter:                 "karpenter",
+		Datadog:                   "datadog",
+		ArgoRollouts:              "argo_rollouts",
+		Keda:                      "keda",
+		KedaScaledJob:             "keda_scaled_job",
+		KedaScaledObject:          "keda_scaled_object",
+		ClusterSnapshot:           "cluster_snapshot",
+		CSIDriver:                 "csi_driver",
+		CSIStorageCapacity:        "csi_storage_capacity",
+		VolumeAttachment:          "volume_attachment",
+		KubeflowNotebook:          "kubeflow_notebook",
+		VolcanoJob:                "volcano_job",
+		SparkApplication:          "spark_application",
+		ScheduledSparkApplication: "scheduled_spark_application",
 	}
 
 	if name, ok := names[r]; ok {
@@ -303,6 +307,10 @@ func (r ResourceType) ProtoType() gen.ResourceType {
 		return gen.ResourceType_RESOURCE_TYPE_KUBEFLOW_NOTEBOOK
 	case VolcanoJob:
 		return gen.ResourceType_RESOURCE_TYPE_VOLCANO_JOB
+	case SparkApplication:
+		return gen.ResourceType_RESOURCE_TYPE_SPARK_APPLICATION
+	// case ScheduledSparkApplication:
+	// 	return gen.ResourceType_RESOURCE_TYPE_SCHEDULED_SPARK_APPLICATION
 	default:
 		return gen.ResourceType_RESOURCE_TYPE_UNSPECIFIED
 	}

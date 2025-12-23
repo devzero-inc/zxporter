@@ -7,12 +7,13 @@
 package apiv1
 
 import (
+	reflect "reflect"
+	sync "sync"
+
 	money "google.golang.org/genproto/googleapis/type/money"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
-	reflect "reflect"
-	sync "sync"
 )
 
 const (
@@ -62,6 +63,7 @@ const (
 	K8SObjectKind_K8S_OBJECT_KIND_CLUSTER_ROLE_BINDING      K8SObjectKind = 33
 	K8SObjectKind_K8S_OBJECT_KIND_NETWORK_POLICY            K8SObjectKind = 34
 	K8SObjectKind_K8S_OBJECT_KIND_CLUSTER                   K8SObjectKind = 35
+	K8SObjectKind_K8S_OBJECT_KIND_SPARK_APPLICATION         K8SObjectKind = 36
 )
 
 // Enum value maps for K8SObjectKind.
@@ -103,6 +105,7 @@ var (
 		33: "K8S_OBJECT_KIND_CLUSTER_ROLE_BINDING",
 		34: "K8S_OBJECT_KIND_NETWORK_POLICY",
 		35: "K8S_OBJECT_KIND_CLUSTER",
+		36: "K8S_OBJECT_KIND_SPARK_APPLICATION",
 	}
 	K8SObjectKind_value = map[string]int32{
 		"K8S_OBJECT_KIND_UNSPECIFIED":               0,
@@ -141,6 +144,7 @@ var (
 		"K8S_OBJECT_KIND_CLUSTER_ROLE_BINDING":      33,
 		"K8S_OBJECT_KIND_NETWORK_POLICY":            34,
 		"K8S_OBJECT_KIND_CLUSTER":                   35,
+		"K8S_OBJECT_KIND_SPARK_APPLICATION":         36,
 	}
 )
 
@@ -3619,6 +3623,7 @@ type ResourceDetails struct {
 	//	*ResourceDetails_PodDisruptionBudgetDetails
 	//	*ResourceDetails_ResourceQuotaDetails
 	//	*ResourceDetails_VolcanoJobDetails
+	//	*ResourceDetails_SparkApplicationDetails
 	Details isResourceDetails_Details `protobuf_oneof:"details"`
 	// Common fields that can be flattened at this level for easier access
 	// These are populated based on the resource type
@@ -4001,6 +4006,13 @@ func (x *ResourceDetails) GetResourceQuotaDetails() *ResourceQuotaDetails {
 func (x *ResourceDetails) GetVolcanoJobDetails() *VolcanoJobDetails {
 	if x, ok := x.GetDetails().(*ResourceDetails_VolcanoJobDetails); ok {
 		return x.VolcanoJobDetails
+	}
+	return nil
+}
+
+func (x *ResourceDetails) GetSparkApplicationDetails() *SparkApplicationDetails {
+	if x, ok := x.GetDetails().(*ResourceDetails_SparkApplicationDetails); ok {
+		return x.SparkApplicationDetails
 	}
 	return nil
 }
@@ -5191,6 +5203,11 @@ type ResourceDetails_VolcanoJobDetails struct {
 	VolcanoJobDetails *VolcanoJobDetails `protobuf:"bytes,239,opt,name=volcano_job_details,json=volcanoJobDetails,proto3,oneof"`
 }
 
+type ResourceDetails_SparkApplicationDetails struct {
+	// SparkApplication-specific fields
+	SparkApplicationDetails *SparkApplicationDetails `protobuf:"bytes,242,opt,name=spark_application_details,json=sparkApplicationDetails,proto3,oneof"`
+}
+
 func (*ResourceDetails_PodDetails) isResourceDetails_Details() {}
 
 func (*ResourceDetails_DeploymentDetails) isResourceDetails_Details() {}
@@ -5240,6 +5257,8 @@ func (*ResourceDetails_PodDisruptionBudgetDetails) isResourceDetails_Details() {
 func (*ResourceDetails_ResourceQuotaDetails) isResourceDetails_Details() {}
 
 func (*ResourceDetails_VolcanoJobDetails) isResourceDetails_Details() {}
+
+func (*ResourceDetails_SparkApplicationDetails) isResourceDetails_Details() {}
 
 // PodDetails contains detailed Pod information (for the oneof, if we need nested data later)
 type PodDetails struct {
@@ -12052,6 +12071,446 @@ func (x *VolcanoTask) GetContainers() []*ContainerTemplate {
 	return nil
 }
 
+// SparkApplicationDetails contains detailed SparkApplication information for drill-down
+type SparkApplicationDetails struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Containers          []*ContainerTemplate        `protobuf:"bytes,1,rep,name=containers,proto3" json:"containers,omitempty"`                                                // Container templates from driver/executor specs
+	SparkVersion        string                      `protobuf:"bytes,2,opt,name=spark_version,json=sparkVersion,proto3" json:"spark_version,omitempty"`                        // Spark version
+	ApplicationType     string                      `protobuf:"bytes,3,opt,name=application_type,json=applicationType,proto3" json:"application_type,omitempty"`               // Java, Scala, Python, R
+	DeployMode          string                      `protobuf:"bytes,4,opt,name=deploy_mode,json=deployMode,proto3" json:"deploy_mode,omitempty"`                              // cluster, client, in-cluster-client
+	MainClass           string                      `protobuf:"bytes,5,opt,name=main_class,json=mainClass,proto3" json:"main_class,omitempty"`                                 // Main class for Java/Scala applications
+	MainApplicationFile string                      `protobuf:"bytes,6,opt,name=main_application_file,json=mainApplicationFile,proto3" json:"main_application_file,omitempty"` // Main application file path
+	Arguments           []string                    `protobuf:"bytes,7,rep,name=arguments,proto3" json:"arguments,omitempty"`                                                  // Application arguments
+	SparkDriverInfo     *SparkDriverInfo            `protobuf:"bytes,8,opt,name=spark_driver_info,json=sparkDriverInfo,proto3" json:"spark_driver_info,omitempty"`             // Driver information
+	ExecutorInstances   int32                       `protobuf:"varint,9,opt,name=executor_instances,json=executorInstances,proto3" json:"executor_instances,omitempty"`        // Number of executor instances
+	ApplicationState    string                      `protobuf:"bytes,10,opt,name=application_state,json=applicationState,proto3" json:"application_state,omitempty"`           // Application state: SUBMITTED, RUNNING, COMPLETED, FAILED, etc.
+	SparkApplicationId  string                      `protobuf:"bytes,11,opt,name=spark_application_id,json=sparkApplicationId,proto3" json:"spark_application_id,omitempty"`   // Spark application ID
+	SubmissionId        string                      `protobuf:"bytes,12,opt,name=submission_id,json=submissionId,proto3" json:"submission_id,omitempty"`                       // Submission ID
+	Suspended           bool                        `protobuf:"varint,13,opt,name=suspended,proto3" json:"suspended,omitempty"`                                                // Whether application is suspended
+	RestartPolicy       *SparkRestartPolicyInfo     `protobuf:"bytes,14,opt,name=restart_policy,json=restartPolicy,proto3" json:"restart_policy,omitempty"`                    // Restart policy information
+	DynamicAllocation   *SparkDynamicAllocationInfo `protobuf:"bytes,15,opt,name=dynamic_allocation,json=dynamicAllocation,proto3" json:"dynamic_allocation,omitempty"`        // Dynamic allocation configuration
+}
+
+func (x *SparkApplicationDetails) Reset() {
+	*x = SparkApplicationDetails{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_api_v1_common_proto_msgTypes[118]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *SparkApplicationDetails) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SparkApplicationDetails) ProtoMessage() {}
+
+func (x *SparkApplicationDetails) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_common_proto_msgTypes[118]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SparkApplicationDetails.ProtoReflect.Descriptor instead.
+func (*SparkApplicationDetails) Descriptor() ([]byte, []int) {
+	return file_api_v1_common_proto_rawDescGZIP(), []int{118}
+}
+
+func (x *SparkApplicationDetails) GetContainers() []*ContainerTemplate {
+	if x != nil {
+		return x.Containers
+	}
+	return nil
+}
+
+func (x *SparkApplicationDetails) GetSparkVersion() string {
+	if x != nil {
+		return x.SparkVersion
+	}
+	return ""
+}
+
+func (x *SparkApplicationDetails) GetApplicationType() string {
+	if x != nil {
+		return x.ApplicationType
+	}
+	return ""
+}
+
+func (x *SparkApplicationDetails) GetDeployMode() string {
+	if x != nil {
+		return x.DeployMode
+	}
+	return ""
+}
+
+func (x *SparkApplicationDetails) GetMainClass() string {
+	if x != nil {
+		return x.MainClass
+	}
+	return ""
+}
+
+func (x *SparkApplicationDetails) GetMainApplicationFile() string {
+	if x != nil {
+		return x.MainApplicationFile
+	}
+	return ""
+}
+
+func (x *SparkApplicationDetails) GetArguments() []string {
+	if x != nil {
+		return x.Arguments
+	}
+	return nil
+}
+
+func (x *SparkApplicationDetails) GetSparkDriverInfo() *SparkDriverInfo {
+	if x != nil {
+		return x.SparkDriverInfo
+	}
+	return nil
+}
+
+func (x *SparkApplicationDetails) GetExecutorInstances() int32 {
+	if x != nil {
+		return x.ExecutorInstances
+	}
+	return 0
+}
+
+func (x *SparkApplicationDetails) GetApplicationState() string {
+	if x != nil {
+		return x.ApplicationState
+	}
+	return ""
+}
+
+func (x *SparkApplicationDetails) GetSparkApplicationId() string {
+	if x != nil {
+		return x.SparkApplicationId
+	}
+	return ""
+}
+
+func (x *SparkApplicationDetails) GetSubmissionId() string {
+	if x != nil {
+		return x.SubmissionId
+	}
+	return ""
+}
+
+func (x *SparkApplicationDetails) GetSuspended() bool {
+	if x != nil {
+		return x.Suspended
+	}
+	return false
+}
+
+func (x *SparkApplicationDetails) GetRestartPolicy() *SparkRestartPolicyInfo {
+	if x != nil {
+		return x.RestartPolicy
+	}
+	return nil
+}
+
+func (x *SparkApplicationDetails) GetDynamicAllocation() *SparkDynamicAllocationInfo {
+	if x != nil {
+		return x.DynamicAllocation
+	}
+	return nil
+}
+
+// SparkDriverInfo represents information about the Spark driver
+type SparkDriverInfo struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	PodName             string `protobuf:"bytes,1,opt,name=pod_name,json=podName,proto3" json:"pod_name,omitempty"`                                         // Driver pod name
+	WebUiServiceName    string `protobuf:"bytes,2,opt,name=web_ui_service_name,json=webUiServiceName,proto3" json:"web_ui_service_name,omitempty"`          // Web UI service name
+	WebUiAddress        string `protobuf:"bytes,3,opt,name=web_ui_address,json=webUiAddress,proto3" json:"web_ui_address,omitempty"`                        // Web UI address
+	WebUiPort           int32  `protobuf:"varint,4,opt,name=web_ui_port,json=webUiPort,proto3" json:"web_ui_port,omitempty"`                                // Web UI port
+	WebUiIngressName    string `protobuf:"bytes,5,opt,name=web_ui_ingress_name,json=webUiIngressName,proto3" json:"web_ui_ingress_name,omitempty"`          // Web UI ingress name (if configured)
+	WebUiIngressAddress string `protobuf:"bytes,6,opt,name=web_ui_ingress_address,json=webUiIngressAddress,proto3" json:"web_ui_ingress_address,omitempty"` // Web UI ingress address (if configured)
+	Cores               string `protobuf:"bytes,7,opt,name=cores,proto3" json:"cores,omitempty"`                                                            // Driver cores
+	Memory              string `protobuf:"bytes,8,opt,name=memory,proto3" json:"memory,omitempty"`                                                          // Driver memory
+	ServiceAccount      string `protobuf:"bytes,9,opt,name=service_account,json=serviceAccount,proto3" json:"service_account,omitempty"`                    // Service account used by driver
+}
+
+func (x *SparkDriverInfo) Reset() {
+	*x = SparkDriverInfo{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_api_v1_common_proto_msgTypes[119]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *SparkDriverInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SparkDriverInfo) ProtoMessage() {}
+
+func (x *SparkDriverInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_common_proto_msgTypes[119]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SparkDriverInfo.ProtoReflect.Descriptor instead.
+func (*SparkDriverInfo) Descriptor() ([]byte, []int) {
+	return file_api_v1_common_proto_rawDescGZIP(), []int{119}
+}
+
+func (x *SparkDriverInfo) GetPodName() string {
+	if x != nil {
+		return x.PodName
+	}
+	return ""
+}
+
+func (x *SparkDriverInfo) GetWebUiServiceName() string {
+	if x != nil {
+		return x.WebUiServiceName
+	}
+	return ""
+}
+
+func (x *SparkDriverInfo) GetWebUiAddress() string {
+	if x != nil {
+		return x.WebUiAddress
+	}
+	return ""
+}
+
+func (x *SparkDriverInfo) GetWebUiPort() int32 {
+	if x != nil {
+		return x.WebUiPort
+	}
+	return 0
+}
+
+func (x *SparkDriverInfo) GetWebUiIngressName() string {
+	if x != nil {
+		return x.WebUiIngressName
+	}
+	return ""
+}
+
+func (x *SparkDriverInfo) GetWebUiIngressAddress() string {
+	if x != nil {
+		return x.WebUiIngressAddress
+	}
+	return ""
+}
+
+func (x *SparkDriverInfo) GetCores() string {
+	if x != nil {
+		return x.Cores
+	}
+	return ""
+}
+
+func (x *SparkDriverInfo) GetMemory() string {
+	if x != nil {
+		return x.Memory
+	}
+	return ""
+}
+
+func (x *SparkDriverInfo) GetServiceAccount() string {
+	if x != nil {
+		return x.ServiceAccount
+	}
+	return ""
+}
+
+// SparkRestartPolicyInfo represents restart policy information
+type SparkRestartPolicyInfo struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Type                             string `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`                                                                                                        // Always, OnFailure, Never
+	OnFailureRetries                 int32  `protobuf:"varint,2,opt,name=on_failure_retries,json=onFailureRetries,proto3" json:"on_failure_retries,omitempty"`                                                     // Number of retries on failure
+	OnFailureRetryInterval           int64  `protobuf:"varint,3,opt,name=on_failure_retry_interval,json=onFailureRetryInterval,proto3" json:"on_failure_retry_interval,omitempty"`                                 // Retry interval in seconds
+	OnSubmissionFailureRetries       int32  `protobuf:"varint,4,opt,name=on_submission_failure_retries,json=onSubmissionFailureRetries,proto3" json:"on_submission_failure_retries,omitempty"`                     // Number of retries on submission failure
+	OnSubmissionFailureRetryInterval int64  `protobuf:"varint,5,opt,name=on_submission_failure_retry_interval,json=onSubmissionFailureRetryInterval,proto3" json:"on_submission_failure_retry_interval,omitempty"` // Submission retry interval in seconds
+}
+
+func (x *SparkRestartPolicyInfo) Reset() {
+	*x = SparkRestartPolicyInfo{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_api_v1_common_proto_msgTypes[120]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *SparkRestartPolicyInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SparkRestartPolicyInfo) ProtoMessage() {}
+
+func (x *SparkRestartPolicyInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_common_proto_msgTypes[120]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SparkRestartPolicyInfo.ProtoReflect.Descriptor instead.
+func (*SparkRestartPolicyInfo) Descriptor() ([]byte, []int) {
+	return file_api_v1_common_proto_rawDescGZIP(), []int{120}
+}
+
+func (x *SparkRestartPolicyInfo) GetType() string {
+	if x != nil {
+		return x.Type
+	}
+	return ""
+}
+
+func (x *SparkRestartPolicyInfo) GetOnFailureRetries() int32 {
+	if x != nil {
+		return x.OnFailureRetries
+	}
+	return 0
+}
+
+func (x *SparkRestartPolicyInfo) GetOnFailureRetryInterval() int64 {
+	if x != nil {
+		return x.OnFailureRetryInterval
+	}
+	return 0
+}
+
+func (x *SparkRestartPolicyInfo) GetOnSubmissionFailureRetries() int32 {
+	if x != nil {
+		return x.OnSubmissionFailureRetries
+	}
+	return 0
+}
+
+func (x *SparkRestartPolicyInfo) GetOnSubmissionFailureRetryInterval() int64 {
+	if x != nil {
+		return x.OnSubmissionFailureRetryInterval
+	}
+	return 0
+}
+
+// SparkDynamicAllocationInfo represents dynamic allocation configuration
+type SparkDynamicAllocationInfo struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Enabled                bool  `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`                                                               // Whether dynamic allocation is enabled
+	InitialExecutors       int32 `protobuf:"varint,2,opt,name=initial_executors,json=initialExecutors,proto3" json:"initial_executors,omitempty"`                     // Initial number of executors
+	MinExecutors           int32 `protobuf:"varint,3,opt,name=min_executors,json=minExecutors,proto3" json:"min_executors,omitempty"`                                 // Minimum number of executors
+	MaxExecutors           int32 `protobuf:"varint,4,opt,name=max_executors,json=maxExecutors,proto3" json:"max_executors,omitempty"`                                 // Maximum number of executors
+	ShuffleTrackingEnabled bool  `protobuf:"varint,5,opt,name=shuffle_tracking_enabled,json=shuffleTrackingEnabled,proto3" json:"shuffle_tracking_enabled,omitempty"` // Whether shuffle tracking is enabled
+	ShuffleTrackingTimeout int64 `protobuf:"varint,6,opt,name=shuffle_tracking_timeout,json=shuffleTrackingTimeout,proto3" json:"shuffle_tracking_timeout,omitempty"` // Shuffle tracking timeout in milliseconds
+}
+
+func (x *SparkDynamicAllocationInfo) Reset() {
+	*x = SparkDynamicAllocationInfo{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_api_v1_common_proto_msgTypes[121]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *SparkDynamicAllocationInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SparkDynamicAllocationInfo) ProtoMessage() {}
+
+func (x *SparkDynamicAllocationInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_common_proto_msgTypes[121]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SparkDynamicAllocationInfo.ProtoReflect.Descriptor instead.
+func (*SparkDynamicAllocationInfo) Descriptor() ([]byte, []int) {
+	return file_api_v1_common_proto_rawDescGZIP(), []int{121}
+}
+
+func (x *SparkDynamicAllocationInfo) GetEnabled() bool {
+	if x != nil {
+		return x.Enabled
+	}
+	return false
+}
+
+func (x *SparkDynamicAllocationInfo) GetInitialExecutors() int32 {
+	if x != nil {
+		return x.InitialExecutors
+	}
+	return 0
+}
+
+func (x *SparkDynamicAllocationInfo) GetMinExecutors() int32 {
+	if x != nil {
+		return x.MinExecutors
+	}
+	return 0
+}
+
+func (x *SparkDynamicAllocationInfo) GetMaxExecutors() int32 {
+	if x != nil {
+		return x.MaxExecutors
+	}
+	return 0
+}
+
+func (x *SparkDynamicAllocationInfo) GetShuffleTrackingEnabled() bool {
+	if x != nil {
+		return x.ShuffleTrackingEnabled
+	}
+	return false
+}
+
+func (x *SparkDynamicAllocationInfo) GetShuffleTrackingTimeout() int64 {
+	if x != nil {
+		return x.ShuffleTrackingTimeout
+	}
+	return 0
+}
+
 type Event struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -12090,7 +12549,7 @@ type Event struct {
 func (x *Event) Reset() {
 	*x = Event{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_common_proto_msgTypes[118]
+		mi := &file_api_v1_common_proto_msgTypes[122]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -12103,7 +12562,7 @@ func (x *Event) String() string {
 func (*Event) ProtoMessage() {}
 
 func (x *Event) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_common_proto_msgTypes[118]
+	mi := &file_api_v1_common_proto_msgTypes[122]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12116,7 +12575,7 @@ func (x *Event) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Event.ProtoReflect.Descriptor instead.
 func (*Event) Descriptor() ([]byte, []int) {
-	return file_api_v1_common_proto_rawDescGZIP(), []int{118}
+	return file_api_v1_common_proto_rawDescGZIP(), []int{122}
 }
 
 func (x *Event) GetId() string {
@@ -12332,7 +12791,7 @@ type EventDatapointInfo struct {
 func (x *EventDatapointInfo) Reset() {
 	*x = EventDatapointInfo{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_common_proto_msgTypes[119]
+		mi := &file_api_v1_common_proto_msgTypes[123]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -12345,7 +12804,7 @@ func (x *EventDatapointInfo) String() string {
 func (*EventDatapointInfo) ProtoMessage() {}
 
 func (x *EventDatapointInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_common_proto_msgTypes[119]
+	mi := &file_api_v1_common_proto_msgTypes[123]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12358,7 +12817,7 @@ func (x *EventDatapointInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EventDatapointInfo.ProtoReflect.Descriptor instead.
 func (*EventDatapointInfo) Descriptor() ([]byte, []int) {
-	return file_api_v1_common_proto_rawDescGZIP(), []int{119}
+	return file_api_v1_common_proto_rawDescGZIP(), []int{123}
 }
 
 func (x *EventDatapointInfo) GetName() string {
@@ -12423,7 +12882,7 @@ type EventDatapoint struct {
 func (x *EventDatapoint) Reset() {
 	*x = EventDatapoint{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_common_proto_msgTypes[120]
+		mi := &file_api_v1_common_proto_msgTypes[124]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -12436,7 +12895,7 @@ func (x *EventDatapoint) String() string {
 func (*EventDatapoint) ProtoMessage() {}
 
 func (x *EventDatapoint) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_common_proto_msgTypes[120]
+	mi := &file_api_v1_common_proto_msgTypes[124]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12449,7 +12908,7 @@ func (x *EventDatapoint) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EventDatapoint.ProtoReflect.Descriptor instead.
 func (*EventDatapoint) Descriptor() ([]byte, []int) {
-	return file_api_v1_common_proto_rawDescGZIP(), []int{120}
+	return file_api_v1_common_proto_rawDescGZIP(), []int{124}
 }
 
 func (x *EventDatapoint) GetUtcTime() string {
@@ -15488,7 +15947,7 @@ func file_api_v1_common_proto_rawDescGZIP() []byte {
 }
 
 var file_api_v1_common_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_api_v1_common_proto_msgTypes = make([]protoimpl.MessageInfo, 158)
+var file_api_v1_common_proto_msgTypes = make([]protoimpl.MessageInfo, 162)
 var file_api_v1_common_proto_goTypes = []interface{}{
 	(K8SObjectKind)(0),                   // 0: api.v1.K8sObjectKind
 	(OrderByEnum)(0),                     // 1: api.v1.OrderByEnum
@@ -15612,107 +16071,111 @@ var file_api_v1_common_proto_goTypes = []interface{}{
 	(*VolcanoJobDetails)(nil),            // 119: api.v1.VolcanoJobDetails
 	(*VolcanoJobCondition)(nil),          // 120: api.v1.VolcanoJobCondition
 	(*VolcanoTask)(nil),                  // 121: api.v1.VolcanoTask
-	(*Event)(nil),                        // 122: api.v1.Event
-	(*EventDatapointInfo)(nil),           // 123: api.v1.EventDatapointInfo
-	(*EventDatapoint)(nil),               // 124: api.v1.EventDatapoint
-	nil,                                  // 125: api.v1.WorkloadItem.LabelsEntry
-	nil,                                  // 126: api.v1.WorkloadItem.AnnotationsEntry
-	nil,                                  // 127: api.v1.Node.LabelsEntry
-	nil,                                  // 128: api.v1.Node.AnnotationsEntry
-	nil,                                  // 129: api.v1.LabelSelector.MatchLabelsEntry
-	nil,                                  // 130: api.v1.ResourceDetails.ServiceSelectorEntry
-	nil,                                  // 131: api.v1.ResourceDetails.ScParametersEntry
-	nil,                                  // 132: api.v1.ServiceDetails.SelectorEntry
-	nil,                                  // 133: api.v1.ResourceRequirements.RequestsEntry
-	nil,                                  // 134: api.v1.ResourceRequirements.LimitsEntry
-	nil,                                  // 135: api.v1.PersistentVolumeDetails.CapacityEntry
-	nil,                                  // 136: api.v1.PVVolumeSource.VolumeAttributesEntry
-	nil,                                  // 137: api.v1.CSIVolumeSource.VolumeAttributesEntry
-	nil,                                  // 138: api.v1.StorageClassDetails.ParametersEntry
-	nil,                                  // 139: api.v1.NamespaceDetails.ConditionsEntry
-	nil,                                  // 140: api.v1.NodeDetails.CapacityEntry
-	nil,                                  // 141: api.v1.NodeDetails.AllocatableEntry
-	nil,                                  // 142: api.v1.TopologySelectorTerm.MatchLabelsEntry
-	nil,                                  // 143: api.v1.HPAMetricSelector.SelectorEntry
-	nil,                                  // 144: api.v1.VPAContainerResourcePolicy.MinAllowedEntry
-	nil,                                  // 145: api.v1.VPAContainerResourcePolicy.MaxAllowedEntry
-	nil,                                  // 146: api.v1.VPAContainerRecommendation.TargetEntry
-	nil,                                  // 147: api.v1.VPAContainerRecommendation.LowerBoundEntry
-	nil,                                  // 148: api.v1.VPAContainerRecommendation.UpperBoundEntry
-	nil,                                  // 149: api.v1.VPAContainerRecommendation.UncappedTargetEntry
-	nil,                                  // 150: api.v1.LimitRangeItem.DefaultLimitsEntry
-	nil,                                  // 151: api.v1.LimitRangeItem.DefaultRequestEntry
-	nil,                                  // 152: api.v1.LimitRangeItem.MaxEntry
-	nil,                                  // 153: api.v1.LimitRangeItem.MinEntry
-	nil,                                  // 154: api.v1.LimitRangeItem.MaxLimitRequestRatioEntry
-	nil,                                  // 155: api.v1.KedaScaledObjectTrigger.MetadataEntry
-	nil,                                  // 156: api.v1.KarpenterResourceDetails.LimitsEntry
-	nil,                                  // 157: api.v1.KarpenterCapacity.OtherEntry
-	nil,                                  // 158: api.v1.PodDisruptionBudgetDetails.SelectorLabelsEntry
-	nil,                                  // 159: api.v1.ResourceQuotaDetails.HardLimitsEntry
-	nil,                                  // 160: api.v1.ResourceQuotaDetails.UsedEntry
-	nil,                                  // 161: api.v1.ResourceQuotaDetails.ScopeSelectorEntry
-	(*timestamppb.Timestamp)(nil),        // 162: google.protobuf.Timestamp
-	(*money.Money)(nil),                  // 163: google.type.Money
+	(*SparkApplicationDetails)(nil),      // 122: api.v1.SparkApplicationDetails
+	(*SparkDriverInfo)(nil),              // 123: api.v1.SparkDriverInfo
+	(*SparkRestartPolicyInfo)(nil),       // 124: api.v1.SparkRestartPolicyInfo
+	(*SparkDynamicAllocationInfo)(nil),   // 125: api.v1.SparkDynamicAllocationInfo
+	(*Event)(nil),                        // 126: api.v1.Event
+	(*EventDatapointInfo)(nil),           // 127: api.v1.EventDatapointInfo
+	(*EventDatapoint)(nil),               // 128: api.v1.EventDatapoint
+	nil,                                  // 129: api.v1.WorkloadItem.LabelsEntry
+	nil,                                  // 130: api.v1.WorkloadItem.AnnotationsEntry
+	nil,                                  // 131: api.v1.Node.LabelsEntry
+	nil,                                  // 132: api.v1.Node.AnnotationsEntry
+	nil,                                  // 133: api.v1.LabelSelector.MatchLabelsEntry
+	nil,                                  // 134: api.v1.ResourceDetails.ServiceSelectorEntry
+	nil,                                  // 135: api.v1.ResourceDetails.ScParametersEntry
+	nil,                                  // 136: api.v1.ServiceDetails.SelectorEntry
+	nil,                                  // 137: api.v1.ResourceRequirements.RequestsEntry
+	nil,                                  // 138: api.v1.ResourceRequirements.LimitsEntry
+	nil,                                  // 139: api.v1.PersistentVolumeDetails.CapacityEntry
+	nil,                                  // 140: api.v1.PVVolumeSource.VolumeAttributesEntry
+	nil,                                  // 141: api.v1.CSIVolumeSource.VolumeAttributesEntry
+	nil,                                  // 142: api.v1.StorageClassDetails.ParametersEntry
+	nil,                                  // 143: api.v1.NamespaceDetails.ConditionsEntry
+	nil,                                  // 144: api.v1.NodeDetails.CapacityEntry
+	nil,                                  // 145: api.v1.NodeDetails.AllocatableEntry
+	nil,                                  // 146: api.v1.TopologySelectorTerm.MatchLabelsEntry
+	nil,                                  // 147: api.v1.HPAMetricSelector.SelectorEntry
+	nil,                                  // 148: api.v1.VPAContainerResourcePolicy.MinAllowedEntry
+	nil,                                  // 149: api.v1.VPAContainerResourcePolicy.MaxAllowedEntry
+	nil,                                  // 150: api.v1.VPAContainerRecommendation.TargetEntry
+	nil,                                  // 151: api.v1.VPAContainerRecommendation.LowerBoundEntry
+	nil,                                  // 152: api.v1.VPAContainerRecommendation.UpperBoundEntry
+	nil,                                  // 153: api.v1.VPAContainerRecommendation.UncappedTargetEntry
+	nil,                                  // 154: api.v1.LimitRangeItem.DefaultLimitsEntry
+	nil,                                  // 155: api.v1.LimitRangeItem.DefaultRequestEntry
+	nil,                                  // 156: api.v1.LimitRangeItem.MaxEntry
+	nil,                                  // 157: api.v1.LimitRangeItem.MinEntry
+	nil,                                  // 158: api.v1.LimitRangeItem.MaxLimitRequestRatioEntry
+	nil,                                  // 159: api.v1.KedaScaledObjectTrigger.MetadataEntry
+	nil,                                  // 160: api.v1.KarpenterResourceDetails.LimitsEntry
+	nil,                                  // 161: api.v1.KarpenterCapacity.OtherEntry
+	nil,                                  // 162: api.v1.PodDisruptionBudgetDetails.SelectorLabelsEntry
+	nil,                                  // 163: api.v1.ResourceQuotaDetails.HardLimitsEntry
+	nil,                                  // 164: api.v1.ResourceQuotaDetails.UsedEntry
+	nil,                                  // 165: api.v1.ResourceQuotaDetails.ScopeSelectorEntry
+	(*timestamppb.Timestamp)(nil),        // 166: google.protobuf.Timestamp
+	(*money.Money)(nil),                  // 167: google.type.Money
 }
 var file_api_v1_common_proto_depIdxs = []int32{
 	0,   // 0: api.v1.AuditLogEntry.workload_type:type_name -> api.v1.K8sObjectKind
-	162, // 1: api.v1.AuditLogEntry.created_at:type_name -> google.protobuf.Timestamp
-	162, // 2: api.v1.AuditLogEntry.updated_at:type_name -> google.protobuf.Timestamp
+	166, // 1: api.v1.AuditLogEntry.created_at:type_name -> google.protobuf.Timestamp
+	166, // 2: api.v1.AuditLogEntry.updated_at:type_name -> google.protobuf.Timestamp
 	1,   // 3: api.v1.Pagination.order_by:type_name -> api.v1.OrderByEnum
-	163, // 4: api.v1.CostInfo.node_recommendation_saved_cost_last_month:type_name -> google.type.Money
-	163, // 5: api.v1.CostInfo.money_cpu_cost_per_hour:type_name -> google.type.Money
-	163, // 6: api.v1.CostInfo.money_memory_cost_per_hour:type_name -> google.type.Money
-	163, // 7: api.v1.CostInfo.money_total_cost_per_hour:type_name -> google.type.Money
-	163, // 8: api.v1.CostInfo.money_total_cost_per_month:type_name -> google.type.Money
-	163, // 9: api.v1.CostInfo.money_total_cost_per_year:type_name -> google.type.Money
-	163, // 10: api.v1.CostInfo.money_optimized_cpu_cost_per_hour:type_name -> google.type.Money
-	163, // 11: api.v1.CostInfo.money_optimized_memory_cost_per_hour:type_name -> google.type.Money
-	163, // 12: api.v1.CostInfo.money_optimized_total_cost_per_hour:type_name -> google.type.Money
-	163, // 13: api.v1.CostInfo.money_optimized_total_cost_per_month:type_name -> google.type.Money
-	163, // 14: api.v1.CostInfo.money_optimized_total_cost_per_year:type_name -> google.type.Money
-	163, // 15: api.v1.CostInfo.money_cpu_cost_for_time_period:type_name -> google.type.Money
-	163, // 16: api.v1.CostInfo.money_memory_cost_for_time_period:type_name -> google.type.Money
-	163, // 17: api.v1.CostInfo.money_total_cost_for_time_period:type_name -> google.type.Money
-	163, // 18: api.v1.CostInfo.money_optimized_cpu_cost_for_time_period:type_name -> google.type.Money
-	163, // 19: api.v1.CostInfo.money_optimized_memory_cost_for_time_period:type_name -> google.type.Money
-	163, // 20: api.v1.CostInfo.money_optimized_total_cost_for_time_period:type_name -> google.type.Money
-	163, // 21: api.v1.CostInfo.money_optimized_gpu_cost_for_time_period:type_name -> google.type.Money
-	163, // 22: api.v1.CostInfo.money_gpu_cost_for_time_period:type_name -> google.type.Money
-	163, // 23: api.v1.CostInfo.money_gpu_cost_per_hour:type_name -> google.type.Money
-	163, // 24: api.v1.CostInfo.money_optimized_gpu_cost_per_hour:type_name -> google.type.Money
-	163, // 25: api.v1.CostInfo.money_cpu_cost_per_vcpu_per_hour:type_name -> google.type.Money
-	163, // 26: api.v1.CostInfo.money_memory_cost_per_gib_per_hour:type_name -> google.type.Money
-	162, // 27: api.v1.ForecastResourceMetrics.timestamp:type_name -> google.protobuf.Timestamp
+	167, // 4: api.v1.CostInfo.node_recommendation_saved_cost_last_month:type_name -> google.type.Money
+	167, // 5: api.v1.CostInfo.money_cpu_cost_per_hour:type_name -> google.type.Money
+	167, // 6: api.v1.CostInfo.money_memory_cost_per_hour:type_name -> google.type.Money
+	167, // 7: api.v1.CostInfo.money_total_cost_per_hour:type_name -> google.type.Money
+	167, // 8: api.v1.CostInfo.money_total_cost_per_month:type_name -> google.type.Money
+	167, // 9: api.v1.CostInfo.money_total_cost_per_year:type_name -> google.type.Money
+	167, // 10: api.v1.CostInfo.money_optimized_cpu_cost_per_hour:type_name -> google.type.Money
+	167, // 11: api.v1.CostInfo.money_optimized_memory_cost_per_hour:type_name -> google.type.Money
+	167, // 12: api.v1.CostInfo.money_optimized_total_cost_per_hour:type_name -> google.type.Money
+	167, // 13: api.v1.CostInfo.money_optimized_total_cost_per_month:type_name -> google.type.Money
+	167, // 14: api.v1.CostInfo.money_optimized_total_cost_per_year:type_name -> google.type.Money
+	167, // 15: api.v1.CostInfo.money_cpu_cost_for_time_period:type_name -> google.type.Money
+	167, // 16: api.v1.CostInfo.money_memory_cost_for_time_period:type_name -> google.type.Money
+	167, // 17: api.v1.CostInfo.money_total_cost_for_time_period:type_name -> google.type.Money
+	167, // 18: api.v1.CostInfo.money_optimized_cpu_cost_for_time_period:type_name -> google.type.Money
+	167, // 19: api.v1.CostInfo.money_optimized_memory_cost_for_time_period:type_name -> google.type.Money
+	167, // 20: api.v1.CostInfo.money_optimized_total_cost_for_time_period:type_name -> google.type.Money
+	167, // 21: api.v1.CostInfo.money_optimized_gpu_cost_for_time_period:type_name -> google.type.Money
+	167, // 22: api.v1.CostInfo.money_gpu_cost_for_time_period:type_name -> google.type.Money
+	167, // 23: api.v1.CostInfo.money_gpu_cost_per_hour:type_name -> google.type.Money
+	167, // 24: api.v1.CostInfo.money_optimized_gpu_cost_per_hour:type_name -> google.type.Money
+	167, // 25: api.v1.CostInfo.money_cpu_cost_per_vcpu_per_hour:type_name -> google.type.Money
+	167, // 26: api.v1.CostInfo.money_memory_cost_per_gib_per_hour:type_name -> google.type.Money
+	166, // 27: api.v1.ForecastResourceMetrics.timestamp:type_name -> google.protobuf.Timestamp
 	10,  // 28: api.v1.WorkloadItem.children:type_name -> api.v1.WorkloadItem
-	125, // 29: api.v1.WorkloadItem.labels:type_name -> api.v1.WorkloadItem.LabelsEntry
-	126, // 30: api.v1.WorkloadItem.annotations:type_name -> api.v1.WorkloadItem.AnnotationsEntry
+	129, // 29: api.v1.WorkloadItem.labels:type_name -> api.v1.WorkloadItem.LabelsEntry
+	130, // 30: api.v1.WorkloadItem.annotations:type_name -> api.v1.WorkloadItem.AnnotationsEntry
 	7,   // 31: api.v1.WorkloadItem.resource_metrics:type_name -> api.v1.ResourceMetrics
 	6,   // 32: api.v1.WorkloadItem.cost_info:type_name -> api.v1.CostInfo
 	17,  // 33: api.v1.WorkloadItem.cost_data_points:type_name -> api.v1.CostDataPoint
 	18,  // 34: api.v1.WorkloadItem.resource_data_points:type_name -> api.v1.ResourceDataPoint
-	162, // 35: api.v1.WorkloadItem.created_at:type_name -> google.protobuf.Timestamp
-	162, // 36: api.v1.WorkloadItem.deleted_at:type_name -> google.protobuf.Timestamp
+	166, // 35: api.v1.WorkloadItem.created_at:type_name -> google.protobuf.Timestamp
+	166, // 36: api.v1.WorkloadItem.deleted_at:type_name -> google.protobuf.Timestamp
 	26,  // 37: api.v1.WorkloadItem.resource_details:type_name -> api.v1.ResourceDetails
 	7,   // 38: api.v1.Node.resource_metrics:type_name -> api.v1.ResourceMetrics
 	6,   // 39: api.v1.Node.cost_info:type_name -> api.v1.CostInfo
 	11,  // 40: api.v1.Node.container_runtime:type_name -> api.v1.ContainerRuntimeInfo
 	26,  // 41: api.v1.Node.resource_details:type_name -> api.v1.ResourceDetails
 	10,  // 42: api.v1.Node.children:type_name -> api.v1.WorkloadItem
-	127, // 43: api.v1.Node.labels:type_name -> api.v1.Node.LabelsEntry
-	128, // 44: api.v1.Node.annotations:type_name -> api.v1.Node.AnnotationsEntry
-	163, // 45: api.v1.Node.money_price_per_hour:type_name -> google.type.Money
-	163, // 46: api.v1.Node.money_eff_period_total_cost:type_name -> google.type.Money
-	163, // 47: api.v1.Node.money_price_per_vcpu:type_name -> google.type.Money
-	163, // 48: api.v1.Node.money_price_per_gib:type_name -> google.type.Money
-	163, // 49: api.v1.Node.money_price_per_gpu:type_name -> google.type.Money
-	163, // 50: api.v1.Node.money_cpu_price:type_name -> google.type.Money
-	163, // 51: api.v1.Node.money_memory_price:type_name -> google.type.Money
-	163, // 52: api.v1.Node.money_gpu_price:type_name -> google.type.Money
+	131, // 43: api.v1.Node.labels:type_name -> api.v1.Node.LabelsEntry
+	132, // 44: api.v1.Node.annotations:type_name -> api.v1.Node.AnnotationsEntry
+	167, // 45: api.v1.Node.money_price_per_hour:type_name -> google.type.Money
+	167, // 46: api.v1.Node.money_eff_period_total_cost:type_name -> google.type.Money
+	167, // 47: api.v1.Node.money_price_per_vcpu:type_name -> google.type.Money
+	167, // 48: api.v1.Node.money_price_per_gib:type_name -> google.type.Money
+	167, // 49: api.v1.Node.money_price_per_gpu:type_name -> google.type.Money
+	167, // 50: api.v1.Node.money_cpu_price:type_name -> google.type.Money
+	167, // 51: api.v1.Node.money_memory_price:type_name -> google.type.Money
+	167, // 52: api.v1.Node.money_gpu_price:type_name -> google.type.Money
 	15,  // 53: api.v1.Node.volumes_attached:type_name -> api.v1.AttachedVolume
-	162, // 54: api.v1.Node.last_seen:type_name -> google.protobuf.Timestamp
-	162, // 55: api.v1.Node.collected_at:type_name -> google.protobuf.Timestamp
-	162, // 56: api.v1.Node.deletion_timestamp:type_name -> google.protobuf.Timestamp
+	166, // 54: api.v1.Node.last_seen:type_name -> google.protobuf.Timestamp
+	166, // 55: api.v1.Node.collected_at:type_name -> google.protobuf.Timestamp
+	166, // 56: api.v1.Node.deletion_timestamp:type_name -> google.protobuf.Timestamp
 	14,  // 57: api.v1.NodeGroup.nodes:type_name -> api.v1.Node
 	7,   // 58: api.v1.NodeGroup.resource_metrics:type_name -> api.v1.ResourceMetrics
 	6,   // 59: api.v1.NodeGroup.cost_info:type_name -> api.v1.CostInfo
@@ -15726,7 +16189,7 @@ var file_api_v1_common_proto_depIdxs = []int32{
 	20,  // 67: api.v1.SavingsTimeSeries.savings_datapoints:type_name -> api.v1.SavingsDataPoint
 	2,   // 68: api.v1.LabelSelectorRequirement.operator:type_name -> api.v1.LabelSelectorOperator
 	23,  // 69: api.v1.LabelSelector.labels:type_name -> api.v1.Label
-	129, // 70: api.v1.LabelSelector.match_labels:type_name -> api.v1.LabelSelector.MatchLabelsEntry
+	133, // 70: api.v1.LabelSelector.match_labels:type_name -> api.v1.LabelSelector.MatchLabelsEntry
 	22,  // 71: api.v1.LabelSelector.match_expressions:type_name -> api.v1.LabelSelectorRequirement
 	27,  // 72: api.v1.ResourceDetails.pod_details:type_name -> api.v1.PodDetails
 	29,  // 73: api.v1.ResourceDetails.deployment_details:type_name -> api.v1.DeploymentDetails
@@ -15753,148 +16216,153 @@ var file_api_v1_common_proto_depIdxs = []int32{
 	115, // 94: api.v1.ResourceDetails.pod_disruption_budget_details:type_name -> api.v1.PodDisruptionBudgetDetails
 	117, // 95: api.v1.ResourceDetails.resource_quota_details:type_name -> api.v1.ResourceQuotaDetails
 	119, // 96: api.v1.ResourceDetails.volcano_job_details:type_name -> api.v1.VolcanoJobDetails
-	42,  // 97: api.v1.ResourceDetails.service_ports:type_name -> api.v1.ServicePort
-	130, // 98: api.v1.ResourceDetails.service_selector:type_name -> api.v1.ResourceDetails.ServiceSelectorEntry
-	131, // 99: api.v1.ResourceDetails.sc_parameters:type_name -> api.v1.ResourceDetails.ScParametersEntry
-	62,  // 100: api.v1.ResourceDetails.node_taints:type_name -> api.v1.NodeTaint
-	28,  // 101: api.v1.PodDetails.containers:type_name -> api.v1.ContainerSummary
-	30,  // 102: api.v1.DeploymentDetails.containers:type_name -> api.v1.ContainerTemplate
-	31,  // 103: api.v1.DeploymentDetails.conditions:type_name -> api.v1.DeploymentCondition
-	30,  // 104: api.v1.StatefulSetDetails.containers:type_name -> api.v1.ContainerTemplate
-	33,  // 105: api.v1.StatefulSetDetails.volume_claim_templates:type_name -> api.v1.VolumeClaimTemplate
-	30,  // 106: api.v1.DaemonSetDetails.containers:type_name -> api.v1.ContainerTemplate
-	69,  // 107: api.v1.DaemonSetDetails.tolerations:type_name -> api.v1.TolerationInfo
-	70,  // 108: api.v1.DaemonSetDetails.node_selector:type_name -> api.v1.NodeSelector
-	30,  // 109: api.v1.ReplicaSetDetails.containers:type_name -> api.v1.ContainerTemplate
-	24,  // 110: api.v1.ReplicaSetDetails.selector:type_name -> api.v1.LabelSelector
-	30,  // 111: api.v1.JobDetails.containers:type_name -> api.v1.ContainerTemplate
-	37,  // 112: api.v1.JobDetails.conditions:type_name -> api.v1.JobCondition
-	24,  // 113: api.v1.JobDetails.selector:type_name -> api.v1.LabelSelector
-	30,  // 114: api.v1.CronJobDetails.containers:type_name -> api.v1.ContainerTemplate
-	39,  // 115: api.v1.CronJobDetails.active_jobs:type_name -> api.v1.ActiveJobReference
-	40,  // 116: api.v1.CronJobDetails.job_template:type_name -> api.v1.JobTemplate
-	30,  // 117: api.v1.JobTemplate.containers:type_name -> api.v1.ContainerTemplate
-	42,  // 118: api.v1.ServiceDetails.ports:type_name -> api.v1.ServicePort
-	132, // 119: api.v1.ServiceDetails.selector:type_name -> api.v1.ServiceDetails.SelectorEntry
-	43,  // 120: api.v1.ServiceDetails.load_balancer_ingress:type_name -> api.v1.LoadBalancerIngress
-	45,  // 121: api.v1.IngressDetails.rules:type_name -> api.v1.IngressRule
-	48,  // 122: api.v1.IngressDetails.tls:type_name -> api.v1.IngressTLS
-	47,  // 123: api.v1.IngressDetails.default_backend:type_name -> api.v1.IngressBackend
-	43,  // 124: api.v1.IngressDetails.load_balancer_ingress:type_name -> api.v1.LoadBalancerIngress
-	46,  // 125: api.v1.IngressRule.paths:type_name -> api.v1.IngressPath
-	47,  // 126: api.v1.IngressPath.backend:type_name -> api.v1.IngressBackend
-	50,  // 127: api.v1.PersistentVolumeClaimDetails.resource_requirements:type_name -> api.v1.ResourceRequirements
-	24,  // 128: api.v1.PersistentVolumeClaimDetails.selector:type_name -> api.v1.LabelSelector
-	51,  // 129: api.v1.PersistentVolumeClaimDetails.volume_node_affinity:type_name -> api.v1.VolumeNodeAffinity
-	52,  // 130: api.v1.PersistentVolumeClaimDetails.conditions:type_name -> api.v1.PVCCondition
-	133, // 131: api.v1.ResourceRequirements.requests:type_name -> api.v1.ResourceRequirements.RequestsEntry
-	134, // 132: api.v1.ResourceRequirements.limits:type_name -> api.v1.ResourceRequirements.LimitsEntry
-	72,  // 133: api.v1.VolumeNodeAffinity.required:type_name -> api.v1.NodeSelectorRequirement
-	72,  // 134: api.v1.VolumeNodeAffinity.preferred:type_name -> api.v1.NodeSelectorRequirement
-	135, // 135: api.v1.PersistentVolumeDetails.capacity:type_name -> api.v1.PersistentVolumeDetails.CapacityEntry
-	54,  // 136: api.v1.PersistentVolumeDetails.claim_ref:type_name -> api.v1.PVClaimReference
-	55,  // 137: api.v1.PersistentVolumeDetails.volume_source:type_name -> api.v1.PVVolumeSource
-	70,  // 138: api.v1.PersistentVolumeDetails.node_affinity:type_name -> api.v1.NodeSelector
-	56,  // 139: api.v1.PVVolumeSource.csi:type_name -> api.v1.CSIVolumeSource
-	57,  // 140: api.v1.PVVolumeSource.host_path:type_name -> api.v1.HostPathVolumeSource
-	58,  // 141: api.v1.PVVolumeSource.nfs:type_name -> api.v1.NFSVolumeSource
-	136, // 142: api.v1.PVVolumeSource.volume_attributes:type_name -> api.v1.PVVolumeSource.VolumeAttributesEntry
-	137, // 143: api.v1.CSIVolumeSource.volume_attributes:type_name -> api.v1.CSIVolumeSource.VolumeAttributesEntry
-	138, // 144: api.v1.StorageClassDetails.parameters:type_name -> api.v1.StorageClassDetails.ParametersEntry
-	67,  // 145: api.v1.StorageClassDetails.allowed_topologies:type_name -> api.v1.TopologySelector
-	139, // 146: api.v1.NamespaceDetails.conditions:type_name -> api.v1.NamespaceDetails.ConditionsEntry
-	63,  // 147: api.v1.NodeDetails.addresses:type_name -> api.v1.NodeAddress
-	64,  // 148: api.v1.NodeDetails.conditions:type_name -> api.v1.NodeCondition
-	65,  // 149: api.v1.NodeDetails.system_info:type_name -> api.v1.NodeSystemInfo
-	140, // 150: api.v1.NodeDetails.capacity:type_name -> api.v1.NodeDetails.CapacityEntry
-	141, // 151: api.v1.NodeDetails.allocatable:type_name -> api.v1.NodeDetails.AllocatableEntry
-	66,  // 152: api.v1.NodeDetails.images:type_name -> api.v1.NodeImage
-	68,  // 153: api.v1.TopologySelector.match_label_expressions:type_name -> api.v1.TopologySelectorTerm
-	142, // 154: api.v1.TopologySelectorTerm.match_labels:type_name -> api.v1.TopologySelectorTerm.MatchLabelsEntry
-	71,  // 155: api.v1.NodeSelector.terms:type_name -> api.v1.NodeSelectorTerm
-	72,  // 156: api.v1.NodeSelectorTerm.match_expressions:type_name -> api.v1.NodeSelectorRequirement
-	72,  // 157: api.v1.NodeSelectorTerm.match_fields:type_name -> api.v1.NodeSelectorRequirement
-	74,  // 158: api.v1.HPADetails.scale_target_ref:type_name -> api.v1.ScaleTargetRef
-	75,  // 159: api.v1.HPADetails.metrics:type_name -> api.v1.HPAMetric
-	87,  // 160: api.v1.HPADetails.conditions:type_name -> api.v1.HPACondition
-	88,  // 161: api.v1.HPADetails.behavior:type_name -> api.v1.HPABehavior
-	82,  // 162: api.v1.HPADetails.current_metrics:type_name -> api.v1.HPACurrentMetric
-	76,  // 163: api.v1.HPAMetric.resource:type_name -> api.v1.HPAResourceMetric
-	77,  // 164: api.v1.HPAMetric.pods:type_name -> api.v1.HPAPodsMetric
-	78,  // 165: api.v1.HPAMetric.object:type_name -> api.v1.HPAObjectMetric
-	79,  // 166: api.v1.HPAMetric.external:type_name -> api.v1.HPAExternalMetric
-	80,  // 167: api.v1.HPAPodsMetric.metric:type_name -> api.v1.HPAMetricSelector
-	81,  // 168: api.v1.HPAObjectMetric.described_object:type_name -> api.v1.HPAObjectReference
-	80,  // 169: api.v1.HPAObjectMetric.metric:type_name -> api.v1.HPAMetricSelector
-	80,  // 170: api.v1.HPAExternalMetric.metric:type_name -> api.v1.HPAMetricSelector
-	143, // 171: api.v1.HPAMetricSelector.selector:type_name -> api.v1.HPAMetricSelector.SelectorEntry
-	83,  // 172: api.v1.HPACurrentMetric.resource:type_name -> api.v1.HPACurrentResourceMetric
-	84,  // 173: api.v1.HPACurrentMetric.pods:type_name -> api.v1.HPACurrentPodsMetric
-	85,  // 174: api.v1.HPACurrentMetric.object:type_name -> api.v1.HPACurrentObjectMetric
-	86,  // 175: api.v1.HPACurrentMetric.external:type_name -> api.v1.HPACurrentExternalMetric
-	80,  // 176: api.v1.HPACurrentPodsMetric.metric:type_name -> api.v1.HPAMetricSelector
-	81,  // 177: api.v1.HPACurrentObjectMetric.described_object:type_name -> api.v1.HPAObjectReference
-	80,  // 178: api.v1.HPACurrentObjectMetric.metric:type_name -> api.v1.HPAMetricSelector
-	80,  // 179: api.v1.HPACurrentExternalMetric.metric:type_name -> api.v1.HPAMetricSelector
-	89,  // 180: api.v1.HPABehavior.scale_up:type_name -> api.v1.HPAScalingRules
-	89,  // 181: api.v1.HPABehavior.scale_down:type_name -> api.v1.HPAScalingRules
-	90,  // 182: api.v1.HPAScalingRules.policies:type_name -> api.v1.HPAScalingPolicy
-	92,  // 183: api.v1.VPADetails.target_ref:type_name -> api.v1.VPATargetRef
-	93,  // 184: api.v1.VPADetails.update_policy:type_name -> api.v1.VPAUpdatePolicy
-	94,  // 185: api.v1.VPADetails.resource_policy:type_name -> api.v1.VPAResourcePolicy
-	96,  // 186: api.v1.VPADetails.recommendation:type_name -> api.v1.VPARecommendation
-	98,  // 187: api.v1.VPADetails.conditions:type_name -> api.v1.VPACondition
-	95,  // 188: api.v1.VPAResourcePolicy.container_policies:type_name -> api.v1.VPAContainerResourcePolicy
-	144, // 189: api.v1.VPAContainerResourcePolicy.min_allowed:type_name -> api.v1.VPAContainerResourcePolicy.MinAllowedEntry
-	145, // 190: api.v1.VPAContainerResourcePolicy.max_allowed:type_name -> api.v1.VPAContainerResourcePolicy.MaxAllowedEntry
-	97,  // 191: api.v1.VPARecommendation.container_recommendations:type_name -> api.v1.VPAContainerRecommendation
-	146, // 192: api.v1.VPAContainerRecommendation.target:type_name -> api.v1.VPAContainerRecommendation.TargetEntry
-	147, // 193: api.v1.VPAContainerRecommendation.lower_bound:type_name -> api.v1.VPAContainerRecommendation.LowerBoundEntry
-	148, // 194: api.v1.VPAContainerRecommendation.upper_bound:type_name -> api.v1.VPAContainerRecommendation.UpperBoundEntry
-	149, // 195: api.v1.VPAContainerRecommendation.uncapped_target:type_name -> api.v1.VPAContainerRecommendation.UncappedTargetEntry
-	100, // 196: api.v1.LimitRangeDetails.limits:type_name -> api.v1.LimitRangeItem
-	150, // 197: api.v1.LimitRangeItem.default_limits:type_name -> api.v1.LimitRangeItem.DefaultLimitsEntry
-	151, // 198: api.v1.LimitRangeItem.default_request:type_name -> api.v1.LimitRangeItem.DefaultRequestEntry
-	152, // 199: api.v1.LimitRangeItem.max:type_name -> api.v1.LimitRangeItem.MaxEntry
-	153, // 200: api.v1.LimitRangeItem.min:type_name -> api.v1.LimitRangeItem.MinEntry
-	154, // 201: api.v1.LimitRangeItem.max_limit_request_ratio:type_name -> api.v1.LimitRangeItem.MaxLimitRequestRatioEntry
-	103, // 202: api.v1.RoleDetails.rules:type_name -> api.v1.RoleRule
-	105, // 203: api.v1.RoleBindingDetails.subjects:type_name -> api.v1.RoleBindingSubject
-	106, // 204: api.v1.RoleBindingDetails.role_ref:type_name -> api.v1.RoleReference
-	108, // 205: api.v1.KedaScaledObjectDetails.triggers:type_name -> api.v1.KedaScaledObjectTrigger
-	109, // 206: api.v1.KedaScaledObjectDetails.conditions:type_name -> api.v1.KedaScaledObjectCondition
-	155, // 207: api.v1.KedaScaledObjectTrigger.metadata:type_name -> api.v1.KedaScaledObjectTrigger.MetadataEntry
-	111, // 208: api.v1.KarpenterResourceDetails.conditions:type_name -> api.v1.KarpenterResourceCondition
-	112, // 209: api.v1.KarpenterResourceDetails.capacity:type_name -> api.v1.KarpenterCapacity
-	113, // 210: api.v1.KarpenterResourceDetails.requirements:type_name -> api.v1.KarpenterRequirement
-	156, // 211: api.v1.KarpenterResourceDetails.limits:type_name -> api.v1.KarpenterResourceDetails.LimitsEntry
-	157, // 212: api.v1.KarpenterCapacity.other:type_name -> api.v1.KarpenterCapacity.OtherEntry
-	24,  // 213: api.v1.WorkloadFilters.namespace_selector:type_name -> api.v1.LabelSelector
-	24,  // 214: api.v1.WorkloadFilters.workload_selector:type_name -> api.v1.LabelSelector
-	0,   // 215: api.v1.WorkloadFilters.kind_filter:type_name -> api.v1.K8sObjectKind
-	25,  // 216: api.v1.WorkloadFilters.name_pattern:type_name -> api.v1.RegexPattern
-	24,  // 217: api.v1.WorkloadFilters.annotation_selector:type_name -> api.v1.LabelSelector
-	3,   // 218: api.v1.WorkloadFilters.status:type_name -> api.v1.WorkloadStatusFilter
-	158, // 219: api.v1.PodDisruptionBudgetDetails.selector_labels:type_name -> api.v1.PodDisruptionBudgetDetails.SelectorLabelsEntry
-	116, // 220: api.v1.PodDisruptionBudgetDetails.conditions:type_name -> api.v1.PodDisruptionBudgetCondition
-	159, // 221: api.v1.ResourceQuotaDetails.hard_limits:type_name -> api.v1.ResourceQuotaDetails.HardLimitsEntry
-	160, // 222: api.v1.ResourceQuotaDetails.used:type_name -> api.v1.ResourceQuotaDetails.UsedEntry
-	161, // 223: api.v1.ResourceQuotaDetails.scope_selector:type_name -> api.v1.ResourceQuotaDetails.ScopeSelectorEntry
-	118, // 224: api.v1.ResourceQuotaDetails.conditions:type_name -> api.v1.ResourceQuotaCondition
-	30,  // 225: api.v1.VolcanoJobDetails.containers:type_name -> api.v1.ContainerTemplate
-	120, // 226: api.v1.VolcanoJobDetails.conditions:type_name -> api.v1.VolcanoJobCondition
-	121, // 227: api.v1.VolcanoJobDetails.tasks:type_name -> api.v1.VolcanoTask
-	30,  // 228: api.v1.VolcanoTask.containers:type_name -> api.v1.ContainerTemplate
-	162, // 229: api.v1.Event.created_at:type_name -> google.protobuf.Timestamp
-	162, // 230: api.v1.Event.updated_at:type_name -> google.protobuf.Timestamp
-	162, // 231: api.v1.Event.last_seen:type_name -> google.protobuf.Timestamp
-	162, // 232: api.v1.Event.deleted_at:type_name -> google.protobuf.Timestamp
-	123, // 233: api.v1.EventDatapoint.events:type_name -> api.v1.EventDatapointInfo
-	234, // [234:234] is the sub-list for method output_type
-	234, // [234:234] is the sub-list for method input_type
-	234, // [234:234] is the sub-list for extension type_name
-	234, // [234:234] is the sub-list for extension extendee
-	0,   // [0:234] is the sub-list for field type_name
+	122, // 97: api.v1.ResourceDetails.spark_application_details:type_name -> api.v1.SparkApplicationDetails
+	42,  // 98: api.v1.ResourceDetails.service_ports:type_name -> api.v1.ServicePort
+	134, // 99: api.v1.ResourceDetails.service_selector:type_name -> api.v1.ResourceDetails.ServiceSelectorEntry
+	135, // 100: api.v1.ResourceDetails.sc_parameters:type_name -> api.v1.ResourceDetails.ScParametersEntry
+	62,  // 101: api.v1.ResourceDetails.node_taints:type_name -> api.v1.NodeTaint
+	28,  // 102: api.v1.PodDetails.containers:type_name -> api.v1.ContainerSummary
+	30,  // 103: api.v1.DeploymentDetails.containers:type_name -> api.v1.ContainerTemplate
+	31,  // 104: api.v1.DeploymentDetails.conditions:type_name -> api.v1.DeploymentCondition
+	30,  // 105: api.v1.StatefulSetDetails.containers:type_name -> api.v1.ContainerTemplate
+	33,  // 106: api.v1.StatefulSetDetails.volume_claim_templates:type_name -> api.v1.VolumeClaimTemplate
+	30,  // 107: api.v1.DaemonSetDetails.containers:type_name -> api.v1.ContainerTemplate
+	69,  // 108: api.v1.DaemonSetDetails.tolerations:type_name -> api.v1.TolerationInfo
+	70,  // 109: api.v1.DaemonSetDetails.node_selector:type_name -> api.v1.NodeSelector
+	30,  // 110: api.v1.ReplicaSetDetails.containers:type_name -> api.v1.ContainerTemplate
+	24,  // 111: api.v1.ReplicaSetDetails.selector:type_name -> api.v1.LabelSelector
+	30,  // 112: api.v1.JobDetails.containers:type_name -> api.v1.ContainerTemplate
+	37,  // 113: api.v1.JobDetails.conditions:type_name -> api.v1.JobCondition
+	24,  // 114: api.v1.JobDetails.selector:type_name -> api.v1.LabelSelector
+	30,  // 115: api.v1.CronJobDetails.containers:type_name -> api.v1.ContainerTemplate
+	39,  // 116: api.v1.CronJobDetails.active_jobs:type_name -> api.v1.ActiveJobReference
+	40,  // 117: api.v1.CronJobDetails.job_template:type_name -> api.v1.JobTemplate
+	30,  // 118: api.v1.JobTemplate.containers:type_name -> api.v1.ContainerTemplate
+	42,  // 119: api.v1.ServiceDetails.ports:type_name -> api.v1.ServicePort
+	136, // 120: api.v1.ServiceDetails.selector:type_name -> api.v1.ServiceDetails.SelectorEntry
+	43,  // 121: api.v1.ServiceDetails.load_balancer_ingress:type_name -> api.v1.LoadBalancerIngress
+	45,  // 122: api.v1.IngressDetails.rules:type_name -> api.v1.IngressRule
+	48,  // 123: api.v1.IngressDetails.tls:type_name -> api.v1.IngressTLS
+	47,  // 124: api.v1.IngressDetails.default_backend:type_name -> api.v1.IngressBackend
+	43,  // 125: api.v1.IngressDetails.load_balancer_ingress:type_name -> api.v1.LoadBalancerIngress
+	46,  // 126: api.v1.IngressRule.paths:type_name -> api.v1.IngressPath
+	47,  // 127: api.v1.IngressPath.backend:type_name -> api.v1.IngressBackend
+	50,  // 128: api.v1.PersistentVolumeClaimDetails.resource_requirements:type_name -> api.v1.ResourceRequirements
+	24,  // 129: api.v1.PersistentVolumeClaimDetails.selector:type_name -> api.v1.LabelSelector
+	51,  // 130: api.v1.PersistentVolumeClaimDetails.volume_node_affinity:type_name -> api.v1.VolumeNodeAffinity
+	52,  // 131: api.v1.PersistentVolumeClaimDetails.conditions:type_name -> api.v1.PVCCondition
+	137, // 132: api.v1.ResourceRequirements.requests:type_name -> api.v1.ResourceRequirements.RequestsEntry
+	138, // 133: api.v1.ResourceRequirements.limits:type_name -> api.v1.ResourceRequirements.LimitsEntry
+	72,  // 134: api.v1.VolumeNodeAffinity.required:type_name -> api.v1.NodeSelectorRequirement
+	72,  // 135: api.v1.VolumeNodeAffinity.preferred:type_name -> api.v1.NodeSelectorRequirement
+	139, // 136: api.v1.PersistentVolumeDetails.capacity:type_name -> api.v1.PersistentVolumeDetails.CapacityEntry
+	54,  // 137: api.v1.PersistentVolumeDetails.claim_ref:type_name -> api.v1.PVClaimReference
+	55,  // 138: api.v1.PersistentVolumeDetails.volume_source:type_name -> api.v1.PVVolumeSource
+	70,  // 139: api.v1.PersistentVolumeDetails.node_affinity:type_name -> api.v1.NodeSelector
+	56,  // 140: api.v1.PVVolumeSource.csi:type_name -> api.v1.CSIVolumeSource
+	57,  // 141: api.v1.PVVolumeSource.host_path:type_name -> api.v1.HostPathVolumeSource
+	58,  // 142: api.v1.PVVolumeSource.nfs:type_name -> api.v1.NFSVolumeSource
+	140, // 143: api.v1.PVVolumeSource.volume_attributes:type_name -> api.v1.PVVolumeSource.VolumeAttributesEntry
+	141, // 144: api.v1.CSIVolumeSource.volume_attributes:type_name -> api.v1.CSIVolumeSource.VolumeAttributesEntry
+	142, // 145: api.v1.StorageClassDetails.parameters:type_name -> api.v1.StorageClassDetails.ParametersEntry
+	67,  // 146: api.v1.StorageClassDetails.allowed_topologies:type_name -> api.v1.TopologySelector
+	143, // 147: api.v1.NamespaceDetails.conditions:type_name -> api.v1.NamespaceDetails.ConditionsEntry
+	63,  // 148: api.v1.NodeDetails.addresses:type_name -> api.v1.NodeAddress
+	64,  // 149: api.v1.NodeDetails.conditions:type_name -> api.v1.NodeCondition
+	65,  // 150: api.v1.NodeDetails.system_info:type_name -> api.v1.NodeSystemInfo
+	144, // 151: api.v1.NodeDetails.capacity:type_name -> api.v1.NodeDetails.CapacityEntry
+	145, // 152: api.v1.NodeDetails.allocatable:type_name -> api.v1.NodeDetails.AllocatableEntry
+	66,  // 153: api.v1.NodeDetails.images:type_name -> api.v1.NodeImage
+	68,  // 154: api.v1.TopologySelector.match_label_expressions:type_name -> api.v1.TopologySelectorTerm
+	146, // 155: api.v1.TopologySelectorTerm.match_labels:type_name -> api.v1.TopologySelectorTerm.MatchLabelsEntry
+	71,  // 156: api.v1.NodeSelector.terms:type_name -> api.v1.NodeSelectorTerm
+	72,  // 157: api.v1.NodeSelectorTerm.match_expressions:type_name -> api.v1.NodeSelectorRequirement
+	72,  // 158: api.v1.NodeSelectorTerm.match_fields:type_name -> api.v1.NodeSelectorRequirement
+	74,  // 159: api.v1.HPADetails.scale_target_ref:type_name -> api.v1.ScaleTargetRef
+	75,  // 160: api.v1.HPADetails.metrics:type_name -> api.v1.HPAMetric
+	87,  // 161: api.v1.HPADetails.conditions:type_name -> api.v1.HPACondition
+	88,  // 162: api.v1.HPADetails.behavior:type_name -> api.v1.HPABehavior
+	82,  // 163: api.v1.HPADetails.current_metrics:type_name -> api.v1.HPACurrentMetric
+	76,  // 164: api.v1.HPAMetric.resource:type_name -> api.v1.HPAResourceMetric
+	77,  // 165: api.v1.HPAMetric.pods:type_name -> api.v1.HPAPodsMetric
+	78,  // 166: api.v1.HPAMetric.object:type_name -> api.v1.HPAObjectMetric
+	79,  // 167: api.v1.HPAMetric.external:type_name -> api.v1.HPAExternalMetric
+	80,  // 168: api.v1.HPAPodsMetric.metric:type_name -> api.v1.HPAMetricSelector
+	81,  // 169: api.v1.HPAObjectMetric.described_object:type_name -> api.v1.HPAObjectReference
+	80,  // 170: api.v1.HPAObjectMetric.metric:type_name -> api.v1.HPAMetricSelector
+	80,  // 171: api.v1.HPAExternalMetric.metric:type_name -> api.v1.HPAMetricSelector
+	147, // 172: api.v1.HPAMetricSelector.selector:type_name -> api.v1.HPAMetricSelector.SelectorEntry
+	83,  // 173: api.v1.HPACurrentMetric.resource:type_name -> api.v1.HPACurrentResourceMetric
+	84,  // 174: api.v1.HPACurrentMetric.pods:type_name -> api.v1.HPACurrentPodsMetric
+	85,  // 175: api.v1.HPACurrentMetric.object:type_name -> api.v1.HPACurrentObjectMetric
+	86,  // 176: api.v1.HPACurrentMetric.external:type_name -> api.v1.HPACurrentExternalMetric
+	80,  // 177: api.v1.HPACurrentPodsMetric.metric:type_name -> api.v1.HPAMetricSelector
+	81,  // 178: api.v1.HPACurrentObjectMetric.described_object:type_name -> api.v1.HPAObjectReference
+	80,  // 179: api.v1.HPACurrentObjectMetric.metric:type_name -> api.v1.HPAMetricSelector
+	80,  // 180: api.v1.HPACurrentExternalMetric.metric:type_name -> api.v1.HPAMetricSelector
+	89,  // 181: api.v1.HPABehavior.scale_up:type_name -> api.v1.HPAScalingRules
+	89,  // 182: api.v1.HPABehavior.scale_down:type_name -> api.v1.HPAScalingRules
+	90,  // 183: api.v1.HPAScalingRules.policies:type_name -> api.v1.HPAScalingPolicy
+	92,  // 184: api.v1.VPADetails.target_ref:type_name -> api.v1.VPATargetRef
+	93,  // 185: api.v1.VPADetails.update_policy:type_name -> api.v1.VPAUpdatePolicy
+	94,  // 186: api.v1.VPADetails.resource_policy:type_name -> api.v1.VPAResourcePolicy
+	96,  // 187: api.v1.VPADetails.recommendation:type_name -> api.v1.VPARecommendation
+	98,  // 188: api.v1.VPADetails.conditions:type_name -> api.v1.VPACondition
+	95,  // 189: api.v1.VPAResourcePolicy.container_policies:type_name -> api.v1.VPAContainerResourcePolicy
+	148, // 190: api.v1.VPAContainerResourcePolicy.min_allowed:type_name -> api.v1.VPAContainerResourcePolicy.MinAllowedEntry
+	149, // 191: api.v1.VPAContainerResourcePolicy.max_allowed:type_name -> api.v1.VPAContainerResourcePolicy.MaxAllowedEntry
+	97,  // 192: api.v1.VPARecommendation.container_recommendations:type_name -> api.v1.VPAContainerRecommendation
+	150, // 193: api.v1.VPAContainerRecommendation.target:type_name -> api.v1.VPAContainerRecommendation.TargetEntry
+	151, // 194: api.v1.VPAContainerRecommendation.lower_bound:type_name -> api.v1.VPAContainerRecommendation.LowerBoundEntry
+	152, // 195: api.v1.VPAContainerRecommendation.upper_bound:type_name -> api.v1.VPAContainerRecommendation.UpperBoundEntry
+	153, // 196: api.v1.VPAContainerRecommendation.uncapped_target:type_name -> api.v1.VPAContainerRecommendation.UncappedTargetEntry
+	100, // 197: api.v1.LimitRangeDetails.limits:type_name -> api.v1.LimitRangeItem
+	154, // 198: api.v1.LimitRangeItem.default_limits:type_name -> api.v1.LimitRangeItem.DefaultLimitsEntry
+	155, // 199: api.v1.LimitRangeItem.default_request:type_name -> api.v1.LimitRangeItem.DefaultRequestEntry
+	156, // 200: api.v1.LimitRangeItem.max:type_name -> api.v1.LimitRangeItem.MaxEntry
+	157, // 201: api.v1.LimitRangeItem.min:type_name -> api.v1.LimitRangeItem.MinEntry
+	158, // 202: api.v1.LimitRangeItem.max_limit_request_ratio:type_name -> api.v1.LimitRangeItem.MaxLimitRequestRatioEntry
+	103, // 203: api.v1.RoleDetails.rules:type_name -> api.v1.RoleRule
+	105, // 204: api.v1.RoleBindingDetails.subjects:type_name -> api.v1.RoleBindingSubject
+	106, // 205: api.v1.RoleBindingDetails.role_ref:type_name -> api.v1.RoleReference
+	108, // 206: api.v1.KedaScaledObjectDetails.triggers:type_name -> api.v1.KedaScaledObjectTrigger
+	109, // 207: api.v1.KedaScaledObjectDetails.conditions:type_name -> api.v1.KedaScaledObjectCondition
+	159, // 208: api.v1.KedaScaledObjectTrigger.metadata:type_name -> api.v1.KedaScaledObjectTrigger.MetadataEntry
+	111, // 209: api.v1.KarpenterResourceDetails.conditions:type_name -> api.v1.KarpenterResourceCondition
+	112, // 210: api.v1.KarpenterResourceDetails.capacity:type_name -> api.v1.KarpenterCapacity
+	113, // 211: api.v1.KarpenterResourceDetails.requirements:type_name -> api.v1.KarpenterRequirement
+	160, // 212: api.v1.KarpenterResourceDetails.limits:type_name -> api.v1.KarpenterResourceDetails.LimitsEntry
+	161, // 213: api.v1.KarpenterCapacity.other:type_name -> api.v1.KarpenterCapacity.OtherEntry
+	24,  // 214: api.v1.WorkloadFilters.namespace_selector:type_name -> api.v1.LabelSelector
+	24,  // 215: api.v1.WorkloadFilters.workload_selector:type_name -> api.v1.LabelSelector
+	0,   // 216: api.v1.WorkloadFilters.kind_filter:type_name -> api.v1.K8sObjectKind
+	25,  // 217: api.v1.WorkloadFilters.name_pattern:type_name -> api.v1.RegexPattern
+	24,  // 218: api.v1.WorkloadFilters.annotation_selector:type_name -> api.v1.LabelSelector
+	3,   // 219: api.v1.WorkloadFilters.status:type_name -> api.v1.WorkloadStatusFilter
+	162, // 220: api.v1.PodDisruptionBudgetDetails.selector_labels:type_name -> api.v1.PodDisruptionBudgetDetails.SelectorLabelsEntry
+	116, // 221: api.v1.PodDisruptionBudgetDetails.conditions:type_name -> api.v1.PodDisruptionBudgetCondition
+	163, // 222: api.v1.ResourceQuotaDetails.hard_limits:type_name -> api.v1.ResourceQuotaDetails.HardLimitsEntry
+	164, // 223: api.v1.ResourceQuotaDetails.used:type_name -> api.v1.ResourceQuotaDetails.UsedEntry
+	165, // 224: api.v1.ResourceQuotaDetails.scope_selector:type_name -> api.v1.ResourceQuotaDetails.ScopeSelectorEntry
+	118, // 225: api.v1.ResourceQuotaDetails.conditions:type_name -> api.v1.ResourceQuotaCondition
+	30,  // 226: api.v1.VolcanoJobDetails.containers:type_name -> api.v1.ContainerTemplate
+	120, // 227: api.v1.VolcanoJobDetails.conditions:type_name -> api.v1.VolcanoJobCondition
+	121, // 228: api.v1.VolcanoJobDetails.tasks:type_name -> api.v1.VolcanoTask
+	30,  // 229: api.v1.VolcanoTask.containers:type_name -> api.v1.ContainerTemplate
+	30,  // 230: api.v1.SparkApplicationDetails.containers:type_name -> api.v1.ContainerTemplate
+	123, // 231: api.v1.SparkApplicationDetails.spark_driver_info:type_name -> api.v1.SparkDriverInfo
+	124, // 232: api.v1.SparkApplicationDetails.restart_policy:type_name -> api.v1.SparkRestartPolicyInfo
+	125, // 233: api.v1.SparkApplicationDetails.dynamic_allocation:type_name -> api.v1.SparkDynamicAllocationInfo
+	166, // 234: api.v1.Event.created_at:type_name -> google.protobuf.Timestamp
+	166, // 235: api.v1.Event.updated_at:type_name -> google.protobuf.Timestamp
+	166, // 236: api.v1.Event.last_seen:type_name -> google.protobuf.Timestamp
+	166, // 237: api.v1.Event.deleted_at:type_name -> google.protobuf.Timestamp
+	127, // 238: api.v1.EventDatapoint.events:type_name -> api.v1.EventDatapointInfo
+	239, // [239:239] is the sub-list for method output_type
+	239, // [239:239] is the sub-list for method input_type
+	239, // [239:239] is the sub-list for extension type_name
+	239, // [239:239] is the sub-list for extension extendee
+	0,   // [0:239] is the sub-list for field type_name
 }
 
 func init() { file_api_v1_common_proto_init() }
@@ -17320,7 +17788,7 @@ func file_api_v1_common_proto_init() {
 			}
 		}
 		file_api_v1_common_proto_msgTypes[118].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*Event); i {
+			switch v := v.(*SparkApplicationDetails); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -17332,7 +17800,7 @@ func file_api_v1_common_proto_init() {
 			}
 		}
 		file_api_v1_common_proto_msgTypes[119].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*EventDatapointInfo); i {
+			switch v := v.(*SparkDriverInfo); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -17344,6 +17812,54 @@ func file_api_v1_common_proto_init() {
 			}
 		}
 		file_api_v1_common_proto_msgTypes[120].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*SparkRestartPolicyInfo); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_api_v1_common_proto_msgTypes[121].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*SparkDynamicAllocationInfo); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_api_v1_common_proto_msgTypes[122].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*Event); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_api_v1_common_proto_msgTypes[123].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*EventDatapointInfo); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_api_v1_common_proto_msgTypes[124].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*EventDatapoint); i {
 			case 0:
 				return &v.state
@@ -17385,6 +17901,7 @@ func file_api_v1_common_proto_init() {
 		(*ResourceDetails_PodDisruptionBudgetDetails)(nil),
 		(*ResourceDetails_ResourceQuotaDetails)(nil),
 		(*ResourceDetails_VolcanoJobDetails)(nil),
+		(*ResourceDetails_SparkApplicationDetails)(nil),
 	}
 	file_api_v1_common_proto_msgTypes[110].OneofWrappers = []interface{}{}
 	type x struct{}
@@ -17393,7 +17910,7 @@ func file_api_v1_common_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_api_v1_common_proto_rawDesc,
 			NumEnums:      4,
-			NumMessages:   158,
+			NumMessages:   162,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
