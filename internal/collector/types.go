@@ -12,7 +12,7 @@ func AllResourceTypes() []ResourceType {
 		Cluster, ContainerResource,
 		Namespace, CSINode, Karpenter, Datadog, ArgoRollouts, KedaScaledJob,
 		KedaScaledObject, ClusterSnapshot, CSIDriver, CSIStorageCapacity,
-		VolumeAttachment, KubeflowNotebook, VolcanoJob,
+		VolumeAttachment, KubeflowNotebook, VolcanoJob, SparkApplication, ScheduledSparkApplication,
 	}
 }
 
@@ -173,5 +173,23 @@ type ExcludedArgoRollout struct {
 	Namespace string `json:"namespace"`
 
 	// Name is the Argo Rollout's name
+	Name string `json:"name"`
+}
+
+// ExcludedSparkApplication identifies a Spark Application to exclude
+type ExcludedSparkApplication struct {
+	// Namespace is the Spark Application's namespace
+	Namespace string `json:"namespace"`
+
+	// Name is the Spark Application's name
+	Name string `json:"name"`
+}
+
+// ExcludedScheduledSparkApplication identifies a Scheduled Spark Application to exclude
+type ExcludedScheduledSparkApplication struct {
+	// Namespace is the Scheduled Spark Application's namespace
+	Namespace string `json:"namespace"`
+
+	// Name is the Scheduled Spark Application's name
 	Name string `json:"name"`
 }
