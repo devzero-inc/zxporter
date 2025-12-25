@@ -1,0 +1,75 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "chart.fullname" . }}-evzero-zxporter-env-config
+  labels:
+  {{- include "chart.labels" . | nindent 4 }}
+data:
+  BUFFER_SIZE: {{ .Values.evzeroZxporterEnvConfig.bufferSize | quote }}
+  CLUSTER_TOKEN: {{ .Values.evzeroZxporterEnvConfig.clusterToken | quote }}
+  COLLECTION_FREQUENCY: {{ .Values.evzeroZxporterEnvConfig.collectionFrequency |
+    quote }}
+  DAKR_URL: {{ .Values.evzeroZxporterEnvConfig.dakrUrl | quote }}
+  DISABLE_NETWORK_IO_METRICS: {{ .Values.evzeroZxporterEnvConfig.disableNetworkIoMetrics
+    | quote }}
+  DISABLED_COLLECTORS: {{ .Values.evzeroZxporterEnvConfig.disabledCollectors | quote
+    }}
+  EXCLUDED_CLUSTERROLEBINDINGS: {{ .Values.evzeroZxporterEnvConfig.excludedClusterrolebindings
+    | quote }}
+  EXCLUDED_CLUSTERROLES: {{ .Values.evzeroZxporterEnvConfig.excludedClusterroles
+    | quote }}
+  EXCLUDED_CRDGROUPS: {{ .Values.evzeroZxporterEnvConfig.excludedCrdgroups | quote
+    }}
+  EXCLUDED_CRDS: {{ .Values.evzeroZxporterEnvConfig.excludedCrds | quote }}
+  EXCLUDED_CRONJOBS: {{ .Values.evzeroZxporterEnvConfig.excludedCronjobs | quote
+    }}
+  EXCLUDED_DAEMONSETS: {{ .Values.evzeroZxporterEnvConfig.excludedDaemonsets | quote
+    }}
+  EXCLUDED_DEPLOYMENTS: {{ .Values.evzeroZxporterEnvConfig.excludedDeployments |
+    quote }}
+  EXCLUDED_ENDPOINTS: {{ .Values.evzeroZxporterEnvConfig.excludedEndpoints | quote
+    }}
+  EXCLUDED_EVENTS: {{ .Values.evzeroZxporterEnvConfig.excludedEvents | quote }}
+  EXCLUDED_HPAS: {{ .Values.evzeroZxporterEnvConfig.excludedHpas | quote }}
+  EXCLUDED_INGRESSCLASSES: {{ .Values.evzeroZxporterEnvConfig.excludedIngressclasses
+    | quote }}
+  EXCLUDED_INGRESSES: {{ .Values.evzeroZxporterEnvConfig.excludedIngresses | quote
+    }}
+  EXCLUDED_JOBS: {{ .Values.evzeroZxporterEnvConfig.excludedJobs | quote }}
+  EXCLUDED_LIMITRANGES: {{ .Values.evzeroZxporterEnvConfig.excludedLimitranges |
+    quote }}
+  EXCLUDED_NAMESPACES: {{ .Values.evzeroZxporterEnvConfig.excludedNamespaces | quote
+    }}
+  EXCLUDED_NETWORKPOLICIES: {{ .Values.evzeroZxporterEnvConfig.excludedNetworkpolicies
+    | quote }}
+  EXCLUDED_NODES: {{ .Values.evzeroZxporterEnvConfig.excludedNodes | quote }}
+  EXCLUDED_PDBS: {{ .Values.evzeroZxporterEnvConfig.excludedPdbs | quote }}
+  EXCLUDED_PODS: {{ .Values.evzeroZxporterEnvConfig.excludedPods | quote }}
+  EXCLUDED_PSPS: {{ .Values.evzeroZxporterEnvConfig.excludedPsps | quote }}
+  EXCLUDED_PVCS: {{ .Values.evzeroZxporterEnvConfig.excludedPvcs | quote }}
+  EXCLUDED_PVS: {{ .Values.evzeroZxporterEnvConfig.excludedPvs | quote }}
+  EXCLUDED_REPLICATIONCONTROLLERS: {{ .Values.evzeroZxporterEnvConfig.excludedReplicationcontrollers
+    | quote }}
+  EXCLUDED_RESOURCEQUOTAS: {{ .Values.evzeroZxporterEnvConfig.excludedResourcequotas
+    | quote }}
+  EXCLUDED_ROLEBINDINGS: {{ .Values.evzeroZxporterEnvConfig.excludedRolebindings
+    | quote }}
+  EXCLUDED_ROLES: {{ .Values.evzeroZxporterEnvConfig.excludedRoles | quote }}
+  EXCLUDED_SERVICEACCOUNTS: {{ .Values.evzeroZxporterEnvConfig.excludedServiceaccounts
+    | quote }}
+  EXCLUDED_SERVICES: {{ .Values.evzeroZxporterEnvConfig.excludedServices | quote
+    }}
+  EXCLUDED_STATEFULSETS: {{ .Values.evzeroZxporterEnvConfig.excludedStatefulsets
+    | quote }}
+  EXCLUDED_STORAGECLASSES: {{ .Values.evzeroZxporterEnvConfig.excludedStorageclasses
+    | quote }}
+  EXCLUDED_VPAS: {{ .Values.evzeroZxporterEnvConfig.excludedVpas | quote }}
+  K8S_PROVIDER: {{ .Values.evzeroZxporterEnvConfig.k8SProvider | quote }}
+  KUBE_CONTEXT_NAME: {{ .Values.evzeroZxporterEnvConfig.kubeContextName | quote }}
+  MASK_SECRET_DATA: {{ .Values.evzeroZxporterEnvConfig.maskSecretData | quote }}
+  NODE_METRICS_INTERVAL: {{ .Values.evzeroZxporterEnvConfig.nodeMetricsInterval |
+    quote }}
+  PROMETHEUS_URL: {{ .Values.evzeroZxporterEnvConfig.prometheusUrl | quote }}
+  TARGET_NAMESPACES: {{ .Values.evzeroZxporterEnvConfig.targetNamespaces | quote
+    }}
+  WATCHED_CRDS: {{ .Values.evzeroZxporterEnvConfig.watchedCrds | quote }}
