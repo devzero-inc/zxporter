@@ -17,7 +17,7 @@ require google.golang.org/genproto v0.0.0-20250922171735-9219d122eba9
 
 require (
 	cel.dev/expr v0.24.0 // indirect
-	github.com/expr-lang/expr v1.17.2 // indirect
+	github.com/expr-lang/expr v1.17.7 // indirect
 	github.com/google/btree v1.1.3 // indirect
 	// TODO: Using specific commit version because of issue with custom validator webhook: https://github.com/kedacore/keda/pull/6700/files
 	github.com/kedacore/keda/v2 v2.17.1-0.20250521173204-e23ef462abb5
