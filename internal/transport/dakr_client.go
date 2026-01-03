@@ -537,3 +537,23 @@ func (c *RealDakrClient) ExchangePATForClusterToken(ctx context.Context, patToke
 	c.logger.Info("Successfully exchanged PAT for cluster token", "clusterId", resp.Msg.ClusterId)
 	return resp.Msg.Token, resp.Msg.ClusterId, nil
 }
+
+// SendNetworkTrafficMetrics pushes network traffic metrics from a node
+func (c *RealDakrClient) SendNetworkTrafficMetrics(ctx context.Context, req *gen.SendNetworkTrafficMetricsRequest) (*gen.SendNetworkTrafficMetricsResponse, error) {
+	connectReq := connect.NewRequest(req)
+	attachClusterToken(connectReq, c.clusterToken)
+
+	// Pass through context values if needed (e.g. cluster_id)
+	if ctx.Value("cluster_id") != nil {
+		clusterString, _ := ctx.Value("cluster_id").(string)
+		connectReq.Header().Set("cluster_id", clusterString)
+	}
+
+	resp, err := c.client.SendNetworkTrafficMetrics(ctx, connectReq)
+	if err != nil {
+		c.logger.Error(err, "Failed to send network traffic metrics to Dakr")
+		return nil, fmt.Errorf("failed to send network traffic metrics to Dakr: %w", err)
+	}
+
+	return resp.Msg, nil
+}

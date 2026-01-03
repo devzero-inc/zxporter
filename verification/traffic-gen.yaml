@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: traffic-gen
+  namespace: default
+  labels:
+    app: traffic-gen
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: traffic-gen
+  template:
+    metadata:
+      labels:
+        app: traffic-gen
+    spec:
+      tolerations:
+        - key: "kubernetes.io/arch"
+          operator: "Equal"
+          value: "arm64"
+          effect: "NoSchedule"
+        - key: "kubernetes.azure.com/scalesetpriority"
+          operator: "Equal"
+          value: "spot"
+          effect: "NoSchedule"
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: app
+                    operator: In
+                    values:
+                      - traffic-gen
+              topologyKey: "kubernetes.io/hostname"
+      containers:
+        - name: traffic-gen
+          image: curlimages/curl
+          command: ["/bin/sh"]
+          args:
+            - "-c"
+            - |
+              while true; do
+                # TCP Traffic
+                curl -s --connect-timeout 2 https://www.google.com > /dev/null
+                curl -s --connect-timeout 2 http://example.com > /dev/null
+                
+                # DNS Queries (implicitly done by curl, but can force more)
+                nslookup kubernetes.default.svc.cluster.local
+                
+                sleep 5
+              done

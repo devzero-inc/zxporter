@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: traffic-server
+  namespace: default
+  labels:
+    app: traffic-server
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: traffic-server
+  template:
+    metadata:
+      labels:
+        app: traffic-server
+    spec:
+      tolerations:
+        - key: "kubernetes.io/arch"
+          operator: "Equal"
+          value: "arm64"
+          effect: "NoSchedule"
+        - key: "kubernetes.azure.com/scalesetpriority"
+          operator: "Equal"
+          value: "spot"
+          effect: "NoSchedule"
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: app
+                    operator: In
+                    values:
+                      - traffic-server
+              topologyKey: "kubernetes.io/hostname"
+      containers:
+        - name: traffic-server
+          image: python:3-slim
+          command: ["python3", "-m", "http.server", "80"]
+          ports:
+            - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: traffic-server
+  namespace: default
+spec:
+  selector:
+    app: traffic-server
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80

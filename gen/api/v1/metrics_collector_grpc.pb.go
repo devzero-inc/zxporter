@@ -24,6 +24,7 @@ const (
 	MetricsCollectorService_SendTelemetryMetrics_FullMethodName      = "/api.v1.MetricsCollectorService/SendTelemetryMetrics"
 	MetricsCollectorService_SendClusterSnapshotStream_FullMethodName = "/api.v1.MetricsCollectorService/SendClusterSnapshotStream"
 	MetricsCollectorService_SendTelemetryLogs_FullMethodName         = "/api.v1.MetricsCollectorService/SendTelemetryLogs"
+	MetricsCollectorService_SendNetworkTrafficMetrics_FullMethodName = "/api.v1.MetricsCollectorService/SendNetworkTrafficMetrics"
 	MetricsCollectorService_NodeMetadata_FullMethodName              = "/api.v1.MetricsCollectorService/NodeMetadata"
 )
 
@@ -41,6 +42,8 @@ type MetricsCollectorServiceClient interface {
 	SendClusterSnapshotStream(ctx context.Context, opts ...grpc.CallOption) (MetricsCollectorService_SendClusterSnapshotStreamClient, error)
 	// SendTelemetryLogs ingests a batch of log messages from the cluster.
 	SendTelemetryLogs(ctx context.Context, in *SendTelemetryLogsRequest, opts ...grpc.CallOption) (*SendTelemetryLogsResponse, error)
+	// SendNetworkTrafficMetrics pushes network traffic metrics from a node.
+	SendNetworkTrafficMetrics(ctx context.Context, in *SendNetworkTrafficMetricsRequest, opts ...grpc.CallOption) (*SendNetworkTrafficMetricsResponse, error)
 	NodeMetadata(ctx context.Context, in *NodeMetadataRequest, opts ...grpc.CallOption) (*NodeMetadataResponse, error)
 }
 
@@ -122,6 +125,15 @@ func (c *metricsCollectorServiceClient) SendTelemetryLogs(ctx context.Context, i
 	return out, nil
 }
 
+func (c *metricsCollectorServiceClient) SendNetworkTrafficMetrics(ctx context.Context, in *SendNetworkTrafficMetricsRequest, opts ...grpc.CallOption) (*SendNetworkTrafficMetricsResponse, error) {
+	out := new(SendNetworkTrafficMetricsResponse)
+	err := c.cc.Invoke(ctx, MetricsCollectorService_SendNetworkTrafficMetrics_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *metricsCollectorServiceClient) NodeMetadata(ctx context.Context, in *NodeMetadataRequest, opts ...grpc.CallOption) (*NodeMetadataResponse, error) {
 	out := new(NodeMetadataResponse)
 	err := c.cc.Invoke(ctx, MetricsCollectorService_NodeMetadata_FullMethodName, in, out, opts...)
@@ -145,6 +157,8 @@ type MetricsCollectorServiceServer interface {
 	SendClusterSnapshotStream(MetricsCollectorService_SendClusterSnapshotStreamServer) error
 	// SendTelemetryLogs ingests a batch of log messages from the cluster.
 	SendTelemetryLogs(context.Context, *SendTelemetryLogsRequest) (*SendTelemetryLogsResponse, error)
+	// SendNetworkTrafficMetrics pushes network traffic metrics from a node.
+	SendNetworkTrafficMetrics(context.Context, *SendNetworkTrafficMetricsRequest) (*SendNetworkTrafficMetricsResponse, error)
 	NodeMetadata(context.Context, *NodeMetadataRequest) (*NodeMetadataResponse, error)
 	mustEmbedUnimplementedMetricsCollectorServiceServer()
 }
@@ -167,6 +181,9 @@ func (UnimplementedMetricsCollectorServiceServer) SendClusterSnapshotStream(Metr
 }
 func (UnimplementedMetricsCollectorServiceServer) SendTelemetryLogs(context.Context, *SendTelemetryLogsRequest) (*SendTelemetryLogsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SendTelemetryLogs not implemented")
+}
+func (UnimplementedMetricsCollectorServiceServer) SendNetworkTrafficMetrics(context.Context, *SendNetworkTrafficMetricsRequest) (*SendNetworkTrafficMetricsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SendNetworkTrafficMetrics not implemented")
 }
 func (UnimplementedMetricsCollectorServiceServer) NodeMetadata(context.Context, *NodeMetadataRequest) (*NodeMetadataResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method NodeMetadata not implemented")
@@ -283,6 +300,24 @@ func _MetricsCollectorService_SendTelemetryLogs_Handler(srv interface{}, ctx con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _MetricsCollectorService_SendNetworkTrafficMetrics_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SendNetworkTrafficMetricsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MetricsCollectorServiceServer).SendNetworkTrafficMetrics(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MetricsCollectorService_SendNetworkTrafficMetrics_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MetricsCollectorServiceServer).SendNetworkTrafficMetrics(ctx, req.(*SendNetworkTrafficMetricsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _MetricsCollectorService_NodeMetadata_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(NodeMetadataRequest)
 	if err := dec(in); err != nil {
@@ -323,6 +358,10 @@ var MetricsCollectorService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SendTelemetryLogs",
 			Handler:    _MetricsCollectorService_SendTelemetryLogs_Handler,
+		},
+		{
+			MethodName: "SendNetworkTrafficMetrics",
+			Handler:    _MetricsCollectorService_SendNetworkTrafficMetrics_Handler,
 		},
 		{
 			MethodName: "NodeMetadata",

@@ -11,12 +11,14 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	"golang.org/x/net/http2"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	apiv1 "github.com/devzero-inc/zxporter/gen/api/v1"
 	apiv1connect "github.com/devzero-inc/zxporter/gen/api/v1/apiv1connect"
 	"github.com/devzero-inc/zxporter/test/stats"
+	"golang.org/x/net/http2/h2c"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -341,6 +343,65 @@ func (s *MetricsServer) NodeMetadata(ctx context.Context, req *connect.Request[a
 	// Return an empty response for the test server implementation
 	return connect.NewResponse(&apiv1.NodeMetadataResponse{
 		NodeToMeta: make(map[string]*apiv1.Node),
+	}), nil
+}
+
+// SendNetworkTrafficMetrics sends network traffic metrics to Dakr
+func (s *MetricsServer) SendNetworkTrafficMetrics(
+	ctx context.Context,
+	req *connect.Request[apiv1.SendNetworkTrafficMetricsRequest],
+) (*connect.Response[apiv1.SendNetworkTrafficMetricsResponse], error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.stats.TotalMessages++
+	if s.stats.MessagesByType == nil {
+		s.stats.MessagesByType = make(map[string]int)
+	}
+	s.stats.MessagesByType["NETWORK_TRAFFIC_METRICS"]++
+
+	if s.stats.FirstMessageTime == nil {
+		now := time.Now()
+		s.stats.FirstMessageTime = &now
+	}
+
+	// Process Network Items
+	for _, item := range req.Msg.Items {
+		stat := stats.NetworkTrafficStat{
+			SrcIP:           item.SrcIp,
+			DstIP:           item.DstIp,
+			SrcPodName:      item.SrcPodName,
+			SrcPodNamespace: item.SrcPodNamespace,
+			Protocol:        item.Protocol,
+			DstPort:         item.DstPort,
+			TxBytes:         item.TxBytes,
+			RxBytes:         item.RxBytes,
+			TxPackets:       item.TxPackets,
+			RxPackets:       item.RxPackets,
+		}
+		s.stats.NetworkMetrics = append(s.stats.NetworkMetrics, stat)
+	}
+
+	// Process DNS Lookups
+	for _, lookup := range req.Msg.DnsLookups {
+		stat := stats.DnsLookupStat{
+			ClientIP:        lookup.ClientIp,
+			Domain:          lookup.Domain,
+			ResolvedIPs:     lookup.ResolvedIps,
+			SrcPodName:      lookup.SrcPodName,
+			SrcPodNamespace: lookup.SrcPodNamespace,
+		}
+		if lookup.Timestamp != nil {
+			stat.Timestamp = lookup.Timestamp.AsTime().String()
+		}
+		s.stats.DnsLookups = append(s.stats.DnsLookups, stat)
+	}
+
+	fmt.Fprintf(os.Stderr, "Received %d network items and %d DNS lookups from node %s\n",
+		len(req.Msg.Items), len(req.Msg.DnsLookups), req.Msg.NodeName)
+
+	return connect.NewResponse(&apiv1.SendNetworkTrafficMetricsResponse{
+		ProcessedCount: int32(len(req.Msg.Items)),
 	}), nil
 }
 
@@ -768,7 +829,8 @@ func main() {
 
 	// Start the gRPC server
 	fmt.Fprintf(os.Stderr, "Starting Connect server on :%s\n", *grpcPort)
-	if err := http.ListenAndServe(":"+*grpcPort, grpcMux); err != nil {
+	h2cHandler := h2c.NewHandler(grpcMux, &http2.Server{})
+	if err := http.ListenAndServe(":"+*grpcPort, h2cHandler); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to serve gRPC: %v\n", err)
 		os.Exit(1)
 	}

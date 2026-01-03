@@ -114,6 +114,15 @@ func (m *MockMetricsServer) NodeMetadata(
 	}), nil
 }
 
+// SendNetworkTrafficMetrics sends network traffic metrics to Dakr
+func (c *MockMetricsServer) SendNetworkTrafficMetrics(
+	ctx context.Context,
+	req *connect.Request[gen.SendNetworkTrafficMetricsRequest],
+) (*connect.Response[gen.SendNetworkTrafficMetricsResponse], error) {
+	// Return an empty response for the mock implementation
+	return connect.NewResponse(&gen.SendNetworkTrafficMetricsResponse{}), nil
+}
+
 func TestConnectRPCCompressionIntegration(t *testing.T) {
 	// Create mock server
 	mockServer := &MockMetricsServer{}

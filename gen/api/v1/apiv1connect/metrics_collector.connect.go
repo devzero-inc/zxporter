@@ -48,6 +48,9 @@ const (
 	// MetricsCollectorServiceSendTelemetryLogsProcedure is the fully-qualified name of the
 	// MetricsCollectorService's SendTelemetryLogs RPC.
 	MetricsCollectorServiceSendTelemetryLogsProcedure = "/api.v1.MetricsCollectorService/SendTelemetryLogs"
+	// MetricsCollectorServiceSendNetworkTrafficMetricsProcedure is the fully-qualified name of the
+	// MetricsCollectorService's SendNetworkTrafficMetrics RPC.
+	MetricsCollectorServiceSendNetworkTrafficMetricsProcedure = "/api.v1.MetricsCollectorService/SendNetworkTrafficMetrics"
 	// MetricsCollectorServiceNodeMetadataProcedure is the fully-qualified name of the
 	// MetricsCollectorService's NodeMetadata RPC.
 	MetricsCollectorServiceNodeMetadataProcedure = "/api.v1.MetricsCollectorService/NodeMetadata"
@@ -65,6 +68,8 @@ type MetricsCollectorServiceClient interface {
 	SendClusterSnapshotStream(context.Context) *connect.ClientStreamForClient[v1.ClusterSnapshotChunk, v1.SendClusterSnapshotStreamResponse]
 	// SendTelemetryLogs ingests a batch of log messages from the cluster.
 	SendTelemetryLogs(context.Context, *connect.Request[v1.SendTelemetryLogsRequest]) (*connect.Response[v1.SendTelemetryLogsResponse], error)
+	// SendNetworkTrafficMetrics pushes network traffic metrics from a node.
+	SendNetworkTrafficMetrics(context.Context, *connect.Request[v1.SendNetworkTrafficMetricsRequest]) (*connect.Response[v1.SendNetworkTrafficMetricsResponse], error)
 	NodeMetadata(context.Context, *connect.Request[v1.NodeMetadataRequest]) (*connect.Response[v1.NodeMetadataResponse], error)
 }
 
@@ -103,6 +108,11 @@ func NewMetricsCollectorServiceClient(httpClient connect.HTTPClient, baseURL str
 			baseURL+MetricsCollectorServiceSendTelemetryLogsProcedure,
 			opts...,
 		),
+		sendNetworkTrafficMetrics: connect.NewClient[v1.SendNetworkTrafficMetricsRequest, v1.SendNetworkTrafficMetricsResponse](
+			httpClient,
+			baseURL+MetricsCollectorServiceSendNetworkTrafficMetricsProcedure,
+			opts...,
+		),
 		nodeMetadata: connect.NewClient[v1.NodeMetadataRequest, v1.NodeMetadataResponse](
 			httpClient,
 			baseURL+MetricsCollectorServiceNodeMetadataProcedure,
@@ -118,6 +128,7 @@ type metricsCollectorServiceClient struct {
 	sendTelemetryMetrics      *connect.Client[v1.SendTelemetryMetricsRequest, v1.SendTelemetryMetricsResponse]
 	sendClusterSnapshotStream *connect.Client[v1.ClusterSnapshotChunk, v1.SendClusterSnapshotStreamResponse]
 	sendTelemetryLogs         *connect.Client[v1.SendTelemetryLogsRequest, v1.SendTelemetryLogsResponse]
+	sendNetworkTrafficMetrics *connect.Client[v1.SendNetworkTrafficMetricsRequest, v1.SendNetworkTrafficMetricsResponse]
 	nodeMetadata              *connect.Client[v1.NodeMetadataRequest, v1.NodeMetadataResponse]
 }
 
@@ -146,6 +157,11 @@ func (c *metricsCollectorServiceClient) SendTelemetryLogs(ctx context.Context, r
 	return c.sendTelemetryLogs.CallUnary(ctx, req)
 }
 
+// SendNetworkTrafficMetrics calls api.v1.MetricsCollectorService.SendNetworkTrafficMetrics.
+func (c *metricsCollectorServiceClient) SendNetworkTrafficMetrics(ctx context.Context, req *connect.Request[v1.SendNetworkTrafficMetricsRequest]) (*connect.Response[v1.SendNetworkTrafficMetricsResponse], error) {
+	return c.sendNetworkTrafficMetrics.CallUnary(ctx, req)
+}
+
 // NodeMetadata calls api.v1.MetricsCollectorService.NodeMetadata.
 func (c *metricsCollectorServiceClient) NodeMetadata(ctx context.Context, req *connect.Request[v1.NodeMetadataRequest]) (*connect.Response[v1.NodeMetadataResponse], error) {
 	return c.nodeMetadata.CallUnary(ctx, req)
@@ -164,6 +180,8 @@ type MetricsCollectorServiceHandler interface {
 	SendClusterSnapshotStream(context.Context, *connect.ClientStream[v1.ClusterSnapshotChunk]) (*connect.Response[v1.SendClusterSnapshotStreamResponse], error)
 	// SendTelemetryLogs ingests a batch of log messages from the cluster.
 	SendTelemetryLogs(context.Context, *connect.Request[v1.SendTelemetryLogsRequest]) (*connect.Response[v1.SendTelemetryLogsResponse], error)
+	// SendNetworkTrafficMetrics pushes network traffic metrics from a node.
+	SendNetworkTrafficMetrics(context.Context, *connect.Request[v1.SendNetworkTrafficMetricsRequest]) (*connect.Response[v1.SendNetworkTrafficMetricsResponse], error)
 	NodeMetadata(context.Context, *connect.Request[v1.NodeMetadataRequest]) (*connect.Response[v1.NodeMetadataResponse], error)
 }
 
@@ -198,6 +216,11 @@ func NewMetricsCollectorServiceHandler(svc MetricsCollectorServiceHandler, opts 
 		svc.SendTelemetryLogs,
 		opts...,
 	)
+	metricsCollectorServiceSendNetworkTrafficMetricsHandler := connect.NewUnaryHandler(
+		MetricsCollectorServiceSendNetworkTrafficMetricsProcedure,
+		svc.SendNetworkTrafficMetrics,
+		opts...,
+	)
 	metricsCollectorServiceNodeMetadataHandler := connect.NewUnaryHandler(
 		MetricsCollectorServiceNodeMetadataProcedure,
 		svc.NodeMetadata,
@@ -215,6 +238,8 @@ func NewMetricsCollectorServiceHandler(svc MetricsCollectorServiceHandler, opts 
 			metricsCollectorServiceSendClusterSnapshotStreamHandler.ServeHTTP(w, r)
 		case MetricsCollectorServiceSendTelemetryLogsProcedure:
 			metricsCollectorServiceSendTelemetryLogsHandler.ServeHTTP(w, r)
+		case MetricsCollectorServiceSendNetworkTrafficMetricsProcedure:
+			metricsCollectorServiceSendNetworkTrafficMetricsHandler.ServeHTTP(w, r)
 		case MetricsCollectorServiceNodeMetadataProcedure:
 			metricsCollectorServiceNodeMetadataHandler.ServeHTTP(w, r)
 		default:
@@ -244,6 +269,10 @@ func (UnimplementedMetricsCollectorServiceHandler) SendClusterSnapshotStream(con
 
 func (UnimplementedMetricsCollectorServiceHandler) SendTelemetryLogs(context.Context, *connect.Request[v1.SendTelemetryLogsRequest]) (*connect.Response[v1.SendTelemetryLogsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.MetricsCollectorService.SendTelemetryLogs is not implemented"))
+}
+
+func (UnimplementedMetricsCollectorServiceHandler) SendNetworkTrafficMetrics(context.Context, *connect.Request[v1.SendNetworkTrafficMetricsRequest]) (*connect.Response[v1.SendNetworkTrafficMetricsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.MetricsCollectorService.SendNetworkTrafficMetrics is not implemented"))
 }
 
 func (UnimplementedMetricsCollectorServiceHandler) NodeMetadata(context.Context, *connect.Request[v1.NodeMetadataRequest]) (*connect.Response[v1.NodeMetadataResponse], error) {

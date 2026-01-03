@@ -1,0 +1,62 @@
+image:
+  repository: devzero/zxporter-netmon
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: "latest"
+
+imagePullSecrets: []
+nameOverride: ""
+
+fullnameOverride: ""
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: "zxporter-netmon"
+
+podAnnotations:
+  container.apparmor.security.beta.kubernetes.io/zxporter-netmon: "unconfined"
+
+podSecurityContext: {}
+  # fsGroup: 2000
+
+securityContext:
+  privileged: true
+  appArmorProfile:
+    type: Unconfined
+  capabilities:
+    add:
+      - NET_ADMIN
+      - SYS_RESOURCE
+
+resources:
+  limits:
+    cpu: 100m
+    memory: 128Mi
+  requests:
+    cpu: 50m
+    memory: 64Mi
+
+nodeSelector: {}
+
+tolerations:
+  - operator: Exists
+    effect: NoSchedule
+
+affinity: {}
+
+hostNetwork: true
+dnsPolicy: ClusterFirstWithHostNet
+
+# Config for collection
+config:
+  logLevel: "info"
+  mainConfigMapName: "devzero-zxporter-env-config"
+  # Default scrape interval 5s
+  exportInterval: "5s"
+  dakrUrl: ""
+  clusterToken: ""

@@ -131,6 +131,7 @@ manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and Cust
 .PHONY: generate
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."
+	go generate ./...
 
 .PHONY: fmt
 fmt: ## Run go fmt against code.
@@ -248,6 +249,17 @@ stress-docker-build: ## Build docker image for the stress test.
 .PHONY: stress-docker-push
 stress-docker-push: ## Push docker image for the stress test.
 	$(CONTAINER_TOOL) push ${STRESS_IMG}
+
+# zxporter-netmon images
+IMG_NETMON ?= ttl.sh/zxporter-netmon:latest
+
+.PHONY: docker-build-netmon
+docker-build-netmon: ## Build docker image for zxporter-netmon
+	$(CONTAINER_TOOL) build -t ${IMG_NETMON} -f Dockerfile.netmon .
+
+.PHONY: docker-push-netmon
+docker-push-netmon: ## Push docker image for zxporter-netmon
+	$(CONTAINER_TOOL) push ${IMG_NETMON}
 
 # PLATFORMS defines the target platforms for the manager image be built to provide support to multiple
 # architectures. (i.e. make docker-buildx IMG=myregistry/mypoperator:0.0.1). To use this option you need to:
@@ -683,3 +695,125 @@ generate-proto: install-buf ## Fetch latest Dakr protobuf
 	buf build "$(DAKR_DIR)" --path "$(DAKR_METRICS_COLLECTOR_PROTO)" --path "$(DAKR_CLUSTER_PROTO)" -o "$$PROTO_DIR"/dakr_proto_descriptor.bin; \
 	buf generate --include-imports "$$PROTO_DIR"/dakr_proto_descriptor.bin; 
 	buf generate --verbose --include-imports --timeout=5m .
+
+# Lima Verification
+LIMA_INSTANCE := zxporter-verify
+LIMA_CONFIG := verification/lima.yaml
+
+.PHONY: setup-lima
+setup-lima:
+	@echo "Checking for Lima..."
+	@which limactl >/dev/null || (echo "Installing Lima..." && brew install lima)
+	@echo "Checking if instance $(LIMA_INSTANCE) exists..."
+	@limactl list | grep -q $(LIMA_INSTANCE) || (echo "Creating instance $(LIMA_INSTANCE)..." && limactl start --tty=false --name=$(LIMA_INSTANCE) $(LIMA_CONFIG))
+	@echo "Lima instance $(LIMA_INSTANCE) is ready."
+
+.PHONY: verify-local
+verify-local: setup-lima
+	@echo "Running local verification in Lima..."
+	@chmod +x verification/verify_local.sh
+	@./verification/verify_local.sh $(LIMA_INSTANCE)
+
+# for local, this will be something like: 
+#         make verify-e2e CLUSTER_CONTEXT=kind-zxporter-e2e NAMESPACE=devzero-zxporter
+.PHONY: verify-e2e
+verify-e2e: ## Run E2E verification on a Kind or Cloud cluster
+	@echo "Running E2E verification..."
+	@chmod +x verification/verify_e2e.sh
+	@./verification/verify_e2e.sh $(CLUSTER_CONTEXT) $(NAMESPACE)
+
+.PHONY: provision-eks
+provision-eks: ## Create EKS cluster
+	@echo "Creating EKS cluster..."
+	@chmod +x verification/provision_eks.sh
+	@./verification/provision_eks.sh create
+
+.PHONY: deprovision-eks
+deprovision-eks: ## Delete EKS cluster
+	@echo "Deleting EKS cluster..."
+	@chmod +x verification/provision_eks.sh
+	@./verification/provision_eks.sh delete
+
+KIND_CLUSTER_NAME := zxporter-e2e
+.PHONY: create-kind
+create-kind: ## Create Kind cluster
+	@echo "Creating Kind cluster $(KIND_CLUSTER_NAME)..."
+	@kind create cluster --name $(KIND_CLUSTER_NAME) --config verification/kind-config.yaml || echo "Cluster might already exist"
+
+.PHONY: delete-kind
+delete-kind: ## Delete Kind cluster
+	@echo "Deleting Kind cluster $(KIND_CLUSTER_NAME)..."
+	@kind delete cluster --name $(KIND_CLUSTER_NAME)
+
+.PHONY: verify-e2e-kind-lifecycle
+verify-e2e-kind-lifecycle: delete-kind create-kind ## Full Kind E2E (Delete -> Create -> Verify)
+	$(MAKE) verify-e2e CLUSTER_CONTEXT=kind-$(KIND_CLUSTER_NAME) NAMESPACE=devzero-zxporter
+
+.PHONY: verify-e2e-eks-lifecycle
+verify-e2e-eks-lifecycle: provision-eks ## Full EKS E2E (Provision -> Verify -> Deprovision)
+	@echo "Detected User: $$(whoami)"
+	@export AWS_PROFILE=$${AWS_PROFILE:-self-hosted} && \
+	CLUSTER_NAME="zxporter-e2e-$$(whoami | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-' | sed 's/^-//; s/-$$//')" && \
+	REGION="ap-south-1" && \
+	echo "Updating kubeconfig for cluster $${CLUSTER_NAME}..." && \
+	aws eks update-kubeconfig --region $${REGION} --name $${CLUSTER_NAME} && \
+	CONTEXT=$$(kubectl config current-context) && \
+	echo "Using Context: $${CONTEXT}" && \
+	$(MAKE) verify-e2e CLUSTER_CONTEXT="$${CONTEXT}" NAMESPACE=devzero-zxporter
+	$(MAKE) deprovision-eks
+
+.PHONY: provision-aks
+provision-aks: ## Create AKS cluster
+	@echo "Creating AKS cluster..."
+	@chmod +x verification/provision_aks.sh
+	@./verification/provision_aks.sh create
+
+.PHONY: deprovision-aks
+deprovision-aks: ## Delete AKS cluster
+	@echo "Deleting AKS cluster..."
+	@chmod +x verification/provision_aks.sh
+	@./verification/provision_aks.sh delete
+
+.PHONY: verify-e2e-aks-lifecycle
+verify-e2e-aks-lifecycle: provision-aks ## Full AKS E2E (Provision -> Verify -> Deprovision)
+	@echo "Detected User: $$(whoami)"
+	@WHO="$$(whoami | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-' | sed 's/^-//; s/-$$//')" && \
+	CNI_TYPE="$${CNI_TYPE:-cilium}" && \
+	CLUSTER_NAME="aks-zxporter-e2e-$${WHO}-$${CNI_TYPE}" && \
+	RESOURCE_GROUP="aks-zxporter-e2e-rg-$${WHO}-$${CNI_TYPE}" && \
+	echo "Updating kubeconfig for AKS cluster $${CLUSTER_NAME}..." && \
+	az aks get-credentials --resource-group $${RESOURCE_GROUP} --name $${CLUSTER_NAME} --overwrite-existing && \
+	CONTEXT=$$(kubectl config current-context) && \
+	echo "Using Context: $${CONTEXT}" && \
+	$(MAKE) verify-e2e CLUSTER_CONTEXT="$${CONTEXT}" NAMESPACE=devzero-zxporter
+	$(MAKE) deprovision-aks
+
+
+.PHONY: provision-gke
+provision-gke: ## Create GKE cluster
+	@echo "Creating GKE cluster..."
+	@chmod +x verification/provision_gke.sh
+	@./verification/provision_gke.sh create
+
+.PHONY: deprovision-gke
+deprovision-gke: ## Delete GKE cluster
+	@echo "Deleting GKE cluster..."
+	@chmod +x verification/provision_gke.sh
+	@./verification/provision_gke.sh delete
+
+.PHONY: verify-e2e-gke-lifecycle
+verify-e2e-gke-lifecycle: provision-gke ## Full GKE E2E (Provision -> Verify -> Deprovision)
+	@echo "Detected User: $$(whoami)"
+	@WHO="$$(whoami | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-' | sed 's/^-//; s/-$$//')" && \
+	CLUSTER_NAME="gke-zxporter-e2e-$${WHO}" && \
+	echo "Updating kubeconfig for GKE cluster $${CLUSTER_NAME}..." && \
+	gcloud container clusters get-credentials $${CLUSTER_NAME} --zone us-central1-a && \
+	CONTEXT=$$(kubectl config current-context) && \
+	echo "Using Context: $${CONTEXT}" && \
+	$(MAKE) verify-e2e CLUSTER_CONTEXT="$${CONTEXT}" NAMESPACE=devzero-zxporter
+	$(MAKE) deprovision-gke
+
+
+.PHONY: clean-metrics
+clean-metrics:
+	@rm -f verification/metrics-*.json

@@ -83,6 +83,30 @@ type NamespaceResourceBreakdown struct {
 	TotalResources           int    `json:"total_resources"`
 }
 
+// NetworkTrafficStat represents a single network traffic flow
+type NetworkTrafficStat struct {
+	SrcIP           string `json:"src_ip"`
+	DstIP           string `json:"dst_ip"`
+	SrcPodName      string `json:"src_pod_name,omitempty"`
+	SrcPodNamespace string `json:"src_pod_namespace,omitempty"`
+	Protocol        int32  `json:"protocol"`
+	DstPort         int32  `json:"dst_port"`
+	TxBytes         int64  `json:"tx_bytes"`
+	RxBytes         int64  `json:"rx_bytes"`
+	TxPackets       int64  `json:"tx_packets"`
+	RxPackets       int64  `json:"rx_packets"`
+}
+
+// DnsLookupStat represents a captured DNS lookup
+type DnsLookupStat struct {
+	ClientIP        string   `json:"client_ip"`
+	Domain          string   `json:"domain"`
+	ResolvedIPs     []string `json:"resolved_ips,omitempty"`
+	SrcPodName      string   `json:"src_pod_name,omitempty"`
+	SrcPodNamespace string   `json:"src_pod_namespace,omitempty"`
+	Timestamp       string   `json:"timestamp"`
+}
+
 // Stats represents the statistics about received messages
 type Stats struct {
 	TotalMessages      int                             `json:"total_messages"`
@@ -93,6 +117,10 @@ type Stats struct {
 	UsageReportNodes   map[string]NodeResourceUsage    `json:"usage_report_nodes,omitempty"`
 	UsageReportCluster map[string]ClusterResourceUsage `json:"usage_report_cluster,omitempty"`
 	SnapshotStats      map[string]SnapshotStats        `json:"snapshot_stats,omitempty"` // snapshot_id -> stats
+
+	// New fields for network monitor verification
+	NetworkMetrics []NetworkTrafficStat `json:"network_metrics,omitempty"`
+	DnsLookups     []DnsLookupStat      `json:"dns_lookups,omitempty"`
 }
 
 // Expected represents the expected resource usages
