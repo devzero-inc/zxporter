@@ -25,7 +25,12 @@ spec:
       serviceAccountName: zxporter-netmon
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet
-
+      securityContext:
+        privileged: true
+        capabilities:
+          add:
+            - NET_ADMIN
+            - SYS_RESOURCE
       containers:
         - name: zxporter-netmon
           image: devzero/zxporter-netmon:latest
