@@ -25,7 +25,11 @@ func NewPodCache(informer cache.SharedIndexInformer) *PodCache {
 	if informer != nil {
 		informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
-				pc.updatePod(obj.(*corev1.Pod))
+				pod, ok := obj.(*corev1.Pod)
+				if !ok {
+					return
+				}
+				pc.updatePod(pod)
 			},
 			UpdateFunc: func(old, new interface{}) {
 				oldPod, ok := old.(*corev1.Pod)
