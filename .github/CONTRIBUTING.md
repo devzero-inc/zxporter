@@ -1,4 +1,4 @@
-# Contributing to DevZero Self-Hosted
+# Contributing to DevZero ZXporter
 
 Thank you for your interest in contributing to **DevZero ZXporter**!
 
@@ -80,17 +80,18 @@ Contributions to documentation are highly valued. If you find any documentation 
 
 ---
 
-## Component-Specific Guidelines
+<!-- todo -->
+<!-- ## Component-Specific Guidelines
 
-**DevZero Dakr Self-Hosted** is composed of several components. Each has its own nuances:
+**DevZero DevZero ZXporter** is composed of several components. Each has its own nuances:
 
 - **Compose:**
-  - Builds Docker Compose version of Dakr Self Hosted
+  - Builds Docker Compose version of Dakr ZXporter
   - See [compose/README.md](./compose/README.md) for more details.
 
 If your contribution touches more than one component, please ensure your changes are tested and documented for each area.
 
----
+--- -->
 
 ## Backporting Changes
 
@@ -112,6 +113,6 @@ For more context about the project, please refer to our [README](./README.md).
 
 ---
 
-Thank you for contributing to **DevZero Dakr Self-Hosted**! Every contribution, no matter how small, is appreciated. We look forward to collaborating with you.
+Thank you for contributing to **DevZero DevZero ZXporter**! Every contribution, no matter how small, is appreciated. We look forward to collaborating with you.
 
 Happy Contributing!
