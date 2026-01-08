@@ -28,7 +28,24 @@ func NewPodCache(informer cache.SharedIndexInformer) *PodCache {
 				pc.updatePod(obj.(*corev1.Pod))
 			},
 			UpdateFunc: func(old, new interface{}) {
-				pc.updatePod(new.(*corev1.Pod))
+				oldPod, ok := old.(*corev1.Pod)
+				if !ok {
+					return
+				}
+				newPod, ok := new.(*corev1.Pod)
+				if !ok {
+					return
+				}
+
+				// If IP changed, remove old mapping
+				if oldPod.Status.PodIP != "" && oldPod.Status.PodIP != newPod.Status.PodIP {
+					if oldIP, err := netaddr.ParseIP(oldPod.Status.PodIP); err == nil {
+						pc.mu.Lock()
+						delete(pc.ips, oldIP)
+						pc.mu.Unlock()
+					}
+				}
+				pc.updatePod(newPod)
 			},
 			DeleteFunc: func(obj interface{}) {
 				pc.deletePod(obj)
