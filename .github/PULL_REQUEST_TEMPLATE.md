@@ -34,13 +34,14 @@ _Why is this change required? What problem does it solve?_
 
 ## 🔍 Types of Changes
 
-_Indicate which type of changes your code introduces (check all that apply):_
+_Indicate which type of changes your code introduces (check all that apply)._
+_Please also add the corresponding `changelog:*` label to this PR._
 
-- [ ] **BUGFIX:** Non-breaking fix for an issue.
-- [ ] **NEW FEATURE:** Non-breaking addition of functionality.
-- [ ] **BREAKING CHANGE:** Fix or feature that causes existing functionality to not work as expected.
-- [ ] **ENHANCEMENT:** Improvement to existing functionality.
-- [ ] **CHORE:** Changes that do not affect production (e.g., documentation, build tooling, CI).
+- [ ] **BUGFIX:** Non-breaking fix for an issue. (Label: `changelog:fixed`)
+- [ ] **NEW FEATURE:** Non-breaking addition of functionality. (Label: `changelog:added`)
+- [ ] **BREAKING CHANGE:** Fix or feature that causes existing functionality to not work as expected. (Labels: `changelog:changed` + `changelog:breaking`)
+- [ ] **ENHANCEMENT:** Improvement to existing functionality. (Label: `changelog:changed`)
+- [ ] **CHORE:** Changes that do not affect production (e.g., documentation, build tooling, CI). (Label: `changelog:skip`)
 
 ## 🔬 QA / Verification Steps
 

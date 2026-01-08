@@ -1,0 +1,66 @@
+name-template: 'v$RESOLVED_VERSION'
+tag-template: 'v$RESOLVED_VERSION'
+template: |
+  ## What's Changed
+
+  $CHANGES
+
+  **Full Changelog**: https://github.com/$OWNER/$REPOSITORY/compare/$PREVIOUS_TAG...v$RESOLVED_VERSION
+
+categories:
+  - title: 'Added'
+    labels:
+      - 'changelog:added'
+  - title: 'Changed'
+    labels:
+      - 'changelog:changed'
+  - title: 'Fixed'
+    labels:
+      - 'changelog:fixed'
+  - title: 'Removed'
+    labels:
+      - 'changelog:removed'
+  - title: 'Security'
+    labels:
+      - 'changelog:security'
+
+exclude-labels:
+  - 'changelog:skip'
+
+change-template: '- $TITLE @$AUTHOR (#$NUMBER)'
+change-title-escapes: '\<*_&'
+
+version-resolver:
+  major:
+    labels:
+      - 'changelog:breaking'
+  minor:
+    labels:
+      - 'changelog:added'
+  patch:
+    labels:
+      - 'changelog:fixed'
+      - 'changelog:changed'
+  default: patch
+
+autolabeler:
+  - label: 'changelog:fixed'
+    title:
+      - '/fix/i'
+      - '/bug/i'
+  - label: 'changelog:added'
+    title:
+      - '/add/i'
+      - '/feat/i'
+      - '/new/i'
+  - label: 'changelog:changed'
+    title:
+      - '/update/i'
+      - '/improve/i'
+      - '/enhance/i'
+      - '/bump/i'
+  - label: 'changelog:skip'
+    title:
+      - '/^chore/i'
+      - '/^ci/i'
+      - '/^docs/i'

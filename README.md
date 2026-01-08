@@ -340,7 +340,9 @@ kubectl apply -f https://raw.githubusercontent.com/<org>/zxporter/<tag>/dist/ins
 
 ## Contributing
 
-We welcome contributions! Please see our contributing guidelines for more information.
+We welcome contributions! Please see our [Contributing Guidelines](.github/CONTRIBUTING.md) for more information.
+
+For a history of changes, see the [CHANGELOG](CHANGELOG.md).
 
 ### Development Setup
 
