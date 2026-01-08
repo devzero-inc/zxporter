@@ -16,10 +16,10 @@ _Provide an overview of your changes and why they’re needed. Link to any relat
 - **Why This Change:**  
   (Explain the problem this PR addresses or the improvement it provides.)
 
--- **Affected Components:** 
- (Which component does this change affect? - put x for all components)
+- **Affected Components:**
+  (Which component does this change affect? - put x for all components)
 - [ ] Compose
-- [ ] K8s 
+- [ ] K8s
 - [ ] Other (please specify)
 
 ## ❓ Motivation and Context
@@ -30,7 +30,7 @@ _Why is this change required? What problem does it solve?_
   (Provide background information or link to related discussions/issues.)
 
 - **Relevant Tasks/Issues:**  
-  (e.g., Fixes: #Github Issue)
+  (e.g., Fixes: #GitHub Issue)
 
 ## 🔍 Types of Changes
 
