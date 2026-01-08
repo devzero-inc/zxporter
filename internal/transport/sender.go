@@ -177,3 +177,12 @@ func (c *SimpleDakrClient) ExchangePATForClusterToken(ctx context.Context, patTo
 	// Return empty values for simple client
 	return "", "", fmt.Errorf("PAT token exchange not supported in simple client")
 }
+
+// SendNetworkTrafficMetrics implements SimpleDakrClient.
+func (c *SimpleDakrClient) SendNetworkTrafficMetrics(ctx context.Context, req *gen.SendNetworkTrafficMetricsRequest) (*gen.SendNetworkTrafficMetricsResponse, error) {
+	c.logger.Info("Would send network traffic metrics to Dakr",
+		"nodeName", req.NodeName,
+		"itemsCount", len(req.Items),
+		"lookupsCount", len(req.DnsLookups))
+	return &gen.SendNetworkTrafficMetricsResponse{ProcessedCount: int32(len(req.Items))}, nil
+}

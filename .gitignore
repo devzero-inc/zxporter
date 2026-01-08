@@ -29,3 +29,12 @@ config/**/charts
 *~
 
 .claude
+
+/zxporter-netmon
+*.o
+!internal/networkmonitor/ebpf/*.o
+
+# test samples
+verification/metrics-*.json
+debug_metrics.json
+debug_rendered.yaml

@@ -1,0 +1,22 @@
+# verification/lima.yaml
+# Lima configuration for zxporter verification
+vmType: "qemu"
+cpus: 2
+memory: "4GiB"
+
+images:
+  - location: "https://cloud-images.ubuntu.com/releases/22.04/release/ubuntu-22.04-server-cloudimg-amd64.img"
+    arch: "x86_64"
+  - location: "https://cloud-images.ubuntu.com/releases/22.04/release/ubuntu-22.04-server-cloudimg-arm64.img"
+    arch: "aarch64"
+
+mounts:
+  - location: "~"
+    writable: true
+
+# Install dependencies for verification
+provision:
+  - mode: system
+    script: |
+      apt-get update
+      apt-get install -y conntrack iptables

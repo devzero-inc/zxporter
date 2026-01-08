@@ -25,6 +25,9 @@ type DakrClient interface {
 	telemetry_logger.TelemetryLogSender
 	// ExchangePATForClusterToken exchanges a PAT token for a cluster token
 	ExchangePATForClusterToken(ctx context.Context, patToken, clusterName, k8sProvider string) (string, string, error)
+
+	// SendNetworkTrafficMetrics pushes network traffic metrics from a node
+	SendNetworkTrafficMetrics(ctx context.Context, req *gen.SendNetworkTrafficMetricsRequest) (*gen.SendNetworkTrafficMetricsResponse, error)
 }
 
 // Sender defines methods for sending data to external systems

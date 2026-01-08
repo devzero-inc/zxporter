@@ -1,0 +1,83 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "zxporter-netmon.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "zxporter-netmon.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "zxporter-netmon.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "zxporter-netmon.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "zxporter-netmon.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      hostNetwork: {{ .Values.hostNetwork }}
+      dnsPolicy: {{ .Values.dnsPolicy }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8081
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: {{ .Values.config.mainConfigMapName }}
+                optional: true
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            {{- if .Values.config.dakrUrl }}
+            - name: DAKR_URL
+              value: {{ .Values.config.dakrUrl | quote }}
+            {{- end }}
+            {{- if .Values.config.clusterToken }}
+            - name: CLUSTER_TOKEN
+              value: {{ .Values.config.clusterToken | quote }}
+            {{- end }}
+            - name: FLUSH_INTERVAL
+              value: {{ .Values.config.exportInterval | quote }}
+          # Add args if configuration is via flags
+          # args: ["-log-level", "{{ .Values.config.logLevel }}"]
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: zxporter-config
+              mountPath: /etc/zxporter
+              readOnly: true
+      volumes:
+        - name: zxporter-config
+          configMap:
+            name: {{ .Values.config.mainConfigMapName }}
+            optional: true
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
