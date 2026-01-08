@@ -70,7 +70,7 @@ require (
 	github.com/expr-lang/expr v1.17.2 // indirect
 	github.com/google/btree v1.1.3 // indirect
 	// TODO: Using specific commit version because of issue with custom validator webhook: https://github.com/kedacore/keda/pull/6700/files
-	github.com/kedacore/keda/v2 v2.17.1-0.20250521173204-e23ef462abb5
+	github.com/kedacore/keda/v2 v2.17.3
 	github.com/klauspost/compress v1.17.11 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
@@ -135,7 +135,7 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0
 	golang.org/x/exp v0.0.0-20250210185358-939b2ce775ac // indirect
-	golang.org/x/net v0.46.0 // indirect
+	golang.org/x/net v0.46.0
 	golang.org/x/oauth2 v0.30.0 // indirect
 	golang.org/x/sync v0.17.0 // indirect
 	golang.org/x/sys v0.37.0
