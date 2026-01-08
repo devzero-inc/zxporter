@@ -14,6 +14,7 @@ By participating in this project, you agree to abide by our [Code of Conduct](.g
 - [Pull Request Guidelines](#pull-request-guidelines)
 - [Commit Message Guidelines](#commit-message-guidelines)
 - [Testing](#testing)
+- [Linting](#linting)
 - [Documentation](#documentation)
 - [Component-Specific Guidelines](#component-specific-guidelines)
 - [Backporting Changes](#backporting-changes)
@@ -67,6 +68,41 @@ When you're ready to contribute code:
 Before submitting a PR, ensure that your changes pass all tests.
 
 We recommend running tests locally to catch issues before opening a PR.
+
+---
+
+## Linting
+
+We use [golangci-lint](https://golangci-lint.run/) to enforce code quality standards. The linter runs automatically on all pull requests and will block merging if issues are found.
+
+### Running the Linter Locally
+
+```bash
+# Run linting (will fail on errors)
+make lint
+
+# Run linting with auto-fix for fixable issues
+make lint-fix
+```
+
+### Configuration
+
+Linting rules are configured in `.golangci.yml` at the repository root. The configuration enables these linters:
+
+- **errcheck** - Check for unchecked errors
+- **govet** - Report suspicious constructs
+- **staticcheck** - Advanced static analysis
+- **gofmt/goimports** - Code formatting
+- **misspell** - Spelling errors in comments
+- **revive** - Extensible linter with many rules
+- **unused** - Find unused code
+- And more (see `.golangci.yml` for the full list)
+
+### Best Practices
+
+- Run `make lint` before committing to catch issues early
+- Use `make lint-fix` to automatically fix formatting issues
+- If a lint rule seems incorrect for your use case, discuss it in the PR rather than disabling it
 
 ---
 
