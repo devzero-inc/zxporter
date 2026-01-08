@@ -5,6 +5,7 @@ ZXporter is a Kubernetes operator that collects and exports various Kubernetes r
 ## Overview
 
 ZXporter is designed to help you monitor and observe your Kubernetes cluster by collecting data from various resources and making it available for analysis. It's particularly useful for:
+
 - Monitoring cluster health and performance
 - Collecting resource utilization metrics
 - Tracking configuration changes
@@ -25,40 +26,49 @@ The operator uses a modular design that allows for easy extension and customizat
 ## Features
 
 ### Core Resources
+
 - Pod, Node, Namespace, Event, Endpoints
 - ServiceAccount, LimitRange, ResourceQuota
 
 ### Workload Resources
+
 - Deployments, StatefulSets, DaemonSets
 - ReplicaSets, ReplicationControllers
 - Jobs, CronJobs
 
 ### Storage Resources
+
 - PersistentVolumeClaims
 - PersistentVolumes
 - StorageClasses
 
 ### Networking Resources
+
 - Services
 - Ingress, IngressClasses
 - NetworkPolicies
 
 ### RBAC Resources
+
 - Roles, RoleBindings
 - ClusterRoles, ClusterRoleBindings
 
 ### Autoscaling Resources
+
 - HorizontalPodAutoscalers
 - VerticalPodAutoscalers
 
 ### Policy Resources
+
 - PodDisruptionBudgets
 
 ### Custom Resources
+
 - Custom Resource Definitions (CRDs)
 - Custom Resource Instances
 
 ### Configuration Resources
+
 - ConfigMaps
 - Secrets
 
@@ -75,16 +85,19 @@ The operator uses a modular design that allows for easy extension and customizat
 ### Local Development Setup
 
 1. Create a kind cluster:
+
 ```sh
 kind create cluster
 ```
 
 2. Update kubeconfig:
+
 ```sh
 kubectl cluster-info --context kind-kind
 ```
 
 3. Install required services:
+
 ```sh
 # Install metrics-server
 helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
@@ -92,12 +105,13 @@ helm repo update
 helm upgrade --install --set args={--kubelet-insecure-tls} metrics-server metrics-server/metrics-server --namespace kube-system
 
 # Install node exporter
-helm repo add prometheus-community https://prometheus-community.github.io/helm-charts 
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
 helm repo update
 helm install node-exporter prometheus-community/prometheus-node-exporter
 ```
 
 4. Build and deploy:
+
 ```sh
 make docker-build IMG=zxporter:tag
 kind load docker-image zxporter:tag
@@ -107,11 +121,13 @@ make deploy IMG=zxporter:tag
 ### Production Deployment
 
 1. Build and push the image:
+
 ```sh
 make docker-build docker-push IMG=<your-registry>/zxporter:tag
 ```
 
 2. Deploy the operator:
+
 ```sh
 make deploy IMG=<your-registry>/zxporter:tag
 ```
@@ -121,6 +137,7 @@ make deploy IMG=<your-registry>/zxporter:tag
 ZXporter can also be deployed using Helm, which provides a more flexible and customizable deployment method.
 
 #### Quick Install
+
 ```sh
 helm install zxporter ./helm-chart/zxporter --namespace devzero-zxporter --create-namespace
 
@@ -129,6 +146,7 @@ make helm-chart-install
 ```
 
 #### Custom Configuration
+
 Create a custom values file or override specific values:
 
 ```sh
@@ -143,6 +161,7 @@ helm install zxporter ./helm-chart/zxporter \
 ```
 
 #### Deploy ZXporter with Your Existing Prometheus/Node Exporter
+
 If you already have Prometheus and Node Exporter running in your cluster:
 
 ```sh
@@ -157,9 +176,10 @@ helm install zxporter ./helm-chart/zxporter \
 make helm-chart-install-minimal PROMETHEUS_URL="http://your-prometheus.monitoring.svc.cluster.local:9090"
 ```
 
-Note: Checkout helm-charts/templates/prometheus-configmap.yaml to get the required configs for custom Prometheus.
+Note: Checkout helm-chart/zxporter/templates/prometheus-configmap.yaml to get the required configs for custom Prometheus.
 
 #### Key Configuration Options
+
 - `zxporter.dakrUrl`: DAKR server URL (default: "https://dakr.devzero.io")
 - `zxporter.prometheusUrl`: Prometheus server URL
 - `zxporter.targetNamespaces`: Comma-separated list of namespaces to monitor (empty = all)
@@ -170,6 +190,7 @@ Note: Checkout helm-charts/templates/prometheus-configmap.yaml to get the requir
 - `monitoring.nodeExporter.enabled`: Enable/disable Node Exporter (default: true)
 
 #### Upgrade and Uninstall
+
 ```sh
 # Upgrade deployment
 helm upgrade zxporter ./helm-chart/zxporter
@@ -219,19 +240,25 @@ spec:
 ### Common Issues
 
 1. **RBAC Permission Errors**
+
    ```sh
    Error: failed to create resource: the server does not allow access to the requested resource
    ```
+
    Solution: Ensure the operator has the necessary RBAC permissions:
+
    ```sh
    kubectl create clusterrolebinding zxporter-admin --clusterrole=cluster-admin --serviceaccount=devzero-zxporter:zxporter-controller-manager
    ```
 
 2. **Collection Policy Not Applied**
+
    ```sh
    Error: no collection policy found in namespace
    ```
+
    Solution: Verify the CollectionPolicy CR is properly created:
+
    ```sh
    kubectl get collectionpolicy -n devzero-zxporter
    ```
@@ -242,11 +269,13 @@ spec:
 ### Logs and Debugging
 
 View operator logs:
+
 ```sh
 kubectl logs -n devzero-zxporter deployment/zxporter-controller-manager
 ```
 
 Enable debug logging:
+
 ```yaml
 apiVersion: devzero.io/v1
 kind: CollectionPolicy
@@ -276,16 +305,19 @@ For optimal performance:
 ## Uninstallation
 
 1. Remove CR instances:
+
 ```sh
 kubectl delete -k config/samples/
 ```
 
 2. Remove CRDs:
+
 ```sh
 make uninstall
 ```
 
 3. Remove the operator:
+
 ```sh
 make undeploy
 ```
@@ -301,6 +333,7 @@ make build-installer IMG=<your-registry>/zxporter:tag
 This generates an `install.yaml` in the `dist` directory containing all necessary resources.
 
 Users can install using:
+
 ```sh
 kubectl apply -f https://raw.githubusercontent.com/<org>/zxporter/<tag>/dist/install.yaml
 ```
@@ -320,11 +353,13 @@ We welcome contributions! Please see our contributing guidelines for more inform
 ### Testing
 
 Run the test suite:
+
 ```sh
 make test
 ```
 
 Run specific tests:
+
 ```sh
 go test ./... -run TestName
 ```
@@ -337,7 +372,7 @@ go test ./... -run TestName
 
 ## License
 
-Copyright 2025.
+Copyright 2026 DevZero - [LICENSE](LICENSE).
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -350,4 +385,3 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-
