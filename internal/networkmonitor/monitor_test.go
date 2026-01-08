@@ -46,3 +46,25 @@ func TestConcurrentHashing(t *testing.T) {
 
 	wg.Wait()
 }
+
+func TestIPv6Hashing(t *testing.T) {
+	// Verify that IPv6 addresses are hashed correctly and do not panic
+	srcIP := netaddr.MustParseIP("2001:db8::1")
+	dstIP := netaddr.MustParseIP("2001:db8::2")
+	entry := &Entry{
+		Src:   netaddr.IPPortFrom(srcIP, 12345),
+		Dst:   netaddr.IPPortFrom(dstIP, 80),
+		Proto: 6, // TCP
+	}
+
+	// Should not panic
+	h1 := conntrackEntryKey(entry)
+	h2 := entryGroupKey(entry)
+
+	if h1 == 0 {
+		t.Error("conntrackEntryKey returned 0 for IPv6")
+	}
+	if h2 == 0 {
+		t.Error("entryGroupKey returned 0 for IPv6")
+	}
+}

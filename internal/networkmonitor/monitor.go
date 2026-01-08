@@ -326,13 +326,13 @@ var globalHashSeed = maphash.MakeSeed()
 func conntrackEntryKey(e *Entry) uint64 {
 	var h maphash.Hash
 	h.SetSeed(globalHashSeed)
-	srcIP := e.Src.IP().As4()
+	srcIP := e.Src.IP().As16()
 	h.Write(srcIP[:])
 	var srcPort [2]byte
 	binary.LittleEndian.PutUint16(srcPort[:], e.Src.Port())
 	h.Write(srcPort[:])
 
-	dstIP := e.Dst.IP().As4()
+	dstIP := e.Dst.IP().As16()
 	h.Write(dstIP[:])
 	var dstPort [2]byte
 	binary.LittleEndian.PutUint16(dstPort[:], e.Dst.Port())
@@ -345,10 +345,10 @@ func conntrackEntryKey(e *Entry) uint64 {
 func entryGroupKey(e *Entry) uint64 {
 	var h maphash.Hash
 	h.SetSeed(globalHashSeed)
-	srcIP := e.Src.IP().As4()
+	srcIP := e.Src.IP().As16()
 	h.Write(srcIP[:])
 
-	dstIP := e.Dst.IP().As4()
+	dstIP := e.Dst.IP().As16()
 	h.Write(dstIP[:])
 
 	var dstPort [2]byte
