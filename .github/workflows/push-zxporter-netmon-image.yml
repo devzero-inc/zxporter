@@ -134,7 +134,7 @@ jobs:
             fi
           done
 
-          # Definately have to fail if any non-latest tags exist
+          # Def have to fail if any non-latest tags exist
           if [ ${#NON_LATEST_EXISTING[@]} -gt 0 ]; then
             echo "ERROR: The following tags already exist in the registry and cannot be overridden:"
             printf '  - %s\n' "${NON_LATEST_EXISTING[@]}"
