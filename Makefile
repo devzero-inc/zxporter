@@ -759,8 +759,10 @@ verify-e2e-eks-lifecycle: provision-eks ## Full EKS E2E (Provision -> Verify -> 
 	aws eks update-kubeconfig --region $${REGION} --name $${CLUSTER_NAME} && \
 	CONTEXT=$$(kubectl config current-context) && \
 	echo "Using Context: $${CONTEXT}" && \
-	$(MAKE) verify-e2e CLUSTER_CONTEXT="$${CONTEXT}" NAMESPACE=devzero-zxporter
-	$(MAKE) deprovision-eks
+	VERIFY_EXIT=0; \
+	$(MAKE) verify-e2e CLUSTER_CONTEXT="$${CONTEXT}" NAMESPACE=devzero-zxporter || VERIFY_EXIT=$$?; \
+	$(MAKE) deprovision-eks; \
+	exit $$VERIFY_EXIT
 
 .PHONY: provision-aks
 provision-aks: ## Create AKS cluster
@@ -785,8 +787,10 @@ verify-e2e-aks-lifecycle: provision-aks ## Full AKS E2E (Provision -> Verify -> 
 	az aks get-credentials --resource-group $${RESOURCE_GROUP} --name $${CLUSTER_NAME} --overwrite-existing && \
 	CONTEXT=$$(kubectl config current-context) && \
 	echo "Using Context: $${CONTEXT}" && \
-	$(MAKE) verify-e2e CLUSTER_CONTEXT="$${CONTEXT}" NAMESPACE=devzero-zxporter
-	$(MAKE) deprovision-aks
+	VERIFY_EXIT=0; \
+	$(MAKE) verify-e2e CLUSTER_CONTEXT="$${CONTEXT}" NAMESPACE=devzero-zxporter || VERIFY_EXIT=$$?; \
+	$(MAKE) deprovision-aks; \
+	exit $$VERIFY_EXIT
 
 
 .PHONY: provision-gke
