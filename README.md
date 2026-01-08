@@ -176,7 +176,7 @@ helm install zxporter ./helm-chart/zxporter \
 make helm-chart-install-minimal PROMETHEUS_URL="http://your-prometheus.monitoring.svc.cluster.local:9090"
 ```
 
-Note: Checkout helm-charts/templates/prometheus-configmap.yaml to get the required configs for custom Prometheus.
+Note: Checkout helm-chart/zxporter/templates/prometheus-configmap.yaml to get the required configs for custom Prometheus.
 
 #### Key Configuration Options
 
