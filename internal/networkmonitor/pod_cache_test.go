@@ -25,7 +25,12 @@ func TestPodCache_UpdateLogic(t *testing.T) {
 
 	// Start informer factory
 	factory.Start(ctx.Done())
-	factory.WaitForCacheSync(ctx.Done())
+	synced := factory.WaitForCacheSync(ctx.Done())
+	for kind, ok := range synced {
+		if !ok {
+			t.Fatalf("cache %v failed to sync", kind)
+		}
+	}
 
 	// 2. Add a Pod
 	pod := &corev1.Pod{

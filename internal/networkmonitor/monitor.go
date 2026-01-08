@@ -131,10 +131,6 @@ func (m *Monitor) Start(ctx context.Context) {
 		case <-cleanupTicker.C:
 			m.cleanup()
 		case <-flushTicker.C:
-			if err := m.flush(ctx); err != nil {
-				m.log.Error(err, "Failed to flush metrics to control plane")
-			}
-		case <-flushTicker.C:
 			// Run flush in goroutine to avoid blocking collection (unless we need strict ordering, but collection is fast)
 			// Actually, flushing needs read lock, collect needs write lock.
 			// We should probably just call it synchronously to ensure we don't pile up goroutines.

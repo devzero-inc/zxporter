@@ -1,6 +1,7 @@
 package networkmonitor
 
 import (
+	"fmt"
 	"sync"
 	"testing"
 
@@ -16,35 +17,35 @@ func TestConcurrentHashing(t *testing.T) {
 		Dst:   netaddr.IPPortFrom(dstIP, 80),
 		Proto: 6, // TCP
 	}
-
 	// Calculate expected hash once (single-threaded)
 	expectedConntrackHash := conntrackEntryKey(entry)
 	expectedGroupHash := entryGroupKey(entry)
-
 	var wg sync.WaitGroup
 	numGoroutines := 100
-
+	errChan := make(chan string, numGoroutines*2) // Buffer for potential errors
 	// Launch multiple goroutines to hash the same entry concurrently
 	for i := 0; i < numGoroutines; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-
 			// Verify conntrackEntryKey
 			h1 := conntrackEntryKey(entry)
 			if h1 != expectedConntrackHash {
-				t.Errorf("Hash mismatch for conntrackEntryKey: expected %d, got %d", expectedConntrackHash, h1)
+				errChan <- fmt.Sprintf("Hash mismatch for conntrackEntryKey: expected %d, got %d", expectedConntrackHash, h1)
 			}
-
 			// Verify entryGroupKey
 			h2 := entryGroupKey(entry)
 			if h2 != expectedGroupHash {
-				t.Errorf("Hash mismatch for entryGroupKey: expected %d, got %d", expectedGroupHash, h2)
+				errChan <- fmt.Sprintf("Hash mismatch for entryGroupKey: expected %d, got %d", expectedGroupHash, h2)
 			}
 		}()
 	}
-
 	wg.Wait()
+	close(errChan)
+	// Report all collected errors
+	for err := range errChan {
+		t.Error(err)
+	}
 }
 
 func TestIPv6Hashing(t *testing.T) {

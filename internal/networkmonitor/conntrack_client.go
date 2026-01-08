@@ -68,11 +68,15 @@ func (c *NetfilterClient) ListEntries(filter EntriesFilter) ([]*Entry, error) {
 		return nil, fmt.Errorf("dumping nfct sessions: %w", err)
 	}
 
+	return processSessions(sessions, filter), nil
+}
+
+func processSessions(sessions []ct.Con, filter EntriesFilter) []*Entry {
 	res := make([]*Entry, 0)
 	now := time.Now().UTC()
 
 	for _, sess := range sessions {
-		if sess.Origin == nil || sess.Origin.Src == nil || sess.Origin.Proto == nil ||
+		if sess.Origin == nil || sess.Origin.Src == nil || sess.Origin.Dst == nil || sess.Origin.Proto == nil ||
 			sess.Reply == nil || sess.Reply.Dst == nil || sess.Reply.Proto == nil ||
 			sess.CounterOrigin == nil || sess.CounterReply == nil {
 			continue
@@ -112,12 +116,11 @@ func (c *NetfilterClient) ListEntries(filter EntriesFilter) ([]*Entry, error) {
 			entry.Dst = replySrc
 		}
 
-		if filter(entry) {
+		if filter == nil || filter(entry) {
 			res = append(res, entry)
 		}
 	}
-
-	return res, nil
+	return res
 }
 
 func ipFromStdIP(ip net.IP) netaddr.IP {

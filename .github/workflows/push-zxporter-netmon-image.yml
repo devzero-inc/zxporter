@@ -1,319 +1,319 @@
 name: "Push zxporter-netmon to Docker Hub and ECR"
 
 on:
-    workflow_dispatch:
-        inputs:
-            push_latest:
-                description: "Push latest tag"
-                required: false
-                type: boolean
-                default: false
-    push:
-        tags:
-            - "v*"
+  workflow_dispatch:
+    inputs:
+      push_latest:
+        description: "Push latest tag"
+        required: false
+        type: boolean
+        default: false
+  push:
+    tags:
+      - "v*"
 
 permissions:
-    contents: write
-    packages: write
-    id-token: write
+  contents: write
+  packages: write
+  id-token: write
 
 jobs:
-    package-and-push:
-        name: Package & Push Docker image
-        runs-on: ubuntu-latest
-        outputs:
-            is_release: ${{ steps.version.outputs.is_release }}
+  package-and-push:
+    name: Package & Push Docker image
+    runs-on: ubuntu-latest
+    outputs:
+      is_release: ${{ steps.version.outputs.is_release }}
 
-        steps:
-            - name: Checkout Code Repository
-              uses: actions/checkout@v4
-              with:
-                  fetch-depth: 0
+    steps:
+      - name: Checkout Code Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-            - name: Extract Version Info
-              id: version
-              run: |
-                  # Get the most recent tag that matches the release pattern (v*.*.*)
-                  # Exclude chart-* tags
-                  GITVERSION=$(git describe --tags --match="v[0-9]*.[0-9]*.[0-9]*" --exclude="chart-*" --always || echo "v0.0.0-$(git rev-parse --short HEAD)")
-                  echo "GITVERSION=${GITVERSION}" >> $GITHUB_ENV
-                  if [[ "$GITVERSION" =~ ^v([0-9]+)\.([0-9]+)\.(.+)$ ]]; then
-                    MAJOR=${BASH_REMATCH[1]}
-                    MINOR=${BASH_REMATCH[2]}
-                    PATCH=${BASH_REMATCH[3]}
-                    PATCH_SHORT=${PATCH%%[-]*}
-                    FULLV=v${MAJOR}.${MINOR}.${PATCH_SHORT}
+      - name: Extract Version Info
+        id: version
+        run: |
+          # Get the most recent tag that matches the release pattern (v*.*.*)
+          # Exclude chart-* tags
+          GITVERSION=$(git describe --tags --match="v[0-9]*.[0-9]*.[0-9]*" --exclude="chart-*" --always || echo "v0.0.0-$(git rev-parse --short HEAD)")
+          echo "GITVERSION=${GITVERSION}" >> $GITHUB_ENV
+          if [[ "$GITVERSION" =~ ^v([0-9]+)\.([0-9]+)\.(.+)$ ]]; then
+          MAJOR=${BASH_REMATCH[1]}
+          MINOR=${BASH_REMATCH[2]}
+          PATCH=${BASH_REMATCH[3]}
+          PATCH_SHORT=${PATCH%%[-]*}
+          FULLV=v${MAJOR}.${MINOR}.${PATCH_SHORT}
 
-                    echo "MAJOR=${MAJOR}" >> $GITHUB_ENV
-                    echo "MINOR=${MINOR}" >> $GITHUB_ENV
-                    echo "PATCH=${PATCH}" >> $GITHUB_ENV
-                    echo "PATCH_SHORT=${PATCH_SHORT}" >> $GITHUB_ENV
-                    echo "FULLV=${FULLV}" >> $GITHUB_ENV
-                    echo "IS_RELEASE=true" >> $GITHUB_ENV
+          echo "MAJOR=${MAJOR}" >> $GITHUB_ENV
+          echo "MINOR=${MINOR}" >> $GITHUB_ENV
+          echo "PATCH=${PATCH}" >> $GITHUB_ENV
+          echo "PATCH_SHORT=${PATCH_SHORT}" >> $GITHUB_ENV
+          echo "FULLV=${FULLV}" >> $GITHUB_ENV
+          echo "IS_RELEASE=true" >> $GITHUB_ENV
 
-                    echo "Debug: MAJOR=${BASH_REMATCH[1]}, MINOR=${BASH_REMATCH[2]}, PATCH=${PATCH}, PATCH_SHORT=${PATCH_SHORT}"
-                    echo "Debug: FULLV=${FULLV}"
-                    echo "is_release=${IS_RELEASE}" >> $GITHUB_OUTPUT
-                  else
-                    echo "MAJOR=0" >> $GITHUB_ENV
-                    echo "MINOR=0" >> $GITHUB_ENV
-                    echo "PATCH=0" >> $GITHUB_ENV
-                    echo "FULLV=v0.0.0" >> $GITHUB_ENV
-                    echo "IS_RELEASE=false" >> $GITHUB_ENV
-                    echo "is_release=false" >> $GITHUB_OUTPUT
-                  fi
+          echo "Debug: MAJOR=${BASH_REMATCH[1]}, MINOR=${BASH_REMATCH[2]}, PATCH=${PATCH}, PATCH_SHORT=${PATCH_SHORT}"
+          echo "Debug: FULLV=${FULLV}"
+          echo "is_release=${IS_RELEASE}" >> $GITHUB_OUTPUT
+          else
+          echo "MAJOR=0" >> $GITHUB_ENV
+          echo "MINOR=0" >> $GITHUB_ENV
+          echo "PATCH=0" >> $GITHUB_ENV
+          echo "FULLV=v0.0.0" >> $GITHUB_ENV
+          echo "IS_RELEASE=false" >> $GITHUB_ENV
+          echo "is_release=false" >> $GITHUB_OUTPUT
+          fi
 
-            - name: Log in to Docker Hub
-              uses: docker/login-action@v3
-              with:
-                  username: ${{ secrets.DOCKERHUB_ZXPORTER_BALANCE_USERNAME }}
-                  password: ${{ secrets.DOCKERHUB_ZXPORTER_BALANCE_TOKEN }}
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_ZXPORTER_BALANCE_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_ZXPORTER_BALANCE_TOKEN }}
 
-            - name: Set up Docker Buildx
-              uses: docker/setup-buildx-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-            - name: Set build metadata
-              run: |
-                  echo "COMMIT_HASH=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
-                  echo "GIT_TREE_STATE=clean" >> $GITHUB_ENV
-                  echo "BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_ENV
+      - name: Set build metadata
+        run: |
+          echo "COMMIT_HASH=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+          echo "GIT_TREE_STATE=clean" >> $GITHUB_ENV
+          echo "BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_ENV
 
-            - name: Check existing tags and validate
-              id: validate_tags
-              env:
-                  GITVERSION: ${{ env.GITVERSION }}
-                  FULLV: ${{ env.FULLV }}
-                  IS_RELEASE: ${{ env.IS_RELEASE }}
-                  PUSH_LATEST: ${{ inputs.push_latest || false }}
-              run: |
-                  # Function to check if a Docker tag exists in registry
-                  check_tag_exists() {
-                    local tag=$1
-                    echo "Checking if tag '$tag' exists in registry..."
-                    
-                    # Use docker manifest inspect to check if tag exists
-                    if docker manifest inspect docker.io/devzeroinc/zxporter-netmon:$tag >/dev/null 2>&1; then
-                      echo "Tag '$tag' exists in registry"
-                      return 0
-                    else
-                      echo "Tag '$tag' does not exist in registry"
-                      return 1
-                    fi
-                  }
+      - name: Check existing tags and validate
+        id: validate_tags
+        env:
+          GITVERSION: ${{ env.GITVERSION }}
+          FULLV: ${{ env.FULLV }}
+          IS_RELEASE: ${{ env.IS_RELEASE }}
+          PUSH_LATEST: ${{ inputs.push_latest || false }}
+        run: |
+          # Function to check if a Docker tag exists in registry
+          check_tag_exists() {
+          local tag=$1
+          echo "Checking if tag '$tag' exists in registry..."
 
-                  # Build the list of tags that will be created
-                  TAGS=("$GITVERSION")
+          # Use docker manifest inspect to check if tag exists
+          if docker manifest inspect docker.io/devzeroinc/zxporter-netmon:$tag >/dev/null 2>&1; then
+            echo "Tag '$tag' exists in registry"
+            return 0
+          else
+            echo "Tag '$tag' does not exist in registry"
+            return 1
+          fi
+          }
 
-                  if [[ "$PUSH_LATEST" == "true" ]]; then
-                    TAGS+=("latest")
-                  fi
+          # Build the list of tags that will be created
+          TAGS=("$GITVERSION")
 
-                  if [[ "$IS_RELEASE" == "true" ]]; then
-                    TAGS+=("$FULLV")
-                  fi
+          if [[ "$PUSH_LATEST" == "true" ]]; then
+          TAGS+=("latest")
+          fi
 
-                  echo "Tags to be processed: ${TAGS[@]}"
+          if [[ "$IS_RELEASE" == "true" ]]; then
+          TAGS+=("$FULLV")
+          fi
 
-                  # Check existing tags 
-                  EXISTING_TAGS=()
-                  for tag in "${TAGS[@]}"; do
-                    if check_tag_exists "$tag"; then
-                      EXISTING_TAGS+=("$tag")
-                    fi
-                  done
+          echo "Tags to be processed: ${TAGS[@]}"
 
-                  # Handle existing tags
-                  if [ ${#EXISTING_TAGS[@]} -gt 0 ]; then
-                    echo "Found existing tags: ${EXISTING_TAGS[@]}"
-                    
-                    # Check if any non-latest tags exist
-                    NON_LATEST_EXISTING=()
-                    for tag in "${EXISTING_TAGS[@]}"; do
-                      if [[ "$tag" != "latest" ]]; then
-                        NON_LATEST_EXISTING+=("$tag")
-                      fi
-                    done
+          # Check existing tags 
+          EXISTING_TAGS=()
+          for tag in "${TAGS[@]}"; do
+          if check_tag_exists "$tag"; then
+            EXISTING_TAGS+=("$tag")
+          fi
+          done
 
-                    # Definately have to fail if any non-latest tags exist
-                    if [ ${#NON_LATEST_EXISTING[@]} -gt 0 ]; then
-                      echo "ERROR: The following tags already exist in the registry and cannot be overridden:"
-                      printf '  - %s\n' "${NON_LATEST_EXISTING[@]}"
-                      echo ""
-                      echo "To avoid accidentally overriding existing images, this build is being stopped."
-                      echo "If you need to rebuild these tags, please delete them from the registry first."
-                      exit 1
-                    fi
+          # Handle existing tags
+          if [ ${#EXISTING_TAGS[@]} -gt 0 ]; then
+          echo "Found existing tags: ${EXISTING_TAGS[@]}"
 
-                    # check latest tag to push or not
-                    for tag in "${EXISTING_TAGS[@]}"; do
-                      if [[ "$tag" == "latest" ]]; then
-                        if [[ "$PUSH_LATEST" != "true" ]]; then
-                          echo "ERROR: The 'latest' tag already exists in the registry."
-                          echo "To override the 'latest' tag, you must set 'push_latest' to true in the workflow dispatch."
-                          echo "Current push_latest value: $PUSH_LATEST"
-                          exit 1
-                        else
-                          echo "WARNING: The 'latest' tag exists but will be overridden because push_latest=true"
-                        fi
-                      fi
-                    done
-                  fi
+          # Check if any non-latest tags exist
+          NON_LATEST_EXISTING=()
+          for tag in "${EXISTING_TAGS[@]}"; do
+            if [[ "$tag" != "latest" ]]; then
+            NON_LATEST_EXISTING+=("$tag")
+            fi
+          done
 
-                  echo "Tag validation passed. Proceeding with build..."
+          # Definately have to fail if any non-latest tags exist
+          if [ ${#NON_LATEST_EXISTING[@]} -gt 0 ]; then
+            echo "ERROR: The following tags already exist in the registry and cannot be overridden:"
+            printf '  - %s\n' "${NON_LATEST_EXISTING[@]}"
+            echo ""
+            echo "To avoid accidentally overriding existing images, this build is being stopped."
+            echo "If you need to rebuild these tags, please delete them from the registry first."
+            exit 1
+          fi
 
-                  # Export validated tags for the next step
-                  TAGS_STRING="${TAGS[*]}"
-                  echo "VALIDATED_TAGS=${TAGS_STRING}" >> $GITHUB_OUTPUT
-                  echo "Validated tags to build: ${TAGS_STRING}"
+          # check latest tag to push or not
+          for tag in "${EXISTING_TAGS[@]}"; do
+            if [[ "$tag" == "latest" ]]; then
+            if [[ "$PUSH_LATEST" != "true" ]]; then
+              echo "ERROR: The 'latest' tag already exists in the registry."
+              echo "To override the 'latest' tag, you must set 'push_latest' to true in the workflow dispatch."
+              echo "Current push_latest value: $PUSH_LATEST"
+              exit 1
+            else
+              echo "WARNING: The 'latest' tag exists but will be overridden because push_latest=true"
+            fi
+            fi
+          done
+          fi
 
-            - name: Configure AWS credentials for ECR using OIDC
-              uses: aws-actions/configure-aws-credentials@v4
-              with:
-                  role-to-assume: ${{ secrets.AWS_ECR_PUSH_ROLE_ARN }}
-                  role-session-name: GitHubActions-ZxporterNetmonBuild
-                  aws-region: us-east-1
+          echo "Tag validation passed. Proceeding with build..."
 
-            - name: Login to Amazon ECR
-              id: login-ecr
-              uses: aws-actions/amazon-ecr-login@v2
-              with:
-                  registry-type: public
+          # Export validated tags for the next step
+          TAGS_STRING="${TAGS[*]}"
+          echo "VALIDATED_TAGS=${TAGS_STRING}" >> $GITHUB_OUTPUT
+          echo "Validated tags to build: ${TAGS_STRING}"
 
-            - name: Build and push multi-arch images
-              env:
-                  MAJOR: ${{ env.MAJOR }}
-                  MINOR: ${{ env.MINOR }}
-                  PATCH: ${{ env.PATCH }}
-                  GITVERSION: ${{ env.GITVERSION }}
-                  COMMIT_HASH: ${{ env.COMMIT_HASH }}
-                  GIT_TREE_STATE: ${{ env.GIT_TREE_STATE }}
-                  BUILD_DATE: ${{ env.BUILD_DATE }}
-                  VALIDATED_TAGS: ${{ steps.validate_tags.outputs.VALIDATED_TAGS }}
-              run: |
-                  # Use the validated tags from the previous step
-                  read -ra TAGS <<< "$VALIDATED_TAGS"
+      - name: Configure AWS credentials for ECR using OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ECR_PUSH_ROLE_ARN }}
+          role-session-name: GitHubActions-ZxporterNetmonBuild
+          aws-region: us-east-1
 
-                  echo "Building and pushing validated tags: ${TAGS[@]}"
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+        with:
+          registry-type: public
 
-                  for tag in "${TAGS[@]}"; do
-                    echo "Building and pushing tag: $tag to both Docker Hub and ECR"
-                    
-                    docker buildx build \
-                      --platform linux/amd64,linux/arm64 \
-                      --push \
-                      -t docker.io/devzeroinc/zxporter-netmon:$tag \
-                      -t public.ecr.aws/devzeroinc/zxporter-netmon:$tag \
-                      -f Dockerfile.netmon \
-                      --build-arg TARGETOS \
-                      --build-arg TARGETARCH \
-                      --build-arg MAJOR=$MAJOR \
-                      --build-arg MINOR=$MINOR \
-                      --build-arg PATCH=$PATCH \
-                      --build-arg GITVERSION=$GITVERSION \
-                      --build-arg COMMIT_HASH=$COMMIT_HASH \
-                      --build-arg GIT_TREE_STATE=$GIT_TREE_STATE \
-                      --build-arg BUILD_DATE=$BUILD_DATE \
-                      .
-                  done
+      - name: Build and push multi-arch images
+        env:
+          MAJOR: ${{ env.MAJOR }}
+          MINOR: ${{ env.MINOR }}
+          PATCH: ${{ env.PATCH }}
+          GITVERSION: ${{ env.GITVERSION }}
+          COMMIT_HASH: ${{ env.COMMIT_HASH }}
+          GIT_TREE_STATE: ${{ env.GIT_TREE_STATE }}
+          BUILD_DATE: ${{ env.BUILD_DATE }}
+          VALIDATED_TAGS: ${{ steps.validate_tags.outputs.VALIDATED_TAGS }}
+        run: |
+          # Use the validated tags from the previous step
+          read -ra TAGS <<< "$VALIDATED_TAGS"
 
-                  echo "Successfully built and pushed all validated tags: ${TAGS[@]}"
+          echo "Building and pushing validated tags: ${TAGS[@]}"
 
-    update-helm-values-image-tag-pr:
-        name: Update Helm values image.tag and create PR
-        runs-on: ubuntu-latest
-        needs: [package-and-push] # only do this if all previous steps pass
-        if: ${{ needs.package-and-push.outputs.is_release == 'true' }}
-        steps:
-            - name: Get token that will be used to push branch and create PR
-              id: get_workflow_token
-              uses: peter-murray/workflow-application-token-action@v4
-              with:
-                  application_id: ${{ secrets.WORKFLOW_ACTIONS_APP_ID }}
-                  application_private_key: ${{ secrets.WORKFLOW_ACTIONS_PEM }}
-                  organization: devzero-inc
-                  permissions: "contents:write, pull_requests:write"
+          for tag in "${TAGS[@]}"; do
+          echo "Building and pushing tag: $tag to both Docker Hub and ECR"
 
-            - name: Checkout repo
-              uses: actions/checkout@v3
-              with:
-                  repository: devzero-inc/zxporter
-                  path: zxporter-tmp
-                  token: ${{ steps.get_workflow_token.outputs.token }}
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            --push \
+            -t docker.io/devzeroinc/zxporter-netmon:$tag \
+            -t public.ecr.aws/devzeroinc/zxporter-netmon:$tag \
+            -f Dockerfile.netmon \
+            --build-arg TARGETOS \
+            --build-arg TARGETARCH \
+            --build-arg MAJOR=$MAJOR \
+            --build-arg MINOR=$MINOR \
+            --build-arg PATCH=$PATCH \
+            --build-arg GITVERSION=$GITVERSION \
+            --build-arg COMMIT_HASH=$COMMIT_HASH \
+            --build-arg GIT_TREE_STATE=$GIT_TREE_STATE \
+            --build-arg BUILD_DATE=$BUILD_DATE \
+            .
+          done
 
-            - name: Update image.tag in values.yaml
-              run: |
-                  NEW_TAG="${{ env.FULLV }}"
-                  # on mac: sed -i '' "s/^  tag: .*/  tag: \"$NEW_TAG\"/" zxporter-tmp/helm-chart/zxporter-netmon/values.yaml
-                  sed -i.bak "s/^  tag: .*/  tag: \"$NEW_TAG\"/" zxporter-tmp/helm-chart/zxporter-netmon/values.yaml
-                  rm zxporter-tmp/helm-chart/zxporter-netmon/values.yaml.bak || true
+          echo "Successfully built and pushed all validated tags: ${TAGS[@]}"
 
-            - name: Check if there are changes
-              id: changes
-              run: |
-                  cd zxporter-tmp
-                  if git diff --exit-code; then
-                    echo "No changes"
-                    echo "changes=false" >> $GITHUB_OUTPUT
-                  else
-                    echo "Changes"
-                    echo "changes=true" >> $GITHUB_OUTPUT
-                  fi
+  update-helm-values-image-tag-pr:
+    name: Update Helm values image.tag and create PR
+    runs-on: ubuntu-latest
+    needs: [package-and-push] # only do this if all previous steps pass
+    if: ${{ needs.package-and-push.outputs.is_release == 'true' }}
+    steps:
+      - name: Get token that will be used to push branch and create PR
+        id: get_workflow_token
+        uses: peter-murray/workflow-application-token-action@v4
+        with:
+          application_id: ${{ secrets.WORKFLOW_ACTIONS_APP_ID }}
+          application_private_key: ${{ secrets.WORKFLOW_ACTIONS_PEM }}
+          organization: devzero-inc
+          permissions: "contents:write, pull_requests:write"
 
-            - name: Create branch, commit, and push if changes exist
-              if: steps.changes.outputs.changes == 'true'
-              env:
-                  GITHUB_TOKEN: ${{ steps.get_workflow_token.outputs.token }}
-              run: |
-                  cd zxporter-tmp
-                  git config --global user.name "github-actions-dzbot"
-                  git config --global user.email "github-actions@github.com"
+      - name: Checkout repo
+        uses: actions/checkout@v3
+        with:
+          repository: devzero-inc/zxporter
+          path: zxporter-tmp
+          token: ${{ steps.get_workflow_token.outputs.token }}
 
-                  branch="update-zxporter-netmon-helm-${{ env.FULLV }}"
-                  git checkout -b "$branch"
+      - name: Update image.tag in values.yaml
+        run: |
+          NEW_TAG="${{ env.FULLV }}"
+          # on mac: sed -i '' "s/^  tag: .*/  tag: \"$NEW_TAG\"/" zxporter-tmp/helm-chart/zxporter-netmon/values.yaml
+          sed -i.bak "s/^  tag: .*/  tag: \"$NEW_TAG\"/" zxporter-tmp/helm-chart/zxporter-netmon/values.yaml
+          rm zxporter-tmp/helm-chart/zxporter-netmon/values.yaml.bak || true
 
-                  # Check if anything in target paths actually changed
-                  if git diff --quiet helm-chart/*; then
-                    echo "No changes to commit. Skipping push and PR."
-                    echo "SHOULD_CREATE_PR=false" >> $GITHUB_ENV
-                  else
-                    git add helm-chart/*
-                    git commit -m "update image.tag in Helm values.yaml to ${{ env.FULLV }}"
-                    git push origin "$branch"
-                    echo "SHOULD_CREATE_PR=true" >> $GITHUB_ENV
-                  fi
+      - name: Check if there are changes
+        id: changes
+        run: |
+          cd zxporter-tmp
+          if git diff --exit-code; then
+          echo "No changes"
+          echo "changes=false" >> $GITHUB_OUTPUT
+          else
+          echo "Changes"
+          echo "changes=true" >> $GITHUB_OUTPUT
+          fi
 
-            - name: Open Pull Request
-              if: env.SHOULD_CREATE_PR == 'true'
-              env:
-                  GITHUB_TOKEN: ${{ steps.get_workflow_token.outputs.token }}
-              run: |
-                  pr_url=$(gh pr create \
-                    --title "update image.tag in Helm values.yaml to ${{ env.FULLV }}" \
-                    --body "This PR updates the value for 'image.tag' in the helm chart to '${{ env.FULLV }}'." \
-                    --head "update-zxporter-netmon-helm-${{ env.FULLV }}" \
-                    --base main)
-                  echo "PR_URL=${pr_url}" >> $GITHUB_ENV
+      - name: Create branch, commit, and push if changes exist
+        if: steps.changes.outputs.changes == 'true'
+        env:
+          GITHUB_TOKEN: ${{ steps.get_workflow_token.outputs.token }}
+        run: |
+          cd zxporter-tmp
+          git config --global user.name "github-actions-dzbot"
+          git config --global user.email "github-actions@github.com"
 
-            - name: Checkout services repo for access to private Slack actions
-              uses: actions/checkout@v4
-              with:
-                  repository: devzero-inc/services
-                  token: ${{ steps.get_workflow_token.outputs.token }}
-                  path: services
-                  ref: main
-                  fetch-depth: 1
+          branch="update-zxporter-netmon-helm-${{ env.FULLV }}"
+          git checkout -b "$branch"
 
-            - name: Notify Slack on failure
-              uses: ./services/.github/actions/slack-notify-failure
-              if: always()
-              with:
-                  slack_bot_token: ${{ secrets.SLACK_BOT_TOKEN }}
-                  workflow_name: ${{ inputs.workflow_name || 'Update zxporter-netmon helm chart' }}
+          # Check if anything in target paths actually changed
+          if git diff --quiet helm-chart/*; then
+          echo "No changes to commit. Skipping push and PR."
+          echo "SHOULD_CREATE_PR=false" >> $GITHUB_ENV
+          else
+          git add helm-chart/*
+          git commit -m "update image.tag in Helm values.yaml to ${{ env.FULLV }}"
+          git push origin "$branch"
+          echo "SHOULD_CREATE_PR=true" >> $GITHUB_ENV
+          fi
 
-            - name: Notify Slack on success
-              uses: ./services/.github/actions/slack-notify-success
-              if: env.SHOULD_CREATE_PR == 'true'
-              with:
-                  slack_bot_token: ${{ secrets.SLACK_BOT_TOKEN }}
-                  workflow_name: ${{ inputs.workflow_name || 'Update zxporter-netmon helm chart' }}
-                  pr_url: ${{ env.PR_URL }}
+      - name: Open Pull Request
+        if: env.SHOULD_CREATE_PR == 'true'
+        env:
+          GITHUB_TOKEN: ${{ steps.get_workflow_token.outputs.token }}
+        run: |
+          pr_url=$(gh pr create \
+          --title "update image.tag in Helm values.yaml to ${{ env.FULLV }}" \
+          --body "This PR updates the value for 'image.tag' in the helm chart to '${{ env.FULLV }}'." \
+          --head "update-zxporter-netmon-helm-${{ env.FULLV }}" \
+          --base main)
+          echo "PR_URL=${pr_url}" >> $GITHUB_ENV
+
+      - name: Checkout services repo for access to private Slack actions
+        uses: actions/checkout@v4
+        with:
+          repository: devzero-inc/services
+          token: ${{ steps.get_workflow_token.outputs.token }}
+          path: services
+          ref: main
+          fetch-depth: 1
+
+      - name: Notify Slack on failure
+        uses: ./services/.github/actions/slack-notify-failure
+        if: always()
+        with:
+          slack_bot_token: ${{ secrets.SLACK_BOT_TOKEN }}
+          workflow_name: "Update zxporter-netmon helm chart"
+
+      - name: Notify Slack on success
+        uses: ./services/.github/actions/slack-notify-success
+        if: env.SHOULD_CREATE_PR == 'true'
+        with:
+          slack_bot_token: ${{ secrets.SLACK_BOT_TOKEN }}
+          workflow_name: "Update zxporter-netmon helm chart"
+          pr_url: ${{ env.PR_URL }}
