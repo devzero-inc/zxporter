@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Optional: Tag to push (e.g., v1.2.3). If omitted, patch is bumped.'
+        description: "Optional: Tag to push (e.g., v1.2.3). If omitted, patch is bumped."
         required: false
 
 permissions:
@@ -58,7 +58,7 @@ jobs:
             "The format is based on [Keep a Changelog](https://keepachangelog.com/)." \
             "" \
             "For releases prior to automated changelog generation, please see the" \
-            "[GitHub Releases](https://github.com/devzero-inc/zxporter/releases) page." \
+            "[GitHub Releases](https://github.com/${{ github.repository }}/releases) page." \
             "" > CHANGELOG.md
 
           # Append all releases using JSON for reliable parsing (paginate to include all)
