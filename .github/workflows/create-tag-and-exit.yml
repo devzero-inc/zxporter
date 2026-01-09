@@ -19,11 +19,9 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Create tag (user input or bump patch)
+      - name: Determine tag version
+        id: version
         run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-
           if [[ -n "${{ github.event.inputs.tag }}" ]]; then
             NEW_TAG="${{ github.event.inputs.tag }}"
           else
@@ -33,8 +31,42 @@ jobs:
             PATCH=$(echo $LAST_TAG | cut -d. -f3)
             NEW_TAG="v${MAJOR}.${MINOR}.$((PATCH + 1))"
           fi
-
+          echo "tag=$NEW_TAG" >> $GITHUB_OUTPUT
           echo "Creating new tag: $NEW_TAG"
-          git tag $NEW_TAG
-          git push origin $NEW_TAG
 
+      - name: Create GitHub Release with auto-generated notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create ${{ steps.version.outputs.tag }} \
+            --generate-notes \
+            --title "${{ steps.version.outputs.tag }}"
+
+      - name: Update CHANGELOG.md from releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Generate changelog header
+          cat > CHANGELOG.md << 'HEADER'
+          # Changelog
+
+          All notable changes to this project will be documented in this file.
+          The format is based on [Keep a Changelog](https://keepachangelog.com/).
+
+          HEADER
+
+          # Append all releases (sorted by date, newest first)
+          gh release list --limit 100 | while read -r tag title date status; do
+            echo "## [$tag] - $(date -d "$date" +%Y-%m-%d 2>/dev/null || echo "$date")"
+            echo ""
+            gh release view "$tag" --json body -q '.body' | sed 's/^## /### /'
+            echo ""
+          done >> CHANGELOG.md
+
+      - name: Commit and push CHANGELOG.md
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add CHANGELOG.md
+          git diff --staged --quiet || git commit -m "chore: update changelog for ${{ steps.version.outputs.tag }}"
+          git push origin main
