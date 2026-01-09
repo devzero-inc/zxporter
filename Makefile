@@ -173,8 +173,8 @@ pre-commit-install: .venv/bin/pre-commit ## Install pre-commit hooks (optional).
 	$(PRE_COMMIT) install --install-hooks
 
 .PHONY: pre-commit
-pre-commit: .venv/bin/pre-commit ## Run pre-commit on all files.
-	$(PRE_COMMIT) run --all-files
+pre-commit: pre-commit-tools .venv/bin/pre-commit ## Run pre-commit on all files.
+	PATH="$(PWD)/.tools/bin:$$PATH" $(PRE_COMMIT) run --all-files
 
 .PHONY: pre-commit-tools
 pre-commit-tools: ## Install Go tools needed by pre-commit.

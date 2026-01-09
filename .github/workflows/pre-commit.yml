@@ -31,15 +31,16 @@ jobs:
           cache: true
 
       - name: Add Go bin to PATH
-        run: echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+        run: echo "${{ github.workspace }}/.tools/bin" >> $GITHUB_PATH
 
       - name: Install pre-commit
         run: python -m pip install --upgrade pip pre-commit
 
       - name: Install Go tools
         run: |
-          go install golang.org/x/tools/cmd/goimports@v0.30.0
-          go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.62.2
+          mkdir -p .tools/bin
+          GOBIN="${{ github.workspace }}/.tools/bin" go install golang.org/x/tools/cmd/goimports@v0.30.0
+          GOBIN="${{ github.workspace }}/.tools/bin" go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.62.2
 
       - name: Run pre-commit
         run: pre-commit run --all-files --show-diff-on-failure
