@@ -16,7 +16,7 @@ repos:
         types: [go]
       - id: golangci-lint
         name: golangci-lint
-        entry: ./.tools/bin/golangci-lint run --timeout=5m --new-from-rev=HEAD
+        entry: ./.tools/bin/golangci-lint run --timeout=5m
         language: system
         pass_filenames: false
   - repo: https://github.com/pre-commit/pre-commit-hooks

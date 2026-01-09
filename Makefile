@@ -169,7 +169,7 @@ PRE_COMMIT ?= .venv/bin/pre-commit
 	.venv/bin/pip install --upgrade pip pre-commit
 
 .PHONY: pre-commit-install
-pre-commit-install: .venv/bin/pre-commit ## Install pre-commit hooks.
+pre-commit-install: .venv/bin/pre-commit ## Install pre-commit hooks (optional).
 	$(PRE_COMMIT) install --install-hooks
 
 .PHONY: pre-commit
@@ -186,7 +186,7 @@ pre-commit-tools: ## Install Go tools needed by pre-commit.
 pre-commit-install-tool: .venv/bin/pre-commit ## Install pre-commit into a local virtualenv.
 
 .PHONY: pre-commit-setup
-pre-commit-setup: pre-commit-install-tool pre-commit-tools pre-commit-install ## Install pre-commit, tools, and hooks.
+pre-commit-setup: pre-commit-install-tool pre-commit-tools ## Install pre-commit and tools (hooks are optional).
 
 GITVERSION ?= $(shell git describe --tags 2>/dev/null || echo "v0.0.0-$(shell git rev-parse --short HEAD)")
 

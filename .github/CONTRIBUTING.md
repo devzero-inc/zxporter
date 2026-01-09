@@ -110,14 +110,19 @@ Linting rules are configured in `.golangci.yml` at the repository root. The conf
 ## Pre-Commit Hooks
 
 We use pre-commit hooks to catch issues before code is committed.
+Local hooks are optional; by default nothing runs on commit unless you install hooks yourself.
 
 ### Quick setup
 
-Run: `make pre-commit-setup` (bootstraps `.venv`, installs Go tools into `.tools/bin`, and installs hooks).
+Run: `make pre-commit-setup` (bootstraps `.venv` and installs Go tools into `.tools/bin`).
 
 ### Run hooks manually
 
 Run: `make pre-commit`.
+
+### Optional: enable pre-commit on every commit
+
+Run: `make pre-commit-install`.
 
 ### Troubleshooting
 
@@ -128,10 +133,6 @@ If setup fails, you can run the steps individually:
 - Run: `make pre-commit-install`.
 
 <!-- todo? remove scope later when all old lint errors are fixed -->
-
-### Lint scope
-
-`golangci-lint` runs in pre-commit with `--new-from-rev=HEAD` to report only issues introduced by your changes.
 
 ---
 
