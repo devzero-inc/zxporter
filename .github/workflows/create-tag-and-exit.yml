@@ -46,18 +46,21 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # Generate changelog header
-          cat > CHANGELOG.md << 'HEADER'
-          # Changelog
+          # Generate changelog header (no indentation to avoid leading spaces)
+          printf '%s\n' \
+            "# Changelog" \
+            "" \
+            "All notable changes to this project will be documented in this file." \
+            "The format is based on [Keep a Changelog](https://keepachangelog.com/)." \
+            "" \
+            "For releases prior to automated changelog generation, please see the" \
+            "[GitHub Releases](https://github.com/devzero-inc/zxporter/releases) page." \
+            "" > CHANGELOG.md
 
-          All notable changes to this project will be documented in this file.
-          The format is based on [Keep a Changelog](https://keepachangelog.com/).
-
-          HEADER
-
-          # Append all releases (sorted by date, newest first)
-          gh release list --limit 100 | while read -r tag title date status; do
-            echo "## [$tag] - $(date -d "$date" +%Y-%m-%d 2>/dev/null || echo "$date")"
+          # Append all releases using JSON for reliable parsing
+          gh release list --limit 100 --json tagName,publishedAt | jq -r '.[] | "\(.tagName) \(.publishedAt)"' | while read -r tag published_at; do
+            formatted_date=$(date -d "$published_at" +%Y-%m-%d 2>/dev/null || echo "$published_at")
+            echo "## [$tag] - $formatted_date"
             echo ""
             gh release view "$tag" --json body -q '.body' | sed 's/^## /### /'
             echo ""
@@ -68,5 +71,19 @@ jobs:
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
           git add CHANGELOG.md
-          git diff --staged --quiet || git commit -m "chore: update changelog for ${{ steps.version.outputs.tag }}"
-          git push origin main
+          if git diff --staged --quiet; then
+            echo "No changelog changes to commit"
+            exit 0
+          fi
+          git commit -m "chore: update changelog for ${{ steps.version.outputs.tag }}"
+
+          # Pull with rebase and push, with retry on failure
+          max_retries=3
+          for i in $(seq 1 $max_retries); do
+            git fetch origin main
+            git rebase origin/main && git push origin main && exit 0
+            echo "Push attempt $i failed, retrying..."
+            sleep 2
+          done
+          echo "Failed to push after $max_retries attempts"
+          exit 1
