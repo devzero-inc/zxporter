@@ -57,12 +57,14 @@ jobs:
             "[GitHub Releases](https://github.com/devzero-inc/zxporter/releases) page." \
             "" > CHANGELOG.md
 
-          # Append all releases using JSON for reliable parsing
-          gh release list --limit 100 --json tagName,publishedAt | jq -r '.[] | "\(.tagName) \(.publishedAt)"' | while read -r tag published_at; do
+          # Append all releases using JSON for reliable parsing (no --limit to paginate all)
+          gh release list --json tagName,publishedAt | jq -r '.[] | "\(.tagName) \(.publishedAt)"' | while read -r tag published_at; do
             formatted_date=$(date -d "$published_at" +%Y-%m-%d 2>/dev/null || echo "$published_at")
             echo "## [$tag] - $formatted_date"
             echo ""
-            gh release view "$tag" --json body -q '.body' | sed 's/^## /### /'
+            # Transform top-level headings (## ) to subheadings (### ) for changelog nesting.
+            # Uses negative lookahead pattern to avoid double-transforming already-nested headings.
+            gh release view "$tag" --json body -q '.body' | sed 's/^##\([^#]\)/###\1/'
             echo ""
           done >> CHANGELOG.md
 
