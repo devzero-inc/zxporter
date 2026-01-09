@@ -38,9 +38,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create ${{ steps.version.outputs.tag }} \
-            --generate-notes \
-            --title "${{ steps.version.outputs.tag }}"
+          if gh release view "${{ steps.version.outputs.tag }}" >/dev/null 2>&1; then
+            echo "Release ${{ steps.version.outputs.tag }} already exists; skipping creation."
+          else
+            gh release create ${{ steps.version.outputs.tag }} \
+              --generate-notes \
+              --title "${{ steps.version.outputs.tag }}"
+          fi
 
       - name: Update CHANGELOG.md from releases
         env:
@@ -57,8 +61,9 @@ jobs:
             "[GitHub Releases](https://github.com/devzero-inc/zxporter/releases) page." \
             "" > CHANGELOG.md
 
-          # Append all releases using JSON for reliable parsing (no --limit to paginate all)
-          gh release list --json tagName,publishedAt | jq -r '.[] | "\(.tagName) \(.publishedAt)"' | while read -r tag published_at; do
+          # Append all releases using JSON for reliable parsing (paginate to include all)
+          gh api --paginate repos/${{ github.repository }}/releases?per_page=100 \
+            --jq 'map({tagName: .tag_name, publishedAt: .published_at})' | jq -r '.[] | "\(.tagName) \(.publishedAt)"' | while read -r tag published_at; do
             formatted_date=$(date -d "$published_at" +%Y-%m-%d 2>/dev/null || echo "$published_at")
             echo "## [$tag] - $formatted_date"
             echo ""
@@ -83,7 +88,17 @@ jobs:
           max_retries=3
           for i in $(seq 1 $max_retries); do
             git fetch origin main
-            git rebase origin/main && git push origin main && exit 0
+            if ! git rebase origin/main; then
+              if git diff --name-only --diff-filter=U | grep -q .; then
+                echo "Rebase failed due to conflicts; aborting."
+                git rebase --abort
+                exit 1
+              fi
+              echo "Rebase failed; aborting."
+              git rebase --abort || true
+              exit 1
+            fi
+            git push origin main && exit 0
             echo "Push attempt $i failed, retrying..."
             sleep 2
           done
