@@ -127,6 +127,12 @@ If setup fails, you can run the steps individually:
 - Run: `make pre-commit-tools`.
 - Run: `make pre-commit-install`.
 
+<!-- todo? remove scope later when all old lint errors are fixed -->
+
+### Lint scope
+
+`golangci-lint` runs in pre-commit with `--new-from-rev=HEAD` to report only issues introduced by your changes.
+
 ---
 
 ## Documentation
