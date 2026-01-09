@@ -111,30 +111,21 @@ Linting rules are configured in `.golangci.yml` at the repository root. The conf
 
 We use pre-commit hooks to catch issues before code is committed.
 
-### Install pre-commit
+### Quick setup
 
-```bash
-python3 -m pip install --user pre-commit
-```
-
-### Install required Go tools
-
-```bash
-go install golang.org/x/tools/cmd/goimports@v0.30.0
-go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.62.2
-```
-
-### Install hooks
-
-```bash
-make pre-commit-install
-```
+Run: `make pre-commit-setup` (bootstraps `.venv`, installs Go tools into `.tools/bin`, and installs hooks).
 
 ### Run hooks manually
 
-```bash
-pre-commit run --all-files
-```
+Run: `make pre-commit`.
+
+### Troubleshooting
+
+If setup fails, you can run the steps individually:
+
+- Run: `make pre-commit-install-tool`.
+- Run: `make pre-commit-tools`.
+- Run: `make pre-commit-install`.
 
 ---
 

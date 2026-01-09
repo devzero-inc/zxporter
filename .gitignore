@@ -29,6 +29,8 @@ config/**/charts
 *~
 
 .claude
+.venv
+.tools
 
 /zxporter-netmon
 *.o

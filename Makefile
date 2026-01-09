@@ -162,13 +162,31 @@ lint: golangci-lint ## Run golangci-lint linter
 lint-fix: golangci-lint ## Run golangci-lint linter and perform fixes
 	$(GOLANGCI_LINT) run --fix
 
+PRE_COMMIT ?= .venv/bin/pre-commit
+
+.venv/bin/pre-commit:
+	python3 -m venv .venv
+	.venv/bin/pip install --upgrade pip pre-commit
+
 .PHONY: pre-commit-install
-pre-commit-install: ## Install pre-commit hooks.
-	pre-commit install --install-hooks
+pre-commit-install: .venv/bin/pre-commit ## Install pre-commit hooks.
+	$(PRE_COMMIT) install --install-hooks
 
 .PHONY: pre-commit
-pre-commit: ## Run pre-commit on all files.
-	pre-commit run --all-files
+pre-commit: .venv/bin/pre-commit ## Run pre-commit on all files.
+	$(PRE_COMMIT) run --all-files
+
+.PHONY: pre-commit-tools
+pre-commit-tools: ## Install Go tools needed by pre-commit.
+	@mkdir -p .tools/bin
+	GOBIN="$(PWD)/.tools/bin" go install golang.org/x/tools/cmd/goimports@v0.30.0
+	GOBIN="$(PWD)/.tools/bin" go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.62.2
+
+.PHONY: pre-commit-install-tool
+pre-commit-install-tool: .venv/bin/pre-commit ## Install pre-commit into a local virtualenv.
+
+.PHONY: pre-commit-setup
+pre-commit-setup: pre-commit-install-tool pre-commit-tools pre-commit-install ## Install pre-commit, tools, and hooks.
 
 GITVERSION ?= $(shell git describe --tags 2>/dev/null || echo "v0.0.0-$(shell git rev-parse --short HEAD)")
 
