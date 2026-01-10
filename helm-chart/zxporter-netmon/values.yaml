@@ -57,6 +57,6 @@ config:
   logLevel: "info"
   mainConfigMapName: "devzero-zxporter-env-config"
   # Default scrape interval 5s
-  exportInterval: "5s"
+  exportInterval: "60s"
   dakrUrl: ""
   clusterToken: ""
