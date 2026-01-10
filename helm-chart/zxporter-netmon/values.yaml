@@ -1,8 +1,8 @@
 image:
-  repository: devzero/zxporter-netmon
+  repository: devzeroinc/zxporter-netmon
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "latest"
+  tag: "v0.0.52"
 
 imagePullSecrets: []
 nameOverride: ""
