@@ -70,6 +70,21 @@ Ensure Node Exporter is running on all nodes for complete metrics collection.
 {{- end }}
 {{- end }}
 
+NOTE: GPU metrics collection requirements.
+
+If your cluster contains GPU-enabled nodes, ensure the following for GPU metrics to appear in the DevZero dashboard:
+1. DCGM (Datacenter GPU Manager) exporter is installed and running
+2. DCGM exporter pods are annotated with prometheus.io/scrape: true
+
+To verify GPU nodes in your cluster:
+  $ kubectl describe nodes | grep "nvidia.com/gpu"
+
+To check DCGM exporter status:
+  $ kubectl get daemonset -A | grep dcgm
+
+For detailed installation and configuration instructions, refer to:
+  https://www.devzero.io/docs/k8s-automation/getting-started/step-by-step#nvidia-gpus-on-k8s
+
 {{- if .Values.priorityClass.enabled }}
 
 High priority class has been configured for critical workload scheduling.
