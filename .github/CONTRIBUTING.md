@@ -63,6 +63,42 @@ When you're ready to contribute code:
 
 ---
 
+## Changelog Guidelines
+
+We use automated changelog generation based on PR labels. To ensure your changes are properly documented:
+
+### PR Labels for Changelog
+
+When creating a PR, apply one of the following labels to categorize your change:
+
+| Label | Use When |
+|-------|----------|
+| `changelog:added` | Adding new features or capabilities |
+| `changelog:changed` | Modifying existing functionality |
+| `changelog:fixed` | Fixing bugs or issues |
+| `changelog:removed` | Removing features or capabilities |
+| `changelog:security` | Addressing security vulnerabilities |
+| `changelog:skip` | Changes that should not appear in changelog (CI, docs, chores) |
+
+### Breaking Changes
+
+If your PR introduces a breaking change:
+1. Add the `changelog:breaking` label
+2. Clearly document the breaking change in your PR description
+3. Include migration instructions if applicable
+
+### Automatic Labeling
+
+Labels are automatically suggested based on PR titles:
+- Titles containing "fix", "bug" → `changelog:fixed`
+- Titles containing "add", "feat", "new" → `changelog:added`
+- Titles containing "update", "improve", "enhance" → `changelog:changed`
+- Titles starting with "chore", "ci", "docs" → `changelog:skip`
+
+You can override automatic labels by manually applying the correct label.
+
+---
+
 ## Testing
 
 Before submitting a PR, ensure that your changes pass all tests.
