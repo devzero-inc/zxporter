@@ -758,7 +758,7 @@ verify-e2e-eks: ## Run verification against an existing EKS cluster (reads state
 	echo "Using cached config for cluster $${CLUSTER_NAME} in $${REGION}..." && \
 	AWS_PROFILE=self-hosted aws eks update-kubeconfig --region $${REGION} --name $${CLUSTER_NAME} && \
 	CONTEXT=$$(kubectl config current-context) && \
-	$(MAKE) verify-e2e CLUSTER_CONTEXT="$${CONTEXT}" NAMESPACE=devzero-zxporter
+	$(MAKE) verify-e2e CLUSTER_CONTEXT="$${CONTEXT}" NAMESPACE=devzero-zxporter CNI_TYPE="$${CNI_TYPE}"
 
 .PHONY: verify-e2e-eks-lifecycle
 verify-e2e-eks-lifecycle: provision-eks ## Full EKS E2E (Provision -> Verify -> Deprovision)

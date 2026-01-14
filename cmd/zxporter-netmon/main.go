@@ -30,7 +30,7 @@ var (
 	readInterval    = flag.Duration("read-interval", 5*time.Second, "Interval between conntrack reads.")
 	cleanupInterval = flag.Duration("cleanup-interval", 60*time.Second, "Interval for cleaning up stale entries.")
 	kubeconfig      = flag.String("metrics-kubeconfig", "", "Path to a kubeconfig. Only required if out-of-cluster.")
-	collectorMode   = flag.String("collector-mode", "netfilter", "Collector mode: 'netfilter' or 'cilium'.")
+	collectorMode   = flag.String("collector-mode", "netfilter", "Collector mode: 'netfilter' or 'bpf'.")
 	standalone      = flag.Bool("standalone", false, "Run in standalone mode without K8s connection")
 )
 
