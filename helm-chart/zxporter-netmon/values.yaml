@@ -58,5 +58,7 @@ config:
   mainConfigMapName: "devzero-zxporter-env-config"
   # Default scrape interval 5s
   exportInterval: "60s"
+  # Collector mode: 'netfilter' or 'ebpf'
+  collectorMode: "netfilter"
   dakrUrl: ""
   clusterToken: ""

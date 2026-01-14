@@ -27,3 +27,19 @@ func (e DNSEvent) String() string {
 	}
 	return str.String()
 }
+
+type NetworkTrafficKey struct {
+	SrcIP    string
+	DstIP    string
+	SrcPort  uint16
+	DstPort  uint16
+	Protocol uint8
+	Family   uint16
+}
+
+type TrafficSummary struct {
+	RxPackets uint64
+	RxBytes   uint64
+	TxPackets uint64
+	TxBytes   uint64
+}

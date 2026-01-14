@@ -56,19 +56,31 @@ spec:
             {{- end }}
             - name: FLUSH_INTERVAL
               value: {{ .Values.config.exportInterval | quote }}
-          # Add args if configuration is via flags
-          # args: ["-log-level", "{{ .Values.config.logLevel }}"]
+          args:
+            - "-collector-mode={{ .Values.config.collectorMode }}"
+            # - "-log-level={{ .Values.config.logLevel }}"
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           volumeMounts:
             - name: zxporter-config
               mountPath: /etc/zxporter
               readOnly: true
+            {{- if eq .Values.config.collectorMode "cilium" }}
+            - name: bpf-maps
+              mountPath: /sys/fs/bpf
+              mountPropagation: HostToContainer
+            {{- end }}
       volumes:
         - name: zxporter-config
           configMap:
             name: {{ .Values.config.mainConfigMapName }}
             optional: true
+        {{- if eq .Values.config.collectorMode "cilium" }}
+        - name: bpf-maps
+          hostPath:
+            path: /sys/fs/bpf
+            type: Directory
+        {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

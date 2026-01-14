@@ -255,7 +255,7 @@ IMG_NETMON ?= ttl.sh/zxporter-netmon:latest
 
 .PHONY: docker-build-netmon
 docker-build-netmon: ## Build docker image for zxporter-netmon
-	$(CONTAINER_TOOL) build -t ${IMG_NETMON} -f Dockerfile.netmon .
+	$(CONTAINER_TOOL) buildx build $(BUILD_ARGS) -t ${IMG_NETMON} -f Dockerfile.netmon .
 
 .PHONY: docker-push-netmon
 docker-push-netmon: ## Push docker image for zxporter-netmon

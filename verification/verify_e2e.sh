@@ -36,7 +36,7 @@ if [[ "$CLUSTER_CONTEXT" == "kind-zxporter-e2e" ]] || [[ "$CLUSTER_CONTEXT" == "
     
     echo "Building image for Kind..."
     # Kind needs the image loaded
-    make docker-build-netmon IMG_NETMON=$IMG
+    make docker-build-netmon IMG_NETMON=$IMG BUILD_ARGS="--load"
     echo "Loading image into Kind cluster: $KIND_CLUSTER_NAME..."
     kind load docker-image $IMG --name $KIND_CLUSTER_NAME
     PULL_POLICY="Never"
@@ -44,8 +44,8 @@ else
     echo "Building and pushing image for remote cluster..."
     # For EKS/GKE, we need to push to a registry accessible by the cluster
     # Assuming ttl.sh is accessible
-    make docker-build-netmon IMG_NETMON=$IMG
-    make docker-push-netmon IMG_NETMON=$IMG
+    make docker-build-netmon IMG_NETMON=$IMG BUILD_ARGS="--push --platform linux/amd64,linux/arm64"
+    # make docker-push-netmon IMG_NETMON=$IMG # Redundant if buildx --push is used
     PULL_POLICY="Always"
 fi
 
@@ -129,6 +129,7 @@ helm template zxporter-netmon helm-chart/zxporter-netmon \
     --set image.repository=ttl.sh/zxporter-netmon \
     --set image.tag=$TAG \
     --set image.pullPolicy=$PULL_POLICY \
+    --set config.collectorMode="ebpf" \
     | kubectl apply -f -
 
 echo "Restarting zxporter-netmon to pick up latest image..."
