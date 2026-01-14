@@ -13,6 +13,10 @@ else
 fi
 echo "Using eksctl: $($EKSCTL_CMD version) ($EKSCTL_CMD)"
 
+if [[ "${CNI_TYPE:-aws-cni}" == "cilium" ]]; then
+  need helm
+fi
+
 MODE="${1:-}"
 if [[ "${MODE}" != "create" && "${MODE}" != "delete" ]]; then
   echo "Usage: $0 create|delete" >&2
@@ -37,9 +41,11 @@ INSTANCE_TYPE="${INSTANCE_TYPE:-t4g.small}"
 CAPACITY_TYPE="${CAPACITY_TYPE:-SPOT}" 
 AZ1="${AZ1:-${REGION}a}"
 AZ2="${AZ2:-${REGION}b}"
+# CNI_TYPE: 'aws-cni' (default) or 'cilium' (AWS VPC CNI + Cilium Chaining)
+CNI_TYPE="${CNI_TYPE:-aws-cni}"
 
 WHO="$(whoami | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-' | sed 's/^-//; s/-$//')"
-CLUSTER_NAME_DEFAULT="zxporter-e2e-${WHO}"
+CLUSTER_NAME_DEFAULT="zxporter-e2e-${WHO}-${CNI_TYPE}"
 CLUSTER_NAME="${CLUSTER_NAME:-${CLUSTER_NAME_DEFAULT}}"
 
 STATE_DIR="${STATE_DIR:-$HOME/.cache/zxporter-e2e}"
@@ -50,6 +56,7 @@ write_state() {
   cat > "${STATE_FILE}" <<EOF
 CLUSTER_NAME=${CLUSTER_NAME}
 REGION=${REGION}
+CNI_TYPE=${CNI_TYPE}
 EOF
 }
 
@@ -175,6 +182,36 @@ EOF
 
   echo "Creating cluster ${CLUSTER_NAME} (${REGION}) with ${INSTANCE_TYPE} (Spot)..."
   $EKSCTL_CMD create cluster -f /tmp/eksctl-zxporter-e2e.yaml
+
+  # Post-Provisioning Steps
+  if [[ "${CNI_TYPE}" == "cilium" ]]; then
+    echo "Installing Cilium CNI (Chaining Mode)..."
+    need helm
+    
+    # Update kubeconfig first
+    aws eks update-kubeconfig --region "${REGION}" --name "${CLUSTER_NAME}"
+    
+    helm repo add cilium https://helm.cilium.io/ >/dev/null 2>&1 || true
+    helm repo update >/dev/null 2>&1
+    
+    # Install Cilium in chaining mode (co-exist with AWS VPC CNI)
+    # This enables eBPF datapath/monitoring while keeping AWS IPAM
+    helm upgrade --install cilium cilium/cilium \
+      --version 1.14.7 \
+      --namespace kube-system \
+      --set cni.chainingMode=aws-cni \
+      --set cni.exclusive=false \
+      --set enableIPv4Masquerade=false \
+      --set routingMode=native \
+      --set endpointRoutes.enabled=true \
+      --wait
+      
+    echo "Cilium installed. Verifying pods..."
+    kubectl -n kube-system wait --for=condition=ready pod -l k8s-app=cilium --timeout=300s
+    kubectl -n kube-system get pods -l k8s-app=cilium -o wide
+    echo "Cilium is ready."
+  fi
+
   write_state
   exit 0
 fi

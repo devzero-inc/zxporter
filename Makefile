@@ -696,6 +696,8 @@ generate-proto: install-buf ## Fetch latest Dakr protobuf
 	buf generate --include-imports "$$PROTO_DIR"/dakr_proto_descriptor.bin; 
 	buf generate --verbose --include-imports --timeout=5m .
 
+##@ Verification
+
 # Lima Verification
 LIMA_INSTANCE := zxporter-verify
 LIMA_CONFIG := verification/lima.yaml
@@ -722,18 +724,6 @@ verify-e2e: ## Run E2E verification on a Kind or Cloud cluster
 	@chmod +x verification/verify_e2e.sh
 	@./verification/verify_e2e.sh $(CLUSTER_CONTEXT) $(NAMESPACE)
 
-.PHONY: provision-eks
-provision-eks: ## Create EKS cluster
-	@echo "Creating EKS cluster..."
-	@chmod +x verification/provision_eks.sh
-	@./verification/provision_eks.sh create
-
-.PHONY: deprovision-eks
-deprovision-eks: ## Delete EKS cluster
-	@echo "Deleting EKS cluster..."
-	@chmod +x verification/provision_eks.sh
-	@./verification/provision_eks.sh delete
-
 KIND_CLUSTER_NAME := zxporter-e2e
 .PHONY: create-kind
 create-kind: ## Create Kind cluster
@@ -749,18 +739,33 @@ delete-kind: ## Delete Kind cluster
 verify-e2e-kind-lifecycle: delete-kind create-kind ## Full Kind E2E (Delete -> Create -> Verify)
 	$(MAKE) verify-e2e CLUSTER_CONTEXT=kind-$(KIND_CLUSTER_NAME) NAMESPACE=devzero-zxporter
 
+.PHONY: provision-eks
+provision-eks: ## Create EKS cluster
+	@echo "Creating EKS cluster..."
+	@chmod +x verification/provision_eks.sh
+	@./verification/provision_eks.sh create
+
+.PHONY: deprovision-eks
+deprovision-eks: ## Delete EKS cluster
+	@echo "Deleting EKS cluster..."
+	@chmod +x verification/provision_eks.sh
+	@./verification/provision_eks.sh delete
+
+.PHONY: verify-e2e-eks
+verify-e2e-eks: ## Run verification against an existing EKS cluster (reads state from ~/.cache/zxporter-e2e/eks.state)
+	@if [ ! -f ~/.cache/zxporter-e2e/eks.state ]; then echo "Error: State file not found. Run 'make provision-eks' first."; exit 1; fi
+	@source ~/.cache/zxporter-e2e/eks.state && \
+	echo "Using cached config for cluster $${CLUSTER_NAME} in $${REGION}..." && \
+	AWS_PROFILE=self-hosted aws eks update-kubeconfig --region $${REGION} --name $${CLUSTER_NAME} && \
+	CONTEXT=$$(kubectl config current-context) && \
+	$(MAKE) verify-e2e CLUSTER_CONTEXT="$${CONTEXT}" NAMESPACE=devzero-zxporter
+
 .PHONY: verify-e2e-eks-lifecycle
 verify-e2e-eks-lifecycle: provision-eks ## Full EKS E2E (Provision -> Verify -> Deprovision)
 	@echo "Detected User: $$(whoami)"
 	@export AWS_PROFILE=$${AWS_PROFILE:-self-hosted} && \
-	CLUSTER_NAME="zxporter-e2e-$$(whoami | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-' | sed 's/^-//; s/-$$//')" && \
-	REGION="ap-south-1" && \
-	echo "Updating kubeconfig for cluster $${CLUSTER_NAME}..." && \
-	aws eks update-kubeconfig --region $${REGION} --name $${CLUSTER_NAME} && \
-	CONTEXT=$$(kubectl config current-context) && \
-	echo "Using Context: $${CONTEXT}" && \
-	VERIFY_EXIT=0; \
-	$(MAKE) verify-e2e CLUSTER_CONTEXT="$${CONTEXT}" NAMESPACE=devzero-zxporter || VERIFY_EXIT=$$?; \
+	@VERIFY_EXIT=0; \
+	$(MAKE) verify-e2e-eks || VERIFY_EXIT=$$?; \
 	$(MAKE) deprovision-eks; \
 	exit $$VERIFY_EXIT
 
@@ -776,22 +781,21 @@ deprovision-aks: ## Delete AKS cluster
 	@chmod +x verification/provision_aks.sh
 	@./verification/provision_aks.sh delete
 
-.PHONY: verify-e2e-aks-lifecycle
-verify-e2e-aks-lifecycle: provision-aks ## Full AKS E2E (Provision -> Verify -> Deprovision)
-	@echo "Detected User: $$(whoami)"
-	@WHO="$$(whoami | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-' | sed 's/^-//; s/-$$//')" && \
-	CNI_TYPE="$${CNI_TYPE:-cilium}" && \
-	CLUSTER_NAME="aks-zxporter-e2e-$${WHO}-$${CNI_TYPE}" && \
-	RESOURCE_GROUP="aks-zxporter-e2e-rg-$${WHO}-$${CNI_TYPE}" && \
-	echo "Updating kubeconfig for AKS cluster $${CLUSTER_NAME}..." && \
+.PHONY: verify-e2e-aks
+verify-e2e-aks: ## Run verification against an existing AKS cluster (reads state from ~/.cache/zxporter-e2e/aks.state)
+	@if [ ! -f ~/.cache/zxporter-e2e/aks.state ]; then echo "Error: State file not found. Run 'make provision-aks' first."; exit 1; fi
+	@source ~/.cache/zxporter-e2e/aks.state && \
+	echo "Using cached config for cluster $${CLUSTER_NAME} in $${RESOURCE_GROUP}..." && \
 	az aks get-credentials --resource-group $${RESOURCE_GROUP} --name $${CLUSTER_NAME} --overwrite-existing && \
 	CONTEXT=$$(kubectl config current-context) && \
-	echo "Using Context: $${CONTEXT}" && \
-	VERIFY_EXIT=0; \
-	$(MAKE) verify-e2e CLUSTER_CONTEXT="$${CONTEXT}" NAMESPACE=devzero-zxporter || VERIFY_EXIT=$$?; \
+	$(MAKE) verify-e2e CLUSTER_CONTEXT="$${CONTEXT}" NAMESPACE=devzero-zxporter CNI_TYPE="$${CNI_TYPE}"
+
+.PHONY: verify-e2e-aks-lifecycle
+verify-e2e-aks-lifecycle: provision-aks ## Full AKS E2E (Provision -> Verify -> Deprovision). Use CNI_TYPE=cilium|kubenet (default: cilium).
+	@VERIFY_EXIT=0; \
+	$(MAKE) verify-e2e-aks || VERIFY_EXIT=$$?; \
 	$(MAKE) deprovision-aks; \
 	exit $$VERIFY_EXIT
-
 
 .PHONY: provision-gke
 provision-gke: ## Create GKE cluster
@@ -818,6 +822,7 @@ verify-e2e-gke-lifecycle: provision-gke ## Full GKE E2E (Provision -> Verify -> 
 	$(MAKE) deprovision-gke
 
 
+## clean out metrics in verification directory
 .PHONY: clean-metrics
 clean-metrics:
 	@rm -f verification/metrics-*.json
