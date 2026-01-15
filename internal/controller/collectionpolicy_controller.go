@@ -279,7 +279,7 @@ func (r *CollectionPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Req
 				"zxporter_version": version.Get().String(),
 			},
 		)
-		logger.Error(err, "Error loading ENV varaibles")
+		logger.Error(err, "Error loading ENV variables")
 	}
 
 	// Create a new config object from the policy and environment
