@@ -26,3 +26,7 @@ func IsKernelBTFAvailable() bool {
 func InitCgroupv2(log logr.Logger) error {
 	return nil
 }
+
+func (t *Tracer) CollectNetworkSummary() (map[NetworkTrafficKey]TrafficSummary, error) {
+	return nil, nil
+}

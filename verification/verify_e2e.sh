@@ -1,6 +1,13 @@
 #!/bin/bash
 set -e
 
+# Usage:
+#   ./verify_e2e.sh [CONTEXT] [NAMESPACE]
+#
+# Environment Variables:
+#   CNI_TYPE        : If set to "cilium", defaults COLLECTOR_MODE to "ebpf".
+#   COLLECTOR_MODE  : "netfilter" (default) or "ebpf". Overrides CNI_TYPE inference.
+
 CLUSTER_CONTEXT=${1:-kind-kind}
 NAMESPACE=${2:-devzero-zxporter}
 
@@ -36,7 +43,7 @@ if [[ "$CLUSTER_CONTEXT" == "kind-zxporter-e2e" ]] || [[ "$CLUSTER_CONTEXT" == "
     
     echo "Building image for Kind..."
     # Kind needs the image loaded
-    make docker-build-netmon IMG_NETMON=$IMG
+    make docker-build-netmon IMG_NETMON=$IMG BUILD_ARGS="--load"
     echo "Loading image into Kind cluster: $KIND_CLUSTER_NAME..."
     kind load docker-image $IMG --name $KIND_CLUSTER_NAME
     PULL_POLICY="Never"
@@ -44,8 +51,7 @@ else
     echo "Building and pushing image for remote cluster..."
     # For EKS/GKE, we need to push to a registry accessible by the cluster
     # Assuming ttl.sh is accessible
-    make docker-build-netmon IMG_NETMON=$IMG
-    make docker-push-netmon IMG_NETMON=$IMG
+    make docker-build-netmon IMG_NETMON=$IMG BUILD_ARGS="--push --platform linux/amd64,linux/arm64"
     PULL_POLICY="Always"
 fi
 
@@ -122,6 +128,21 @@ if [[ "$ENABLE_CONTROL_PLANE_TEST" == "true" ]]; then
         | kubectl apply -f -        
 fi
 
+# Default to netfilter if not set
+COLLECTOR_MODE=${COLLECTOR_MODE:-}
+
+# 2.5. Infer Collector Mode if not explicitly set
+if [[ -z "$COLLECTOR_MODE" ]]; then
+    if [[ "$CNI_TYPE" == "cilium" ]] || [[ "$CLUSTER_CONTEXT" == *cilium* ]]; then
+        echo "Detected Cilium environment via CNI_TYPE or Context. Defaulting to 'ebpf' collector mode."
+        COLLECTOR_MODE="ebpf"
+    else
+        echo "Defaulting to 'netfilter' collector mode."
+        COLLECTOR_MODE="netfilter"
+    fi
+fi
+echo "Using Collector Mode: $COLLECTOR_MODE"
+
 # Use helm chart to generate manifest for simplicity or use the standalone manifest
 # Let's use the Helm chart template command to generate a manifest with our image
 helm template zxporter-netmon helm-chart/zxporter-netmon \
@@ -129,6 +150,7 @@ helm template zxporter-netmon helm-chart/zxporter-netmon \
     --set image.repository=ttl.sh/zxporter-netmon \
     --set image.tag=$TAG \
     --set image.pullPolicy=$PULL_POLICY \
+    --set config.collectorMode="$COLLECTOR_MODE" \
     | kubectl apply -f -
 
 echo "Restarting zxporter-netmon to pick up latest image..."

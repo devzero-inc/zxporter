@@ -22,4 +22,5 @@ type Tracer struct {
 	log    logr.Logger
 	cfg    Config
 	events chan DNSEvent
+	objs   *bpfObjects
 }

@@ -58,8 +58,7 @@ typedef long unsigned int __kernel_ulong_t;
 
 typedef _Bool bool;
 
-enum
-{
+enum {
     false = 0,
     true = 1,
 };
@@ -131,26 +130,22 @@ struct pt_regs {
 
 // common to all architectures
 
-enum
-{
+enum {
     BPF_ANY = 0,
     BPF_NOEXIST = 1,
     BPF_EXIST = 2,
     BPF_F_LOCK = 4,
 };
 
-enum
-{
+enum {
     BPF_F_USER_STACK = 256,
 };
 
-enum
-{
+enum {
     BPF_F_CURRENT_CPU = 4294967295,
 };
 
-enum
-{
+enum {
     TCP_ESTABLISHED = 1,
     TCP_SYN_SENT = 2,
     TCP_SYN_RECV = 3,
@@ -166,8 +161,7 @@ enum
     TCP_MAX_STATES = 13,
 };
 
-enum sock_type
-{
+enum sock_type {
     SOCK_STREAM = 1,
     SOCK_DGRAM = 2,
     SOCK_RAW = 3,
@@ -177,8 +171,7 @@ enum sock_type
     SOCK_PACKET = 10,
 };
 
-enum
-{
+enum {
     IPPROTO_IP = 0,
     IPPROTO_ICMP = 1,
     IPPROTO_IGMP = 2,
@@ -209,8 +202,7 @@ enum
     IPPROTO_MAX = 263,
 };
 
-enum
-{
+enum {
     TCPF_ESTABLISHED = 2,
     TCPF_SYN_SENT = 4,
     TCPF_FIN_WAIT1 = 16,
@@ -301,7 +293,14 @@ typedef struct {
     u64 val;
 } kernel_cap_t;
 
+struct group_info {
+    atomic_t usage;
+    int ngroups;
+    kgid_t gid[0];
+};
+
 struct cred {
+    atomic_t usage;
     kuid_t uid;
     kgid_t gid;
     kuid_t suid;
@@ -316,7 +315,15 @@ struct cred {
     kernel_cap_t cap_effective;
     kernel_cap_t cap_bset;
     kernel_cap_t cap_ambient;
+    unsigned char jit_keyring;
+    struct key *session_keyring;
+    struct key *process_keyring;
+    struct key *thread_keyring;
+    struct key *request_key_auth;
+    void *security;
+    struct user_struct *user;
     struct user_namespace *user_ns;
+    struct group_info *group_info;
 };
 
 struct nsproxy {
@@ -362,6 +369,7 @@ struct uts_namespace {
 
 struct css_set {
     struct cgroup_subsys_state *subsys[12];
+    struct cgroup *dfl_cgrp;
 };
 
 struct percpu_ref {
@@ -423,9 +431,16 @@ typedef unsigned int fmode_t;
 
 struct dir_context {
 };
+struct iov_iter {
+};
+struct kiocb {
+    void *ki_filp;
+};
+
 struct file_operations {
     int (*iterate_shared)(struct file *, struct dir_context *);
     int (*iterate)(struct file *, struct dir_context *);
+    long (*write_iter)(struct kiocb *, struct iov_iter *);
 };
 
 struct file {
@@ -462,8 +477,7 @@ struct public_key_signature {
     const void *data;
 };
 
-enum zone_type
-{
+enum zone_type {
     ZONE_DMA,
 };
 
@@ -472,8 +486,9 @@ struct alloc_context {
 };
 
 struct socket {
-    struct sock *sk;
+    short type;
     struct file *file;
+    struct sock *sk;
 };
 
 typedef struct {
@@ -487,6 +502,10 @@ struct in6_addr {
         __be32 u6_addr32[4];
     } in6_u;
 };
+
+typedef struct {
+    s64 counter;
+} atomic64_t;
 
 struct sock_common {
     union {
@@ -504,8 +523,10 @@ struct sock_common {
     unsigned short skc_family;
     volatile unsigned char skc_state;
     int skc_bound_dev_if;
+    possible_net_t skc_net;
     struct in6_addr skc_v6_daddr;
     struct in6_addr skc_v6_rcv_saddr;
+    atomic64_t skc_cookie;
 };
 
 struct kobject {
@@ -583,17 +604,16 @@ struct msghdr {
 typedef s64 ktime_t;
 
 struct sk_buff {
-    __u16 transport_header;
     __u16 network_header;
+    union {
+        struct sock *sk;
+        int ip_defrag_offset;
+    };
     union {
         ktime_t tstamp;
         u64 skb_mstamp_ns;
     };
     unsigned char *head;
-    unsigned char *data;
-    u32 len;
-    u16 mac_len;
-    u16 hdr_len;
 };
 
 struct linux_binprm {
@@ -620,16 +640,23 @@ struct __kernel_timespec {
 
 struct inode {
     umode_t i_mode;
+    short unsigned int i_opflags;
+    kuid_t i_uid;
+    kgid_t i_gid;
+    unsigned int i_flags;
     struct super_block *i_sb;
     long unsigned int i_ino;
-    struct timespec64 i_ctime;
+    time64_t i_ctime_sec;
+    u32 i_ctime_nsec;
     loff_t i_size;
     struct file_operations *i_fop;
+    dev_t i_rdev;
 };
 
 struct super_block {
     dev_t s_dev;
     unsigned long s_magic;
+    long unsigned int s_flags;
 };
 
 struct mm_struct {
@@ -639,6 +666,8 @@ struct mm_struct {
         long unsigned int env_start;
         long unsigned int env_end;
     };
+
+    struct file *exe_file;
 };
 
 struct vfsmount {
@@ -662,14 +691,33 @@ struct qstr {
     const unsigned char *name;
 };
 
+struct hlist_bl_node;
+
+struct hlist_bl_head {
+    struct hlist_bl_node *first;
+};
+
+struct hlist_bl_node {
+    struct hlist_bl_node *next;
+    struct hlist_bl_node **pprev;
+};
+
+struct dentry_operations;
+
 struct dentry {
+    unsigned int d_flags;
+    struct hlist_bl_node d_hash;
     struct dentry *d_parent;
     struct qstr d_name;
     struct inode *d_inode;
+    unsigned char d_iname[32];
+    const struct dentry_operations *d_op;
+    struct super_block *d_sb;
+    long unsigned int d_time;
+    void *d_fsdata;
 };
 
-enum bpf_func_id
-{
+enum bpf_func_id {
     BPF_FUNC_probe_write_user = 36,
     BPF_FUNC_override_return = 58,
     BPF_FUNC_sk_storage_get = 107,
@@ -688,7 +736,20 @@ struct kset {
     struct list_head list;
 };
 
-struct module_layout {
+enum mod_mem_type {
+    MOD_TEXT = 0,
+    MOD_DATA,
+    MOD_RODATA,
+    MOD_RO_AFTER_INIT,
+    MOD_INIT_TEXT,
+    MOD_INIT_DATA,
+    MOD_INIT_RODATA,
+
+    MOD_MEM_NUM_TYPES,
+    MOD_INVALID = -1,
+};
+
+struct module_memory {
     void *base;
 };
 
@@ -698,7 +759,7 @@ struct module {
     const char *version;
     const char *srcversion;
     struct module_kobject mkobj;
-    struct module_layout core_layout;
+    struct module_memory mem[MOD_MEM_NUM_TYPES]; // kernel versions >= 6.4
 };
 
 struct rb_node {
@@ -743,6 +804,7 @@ struct ipc_namespace {
 
 struct net {
     struct ns_common ns;
+    u64 net_cookie;
 };
 
 typedef __u32 __wsum;
@@ -762,8 +824,7 @@ struct iovec {
     __kernel_size_t iov_len;
 };
 
-enum bpf_map_type
-{
+enum bpf_map_type {
     BPF_MAP_TYPE_UNSPEC = 0,
     BPF_MAP_TYPE_HASH = 1,
     BPF_MAP_TYPE_ARRAY = 2,
@@ -796,52 +857,178 @@ enum bpf_map_type
     BPF_MAP_TYPE_TASK_STORAGE = 29,
 };
 
+struct bpf_map;
+
 struct bpf_map {
+    enum bpf_map_type map_type;
     u32 id;
     char name[16];
 };
 
-struct bpf_sock;
+struct bpf_sock {
+	__u32 bound_dev_if;
+	__u32 family;
+	__u32 type;
+	__u32 protocol;
+	__u32 mark;
+	__u32 priority;
+	__u32 src_ip4;
+	__u32 src_ip6[4];
+	__u32 src_port;
+	__u32 dst_port;
+	__u32 dst_ip4;
+	__u32 dst_ip6[4];
+	__u32 state;
+	__s32 rx_queue_mapping;
+};
 
 // TODO: can't CO-RE __sk_buff (check)
 
 struct __sk_buff {
-    __u32 len;
-    __u32 pkt_type;
-    __u32 mark;
-    __u32 queue_mapping;
-    __u32 protocol;
-    __u32 vlan_present;
-    __u32 vlan_tci;
-    __u32 vlan_proto;
-    __u32 priority;
-    __u32 ingress_ifindex;
-    __u32 ifindex;
-    __u32 tc_index;
-    __u32 cb[5];
-    __u32 hash;
-    __u32 tc_classid;
-    __u32 data;
-    __u32 data_end;
-    __u32 napi_id;
-    __u32 family;
-    __u32 remote_ip4;
-    __u32 local_ip4;
-    __u32 remote_ip6[4];
-    __u32 local_ip6[4];
-    __u32 remote_port;
-    __u32 local_port;
-    __u32 data_meta;
+	__u32 len;
+	__u32 pkt_type;
+	__u32 mark;
+	__u32 queue_mapping;
+	__u32 protocol;
+	__u32 vlan_present;
+	__u32 vlan_tci;
+	__u32 vlan_proto;
+	__u32 priority;
+	__u32 ingress_ifindex;
+	__u32 ifindex;
+	__u32 tc_index;
+	__u32 cb[5];
+	__u32 hash;
+	__u32 tc_classid;
+	__u32 data;
+	__u32 data_end;
+	__u32 napi_id;
+	__u32 family;
+	__u32 remote_ip4;
+	__u32 local_ip4;
+	__u32 remote_ip6[4];
+	__u32 local_ip6[4];
+	__u32 remote_port;
+	__u32 local_port;
+	__u32 data_meta;
+	union {
+		struct bpf_flow_keys *flow_keys;
+	};
+	__u64 tstamp;
+	__u32 wire_len;
+	__u32 gso_segs;
+	union {
+		struct bpf_sock *sk;
+	};
+	__u32 gso_size;
+};
+
+enum {
+	BPF_SOCK_OPS_VOID                   = 0,
+	BPF_SOCK_OPS_TIMEOUT_INIT           = 1,
+	BPF_SOCK_OPS_RWND_INIT              = 2,
+	BPF_SOCK_OPS_TCP_CONNECT_CB         = 3,
+	BPF_SOCK_OPS_ACTIVE_ESTABLISHED_CB  = 4,
+	BPF_SOCK_OPS_PASSIVE_ESTABLISHED_CB = 5,
+	BPF_SOCK_OPS_NEEDS_ECN              = 6,
+	BPF_SOCK_OPS_BASE_RTT               = 7,
+	BPF_SOCK_OPS_RTO_CB                 = 8,
+	BPF_SOCK_OPS_RETRANS_CB             = 9,
+	BPF_SOCK_OPS_STATE_CB               = 10,
+	BPF_SOCK_OPS_TCP_LISTEN_CB          = 11,
+	BPF_SOCK_OPS_RTT_CB                 = 12,
+	BPF_SOCK_OPS_PARSE_HDR_OPT_CB       = 13,
+	BPF_SOCK_OPS_HDR_OPT_LEN_CB         = 14,
+	BPF_SOCK_OPS_WRITE_HDR_OPT_CB       = 15,
+};
+
+enum {
+	BPF_SOCK_OPS_RTO_CB_FLAG                   = 1,
+	BPF_SOCK_OPS_RETRANS_CB_FLAG               = 2,
+	BPF_SOCK_OPS_STATE_CB_FLAG                 = 4,
+	BPF_SOCK_OPS_RTT_CB_FLAG                   = 8,
+	BPF_SOCK_OPS_PARSE_ALL_HDR_OPT_CB_FLAG     = 16,
+	BPF_SOCK_OPS_PARSE_UNKNOWN_HDR_OPT_CB_FLAG = 32,
+	BPF_SOCK_OPS_WRITE_HDR_OPT_CB_FLAG         = 64,
+	BPF_SOCK_OPS_ALL_CB_FLAGS                  = 127,
+};
+
+struct bpf_sock_ops {
+	__u32 op;
+	union {
+		__u32 args[4];
+		__u32 reply;
+		__u32 replylong[4];
+	};
+	__u32 family;
+	__u32 remote_ip4;
+	__u32 local_ip4;
+	__u32 remote_ip6[4];
+	__u32 local_ip6[4];
+	__u32 remote_port;
+	__u32 local_port;
+	__u32 is_fullsock;
+	__u32 snd_cwnd;
+	__u32 srtt_us;
+	__u32 bpf_sock_ops_cb_flags;
+	__u32 state;
+	__u32 rtt_min;
+	__u32 snd_ssthresh;
+	__u32 rcv_nxt;
+	__u32 snd_nxt;
+	__u32 snd_una;
+	__u32 mss_cache;
+	__u32 ecn_flags;
+	__u32 rate_delivered;
+	__u32 rate_interval_us;
+	__u32 packets_out;
+	__u32 retrans_out;
+	__u32 total_retrans;
+	__u32 segs_in;
+	__u32 data_segs_in;
+	__u32 segs_out;
+	__u32 data_segs_out;
+	__u32 lost_out;
+	__u32 sacked_out;
+	__u32 sk_txhash;
+	__u64 bytes_received;
+	__u64 bytes_acked;
+	union {
+		struct bpf_sock *sk;
+	};
+	union {
+		void *skb_data;
+	};
+	union {
+		void *skb_data_end;
+	};
+	__u32 skb_len;
+	__u32 skb_tcp_flags;
+};
+
+struct bpf_flow_keys {
+    __u16 nhoff;
+    __u16 thoff;
+    __u16 addr_proto; /* ETH_P_* of valid addrs */
+    __u8 is_frag;
+    __u8 is_first_frag;
+    __u8 is_encap;
+    __u8 ip_proto;
+    __be16 n_proto;
+    __be16 sport;
+    __be16 dport;
     union {
-        struct bpf_flow_keys *flow_keys;
+        struct {
+            __be32 ipv4_src;
+            __be32 ipv4_dst;
+        };
+        struct {
+            __u32 ipv6_src[4]; /* in6_addr; network order */
+            __u32 ipv6_dst[4]; /* in6_addr; network order */
+        };
     };
-    __u64 tstamp;
-    __u32 wire_len;
-    __u32 gso_segs;
-    union {
-        struct bpf_sock *sk;
-    };
-    __u32 gso_size;
+    __u32 flags;
+    __be32 flow_label;
 };
 
 struct ethhdr {
@@ -852,8 +1039,7 @@ struct ethhdr {
 
 typedef __u16 __sum16;
 
-enum kernel_read_file_id
-{
+enum kernel_read_file_id {
     READING_UNKNOWN = 0,
     READING_FIRMWARE = 1,
     READING_MODULE = 2,
@@ -890,14 +1076,12 @@ struct seq_operations {
     int (*show)(struct seq_file *m, void *v);
 };
 
-enum bpf_attach_type
-{
+enum bpf_attach_type {
     BPF_CGROUP_INET_INGRESS = 0,
     BPF_CGROUP_INET_EGRESS = 1,
 };
 
-enum bpf_hdr_start_off
-{
+enum bpf_hdr_start_off {
     BPF_HDR_START_MAC = 0,
     BPF_HDR_START_NET = 1,
 };
@@ -924,8 +1108,7 @@ struct sighand_struct {
     struct k_sigaction action[_NSIG];
 };
 
-enum bpf_cmd
-{
+enum bpf_cmd {
     BPF_MAP_CREATE,
     BPF_MAP_LOOKUP_ELEM,
     BPF_MAP_UPDATE_ELEM,
@@ -982,8 +1165,7 @@ union bpf_attr {
     } link_create;
 };
 
-enum bpf_prog_type
-{
+enum bpf_prog_type {
     BPF_PROG_TYPE_UNSPEC,
     BPF_PROG_TYPE_SOCKET_FILTER,
     BPF_PROG_TYPE_KPROBE,
@@ -1212,6 +1394,48 @@ struct icmp6hdr {
         struct icmpv6_nd_advt u_nd_advt;
         struct icmpv6_nd_ra u_nd_ra;
     } icmp6_dataun;
+};
+
+struct bpf_iter_meta {
+    union {
+        struct seq_file *seq;
+    };
+    u64 session_id;
+    u64 seq_num;
+};
+
+struct bpf_iter__task_file {
+    union {
+        struct bpf_iter_meta *meta;
+    };
+    union {
+        struct task_struct *task;
+    };
+    u32 fd;
+    union {
+        struct file *file;
+    };
+};
+
+struct bpf_iter_seq_sk_storage_map_info {
+    struct bpf_map *map;
+    unsigned int bucket_id;
+    unsigned int skip_elems;
+};
+
+struct bpf_iter__bpf_sk_storage_map {
+    union {
+        struct bpf_iter_meta *meta;
+    };
+    union {
+        struct bpf_map *map;
+    };
+    union {
+        struct sock *sk;
+    };
+    union {
+        void *value;
+    };
 };
 
 #pragma clang attribute pop
