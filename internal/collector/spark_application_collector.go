@@ -19,7 +19,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
-// SparkApplicationCollector watches for Spark Application resources
+// SparkApplicationCollector watches for SparkApplication resources
 type SparkApplicationCollector struct {
 	dynamicClient        dynamic.Interface
 	batchChan            chan CollectedResource
@@ -35,7 +35,7 @@ type SparkApplicationCollector struct {
 	mu                   sync.RWMutex
 }
 
-// NewSparkApplicationCollector creates a new collector for Spark Application resources
+// NewSparkApplicationCollector creates a new collector for SparkApplication resources
 func NewSparkApplicationCollector(
 	dynamicClient dynamic.Interface,
 	namespaces []string,
@@ -80,9 +80,9 @@ func NewSparkApplicationCollector(
 	}
 }
 
-// Start begins the Spark Application resources collection process
+// Start begins the SparkApplication resources collection process
 func (c *SparkApplicationCollector) Start(ctx context.Context) error {
-	c.logger.Info("Starting Spark Application collector", "namespaces", c.namespaces)
+	c.logger.Info("Starting SparkApplication collector", "namespaces", c.namespaces)
 
 	gvr := schema.GroupVersionResource{
 		Group:    "sparkoperator.k8s.io",
@@ -196,7 +196,7 @@ func (c *SparkApplicationCollector) Start(ctx context.Context) error {
 				"resource": "sparkapplications",
 			},
 		)
-		return fmt.Errorf("failed to add event handler to informer for Spark Applications: %w", err)
+		return fmt.Errorf("failed to add event handler to informer for SparkApplications: %w", err)
 	}
 
 	appKey := "spark-applications"
@@ -220,12 +220,12 @@ func (c *SparkApplicationCollector) Start(ctx context.Context) error {
 				"timeout":  "30s",
 			},
 		)
-		return fmt.Errorf("timeout waiting for Spark Applications cache to sync")
+		return fmt.Errorf("timeout waiting for SparkApplications cache to sync")
 	}
 
-	c.logger.Info("Successfully started informer for Spark Applications")
+	c.logger.Info("Successfully started informer for SparkApplications")
 
-	c.logger.Info("Starting resources batcher for Spark Applications")
+	c.logger.Info("Starting resources batcher for SparkApplications")
 	c.batcher.start()
 
 	stopCh := c.stopCh
@@ -233,7 +233,7 @@ func (c *SparkApplicationCollector) Start(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			if err := c.Stop(); err != nil {
-				c.logger.Error(err, "Error stopping Spark Application collector")
+				c.logger.Error(err, "Error stopping SparkApplication collector")
 			}
 		case <-stopCh:
 			// Channel was closed by Stop() method
@@ -243,7 +243,7 @@ func (c *SparkApplicationCollector) Start(ctx context.Context) error {
 	return nil
 }
 
-// handleApplicationEvent processes Spark Application events
+// handleApplicationEvent processes SparkApplication events
 func (c *SparkApplicationCollector) handleApplicationEvent(obj *unstructured.Unstructured, eventType EventType) {
 	name := obj.GetName()
 	namespace := obj.GetNamespace()
@@ -258,7 +258,7 @@ func (c *SparkApplicationCollector) handleApplicationEvent(obj *unstructured.Uns
 	key := fmt.Sprintf("%s/%s", namespace, name)
 
 	// Send the processed resource to the batch channel
-	c.logger.Info("Collected Spark Application resource", "key", key, "eventType", eventType, "resource", processedObj)
+	c.logger.Info("Collected SparkApplication resource", "key", key, "eventType", eventType, "resource", processedObj)
 	c.batchChan <- CollectedResource{
 		ResourceType: SparkApplication,
 		Object:       processedObj,
@@ -268,7 +268,7 @@ func (c *SparkApplicationCollector) handleApplicationEvent(obj *unstructured.Uns
 	}
 }
 
-// processApplication extracts relevant fields from Spark Application objects
+// processApplication extracts relevant fields from SparkApplication objects
 func (c *SparkApplicationCollector) processApplication(obj *unstructured.Unstructured) map[string]interface{} {
 	result := map[string]interface{}{
 		"name":              obj.GetName(),
@@ -308,9 +308,9 @@ func (c *SparkApplicationCollector) isExcluded(namespace, name string) bool {
 	return c.excludedApplications[key]
 }
 
-// Stop gracefully shuts down the Spark Application collector
+// Stop gracefully shuts down the SparkApplication collector
 func (c *SparkApplicationCollector) Stop() error {
-	c.logger.Info("Stopping Spark Application collector")
+	c.logger.Info("Stopping SparkApplication collector")
 
 	// Stop all informers
 	for key, stopCh := range c.informerStopChs {
@@ -324,23 +324,23 @@ func (c *SparkApplicationCollector) Stop() error {
 	// Close the main stop channel (signals informers to stop)
 	select {
 	case <-c.stopCh:
-		c.logger.Info("Spark Application collector stop channel already closed")
+		c.logger.Info("SparkApplication collector stop channel already closed")
 	default:
 		close(c.stopCh)
-		c.logger.Info("Closed Spark Application collector stop channel")
+		c.logger.Info("Closed SparkApplication collector stop channel")
 	}
 
 	// Close the batchChan (input to the batcher).
 	if c.batchChan != nil {
 		close(c.batchChan)
 		c.batchChan = nil
-		c.logger.Info("Closed Spark Application collector batch input channel")
+		c.logger.Info("Closed SparkApplication collector batch input channel")
 	}
 
 	// Stop the batcher (waits for completion).
 	if c.batcher != nil {
 		c.batcher.stop()
-		c.logger.Info("Spark Application collector batcher stopped")
+		c.logger.Info("SparkApplication collector batcher stopped")
 	}
 	// resourceChan is closed by the batcher's defer func.
 
@@ -357,7 +357,7 @@ func (c *SparkApplicationCollector) GetType() string {
 	return "spark_application"
 }
 
-// IsAvailable checks if Spark Application resources can be accessed in the cluster
+// IsAvailable checks if SparkApplication resources can be accessed in the cluster
 func (c *SparkApplicationCollector) IsAvailable(ctx context.Context) bool {
 	gvr := schema.GroupVersionResource{
 		Group:    "sparkoperator.k8s.io",
@@ -367,11 +367,11 @@ func (c *SparkApplicationCollector) IsAvailable(ctx context.Context) bool {
 
 	_, err := c.dynamicClient.Resource(gvr).List(ctx, metav1.ListOptions{Limit: 1})
 	if err != nil {
-		c.logger.Info("Spark Application resources not available in the cluster", "error", err.Error())
+		c.logger.Info("SparkApplication resources not available in the cluster", "error", err.Error())
 		c.telemetryLogger.Report(
 			gen.LogLevel_LOG_LEVEL_WARN,
 			"SparkApplicationCollector_IsAvailable",
-			"Spark Application resources not available in the cluster",
+			"SparkApplication resources not available in the cluster",
 			err,
 			map[string]string{
 				"resource": "sparkapplications",
@@ -382,7 +382,7 @@ func (c *SparkApplicationCollector) IsAvailable(ctx context.Context) bool {
 	return true
 }
 
-// AddResource manually adds a Spark Application resource to be processed by the collector
+// AddResource manually adds a SparkApplication resource to be processed by the collector
 func (c *SparkApplicationCollector) AddResource(resource interface{}) error {
 	app, ok := resource.(*unstructured.Unstructured)
 	if !ok {
