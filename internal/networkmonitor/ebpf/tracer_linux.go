@@ -89,7 +89,9 @@ func (t *Tracer) Run(ctx context.Context) error {
 		}
 		// Map-in-Map holds reference, so we can close this FD when function exits
 		// But usually we close it after Put.
-		defer innerMap.Close()
+		defer func() {
+			_ = innerMap.Close()
+		}()
 
 		if err := objs.NetworkTrafficBufferMap.Put(i, innerMap); err != nil {
 			return fmt.Errorf("populating outer map index %d: %w", i, err)
@@ -120,7 +122,7 @@ func (t *Tracer) Run(ctx context.Context) error {
 	links := []link.Link{}
 	defer func() {
 		for _, l := range links {
-			l.Close()
+			_ = l.Close()
 		}
 	}()
 
@@ -223,7 +225,7 @@ func (t *Tracer) CollectNetworkSummary() (map[NetworkTrafficKey]TrafficSummary, 
 
 	// network_traffic_buffer_map is ARRAY_OF_MAPS. Value is ID of inner map.
 	var innerMapID ebpf.MapID
-	if err := t.objs.NetworkTrafficBufferMap.Lookup(int32(activeIdx), &innerMapID); err != nil {
+	if err := t.objs.NetworkTrafficBufferMap.Lookup(activeIdx, &innerMapID); err != nil {
 		return nil, fmt.Errorf("lookup outer map index %d: %w", activeIdx, err)
 	}
 
@@ -231,7 +233,9 @@ func (t *Tracer) CollectNetworkSummary() (map[NetworkTrafficKey]TrafficSummary, 
 	if err != nil {
 		return nil, fmt.Errorf("new map from id %d: %w", innerMapID, err)
 	}
-	defer innerMap.Close()
+	defer func() {
+		_ = innerMap.Close()
+	}()
 
 	// Iterate and collect
 	var key bpfIpKey

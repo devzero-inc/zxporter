@@ -34,6 +34,10 @@ var (
 	standalone      = flag.Bool("standalone", false, "Run in standalone mode without K8s connection")
 )
 
+const (
+	CollectorModeEBPF = "ebpf"
+)
+
 func main() {
 	flag.Parse()
 
@@ -103,7 +107,7 @@ func main() {
 		client, err = networkmonitor.NewCiliumClient(logger, networkmonitor.ClockSourceKtime)
 	case "netfilter":
 		client, err = networkmonitor.NewNetfilterClient(logger)
-	case "ebpf":
+	case CollectorModeEBPF:
 		logger.Info("Running in EBPF mode. Conntrack client disabled.")
 		client = nil // Client is optional now
 	default:
@@ -111,7 +115,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if *collectorMode != "ebpf" && err != nil {
+	if *collectorMode != CollectorModeEBPF && err != nil {
 		logger.Error(err, "Failed to initialize conntrack client", "mode", *collectorMode)
 		os.Exit(1)
 	}
@@ -131,7 +135,7 @@ func main() {
 		dnsCollector = dns.NewIP2DNS(tracer, logger)
 	} else {
 		logger.Info("Kernel BTF not available, eBPF features disabled")
-		if *collectorMode == "ebpf" {
+		if *collectorMode == CollectorModeEBPF {
 			logger.Error(nil, "EBPF mode requested but BTF not available")
 			os.Exit(1)
 		}
@@ -186,7 +190,7 @@ func main() {
 	http.HandleFunc("/metrics", monitor.GetMetricsHandler)
 	http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
+		_, _ = w.Write([]byte("OK"))
 	})
 
 	server := &http.Server{
@@ -210,7 +214,9 @@ func main() {
 	cancel() // Trigger monitor cleanup
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer shutdownCancel()
-	server.Shutdown(shutdownCtx)
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		logger.Error(err, "HTTP server shutdown failed")
+	}
 }
 
 func getKubeConfig(kubeconfigPath string) (*rest.Config, error) {
