@@ -1,16 +1,16 @@
-name: 'Push zxporter to Docker Hub and ECR'
+name: "Push zxporter to Docker Hub and ECR"
 
 on:
   workflow_dispatch:
     inputs:
       push_latest:
-        description: 'Push latest tag'
+        description: "Push latest tag"
         required: false
         type: boolean
         default: false
   push:
     tags:
-      - 'v*'
+      - "v*"
 
 permissions:
   contents: write
@@ -20,7 +20,7 @@ permissions:
 jobs:
   package-and-push:
     name: Package & Push Docker image
-    runs-on: ubuntu-latest
+    runs-on: namespace-profile-dz-generic
     outputs:
       is_release: ${{ steps.version.outputs.is_release }}
 
@@ -43,7 +43,7 @@ jobs:
             PATCH=${BASH_REMATCH[3]}
             PATCH_SHORT=${PATCH%%[-]*}
             FULLV=v${MAJOR}.${MINOR}.${PATCH_SHORT}
-      
+
             echo "MAJOR=${MAJOR}" >> $GITHUB_ENV
             echo "MINOR=${MINOR}" >> $GITHUB_ENV
             echo "PATCH=${PATCH}" >> $GITHUB_ENV
@@ -70,7 +70,7 @@ jobs:
           password: ${{ secrets.DOCKERHUB_ZXPORTER_BALANCE_TOKEN }}
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: namespacelabs/nscloud-setup-buildx-action@v0
 
       - name: Set build metadata
         run: |
@@ -160,7 +160,7 @@ jobs:
           fi
 
           echo "Tag validation passed. Proceeding with build..."
-          
+
           # Export validated tags for the next step
           TAGS_STRING="${TAGS[*]}"
           echo "VALIDATED_TAGS=${TAGS_STRING}" >> $GITHUB_OUTPUT
@@ -192,7 +192,7 @@ jobs:
         run: |
           # Use the validated tags from the previous step
           read -ra TAGS <<< "$VALIDATED_TAGS"
-          
+
           echo "Building and pushing validated tags: ${TAGS[@]}"
 
           for tag in "${TAGS[@]}"; do
@@ -214,12 +214,12 @@ jobs:
               --build-arg BUILD_DATE=$BUILD_DATE \
               .
           done
-          
+
           echo "Successfully built and pushed all validated tags: ${TAGS[@]}"
 
   update-helm-values-image-tag-pr:
     name: Update Helm values image.tag and create PR
-    runs-on: ubuntu-latest
+    runs-on: namespace-profile-dz-generic
     needs: [package-and-push] # only do this if all previous steps pass
     if: ${{ needs.package-and-push.outputs.is_release == 'true' }}
     steps:
@@ -238,14 +238,14 @@ jobs:
           repository: devzero-inc/zxporter
           path: zxporter-tmp
           token: ${{ steps.get_workflow_token.outputs.token }}
-      
+
       - name: Update image.tag in values.yaml
         run: |
           NEW_TAG="${{ env.FULLV }}"
           # on mac: sed -i '' "s/^  tag: .*/  tag: \"$NEW_TAG\"/" zxporter-tmp/helm-chart/zxporter/values.yaml
           sed -i.bak "s/^  tag: .*/  tag: \"$NEW_TAG\"/" zxporter-tmp/helm-chart/zxporter/values.yaml
           rm zxporter-tmp/helm-chart/zxporter/values.yaml.bak || true
-      
+
       - name: Check if there are changes
         id: changes
         run: |
@@ -266,7 +266,7 @@ jobs:
           cd zxporter-tmp
           git config --global user.name "github-actions-dzbot"
           git config --global user.email "github-actions@github.com"
-          
+
           branch="update-zxporter-op-helm-${{ env.FULLV }}"
           git checkout -b "$branch"
 
