@@ -19,7 +19,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
-// ScheduledSparkApplicationCollector watches for Scheduled Spark Application resources
+// ScheduledSparkApplicationCollector watches for ScheduledSparkApplication resources
 type ScheduledSparkApplicationCollector struct {
 	dynamicClient        dynamic.Interface
 	batchChan            chan CollectedResource
@@ -35,7 +35,7 @@ type ScheduledSparkApplicationCollector struct {
 	mu                   sync.RWMutex
 }
 
-// NewScheduledSparkApplicationCollector creates a new collector for Scheduled Spark Application resources
+// NewScheduledSparkApplicationCollector creates a new collector for ScheduledSparkApplication resources
 func NewScheduledSparkApplicationCollector(
 	dynamicClient dynamic.Interface,
 	namespaces []string,
@@ -80,9 +80,9 @@ func NewScheduledSparkApplicationCollector(
 	}
 }
 
-// Start begins the Scheduled Spark Application resources collection process
+// Start begins the ScheduledSparkApplication resources collection process
 func (c *ScheduledSparkApplicationCollector) Start(ctx context.Context) error {
-	c.logger.Info("Starting Scheduled Spark Application collector", "namespaces", c.namespaces)
+	c.logger.Info("Starting ScheduledSparkApplication collector", "namespaces", c.namespaces)
 
 	gvr := schema.GroupVersionResource{
 		Group:    "sparkoperator.k8s.io",
@@ -196,7 +196,7 @@ func (c *ScheduledSparkApplicationCollector) Start(ctx context.Context) error {
 				"resource": "scheduledsparkapplications",
 			},
 		)
-		return fmt.Errorf("failed to add event handler to informer for Scheduled Spark Applications: %w", err)
+		return fmt.Errorf("failed to add event handler to informer for ScheduledSparkApplications: %w", err)
 	}
 
 	appKey := "scheduled-spark-applications"
@@ -220,12 +220,12 @@ func (c *ScheduledSparkApplicationCollector) Start(ctx context.Context) error {
 				"timeout":  "30s",
 			},
 		)
-		return fmt.Errorf("timeout waiting for Scheduled Spark Applications cache to sync")
+		return fmt.Errorf("timeout waiting for ScheduledSparkApplications cache to sync")
 	}
 
-	c.logger.Info("Successfully started informer for Scheduled Spark Applications")
+	c.logger.Info("Successfully started informer for ScheduledSparkApplications")
 
-	c.logger.Info("Starting resources batcher for Scheduled Spark Applications")
+	c.logger.Info("Starting resources batcher for ScheduledSparkApplications")
 	c.batcher.start()
 
 	stopCh := c.stopCh
@@ -233,7 +233,7 @@ func (c *ScheduledSparkApplicationCollector) Start(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			if err := c.Stop(); err != nil {
-				c.logger.Error(err, "Error stopping Scheduled Spark Application collector")
+				c.logger.Error(err, "Error stopping ScheduledSparkApplication collector")
 			}
 		case <-stopCh:
 			// Channel was closed by Stop() method
@@ -243,7 +243,7 @@ func (c *ScheduledSparkApplicationCollector) Start(ctx context.Context) error {
 	return nil
 }
 
-// handleApplicationEvent processes Scheduled Spark Application events
+// handleApplicationEvent processes ScheduledSparkApplication events
 func (c *ScheduledSparkApplicationCollector) handleApplicationEvent(obj *unstructured.Unstructured, eventType EventType) {
 	name := obj.GetName()
 	namespace := obj.GetNamespace()
@@ -258,7 +258,7 @@ func (c *ScheduledSparkApplicationCollector) handleApplicationEvent(obj *unstruc
 	key := fmt.Sprintf("%s/%s", namespace, name)
 
 	// Send the processed resource to the batch channel
-	c.logger.Info("Collected Scheduled Spark Application resource", "key", key, "eventType", eventType, "resource", processedObj)
+	c.logger.Info("Collected ScheduledSparkApplication resource", "key", key, "eventType", eventType, "resource", processedObj)
 	c.batchChan <- CollectedResource{
 		ResourceType: ScheduledSparkApplication,
 		Object:       processedObj,
@@ -268,7 +268,7 @@ func (c *ScheduledSparkApplicationCollector) handleApplicationEvent(obj *unstruc
 	}
 }
 
-// processApplication extracts relevant fields from Scheduled Spark Application objects
+// processApplication extracts relevant fields from ScheduledSparkApplication objects
 func (c *ScheduledSparkApplicationCollector) processApplication(obj *unstructured.Unstructured) map[string]interface{} {
 	result := map[string]interface{}{
 		"name":              obj.GetName(),
@@ -308,9 +308,9 @@ func (c *ScheduledSparkApplicationCollector) isExcluded(namespace, name string) 
 	return c.excludedApplications[key]
 }
 
-// Stop gracefully shuts down the Scheduled Spark Application collector
+// Stop gracefully shuts down the ScheduledSparkApplication collector
 func (c *ScheduledSparkApplicationCollector) Stop() error {
-	c.logger.Info("Stopping Scheduled Spark Application collector")
+	c.logger.Info("Stopping ScheduledSparkApplication collector")
 
 	// Stop all informers
 	for key, stopCh := range c.informerStopChs {
@@ -324,23 +324,23 @@ func (c *ScheduledSparkApplicationCollector) Stop() error {
 	// Close the main stop channel (signals informers to stop)
 	select {
 	case <-c.stopCh:
-		c.logger.Info("Scheduled Spark Application collector stop channel already closed")
+		c.logger.Info("ScheduledSparkApplication collector stop channel already closed")
 	default:
 		close(c.stopCh)
-		c.logger.Info("Closed Scheduled Spark Application collector stop channel")
+		c.logger.Info("Closed ScheduledSparkApplication collector stop channel")
 	}
 
 	// Close the batchChan (input to the batcher).
 	if c.batchChan != nil {
 		close(c.batchChan)
 		c.batchChan = nil
-		c.logger.Info("Closed Scheduled Spark Application collector batch input channel")
+		c.logger.Info("Closed ScheduledSparkApplication collector batch input channel")
 	}
 
 	// Stop the batcher (waits for completion).
 	if c.batcher != nil {
 		c.batcher.stop()
-		c.logger.Info("Scheduled Spark Application collector batcher stopped")
+		c.logger.Info("ScheduledSparkApplication collector batcher stopped")
 	}
 	// resourceChan is closed by the batcher's defer func.
 
@@ -357,7 +357,7 @@ func (c *ScheduledSparkApplicationCollector) GetType() string {
 	return "scheduled_spark_application"
 }
 
-// IsAvailable checks if Scheduled Spark Application resources can be accessed in the cluster
+// IsAvailable checks if ScheduledSparkApplication resources can be accessed in the cluster
 func (c *ScheduledSparkApplicationCollector) IsAvailable(ctx context.Context) bool {
 	gvr := schema.GroupVersionResource{
 		Group:    "sparkoperator.k8s.io",
@@ -367,11 +367,11 @@ func (c *ScheduledSparkApplicationCollector) IsAvailable(ctx context.Context) bo
 
 	_, err := c.dynamicClient.Resource(gvr).List(ctx, metav1.ListOptions{Limit: 1})
 	if err != nil {
-		c.logger.Info("Scheduled Spark Application resources not available in the cluster", "error", err.Error())
+		c.logger.Info("ScheduledSparkApplication resources not available in the cluster", "error", err.Error())
 		c.telemetryLogger.Report(
 			gen.LogLevel_LOG_LEVEL_WARN,
 			"ScheduledSparkApplicationCollector_IsAvailable",
-			"Scheduled Spark Application resources not available in the cluster",
+			"ScheduledSparkApplication resources not available in the cluster",
 			err,
 			map[string]string{
 				"resource": "scheduledsparkapplications",
@@ -382,7 +382,7 @@ func (c *ScheduledSparkApplicationCollector) IsAvailable(ctx context.Context) bo
 	return true
 }
 
-// AddResource manually adds a Scheduled Spark Application resource to be processed by the collector
+// AddResource manually adds a ScheduledSparkApplication resource to be processed by the collector
 func (c *ScheduledSparkApplicationCollector) AddResource(resource interface{}) error {
 	app, ok := resource.(*unstructured.Unstructured)
 	if !ok {
