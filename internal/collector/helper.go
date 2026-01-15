@@ -2,10 +2,11 @@ package collector
 
 import (
 	"fmt"
-	v2 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sort"
 	"strings"
+
+	v2 "k8s.io/api/core/v1"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // isResourceTypeUnavailableError checks if the error indicates the resource type is not available

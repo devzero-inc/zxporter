@@ -232,7 +232,9 @@ func (c *ScheduledSparkApplicationCollector) Start(ctx context.Context) error {
 	go func() {
 		select {
 		case <-ctx.Done():
-			c.Stop()
+			if err := c.Stop(); err != nil {
+				c.logger.Error(err, "Error stopping Scheduled Spark Application collector")
+			}
 		case <-stopCh:
 			// Channel was closed by Stop() method
 		}
