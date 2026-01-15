@@ -254,7 +254,7 @@ type PolicyConfig struct {
 //+kubebuilder:rbac:groups=keda.sh,resources=scaledobjects;scaledjobs;triggerauthentications;clustertriggerauthentications,verbs=get;list;watch
 //+kubebuilder:rbac:groups=kubeflow.org,resources=notebooks,verbs=get;list;watch
 //+kubebuilder:rbac:groups=batch.volcano.sh,resources=jobs,verbs=get;list;watch
-//+kubebuilder:rbac:groups=sparkoperator.k8s.io,resources=sparkapplications;scheduledsparkapplications,verbs=get;list;watch
+// +kubebuilder:rbac:groups=sparkoperator.k8s.io,resources=sparkapplications;scheduledsparkapplications,verbs=get;list;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
