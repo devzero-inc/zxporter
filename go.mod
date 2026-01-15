@@ -15,7 +15,7 @@ require (
 
 require (
 	github.com/Code-Hex/go-generics-cache v1.5.1
-	github.com/cilium/cilium v1.17.0
+	github.com/cilium/cilium v1.17.3
 	github.com/cilium/ebpf v0.17.1
 	github.com/florianl/go-conntrack v0.5.0
 	github.com/google/gopacket v1.1.19
@@ -25,7 +25,7 @@ require (
 
 require (
 	github.com/cilium/hive v0.0.0-20250121145729-e67f66eb0375 // indirect
-	github.com/cilium/statedb v0.3.4 // indirect
+	github.com/cilium/statedb v0.3.6 // indirect
 	github.com/cilium/stream v0.0.0-20241203114243-53c3e5d79744 // indirect
 	github.com/go-openapi/analysis v0.23.0 // indirect
 	github.com/go-openapi/errors v0.22.0 // indirect
@@ -57,7 +57,7 @@ require (
 	github.com/spf13/cast v1.7.1 // indirect
 	github.com/spf13/viper v1.19.0 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
-	github.com/vishvananda/netlink v1.3.1-0.20241022031324-976bd8de7d81 // indirect
+	github.com/vishvananda/netlink v1.3.1-0.20250303224720-0e7078ed04c8 // indirect
 	github.com/vishvananda/netns v0.0.5 // indirect
 	go.mongodb.org/mongo-driver v1.17.3 // indirect
 	go.uber.org/dig v1.17.1 // indirect
