@@ -816,19 +816,19 @@ func (c *NodeCollector) collectNodeNetworkIOMetrics(ctx context.Context, nodeNam
 
 	queries := map[string]string{
 		// Define queries for network metrics
-		"NetworkReceiveBytes":    fmt.Sprintf(`sum(rate(node_network_receive_bytes_total{instance=~"%s:.*"}[5m]))`, nodeName),
-		"NetworkTransmitBytes":   fmt.Sprintf(`sum(rate(node_network_transmit_bytes_total{instance=~"%s:.*"}[5m]))`, nodeName),
-		"NetworkReceivePackets":  fmt.Sprintf(`sum(rate(node_network_receive_packets_total{instance=~"%s:.*"}[5m]))`, nodeName),
-		"NetworkTransmitPackets": fmt.Sprintf(`sum(rate(node_network_transmit_packets_total{instance=~"%s:.*"}[5m]))`, nodeName),
-		"NetworkReceiveErrors":   fmt.Sprintf(`sum(rate(node_network_receive_errs_total{instance=~"%s:.*"}[5m]))`, nodeName),
-		"NetworkTransmitErrors":  fmt.Sprintf(`sum(rate(node_network_transmit_errs_total{instance=~"%s:.*"}[5m]))`, nodeName),
-		"NetworkReceiveDropped":  fmt.Sprintf(`sum(rate(node_network_receive_drop_total{instance=~"%s:.*"}[5m]))`, nodeName),
-		"NetworkTransmitDropped": fmt.Sprintf(`sum(rate(node_network_transmit_drop_total{instance=~"%s:.*"}[5m]))`, nodeName),
+		"NetworkReceiveBytes":    fmt.Sprintf(`sum(rate(node_network_receive_bytes_total{node="%s"}[5m]))`, nodeName),
+		"NetworkTransmitBytes":   fmt.Sprintf(`sum(rate(node_network_transmit_bytes_total{node="%s"}[5m]))`, nodeName),
+		"NetworkReceivePackets":  fmt.Sprintf(`sum(rate(node_network_receive_packets_total{node="%s"}[5m]))`, nodeName),
+		"NetworkTransmitPackets": fmt.Sprintf(`sum(rate(node_network_transmit_packets_total{node="%s"}[5m]))`, nodeName),
+		"NetworkReceiveErrors":   fmt.Sprintf(`sum(rate(node_network_receive_errs_total{node="%s"}[5m]))`, nodeName),
+		"NetworkTransmitErrors":  fmt.Sprintf(`sum(rate(node_network_transmit_errs_total{node="%s"}[5m]))`, nodeName),
+		"NetworkReceiveDropped":  fmt.Sprintf(`sum(rate(node_network_receive_drop_total{node="%s"}[5m]))`, nodeName),
+		"NetworkTransmitDropped": fmt.Sprintf(`sum(rate(node_network_transmit_drop_total{node="%s"}[5m]))`, nodeName),
 		// Define queries for I/O metrics
-		"FSReadBytes":  fmt.Sprintf(`sum(rate(node_disk_read_bytes_total{instance=~"%s:.*"}[5m]))`, nodeName),
-		"FSWriteBytes": fmt.Sprintf(`sum(rate(node_disk_written_bytes_total{instance=~"%s:.*"}[5m]))`, nodeName),
-		"FSReads":      fmt.Sprintf(`sum(rate(node_disk_reads_completed_total{instance=~"%s:.*"}[5m]))`, nodeName),
-		"FSWrites":     fmt.Sprintf(`sum(rate(node_disk_writes_completed_total{instance=~"%s:.*"}[5m]))`, nodeName),
+		"FSReadBytes":  fmt.Sprintf(`sum(rate(node_disk_read_bytes_total{node="%s"}[5m]))`, nodeName),
+		"FSWriteBytes": fmt.Sprintf(`sum(rate(node_disk_written_bytes_total{node="%s"}[5m]))`, nodeName),
+		"FSReads":      fmt.Sprintf(`sum(rate(node_disk_reads_completed_total{node="%s"}[5m]))`, nodeName),
+		"FSWrites":     fmt.Sprintf(`sum(rate(node_disk_writes_completed_total{node="%s"}[5m]))`, nodeName),
 	}
 
 	// Execute each query and store the result
