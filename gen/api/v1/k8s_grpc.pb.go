@@ -96,8 +96,10 @@ type K8SServiceClient interface {
 	GetWorkloads(ctx context.Context, in *GetWorkloadsRequest, opts ...grpc.CallOption) (*GetWorkloadsResponse, error)
 	// GetWorkload retrieves detailed information for a specific workload.
 	GetWorkload(ctx context.Context, in *GetWorkloadRequest, opts ...grpc.CallOption) (*GetWorkloadResponse, error)
+	// Deprecated: Do not use.
 	// GetForecastWorkloads retrieves all workloads for a specific cluster.
 	GetForecastWorkloads(ctx context.Context, in *GetForecastWorkloadsRequest, opts ...grpc.CallOption) (*GetForecastWorkloadsResponse, error)
+	// Deprecated: Do not use.
 	// GetForecastWorkload retrieves detailed information for a specific workload.
 	GetForecastWorkload(ctx context.Context, in *GetForecastWorkloadRequest, opts ...grpc.CallOption) (*GetForecastWorkloadResponse, error)
 	// GetResources retrivers specific resource and their details from db, simulating informer.
@@ -289,6 +291,7 @@ func (c *k8SServiceClient) GetWorkload(ctx context.Context, in *GetWorkloadReque
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *k8SServiceClient) GetForecastWorkloads(ctx context.Context, in *GetForecastWorkloadsRequest, opts ...grpc.CallOption) (*GetForecastWorkloadsResponse, error) {
 	out := new(GetForecastWorkloadsResponse)
 	err := c.cc.Invoke(ctx, K8SService_GetForecastWorkloads_FullMethodName, in, out, opts...)
@@ -298,6 +301,7 @@ func (c *k8SServiceClient) GetForecastWorkloads(ctx context.Context, in *GetFore
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *k8SServiceClient) GetForecastWorkload(ctx context.Context, in *GetForecastWorkloadRequest, opts ...grpc.CallOption) (*GetForecastWorkloadResponse, error) {
 	out := new(GetForecastWorkloadResponse)
 	err := c.cc.Invoke(ctx, K8SService_GetForecastWorkload_FullMethodName, in, out, opts...)
@@ -499,8 +503,10 @@ type K8SServiceServer interface {
 	GetWorkloads(context.Context, *GetWorkloadsRequest) (*GetWorkloadsResponse, error)
 	// GetWorkload retrieves detailed information for a specific workload.
 	GetWorkload(context.Context, *GetWorkloadRequest) (*GetWorkloadResponse, error)
+	// Deprecated: Do not use.
 	// GetForecastWorkloads retrieves all workloads for a specific cluster.
 	GetForecastWorkloads(context.Context, *GetForecastWorkloadsRequest) (*GetForecastWorkloadsResponse, error)
+	// Deprecated: Do not use.
 	// GetForecastWorkload retrieves detailed information for a specific workload.
 	GetForecastWorkload(context.Context, *GetForecastWorkloadRequest) (*GetForecastWorkloadResponse, error)
 	// GetResources retrivers specific resource and their details from db, simulating informer.
