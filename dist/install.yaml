@@ -1253,6 +1253,15 @@ rules:
   - list
   - watch
 - apiGroups:
+  - sparkoperator.k8s.io
+  resources:
+  - scheduledsparkapplications
+  - sparkapplications
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - storage.k8s.io
   resources:
   - csidrivers

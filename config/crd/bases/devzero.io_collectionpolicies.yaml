@@ -261,6 +261,23 @@ spec:
                       - namespace
                       type: object
                     type: array
+                  excludedKubeflowNotebooks:
+                    description: Kubeflow Notebooks Exclusions
+                    items:
+                      description: ExcludedKubeflowNotebook identifies a Kubeflow
+                        Notebook to exclude
+                      properties:
+                        name:
+                          description: Name is the Kubeflow Notebook's name
+                          type: string
+                        namespace:
+                          description: Namespace is the Kubeflow Notebook's namespace
+                          type: string
+                      required:
+                      - name
+                      - namespace
+                      type: object
+                    type: array
                   excludedLabels:
                     additionalProperties:
                       type: string
@@ -465,6 +482,23 @@ spec:
                       - namespace
                       type: object
                     type: array
+                  excludedScheduledSparkApplications:
+                    items:
+                      description: ExcludedScheduledSparkApplication identifies a
+                        Scheduled Spark Application to exclude
+                      properties:
+                        name:
+                          description: Name is the Scheduled Spark Application's name
+                          type: string
+                        namespace:
+                          description: Namespace is the Scheduled Spark Application's
+                            namespace
+                          type: string
+                      required:
+                      - name
+                      - namespace
+                      type: object
+                    type: array
                   excludedSecrets:
                     items:
                       description: ExcludedSecret identifies a secret to exclude
@@ -512,6 +546,23 @@ spec:
                       - namespace
                       type: object
                     type: array
+                  excludedSparkApplications:
+                    description: Spark Applications Exclusions
+                    items:
+                      description: ExcludedSparkApplication identifies a Spark Application
+                        to exclude
+                      properties:
+                        name:
+                          description: Name is the Spark Application's name
+                          type: string
+                        namespace:
+                          description: Namespace is the Spark Application's namespace
+                          type: string
+                      required:
+                      - name
+                      - namespace
+                      type: object
+                    type: array
                   excludedStatefulSets:
                     items:
                       description: ExcludedStatefulSet identifies a statefulset to
@@ -543,6 +594,23 @@ spec:
                         namespace:
                           description: Namespace is the vertical pod autoscaler's
                             namespace
+                          type: string
+                      required:
+                      - name
+                      - namespace
+                      type: object
+                    type: array
+                  excludedVolcanoJobs:
+                    description: VolcanoJobs Exclusions
+                    items:
+                      description: ExcludedVolcanoJob identifies a Volcano Job to
+                        exclude
+                      properties:
+                        name:
+                          description: Name is the Volcano Job's name
+                          type: string
+                        namespace:
+                          description: Namespace is the Volcano Job's namespace
                           type: string
                       required:
                       - name
