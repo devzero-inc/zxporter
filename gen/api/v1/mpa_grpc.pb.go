@@ -20,6 +20,7 @@ const _ = grpc.SupportPackageIsVersion7
 
 const (
 	MpaService_StreamWorkloadMetrics_FullMethodName = "/api.v1.MpaService/StreamWorkloadMetrics"
+	MpaService_StreamFeedback_FullMethodName        = "/api.v1.MpaService/StreamFeedback"
 )
 
 // MpaServiceClient is the client API for MpaService service.
@@ -29,6 +30,9 @@ type MpaServiceClient interface {
 	// StreamWorkloadMetrics establishes a bidirectional stream where the client (Dakr)
 	// subscribes to workloads, and the server (Zxporter) pushes metric updates.
 	StreamWorkloadMetrics(ctx context.Context, opts ...grpc.CallOption) (MpaService_StreamWorkloadMetricsClient, error)
+	// StreamFeedback allows the client (Dakr) to send scaling feedback to the server (Zxporter)
+	// for forwarding to the brain service for rule optimization
+	StreamFeedback(ctx context.Context, opts ...grpc.CallOption) (MpaService_StreamFeedbackClient, error)
 }
 
 type mpaServiceClient struct {
@@ -70,6 +74,37 @@ func (x *mpaServiceStreamWorkloadMetricsClient) Recv() (*ContainerMetricsBatch, 
 	return m, nil
 }
 
+func (c *mpaServiceClient) StreamFeedback(ctx context.Context, opts ...grpc.CallOption) (MpaService_StreamFeedbackClient, error) {
+	stream, err := c.cc.NewStream(ctx, &MpaService_ServiceDesc.Streams[1], MpaService_StreamFeedback_FullMethodName, opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &mpaServiceStreamFeedbackClient{stream}
+	return x, nil
+}
+
+type MpaService_StreamFeedbackClient interface {
+	Send(*ScalingFeedback) error
+	Recv() (*FeedbackAck, error)
+	grpc.ClientStream
+}
+
+type mpaServiceStreamFeedbackClient struct {
+	grpc.ClientStream
+}
+
+func (x *mpaServiceStreamFeedbackClient) Send(m *ScalingFeedback) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *mpaServiceStreamFeedbackClient) Recv() (*FeedbackAck, error) {
+	m := new(FeedbackAck)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // MpaServiceServer is the server API for MpaService service.
 // All implementations must embed UnimplementedMpaServiceServer
 // for forward compatibility
@@ -77,6 +112,9 @@ type MpaServiceServer interface {
 	// StreamWorkloadMetrics establishes a bidirectional stream where the client (Dakr)
 	// subscribes to workloads, and the server (Zxporter) pushes metric updates.
 	StreamWorkloadMetrics(MpaService_StreamWorkloadMetricsServer) error
+	// StreamFeedback allows the client (Dakr) to send scaling feedback to the server (Zxporter)
+	// for forwarding to the brain service for rule optimization
+	StreamFeedback(MpaService_StreamFeedbackServer) error
 	mustEmbedUnimplementedMpaServiceServer()
 }
 
@@ -86,6 +124,9 @@ type UnimplementedMpaServiceServer struct {
 
 func (UnimplementedMpaServiceServer) StreamWorkloadMetrics(MpaService_StreamWorkloadMetricsServer) error {
 	return status.Errorf(codes.Unimplemented, "method StreamWorkloadMetrics not implemented")
+}
+func (UnimplementedMpaServiceServer) StreamFeedback(MpaService_StreamFeedbackServer) error {
+	return status.Errorf(codes.Unimplemented, "method StreamFeedback not implemented")
 }
 func (UnimplementedMpaServiceServer) mustEmbedUnimplementedMpaServiceServer() {}
 
@@ -126,6 +167,32 @@ func (x *mpaServiceStreamWorkloadMetricsServer) Recv() (*MpaWorkloadSubscription
 	return m, nil
 }
 
+func _MpaService_StreamFeedback_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(MpaServiceServer).StreamFeedback(&mpaServiceStreamFeedbackServer{stream})
+}
+
+type MpaService_StreamFeedbackServer interface {
+	Send(*FeedbackAck) error
+	Recv() (*ScalingFeedback, error)
+	grpc.ServerStream
+}
+
+type mpaServiceStreamFeedbackServer struct {
+	grpc.ServerStream
+}
+
+func (x *mpaServiceStreamFeedbackServer) Send(m *FeedbackAck) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func (x *mpaServiceStreamFeedbackServer) Recv() (*ScalingFeedback, error) {
+	m := new(ScalingFeedback)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // MpaService_ServiceDesc is the grpc.ServiceDesc for MpaService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -137,6 +204,12 @@ var MpaService_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "StreamWorkloadMetrics",
 			Handler:       _MpaService_StreamWorkloadMetrics_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+		{
+			StreamName:    "StreamFeedback",
+			Handler:       _MpaService_StreamFeedback_Handler,
 			ServerStreams: true,
 			ClientStreams: true,
 		},
