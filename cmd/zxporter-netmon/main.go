@@ -15,6 +15,7 @@ import (
 	"github.com/devzero-inc/zxporter/internal/networkmonitor/dns"
 	"github.com/devzero-inc/zxporter/internal/networkmonitor/ebpf"
 	"github.com/devzero-inc/zxporter/internal/transport"
+	"github.com/devzero-inc/zxporter/internal/version"
 	"github.com/go-logr/zapr"
 	"go.uber.org/zap"
 
@@ -162,11 +163,14 @@ func main() {
 		}
 	}
 
+	versionInfo := version.Get()
 	monitorCfg := networkmonitor.Config{
 		ReadInterval:    *readInterval,
 		CleanupInterval: *cleanupInterval,
 		FlushInterval:   flushInterval,
 		NodeName:        nodeName,
+		OperatorVersion: versionInfo.String(),
+		OperatorCommit:  versionInfo.GitCommit,
 	}
 	monitor, err := networkmonitor.NewMonitor(monitorCfg, logger, podCache, client, tracer, dnsCollector, dakrClient)
 	if err != nil {

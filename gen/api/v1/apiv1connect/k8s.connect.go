@@ -198,8 +198,12 @@ type K8SServiceClient interface {
 	// GetWorkload retrieves detailed information for a specific workload.
 	GetWorkload(context.Context, *connect.Request[v1.GetWorkloadRequest]) (*connect.Response[v1.GetWorkloadResponse], error)
 	// GetForecastWorkloads retrieves all workloads for a specific cluster.
+	//
+	// Deprecated: do not use.
 	GetForecastWorkloads(context.Context, *connect.Request[v1.GetForecastWorkloadsRequest]) (*connect.Response[v1.GetForecastWorkloadsResponse], error)
 	// GetForecastWorkload retrieves detailed information for a specific workload.
+	//
+	// Deprecated: do not use.
 	GetForecastWorkload(context.Context, *connect.Request[v1.GetForecastWorkloadRequest]) (*connect.Response[v1.GetForecastWorkloadResponse], error)
 	// GetResources retrivers specific resource and their details from db, simulating informer.
 	GetResources(context.Context, *connect.Request[v1.GetResourcesRequest]) (*connect.Response[v1.GetResourcesResponse], error)
@@ -549,11 +553,15 @@ func (c *k8SServiceClient) GetWorkload(ctx context.Context, req *connect.Request
 }
 
 // GetForecastWorkloads calls api.v1.K8SService.GetForecastWorkloads.
+//
+// Deprecated: do not use.
 func (c *k8SServiceClient) GetForecastWorkloads(ctx context.Context, req *connect.Request[v1.GetForecastWorkloadsRequest]) (*connect.Response[v1.GetForecastWorkloadsResponse], error) {
 	return c.getForecastWorkloads.CallUnary(ctx, req)
 }
 
 // GetForecastWorkload calls api.v1.K8SService.GetForecastWorkload.
+//
+// Deprecated: do not use.
 func (c *k8SServiceClient) GetForecastWorkload(ctx context.Context, req *connect.Request[v1.GetForecastWorkloadRequest]) (*connect.Response[v1.GetForecastWorkloadResponse], error) {
 	return c.getForecastWorkload.CallUnary(ctx, req)
 }
@@ -682,8 +690,12 @@ type K8SServiceHandler interface {
 	// GetWorkload retrieves detailed information for a specific workload.
 	GetWorkload(context.Context, *connect.Request[v1.GetWorkloadRequest]) (*connect.Response[v1.GetWorkloadResponse], error)
 	// GetForecastWorkloads retrieves all workloads for a specific cluster.
+	//
+	// Deprecated: do not use.
 	GetForecastWorkloads(context.Context, *connect.Request[v1.GetForecastWorkloadsRequest]) (*connect.Response[v1.GetForecastWorkloadsResponse], error)
 	// GetForecastWorkload retrieves detailed information for a specific workload.
+	//
+	// Deprecated: do not use.
 	GetForecastWorkload(context.Context, *connect.Request[v1.GetForecastWorkloadRequest]) (*connect.Response[v1.GetForecastWorkloadResponse], error)
 	// GetResources retrivers specific resource and their details from db, simulating informer.
 	GetResources(context.Context, *connect.Request[v1.GetResourcesRequest]) (*connect.Response[v1.GetResourcesResponse], error)
