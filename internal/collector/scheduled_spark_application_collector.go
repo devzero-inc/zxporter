@@ -220,6 +220,12 @@ func (c *ScheduledSparkApplicationCollector) Start(ctx context.Context) error {
 				"timeout":  "30s",
 			},
 		)
+		// Prevent leaked informer on startup failure.
+		if stopCh, ok := c.informerStopChs[appKey]; ok {
+			close(stopCh)
+			delete(c.informerStopChs, appKey)
+			delete(c.informers, appKey)
+		}
 		return fmt.Errorf("timeout waiting for ScheduledSparkApplications cache to sync")
 	}
 

@@ -226,6 +226,12 @@ func (c *KubeflowNotebookCollector) Start(ctx context.Context) error {
 				"timeout":  "30s",
 			},
 		)
+		// Prevent leaked informer on startup failure.
+		if stopCh, ok := c.informerStopChs[notebookKey]; ok {
+			close(stopCh)
+			delete(c.informerStopChs, notebookKey)
+			delete(c.informers, notebookKey)
+		}
 		return fmt.Errorf("timeout waiting for Kubeflow Notebooks cache to sync")
 	}
 

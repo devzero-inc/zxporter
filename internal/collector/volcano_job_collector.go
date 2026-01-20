@@ -226,6 +226,12 @@ func (c *VolcanoJobCollector) Start(ctx context.Context) error {
 				"timeout":  "30s",
 			},
 		)
+		// Prevent leaked informer on startup failure.
+		if stopCh, ok := c.informerStopChs[jobKey]; ok {
+			close(stopCh)
+			delete(c.informerStopChs, jobKey)
+			delete(c.informers, jobKey)
+		}
 		return fmt.Errorf("timeout waiting for Volcano Jobs cache to sync")
 	}
 
