@@ -560,7 +560,10 @@ func (c *ContainerResourceCollector) processContainerMetrics(
 	}
 
 	// Add network metrics if available
+	// Note: Network metrics are pod-level (all containers share the same network namespace)
 	if len(networkMetrics) > 0 {
+		metricsSnapshot.NetworkMetricsArePodLevel = true
+		metricsSnapshot.PodContainerCount = len(pod.Spec.Containers)
 		metricsSnapshot.NetworkReceiveBytes = networkMetrics["NetworkReceiveBytes"]
 		metricsSnapshot.NetworkTransmitBytes = networkMetrics["NetworkTransmitBytes"]
 		metricsSnapshot.NetworkReceivePackets = networkMetrics["NetworkReceivePackets"]
