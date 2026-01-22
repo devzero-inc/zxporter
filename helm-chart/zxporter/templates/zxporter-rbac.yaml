@@ -465,6 +465,15 @@ rules:
   - get
   - list
   - watch
+# MPA v2: WorkloadRecommendation CRD for syncing in-cluster recommendations back to control plane
+- apiGroups:
+  - dakr.devzero.io
+  resources:
+  - workloadrecommendations
+  verbs:
+  - get
+  - list
+  - watch
 - apiGroups:
   - metrics.k8s.io
   resources:
