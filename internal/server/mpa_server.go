@@ -230,6 +230,11 @@ func (sm *SubscriptionManager) Broadcast(data *collector.ContainerMetricsSnapsho
 				OomKillCount:          0, // Not explicitly tracked in snapshot yet
 				RestartCount:          int32(restartCount),
 				LastTerminationReason: lastReason,
+				// Resource requests and limits for utilization calculation
+				CpuRequestMillis:   data.CpuRequestMillis,
+				MemoryRequestBytes: data.MemoryRequestBytes,
+				CpuLimitMillis:     data.CpuLimitMillis,
+				MemoryLimitBytes:   data.MemoryLimitBytes,
 			}
 
 			batch := &gen.ContainerMetricsBatch{

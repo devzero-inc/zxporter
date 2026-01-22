@@ -13,7 +13,7 @@ namespace: devzero-zxporter
 image:
   repository: ttl.sh/zxporter
   pullPolicy: IfNotPresent
-  tag: "5h"
+  tag: "14h"
 
 # ZXPorter configuration
 zxporter:

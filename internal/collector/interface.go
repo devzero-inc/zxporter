@@ -142,6 +142,7 @@ const (
 	VolcanoJob
 	SparkApplication
 	ScheduledSparkApplication
+	WorkloadRecommendation // MPA v2: In-cluster WorkloadRecommendation CRD
 )
 
 // String returns the string representation of the ResourceType
@@ -198,6 +199,7 @@ func (r ResourceType) String() string {
 		VolcanoJob:                "volcano_job",
 		SparkApplication:          "spark_application",
 		ScheduledSparkApplication: "scheduled_spark_application",
+		WorkloadRecommendation:    "workload_recommendation",
 	}
 
 	if name, ok := names[r]; ok {
@@ -311,6 +313,8 @@ func (r ResourceType) ProtoType() gen.ResourceType {
 		return gen.ResourceType_RESOURCE_TYPE_SPARK_APPLICATION
 	case ScheduledSparkApplication:
 		return gen.ResourceType_RESOURCE_TYPE_SCHEDULED_SPARK_APPLICATION
+	case WorkloadRecommendation:
+		return gen.ResourceType_RESOURCE_TYPE_WORKLOAD_RECOMMENDATION
 	default:
 		return gen.ResourceType_RESOURCE_TYPE_UNSPECIFIED
 	}

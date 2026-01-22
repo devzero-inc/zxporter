@@ -48,6 +48,12 @@ message ContainerMetricItem {
   int64 oom_kill_count = 7; // Cumulative if available, otherwise 0
   int32 restart_count = 8;
   string last_termination_reason = 9; // e.g. "OOMKilled"
+
+  // Resource requests and limits from pod spec (for utilization calculation)
+  int64 cpu_request_millis = 10;    // CPU request in millicores
+  int64 memory_request_bytes = 11;  // Memory request in bytes
+  int64 cpu_limit_millis = 12;      // CPU limit in millicores
+  int64 memory_limit_bytes = 13;    // Memory limit in bytes
 }
 
 // ScalingFeedback reports the outcome of a scaling decision back to the brain
