@@ -81,7 +81,7 @@ func NewPersistentVolumeClaimMetricsCollector(
 
 	// Default Prometheus URL if not specified
 	if config.PrometheusURL == "" {
-		config.PrometheusURL = "http://prometheus-service.monitoring.svc.cluster.local:8080"
+		config.PrometheusURL = "http://prometheus-service.monitoring.svc.cluster.local:9090"
 	}
 
 	if config.QueryTimeout <= 0 {
