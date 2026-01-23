@@ -1156,6 +1156,22 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				logger,
 				r.TelemetryLogger,
 			)
+		case "pvc_metrics":
+			replacedCollector = collector.NewPersistentVolumeClaimMetricsCollector(
+				r.K8sClient,
+				collector.PersistentVolumeClaimMetricsCollectorConfig{
+					PrometheusURL:  newConfig.PrometheusURL,
+					UpdateInterval: newConfig.UpdateInterval,
+					QueryTimeout:   10 * time.Second,
+				},
+				newConfig.TargetNamespaces,
+				newConfig.ExcludedPVCs,
+				collector.DefaultMaxBatchSize,
+				newConfig.UpdateInterval,
+				logger,
+				r.TelemetryMetrics,
+				r.TelemetryLogger,
+			)
 		case "event":
 			replacedCollector = collector.NewEventCollector(
 				r.K8sClient,
@@ -2244,6 +2260,25 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 			name: collector.PersistentVolumeClaim,
 		},
 		{
+			collector: collector.NewPersistentVolumeClaimMetricsCollector(
+				r.K8sClient,
+				collector.PersistentVolumeClaimMetricsCollectorConfig{
+					PrometheusURL:  config.PrometheusURL,
+					UpdateInterval: config.UpdateInterval,
+					QueryTimeout:   10 * time.Second,
+				},
+				config.TargetNamespaces,
+				config.ExcludedPVCs,
+				collector.DefaultMaxBatchSize,
+				config.UpdateInterval,
+				logger,
+				r.TelemetryMetrics,
+				r.TelemetryLogger,
+			),
+			name: collector.PersistentVolumeClaimMetrics,
+		},
+
+		{
 			collector: collector.NewEventCollector(
 				r.K8sClient,
 				config.TargetNamespaces,
@@ -2883,6 +2918,22 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					collector.DefaultMaxBatchSize,
 					collector.DefaultMaxBatchTime,
 					logger,
+					r.TelemetryLogger,
+				)
+			case "pvc_metrics":
+				replacedCollector = collector.NewPersistentVolumeClaimMetricsCollector(
+					r.K8sClient,
+					collector.PersistentVolumeClaimMetricsCollectorConfig{
+						PrometheusURL:  newConfig.PrometheusURL,
+						UpdateInterval: newConfig.UpdateInterval,
+						QueryTimeout:   10 * time.Second,
+					},
+					newConfig.TargetNamespaces,
+					newConfig.ExcludedPVCs,
+					collector.DefaultMaxBatchSize,
+					newConfig.UpdateInterval,
+					logger,
+					r.TelemetryMetrics,
 					r.TelemetryLogger,
 				)
 			case "event":

@@ -77,7 +77,8 @@ func NewPersistentVolumeClaimCollector(
 		excludedPVCs:    excludedPVCsMap,
 		logger:          newLogger,
 		telemetryLogger: telemetryLogger,
-		cDHelper:        ChangeDetectionHelper{logger: newLogger}}
+		cDHelper:        ChangeDetectionHelper{logger: newLogger},
+	}
 }
 
 // Start begins the PVC collection process
