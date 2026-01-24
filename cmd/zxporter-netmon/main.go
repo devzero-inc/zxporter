@@ -187,6 +187,15 @@ func main() {
 		informerFactory.WaitForCacheSync(ctx.Done())
 	}
 
+	// Start eBPF tracer if available (for DNS events and/or network flows)
+	if tracer != nil {
+		go func() {
+			if err := tracer.Run(ctx); err != nil {
+				logger.Error(err, "eBPF tracer failed")
+			}
+		}()
+	}
+
 	// Start Monitor in background
 	go monitor.Start(ctx)
 

@@ -15,9 +15,21 @@ char __license[] SEC("license") = "Dual MIT/GPL";
 
 #define UDP_PORT_DNS 53
 
+// Enable debug prints
+// #define DEBUG 1
+
 // NOTE: We do not use this map in the new tracer but keeping it for reference
 // or if we want to enable event streaming later.
 BPF_PERF_OUTPUT(events, 1024); // Events output map.
+
+// Scratch buffer to avoid stack limit and support cgroup_skb packet capture
+struct {
+  __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
+  __uint(max_entries, 1);
+  __type(key, u32);
+  __type(
+      value, struct { u8 data[1024]; });
+} dns_scratch_map SEC(".maps");
 
 // Helper to extract headers and call record_netflow
 statfunc int handle_skb(struct __sk_buff *ctx, enum flow_direction direction) {
@@ -99,6 +111,52 @@ statfunc int handle_skb(struct __sk_buff *ctx, enum flow_direction direction) {
   u32 pid = 0;
   u64 start_time = 0;
   u64 cgroup_id = 0;
+
+  // Check for DNS Traffic (UDP port 53) and emit event
+  // We capture the full packet payload for userspace parsing
+  bool is_dns = false;
+  if (proto == IPPROTO_UDP) {
+    // Check ports. We need to parse UDP header to get ports.
+    // We already loaded udphdr into dest (nethdrs->protohdrs.udphdr).
+    // Ports are in network byte order in the header structure.
+    u16 sport = bpf_ntohs(nethdrs->protohdrs.udphdr.source);
+    u16 dport = bpf_ntohs(nethdrs->protohdrs.udphdr.dest);
+
+    if (sport == UDP_PORT_DNS || dport == UDP_PORT_DNS) {
+      is_dns = true;
+      bpf_printk("DNS UDP detected: %d -> %d\n", sport, dport);
+    }
+  }
+
+  if (is_dns) {
+    u32 zero = 0;
+    struct {
+      u8 data[1024];
+    } *scratch = bpf_map_lookup_elem(&dns_scratch_map, &zero);
+
+    if (scratch) {
+      // Try to capture as much as possible using stepped buckets.
+      // This is necessary because bpf_skb_load_bytes requires constant length
+      // on older kernels (5.15), and fails if the packet is smaller than the
+      // requested length. We try from largest to smallest.
+      if (bpf_skb_load_bytes(ctx, 0, scratch->data, 512) == 0) {
+        bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, scratch, 512);
+      } else if (bpf_skb_load_bytes(ctx, 0, scratch->data, 256) == 0) {
+        bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, scratch, 256);
+      } else {
+// Hyper-fine-grained capture with extended range (30-160 bytes)
+// Covers small IPv4 DNS (~50-60b) AND IPv6 DNS (~100-110b) precisely.
+#pragma clang loop unroll(full)
+        for (int i = 160; i >= 30; i--) {
+          if (bpf_skb_load_bytes(ctx, 0, scratch->data, i) == 0) {
+            bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, scratch, i);
+            goto done;
+          }
+        }
+      }
+    done:;
+    }
+  }
 
   record_netflow(ctx, comm, pid, start_time, cgroup_id, nethdrs, direction);
 

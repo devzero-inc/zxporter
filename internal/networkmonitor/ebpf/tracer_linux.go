@@ -176,13 +176,13 @@ func (t *Tracer) Run(ctx context.Context) error {
 			return err
 		}
 
-		if len(record.RawSample) < 4 {
-			t.log.V(1).Info("skipping too small event", "bytes", len(record.RawSample))
+		if len(record.RawSample) < 1 {
+			t.log.V(1).Info("skipping empty event")
 			continue
 		}
 
-		// First 4 bytes now reserved for payload size. See net_event_context in types.h for full structure.
-		event, err := parseEvent(record.RawSample[4:])
+		// Parse the full raw packet captured from eBPF
+		event, err := parseEvent(record.RawSample)
 		if err != nil {
 			t.log.Error(err, "parsing event")
 			continue
@@ -303,9 +303,22 @@ func InitCgroupv2(log logr.Logger) error {
 }
 
 func parseEvent(data []byte) (DNSEvent, error) {
+	if len(data) == 0 {
+		return DNSEvent{}, errors.New("empty data")
+	}
+
+	// Detect IP version
+	var layerType gopacket.LayerType
+	version := data[0] >> 4
+	if version == 6 {
+		layerType = layers.LayerTypeIPv6
+	} else {
+		layerType = layers.LayerTypeIPv4
+	}
+
 	packet := gopacket.NewPacket(
 		data,
-		layers.LayerTypeIPv4,
+		layerType,
 		gopacket.Default,
 	)
 
