@@ -28,6 +28,7 @@ mkdir -p "${STATE_DIR}"
 write_state() {
   cat > "${STATE_FILE}" <<EOF
 REGION=${REGION}
+ZONE=${ZONE}
 CLUSTER_NAME=${CLUSTER_NAME}
 EOF
 }
