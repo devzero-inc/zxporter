@@ -110,8 +110,8 @@ fi
 
 # ---------- delete ----------
 read_state
-RESOURCE_GROUP="${RESOURCE_GROUP:-zxporter-e2e-rg-${WHO}}"
-CLUSTER_NAME="${CLUSTER_NAME:-zxporter-e2e-${WHO}}"
+RESOURCE_GROUP="${RESOURCE_GROUP:-aks-zxporter-e2e-rg-${WHO}-${CNI_TYPE}}"
+CLUSTER_NAME="${CLUSTER_NAME:-aks-zxporter-e2e-${WHO}-${CNI_TYPE}}"
 
 echo "Deleting cluster ${CLUSTER_NAME} in RG ${RESOURCE_GROUP}..."
 
