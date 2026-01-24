@@ -88,6 +88,7 @@ type bpfProgramSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type bpfMapSpecs struct {
+	DnsScratchMap           *ebpf.MapSpec `ebpf:"dns_scratch_map"`
 	Events                  *ebpf.MapSpec `ebpf:"events"`
 	NetflowConfigMap        *ebpf.MapSpec `ebpf:"netflow_config_map"`
 	NetworkTrafficBufferMap *ebpf.MapSpec `ebpf:"network_traffic_buffer_map"`
@@ -123,6 +124,7 @@ func (o *bpfObjects) Close() error {
 //
 // It can be passed to loadBpfObjects or ebpf.CollectionSpec.LoadAndAssign.
 type bpfMaps struct {
+	DnsScratchMap           *ebpf.Map `ebpf:"dns_scratch_map"`
 	Events                  *ebpf.Map `ebpf:"events"`
 	NetflowConfigMap        *ebpf.Map `ebpf:"netflow_config_map"`
 	NetworkTrafficBufferMap *ebpf.Map `ebpf:"network_traffic_buffer_map"`
@@ -130,6 +132,7 @@ type bpfMaps struct {
 
 func (m *bpfMaps) Close() error {
 	return _BpfClose(
+		m.DnsScratchMap,
 		m.Events,
 		m.NetflowConfigMap,
 		m.NetworkTrafficBufferMap,

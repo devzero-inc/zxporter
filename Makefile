@@ -809,18 +809,21 @@ deprovision-gke: ## Delete GKE cluster
 	@chmod +x verification/provision_gke.sh
 	@./verification/provision_gke.sh delete
 
+.PHONY: verify-e2e-gke
+verify-e2e-gke: ## Run verification against an existing GKE cluster (reads state from ~/.cache/zxporter-e2e/gke.state)
+	@if [ ! -f ~/.cache/zxporter-e2e/gke.state ]; then echo "Error: State file not found. Run 'make provision-gke' first."; exit 1; fi
+	@source ~/.cache/zxporter-e2e/gke.state && \
+	echo "Using cached config for cluster $${CLUSTER_NAME} in $${REGION} in $${ZONE}..." && \
+	gcloud container clusters get-credentials $${CLUSTER_NAME} --zone $${ZONE} && \
+	CONTEXT=$$(kubectl config current-context) && \
+	$(MAKE) verify-e2e CLUSTER_CONTEXT="$${CONTEXT}" NAMESPACE=devzero-zxporter CNI_TYPE="$${CNI_TYPE}"
+
 .PHONY: verify-e2e-gke-lifecycle
 verify-e2e-gke-lifecycle: provision-gke ## Full GKE E2E (Provision -> Verify -> Deprovision)
-	@echo "Detected User: $$(whoami)"
-	@WHO="$$(whoami | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-' | sed 's/^-//; s/-$$//')" && \
-	CLUSTER_NAME="gke-zxporter-e2e-$${WHO}" && \
-	echo "Updating kubeconfig for GKE cluster $${CLUSTER_NAME}..." && \
-	gcloud container clusters get-credentials $${CLUSTER_NAME} --zone us-central1-a && \
-	CONTEXT=$$(kubectl config current-context) && \
-	echo "Using Context: $${CONTEXT}" && \
-	$(MAKE) verify-e2e CLUSTER_CONTEXT="$${CONTEXT}" NAMESPACE=devzero-zxporter
-	$(MAKE) deprovision-gke
-
+	@VERIFY_EXIT=0; \
+	$(MAKE) verify-e2e-gke || VERIFY_EXIT=$$?; \
+	$(MAKE) deprovision-gke; \
+	exit $$VERIFY_EXIT
 
 ## clean out metrics in verification directory
 .PHONY: clean-metrics
