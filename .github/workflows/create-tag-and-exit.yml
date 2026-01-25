@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   tag:
@@ -73,7 +74,9 @@ jobs:
             echo ""
           done >> CHANGELOG.md
 
-      - name: Commit and push CHANGELOG.md
+      - name: Create PR for CHANGELOG.md update
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
@@ -82,25 +85,14 @@ jobs:
             echo "No changelog changes to commit"
             exit 0
           fi
-          git commit -m "chore: update changelog for ${{ steps.version.outputs.tag }}"
 
-          # Pull with rebase and push, with retry on failure
-          max_retries=3
-          for i in $(seq 1 $max_retries); do
-            git fetch origin main
-            if ! git rebase origin/main; then
-              if git diff --name-only --diff-filter=U | grep -q .; then
-                echo "Rebase failed due to conflicts; aborting."
-                git rebase --abort
-                exit 1
-              fi
-              echo "Rebase failed; aborting."
-              git rebase --abort || true
-              exit 1
-            fi
-            git push origin main && exit 0
-            echo "Push attempt $i failed, retrying..."
-            sleep 2
-          done
-          echo "Failed to push after $max_retries attempts"
-          exit 1
+          BRANCH_NAME="chore/update-changelog-${{ steps.version.outputs.tag }}"
+          git checkout -b "$BRANCH_NAME"
+          git commit -m "chore: update changelog for ${{ steps.version.outputs.tag }}"
+          git push origin "$BRANCH_NAME"
+
+          gh pr create \
+            --title "chore: update changelog for ${{ steps.version.outputs.tag }}" \
+            --body "Automated changelog update for release ${{ steps.version.outputs.tag }}" \
+            --base main \
+            --head "$BRANCH_NAME"
