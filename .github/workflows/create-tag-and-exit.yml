@@ -87,12 +87,17 @@ jobs:
           fi
 
           BRANCH_NAME="chore/update-changelog-${{ steps.version.outputs.tag }}"
-          git checkout -b "$BRANCH_NAME"
+          git checkout -B "$BRANCH_NAME"
           git commit -m "chore: update changelog for ${{ steps.version.outputs.tag }}"
-          git push origin "$BRANCH_NAME"
+          git push --force-with-lease origin "$BRANCH_NAME"
 
-          gh pr create \
-            --title "chore: update changelog for ${{ steps.version.outputs.tag }}" \
-            --body "Automated changelog update for release ${{ steps.version.outputs.tag }}" \
-            --base main \
-            --head "$BRANCH_NAME"
+          # Create PR only if one doesn't already exist for this branch
+          if gh pr view "$BRANCH_NAME" --json state -q '.state' 2>/dev/null | grep -q "OPEN"; then
+            echo "PR already exists for $BRANCH_NAME; skipping creation."
+          else
+            gh pr create \
+              --title "chore: update changelog for ${{ steps.version.outputs.tag }}" \
+              --body "Automated changelog update for release ${{ steps.version.outputs.tag }}" \
+              --base main \
+              --head "$BRANCH_NAME"
+          fi
