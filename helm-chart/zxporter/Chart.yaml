@@ -1,8 +1,8 @@
 apiVersion: v2
 name: zxporter
 description: A Helm chart for DevZero ZXPorter - Kubernetes resource monitoring and optimization
-version: 0.0.37
-appVersion: "0.0.37"
+version: 0.0.39
+appVersion: "0.0.39"
 home: https://github.com/devzero-inc/zxporter
 sources:
   - https://github.com/devzero-inc/zxporter
