@@ -141,13 +141,17 @@ statfunc int handle_skb(struct __sk_buff *ctx, enum flow_direction direction) {
       // requested length. We try from largest to smallest.
       if (bpf_skb_load_bytes(ctx, 0, scratch->data, 512) == 0) {
         bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, scratch, 512);
-      } else if (bpf_skb_load_bytes(ctx, 0, scratch->data, 256) == 0) {
-        bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, scratch, 256);
+      } else if (bpf_skb_load_bytes(ctx, 0, scratch->data, 448) == 0) {
+        bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, scratch, 448);
+      } else if (bpf_skb_load_bytes(ctx, 0, scratch->data, 384) == 0) {
+        bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, scratch, 384);
+      } else if (bpf_skb_load_bytes(ctx, 0, scratch->data, 320) == 0) {
+        bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, scratch, 320);
       } else {
-// Hyper-fine-grained capture with extended range (30-160 bytes)
-// Covers small IPv4 DNS (~50-60b) AND IPv6 DNS (~100-110b) precisely.
+// Hyper-fine-grained capture extended for PrivateLink (30-280 bytes)
+// Covers long domains + IPv6 which often fall in the 160-256 byte gap.
 #pragma clang loop unroll(full)
-        for (int i = 160; i >= 30; i--) {
+        for (int i = 280; i >= 30; i--) {
           if (bpf_skb_load_bytes(ctx, 0, scratch->data, i) == 0) {
             bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, scratch, i);
             goto done;
