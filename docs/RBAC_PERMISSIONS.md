@@ -6,190 +6,190 @@
 
 | API Group | Resource | Verbs | Purpose |
 |-----------|----------|-------|---------|
-| `""` (core) | `configmaps` | get, list, update, watch | Read operator configuration and update cluster metadata snapshots |
-| `""` (core) | `endpoints` | get, list, watch | Monitor service endpoints for cluster topology mapping |
-| `""` (core) | `events` | get, list, watch | Collect Kubernetes events for cluster activity tracking |
-| `""` (core) | `limitranges` | get, list, watch | Collect limit range configurations for resource governance visibility |
-| `""` (core) | `namespaces` | get, list, watch | Enumerate and monitor namespaces for multi-tenant cluster organization |
-| `""` (core) | `nodes` | get, list, watch | Collect node information for infrastructure inventory and capacity planning |
-| `""` (core) | `nodes/metrics` | get | Retrieve node-level resource metrics from kubelet |
-| `""` (core) | `nodes/status` | get | Access node status information for health monitoring |
-| `""` (core) | `persistentvolumeclaims` | get, list, watch | Monitor PVC usage and storage consumption patterns |
-| `""` (core) | `persistentvolumes` | get, list, watch | Collect cluster-wide storage resource information |
-| `""` (core) | `pods` | get, list, watch | Monitor pod lifecycle and workload deployment patterns |
-| `""` (core) | `pods/status` | get | Access pod status for workload health and state tracking |
-| `""` (core) | `replicationcontrollers` | get, list, watch | Monitor legacy replication controllers for workload management |
-| `""` (core) | `resourcequotas` | get, list, watch | Collect resource quota configurations for capacity management |
-| `""` (core) | `secrets` | create | Create service account tokens for dynamic authentication |
-| `""` (core) | `secrets` (specific) | get, patch, update | Manage operator's own authentication token (devzero-zxporter-devzero-zxporter-token) |
-| `""` (core) | `serviceaccounts` | create, get, list, patch, update, watch | Manage service accounts for operator components and dynamic collectors |
-| `""` (core) | `services` | create, get, list, patch, update, watch | Monitor cluster services and manage operator service endpoints |
+| `""` (core) | `configmaps` | get, list, watch, update | Read cluster configuration; update ConfigMap to persist cluster authentication tokens |
+| `""` (core) | `endpoints` | get, list, watch | Collect service endpoint information for cluster topology and service discovery tracking |
+| `""` (core) | `events` | get, list, watch | Collect Kubernetes events for cluster activity monitoring and troubleshooting |
+| `""` (core) | `limitranges` | get, list, watch | Collect LimitRange configurations to track resource constraints and governance policies |
+| `""` (core) | `namespaces` | get, list, watch | Enumerate namespaces for multi-tenant cluster organization and resource scoping |
+| `""` (core) | `nodes` | get, list, watch | Collect node information for infrastructure inventory, capacity planning, and cluster topology |
+| `""` (core) | `nodes/metrics` | get | Retrieve node-level resource metrics (CPU, memory) from Metrics Server |
+| `""` (core) | `nodes/status` | get | Access node status information for health monitoring and availability tracking |
+| `""` (core) | `persistentvolumeclaims` | get, list, watch | Monitor PVC usage patterns and storage consumption for capacity management |
+| `""` (core) | `persistentvolumes` | get, list, watch | Collect cluster-wide persistent volume information for storage resource tracking |
+| `""` (core) | `pods` | get, list, watch | Monitor pod lifecycle events, workload deployment patterns, and OOMKilled events |
+| `""` (core) | `pods/status` | get | Access pod status for workload health, phase tracking, and container state monitoring |
+| `""` (core) | `replicationcontrollers` | get, list, watch | Monitor legacy ReplicationController resources for workload tracking |
+| `""` (core) | `resourcequotas` | get, list, watch | Collect ResourceQuota configurations for capacity management and quota enforcement tracking |
+| `""` (core) | `secrets` | create | Create Secret to store cluster authentication tokens when useSecretForToken is enabled |
+| `""` (core) | `secrets` (specific) | get, patch, update | Read and update the operator's cluster authentication token Secret (devzero-zxporter-devzero-zxporter-token) |
+| `""` (core) | `serviceaccounts` | create, get, list, patch, update, watch | Bootstrap metrics-server ServiceAccount; collect ServiceAccount information for RBAC tracking |
+| `""` (core) | `services` | create, get, list, patch, update, watch | Bootstrap metrics-server Service; collect cluster service configurations for networking visibility |
 
 ### Apps Resources
 
 | API Group | Resource | Verbs | Purpose |
 |-----------|----------|-------|---------|
-| `apps` | `daemonsets` | get, list, watch | Monitor DaemonSet deployments for node-level workload tracking |
-| `apps` | `deployments` | create, get, list, patch, update, watch | Monitor application deployments and manage operator components |
-| `apps` | `replicasets` | get, list, watch | Track ReplicaSet information for workload ownership and scaling patterns |
-| `apps` | `statefulsets` | get, list, watch | Monitor StatefulSet deployments for stateful application tracking |
+| `apps` | `daemonsets` | get, list, watch | Collect DaemonSet configurations to track node-level workload deployments |
+| `apps` | `deployments` | create, get, list, patch, update, watch | Bootstrap metrics-server Deployment if not available; collect application deployment configurations |
+| `apps` | `replicasets` | get, list, watch | Collect ReplicaSet information for workload scaling patterns and pod ownership tracking |
+| `apps` | `statefulsets` | get, list, watch | Collect StatefulSet configurations to track stateful application deployments |
 
 ### Batch Resources
 
 | API Group | Resource | Verbs | Purpose |
 |-----------|----------|-------|---------|
-| `batch` | `cronjobs` | get, list, watch | Monitor scheduled job configurations for batch workload tracking |
-| `batch` | `jobs` | get, list, watch | Track job execution for batch processing visibility |
+| `batch` | `cronjobs` | get, list, watch | Collect CronJob configurations to track scheduled batch workload patterns |
+| `batch` | `jobs` | get, list, watch | Collect Job configurations for batch processing workload tracking |
 
 ### Networking Resources
 
 | API Group | Resource | Verbs | Purpose |
 |-----------|----------|-------|---------|
-| `networking.k8s.io` | `ingressclasses` | get, list, watch | Collect ingress class configurations for traffic routing visibility |
-| `networking.k8s.io` | `ingresses` | get, list, watch | Monitor ingress resources for external access patterns |
-| `networking.k8s.io` | `networkpolicies` | get, list, watch | Collect network policies for security and traffic control analysis |
+| `networking.k8s.io` | `ingressclasses` | get, list, watch | Collect IngressClass configurations for traffic routing and load balancer visibility |
+| `networking.k8s.io` | `ingresses` | get, list, watch | Collect Ingress configurations to track external access patterns and routing rules |
+| `networking.k8s.io` | `networkpolicies` | get, list, watch | Collect NetworkPolicy configurations for network security and traffic control analysis |
 
 ### RBAC Resources
 
 | API Group | Resource | Verbs | Purpose |
 |-----------|----------|-------|---------|
-| `rbac.authorization.k8s.io` | `clusterrolebindings` | create, get, list, patch, update, watch | Manage operator's cluster-wide RBAC bindings and collect security configurations |
-| `rbac.authorization.k8s.io` | `clusterroles` | create, get, list, patch, update, watch | Manage operator's cluster roles and collect RBAC policies for security analysis |
-| `rbac.authorization.k8s.io` | `rolebindings` | create, get, list, patch, update, watch | Manage namespace-scoped role bindings for operator components |
-| `rbac.authorization.k8s.io` | `roles` | get, list, watch | Collect namespace-scoped roles for security policy visibility |
+| `rbac.authorization.k8s.io` | `clusterrolebindings` | create, get, list, patch, update, watch | Bootstrap metrics-server RBAC; collect cluster-wide role binding configurations for security tracking |
+| `rbac.authorization.k8s.io` | `clusterroles` | create, get, list, patch, update, watch | Bootstrap metrics-server RBAC; collect cluster-wide role configurations for security policy analysis |
+| `rbac.authorization.k8s.io` | `rolebindings` | create, get, list, patch, update, watch | Bootstrap metrics-server RBAC; collect namespace-scoped role bindings for security tracking |
+| `rbac.authorization.k8s.io` | `roles` | get, list, watch | Collect namespace-scoped role configurations for RBAC security policy visibility |
 
 ### Policy Resources
 
 | API Group | Resource | Verbs | Purpose |
 |-----------|----------|-------|---------|
-| `policy` | `poddisruptionbudgets` | get, list, watch | Collect PDB configurations for availability and disruption planning |
+| `policy` | `poddisruptionbudgets` | get, list, watch | Collect PodDisruptionBudget configurations for availability requirements and disruption planning |
 
 ### Autoscaling Resources
 
 | API Group | Resource | Verbs | Purpose |
 |-----------|----------|-------|---------|
-| `autoscaling` | `horizontalpodautoscalers` | get, list, watch | Monitor HPA configurations for workload scaling patterns |
-| `autoscaling.k8s.io` | `verticalpodautoscalers` | get, list, watch | Collect VPA configurations for resource optimization insights |
+| `autoscaling` | `horizontalpodautoscalers` | get, list, watch | Collect HorizontalPodAutoscaler configurations to track CPU/memory-based scaling patterns |
+| `autoscaling.k8s.io` | `verticalpodautoscalers` | get, list, watch | Collect VerticalPodAutoscaler configurations for resource optimization recommendations tracking |
 
 ### Metrics Resources
 
 | API Group | Resource | Verbs | Purpose |
 |-----------|----------|-------|---------|
-| `metrics.k8s.io` | `nodes` | get, list, watch | Retrieve node-level resource metrics for capacity monitoring |
-| `metrics.k8s.io` | `pods` | get, list, watch | Collect pod-level resource metrics for workload performance tracking |
+| `metrics.k8s.io` | `nodes` | get, list, watch | Retrieve node-level resource usage metrics (CPU, memory) from Metrics Server for capacity monitoring |
+| `metrics.k8s.io` | `pods` | get, list, watch | Retrieve pod-level resource usage metrics (CPU, memory) from Metrics Server for workload performance tracking |
 
 ### Storage Resources
 
 | API Group | Resource | Verbs | Purpose |
 |-----------|----------|-------|---------|
-| `storage.k8s.io` | `csidrivers` | get, list, watch | Collect CSI driver configurations for storage plugin visibility |
-| `storage.k8s.io` | `csinodes` | get, list, watch | Monitor CSI node information for storage topology mapping |
-| `storage.k8s.io` | `csistoragecapacities` | get, list, watch | Track storage capacity for volume provisioning insights |
-| `storage.k8s.io` | `storageclasses` | get, list, watch | Collect storage class definitions for persistent volume provisioning |
-| `storage.k8s.io` | `volumeattachments` | get, list, watch | Monitor volume attachment state for storage connectivity tracking |
+| `storage.k8s.io` | `csidrivers` | get, list, watch | Collect CSI driver configurations for storage plugin and provider visibility |
+| `storage.k8s.io` | `csinodes` | get, list, watch | Collect CSI node information for storage topology mapping and driver attachment tracking |
+| `storage.k8s.io` | `csistoragecapacities` | get, list, watch | Track storage capacity information for volume provisioning and capacity planning |
+| `storage.k8s.io` | `storageclasses` | get, list, watch | Collect StorageClass definitions for persistent volume provisioning options and storage tiers |
+| `storage.k8s.io` | `volumeattachments` | get, list, watch | Monitor volume attachment state for storage connectivity and mount tracking |
 
 ### API Extensions
 
 | API Group | Resource | Verbs | Purpose |
 |-----------|----------|-------|---------|
-| `apiextensions.k8s.io` | `customresourcedefinitions` | get, list, watch | Discover CRDs for extended resource collection and ecosystem visibility |
-| `apiregistration.k8s.io` | `apiservices` | create, get, list, patch, update, watch | Manage API service registrations for extension points |
+| `apiextensions.k8s.io` | `customresourcedefinitions` | get, list, watch | Discover installed CRDs for extended API resources and ecosystem visibility (detects availability of third-party operators) |
+| `apiregistration.k8s.io` | `apiservices` | create, get, list, patch, update, watch | Bootstrap metrics-server API registration; discover API services for cluster API extension tracking |
 
 ### Custom Resources (CRDs)
 
 | API Group | Resource | Verbs | Purpose |
 |-----------|----------|-------|---------|
-| `devzero.io` | `collectionpolicies` | create, delete, get, list, patch, update, watch | Manage collection policies that control which resources are monitored |
-| `devzero.io` | `collectionpolicies/finalizers` | update | Manage finalizers for graceful policy deletion |
-| `devzero.io` | `collectionpolicies/status` | get, patch, update | Update policy status and health information |
+| `devzero.io` | `collectionpolicies` | create, delete, get, list, patch, update, watch | Manage CollectionPolicy CRDs that control which namespaces, resources, and metrics to collect |
+| `devzero.io` | `collectionpolicies/finalizers` | update | Manage finalizers for graceful CollectionPolicy deletion and cleanup |
+| `devzero.io` | `collectionpolicies/status` | get, patch, update | Update CollectionPolicy status to reflect collection state and health |
 
-### Argo Rollouts Resources
-
-| API Group | Resource | Verbs | Purpose |
-|-----------|----------|-------|---------|
-| `argoproj.io` | `rollouts` | get, list, watch | Monitor Argo Rollouts for progressive delivery tracking |
-
-### Volcano Resources
+### Argo Rollouts Resources (Optional)
 
 | API Group | Resource | Verbs | Purpose |
 |-----------|----------|-------|---------|
-| `batch.volcano.sh` | `jobs` | get, list, watch | Monitor Volcano batch jobs for specialized HPC and AI workload tracking |
+| `argoproj.io` | `rollouts` | get, list, watch | Collect Argo Rollouts configurations for progressive delivery and canary deployment tracking (only if Argo Rollouts operator is installed) |
 
-### Datadog Resources
-
-| API Group | Resource | Verbs | Purpose |
-|-----------|----------|-------|---------|
-| `datadoghq.com` | `extendeddaemonsetreplicasets` | get, list, watch | Monitor Datadog ExtendedDaemonSet resources for observability stack tracking |
-
-### Karpenter Resources
+### Volcano Resources (Optional)
 
 | API Group | Resource | Verbs | Purpose |
 |-----------|----------|-------|---------|
-| `karpenter.k8s.aws` | `awsnodetemplates` | get, list, watch | Collect AWS Karpenter node templates for autoscaling configuration |
-| `karpenter.k8s.aws` | `ec2nodeclasses` | get, list, watch | Monitor EC2 node class configurations for AWS Karpenter |
-| `karpenter.azure.com` | `aksnodeclasses` | get, list, watch | Collect AKS node class configurations for Azure Karpenter |
-| `karpenter.k8s.gcp` | `gcenodeclasses` | get, list, watch | Monitor GCE node class configurations for GCP Karpenter |
-| `karpenter.k8s.oracle` | `ocinodeclasses` | get, list, watch | Collect OCI node class configurations for Oracle Cloud Karpenter |
-| `karpenter.sh` | `machines` | get, list, watch | Monitor Karpenter machine resources for node lifecycle tracking |
-| `karpenter.sh` | `nodeclaims` | get, list, watch | Track Karpenter node claims for capacity management |
-| `karpenter.sh` | `nodeoverlays` | get, list, watch | Collect node overlay configurations for Karpenter customization |
-| `karpenter.sh` | `nodepools` | get, list, watch | Monitor Karpenter node pools for autoscaling pool management |
-| `karpenter.sh` | `provisioners` | get, list, watch | Track Karpenter provisioners for node provisioning policies |
+| `batch.volcano.sh` | `jobs` | get, list, watch | Collect Volcano Job configurations for HPC and AI/ML batch workload tracking (only if Volcano operator is installed) |
 
-### KEDA Resources
+### Datadog Resources (Optional)
 
 | API Group | Resource | Verbs | Purpose |
 |-----------|----------|-------|---------|
-| `keda.sh` | `clustertriggerauthentications` | get, list, watch | Collect KEDA cluster-wide trigger authentication configurations |
-| `keda.sh` | `scaledjobs` | get, list, watch | Monitor KEDA ScaledJob resources for event-driven job scaling |
-| `keda.sh` | `scaledobjects` | get, list, watch | Track KEDA ScaledObject resources for event-driven autoscaling |
-| `keda.sh` | `triggerauthentications` | get, list, watch | Collect KEDA trigger authentication configurations |
+| `datadoghq.com` | `extendeddaemonsetreplicasets` | get, list, watch | Collect Datadog ExtendedDaemonSet ReplicaSet information for observability stack tracking (only if Datadog operator is installed) |
 
-### Kubeflow Resources
+### Karpenter Resources (Optional)
 
 | API Group | Resource | Verbs | Purpose |
 |-----------|----------|-------|---------|
-| `kubeflow.org` | `notebooks` | get, list, watch | Monitor Kubeflow Notebook resources for ML workload tracking |
+| `karpenter.k8s.aws` | `awsnodetemplates` | get, list, watch | Collect AWS Karpenter NodeTemplate configurations for autoscaling tracking (only if Karpenter is installed on AWS) |
+| `karpenter.k8s.aws` | `ec2nodeclasses` | get, list, watch | Collect EC2NodeClass configurations for AWS Karpenter autoscaling (only if Karpenter is installed on AWS) |
+| `karpenter.azure.com` | `aksnodeclasses` | get, list, watch | Collect AKSNodeClass configurations for Azure Karpenter autoscaling (only if Karpenter is installed on Azure) |
+| `karpenter.k8s.gcp` | `gcenodeclasses` | get, list, watch | Collect GCE NodeClass configurations for GCP Karpenter autoscaling (only if Karpenter is installed on GCP) |
+| `karpenter.k8s.oracle` | `ocinodeclasses` | get, list, watch | Collect OCI NodeClass configurations for Oracle Cloud Karpenter autoscaling (only if Karpenter is installed on OCI) |
+| `karpenter.sh` | `machines` | get, list, watch | Collect Karpenter Machine resources for node lifecycle tracking (only if Karpenter operator is installed) |
+| `karpenter.sh` | `nodeclaims` | get, list, watch | Collect Karpenter NodeClaim resources for capacity requests tracking (only if Karpenter operator is installed) |
+| `karpenter.sh` | `nodeoverlays` | get, list, watch | Collect Karpenter NodeOverlay configurations for node customization tracking (only if Karpenter operator is installed) |
+| `karpenter.sh` | `nodepools` | get, list, watch | Collect Karpenter NodePool configurations for autoscaling pool management (only if Karpenter operator is installed) |
+| `karpenter.sh` | `provisioners` | get, list, watch | Collect Karpenter Provisioner configurations for node provisioning policies (only if Karpenter operator is installed) |
 
-### Spark Operator Resources
+### KEDA Resources (Optional)
 
 | API Group | Resource | Verbs | Purpose |
 |-----------|----------|-------|---------|
-| `sparkoperator.k8s.io` | `scheduledsparkapplications` | get, list, watch | Monitor scheduled Spark application resources for data processing workload tracking |
-| `sparkoperator.k8s.io` | `sparkapplications` | get, list, watch | Track Spark application resources for big data processing visibility |
+| `keda.sh` | `clustertriggerauthentications` | get, list, watch | Collect KEDA cluster-wide TriggerAuthentication configurations for event-driven autoscaling credentials (only if KEDA is installed) |
+| `keda.sh` | `scaledjobs` | get, list, watch | Collect KEDA ScaledJob configurations for event-driven job scaling patterns (only if KEDA is installed) |
+| `keda.sh` | `scaledobjects` | get, list, watch | Collect KEDA ScaledObject configurations for event-driven HPA tracking (only if KEDA is installed) |
+| `keda.sh` | `triggerauthentications` | get, list, watch | Collect KEDA TriggerAuthentication configurations for event source credentials (only if KEDA is installed) |
+
+### Kubeflow Resources (Optional)
+
+| API Group | Resource | Verbs | Purpose |
+|-----------|----------|-------|---------|
+| `kubeflow.org` | `notebooks` | get, list, watch | Collect Kubeflow Notebook configurations for ML/AI workload tracking (only if Kubeflow operator is installed) |
+
+### Spark Operator Resources (Optional)
+
+| API Group | Resource | Verbs | Purpose |
+|-----------|----------|-------|---------|
+| `sparkoperator.k8s.io` | `scheduledsparkapplications` | get, list, watch | Collect ScheduledSparkApplication configurations for scheduled big data processing workloads (only if Spark Operator is installed) |
+| `sparkoperator.k8s.io` | `sparkapplications` | get, list, watch | Collect SparkApplication configurations for big data processing workload tracking (only if Spark Operator is installed) |
 
 ### Authentication & Authorization
 
 | API Group | Resource | Verbs | Purpose |
 |-----------|----------|-------|---------|
-| `authentication.k8s.io` | `tokenreviews` | create | Validate service account tokens for metrics endpoint authentication |
-| `authorization.k8s.io` | `subjectaccessreviews` | create | Perform authorization checks for metrics endpoint access control |
+| `authentication.k8s.io` | `tokenreviews` | create | Validate service account tokens for metrics endpoint authentication (used by kube-rbac-proxy sidecar) |
+| `authorization.k8s.io` | `subjectaccessreviews` | create | Perform authorization checks for metrics endpoint access control (used by kube-rbac-proxy sidecar) |
 
 ### Non-Resource URLs
 
 | URL Path | Verbs | Purpose |
 |----------|-------|---------|
-| `/metrics` | get | Allow Prometheus to scrape operator metrics for monitoring |
+| `/metrics` | get | Allow Prometheus to scrape operator's internal metrics for monitoring operator health and performance |
 
 ---
 
 ## Role (Namespace-Scoped) Permissions
 
-These permissions are scoped to the `devzero-zxporter` namespace only:
+These permissions are scoped to the `devzero-zxporter` namespace only and are used during leader election and operator lifecycle management:
 
 | API Group | Resource | Verbs | Purpose |
 |-----------|----------|-------|---------|
-| `""` (core) | `configmaps` | get, list, watch, create, update, patch, delete | Manage operator configuration and leader election state |
-| `""` (core) | `deployments` | get, list, watch, create, update, patch, delete | Manage operator deployment components (legacy - appears redundant with apps group) |
-| `""` (core) | `serviceaccounts` | get, list, watch, create, update, patch, delete | Manage service accounts for operator components |
-| `""` (core) | `services` | get, list, watch, create, update, patch, delete | Manage operator service endpoints |
-| `""` (core) | `events` | create, patch | Emit events for operator lifecycle and status updates |
-| `apps` | `deployments` | get, list, watch, create, update, patch, delete | Manage operator and collector deployments |
-| `coordination.k8s.io` | `leases` | get, list, watch, create, update, patch, delete | Coordinate leader election for high availability |
-| `rbac.authorization.k8s.io` | `rolebindings` | create, delete, get, list, patch, update, watch | Manage role bindings for operator components |
-| `rbac.authorization.k8s.io` | `roles` | create, delete, get, list, patch, update, watch | Manage roles for operator components |
-| `rbac.authorization.k8s.io` | `clusterrolebindings` | create, delete, get, list, patch, update, watch | Manage cluster role bindings for operator components |
-| `rbac.authorization.k8s.io` | `clusterroles` | create, delete, get, list, patch, update, watch | Manage cluster roles for operator components |
+| `""` (core) | `configmaps` | get, list, watch, create, update, patch, delete | Manage operator configuration, leader election state, and token persistence |
+| `""` (core) | `deployments` | get, list, watch, create, update, patch, delete | Manage operator deployment (legacy - may be redundant with apps group) |
+| `""` (core) | `serviceaccounts` | get, list, watch, create, update, patch, delete | Manage service accounts for operator components (for metrics-server bootstrap) |
+| `""` (core) | `services` | get, list, watch, create, update, patch, delete | Manage operator service endpoints (for metrics-server bootstrap) |
+| `""` (core) | `events` | create, patch | Emit Kubernetes events for operator lifecycle notifications and status updates |
+| `apps` | `deployments` | get, list, watch, create, update, patch, delete | Manage operator and metrics-server deployments in the operator namespace |
+| `coordination.k8s.io` | `leases` | get, list, watch, create, update, patch, delete | Coordinate leader election for high availability (prevents multiple operator instances from running simultaneously) |
+| `rbac.authorization.k8s.io` | `rolebindings` | create, delete, get, list, patch, update, watch | Bootstrap metrics-server RBAC within the operator namespace |
+| `rbac.authorization.k8s.io` | `roles` | create, delete, get, list, patch, update, watch | Bootstrap metrics-server RBAC within the operator namespace |
+| `rbac.authorization.k8s.io` | `clusterrolebindings` | create, delete, get, list, patch, update, watch | Bootstrap metrics-server cluster-wide RBAC bindings |
+| `rbac.authorization.k8s.io` | `clusterroles` | create, delete, get, list, patch, update, watch | Bootstrap metrics-server cluster-wide RBAC roles |
 
 ---
 
@@ -201,7 +201,7 @@ Allows users to create and manage CollectionPolicy custom resources:
 
 | API Group | Resource | Verbs | Purpose |
 |-----------|----------|-------|---------|
-| `devzero.io` | `collectionpolicies` | create, delete, get, list, patch, update, watch | Full management of collection policies |
+| `devzero.io` | `collectionpolicies` | create, delete, get, list, patch, update, watch | Full management of collection policies to control resource collection behavior |
 | `devzero.io` | `collectionpolicies/status` | get | Read collection policy status information |
 
 ### CollectionPolicy Viewer Role
@@ -210,16 +210,16 @@ Allows users to view CollectionPolicy custom resources (read-only):
 
 | API Group | Resource | Verbs | Purpose |
 |-----------|----------|-------|---------|
-| `devzero.io` | `collectionpolicies` | get, list, watch | Read-only access to collection policies |
+| `devzero.io` | `collectionpolicies` | get, list, watch | Read-only access to view collection policies |
 | `devzero.io` | `collectionpolicies/status` | get | Read collection policy status information |
 
 ### Metrics Authentication Role
 
-Used for authenticating requests to the metrics endpoint:
+Used for authenticating requests to the metrics endpoint (typically used by kube-rbac-proxy):
 
 | API Group | Resource | Verbs | Purpose |
 |-----------|----------|-------|---------|
-| `authentication.k8s.io` | `tokenreviews` | create | Validate tokens for metrics access |
+| `authentication.k8s.io` | `tokenreviews` | create | Validate tokens for metrics endpoint access |
 | `authorization.k8s.io` | `subjectaccessreviews` | create | Authorize metrics endpoint access |
 
 ### Metrics Reader Role
@@ -228,6 +228,57 @@ Allows scraping of operator metrics:
 
 | URL Path | Verbs | Purpose |
 |----------|-------|---------|
-| `/metrics` | get | Read operator metrics for monitoring and observability |
+| `/metrics` | get | Read operator metrics for monitoring and observability platforms (Prometheus, Grafana, etc.) |
 
 ---
+
+## Permission Rationale
+
+### What is ZXporter?
+
+ZXporter is a **Kubernetes resource collection and export operator** that:
+
+1. **Collects Cluster Resources**: Watches and collects all Kubernetes resources (pods, deployments, services, etc.) and sends them to a DAKR backend service for analysis, monitoring, and cost optimization
+2. **Gathers Performance Metrics**: Integrates with Prometheus and Metrics Server to collect time-series metrics including:
+   - Container CPU, memory usage (from Metrics Server)
+   - Network I/O metrics (from Prometheus node-exporter)
+   - GPU utilization (from Prometheus DCGM exporter for NVIDIA GPUs)
+3. **Generates Cluster Snapshots**: Periodically creates comprehensive cluster snapshots for backup, compliance, and auditing
+4. **Supports Multi-Cloud**: Detects and tracks cloud provider-specific resources (AWS, Azure, GCP, Oracle Cloud)
+5. **Extends to Third-Party Operators**: Automatically detects and collects resources from third-party operators like Argo Rollouts, KEDA, Karpenter, Spark Operator, Kubeflow, and Volcano
+
+### Why These Permissions?
+
+**Read-Only Access (Most Resources)**:
+- The operator primarily performs **read-only collection** of Kubernetes resources
+- Uses Kubernetes informers to watch for resource changes and send updates to DAKR backend
+- All workload, networking, RBAC, and storage resources are read-only
+
+**Write Access (Limited Cases)**:
+1. **Token Persistence** (`configmaps`, `secrets`):
+   - Exchanges PAT tokens for cluster authentication tokens via DAKR API
+   - Persists cluster tokens in ConfigMap or Secret to survive pod restarts
+   - Only writes to specific resources: `devzero-zxporter-env-config` ConfigMap or `devzero-zxporter-devzero-zxporter-token` Secret
+
+2. **Metrics Server Bootstrap** (`serviceaccounts`, `services`, `deployments`, RBAC, `apiservices`):
+   - Automatically deploys Metrics Server via `entrypoint.sh` kubectl apply if not detected
+   - Requires create/update permissions to deploy all Metrics Server components
+   - This is a one-time bootstrap operation executed during operator startup
+
+3. **Operator Lifecycle** (namespace-scoped):
+   - Leader election via `coordination.k8s.io/leases`
+   - Event emission for status updates
+   - Configuration management via ConfigMaps
+
+**Optional Permissions**:
+- All third-party operator resources (Karpenter, KEDA, Argo, etc.) are **optional**
+- Collectors gracefully handle missing CRDs using `IsAvailable()` checks
+- Can be disabled via `DisabledCollectors` configuration
+
+### Security Considerations
+
+- The operator requires **cluster-admin-like permissions** for comprehensive monitoring
+- Sensitive data like Secrets can be excluded from collection via configuration
+- Token persistence uses namespace-scoped Secrets with RBAC protection
+- All data transmission to DAKR uses gRPC with TLS and bearer token authentication
+- Each collector can be individually disabled for fine-grained control
