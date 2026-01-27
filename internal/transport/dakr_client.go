@@ -549,11 +549,18 @@ func (c *RealDakrClient) SendNetworkTrafficMetrics(ctx context.Context, req *gen
 		connectReq.Header().Set("cluster_id", clusterString)
 	}
 
+	c.logger.Info("Sending network traffic metrics to Dakr",
+		"items", len(req.Items),
+		"dns_lookups", len(req.DnsLookups),
+		"node", req.NodeName)
+
 	resp, err := c.client.SendNetworkTrafficMetrics(ctx, connectReq)
 	if err != nil {
 		c.logger.Error(err, "Failed to send network traffic metrics to Dakr")
 		return nil, fmt.Errorf("failed to send network traffic metrics to Dakr: %w", err)
 	}
+
+	c.logger.Info("Successfully sent network traffic metrics", "status", "ok")
 
 	return resp.Msg, nil
 }

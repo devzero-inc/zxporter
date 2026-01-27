@@ -15,6 +15,7 @@ import (
 	"github.com/devzero-inc/zxporter/internal/networkmonitor/dns"
 	"github.com/devzero-inc/zxporter/internal/networkmonitor/ebpf"
 	"github.com/devzero-inc/zxporter/internal/transport"
+	"github.com/devzero-inc/zxporter/internal/version"
 	"github.com/go-logr/zapr"
 	"go.uber.org/zap"
 
@@ -30,8 +31,12 @@ var (
 	readInterval    = flag.Duration("read-interval", 5*time.Second, "Interval between conntrack reads.")
 	cleanupInterval = flag.Duration("cleanup-interval", 60*time.Second, "Interval for cleaning up stale entries.")
 	kubeconfig      = flag.String("metrics-kubeconfig", "", "Path to a kubeconfig. Only required if out-of-cluster.")
-	collectorMode   = flag.String("collector-mode", "netfilter", "Collector mode: 'netfilter' or 'cilium'.")
+	collectorMode   = flag.String("collector-mode", "netfilter", "Collector mode: 'netfilter' or 'bpf'.")
 	standalone      = flag.Bool("standalone", false, "Run in standalone mode without K8s connection")
+)
+
+const (
+	CollectorModeEBPF = "ebpf"
 )
 
 func main() {
@@ -103,27 +108,38 @@ func main() {
 		client, err = networkmonitor.NewCiliumClient(logger, networkmonitor.ClockSourceKtime)
 	case "netfilter":
 		client, err = networkmonitor.NewNetfilterClient(logger)
+	case CollectorModeEBPF:
+		logger.Info("Running in EBPF mode. Conntrack client disabled.")
+		client = nil // Client is optional now
 	default:
 		logger.Error(fmt.Errorf("unknown collector mode: %s", *collectorMode), "Initialization failed")
 		os.Exit(1)
 	}
 
-	if err != nil {
+	if *collectorMode != CollectorModeEBPF && err != nil {
 		logger.Error(err, "Failed to initialize conntrack client", "mode", *collectorMode)
 		os.Exit(1)
 	}
 
-	// 5. Setup DNS Tracer (eBPF) if available
+	// 5. Setup DNS Tracer (eBPF) AND/OR Flow Tracer
 	var dnsCollector dns.DNSCollector
+	var tracer *ebpf.Tracer
+
+	// Check BTF availability
 	if ebpf.IsKernelBTFAvailable() {
-		logger.Info("Kernel BTF available, initializing DNS tracer")
+		logger.Info("Kernel BTF available, initializing eBPF tracer")
 		tracerCfg := ebpf.Config{
 			QueueSize: 1000,
 		}
-		tracer := ebpf.NewTracer(logger, tracerCfg)
+		tracer = ebpf.NewTracer(logger, tracerCfg)
+		// DNS Collector uses the SAME tracer for DNS events
 		dnsCollector = dns.NewIP2DNS(tracer, logger)
 	} else {
-		logger.Info("Kernel BTF not available, DNS tracing disabled")
+		logger.Info("Kernel BTF not available, eBPF features disabled")
+		if *collectorMode == CollectorModeEBPF {
+			logger.Error(nil, "EBPF mode requested but BTF not available")
+			os.Exit(1)
+		}
 	}
 
 	// 6. Setup Dakr Client (Control Plane)
@@ -147,13 +163,16 @@ func main() {
 		}
 	}
 
+	versionInfo := version.Get()
 	monitorCfg := networkmonitor.Config{
 		ReadInterval:    *readInterval,
 		CleanupInterval: *cleanupInterval,
 		FlushInterval:   flushInterval,
 		NodeName:        nodeName,
+		OperatorVersion: versionInfo.String(),
+		OperatorCommit:  versionInfo.GitCommit,
 	}
-	monitor, err := networkmonitor.NewMonitor(monitorCfg, logger, podCache, client, dnsCollector, dakrClient)
+	monitor, err := networkmonitor.NewMonitor(monitorCfg, logger, podCache, client, tracer, dnsCollector, dakrClient)
 	if err != nil {
 		logger.Error(err, "Failed to initialize monitor")
 		os.Exit(1)
@@ -168,6 +187,15 @@ func main() {
 		informerFactory.WaitForCacheSync(ctx.Done())
 	}
 
+	// Start eBPF tracer if available (for DNS events and/or network flows)
+	if tracer != nil {
+		go func() {
+			if err := tracer.Run(ctx); err != nil {
+				logger.Error(err, "eBPF tracer failed")
+			}
+		}()
+	}
+
 	// Start Monitor in background
 	go monitor.Start(ctx)
 
@@ -175,7 +203,7 @@ func main() {
 	http.HandleFunc("/metrics", monitor.GetMetricsHandler)
 	http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
+		_, _ = w.Write([]byte("OK"))
 	})
 
 	server := &http.Server{
@@ -199,7 +227,9 @@ func main() {
 	cancel() // Trigger monitor cleanup
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer shutdownCancel()
-	server.Shutdown(shutdownCtx)
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		logger.Error(err, "HTTP server shutdown failed")
+	}
 }
 
 func getKubeConfig(kubeconfigPath string) (*rest.Config, error) {

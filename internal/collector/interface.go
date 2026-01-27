@@ -141,6 +141,8 @@ const (
 	VolumeAttachment
 	KubeflowNotebook
 	VolcanoJob
+	SparkApplication
+	ScheduledSparkApplication
 )
 
 // String returns the string representation of the ResourceType
@@ -307,6 +309,10 @@ func (r ResourceType) ProtoType() gen.ResourceType {
 		return gen.ResourceType_RESOURCE_TYPE_KUBEFLOW_NOTEBOOK
 	case VolcanoJob:
 		return gen.ResourceType_RESOURCE_TYPE_VOLCANO_JOB
+	case SparkApplication:
+		return gen.ResourceType_RESOURCE_TYPE_SPARK_APPLICATION
+	case ScheduledSparkApplication:
+		return gen.ResourceType_RESOURCE_TYPE_SCHEDULED_SPARK_APPLICATION
 	default:
 		return gen.ResourceType_RESOURCE_TYPE_UNSPECIFIED
 	}

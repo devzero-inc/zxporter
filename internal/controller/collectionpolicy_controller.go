@@ -79,50 +79,52 @@ type CollectionPolicyReconciler struct {
 
 // PolicyConfig holds the current configuration
 type PolicyConfig struct {
-	TargetNamespaces               []string
-	ExcludedNamespaces             []string
-	ExcludedPods                   []collector.ExcludedPod
-	ExcludedDeployments            []collector.ExcludedDeployment
-	ExcludedStatefulSets           []collector.ExcludedStatefulSet
-	ExcludedDaemonSets             []collector.ExcludedDaemonSet
-	ExcludedServices               []collector.ExcludedService
-	ExcludedPVCs                   []collector.ExcludedPVC
-	ExcludedEvents                 []collector.ExcludedEvent
-	ExcludedJobs                   []collector.ExcludedJob
-	ExcludedCronJobs               []collector.ExcludedCronJob
-	ExcludedReplicationControllers []collector.ExcludedReplicationController
-	ExcludedIngresses              []collector.ExcludedIngress
-	ExcludedNetworkPolicies        []collector.ExcludedNetworkPolicy
-	ExcludedEndpoints              []collector.ExcludedEndpoint
-	ExcludedServiceAccounts        []collector.ExcludedServiceAccount
-	ExcludedLimitRanges            []collector.ExcludedLimitRange
-	ExcludedResourceQuotas         []collector.ExcludedResourceQuota
-	ExcludedHPAs                   []collector.ExcludedHPA
-	ExcludedVPAs                   []collector.ExcludedVPA
-	ExcludedRoles                  []collector.ExcludedRole
-	ExcludedRoleBindings           []collector.ExcludedRoleBinding
-	ExcludedClusterRoles           []string
-	ExcludedClusterRoleBindings    []string
-	ExcludedPDBs                   []collector.ExcludedPDB
-	ExcludedPSPs                   []string
-	ExcludedCRDs                   []string
-	ExcludedReplicaSet             []collector.ExcludedReplicaSet
-	ExcludedStorageClasses         []string
-	ExcludedPVs                    []string
-	ExcludedIngressClasses         []string
-	ExcludedNodes                  []string
-	ExcludedCRDGroups              []string
-	WatchedCRDs                    []string
-	ExcludedCSINodes               []string
-	ExcludedDatadogReplicaSets     []collector.ExcludedDatadogExtendedDaemonSetReplicaSet
-	ExcludedArgoRollouts           []collector.ExcludedArgoRollout
-	ExcludedKedaScaledJobs         []collector.ExcludedScaledJob
-	ExcludedKedaScaledObjects      []collector.ExcludedScaledObject
-	ExcludedCSIDrivers             []string
-	ExcludedCSIStorageCapacities   []collector.ExcludedCSIStorageCapacity
-	ExcludedVolumeAttachments      []string
-	ExcludedKubeflowNotebooks      []collector.ExcludedKubeflowNotebook
-	ExcludedVolcanoJobs            []collector.ExcludedVolcanoJob
+	TargetNamespaces                   []string
+	ExcludedNamespaces                 []string
+	ExcludedPods                       []collector.ExcludedPod
+	ExcludedDeployments                []collector.ExcludedDeployment
+	ExcludedStatefulSets               []collector.ExcludedStatefulSet
+	ExcludedDaemonSets                 []collector.ExcludedDaemonSet
+	ExcludedServices                   []collector.ExcludedService
+	ExcludedPVCs                       []collector.ExcludedPVC
+	ExcludedEvents                     []collector.ExcludedEvent
+	ExcludedJobs                       []collector.ExcludedJob
+	ExcludedCronJobs                   []collector.ExcludedCronJob
+	ExcludedReplicationControllers     []collector.ExcludedReplicationController
+	ExcludedIngresses                  []collector.ExcludedIngress
+	ExcludedNetworkPolicies            []collector.ExcludedNetworkPolicy
+	ExcludedEndpoints                  []collector.ExcludedEndpoint
+	ExcludedServiceAccounts            []collector.ExcludedServiceAccount
+	ExcludedLimitRanges                []collector.ExcludedLimitRange
+	ExcludedResourceQuotas             []collector.ExcludedResourceQuota
+	ExcludedHPAs                       []collector.ExcludedHPA
+	ExcludedVPAs                       []collector.ExcludedVPA
+	ExcludedRoles                      []collector.ExcludedRole
+	ExcludedRoleBindings               []collector.ExcludedRoleBinding
+	ExcludedClusterRoles               []string
+	ExcludedClusterRoleBindings        []string
+	ExcludedPDBs                       []collector.ExcludedPDB
+	ExcludedPSPs                       []string
+	ExcludedCRDs                       []string
+	ExcludedReplicaSet                 []collector.ExcludedReplicaSet
+	ExcludedStorageClasses             []string
+	ExcludedPVs                        []string
+	ExcludedIngressClasses             []string
+	ExcludedNodes                      []string
+	ExcludedCRDGroups                  []string
+	WatchedCRDs                        []string
+	ExcludedCSINodes                   []string
+	ExcludedDatadogReplicaSets         []collector.ExcludedDatadogExtendedDaemonSetReplicaSet
+	ExcludedArgoRollouts               []collector.ExcludedArgoRollout
+	ExcludedKedaScaledJobs             []collector.ExcludedScaledJob
+	ExcludedKedaScaledObjects          []collector.ExcludedScaledObject
+	ExcludedCSIDrivers                 []string
+	ExcludedCSIStorageCapacities       []collector.ExcludedCSIStorageCapacity
+	ExcludedVolumeAttachments          []string
+	ExcludedKubeflowNotebooks          []collector.ExcludedKubeflowNotebook
+	ExcludedVolcanoJobs                []collector.ExcludedVolcanoJob
+	ExcludedSparkApplications          []collector.ExcludedSparkApplication
+	ExcludedScheduledSparkApplications []collector.ExcludedScheduledSparkApplication
 
 	DisabledCollectors []string
 
@@ -252,6 +254,7 @@ type PolicyConfig struct {
 //+kubebuilder:rbac:groups=keda.sh,resources=scaledobjects;scaledjobs;triggerauthentications;clustertriggerauthentications,verbs=get;list;watch
 //+kubebuilder:rbac:groups=kubeflow.org,resources=notebooks,verbs=get;list;watch
 //+kubebuilder:rbac:groups=batch.volcano.sh,resources=jobs,verbs=get;list;watch
+// +kubebuilder:rbac:groups=sparkoperator.k8s.io,resources=sparkapplications;scheduledsparkapplications,verbs=get;list;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -276,7 +279,7 @@ func (r *CollectionPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Req
 				"zxporter_version": version.Get().String(),
 			},
 		)
-		logger.Error(err, "Error loading ENV varaibles")
+		logger.Error(err, "Error loading ENV variables")
 	}
 
 	// Create a new config object from the policy and environment
@@ -589,6 +592,38 @@ func (r *CollectionPolicyReconciler) createNewConfig(envSpec *monitoringv1.Colle
 	}
 	newConfig.ExcludedVolumeAttachments = envSpec.Exclusions.ExcludedVolumeAttachments
 
+	// Kubeflow Notebooks
+	for _, notebook := range envSpec.Exclusions.ExcludedKubeflowNotebooks {
+		newConfig.ExcludedKubeflowNotebooks = append(newConfig.ExcludedKubeflowNotebooks, collector.ExcludedKubeflowNotebook{
+			Namespace: notebook.Namespace,
+			Name:      notebook.Name,
+		})
+	}
+
+	// Volcano Jobs
+	for _, job := range envSpec.Exclusions.ExcludedVolcanoJobs {
+		newConfig.ExcludedVolcanoJobs = append(newConfig.ExcludedVolcanoJobs, collector.ExcludedVolcanoJob{
+			Namespace: job.Namespace,
+			Name:      job.Name,
+		})
+	}
+
+	// Spark Applications
+	for _, app := range envSpec.Exclusions.ExcludedSparkApplications {
+		newConfig.ExcludedSparkApplications = append(newConfig.ExcludedSparkApplications, collector.ExcludedSparkApplication{
+			Namespace: app.Namespace,
+			Name:      app.Name,
+		})
+	}
+
+	// Scheduled Spark Applications
+	for _, app := range envSpec.Exclusions.ExcludedScheduledSparkApplications {
+		newConfig.ExcludedScheduledSparkApplications = append(newConfig.ExcludedScheduledSparkApplications, collector.ExcludedScheduledSparkApplication{
+			Namespace: app.Namespace,
+			Name:      app.Name,
+		})
+	}
+
 	// Events - these are special with more fields
 	for _, event := range envSpec.Exclusions.ExcludedEvents {
 		newConfig.ExcludedEvents = append(newConfig.ExcludedEvents, collector.ExcludedEvent{
@@ -782,6 +817,14 @@ func (r *CollectionPolicyReconciler) identifyAffectedCollectors(oldConfig, newCo
 
 	if !reflect.DeepEqual(oldConfig.ExcludedVolcanoJobs, newConfig.ExcludedVolcanoJobs) {
 		affectedCollectors["volcano_job"] = true
+	}
+
+	if !reflect.DeepEqual(oldConfig.ExcludedSparkApplications, newConfig.ExcludedSparkApplications) {
+		affectedCollectors["spark_application"] = true
+	}
+
+	if !reflect.DeepEqual(oldConfig.ExcludedScheduledSparkApplications, newConfig.ExcludedScheduledSparkApplications) {
+		affectedCollectors["scheduled_spark_application"] = true
 	}
 
 	// Check if the special node collectors are affected by the update interval change
@@ -1480,6 +1523,26 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				r.DynamicClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedVolcanoJobs,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+				r.TelemetryLogger,
+			)
+		case "spark_application":
+			replacedCollector = collector.NewSparkApplicationCollector(
+				r.DynamicClient,
+				newConfig.TargetNamespaces,
+				newConfig.ExcludedSparkApplications,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+				r.TelemetryLogger,
+			)
+		case "scheduled_spark_application":
+			replacedCollector = collector.NewScheduledSparkApplicationCollector(
+				r.DynamicClient,
+				newConfig.TargetNamespaces,
+				newConfig.ExcludedScheduledSparkApplications,
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
@@ -2637,6 +2700,30 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 			),
 			name: collector.VolcanoJob,
 		},
+		{
+			collector: collector.NewSparkApplicationCollector(
+				r.DynamicClient,
+				config.TargetNamespaces,
+				config.ExcludedSparkApplications,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+				r.TelemetryLogger,
+			),
+			name: collector.SparkApplication,
+		},
+		{
+			collector: collector.NewScheduledSparkApplicationCollector(
+				r.DynamicClient,
+				config.TargetNamespaces,
+				config.ExcludedScheduledSparkApplications,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+				r.TelemetryLogger,
+			),
+			name: collector.ScheduledSparkApplication,
+		},
 	}
 
 	// Register all collectors
@@ -3285,6 +3372,26 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					r.DynamicClient,
 					newConfig.TargetNamespaces,
 					newConfig.ExcludedVolcanoJobs,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+					r.TelemetryLogger,
+				)
+			case "spark_application":
+				replacedCollector = collector.NewSparkApplicationCollector(
+					r.DynamicClient,
+					newConfig.TargetNamespaces,
+					newConfig.ExcludedSparkApplications,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+					r.TelemetryLogger,
+				)
+			case "scheduled_spark_application":
+				replacedCollector = collector.NewScheduledSparkApplicationCollector(
+					r.DynamicClient,
+					newConfig.TargetNamespaces,
+					newConfig.ExcludedScheduledSparkApplications,
 					collector.DefaultMaxBatchSize,
 					collector.DefaultMaxBatchTime,
 					logger,

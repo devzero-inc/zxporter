@@ -15,6 +15,7 @@ import (
 	"inet.af/netaddr"
 
 	"github.com/devzero-inc/zxporter/internal/networkmonitor/dns"
+	"github.com/devzero-inc/zxporter/internal/networkmonitor/ebpf"
 	"github.com/devzero-inc/zxporter/internal/transport"
 
 	gen "github.com/devzero-inc/zxporter/gen/api/v1"
@@ -26,6 +27,8 @@ type Config struct {
 	CleanupInterval time.Duration
 	FlushInterval   time.Duration
 	NodeName        string
+	OperatorVersion string
+	OperatorCommit  string
 }
 
 // NetworkFlow represents a single aggregated network flow
@@ -73,6 +76,7 @@ type Monitor struct {
 	log        logr.Logger
 	ct         Client
 	dns        dns.DNSCollector
+	tracer     *ebpf.Tracer
 	podCache   *PodCache
 	dakrClient transport.DakrClient
 
@@ -88,11 +92,12 @@ type Monitor struct {
 }
 
 // NewMonitor creates a new Monitor instance
-func NewMonitor(cfg Config, log logr.Logger, podCache *PodCache, ct Client, dnsCollector dns.DNSCollector, dakrClient transport.DakrClient) (*Monitor, error) {
+func NewMonitor(cfg Config, log logr.Logger, podCache *PodCache, ct Client, tracer *ebpf.Tracer, dnsCollector dns.DNSCollector, dakrClient transport.DakrClient) (*Monitor, error) {
 	return &Monitor{
 		cfg:          cfg,
 		log:          log,
 		ct:           ct,
+		tracer:       tracer,
 		dns:          dnsCollector,
 		podCache:     podCache,
 		dakrClient:   dakrClient,
@@ -146,10 +151,54 @@ func (m *Monitor) collect() error {
 	// 1. Get local pods to filter by Source IP
 	localIPs := m.podCache.GetLocalPodIPs()
 
-	// 2. Dump filtered conntrack entries
-	entries, err := m.ct.ListEntries(FilterBySrcIP(localIPs))
-	if err != nil {
-		return err
+	var entries []*Entry
+	isDelta := false
+
+	if m.tracer != nil {
+		summaries, err := m.tracer.CollectNetworkSummary()
+		if err != nil {
+			return err
+		}
+		// Convert eBPF summaries to Entries
+		entries = make([]*Entry, 0, len(summaries))
+		for key, sum := range summaries {
+			// Parse IPs
+			srcIP, err := netaddr.ParseIP(key.SrcIP)
+			if err != nil {
+				continue
+			}
+			dstIP, err := netaddr.ParseIP(key.DstIP)
+			if err != nil {
+				continue
+			}
+
+			// Filter by SrcIP (same logic as conntrack filter)
+			// Wait, tracer collects ALL node traffic. We only care about local Pods as Source.
+			if _, ok := localIPs[srcIP]; !ok {
+				continue
+			}
+
+			entries = append(entries, &Entry{
+				Src:       netaddr.IPPortFrom(srcIP, key.SrcPort),
+				Dst:       netaddr.IPPortFrom(dstIP, key.DstPort),
+				TxBytes:   sum.TxBytes,
+				TxPackets: sum.TxPackets,
+				RxBytes:   sum.RxBytes,
+				RxPackets: sum.RxPackets,
+				Proto:     key.Protocol,
+				Lifetime:  time.Now().Add(2 * time.Minute), // Simulated lifetime for delta-based metrics
+			})
+		}
+		isDelta = true
+	} else if m.ct != nil {
+		// 2. Dump filtered conntrack entries
+		var err error
+		entries, err = m.ct.ListEntries(FilterBySrcIP(localIPs))
+		if err != nil {
+			return err
+		}
+	} else {
+		return nil // No collector available
 	}
 
 	m.mu.Lock()
@@ -158,30 +207,38 @@ func (m *Monitor) collect() error {
 	for _, entry := range entries {
 		connKey := conntrackEntryKey(entry)
 
-		// Calculate Deltas
-		txBytes := entry.TxBytes
-		txPackets := entry.TxPackets
-		rxBytes := entry.RxBytes
-		rxPackets := entry.RxPackets
+		var txBytes, rxBytes, txPackets, rxPackets uint64
 
-		if cachedEntry, found := m.entriesCache[connKey]; found {
-			// Calculate delta, handling resets (if new < old, assume reset and take new value)
-			if txBytes >= cachedEntry.TxBytes {
-				txBytes -= cachedEntry.TxBytes
+		if isDelta {
+			txBytes = entry.TxBytes
+			txPackets = entry.TxPackets
+			rxBytes = entry.RxBytes
+			rxPackets = entry.RxPackets
+		} else {
+			// Calculate Deltas from Cache
+			txBytes = entry.TxBytes
+			txPackets = entry.TxPackets
+			rxBytes = entry.RxBytes
+			rxPackets = entry.RxPackets
+
+			if cachedEntry, found := m.entriesCache[connKey]; found {
+				// Calculate delta, handling resets (if new < old, assume reset and take new value)
+				if txBytes >= cachedEntry.TxBytes {
+					txBytes -= cachedEntry.TxBytes
+				}
+				if rxBytes >= cachedEntry.RxBytes {
+					rxBytes -= cachedEntry.RxBytes
+				}
+				if txPackets >= cachedEntry.TxPackets {
+					txPackets -= cachedEntry.TxPackets
+				}
+				if rxPackets >= cachedEntry.RxPackets {
+					rxPackets -= cachedEntry.RxPackets
+				}
 			}
-			if rxBytes >= cachedEntry.RxBytes {
-				rxBytes -= cachedEntry.RxBytes
-			}
-			if txPackets >= cachedEntry.TxPackets {
-				txPackets -= cachedEntry.TxPackets
-			}
-			if rxPackets >= cachedEntry.RxPackets {
-				rxPackets -= cachedEntry.RxPackets
-			}
+			// Update cache
+			m.entriesCache[connKey] = entry
 		}
-
-		// Update cache
-		m.entriesCache[connKey] = entry
 
 		// Aggregate into Pod Metrics
 		groupKey := entryGroupKey(entry)
@@ -465,10 +522,12 @@ func (m *Monitor) flush(ctx context.Context) error {
 
 	// 4. Send Request
 	req := &gen.SendNetworkTrafficMetricsRequest{
-		NodeName:   m.cfg.NodeName,
-		Items:      items,
-		DnsLookups: dnsLookupItems,
-		Ip2Domain:  dnsRecords,
+		NodeName:        m.cfg.NodeName,
+		Items:           items,
+		DnsLookups:      dnsLookupItems,
+		Ip2Domain:       dnsRecords,
+		OperatorVersion: &m.cfg.OperatorVersion,
+		OperatorCommit:  &m.cfg.OperatorCommit,
 	}
 
 	_, err := m.dakrClient.SendNetworkTrafficMetrics(ctx, req)

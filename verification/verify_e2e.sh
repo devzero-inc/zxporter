@@ -1,6 +1,13 @@
 #!/bin/bash
 set -e
 
+# Usage:
+#   ./verify_e2e.sh [CONTEXT] [NAMESPACE]
+#
+# Environment Variables:
+#   CNI_TYPE        : If set to "cilium", defaults COLLECTOR_MODE to "ebpf".
+#   COLLECTOR_MODE  : "netfilter" (default) or "ebpf". Overrides CNI_TYPE inference.
+
 CLUSTER_CONTEXT=${1:-kind-kind}
 NAMESPACE=${2:-devzero-zxporter}
 
@@ -36,7 +43,7 @@ if [[ "$CLUSTER_CONTEXT" == "kind-zxporter-e2e" ]] || [[ "$CLUSTER_CONTEXT" == "
     
     echo "Building image for Kind..."
     # Kind needs the image loaded
-    make docker-build-netmon IMG_NETMON=$IMG
+    make docker-build-netmon IMG_NETMON=$IMG BUILD_ARGS="--load"
     echo "Loading image into Kind cluster: $KIND_CLUSTER_NAME..."
     kind load docker-image $IMG --name $KIND_CLUSTER_NAME
     PULL_POLICY="Never"
@@ -44,8 +51,7 @@ else
     echo "Building and pushing image for remote cluster..."
     # For EKS/GKE, we need to push to a registry accessible by the cluster
     # Assuming ttl.sh is accessible
-    make docker-build-netmon IMG_NETMON=$IMG
-    make docker-push-netmon IMG_NETMON=$IMG
+    make docker-build-netmon IMG_NETMON=$IMG BUILD_ARGS="--push --platform linux/amd64,linux/arm64"
     PULL_POLICY="Always"
 fi
 
@@ -122,6 +128,21 @@ if [[ "$ENABLE_CONTROL_PLANE_TEST" == "true" ]]; then
         | kubectl apply -f -        
 fi
 
+# Default to netfilter if not set
+COLLECTOR_MODE=${COLLECTOR_MODE:-}
+
+# 2.5. Infer Collector Mode if not explicitly set
+if [[ -z "$COLLECTOR_MODE" ]]; then
+    if [[ "$CNI_TYPE" == "cilium" ]] || [[ "$CLUSTER_CONTEXT" == *cilium* ]]; then
+        echo "Detected Cilium environment via CNI_TYPE or Context. Defaulting to 'ebpf' collector mode."
+        COLLECTOR_MODE="ebpf"
+    else
+        echo "Defaulting to 'netfilter' collector mode."
+        COLLECTOR_MODE="netfilter"
+    fi
+fi
+echo "Using Collector Mode: $COLLECTOR_MODE"
+
 # Use helm chart to generate manifest for simplicity or use the standalone manifest
 # Let's use the Helm chart template command to generate a manifest with our image
 helm template zxporter-netmon helm-chart/zxporter-netmon \
@@ -129,6 +150,7 @@ helm template zxporter-netmon helm-chart/zxporter-netmon \
     --set image.repository=ttl.sh/zxporter-netmon \
     --set image.tag=$TAG \
     --set image.pullPolicy=$PULL_POLICY \
+    --set config.collectorMode="$COLLECTOR_MODE" \
     | kubectl apply -f -
 
 echo "Restarting zxporter-netmon to pick up latest image..."
@@ -156,10 +178,12 @@ TRAFFIC_PODS=$(kubectl get pod -l app=traffic-gen -n default --field-selector=st
 SERVER_SVC_IP=$(kubectl get svc traffic-server -n default -o jsonpath="{.spec.clusterIP}")
 SERVER_POD_IPS=$(kubectl get pod -l app=traffic-server -n default --field-selector=status.phase=Running -o jsonpath="{.items[*].status.podIP}")
 
+
+DOMAINS=("google.com" "example.com" "devzero.io" "vercel.com" "kubernetes.default.svc.cluster.local")
+
 for TRAFFIC_POD in $TRAFFIC_PODS; do
     echo "Generating explicit traffic from $TRAFFIC_POD..."
     # Outbound
-    DOMAINS=("google.com" "example.com" "devzero.io")
     for DOMAIN in "${DOMAINS[@]}"; do
         kubectl exec -n default $TRAFFIC_POD -- curl -s https://www.$DOMAIN > /dev/null || true
         kubectl exec -n default $TRAFFIC_POD -- nslookup $DOMAIN > /dev/null || true
@@ -208,6 +232,7 @@ for i in $(seq 1 $MAX_RETRIES); do
             echo "Traffic detected on $NODE_NAME!"
             echo "$RESPONSE" | grep -o 'src_ip[^,]*' | head -n 5
             
+
             # Verify Pod-to-Pod flow specifically
             # We look for ANY traffic relevant to our test
             FOUND_TRAFFIC=0
@@ -220,8 +245,36 @@ for i in $(seq 1 $MAX_RETRIES); do
                     FOUND_TRAFFIC=1
                 fi
             done
+
+            # Check DNS Lookups
+            FOUND_ALL_DOMAINS=0
+            if echo "$RESPONSE" | grep -q '"dns_lookups"'; then
+                 DNS_COUNT=$(echo "$RESPONSE" | grep -o '"dns_lookups": *\[[^]]*\]' | grep -o '{' | wc -l)
+                 if [ "$DNS_COUNT" -gt 0 ]; then
+                     echo " [OK] DNS Lookups detected on $NODE_NAME ($DNS_COUNT items)."
+                     
+                     MISSING_DOMAIN=0
+                     for DOMAIN in "${DOMAINS[@]}"; do
+                        if echo "$RESPONSE" | grep -q "\"$DOMAIN\""; then
+                            echo "    [FOUND] Domain $DOMAIN"
+                        else
+                             echo "    [WAIT] Domain $DOMAIN not found in this batch"
+                             MISSING_DOMAIN=1
+                        fi
+                     done
+                     
+                     if [ $MISSING_DOMAIN -eq 0 ]; then
+                        echo "    [OK] All expected domains found on this node."
+                        FOUND_ALL_DOMAINS=1
+                     fi
+                 else
+                     echo " [WARN] DNS Lookups array is empty on $NODE_NAME."
+                 fi
+            else
+                 echo " [WARN] No dns_lookups field in response on $NODE_NAME."
+            fi
     
-            if [ $FOUND_TRAFFIC -eq 1 ]; then
+            if [ $FOUND_TRAFFIC -eq 1 ] && [ $FOUND_ALL_DOMAINS -eq 1 ]; then
                 echo " [OK] Pod-to-Pod traffic to $SERVER_SVC_IP / $SERVER_POD_IPS captured on $NODE_NAME."
                 
                 # Verify Pod Metadata
@@ -232,7 +285,7 @@ for i in $(seq 1 $MAX_RETRIES); do
                      echo " [FAIL] Pod Metadata missing on $NODE_NAME but traffic present!"
                 fi
             else
-                echo " [INFO] No relevant Pod-to-Pod traffic on this node yet."
+                echo " [INFO] Waiting for relevant Pod-to-Pod traffic AND all DNS domains..."
             fi
         else
             echo "No flow traffic yet on $NODE_NAME."
@@ -325,9 +378,18 @@ echo ""
         
         # Check DNS Lookups
         if echo "$STATS_JSON" | grep -q '"dns_lookups"'; then
-             echo " [OK] DNS Lookups received."
+             DNS_COUNT=$(echo "$STATS_JSON" | grep -o '"dns_lookups": *\[[^]]*\]' | grep -o '{' | wc -l)
+             if [ "$DNS_COUNT" -gt 0 ]; then
+                 echo " [OK] DNS Lookups received ($DNS_COUNT items)."
+             else
+                 echo " [WARN] DNS Lookups array is empty."
+                 echo "DEBUG: Dumping Zxporter Netmon Logs for DNS debugging:"
+                 kubectl logs -l app=zxporter-netmon -n $NAMESPACE --tail=100
+             fi
         else
-             echo " [WARN] No DNS Lookups found in stats (might be expected if no lookups performed)."
+             echo " [WARN] No DNS Lookups found in stats."
+             echo "DEBUG: Dumping Zxporter Netmon Logs for DNS debugging:"
+             kubectl logs -l app=zxporter-netmon -n $NAMESPACE --tail=100
         fi
         
         # Check for enrichment in network metrics (src_pod_name)

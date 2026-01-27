@@ -19,8 +19,8 @@ NODE_VM_SIZE="${NODE_VM_SIZE:-Standard_D2ps_v6}" # ARM64 (Azure Cobalt 100)
 CNI_TYPE="${CNI_TYPE:-cilium}"
 
 WHO="$(whoami | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-' | sed 's/^-//; s/-$//')"
-RESOURCE_GROUP="aks-zxporter-e2e-rg-${WHO}-${CNI_TYPE}"
-CLUSTER_NAME="aks-zxporter-e2e-${WHO}-${CNI_TYPE}"
+RESOURCE_GROUP="${RESOURCE_GROUP:-aks-zxporter-e2e-rg-${WHO}-${CNI_TYPE}}"
+CLUSTER_NAME="${CLUSTER_NAME:-aks-zxporter-e2e-${WHO}-${CNI_TYPE}}"
 
 STATE_DIR="${STATE_DIR:-$HOME/.cache/zxporter-e2e}"
 STATE_FILE="${STATE_FILE:-${STATE_DIR}/aks.state}"
@@ -110,8 +110,8 @@ fi
 
 # ---------- delete ----------
 read_state
-RESOURCE_GROUP="${RESOURCE_GROUP:-zxporter-e2e-rg-${WHO}}"
-CLUSTER_NAME="${CLUSTER_NAME:-zxporter-e2e-${WHO}}"
+RESOURCE_GROUP="${RESOURCE_GROUP:-aks-zxporter-e2e-rg-${WHO}-${CNI_TYPE}}"
+CLUSTER_NAME="${CLUSTER_NAME:-aks-zxporter-e2e-${WHO}-${CNI_TYPE}}"
 
 echo "Deleting cluster ${CLUSTER_NAME} in RG ${RESOURCE_GROUP}..."
 

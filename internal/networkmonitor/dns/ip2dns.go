@@ -2,7 +2,6 @@ package dns
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"time"
 
@@ -58,25 +57,13 @@ func NewIP2DNS(tracer tracer, log logr.Logger) *IP2DNS {
 func (d *IP2DNS) Start(ctx context.Context) error {
 	d.ipToName = cache.NewContext[string, string](ctx)
 
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	errch := make(chan error, 1)
-	go func() {
-		err := d.Tracer.Run(ctx)
-		errch <- err
-	}()
-
+	// Tracer is already running (started in main.go)
+	// We just consume events from its channel
 	evCh := d.Tracer.Events()
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case err := <-errch:
-			if err != nil {
-				d.log.Error(err, "running tracer")
-				return fmt.Errorf("running tracer: %w", err)
-			}
-			return nil
 		case ev, ok := <-evCh:
 			if !ok {
 				return nil
