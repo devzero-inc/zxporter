@@ -243,6 +243,8 @@ func (r ResourceType) ProtoType() gen.ResourceType {
 		return gen.ResourceType_RESOURCE_TYPE_PERSISTENT_VOLUME_CLAIM
 	case PersistentVolume:
 		return gen.ResourceType_RESOURCE_TYPE_PERSISTENT_VOLUME
+	case PersistentVolumeClaimMetrics:
+		return gen.ResourceType_RESOURCE_TYPE_PVC_METRICS
 	case StorageClass:
 		return gen.ResourceType_RESOURCE_TYPE_STORAGE_CLASS
 	case Service:

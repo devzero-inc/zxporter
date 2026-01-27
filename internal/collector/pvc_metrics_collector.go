@@ -681,7 +681,7 @@ func (c *PersistentVolumeClaimMetricsCollector) GetType() string {
 func (c *PersistentVolumeClaimMetricsCollector) IsAvailable(ctx context.Context) bool {
 	if c.prometheusAPI == nil {
 		c.logger.Info("Prometheus API not available for PVC metrics")
-		return false
+		return true
 	}
 
 	queryCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
@@ -690,7 +690,7 @@ func (c *PersistentVolumeClaimMetricsCollector) IsAvailable(ctx context.Context)
 	_, _, err := c.prometheusAPI.Query(queryCtx, "up", time.Now())
 	if err != nil {
 		c.logger.Info("Prometheus API not responding", "error", err.Error())
-		return false
+		return true
 	}
 
 	return true
