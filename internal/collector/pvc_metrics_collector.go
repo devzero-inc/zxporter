@@ -181,7 +181,9 @@ func (c *PersistentVolumeClaimMetricsCollector) Start(ctx context.Context) error
 	go func() {
 		select {
 		case <-ctx.Done():
-			c.Stop()
+			if err := c.Stop(); err != nil {
+				c.logger.Error(err, "Failed to stop PVC metrics collector during context cancellation")
+			}
 		case <-stopCh:
 		}
 	}()
