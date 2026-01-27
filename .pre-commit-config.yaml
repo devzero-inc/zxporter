@@ -1,0 +1,32 @@
+default_stages:
+  - pre-commit
+
+repos:
+  - repo: local
+    hooks:
+      - id: gofmt
+        name: gofmt
+        entry: gofmt -w
+        language: system
+        types: [go]
+      - id: goimports
+        name: goimports
+        entry: ./.tools/bin/goimports -w
+        language: system
+        types: [go]
+      - id: golangci-lint
+        name: golangci-lint
+        entry: ./.tools/bin/golangci-lint run --timeout=5m
+        language: system
+        pass_filenames: false
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-json
+      - id: check-yaml
+        args: ["--allow-multiple-documents"]
+        exclude: ^helm-chart/.*/templates/
+      - id: check-added-large-files
+        args: ["--maxkb=1024"]
