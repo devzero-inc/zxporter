@@ -1833,7 +1833,7 @@ func (r *CollectionPolicyReconciler) setupMpaServer() error {
 	if r.MpaServer != nil {
 		return nil
 	}
-	r.MpaServer = server.NewMpaServer(r.Log)
+	r.MpaServer = server.NewMpaServer(r.Log, nil)
 	return r.MpaServer.Start(r.MpaServerPort)
 }
 

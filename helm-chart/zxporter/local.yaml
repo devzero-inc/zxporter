@@ -13,7 +13,7 @@ namespace: devzero-zxporter
 image:
   repository: ttl.sh/zxporter
   pullPolicy: IfNotPresent
-  tag: "14h"
+  tag: "2h"
 
 # ZXPorter configuration
 zxporter:
@@ -29,7 +29,7 @@ zxporter:
   # automatically exchange the PAT for a cluster token on startup
   # This is the recommended approach for production deployments
   # Example: "dzu-aKAAyJgsrblR0dFmgnoB_sQjiVNs-I3Y4gI7jJnePgs="
-  patToken: "dzu-aUqdXk-Hg0JErzUU2q293gwTqociTPCNIJ77djq6UoA="
+  patToken: "dzu-rszsHOnwOwf4K2zYcc_4EJLNgNoBE3Kd8EzybcJ7d6c="
 
   # Kubernetes context name to identify this cluster
   # Required: Must be set to a unique identifier for your cluster
