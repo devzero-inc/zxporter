@@ -68,6 +68,11 @@ jobs:
           # Latest stable release tag (since you only do releases)
           LATEST_TAG=$(gh api repos/${{ github.repository }}/releases/latest --jq '.tag_name')
 
+          if [[ -z "$LATEST_TAG" || "$LATEST_TAG" == "null" ]]; then
+            echo "Error: No latest release tag found"
+            exit 1
+          fi
+
           BRANCH_NAME="chore/update-changelog-${LATEST_TAG}"
           git checkout -B "$BRANCH_NAME"
           git commit -m "chore: update changelog for ${LATEST_TAG}"
