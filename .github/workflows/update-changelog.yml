@@ -13,11 +13,13 @@ jobs:
   update-changelog:
     runs-on: ubuntu-latest
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: main
 
       - name: Update CHANGELOG.md from releases
         env:
@@ -34,18 +36,21 @@ jobs:
             "[GitHub Releases](https://github.com/${{ github.repository }}/releases) page." \
             "" > CHANGELOG.md
 
-          # Append all releases using JSON for reliable parsing (paginate to include all)
+          # Append all (non-draft) releases using JSON for reliable parsing (paginate to include all)
           gh api --paginate repos/${{ github.repository }}/releases?per_page=100 \
-            | jq -s -r 'add | map({tagName: .tag_name, publishedAt: .published_at}) | .[] | "\(.tagName) \(.publishedAt)"' \
+            | jq -s -r 'add
+              | map(select(.draft == false) | {tagName: .tag_name, publishedAt: .published_at})
+              | .[]
+              | "\(.tagName) \(.publishedAt)"' \
             | while read -r tag published_at; do
-            formatted_date=$(date -d "$published_at" +%Y-%m-%d 2>/dev/null || echo "$published_at")
-            echo "## [$tag] - $formatted_date"
-            echo ""
-            # Transform top-level headings (## ) to subheadings (### ) for changelog nesting.
-            # Uses negative lookahead pattern to avoid double-transforming already-nested headings.
-            gh release view "$tag" --json body -q '.body' | sed 's/^##\([^#]\)/###\1/'
-            echo ""
-          done >> CHANGELOG.md
+              formatted_date=$(date -d "$published_at" +%Y-%m-%d 2>/dev/null || echo "$published_at")
+              echo "## [$tag] - $formatted_date"
+              echo ""
+              # Transform top-level headings (## ) to subheadings (### ) for changelog nesting.
+              # Uses negative lookahead pattern to avoid double-transforming already-nested headings.
+              gh release view "$tag" --json body -q '.body' | sed 's/^##\([^#]\)/###\1/'
+              echo ""
+            done >> CHANGELOG.md
 
       - name: Create PR for CHANGELOG.md update
         env:
@@ -54,12 +59,13 @@ jobs:
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
           git add CHANGELOG.md
+
           if git diff --staged --quiet; then
             echo "No changelog changes to commit"
             exit 0
           fi
 
-          # Get the latest release tag
+          # Latest stable release tag (since you only do releases)
           LATEST_TAG=$(gh api repos/${{ github.repository }}/releases/latest --jq '.tag_name')
 
           BRANCH_NAME="chore/update-changelog-${LATEST_TAG}"
