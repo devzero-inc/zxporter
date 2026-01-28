@@ -198,6 +198,8 @@ func (r ResourceType) String() string {
 		VolumeAttachment:             "volume_attachment",
 		KubeflowNotebook:             "kubeflow_notebook",
 		VolcanoJob:                   "volcano_job",
+		SparkApplication:             "spark_application",
+		ScheduledSparkApplication:    "scheduled_spark_application",
 	}
 
 	if name, ok := names[r]; ok {
