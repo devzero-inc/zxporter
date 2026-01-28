@@ -80,17 +80,20 @@ func (c *WorkloadRecommendationCollector) Start(ctx context.Context) error {
 	c.logger.Info("Starting WorkloadRecommendation collector", "namespaces", c.namespaces)
 
 	// Create dynamic informer factory based on namespace configuration
+	// Use a 60s resync period to catch any missed status updates (e.g. Pending -> Applied transitions)
+	// Without resync, a dropped watch event means the control plane never learns about applied recommendations
+	resyncPeriod := 60 * time.Second
 	if len(c.namespaces) == 1 && c.namespaces[0] != "" {
 		// Watch a specific namespace
 		c.informerFactory = dynamicinformer.NewFilteredDynamicSharedInformerFactory(
 			c.client,
-			0, // No resync period, rely on events
+			resyncPeriod,
 			c.namespaces[0],
 			nil,
 		)
 	} else {
 		// Watch all namespaces
-		c.informerFactory = dynamicinformer.NewDynamicSharedInformerFactory(c.client, 0)
+		c.informerFactory = dynamicinformer.NewDynamicSharedInformerFactory(c.client, resyncPeriod)
 	}
 
 	// Create WorkloadRecommendation informer
@@ -105,6 +108,16 @@ func (c *WorkloadRecommendationCollector) Start(ctx context.Context) error {
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			oldWR := oldObj.(*unstructured.Unstructured)
 			newWR := newObj.(*unstructured.Unstructured)
+
+			// Handle resync events: same ResourceVersion means informer resync, not a real change.
+			// Re-send terminal-state recommendations on resync to catch any previously missed updates.
+			if oldWR.GetResourceVersion() == newWR.GetResourceVersion() {
+				phase, _, _ := unstructured.NestedString(newWR.Object, "status", "phase")
+				if phase == "Applied" || phase == "Failed" {
+					c.handleWorkloadRecommendationEvent(newWR, EventTypeUpdate)
+				}
+				return
+			}
 
 			// Only handle meaningful updates
 			if c.workloadRecommendationChanged(oldWR, newWR) {
@@ -159,11 +172,25 @@ func (c *WorkloadRecommendationCollector) handleWorkloadRecommendationEvent(wr *
 		"name", name,
 	)
 
+	// Only send recommendations that have reached a terminal state
+	// Delete events are always sent so the control plane knows about removals
+	if eventType != EventTypeDelete {
+		phase, _, _ := unstructured.NestedString(wr.Object, "status", "phase")
+		if phase != "Applied" && phase != "Failed" {
+			c.logger.V(2).Info("Skipping WorkloadRecommendation with non-terminal phase",
+				"namespace", namespace,
+				"name", name,
+				"phase", phase,
+			)
+			return
+		}
+	}
+
 	// Send the raw WorkloadRecommendation object to the batch channel
 	c.batchChan <- CollectedResource{
 		ResourceType: WorkloadRecommendation,
 		Object:       wr, // Send the entire WorkloadRecommendation object as-is
-		Timestamp:    time.Now(),
+		Timestamp:    time.Now().UTC(),
 		EventType:    eventType,
 		Key:          fmt.Sprintf("%s/%s", namespace, name),
 	}

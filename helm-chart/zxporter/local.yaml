@@ -11,9 +11,9 @@
 namespace: devzero-zxporter
 
 image:
-  repository: ttl.sh/zxporter
+  repository: zvonimirtomesic/zxporter
   pullPolicy: IfNotPresent
-  tag: "2h"
+  tag: "v2-local"
 
 # ZXPorter configuration
 zxporter:
