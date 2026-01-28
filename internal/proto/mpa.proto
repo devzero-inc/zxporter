@@ -12,7 +12,7 @@ option java_package = "gen.api.v1";
 service MpaService {
   // StreamWorkloadMetrics establishes a bidirectional stream where the client (Dakr)
   // subscribes to workloads, and the server (Zxporter) pushes metric updates.
-  rpc StreamWorkloadMetrics(stream MpaWorkloadSubscription) returns (stream ContainerMetricsBatch);
+  rpc StreamWorkloadMetrics(stream MpaWorkloadSubscription) returns (stream MpaStreamResponse);
 
   // StreamFeedback allows the client (Dakr) to send scaling feedback to the server (Zxporter)
   // for forwarding to the brain service for rule optimization
@@ -98,4 +98,38 @@ message FeedbackAck {
   string rule_id = 1;
   bool received = 2;
   string message = 3;  // Any server-side messages (e.g., warnings)
+}
+
+// HistoricalMetricsSummary contains pre-aggregated percentile data from Prometheus
+// for a workload over a 24-hour window. Sent on subscription start and refreshed periodically.
+message HistoricalMetricsSummary {
+  MpaWorkloadIdentifier workload = 1;
+  repeated ContainerHistoricalMetrics containers = 2;
+  google.protobuf.Timestamp window_start = 3;
+  google.protobuf.Timestamp window_end = 4;
+  int32 sample_count = 5;
+}
+
+message ContainerHistoricalMetrics {
+  string container_name = 1;
+  // CPU percentiles in millicores
+  int64 cpu_p50 = 2;
+  int64 cpu_p75 = 3;
+  int64 cpu_p80 = 4;
+  int64 cpu_p90 = 5;
+  int64 cpu_p99 = 6;
+  // Memory percentiles in bytes
+  int64 mem_p50 = 7;
+  int64 mem_p75 = 8;
+  int64 mem_p80 = 9;
+  int64 mem_p90 = 10;
+  int64 mem_p99 = 11;
+}
+
+// MpaStreamResponse wraps both real-time and historical data on the same stream
+message MpaStreamResponse {
+  oneof payload {
+    ContainerMetricsBatch realtime_metrics = 1;
+    HistoricalMetricsSummary historical_summary = 2;
+  }
 }
