@@ -45,5 +45,3 @@ jobs:
               --generate-notes \
               --title "${{ steps.version.outputs.tag }}"
           fi
-          # Changelog PR is created by the update-changelog.yml workflow
-          # which triggers on release:published event
