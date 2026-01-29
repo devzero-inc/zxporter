@@ -13,7 +13,7 @@ namespace: devzero-zxporter
 image:
   repository: zvonimirtomesic/zxporter
   pullPolicy: IfNotPresent
-  tag: "v2-local"
+  tag: "v8-local"
 
 # ZXPorter configuration
 zxporter:

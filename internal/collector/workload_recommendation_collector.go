@@ -113,7 +113,7 @@ func (c *WorkloadRecommendationCollector) Start(ctx context.Context) error {
 			// Re-send terminal-state recommendations on resync to catch any previously missed updates.
 			if oldWR.GetResourceVersion() == newWR.GetResourceVersion() {
 				phase, _, _ := unstructured.NestedString(newWR.Object, "status", "phase")
-				if phase == "Applied" || phase == "Failed" {
+				if phase == "Applied" || phase == "Failed" || phase == "Skipped" {
 					c.handleWorkloadRecommendationEvent(newWR, EventTypeUpdate)
 				}
 				return
@@ -166,7 +166,7 @@ func (c *WorkloadRecommendationCollector) handleWorkloadRecommendationEvent(wr *
 	namespace := wr.GetNamespace()
 	name := wr.GetName()
 
-	c.logger.V(1).Info("WorkloadRecommendation event",
+	c.logger.Info("WorkloadRecommendation event",
 		"event_type", eventType.String(),
 		"namespace", namespace,
 		"name", name,
@@ -176,8 +176,8 @@ func (c *WorkloadRecommendationCollector) handleWorkloadRecommendationEvent(wr *
 	// Delete events are always sent so the control plane knows about removals
 	if eventType != EventTypeDelete {
 		phase, _, _ := unstructured.NestedString(wr.Object, "status", "phase")
-		if phase != "Applied" && phase != "Failed" {
-			c.logger.V(2).Info("Skipping WorkloadRecommendation with non-terminal phase",
+		if phase != "Applied" && phase != "Failed" && phase != "Skipped" {
+			c.logger.Info("Skipping WorkloadRecommendation with non-terminal phase",
 				"namespace", namespace,
 				"name", name,
 				"phase", phase,
@@ -186,7 +186,14 @@ func (c *WorkloadRecommendationCollector) handleWorkloadRecommendationEvent(wr *
 		}
 	}
 
-	// Send the raw WorkloadRecommendation object to the batch channel
+	// Log and send the raw WorkloadRecommendation object to the batch channel
+	phase, _, _ := unstructured.NestedString(wr.Object, "status", "phase")
+	c.logger.Info("Sending WorkloadRecommendation to control plane",
+		"event_type", eventType.String(),
+		"namespace", namespace,
+		"name", name,
+		"phase", phase,
+	)
 	c.batchChan <- CollectedResource{
 		ResourceType: WorkloadRecommendation,
 		Object:       wr, // Send the entire WorkloadRecommendation object as-is
