@@ -256,7 +256,7 @@ type PolicyConfig struct {
 //+kubebuilder:rbac:groups=batch.volcano.sh,resources=jobs,verbs=get;list;watch
 // +kubebuilder:rbac:groups=sparkoperator.k8s.io,resources=sparkapplications;scheduledsparkapplications,verbs=get;list;watch
 
-// MPA v2: WorkloadRecommendation CRD for syncing in-cluster recommendations back to control plane
+// WorkloadRecommendation CRD for syncing in-cluster recommendations back to control plane
 //+kubebuilder:rbac:groups=dakr.devzero.io,resources=workloadrecommendations,verbs=get;list;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
@@ -1552,7 +1552,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				r.TelemetryLogger,
 			)
 		case "workload_recommendation":
-			// MPA v2: WorkloadRecommendation collector for syncing in-cluster recommendations back to control plane
+			// WorkloadRecommendation collector for syncing in-cluster recommendations back to control plane
 			replacedCollector = collector.NewWorkloadRecommendationCollector(
 				r.DynamicClient,
 				newConfig.TargetNamespaces,
@@ -2737,7 +2737,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 			),
 			name: collector.ScheduledSparkApplication,
 		},
-		// MPA v2: WorkloadRecommendation collector for syncing in-cluster recommendations back to control plane
+		// WorkloadRecommendation collector for syncing in-cluster recommendations back to control plane
 		{
 			collector: collector.NewWorkloadRecommendationCollector(
 				r.DynamicClient,
