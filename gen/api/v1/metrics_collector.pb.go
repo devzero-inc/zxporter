@@ -180,7 +180,7 @@ const (
 	ResourceType_RESOURCE_TYPE_CRON_VOLCANO_JOB ResourceType = 53
 	// PVC METRICS
 	ResourceType_RESOURCE_TYPE_PVC_METRICS ResourceType = 54
-	// In-cluster WorkloadRecommendation CRD
+	// MPA v2: In-cluster WorkloadRecommendation CRD
 	ResourceType_RESOURCE_TYPE_WORKLOAD_RECOMMENDATION ResourceType = 55
 	// Cluster snapshot type
 	ResourceType_RESOURCE_TYPE_CLUSTER_SNAPSHOT ResourceType = 77

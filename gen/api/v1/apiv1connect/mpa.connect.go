@@ -36,9 +36,6 @@ const (
 	// MpaServiceStreamWorkloadMetricsProcedure is the fully-qualified name of the MpaService's
 	// StreamWorkloadMetrics RPC.
 	MpaServiceStreamWorkloadMetricsProcedure = "/api.v1.MpaService/StreamWorkloadMetrics"
-	// MpaServiceStreamFeedbackProcedure is the fully-qualified name of the MpaService's StreamFeedback
-	// RPC.
-	MpaServiceStreamFeedbackProcedure = "/api.v1.MpaService/StreamFeedback"
 )
 
 // MpaServiceClient is a client for the api.v1.MpaService service.
@@ -46,9 +43,6 @@ type MpaServiceClient interface {
 	// StreamWorkloadMetrics establishes a bidirectional stream where the client (Dakr)
 	// subscribes to workloads, and the server (Zxporter) pushes metric updates.
 	StreamWorkloadMetrics(context.Context) *connect.BidiStreamForClient[v1.MpaWorkloadSubscription, v1.MpaStreamResponse]
-	// StreamFeedback allows the client (Dakr) to send scaling feedback to the server (Zxporter)
-	// for forwarding to the brain service for rule optimization
-	StreamFeedback(context.Context) *connect.BidiStreamForClient[v1.ScalingFeedback, v1.FeedbackAck]
 }
 
 // NewMpaServiceClient constructs a client for the api.v1.MpaService service. By default, it uses
@@ -66,18 +60,12 @@ func NewMpaServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...
 			baseURL+MpaServiceStreamWorkloadMetricsProcedure,
 			opts...,
 		),
-		streamFeedback: connect.NewClient[v1.ScalingFeedback, v1.FeedbackAck](
-			httpClient,
-			baseURL+MpaServiceStreamFeedbackProcedure,
-			opts...,
-		),
 	}
 }
 
 // mpaServiceClient implements MpaServiceClient.
 type mpaServiceClient struct {
 	streamWorkloadMetrics *connect.Client[v1.MpaWorkloadSubscription, v1.MpaStreamResponse]
-	streamFeedback        *connect.Client[v1.ScalingFeedback, v1.FeedbackAck]
 }
 
 // StreamWorkloadMetrics calls api.v1.MpaService.StreamWorkloadMetrics.
@@ -85,19 +73,11 @@ func (c *mpaServiceClient) StreamWorkloadMetrics(ctx context.Context) *connect.B
 	return c.streamWorkloadMetrics.CallBidiStream(ctx)
 }
 
-// StreamFeedback calls api.v1.MpaService.StreamFeedback.
-func (c *mpaServiceClient) StreamFeedback(ctx context.Context) *connect.BidiStreamForClient[v1.ScalingFeedback, v1.FeedbackAck] {
-	return c.streamFeedback.CallBidiStream(ctx)
-}
-
 // MpaServiceHandler is an implementation of the api.v1.MpaService service.
 type MpaServiceHandler interface {
 	// StreamWorkloadMetrics establishes a bidirectional stream where the client (Dakr)
 	// subscribes to workloads, and the server (Zxporter) pushes metric updates.
 	StreamWorkloadMetrics(context.Context, *connect.BidiStream[v1.MpaWorkloadSubscription, v1.MpaStreamResponse]) error
-	// StreamFeedback allows the client (Dakr) to send scaling feedback to the server (Zxporter)
-	// for forwarding to the brain service for rule optimization
-	StreamFeedback(context.Context, *connect.BidiStream[v1.ScalingFeedback, v1.FeedbackAck]) error
 }
 
 // NewMpaServiceHandler builds an HTTP handler from the service implementation. It returns the path
@@ -111,17 +91,10 @@ func NewMpaServiceHandler(svc MpaServiceHandler, opts ...connect.HandlerOption) 
 		svc.StreamWorkloadMetrics,
 		opts...,
 	)
-	mpaServiceStreamFeedbackHandler := connect.NewBidiStreamHandler(
-		MpaServiceStreamFeedbackProcedure,
-		svc.StreamFeedback,
-		opts...,
-	)
 	return "/api.v1.MpaService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case MpaServiceStreamWorkloadMetricsProcedure:
 			mpaServiceStreamWorkloadMetricsHandler.ServeHTTP(w, r)
-		case MpaServiceStreamFeedbackProcedure:
-			mpaServiceStreamFeedbackHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -133,8 +106,4 @@ type UnimplementedMpaServiceHandler struct{}
 
 func (UnimplementedMpaServiceHandler) StreamWorkloadMetrics(context.Context, *connect.BidiStream[v1.MpaWorkloadSubscription, v1.MpaStreamResponse]) error {
 	return connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.MpaService.StreamWorkloadMetrics is not implemented"))
-}
-
-func (UnimplementedMpaServiceHandler) StreamFeedback(context.Context, *connect.BidiStream[v1.ScalingFeedback, v1.FeedbackAck]) error {
-	return connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.MpaService.StreamFeedback is not implemented"))
 }

@@ -13,10 +13,6 @@ service MpaService {
   // StreamWorkloadMetrics establishes a bidirectional stream where the client (Dakr)
   // subscribes to workloads, and the server (Zxporter) pushes metric updates.
   rpc StreamWorkloadMetrics(stream MpaWorkloadSubscription) returns (stream MpaStreamResponse);
-
-  // StreamFeedback allows the client (Dakr) to send scaling feedback to the server (Zxporter)
-  // for forwarding to the brain service for rule optimization
-  rpc StreamFeedback(stream ScalingFeedback) returns (stream FeedbackAck);
 }
 
 // MpaWorkloadSubscription is a message sent by the client to update the subscription list
@@ -54,50 +50,6 @@ message ContainerMetricItem {
   int64 memory_request_bytes = 11;  // Memory request in bytes
   int64 cpu_limit_millis = 12;      // CPU limit in millicores
   int64 memory_limit_bytes = 13;    // Memory limit in bytes
-}
-
-// ScalingFeedback reports the outcome of a scaling decision back to the brain
-message ScalingFeedback {
-  string rule_id = 1;                           // UUID of the WorkloadRule that was evaluated
-  string workload_key = 2;                      // namespace/kind/name of the workload
-  google.protobuf.Timestamp evaluated_at = 3;  // When the evaluation occurred
-  ScalingDecision decision = 4;                // The scaling decision made
-  ContainerMetricItem metrics_before = 5;      // Metrics at time of decision
-  ContainerMetricItem metrics_after = 6;       // Metrics 30s after scaling (if available)
-  bool success = 7;                            // Whether the scaling was successful
-  int64 response_time_ms = 8;                  // Time taken to apply scaling
-  string recommendation_id = 9;                // UUID of the WorkloadRecommendation created
-  string message = 10;                         // Additional context or error message
-}
-
-// ScalingDecision describes the type of scaling that occurred
-message ScalingDecision {
-  ScalingType type = 1;
-  ScalingDirection direction = 2;
-  map<string, int64> resource_changes = 3;     // e.g., {"cpu": 100, "memory": 1073741824}
-  int32 replica_delta = 4;                     // For HPA: +2 means scaled up by 2 replicas
-}
-
-// ScalingType indicates whether this was vertical or horizontal scaling
-enum ScalingType {
-  SCALING_TYPE_UNSPECIFIED = 0;
-  SCALING_TYPE_VERTICAL = 1;
-  SCALING_TYPE_HORIZONTAL = 2;
-}
-
-// ScalingDirection indicates the direction of scaling
-enum ScalingDirection {
-  SCALING_DIRECTION_UNSPECIFIED = 0;
-  SCALING_DIRECTION_UP = 1;
-  SCALING_DIRECTION_DOWN = 2;
-  SCALING_DIRECTION_NONE = 3;  // Rule was evaluated but no scaling was needed
-}
-
-// FeedbackAck acknowledges receipt of feedback
-message FeedbackAck {
-  string rule_id = 1;
-  bool received = 2;
-  string message = 3;  // Any server-side messages (e.g., warnings)
 }
 
 // HistoricalMetricsSummary contains pre-aggregated percentile data from Prometheus
