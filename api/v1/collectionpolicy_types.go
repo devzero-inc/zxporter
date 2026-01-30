@@ -93,6 +93,16 @@ type Exclusions struct {
 	ExcludedCSIDrivers           []string                     `json:"excludedCSIDrivers,omitempty"`
 	ExcludedCSIStorageCapacities []ExcludedCSIStorageCapacity `json:"excludedCSIStorageCapacities,omitempty"`
 	ExcludedVolumeAttachments    []string                     `json:"excludedVolumeAttachments,omitempty"`
+
+	// Kubeflow Notebooks Exclusions
+	ExcludedKubeflowNotebooks []ExcludedKubeflowNotebook `json:"excludedKubeflowNotebooks,omitempty"`
+
+	// VolcanoJobs Exclusions
+	ExcludedVolcanoJobs []ExcludedVolcanoJob `json:"excludedVolcanoJobs,omitempty"`
+
+	// Spark Applications Exclusions
+	ExcludedSparkApplications          []ExcludedSparkApplication          `json:"excludedSparkApplications,omitempty"`
+	ExcludedScheduledSparkApplications []ExcludedScheduledSparkApplication `json:"excludedScheduledSparkApplications,omitempty"`
 }
 
 // Common exclusion patterns
@@ -373,6 +383,42 @@ type ExcludedCSIStorageCapacity struct {
 	Namespace string `json:"namespace"`
 
 	// Name is the CSIStorageCapacity's name
+	Name string `json:"name"`
+}
+
+// ExcludedKubeflowNotebook identifies a Kubeflow Notebook to exclude
+type ExcludedKubeflowNotebook struct {
+	// Namespace is the Kubeflow Notebook's namespace
+	Namespace string `json:"namespace"`
+
+	// Name is the Kubeflow Notebook's name
+	Name string `json:"name"`
+}
+
+// ExcludedVolcanoJob identifies a Volcano Job to exclude
+type ExcludedVolcanoJob struct {
+	// Namespace is the Volcano Job's namespace
+	Namespace string `json:"namespace"`
+
+	// Name is the Volcano Job's name
+	Name string `json:"name"`
+}
+
+// ExcludedSparkApplication identifies a Spark Application to exclude
+type ExcludedSparkApplication struct {
+	// Namespace is the Spark Application's namespace
+	Namespace string `json:"namespace"`
+
+	// Name is the Spark Application's name
+	Name string `json:"name"`
+}
+
+// ExcludedScheduledSparkApplication identifies a Scheduled Spark Application to exclude
+type ExcludedScheduledSparkApplication struct {
+	// Namespace is the Scheduled Spark Application's namespace
+	Namespace string `json:"namespace"`
+
+	// Name is the Scheduled Spark Application's name
 	Name string `json:"name"`
 }
 

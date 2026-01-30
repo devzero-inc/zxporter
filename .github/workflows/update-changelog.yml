@@ -1,0 +1,90 @@
+name: Update Changelog
+
+on:
+  workflow_run:
+    workflows: ["Tag zxporter (manual)"]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-changelog:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - name: Update CHANGELOG.md from releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Generate changelog header (no indentation to avoid leading spaces)
+          printf '%s\n' \
+            "# Changelog" \
+            "" \
+            "All notable changes to this project will be documented in this file." \
+            "The format is based on [Keep a Changelog](https://keepachangelog.com/)." \
+            "" \
+            "For releases prior to automated changelog generation, please see the" \
+            "[GitHub Releases](https://github.com/${{ github.repository }}/releases) page." \
+            "" > CHANGELOG.md
+
+          # Append all (non-draft) releases using JSON for reliable parsing (paginate to include all)
+          gh api --paginate repos/${{ github.repository }}/releases?per_page=100 \
+            | jq -s -r 'add
+              | map(select(.draft == false) | {tagName: .tag_name, publishedAt: .published_at})
+              | .[]
+              | "\(.tagName) \(.publishedAt)"' \
+            | while read -r tag published_at; do
+              formatted_date=$(date -d "$published_at" +%Y-%m-%d 2>/dev/null || echo "$published_at")
+              echo "## [$tag] - $formatted_date"
+              echo ""
+              # Transform top-level headings (## ) to subheadings (### ) for changelog nesting.
+              # Uses negative lookahead pattern to avoid double-transforming already-nested headings.
+              gh release view "$tag" --json body -q '.body' | sed 's/^##\([^#]\)/###\1/'
+              echo ""
+            done >> CHANGELOG.md
+
+      - name: Create PR for CHANGELOG.md update
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add CHANGELOG.md
+
+          if git diff --staged --quiet; then
+            echo "No changelog changes to commit"
+            exit 0
+          fi
+
+          # Latest stable release tag (since you only do releases)
+          LATEST_TAG=$(gh api repos/${{ github.repository }}/releases/latest --jq '.tag_name')
+
+          if [[ -z "$LATEST_TAG" || "$LATEST_TAG" == "null" ]]; then
+            echo "Error: No latest release tag found"
+            exit 1
+          fi
+
+          BRANCH_NAME="chore/update-changelog-${LATEST_TAG}"
+          git checkout -B "$BRANCH_NAME"
+          git commit -m "chore: update changelog for ${LATEST_TAG}"
+          git push --force-with-lease origin "$BRANCH_NAME"
+
+          # Create PR only if one doesn't already exist for this branch
+          if gh pr view "$BRANCH_NAME" --json state -q '.state' 2>/dev/null | grep -q "OPEN"; then
+            echo "PR already exists for $BRANCH_NAME; skipping creation."
+          else
+            gh pr create \
+              --title "chore: update changelog for ${LATEST_TAG}" \
+              --body "Automated changelog update for release ${LATEST_TAG}" \
+              --base main \
+              --head "$BRANCH_NAME"
+          fi

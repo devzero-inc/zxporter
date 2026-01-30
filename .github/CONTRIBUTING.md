@@ -13,6 +13,7 @@ By participating in this project, you agree to abide by our [Code of Conduct](.g
 - [Reporting Issues](#reporting-issues)
 - [Pull Request Guidelines](#pull-request-guidelines)
 - [Commit Message Guidelines](#commit-message-guidelines)
+- [Changelog and Release Labels](#changelog-and-release-labels)
 - [Testing](#testing)
 - [Linting](#linting)
 - [Documentation](#documentation)
@@ -60,6 +61,33 @@ When you're ready to contribute code:
 - Write clear and descriptive commit messages.
 - Reference GitHub issues using the format `fix: Message`.
 - Follow conventional commit formats if possible, keeping messages brief yet descriptive.
+
+---
+
+## Changelog and Release Labels
+
+This project uses [GitHub's automatic release notes](https://docs.github.com/en/repositories/releasing-projects-on-github/automatically-generated-release-notes) to generate changelogs.
+
+### PR Labels for Changelog Categories
+
+When submitting a PR, add one of these labels to categorize your change:
+
+| Label | Changelog Section |
+|-------|-------------------|
+| `changelog:added` | Added |
+| `changelog:changed` | Changed |
+| `changelog:fixed` | Fixed |
+| `changelog:removed` | Removed |
+| `changelog:security` | Security |
+
+PRs without labels appear under "Other Changes".
+
+### Creating a Release
+
+Releases are created via the `create-tag-and-exit` workflow, which:
+1. Creates a GitHub Release with auto-generated notes
+2. Updates CHANGELOG.md from all releases
+3. Triggers the image build workflow
 
 ---
 

@@ -69,7 +69,7 @@ require (
 
 require (
 	cel.dev/expr v0.24.0 // indirect
-	github.com/expr-lang/expr v1.17.2 // indirect
+	github.com/expr-lang/expr v1.17.7 // indirect
 	github.com/google/btree v1.1.3 // indirect
 	// TODO: Using specific commit version because of issue with custom validator webhook: https://github.com/kedacore/keda/pull/6700/files
 	github.com/kedacore/keda/v2 v2.17.3

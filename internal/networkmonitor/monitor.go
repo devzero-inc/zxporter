@@ -27,6 +27,8 @@ type Config struct {
 	CleanupInterval time.Duration
 	FlushInterval   time.Duration
 	NodeName        string
+	OperatorVersion string
+	OperatorCommit  string
 }
 
 // NetworkFlow represents a single aggregated network flow
@@ -520,10 +522,12 @@ func (m *Monitor) flush(ctx context.Context) error {
 
 	// 4. Send Request
 	req := &gen.SendNetworkTrafficMetricsRequest{
-		NodeName:   m.cfg.NodeName,
-		Items:      items,
-		DnsLookups: dnsLookupItems,
-		Ip2Domain:  dnsRecords,
+		NodeName:        m.cfg.NodeName,
+		Items:           items,
+		DnsLookups:      dnsLookupItems,
+		Ip2Domain:       dnsRecords,
+		OperatorVersion: &m.cfg.OperatorVersion,
+		OperatorCommit:  &m.cfg.OperatorCommit,
 	}
 
 	_, err := m.dakrClient.SendNetworkTrafficMetrics(ctx, req)
