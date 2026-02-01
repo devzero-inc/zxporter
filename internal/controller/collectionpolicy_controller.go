@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"reflect"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -75,6 +76,18 @@ type CollectionPolicyReconciler struct {
 	CurrentConfig     *PolicyConfig
 	RestartInProgress bool
 	MpaServerPort     int
+
+	// pendingCollectors tracks collector factories that were skipped due to CRD unavailability
+	// and should be retried periodically
+	pendingCollectors []pendingCollector
+	pendingMu         sync.Mutex
+}
+
+// pendingCollector represents a collector that was unavailable at registration time
+// and should be retried when its CRD becomes available
+type pendingCollector struct {
+	name    collector.ResourceType
+	factory func() collector.ResourceCollector
 }
 
 // PolicyConfig holds the current configuration
@@ -310,7 +323,47 @@ func (r *CollectionPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		return r.initializeCollectors(ctx, newConfig)
 	}
 
+	// Retry any collectors that were unavailable at startup (e.g., CRDs installed after zxporter)
+	r.retryPendingCollectors(ctx)
+
 	return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
+}
+
+// retryPendingCollectors checks if previously unavailable collectors (e.g., CRDs installed
+// after zxporter startup) have become available and registers/starts them.
+func (r *CollectionPolicyReconciler) retryPendingCollectors(ctx context.Context) {
+	r.pendingMu.Lock()
+	defer r.pendingMu.Unlock()
+
+	if len(r.pendingCollectors) == 0 {
+		return
+	}
+
+	logger := r.Log.WithName("retry-pending")
+	var stillPending []pendingCollector
+
+	for _, pc := range r.pendingCollectors {
+		newCollector := pc.factory()
+		if newCollector.IsAvailable(ctx) {
+			logger.Info("Previously unavailable collector is now available, registering",
+				"type", pc.name.String())
+			if err := r.CollectionManager.RegisterCollector(newCollector); err != nil {
+				logger.Error(err, "Failed to register collector", "type", pc.name.String())
+				stillPending = append(stillPending, pc)
+				continue
+			}
+			if err := r.CollectionManager.StartCollector(ctx, pc.name.String()); err != nil {
+				logger.Error(err, "Failed to start collector", "type", pc.name.String())
+				continue
+			}
+			logger.Info("Successfully started previously unavailable collector",
+				"type", pc.name.String())
+		} else {
+			stillPending = append(stillPending, pc)
+		}
+	}
+
+	r.pendingCollectors = stillPending
 }
 
 // createNewConfig creates a new config by merging policy and environment variables
@@ -2166,9 +2219,11 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 	}
 
 	// List of collectors to register
+	// factory is non-nil for CRD-based collectors that may not be available at startup
 	collectors := []struct {
 		collector collector.ResourceCollector
 		name      collector.ResourceType
+		factory   func() collector.ResourceCollector
 	}{
 		{
 			collector: collector.NewEndpointCollector(
@@ -2582,6 +2637,15 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				r.TelemetryLogger,
 			),
 			name: collector.Karpenter,
+			factory: func() collector.ResourceCollector {
+				return collector.NewKarpenterCollector(
+					r.DynamicClient,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+					r.TelemetryLogger,
+				)
+			},
 		},
 		{
 			collector: collector.NewDatadogCollector(
@@ -2594,6 +2658,17 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				r.TelemetryLogger,
 			),
 			name: collector.Datadog,
+			factory: func() collector.ResourceCollector {
+				return collector.NewDatadogCollector(
+					r.DynamicClient,
+					config.TargetNamespaces,
+					config.ExcludedDatadogReplicaSets,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+					r.TelemetryLogger,
+				)
+			},
 		},
 		{
 			collector: collector.NewArgoRolloutsCollector(
@@ -2606,6 +2681,17 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				r.TelemetryLogger,
 			),
 			name: collector.ArgoRollouts,
+			factory: func() collector.ResourceCollector {
+				return collector.NewArgoRolloutsCollector(
+					r.DynamicClient,
+					config.TargetNamespaces,
+					config.ExcludedArgoRollouts,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+					r.TelemetryLogger,
+				)
+			},
 		},
 		{
 			collector: collector.NewCRDCollector(
@@ -2628,6 +2714,17 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				r.TelemetryLogger,
 			),
 			name: collector.KedaScaledJob,
+			factory: func() collector.ResourceCollector {
+				return collector.NewScaledJobCollector(
+					r.KEDAClient,
+					config.TargetNamespaces,
+					config.ExcludedKedaScaledJobs,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+					r.TelemetryLogger,
+				)
+			},
 		},
 		{
 			collector: collector.NewScaledObjectCollector(
@@ -2640,6 +2737,17 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				r.TelemetryLogger,
 			),
 			name: collector.KedaScaledObject,
+			factory: func() collector.ResourceCollector {
+				return collector.NewScaledObjectCollector(
+					r.KEDAClient,
+					config.TargetNamespaces,
+					config.ExcludedKedaScaledObjects,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+					r.TelemetryLogger,
+				)
+			},
 		},
 		{
 			collector: snap.NewClusterSnapshotter(
@@ -2700,6 +2808,17 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				r.TelemetryLogger,
 			),
 			name: collector.KubeflowNotebook,
+			factory: func() collector.ResourceCollector {
+				return collector.NewKubeflowNotebookCollector(
+					r.DynamicClient,
+					config.TargetNamespaces,
+					config.ExcludedKubeflowNotebooks,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+					r.TelemetryLogger,
+				)
+			},
 		},
 		{
 			collector: collector.NewVolcanoJobCollector(
@@ -2712,6 +2831,17 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				r.TelemetryLogger,
 			),
 			name: collector.VolcanoJob,
+			factory: func() collector.ResourceCollector {
+				return collector.NewVolcanoJobCollector(
+					r.DynamicClient,
+					config.TargetNamespaces,
+					config.ExcludedVolcanoJobs,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+					r.TelemetryLogger,
+				)
+			},
 		},
 		{
 			collector: collector.NewSparkApplicationCollector(
@@ -2724,6 +2854,17 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				r.TelemetryLogger,
 			),
 			name: collector.SparkApplication,
+			factory: func() collector.ResourceCollector {
+				return collector.NewSparkApplicationCollector(
+					r.DynamicClient,
+					config.TargetNamespaces,
+					config.ExcludedSparkApplications,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+					r.TelemetryLogger,
+				)
+			},
 		},
 		{
 			collector: collector.NewScheduledSparkApplicationCollector(
@@ -2736,6 +2877,17 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				r.TelemetryLogger,
 			),
 			name: collector.ScheduledSparkApplication,
+			factory: func() collector.ResourceCollector {
+				return collector.NewScheduledSparkApplicationCollector(
+					r.DynamicClient,
+					config.TargetNamespaces,
+					config.ExcludedScheduledSparkApplications,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+					r.TelemetryLogger,
+				)
+			},
 		},
 		// WorkloadRecommendation collector for syncing in-cluster recommendations back to control plane
 		{
@@ -2748,6 +2900,16 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				r.TelemetryLogger,
 			),
 			name: collector.WorkloadRecommendation,
+			factory: func() collector.ResourceCollector {
+				return collector.NewWorkloadRecommendationCollector(
+					r.DynamicClient,
+					config.TargetNamespaces,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+					r.TelemetryLogger,
+				)
+			},
 		},
 	}
 
@@ -2810,6 +2972,17 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				},
 			)
 			logger.Info("Collector not available, skipping registration", "type", c.name.String())
+
+			// Track CRD-based collectors for deferred retry when their CRDs become available
+			if c.factory != nil {
+				r.pendingMu.Lock()
+				r.pendingCollectors = append(r.pendingCollectors, pendingCollector{
+					name:    c.name,
+					factory: c.factory,
+				})
+				r.pendingMu.Unlock()
+				logger.Info("Added collector to pending retry list", "type", c.name.String())
+			}
 		}
 	}
 

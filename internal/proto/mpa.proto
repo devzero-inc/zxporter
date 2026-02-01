@@ -50,6 +50,14 @@ message ContainerMetricItem {
   int64 memory_request_bytes = 11;  // Memory request in bytes
   int64 cpu_limit_millis = 12;      // CPU limit in millicores
   int64 memory_limit_bytes = 13;    // Memory limit in bytes
+
+  // Network metrics (bytes/sec, placeholder until collection extended)
+  int64 network_receive_bytes_per_sec = 14;
+  int64 network_transmit_bytes_per_sec = 15;
+
+  // Disk metrics (bytes/sec, placeholder until collection extended)
+  int64 disk_read_bytes_per_sec = 16;
+  int64 disk_write_bytes_per_sec = 17;
 }
 
 // HistoricalMetricsSummary contains pre-aggregated percentile data from Prometheus
@@ -70,12 +78,26 @@ message ContainerHistoricalMetrics {
   int64 cpu_p80 = 4;
   int64 cpu_p90 = 5;
   int64 cpu_p99 = 6;
+  int64 cpu_p95 = 12;
   // Memory percentiles in bytes
   int64 mem_p50 = 7;
   int64 mem_p75 = 8;
   int64 mem_p80 = 9;
   int64 mem_p90 = 10;
   int64 mem_p99 = 11;
+  int64 mem_p95 = 13;
+  // Network percentiles in bytes/sec (placeholder until collection extended)
+  int64 net_p50 = 14;
+  int64 net_p80 = 15;
+  int64 net_p90 = 16;
+  int64 net_p95 = 17;
+  int64 net_p99 = 18;
+  // Disk percentiles in bytes/sec (placeholder until collection extended)
+  int64 disk_p50 = 19;
+  int64 disk_p80 = 20;
+  int64 disk_p90 = 21;
+  int64 disk_p95 = 22;
+  int64 disk_p99 = 23;
 }
 
 // MpaStreamResponse wraps both real-time and historical data on the same stream

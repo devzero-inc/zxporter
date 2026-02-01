@@ -1,0 +1,94 @@
+# Default values for zxporter.
+#
+# REQUIRED FIELDS:
+# The following fields MUST be configured before deployment:
+# 1. zxporter.clusterToken OR zxporter.patToken (at least one required)
+# 2. zxporter.kubeContextName - unique identifier for your cluster
+# 3. zxporter.k8sProvider - one of: aws, gcp, azure, oci, other
+#
+# For production deployments, we recommend using patToken for automatic token exchange.
+
+namespace: devzero-zxporter
+
+image:
+  repository: zvonimirtomesic/zxporter
+  pullPolicy: IfNotPresent
+  tag: "v14-local"
+
+# ZXPorter configuration
+zxporter:
+  dakrUrl: "http://host.docker.internal:9990"
+  prometheusUrl: "http://prometheus-dz-prometheus-server.devzero-zxporter.svc.cluster.local:80"
+  targetNamespaces: ""
+  # Cluster token for authentication with the DevZero platform
+  # Required: Either clusterToken or patToken must be provided
+  clusterToken: ""
+
+  # Personal Access Token (PAT) for automatic cluster token exchange
+  # If clusterToken is not provided but patToken is, the system will
+  # automatically exchange the PAT for a cluster token on startup
+  # This is the recommended approach for production deployments
+  # Example: "dzu-aKAAyJgsrblR0dFmgnoB_sQjiVNs-I3Y4gI7jJnePgs="
+  patToken: "dzu-483M8cGeRnRl_opY6F3OZS5dqHKmuiIDU_duwmNc_ew="
+
+  # Kubernetes context name to identify this cluster
+  # Required: Must be set to a unique identifier for your cluster
+  # Examples:
+  #   - EKS: "arn:aws:eks:us-west-2:123456789012:cluster/my-cluster"
+  #   - GKE: "gke_my-project_us-central1-a_my-cluster"
+  #   - AKS: "my-aks-cluster"
+  #   - OCI: "ocid1.cluster.oc1.iad.aaaaaaaa..."
+  #   - Other: "production-cluster" or "staging-cluster"
+  kubeContextName: "mpa-local"
+
+  # Kubernetes provider type
+  # Required: Must be one of: "aws", "gcp", "azure", "oci", "other"
+  # This helps optimize collection for specific cloud providers
+  k8sProvider: "other"
+  # Set to true to store CLUSTER_TOKEN and PAT_TOKEN in Kubernetes Secrets instead of ConfigMap
+  # Default is false for backward compatibility
+  useSecretForToken: false
+
+  # Log level for the zxporter application
+  # Valid values: debug, info, error
+  # Default: error
+  logLevel: "debug"
+
+  # Resource names for token storage (configurable for different environments)
+  # Input credentials Secret: Contains initial PAT/CLUSTER tokens (user-managed)
+  tokenCredentialsSecretName: "devzero-zxporter-credentials"
+  # Runtime token Secret: Contains exchanged tokens (system-managed)
+  tokenSecretName: "devzero-zxporter-token"
+  # ConfigMap: Contains configuration and tokens when useSecretForToken=false
+  tokenConfigMapName: "devzero-zxporter-env-config"
+
+# Monitoring components (set to false to use your own Prometheus/Node Exporter)
+monitoring:
+  enabled: true
+  prometheus:
+    enabled: true
+  nodeExporter:
+    enabled: true
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# High Availability Configuration
+highAvailability:
+  enabled: false
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+    # Alternative: maxUnavailable: 1
+
+# MPA Server Configuration
+mpaServer:
+  port: 50051
+
+# Priority Class for critical workloads
+priorityClass:
+  enabled: true
+  value: 1000000000
+  description: "This priority class is for critical zxporter infrastructure components."
+  preemptionPolicy: PreemptLowerPriority
