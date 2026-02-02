@@ -170,7 +170,7 @@ serverFiles:
         metric_relabel_configs:
           # Keep node network and disk metrics
           - source_labels: [__name__]
-            regex: "node_network_(receive|transmit)_(bytes|packets|errs|drop)_total|node_disk_(read_bytes|written_bytes|reads_completed|writes_completed)_total"
+            regex: "node_network_(receive|transmit)_(bytes|packets|errs|drop)_total|node_disk_(read_bytes|written_bytes|reads_completed|writes_completed)_total|kubelet_volume_stats_(used|capacity|available)_bytes"
             action: keep
 
       - job_name: "kubernetes-nodes-cadvisor"
@@ -220,7 +220,7 @@ serverFiles:
         metric_relabel_configs:
           # Keep only the specific metrics we need for network I/O monitoring
           - source_labels: [__name__]
-            regex: "container_network_(receive|transmit)_(bytes|packets|errors|packets_dropped)_total|container_fs_(reads|writes)_(bytes_)?total"
+            regex: "container_network_(receive|transmit)_(bytes|packets|errors|packets_dropped)_total|container_fs_(reads|writes)_(bytes_)?total|kubelet_volume_stats_(used|capacity|available)_bytes"
             action: keep
           # Drop all other container metrics (saves ~90% of cAdvisor metrics)
           # Drop high-cardinality labels we don't use
@@ -521,7 +521,7 @@ serverFiles:
 
         metric_relabel_configs:
           - action: keep
-            regex: "node_network_(receive|transmit)_(bytes|packets|errs|drop)_total|node_disk_(read_bytes|written_bytes|reads_completed|writes_completed)_total"
+            regex: "node_network_(receive|transmit)_(bytes|packets|errs|drop)_total|node_disk_(read_bytes|written_bytes|reads_completed|writes_completed)_total|kubelet_volume_stats_(used|capacity|available)_bytes"
             source_labels:
               - __name__
 ## DEVZERO COMMENTED OUT TO PREVENT SCRAPING
