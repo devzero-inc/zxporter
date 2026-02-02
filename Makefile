@@ -60,7 +60,7 @@ DAKR_URL ?= https://dakr.devzero.io
 # PROMETHEUS URL for metrics collection
 PROMETHEUS_URL ?= http://prometheus-dz-prometheus-server.$(DEVZERO_MONITORING_NAMESPACE).svc.cluster.local:80
 # TARGET_NAMESPACES for limiting collection to specific namespaces (comma-separated)
-TARGET_NAMESPACES ?= 
+TARGET_NAMESPACES ?=
 # COLLECTION_FILE is used to control the collectionpolicies.
 COLLECTION_FILE ?= env_configmap.yaml
 # ENV_CONFIGMAP_FILE is used to control the zxporter-manager deployment.
@@ -161,6 +161,32 @@ lint: golangci-lint ## Run golangci-lint linter
 .PHONY: lint-fix
 lint-fix: golangci-lint ## Run golangci-lint linter and perform fixes
 	$(GOLANGCI_LINT) run --fix
+
+PRE_COMMIT ?= .venv/bin/pre-commit
+
+.venv/bin/pre-commit:
+	python3 -m venv .venv
+	.venv/bin/pip install --upgrade pip pre-commit
+
+.PHONY: pre-commit-install
+pre-commit-install: .venv/bin/pre-commit ## Install pre-commit hooks (optional).
+	$(PRE_COMMIT) install --install-hooks
+
+.PHONY: pre-commit
+pre-commit: pre-commit-tools .venv/bin/pre-commit ## Run pre-commit on all files.
+	PATH="$(PWD)/.tools/bin:$$PATH" $(PRE_COMMIT) run --all-files
+
+.PHONY: pre-commit-tools
+pre-commit-tools: ## Install Go tools needed by pre-commit.
+	@mkdir -p .tools/bin
+	GOBIN="$(PWD)/.tools/bin" go install golang.org/x/tools/cmd/goimports@v0.30.0
+	GOBIN="$(PWD)/.tools/bin" go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.62.2
+
+.PHONY: pre-commit-install-tool
+pre-commit-install-tool: .venv/bin/pre-commit ## Install pre-commit into a local virtualenv.
+
+.PHONY: pre-commit-setup
+pre-commit-setup: pre-commit-install-tool pre-commit-tools ## Install pre-commit and tools (hooks are optional).
 
 GITVERSION ?= $(shell git describe --tags 2>/dev/null || echo "v0.0.0-$(shell git rev-parse --short HEAD)")
 
@@ -354,7 +380,7 @@ build-installer: manifests generate kustomize yq ## Generate a consolidated YAML
 	# @cat $(METRICS_SERVER) >> $(DIST_INSTALL_BUNDLE)
 	# @echo "# ----- END METRICS SERVER -----" >> $(DIST_INSTALL_BUNDLE)
 	@echo "---" >> $(DIST_INSTALL_BUNDLE)
-	
+
 	@echo "[INFO] Append zxporter-manager to the installer bundle"
 	@cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
 
@@ -396,11 +422,11 @@ HELM_CHART_PACKAGE_DIR := helm-chart/packages
 helm-chart-build: helm ## Build and package the Helm chart
 	@echo "[INFO] Building Helm chart..."
 	@mkdir -p $(HELM_CHART_PACKAGE_DIR)
-	
+
 	# Update chart version and appVersion
 	@$(YQ) eval '.version = "$(VERSION)"' -i $(HELM_CHART_DIR)/Chart.yaml
 	@$(YQ) eval '.appVersion = "$(VERSION)"' -i $(HELM_CHART_DIR)/Chart.yaml
-	
+
 	# Package the chart
 	@$(HELM) package $(HELM_CHART_DIR) --destination $(HELM_CHART_PACKAGE_DIR)
 	@echo "[INFO] Helm chart packaged successfully"
@@ -681,7 +707,7 @@ install-buf: ## Install buf if not already installed
 		echo "$(BUF_BINARY_NAME) is already installed."; \
 	fi
 
-# (for local dev) Get metadata to generate a Dakr client. 
+# (for local dev) Get metadata to generate a Dakr client.
 .PHONY: generate-proto
 generate-proto: install-buf ## Fetch latest Dakr protobuf
 	@PROTO_DIR="$(PWD)/proto"; \
@@ -693,7 +719,7 @@ generate-proto: install-buf ## Fetch latest Dakr protobuf
 	cp "$(DAKR_MPA_PROTO)" "$$PROTO_DIR/api/v1"; \
 	find "$$PROTO_DIR" -type f -name "*.yaml" -exec perl -pi -e 's|github.com/devzero-inc/services/dakr/gen|github.com/devzero-inc/zxporter/gen|g' {} +; \
 	buf build "$(DAKR_DIR)" --path "$(DAKR_METRICS_COLLECTOR_PROTO)" --path "$(DAKR_CLUSTER_PROTO)" -o "$$PROTO_DIR"/dakr_proto_descriptor.bin; \
-	buf generate --include-imports "$$PROTO_DIR"/dakr_proto_descriptor.bin; 
+	buf generate --include-imports "$$PROTO_DIR"/dakr_proto_descriptor.bin;
 	buf generate --verbose --include-imports --timeout=5m .
 
 ##@ Verification
@@ -716,7 +742,7 @@ verify-local: setup-lima
 	@chmod +x verification/verify_local.sh
 	@./verification/verify_local.sh $(LIMA_INSTANCE)
 
-# for local, this will be something like: 
+# for local, this will be something like:
 #         make verify-e2e CLUSTER_CONTEXT=kind-zxporter-e2e NAMESPACE=devzero-zxporter
 .PHONY: verify-e2e
 verify-e2e: ## Run E2E verification on a Kind or Cloud cluster

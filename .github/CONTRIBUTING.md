@@ -16,6 +16,7 @@ By participating in this project, you agree to abide by our [Code of Conduct](.g
 - [Changelog and Release Labels](#changelog-and-release-labels)
 - [Testing](#testing)
 - [Linting](#linting)
+- [Pre-Commit Hooks](#pre-commit-hooks)
 - [Documentation](#documentation)
 - [Component-Specific Guidelines](#component-specific-guidelines)
 - [Backporting Changes](#backporting-changes)
@@ -39,19 +40,19 @@ If you discover a bug, have a feature request, or need to provide feedback, plea
 
 When you're ready to contribute code:
 
-1. **Fork and Clone**  
+1. **Fork and Clone**
    Fork the repository and clone it to your local machine.
-2. **Create a Branch**  
+2. **Create a Branch**
    Create a feature branch from the appropriate base branch (typically `main`).
-3. **Make Changes**  
+3. **Make Changes**
    Implement your changes, ensuring they adhere to the project's coding standards.
-4. **Run Tests**  
+4. **Run Tests**
    Verify that all tests pass locally. Refer to the testing section below for more details.
-5. **Update Documentation**  
+5. **Update Documentation**
    Update or add documentation as needed in the corresponding directories.
-6. **Commit and Push**  
+6. **Commit and Push**
    Write clear commit messages that reference the related issue (e.g., "fix: Description of fix").
-7. **Open a Pull Request**  
+7. **Open a Pull Request**
    Submit a pull request (PR) with a detailed description of your changes and link any related issues.
 
 ---
@@ -131,6 +132,35 @@ Linting rules are configured in `.golangci.yml` at the repository root. The conf
 - Run `make lint` before committing to catch issues early
 - Use `make lint-fix` to automatically fix formatting issues
 - If a lint rule seems incorrect for your use case, discuss it in the PR rather than disabling it
+
+---
+
+## Pre-Commit Hooks
+
+We use pre-commit hooks to catch issues before code is committed.
+Local hooks are optional; by default nothing runs on commit unless you install hooks yourself.
+
+### Quick setup
+
+Run: `make pre-commit-setup` (bootstraps `.venv` and installs Go tools into `.tools/bin`).
+
+### Run hooks manually
+
+Run: `make pre-commit`.
+
+### Optional: enable pre-commit on every commit
+
+Run: `make pre-commit-install`.
+
+### Troubleshooting
+
+If setup fails, you can run the steps individually:
+
+- Run: `make pre-commit-install-tool`.
+- Run: `make pre-commit-tools`.
+- Run: `make pre-commit-install`.
+
+<!-- todo? remove scope later when all old lint errors are fixed -->
 
 ---
 
