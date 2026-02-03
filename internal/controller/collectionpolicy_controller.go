@@ -270,7 +270,7 @@ type PolicyConfig struct {
 // +kubebuilder:rbac:groups=sparkoperator.k8s.io,resources=sparkapplications;scheduledsparkapplications,verbs=get;list;watch
 
 // WorkloadRecommendation CRD for syncing in-cluster recommendations back to control plane
-//+kubebuilder:rbac:groups=dakr.devzero.io,resources=workloadrecommendations,verbs=get;list;watch
+// +kubebuilder:rbac:groups=dakr.devzero.io,resources=workloadrecommendations,verbs=get;list;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.

@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"reflect"
-	"sync"
 	"time"
 
 	telemetry_logger "github.com/devzero-inc/zxporter/internal/logger"
@@ -31,7 +30,6 @@ type WorkloadRecommendationCollector struct {
 	namespaces      []string
 	logger          logr.Logger
 	telemetryLogger telemetry_logger.Logger
-	mu              sync.RWMutex
 }
 
 // WorkloadRecommendation CRD resource identifier
@@ -152,7 +150,7 @@ func (c *WorkloadRecommendationCollector) Start(ctx context.Context) error {
 	go func() {
 		select {
 		case <-ctx.Done():
-			c.Stop()
+			_ = c.Stop()
 		case <-stopCh:
 			// Channel was closed by Stop() method
 		}

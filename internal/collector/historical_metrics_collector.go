@@ -50,18 +50,11 @@ func (c *HistoricalMetricsCollector) FetchPercentiles(ctx context.Context, workl
 	now := time.Now()
 	windowStart := now.Add(-historicalWindow)
 
-	var containerResults []*gen.ContainerHistoricalMetrics
+	containerResults := make([]*gen.ContainerHistoricalMetrics, 0, len(workload.Containers))
 	var totalSamples int32
 
 	for _, containerName := range workload.Containers {
-		metrics, samples, err := c.fetchContainerPercentiles(ctx, workload, containerName, now)
-		if err != nil {
-			c.logger.Error(err, "Failed to fetch percentiles for container",
-				"container", containerName,
-				"workload", workload.WorkloadName,
-			)
-			continue
-		}
+		metrics, samples := c.fetchContainerPercentiles(ctx, workload, containerName, now)
 		containerResults = append(containerResults, metrics)
 		if samples > totalSamples {
 			totalSamples = samples
@@ -139,7 +132,7 @@ func (c *HistoricalMetricsCollector) DiscoverContainers(ctx context.Context, nam
 	return containers, nil
 }
 
-func (c *HistoricalMetricsCollector) fetchContainerPercentiles(ctx context.Context, workload HistoricalWorkloadQuery, containerName string, now time.Time) (*gen.ContainerHistoricalMetrics, int32, error) {
+func (c *HistoricalMetricsCollector) fetchContainerPercentiles(ctx context.Context, workload HistoricalWorkloadQuery, containerName string, now time.Time) (*gen.ContainerHistoricalMetrics, int32) {
 	percentiles := []float64{0.50, 0.75, 0.80, 0.90, 0.99}
 
 	cpuValues := make(map[float64]int64)
@@ -200,7 +193,7 @@ func (c *HistoricalMetricsCollector) fetchContainerPercentiles(ctx context.Conte
 		MemP80:        memValues[0.80],
 		MemP90:        memValues[0.90],
 		MemP99:        memValues[0.99],
-	}, sampleCount, nil
+	}, sampleCount
 }
 
 func (c *HistoricalMetricsCollector) queryScalar(ctx context.Context, query string, ts time.Time) (float64, error) {
