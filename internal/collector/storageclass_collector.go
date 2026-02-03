@@ -71,7 +71,8 @@ func NewStorageClassCollector(
 		excludedStorageClasses: excludedStorageClassesMap,
 		logger:                 newLogger,
 		telemetryLogger:        telemetryLogger,
-		cDHelper:               ChangeDetectionHelper{logger: newLogger}}
+		cDHelper:               ChangeDetectionHelper{logger: newLogger},
+	}
 }
 
 // Start begins the StorageClass collection process

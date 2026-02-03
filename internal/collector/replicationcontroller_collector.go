@@ -77,7 +77,8 @@ func NewReplicationControllerCollector(
 		excludedReplicationControllers: excludedReplicationControllersMap,
 		logger:                         newLogger,
 		telemetryLogger:                telemetryLogger,
-		cDHelper:                       ChangeDetectionHelper{logger: newLogger}}
+		cDHelper:                       ChangeDetectionHelper{logger: newLogger},
+	}
 }
 
 // Start begins the replicationcontroller collection process

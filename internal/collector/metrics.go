@@ -24,12 +24,12 @@ type TelemetryMetrics struct {
 	RequestDuration  *prometheus.HistogramVec
 	MessagesIngested *prometheus.CounterVec
 	MessagesSent     *prometheus.CounterVec
+	MessagesDropped  *prometheus.CounterVec
 	AllMetrics       []ResettableCollector
 }
 
 // NewTelemetryMetrics creates and registers Prometheus metrics
 func NewTelemetryMetrics() *TelemetryMetrics {
-
 	requestDuration := promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "prometheus_request_duration_seconds",
@@ -52,15 +52,24 @@ func NewTelemetryMetrics() *TelemetryMetrics {
 		},
 		[]string{"collector"},
 	)
+	messagesDropped := promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "collector_messages_dropped_total",
+			Help: "Total number of messages dropped due to full combined channel buffer",
+		},
+		[]string{"collector"},
+	)
 
 	return &TelemetryMetrics{
 		RequestDuration:  requestDuration,
 		MessagesIngested: messagesIngested,
 		MessagesSent:     messagesSent,
+		MessagesDropped:  messagesDropped,
 		AllMetrics: []ResettableCollector{
 			requestDuration,
 			messagesIngested,
 			messagesSent,
+			messagesDropped,
 		},
 	}
 }

@@ -171,7 +171,6 @@ func (c *DeploymentCollector) handleDeploymentEvent(deployment *appsv1.Deploymen
 
 // deploymentChanged detects meaningful changes in a deployment
 func (c *DeploymentCollector) deploymentChanged(oldDeployment, newDeployment *appsv1.Deployment) bool {
-
 	changed := c.cDHelper.objectMetaChanged(
 		c.GetType(),
 		oldDeployment.Name,

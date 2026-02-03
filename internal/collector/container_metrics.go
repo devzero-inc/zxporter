@@ -34,15 +34,20 @@ type ContainerMetricsSnapshot struct {
 	RestartCount          int64  `json:"restartCount"`
 	LastTerminationReason string `json:"lastTerminationReason"`
 
-	// Network metrics
-	NetworkReceiveBytes    float64 `json:"networkReceiveBytes,omitempty"`
-	NetworkTransmitBytes   float64 `json:"networkTransmitBytes,omitempty"`
-	NetworkReceivePackets  float64 `json:"networkReceivePackets,omitempty"`
-	NetworkTransmitPackets float64 `json:"networkTransmitPackets,omitempty"`
-	NetworkReceiveErrors   float64 `json:"networkReceiveErrors,omitempty"`
-	NetworkTransmitErrors  float64 `json:"networkTransmitErrors,omitempty"`
-	NetworkReceiveDropped  float64 `json:"networkReceiveDropped,omitempty"`
-	NetworkTransmitDropped float64 `json:"networkTransmitDropped,omitempty"`
+	// Network metrics (pod-level aggregated - shared across all containers in pod)
+	// NetworkMetricsArePodLevel indicates that network metrics represent the entire pod,
+	// not just this container. In Kubernetes, network metrics are only available at the
+	// pod level because all containers share the same network namespace.
+	NetworkMetricsArePodLevel bool    `json:"networkMetricsArePodLevel,omitempty"`
+	PodContainerCount         int     `json:"podContainerCount,omitempty"` // Number of containers in the pod
+	NetworkReceiveBytes       float64 `json:"networkReceiveBytes,omitempty"`
+	NetworkTransmitBytes      float64 `json:"networkTransmitBytes,omitempty"`
+	NetworkReceivePackets     float64 `json:"networkReceivePackets,omitempty"`
+	NetworkTransmitPackets    float64 `json:"networkTransmitPackets,omitempty"`
+	NetworkReceiveErrors      float64 `json:"networkReceiveErrors,omitempty"`
+	NetworkTransmitErrors     float64 `json:"networkTransmitErrors,omitempty"`
+	NetworkReceiveDropped     float64 `json:"networkReceiveDropped,omitempty"`
+	NetworkTransmitDropped    float64 `json:"networkTransmitDropped,omitempty"`
 
 	// I/O metrics
 	FsReadBytes  float64 `json:"fsReadBytes,omitempty"`

@@ -77,7 +77,8 @@ func NewResourceQuotaCollector(
 		excludedResourceQuotas: excludedResourceQuotasMap,
 		logger:                 newLogger,
 		telemetryLogger:        telemetryLogger,
-		cDHelper:               ChangeDetectionHelper{logger: newLogger}}
+		cDHelper:               ChangeDetectionHelper{logger: newLogger},
+	}
 }
 
 // Start begins the resourcequota collection process

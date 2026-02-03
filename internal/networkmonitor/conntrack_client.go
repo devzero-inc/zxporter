@@ -46,7 +46,7 @@ type NetfilterClient struct {
 
 func NewNetfilterClient(log logr.Logger) (Client, error) {
 	// Ensure accounting is enabled
-	_ = os.WriteFile("/proc/sys/net/netfilter/nf_conntrack_acct", []byte{'1'}, 0600)
+	_ = os.WriteFile("/proc/sys/net/netfilter/nf_conntrack_acct", []byte{'1'}, 0o600)
 
 	nfct, err := ct.Open(&ct.Config{})
 	if err != nil {

@@ -70,7 +70,8 @@ func NewPersistentVolumeCollector(
 		excludedPVs:     excludedPVsMap,
 		logger:          newLogger,
 		telemetryLogger: telemetryLogger,
-		cDHelper:        ChangeDetectionHelper{logger: newLogger}}
+		cDHelper:        ChangeDetectionHelper{logger: newLogger},
+	}
 }
 
 // Start begins the PV collection process

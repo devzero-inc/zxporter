@@ -79,7 +79,8 @@ func NewServiceAccountCollector(
 		excludedServiceAccounts: excludedServiceAccountsMap,
 		logger:                  newLogger,
 		telemetryLogger:         telemetryLogger,
-		cDHelper:                ChangeDetectionHelper{logger: newLogger}}
+		cDHelper:                ChangeDetectionHelper{logger: newLogger},
+	}
 }
 
 // Start begins the serviceaccount collection process

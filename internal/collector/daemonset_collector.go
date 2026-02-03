@@ -171,7 +171,6 @@ func (c *DaemonSetCollector) handleDaemonSetEvent(daemonset *appsv1.DaemonSet, e
 
 // daemonSetChanged detects meaningful changes in a daemonset
 func (c *DaemonSetCollector) daemonSetChanged(oldDaemonSet, newDaemonSet *appsv1.DaemonSet) bool {
-
 	changed := c.cDHelper.objectMetaChanged(
 		c.GetType(),
 		oldDaemonSet.Name,

@@ -45,7 +45,6 @@ func NewDetector(logger logr.Logger, k8sClient kubernetes.Interface, opts ...Det
 
 // DetectProvider attempts to identify and return the appropriate provider
 func (d *Detector) DetectProvider(ctx context.Context) (Provider, error) {
-
 	// Fall back to generic provider
 	d.logger.Info("No specific cloud provider detected, using generic provider")
 	return NewGenericProvider(d.logger, d.k8sClient, d.kubeContextName), nil

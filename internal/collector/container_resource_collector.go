@@ -450,7 +450,6 @@ func (c *ContainerResourceCollector) processContainerMetrics(
 	ioMetrics map[string]float64,
 	gpuMetrics map[string]interface{},
 ) {
-
 	// Find the container spec in the pod
 	var containerSpec *corev1.Container
 	for i := range pod.Spec.Containers {
@@ -561,6 +560,8 @@ func (c *ContainerResourceCollector) processContainerMetrics(
 
 	// Add network metrics if available
 	if len(networkMetrics) > 0 {
+		metricsSnapshot.NetworkMetricsArePodLevel = true
+		metricsSnapshot.PodContainerCount = len(pod.Spec.Containers)
 		metricsSnapshot.NetworkReceiveBytes = networkMetrics["NetworkReceiveBytes"]
 		metricsSnapshot.NetworkTransmitBytes = networkMetrics["NetworkTransmitBytes"]
 		metricsSnapshot.NetworkReceivePackets = networkMetrics["NetworkReceivePackets"]
@@ -1032,7 +1033,6 @@ func (c *ContainerResourceCollector) IsAvailable(ctx context.Context) bool {
 	_, err := c.metricsClient.MetricsV1beta1().PodMetricses("").List(ctx, metav1.ListOptions{
 		Limit: 1, // Only request a single item to minimize load
 	})
-
 	if err != nil {
 		c.logger.Info("Metrics server API not available", "error", err.Error())
 		c.telemetryLogger.Report(

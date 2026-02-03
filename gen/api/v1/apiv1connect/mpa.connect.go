@@ -42,7 +42,7 @@ const (
 type MpaServiceClient interface {
 	// StreamWorkloadMetrics establishes a bidirectional stream where the client (Dakr)
 	// subscribes to workloads, and the server (Zxporter) pushes metric updates.
-	StreamWorkloadMetrics(context.Context) *connect.BidiStreamForClient[v1.MpaWorkloadSubscription, v1.ContainerMetricsBatch]
+	StreamWorkloadMetrics(context.Context) *connect.BidiStreamForClient[v1.MpaWorkloadSubscription, v1.MpaStreamResponse]
 }
 
 // NewMpaServiceClient constructs a client for the api.v1.MpaService service. By default, it uses
@@ -55,7 +55,7 @@ type MpaServiceClient interface {
 func NewMpaServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...connect.ClientOption) MpaServiceClient {
 	baseURL = strings.TrimRight(baseURL, "/")
 	return &mpaServiceClient{
-		streamWorkloadMetrics: connect.NewClient[v1.MpaWorkloadSubscription, v1.ContainerMetricsBatch](
+		streamWorkloadMetrics: connect.NewClient[v1.MpaWorkloadSubscription, v1.MpaStreamResponse](
 			httpClient,
 			baseURL+MpaServiceStreamWorkloadMetricsProcedure,
 			opts...,
@@ -65,11 +65,11 @@ func NewMpaServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...
 
 // mpaServiceClient implements MpaServiceClient.
 type mpaServiceClient struct {
-	streamWorkloadMetrics *connect.Client[v1.MpaWorkloadSubscription, v1.ContainerMetricsBatch]
+	streamWorkloadMetrics *connect.Client[v1.MpaWorkloadSubscription, v1.MpaStreamResponse]
 }
 
 // StreamWorkloadMetrics calls api.v1.MpaService.StreamWorkloadMetrics.
-func (c *mpaServiceClient) StreamWorkloadMetrics(ctx context.Context) *connect.BidiStreamForClient[v1.MpaWorkloadSubscription, v1.ContainerMetricsBatch] {
+func (c *mpaServiceClient) StreamWorkloadMetrics(ctx context.Context) *connect.BidiStreamForClient[v1.MpaWorkloadSubscription, v1.MpaStreamResponse] {
 	return c.streamWorkloadMetrics.CallBidiStream(ctx)
 }
 
@@ -77,7 +77,7 @@ func (c *mpaServiceClient) StreamWorkloadMetrics(ctx context.Context) *connect.B
 type MpaServiceHandler interface {
 	// StreamWorkloadMetrics establishes a bidirectional stream where the client (Dakr)
 	// subscribes to workloads, and the server (Zxporter) pushes metric updates.
-	StreamWorkloadMetrics(context.Context, *connect.BidiStream[v1.MpaWorkloadSubscription, v1.ContainerMetricsBatch]) error
+	StreamWorkloadMetrics(context.Context, *connect.BidiStream[v1.MpaWorkloadSubscription, v1.MpaStreamResponse]) error
 }
 
 // NewMpaServiceHandler builds an HTTP handler from the service implementation. It returns the path
@@ -104,6 +104,6 @@ func NewMpaServiceHandler(svc MpaServiceHandler, opts ...connect.HandlerOption) 
 // UnimplementedMpaServiceHandler returns CodeUnimplemented from all methods.
 type UnimplementedMpaServiceHandler struct{}
 
-func (UnimplementedMpaServiceHandler) StreamWorkloadMetrics(context.Context, *connect.BidiStream[v1.MpaWorkloadSubscription, v1.ContainerMetricsBatch]) error {
+func (UnimplementedMpaServiceHandler) StreamWorkloadMetrics(context.Context, *connect.BidiStream[v1.MpaWorkloadSubscription, v1.MpaStreamResponse]) error {
 	return connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.MpaService.StreamWorkloadMetrics is not implemented"))
 }

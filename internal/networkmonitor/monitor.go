@@ -4,11 +4,10 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/json"
+	"hash/maphash"
 	"net/http"
 	"sync"
 	"time"
-
-	"hash/maphash"
 
 	"github.com/go-logr/logr"
 	"google.golang.org/protobuf/types/known/timestamppb"

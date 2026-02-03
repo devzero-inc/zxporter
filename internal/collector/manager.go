@@ -170,7 +170,6 @@ func (m *CollectionManager) StopCollector(collectorType string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.stopCollectorInternal(collectorType)
-
 }
 
 // StartAll starts all registered collectors
@@ -395,15 +394,15 @@ func (m *CollectionManager) processCollectorChannel(collectorType string, collec
 		// Update metrics for the ingested resources
 		m.telemetryMetrics.MessagesIngested.WithLabelValues(resources[0].ResourceType.String()).Add(float64(len(resources)))
 
-		// Forward to the combined channel
+		// Forward to the combined channel with a timeout to reduce silent drops
 		select {
 		case m.combinedChannel <- resources:
 			// Successfully sent
-		default:
-			// Channel full, log warning
-			m.logger.Info("Combined channel buffer full, dropping resource",
+		case <-time.After(5 * time.Second):
+			m.logger.Error(nil, "Combined channel buffer full, dropping resources after timeout",
 				"count", len(resources),
-				"type", resources[0].ResourceType)
+				"type", resources[0].ResourceType.String())
+			m.telemetryMetrics.MessagesDropped.WithLabelValues(resources[0].ResourceType.String()).Add(float64(len(resources)))
 		}
 	}
 

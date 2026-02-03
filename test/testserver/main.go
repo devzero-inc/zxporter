@@ -140,7 +140,7 @@ func (s *MetricsServer) SendResource(ctx context.Context, req *connect.Request[a
 	s.processResourceItem(resourceItem) // Pass the constructed item
 
 	// Write the original request JSON to the output file
-	f, err := os.OpenFile(s.outputFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	f, err := os.OpenFile(s.outputFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o666)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error opening output file: %v\n", err)
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("error opening output file: %w", err))
@@ -176,7 +176,7 @@ func (s *MetricsServer) SendResourceBatch(ctx context.Context, req *connect.Requ
 
 	// Write the JSON to the output file if marshaling succeeded
 	if err == nil {
-		f, fileErr := os.OpenFile(s.outputFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+		f, fileErr := os.OpenFile(s.outputFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o666)
 		if fileErr != nil {
 			fmt.Fprintf(os.Stderr, "Error opening output file for batch: %v\n", fileErr)
 			// Return error as file writing is crucial for testing
