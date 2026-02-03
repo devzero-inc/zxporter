@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 For releases prior to automated changelog generation, please see the
 [GitHub Releases](https://github.com/devzero-inc/zxporter/releases) page.
 
+## [v0.0.61] - 2026-02-03
+
+<!-- Release notes generated using configuration in .github/release.yml at main -->
+
+### What's Changed
+### Other Changes
+* chore: update changelog for v0.0.60 by @github-actions[bot] in https://github.com/devzero-inc/zxporter/pull/266
+* add permission for prometheus to scrap metrics for kubelet_volume_stats by @Rupam-It in https://github.com/devzero-inc/zxporter/pull/267
+* MPA v2 - rules engine and in cluster autoscaling by @Tzvonimir in https://github.com/devzero-inc/zxporter/pull/268
+
+
+**Full Changelog**: https://github.com/devzero-inc/zxporter/compare/v0.0.60...v0.0.61
+
 ## [v0.0.60] - 2026-01-28
 
 <!-- Release notes generated using configuration in .github/release.yml at main -->
