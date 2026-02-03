@@ -1107,6 +1107,14 @@ rules:
   - list
   - watch
 - apiGroups:
+  - dakr.devzero.io
+  resources:
+  - workloadrecommendations
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - datadoghq.com
   resources:
   - extendeddaemonsetreplicasets
