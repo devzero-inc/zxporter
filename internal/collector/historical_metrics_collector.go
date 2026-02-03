@@ -15,9 +15,9 @@ import (
 )
 
 const (
-	historicalWindow     = 24 * time.Hour
+	historicalWindow       = 24 * time.Hour
 	historicalStepInterval = "1m"
-	maxConcurrentQueries = 10
+	maxConcurrentQueries   = 10
 )
 
 // HistoricalWorkloadQuery defines what to query for a workload.

@@ -303,7 +303,6 @@ func (c *HorizontalPodAutoscalerCollector) IsAvailable(ctx context.Context) bool
 	_, err := c.client.AutoscalingV2().HorizontalPodAutoscalers("").List(ctx, metav1.ListOptions{
 		Limit: 1,
 	})
-
 	if err != nil {
 		// Check if this is a "resource not found" type error
 		if strings.Contains(err.Error(),

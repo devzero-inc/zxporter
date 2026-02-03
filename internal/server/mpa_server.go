@@ -20,7 +20,7 @@ type MpaServer struct {
 	logger              logr.Logger
 	subscriptionManager *SubscriptionManager
 	grpcServer          *grpc.Server
-	historicalCollector  *collector.HistoricalMetricsCollector
+	historicalCollector *collector.HistoricalMetricsCollector
 }
 
 // NewMpaServer creates a new MpaServer.
@@ -29,7 +29,7 @@ func NewMpaServer(logger logr.Logger, historicalCollector *collector.HistoricalM
 	return &MpaServer{
 		logger:              logger.WithName("mpa-server"),
 		subscriptionManager: NewSubscriptionManager(logger),
-		historicalCollector:  historicalCollector,
+		historicalCollector: historicalCollector,
 	}
 }
 

@@ -77,7 +77,8 @@ func NewPodDisruptionBudgetCollector(
 		excludedPDBs:    excludedPDBsMap,
 		logger:          newLogger,
 		telemetryLogger: telemetryLogger,
-		cDHelper:        ChangeDetectionHelper{logger: newLogger}}
+		cDHelper:        ChangeDetectionHelper{logger: newLogger},
+	}
 }
 
 // Start begins the PDB collection process

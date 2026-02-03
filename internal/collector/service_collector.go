@@ -77,7 +77,8 @@ func NewServiceCollector(
 		excludedServices: excludedServicesMap,
 		logger:           newLogger,
 		telemetryLogger:  telemetryLogger,
-		cDHelper:         ChangeDetectionHelper{logger: newLogger}}
+		cDHelper:         ChangeDetectionHelper{logger: newLogger},
+	}
 }
 
 // Start begins the service collection process

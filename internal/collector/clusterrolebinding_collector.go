@@ -154,7 +154,6 @@ func (c *ClusterRoleBindingCollector) handleClusterRoleBindingEvent(crb *rbacv1.
 
 // clusterRoleBindingChanged detects meaningful changes in a ClusterRoleBinding
 func (c *ClusterRoleBindingCollector) clusterRoleBindingChanged(oldCRB, newCRB *rbacv1.ClusterRoleBinding) bool {
-
 	changed := c.cDHelper.objectMetaChanged(
 		c.GetType(),
 		oldCRB.Name,

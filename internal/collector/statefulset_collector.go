@@ -77,7 +77,8 @@ func NewStatefulSetCollector(
 		excludedStatefulSets: excludedStatefulSetsMap,
 		logger:               newLogger,
 		telemetryLogger:      telemetryLogger,
-		cDHelper:             ChangeDetectionHelper{logger: newLogger}}
+		cDHelper:             ChangeDetectionHelper{logger: newLogger},
+	}
 }
 
 // Start begins the statefulset collection process

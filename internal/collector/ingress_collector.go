@@ -468,7 +468,6 @@ func (c *IngressCollector) IsAvailable(ctx context.Context) bool {
 	_, err := c.client.NetworkingV1().Ingresses("").List(ctx, metav1.ListOptions{
 		Limit: 1,
 	})
-
 	if err != nil {
 		// Check if this is a "resource not found" type error
 		if strings.Contains(err.Error(),

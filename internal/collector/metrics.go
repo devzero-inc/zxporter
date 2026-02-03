@@ -30,7 +30,6 @@ type TelemetryMetrics struct {
 
 // NewTelemetryMetrics creates and registers Prometheus metrics
 func NewTelemetryMetrics() *TelemetryMetrics {
-
 	requestDuration := promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "prometheus_request_duration_seconds",

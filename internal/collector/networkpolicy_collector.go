@@ -79,7 +79,8 @@ func NewNetworkPolicyCollector(
 		excludedNetworkPolicies: excludedNetworkPoliciesMap,
 		logger:                  newLogger,
 		telemetryLogger:         telemetryLogger,
-		cDHelper:                ChangeDetectionHelper{logger: newLogger}}
+		cDHelper:                ChangeDetectionHelper{logger: newLogger},
+	}
 }
 
 // Start begins the networkpolicy collection process
@@ -317,7 +318,6 @@ func (c *NetworkPolicyCollector) IsAvailable(ctx context.Context) bool {
 	_, err := c.client.NetworkingV1().NetworkPolicies("").List(ctx, metav1.ListOptions{
 		Limit: 1,
 	})
-
 	if err != nil {
 		// Check if this is a "resource not found" type error
 		if strings.Contains(err.Error(),

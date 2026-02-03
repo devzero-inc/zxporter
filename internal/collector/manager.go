@@ -170,7 +170,6 @@ func (m *CollectionManager) StopCollector(collectorType string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.stopCollectorInternal(collectorType)
-
 }
 
 // StartAll starts all registered collectors
