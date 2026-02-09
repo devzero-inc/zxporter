@@ -174,9 +174,9 @@ func TestConnectRPCCompressionIntegration(t *testing.T) {
 					// No compression options
 				)
 				dakrClient = &RealDakrClient{
-					logger:       logr.Discard().WithName("test-dakr-client"),
-					client:       client,
-					clusterToken: "test-token",
+					logger:        logr.Discard().WithName("test-dakr-client"),
+					client:        client,
+					clientHeaders: NewClientHeaders("test-token"),
 				}
 			}
 
