@@ -1,3 +1,4 @@
+
 package health
 
 import (
@@ -8,10 +9,13 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const testCollectorManager = "collector_manager"
+
+
 // Test cases for HealthManager
 func TestRegisterAndUpdateStatus_CollectorManager(t *testing.T) {
 	healthMgr := NewHealthManager()
-	component := "collector_manager"
+	component := testCollectorManager
 	metadata := map[string]string{"active": "55", "total": "60"}
 
 	healthMgr.Register(component)
@@ -26,7 +30,7 @@ func TestRegisterAndUpdateStatus_CollectorManager(t *testing.T) {
 
 func TestUpdateStatus_Degraded(t *testing.T) {
 	healthMgr := NewHealthManager()
-	component := "collector_manager"
+	component := testCollectorManager
 	metadata := map[string]string{"active": "30", "total": "60"}
 
 	healthMgr.Register(component)
@@ -41,7 +45,7 @@ func TestUpdateStatus_Degraded(t *testing.T) {
 
 func TestUpdateStatus_Unhealthy(t *testing.T) {
 	healthMgr := NewHealthManager()
-	component := "collector_manager"
+	component := testCollectorManager
 	metadata := map[string]string{"active": "0", "total": "60"}
 
 	healthMgr.Register(component)
@@ -56,7 +60,7 @@ func TestUpdateStatus_Unhealthy(t *testing.T) {
 
 func TestConcurrentUpdatesAndReads(t *testing.T) {
 	healthMgr := NewHealthManager()
-	component := "collector_manager"
+	component := testCollectorManager
 	healthMgr.Register(component)
 
 	statuses := []HealthStatus{HealthStatusHealthy, HealthStatusDegraded, HealthStatusUnhealthy}
