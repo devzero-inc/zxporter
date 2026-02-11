@@ -1,4 +1,3 @@
-
 package health
 
 import (
@@ -10,7 +9,6 @@ import (
 )
 
 const testCollectorManager = "collector_manager"
-
 
 // Test cases for HealthManager
 func TestRegisterAndUpdateStatus_CollectorManager(t *testing.T) {
