@@ -1,6 +1,7 @@
 package health
 
 import (
+	"strconv"
 	"sync"
 	"testing"
 
@@ -71,7 +72,7 @@ func TestConcurrentUpdatesAndReads(t *testing.T) {
 			defer wg.Done()
 			status := statuses[i%len(statuses)]
 			msg := messages[i%len(messages)]
-			meta := map[string]string{"iteration": string(rune(i))}
+			meta := map[string]string{"iteration": strconv.Itoa(i)}
 			healthMgr.UpdateStatus(component, status, msg, meta)
 		}(i)
 	}

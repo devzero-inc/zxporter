@@ -62,7 +62,11 @@ func (hm *HealthManager) UpdateStatus(name string, status HealthStatus, message 
 		comp.Status = status
 		comp.Message = message
 		if metadata != nil {
-			comp.Metadata = metadata
+			m := make(map[string]string, len(metadata))
+			for k, v := range metadata {
+				m[k] = v
+			}
+			comp.Metadata = m
 		}
 	}
 }
@@ -92,7 +96,15 @@ func (hm *HealthManager) BuildReport() map[string]ComponentStatus {
 	defer hm.mu.RUnlock()
 	report := make(map[string]ComponentStatus, len(hm.components))
 	for name, comp := range hm.components {
-		report[name] = *comp
+		meta := make(map[string]string, len(comp.Metadata))
+		for k, v := range comp.Metadata {
+			meta[k] = v
+		}
+		report[name] = ComponentStatus{
+			Status:   comp.Status,
+			Message:  comp.Message,
+			Metadata: meta,
+		}
 	}
 	return report
 }
