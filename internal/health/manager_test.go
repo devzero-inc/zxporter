@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// Test cases for HealthManager
 func TestRegisterAndUpdateStatus_CollectorManager(t *testing.T) {
 	healthMgr := NewHealthManager()
 	component := "collector_manager"
@@ -93,4 +94,3 @@ func TestConcurrentUpdatesAndReads(t *testing.T) {
 	assert.Contains(t, statuses, status.Status)
 	assert.Contains(t, messages, status.Message)
 }
-

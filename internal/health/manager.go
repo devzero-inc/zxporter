@@ -7,6 +7,7 @@ import (
 // HealthStatus matches proto enum for easy mapping
 type HealthStatus int
 
+// HealthStatus values
 const (
 	HealthStatusUnspecified HealthStatus = iota
 	HealthStatusHealthy
@@ -14,6 +15,7 @@ const (
 	HealthStatusUnhealthy
 )
 
+// ComponentStatus holds the health status, message, and metadata for a component
 type ComponentStatus struct {
 	Status   HealthStatus
 	Message  string
