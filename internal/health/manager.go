@@ -75,7 +75,15 @@ func (hm *HealthManager) GetStatus(name string) (ComponentStatus, bool) {
 	if !exists {
 		return ComponentStatus{}, false
 	}
-	return *comp, true
+	meta := make(map[string]string, len(comp.Metadata))
+	for k, v := range comp.Metadata {
+		meta[k] = v
+	}
+	return ComponentStatus{
+		Status:   comp.Status,
+		Message:  comp.Message,
+		Metadata: meta,
+	}, true
 }
 
 // BuildReport returns a snapshot of all component statuses
