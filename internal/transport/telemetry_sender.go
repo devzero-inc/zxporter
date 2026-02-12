@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/devzero-inc/zxporter/internal/collector"
+	"github.com/devzero-inc/zxporter/internal/health"
 	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
@@ -38,6 +39,7 @@ type TelemetrySender struct {
 	consecutiveFailures int
 	lastFailureTime     time.Time
 	circuitOpenUntil    time.Time
+	healthManager       *health.HealthManager
 }
 
 // NewTelemetrySender creates a new TelemetrySender
@@ -46,17 +48,19 @@ func NewTelemetrySender(
 	dakrClient DakrClient,
 	metrics *collector.TelemetryMetrics,
 	interval time.Duration,
+	healthManager *health.HealthManager,
 ) *TelemetrySender {
 	if interval <= 0 {
 		interval = 15 * time.Second // Default interval
 	}
 
 	return &TelemetrySender{
-		logger:     logger.WithName("telemetry-sender"),
-		dakrClient: dakrClient,
-		metrics:    metrics,
-		interval:   interval,
-		stopCh:     make(chan struct{}),
+		logger:        logger.WithName("telemetry-sender"),
+		dakrClient:    dakrClient,
+		metrics:       metrics,
+		interval:      interval,
+		stopCh:        make(chan struct{}),
+		healthManager: healthManager,
 	}
 }
 
@@ -98,6 +102,7 @@ func (s *TelemetrySender) recordSuccess() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.consecutiveFailures = 0
+	s.updateHealthStatus(health.HealthStatusHealthy, "Transport operational", map[string]string{"consecutive_failures": "0", "circuit_breaker": "closed"})
 	s.circuitOpenUntil = time.Time{}
 }
 
@@ -112,16 +117,18 @@ func (s *TelemetrySender) recordFailure() {
 	if s.consecutiveFailures >= maxConsecutiveFailures {
 		// Calculate backoff duration with exponential increase
 		backoffMultiplier := s.consecutiveFailures - maxConsecutiveFailures + 1
-		backoffDuration := time.Duration(backoffMultiplier) * initialBackoff
-		if backoffDuration > maxBackoff {
-			backoffDuration = maxBackoff
-		}
+		backoffDuration := min(time.Duration(backoffMultiplier)*initialBackoff, maxBackoff)
 
 		s.circuitOpenUntil = time.Now().Add(backoffDuration)
 		s.logger.Info("Circuit breaker opened",
 			"failures", s.consecutiveFailures,
 			"reopenAt", s.circuitOpenUntil.Format(time.RFC3339),
 			"backoffDuration", backoffDuration.String())
+		s.updateHealthStatus(health.HealthStatusUnhealthy, fmt.Sprintf("Circuit breaker open, %d consecutive failures", s.consecutiveFailures), map[string]string{"circuit_breaker": "open", "reopen_at": s.circuitOpenUntil.Format(time.RFC3339)})
+	} else {
+		s.logger.Info("Recorded telemetry send failure",
+			"consecutiveFailures", s.consecutiveFailures)
+		s.updateHealthStatus(health.HealthStatusDegraded, fmt.Sprintf("%d consecutive failures", s.consecutiveFailures), map[string]string{"consecutive_failures": fmt.Sprintf("%d", s.consecutiveFailures), "circuit_breaker": "closed"})
 	}
 }
 
@@ -272,4 +279,10 @@ func getMetricName(descStr string) string {
 		}
 	}
 	return metricName
+}
+
+func (s *TelemetrySender) updateHealthStatus(status health.HealthStatus, message string, metadata map[string]string) {
+	if s.healthManager != nil {
+		s.healthManager.UpdateStatus(health.ComponentDakrTransport, status, message, metadata)
+	}
 }

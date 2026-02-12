@@ -38,6 +38,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/devzero-inc/zxporter/internal/collector"
+	"github.com/devzero-inc/zxporter/internal/health"
 	telemetry_logger "github.com/devzero-inc/zxporter/internal/logger"
 	"github.com/devzero-inc/zxporter/internal/transport"
 	"github.com/devzero-inc/zxporter/internal/util"
@@ -95,6 +96,14 @@ func NewEnvBasedController(mgr ctrl.Manager, reconcileInterval time.Duration, mp
 		return nil, fmt.Errorf("failed to create apiextensions client: %w", err)
 	}
 
+	// Initialize HealthManager and register components
+	healthManager := health.NewHealthManager()
+	healthManager.Register(health.ComponentCollectorManager)
+	healthManager.Register(health.ComponentBufferQueue)
+	healthManager.Register(health.ComponentDakrTransport)
+	healthManager.Register(health.ComponentMpaServer)
+	healthManager.Register(health.ComponentPrometheus)
+
 	// Create a shared Telemetry metrics instance
 	sharedTelemetryMetrics := collector.NewTelemetryMetrics()
 
@@ -112,6 +121,7 @@ func NewEnvBasedController(mgr ctrl.Manager, reconcileInterval time.Duration, mp
 		RestartInProgress: false,
 		ZapLogger:         zapLogger,
 		MpaServerPort:     mpaServerPort,
+		HealthManager:     healthManager,
 	}
 
 	logger.Info("Checking 1st reconcile interval", "reconcile", reconcileInterval)
@@ -173,11 +183,34 @@ func (c *EnvBasedController) Start(ctx context.Context) error {
 	// Setup periodic reconciliation
 	go c.runPeriodicReconciliation(ctx)
 
+	// Run perioic health check reporting
+	go c.runHealthReporting(ctx)
+
 	// Wait for context cancellation
 	<-ctx.Done()
 	close(c.stopCh)
 	c.Log.Info("Stopping environment-based controller")
 	return nil
+}
+
+func (c *EnvBasedController) runHealthReporting(ctx context.Context) {
+	ticker := time.NewTicker(60 * time.Second) // Report health status every 60 seconds
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			report := c.Reconciler.HealthManager.BuildReport()
+			for name, status := range report {
+				c.Log.Info("Health status report", "component", name, "status", status.Status, "message", status.Message, "metadata", status.Metadata)
+			}
+		case <-c.stopCh:
+			return
+		case <-ctx.Done():
+			return
+		}
+
+	}
 }
 
 // NeedLeaderElection implements the LeaderElectionRunnable interface

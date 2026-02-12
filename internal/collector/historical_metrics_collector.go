@@ -12,6 +12,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	gen "github.com/devzero-inc/zxporter/gen/api/v1"
+	"github.com/devzero-inc/zxporter/internal/health"
 )
 
 const (
@@ -31,17 +32,19 @@ type HistoricalWorkloadQuery struct {
 
 // HistoricalMetricsCollector queries Prometheus for historical CPU/memory percentiles.
 type HistoricalMetricsCollector struct {
-	logger        logr.Logger
-	prometheusAPI v1.API
-	semaphore     chan struct{} // limits concurrent Prometheus queries
+	logger         logr.Logger
+	prometheusAPI  v1.API
+	semaphore      chan struct{} // limits concurrent Prometheus queries
+	healthMmanager *health.HealthManager
 }
 
 // NewHistoricalMetricsCollector creates a new collector.
-func NewHistoricalMetricsCollector(logger logr.Logger, prometheusAPI v1.API) *HistoricalMetricsCollector {
+func NewHistoricalMetricsCollector(logger logr.Logger, prometheusAPI v1.API, healthManager *health.HealthManager) *HistoricalMetricsCollector {
 	return &HistoricalMetricsCollector{
-		logger:        logger.WithName("historical-metrics"),
-		prometheusAPI: prometheusAPI,
-		semaphore:     make(chan struct{}, maxConcurrentQueries),
+		logger:         logger.WithName("historical-metrics"),
+		prometheusAPI:  prometheusAPI,
+		semaphore:      make(chan struct{}, maxConcurrentQueries),
+		healthMmanager: healthManager,
 	}
 }
 
@@ -60,6 +63,8 @@ func (c *HistoricalMetricsCollector) FetchPercentiles(ctx context.Context, workl
 			totalSamples = samples
 		}
 	}
+
+	c.updateHealthStatus(health.HealthStatusHealthy, "Prometheus queries succeeding", map[string]string{"workload ->": workload.WorkloadName})
 
 	return &gen.HistoricalMetricsSummary{
 		Workload: &gen.MpaWorkloadIdentifier{
@@ -115,6 +120,7 @@ func (c *HistoricalMetricsCollector) DiscoverContainers(ctx context.Context, nam
 	)
 	result, _, err := c.prometheusAPI.Query(ctx, query, time.Now())
 	if err != nil {
+		c.updateHealthStatus(health.HealthStatusDegraded, "Prometheus query failed", map[string]string{"error": err.Error()})
 		return nil, err
 	}
 
@@ -199,6 +205,7 @@ func (c *HistoricalMetricsCollector) fetchContainerPercentiles(ctx context.Conte
 func (c *HistoricalMetricsCollector) queryScalar(ctx context.Context, query string, ts time.Time) (float64, error) {
 	result, warnings, err := c.prometheusAPI.Query(ctx, query, ts)
 	if err != nil {
+		c.updateHealthStatus(health.HealthStatusDegraded, "Prometheus query failed", map[string]string{"error": err.Error()})
 		return 0, fmt.Errorf("prometheus query failed: %w", err)
 	}
 	if len(warnings) > 0 {
@@ -215,5 +222,11 @@ func (c *HistoricalMetricsCollector) queryScalar(ctx context.Context, query stri
 		return 0, fmt.Errorf("empty vector result")
 	default:
 		return 0, fmt.Errorf("unexpected result type: %T", result)
+	}
+}
+
+func (c *HistoricalMetricsCollector) updateHealthStatus(status health.HealthStatus, message string, metadata map[string]string) {
+	if c.healthMmanager != nil {
+		c.healthMmanager.UpdateStatus(health.ComponentPrometheus, status, message, metadata)
 	}
 }

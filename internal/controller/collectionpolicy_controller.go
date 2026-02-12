@@ -43,6 +43,7 @@ import (
 	"github.com/devzero-inc/zxporter/internal/collector"
 	"github.com/devzero-inc/zxporter/internal/collector/provider"
 	"github.com/devzero-inc/zxporter/internal/collector/snap"
+	"github.com/devzero-inc/zxporter/internal/health"
 	telemetry_logger "github.com/devzero-inc/zxporter/internal/logger"
 	"github.com/devzero-inc/zxporter/internal/server"
 	"github.com/devzero-inc/zxporter/internal/transport"
@@ -76,6 +77,7 @@ type CollectionPolicyReconciler struct {
 	CurrentConfig     *PolicyConfig
 	RestartInProgress bool
 	MpaServerPort     int
+	HealthManager     *health.HealthManager
 
 	// pendingCollectors tracks collector factories that were skipped due to CRD unavailability
 	// and should be retried periodically
@@ -1097,6 +1099,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 			r.Sender.(transport.DakrClient),
 			r.TelemetryMetrics,
 			15*time.Second, // Send metrics every 15 seconds
+			r.HealthManager,
 		)
 
 		if err := r.TelemetrySender.Start(ctx); err != nil {
@@ -1861,6 +1864,7 @@ func (r *CollectionPolicyReconciler) setupCollectionManager(ctx context.Context,
 		r.TelemetryMetrics,
 		logger.WithName("collection-manager"),
 		r.TelemetryLogger,
+		r.HealthManager,
 	)
 
 	// Create and start the telemetry sender
@@ -1869,6 +1873,7 @@ func (r *CollectionPolicyReconciler) setupCollectionManager(ctx context.Context,
 		r.DakrClient, // Use the dakrClient directly
 		r.TelemetryMetrics,
 		15*time.Second, // Send metrics every 15 seconds
+		r.HealthManager,
 	)
 
 	if err := r.TelemetrySender.Start(ctx); err != nil {
@@ -1886,7 +1891,7 @@ func (r *CollectionPolicyReconciler) setupMpaServer() error {
 	if r.MpaServer != nil {
 		return nil
 	}
-	r.MpaServer = server.NewMpaServer(r.Log, nil)
+	r.MpaServer = server.NewMpaServer(r.Log, nil, r.HealthManager)
 	return r.MpaServer.Start(r.MpaServerPort)
 }
 
@@ -3708,6 +3713,7 @@ func (r *CollectionPolicyReconciler) waitForPrometheusAvailability(ctx context.C
 			if resp.StatusCode == http.StatusOK {
 				logger.Info("Prometheus is available", "statusCode", resp.StatusCode)
 				resp.Body.Close()
+				r.updateHealthStatus(health.HealthStatusHealthy, "Prometheus available", map[string]string{"url": prometheusURL})
 				return true
 			}
 
@@ -3743,6 +3749,14 @@ func (r *CollectionPolicyReconciler) waitForPrometheusAvailability(ctx context.C
 			"zxporter_version": version.Get().String(),
 		},
 	)
+	r.updateHealthStatus(
+		health.HealthStatusUnhealthy,
+		"Prometheus unavailable after retries",
+		map[string]string{
+			"url":         prometheusURL,
+			"max_retries": fmt.Sprintf("%d", maxRetries),
+		},
+	)
 	return false
 }
 
@@ -3772,4 +3786,10 @@ func (r *CollectionPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			GenericFunc: func(e event.GenericEvent) bool { return false },
 		}).
 		Complete(r)
+}
+
+func (r *CollectionPolicyReconciler) updateHealthStatus(status health.HealthStatus, message string, metadata map[string]string) {
+	if r.HealthManager != nil {
+		r.HealthManager.UpdateStatus(health.ComponentPrometheus, status, message, metadata)
+	}
 }
