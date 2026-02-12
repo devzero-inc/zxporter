@@ -1617,6 +1617,16 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				logger,
 				r.TelemetryLogger,
 			)
+		case "workload_rule":
+			// WorkloadRule collector for syncing OOM events back to control plane
+			replacedCollector = collector.NewWorkloadRuleCollector(
+				r.DynamicClient,
+				newConfig.TargetNamespaces,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+				r.TelemetryLogger,
+			)
 		default:
 			logger.Info("Collector type not handled in selective restart", "type", collectorType)
 			continue
@@ -2907,6 +2917,28 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 			name: collector.WorkloadRecommendation,
 			factory: func() collector.ResourceCollector {
 				return collector.NewWorkloadRecommendationCollector(
+					r.DynamicClient,
+					config.TargetNamespaces,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+					r.TelemetryLogger,
+				)
+			},
+		},
+		// WorkloadRule collector for syncing OOM events back to control plane
+		{
+			collector: collector.NewWorkloadRuleCollector(
+				r.DynamicClient,
+				config.TargetNamespaces,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+				r.TelemetryLogger,
+			),
+			name: collector.WorkloadRule,
+			factory: func() collector.ResourceCollector {
+				return collector.NewWorkloadRuleCollector(
 					r.DynamicClient,
 					config.TargetNamespaces,
 					collector.DefaultMaxBatchSize,

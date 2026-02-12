@@ -182,6 +182,8 @@ const (
 	ResourceType_RESOURCE_TYPE_PVC_METRICS ResourceType = 54
 	// MPA v2: In-cluster WorkloadRecommendation CRD
 	ResourceType_RESOURCE_TYPE_WORKLOAD_RECOMMENDATION ResourceType = 55
+	// MPA v2: In-cluster WorkloadRule CRD (status with OOM events)
+	ResourceType_RESOURCE_TYPE_WORKLOAD_RULE ResourceType = 56
 	// Cluster snapshot type
 	ResourceType_RESOURCE_TYPE_CLUSTER_SNAPSHOT ResourceType = 77
 )
@@ -245,6 +247,7 @@ var (
 		53: "RESOURCE_TYPE_CRON_VOLCANO_JOB",
 		54: "RESOURCE_TYPE_PVC_METRICS",
 		55: "RESOURCE_TYPE_WORKLOAD_RECOMMENDATION",
+		56: "RESOURCE_TYPE_WORKLOAD_RULE",
 		77: "RESOURCE_TYPE_CLUSTER_SNAPSHOT",
 	}
 	ResourceType_value = map[string]int32{
@@ -304,6 +307,7 @@ var (
 		"RESOURCE_TYPE_CRON_VOLCANO_JOB":            53,
 		"RESOURCE_TYPE_PVC_METRICS":                 54,
 		"RESOURCE_TYPE_WORKLOAD_RECOMMENDATION":     55,
+		"RESOURCE_TYPE_WORKLOAD_RULE":               56,
 		"RESOURCE_TYPE_CLUSTER_SNAPSHOT":            77,
 	}
 )
