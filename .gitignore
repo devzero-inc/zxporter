@@ -41,3 +41,5 @@ debug_rendered.yaml
 
 #ignore dev helm deployment
 helm-chart/zxporter/local_values.yaml
+
+docs/plans

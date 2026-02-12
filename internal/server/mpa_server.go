@@ -9,6 +9,7 @@ import (
 
 	gen "github.com/devzero-inc/zxporter/gen/api/v1"
 	"github.com/devzero-inc/zxporter/internal/collector"
+	"github.com/devzero-inc/zxporter/internal/health"
 	"github.com/go-logr/logr"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -21,15 +22,17 @@ type MpaServer struct {
 	subscriptionManager *SubscriptionManager
 	grpcServer          *grpc.Server
 	historicalCollector *collector.HistoricalMetricsCollector
+	healthManager       *health.HealthManager
 }
 
 // NewMpaServer creates a new MpaServer.
 // historicalCollector may be nil if Prometheus is not available.
-func NewMpaServer(logger logr.Logger, historicalCollector *collector.HistoricalMetricsCollector) *MpaServer {
+func NewMpaServer(logger logr.Logger, historicalCollector *collector.HistoricalMetricsCollector, healthManager *health.HealthManager) *MpaServer {
 	return &MpaServer{
 		logger:              logger.WithName("mpa-server"),
 		subscriptionManager: NewSubscriptionManager(logger),
 		historicalCollector: historicalCollector,
+		healthManager:       healthManager,
 	}
 }
 
@@ -37,6 +40,7 @@ func NewMpaServer(logger logr.Logger, historicalCollector *collector.HistoricalM
 func (s *MpaServer) Start(port int) error {
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
 	if err != nil {
+		s.updateHealthStatus(health.HealthStatusUnhealthy, fmt.Sprintf("Failed to listen on port %d", port), map[string]string{"port": fmt.Sprintf("%d", port), "error": err.Error()})
 		return fmt.Errorf("failed to listen on port %d: %w", port, err)
 	}
 
@@ -48,8 +52,10 @@ func (s *MpaServer) Start(port int) error {
 	go func() {
 		if err := s.grpcServer.Serve(lis); err != nil {
 			s.logger.Error(err, "Failed to serve gRPC")
+			s.updateHealthStatus(health.HealthStatusUnhealthy, "gRPC server failed", map[string]string{"error": err.Error()})
 		}
 	}()
+	s.updateHealthStatus(health.HealthStatusHealthy, "gRPC server listening", map[string]string{"port": fmt.Sprintf("%d", port)})
 	return nil
 }
 
@@ -58,6 +64,7 @@ func (s *MpaServer) Stop() {
 	if s.grpcServer != nil {
 		s.logger.Info("Stopping MPA gRPC server")
 		s.grpcServer.GracefulStop()
+		s.updateHealthStatus(health.HealthStatusUnhealthy, "gRPC server stopped", nil)
 	}
 }
 
@@ -128,6 +135,13 @@ func (s *MpaServer) StreamWorkloadMetrics(stream gen.MpaService_StreamWorkloadMe
 // PublishMetrics is called by the collector to broadcast new metrics
 func (s *MpaServer) PublishMetrics(metrics *collector.ContainerMetricsSnapshot, timestamp time.Time) {
 	s.subscriptionManager.Broadcast(metrics, timestamp)
+}
+
+// updateHealthStatus reports MPA server component health if a HealthManager is configured.
+func (s *MpaServer) updateHealthStatus(status health.HealthStatus, message string, metadata map[string]string) {
+	if s.healthManager != nil {
+		s.healthManager.UpdateStatus(health.ComponentMpaServer, status, message, metadata)
+	}
 }
 
 // SubscriptionManager manages active streams and their interests

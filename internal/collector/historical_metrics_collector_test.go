@@ -103,7 +103,7 @@ func TestHistoricalCollector_FetchPercentiles(t *testing.T) {
 		queryResults: make(map[string]model.Value),
 	}
 
-	hc := NewHistoricalMetricsCollector(logr.Discard(), mock)
+	hc := NewHistoricalMetricsCollector(logr.Discard(), mock, nil)
 
 	workload := HistoricalWorkloadQuery{
 		Namespace:    "default",
