@@ -193,6 +193,7 @@ func (c *EnvBasedController) Start(ctx context.Context) error {
 	return nil
 }
 
+// runHealthReporting periodically logs the health status of all registered components.
 func (c *EnvBasedController) runHealthReporting(ctx context.Context) {
 	ticker := time.NewTicker(60 * time.Second) // Report health status every 60 seconds
 	defer ticker.Stop()

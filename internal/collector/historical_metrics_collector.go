@@ -225,6 +225,7 @@ func (c *HistoricalMetricsCollector) queryScalar(ctx context.Context, query stri
 	}
 }
 
+// updateHealthStatus reports Prometheus component health if a HealthManager is configured.
 func (c *HistoricalMetricsCollector) updateHealthStatus(status health.HealthStatus, message string, metadata map[string]string) {
 	if c.healthManager != nil {
 		c.healthManager.UpdateStatus(health.ComponentPrometheus, status, message, metadata)

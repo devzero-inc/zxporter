@@ -3788,6 +3788,7 @@ func (r *CollectionPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
+// updateHealthStatus reports Prometheus component health if a HealthManager is configured.
 func (r *CollectionPolicyReconciler) updateHealthStatus(status health.HealthStatus, message string, metadata map[string]string) {
 	if r.HealthManager != nil {
 		r.HealthManager.UpdateStatus(health.ComponentPrometheus, status, message, metadata)

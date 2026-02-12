@@ -281,6 +281,7 @@ func getMetricName(descStr string) string {
 	return metricName
 }
 
+// updateHealthStatus reports Dakr transport component health if a HealthManager is configured.
 func (s *TelemetrySender) updateHealthStatus(status health.HealthStatus, message string, metadata map[string]string) {
 	if s.healthManager != nil {
 		s.healthManager.UpdateStatus(health.ComponentDakrTransport, status, message, metadata)

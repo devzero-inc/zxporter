@@ -137,6 +137,7 @@ func (s *MpaServer) PublishMetrics(metrics *collector.ContainerMetricsSnapshot, 
 	s.subscriptionManager.Broadcast(metrics, timestamp)
 }
 
+// updateHealthStatus reports MPA server component health if a HealthManager is configured.
 func (s *MpaServer) updateHealthStatus(status health.HealthStatus, message string, metadata map[string]string) {
 	if s.healthManager != nil {
 		s.healthManager.UpdateStatus(health.ComponentMpaServer, status, message, metadata)
