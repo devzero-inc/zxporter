@@ -156,6 +156,14 @@ rules:
   - list
   - watch
 - apiGroups:
+  - dakr.devzero.io
+  resources:
+  - workloadrules
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - datadoghq.com
   resources:
   - extendeddaemonsetreplicasets

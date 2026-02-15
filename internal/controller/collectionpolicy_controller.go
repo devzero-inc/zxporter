@@ -274,6 +274,9 @@ type PolicyConfig struct {
 // WorkloadRecommendation CRD for syncing in-cluster recommendations back to control plane
 // +kubebuilder:rbac:groups=dakr.devzero.io,resources=workloadrecommendations,verbs=get;list;watch
 
+// WorkloadRule CRD for syncing OOM events back to control plane
+// +kubebuilder:rbac:groups=dakr.devzero.io,resources=workloadrules,verbs=get;list;watch
+
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 func (r *CollectionPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {

@@ -3,6 +3,7 @@ package collector
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"time"
 
 	telemetry_logger "github.com/devzero-inc/zxporter/internal/logger"
@@ -128,6 +129,9 @@ func (c *WorkloadRuleCollector) Start(ctx context.Context) error {
 		case <-ctx.Done():
 			_ = c.Stop()
 		case <-stopCh:
+			if ctx.Err() != nil {
+				_ = c.Stop()
+			}
 		}
 	}()
 
@@ -161,11 +165,11 @@ func (c *WorkloadRuleCollector) hasOOMEvents(wr *unstructured.Unstructured) bool
 	return len(events) > 0
 }
 
-// oomEventsChanged detects if OOM events have been added between old and new versions
+// oomEventsChanged detects if OOM events have changed between old and new versions
 func (c *WorkloadRuleCollector) oomEventsChanged(oldWR, newWR *unstructured.Unstructured) bool {
 	oldEvents, _, _ := unstructured.NestedSlice(oldWR.Object, "status", "oomEvents")
 	newEvents, _, _ := unstructured.NestedSlice(newWR.Object, "status", "oomEvents")
-	return len(newEvents) != len(oldEvents)
+	return !reflect.DeepEqual(oldEvents, newEvents)
 }
 
 // Stop gracefully shuts down the WorkloadRule collector
