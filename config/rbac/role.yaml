@@ -151,13 +151,6 @@ rules:
   - dakr.devzero.io
   resources:
   - workloadrecommendations
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - dakr.devzero.io
-  resources:
   - workloadrules
   verbs:
   - get
