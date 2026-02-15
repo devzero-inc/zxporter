@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"sync"
 	"time"
 
 	telemetry_logger "github.com/devzero-inc/zxporter/internal/logger"
@@ -27,6 +28,9 @@ type WorkloadRecommendationCollector struct {
 	resourceChan    chan []CollectedResource // Channel for batched resources -> output from batcher
 	batcher         *ResourcesBatcher
 	stopCh          chan struct{}
+	stopOnce        sync.Once
+	mu              sync.RWMutex
+	stopped         bool
 	namespaces      []string
 	logger          logr.Logger
 	telemetryLogger telemetry_logger.Logger
@@ -161,6 +165,12 @@ func (c *WorkloadRecommendationCollector) Start(ctx context.Context) error {
 
 // handleWorkloadRecommendationEvent processes WorkloadRecommendation events
 func (c *WorkloadRecommendationCollector) handleWorkloadRecommendationEvent(wr *unstructured.Unstructured, eventType EventType) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.stopped {
+		return
+	}
+
 	namespace := wr.GetNamespace()
 	name := wr.GetName()
 
@@ -264,21 +274,20 @@ func (c *WorkloadRecommendationCollector) workloadRecommendationChanged(oldWR, n
 func (c *WorkloadRecommendationCollector) Stop() error {
 	c.logger.Info("Stopping WorkloadRecommendation collector")
 
-	// 1. Signal the informer factory to stop by closing stopCh.
-	select {
-	case <-c.stopCh:
-		c.logger.Info("WorkloadRecommendation collector stop channel already closed")
-	default:
+	c.stopOnce.Do(func() {
+		// 1. Signal the informer factory to stop by closing stopCh.
 		close(c.stopCh)
 		c.logger.Info("Closed WorkloadRecommendation collector stop channel")
-	}
 
-	// 2. Close the batchChan (input to the batcher).
-	if c.batchChan != nil {
+		// 2. Close the batchChan (input to the batcher).
+		// Lock to ensure no in-flight event handlers are sending on batchChan.
+		c.mu.Lock()
+		c.stopped = true
 		close(c.batchChan)
 		c.batchChan = nil
+		c.mu.Unlock()
 		c.logger.Info("Closed WorkloadRecommendation collector batch input channel")
-	}
+	})
 
 	// 3. Stop the batcher (waits for completion).
 	if c.batcher != nil {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"sync"
 	"time"
 
 	telemetry_logger "github.com/devzero-inc/zxporter/internal/logger"
@@ -26,6 +27,9 @@ type WorkloadRuleCollector struct {
 	resourceChan    chan []CollectedResource
 	batcher         *ResourcesBatcher
 	stopCh          chan struct{}
+	stopOnce        sync.Once
+	mu              sync.RWMutex
+	stopped         bool
 	namespaces      []string
 	logger          logr.Logger
 	telemetryLogger telemetry_logger.Logger
@@ -129,9 +133,7 @@ func (c *WorkloadRuleCollector) Start(ctx context.Context) error {
 		case <-ctx.Done():
 			_ = c.Stop()
 		case <-stopCh:
-			if ctx.Err() != nil {
-				_ = c.Stop()
-			}
+			// Channel was closed by Stop() method
 		}
 	}()
 
@@ -140,6 +142,12 @@ func (c *WorkloadRuleCollector) Start(ctx context.Context) error {
 
 // handleWorkloadRuleEvent processes a WorkloadRule status update containing OOM events
 func (c *WorkloadRuleCollector) handleWorkloadRuleEvent(wr *unstructured.Unstructured, eventType EventType) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.stopped {
+		return
+	}
+
 	namespace := wr.GetNamespace()
 	name := wr.GetName()
 
@@ -176,19 +184,18 @@ func (c *WorkloadRuleCollector) oomEventsChanged(oldWR, newWR *unstructured.Unst
 func (c *WorkloadRuleCollector) Stop() error {
 	c.logger.Info("Stopping WorkloadRule collector")
 
-	select {
-	case <-c.stopCh:
-		c.logger.Info("WorkloadRule collector stop channel already closed")
-	default:
+	c.stopOnce.Do(func() {
 		close(c.stopCh)
 		c.logger.Info("Closed WorkloadRule collector stop channel")
-	}
 
-	if c.batchChan != nil {
+		// Lock to ensure no in-flight event handlers are sending on batchChan
+		c.mu.Lock()
+		c.stopped = true
 		close(c.batchChan)
 		c.batchChan = nil
+		c.mu.Unlock()
 		c.logger.Info("Closed WorkloadRule collector batch input channel")
-	}
+	})
 
 	if c.batcher != nil {
 		c.batcher.stop()
