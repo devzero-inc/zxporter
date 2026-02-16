@@ -829,3 +829,22 @@ verify-e2e-gke-lifecycle: provision-gke ## Full GKE E2E (Provision -> Verify -> 
 .PHONY: clean-metrics
 clean-metrics:
 	@rm -f verification/metrics-*.json
+
+# Load simulation replicas (override to increase pressure)
+LOAD_SIM_REPLICAS ?= 10
+
+.PHONY: load-test
+load-test: ## Apply load simulation manifests to stress-test zxporter collectors
+	@echo "[INFO] Applying load simulation manifests..."
+	@$(KUBECTL) apply -f verification/load-simulation.yaml
+	@echo "[INFO] Scaling deployments to $(LOAD_SIM_REPLICAS) replicas..."
+	@$(KUBECTL) scale deploy -n load-test load-web --replicas=$(LOAD_SIM_REPLICAS)
+	@$(KUBECTL) scale deploy -n load-test load-api --replicas=$(LOAD_SIM_REPLICAS)
+	@$(KUBECTL) scale deploy -n load-test load-worker --replicas=$(LOAD_SIM_REPLICAS)
+	@echo "[INFO] Load simulation applied. Monitor with: kubectl get all -n load-test"
+
+.PHONY: load-test-cleanup
+load-test-cleanup: ## Remove all load simulation resources
+	@echo "[INFO] Deleting load-test namespace..."
+	@$(KUBECTL) delete ns load-test --ignore-not-found
+	@echo "[INFO] Load simulation cleaned up."

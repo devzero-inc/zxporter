@@ -144,6 +144,7 @@ const (
 	SparkApplication
 	ScheduledSparkApplication
 	WorkloadRecommendation
+	WorkloadRule
 )
 
 // String returns the string representation of the ResourceType
@@ -201,6 +202,7 @@ func (r ResourceType) String() string {
 		SparkApplication:          "spark_application",
 		ScheduledSparkApplication: "scheduled_spark_application",
 		WorkloadRecommendation:    "workload_recommendation",
+		WorkloadRule:              "workload_rule",
 	}
 
 	if name, ok := names[r]; ok {
@@ -318,6 +320,8 @@ func (r ResourceType) ProtoType() gen.ResourceType {
 		return gen.ResourceType_RESOURCE_TYPE_SCHEDULED_SPARK_APPLICATION
 	case WorkloadRecommendation:
 		return gen.ResourceType_RESOURCE_TYPE_WORKLOAD_RECOMMENDATION
+	case WorkloadRule:
+		return gen.ResourceType_RESOURCE_TYPE_WORKLOAD_RULE
 	default:
 		return gen.ResourceType_RESOURCE_TYPE_UNSPECIFIED
 	}

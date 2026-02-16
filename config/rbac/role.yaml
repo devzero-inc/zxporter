@@ -151,6 +151,7 @@ rules:
   - dakr.devzero.io
   resources:
   - workloadrecommendations
+  - workloadrules
   verbs:
   - get
   - list
