@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 For releases prior to automated changelog generation, please see the
 [GitHub Releases](https://github.com/devzero-inc/zxporter/releases) page.
 
+## [v0.0.62] - 2026-02-16
+
+<!-- Release notes generated using configuration in .github/release.yml at main -->
+
+### What's Changed
+### Other Changes
+* Bump zxporter image by @Tzvonimir in https://github.com/devzero-inc/zxporter/pull/270
+* chore: update changelog for v0.0.61 by @github-actions[bot] in https://github.com/devzero-inc/zxporter/pull/269
+* chore(helm): update Chart.yaml version to 0.0.40 by @github-actions[bot] in https://github.com/devzero-inc/zxporter/pull/271
+* PC-819 Implement HealthManager package by @mutantkeyboard in https://github.com/devzero-inc/zxporter/pull/273
+* PC-820 Add component-level health reporting by @mutantkeyboard in https://github.com/devzero-inc/zxporter/pull/274
+* Update rule oom handler by @Tzvonimir in https://github.com/devzero-inc/zxporter/pull/275
+
+### New Contributors
+* @mutantkeyboard made their first contribution in https://github.com/devzero-inc/zxporter/pull/273
+
+**Full Changelog**: https://github.com/devzero-inc/zxporter/compare/v0.0.61...v0.0.62
+
 ## [v0.0.61] - 2026-02-03
 
 <!-- Release notes generated using configuration in .github/release.yml at main -->
