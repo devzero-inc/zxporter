@@ -274,6 +274,9 @@ type PolicyConfig struct {
 // WorkloadRecommendation CRD for syncing in-cluster recommendations back to control plane
 // +kubebuilder:rbac:groups=dakr.devzero.io,resources=workloadrecommendations,verbs=get;list;watch
 
+// WorkloadRule CRD for syncing OOM events back to control plane
+// +kubebuilder:rbac:groups=dakr.devzero.io,resources=workloadrules,verbs=get;list;watch
+
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 func (r *CollectionPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -1617,6 +1620,16 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				logger,
 				r.TelemetryLogger,
 			)
+		case "workload_rule":
+			// WorkloadRule collector for syncing OOM events back to control plane
+			replacedCollector = collector.NewWorkloadRuleCollector(
+				r.DynamicClient,
+				newConfig.TargetNamespaces,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+				r.TelemetryLogger,
+			)
 		default:
 			logger.Info("Collector type not handled in selective restart", "type", collectorType)
 			continue
@@ -2907,6 +2920,28 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 			name: collector.WorkloadRecommendation,
 			factory: func() collector.ResourceCollector {
 				return collector.NewWorkloadRecommendationCollector(
+					r.DynamicClient,
+					config.TargetNamespaces,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+					r.TelemetryLogger,
+				)
+			},
+		},
+		// WorkloadRule collector for syncing OOM events back to control plane
+		{
+			collector: collector.NewWorkloadRuleCollector(
+				r.DynamicClient,
+				config.TargetNamespaces,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+				r.TelemetryLogger,
+			),
+			name: collector.WorkloadRule,
+			factory: func() collector.ResourceCollector {
+				return collector.NewWorkloadRuleCollector(
 					r.DynamicClient,
 					config.TargetNamespaces,
 					collector.DefaultMaxBatchSize,

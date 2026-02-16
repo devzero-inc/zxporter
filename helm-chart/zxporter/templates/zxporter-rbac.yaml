@@ -474,6 +474,15 @@ rules:
   - get
   - list
   - watch
+# WorkloadRule CRD for syncing OOM events back to control plane
+- apiGroups:
+  - dakr.devzero.io
+  resources:
+  - workloadrules
+  verbs:
+  - get
+  - list
+  - watch
 - apiGroups:
   - metrics.k8s.io
   resources:

@@ -4,6 +4,7 @@ package collector
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -233,8 +234,10 @@ func (c *PodCollector) checkForContainerEvents(oldPod, newPod *corev1.Pod) {
 			// reason := "containerRestarted"
 
 			// Check if the restart was due to OOM
-			if newStatus.LastTerminationState.Terminated != nil &&
-				newStatus.LastTerminationState.Terminated.Reason == "OOMKilled" {
+			terminated := newStatus.LastTerminationState.Terminated
+			isOOM := terminated != nil && (terminated.Reason == "OOMKilled" ||
+				(terminated.Reason == "StartError" && strings.Contains(strings.ToLower(terminated.Message), "oom")))
+			if isOOM {
 				// reason = "containerOOMKilled"
 				c.logger.Info("Container OOM killed",
 					"namespace", newPod.Namespace,
