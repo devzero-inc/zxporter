@@ -97,3 +97,104 @@ func TestConcurrentUpdatesAndReads(t *testing.T) {
 	assert.Contains(t, statuses, status.Status)
 	assert.Contains(t, messages, status.Message)
 }
+
+// Test case for HealthStatus String method
+func TestHealthStatus_String(t *testing.T) {
+	tests := []struct {
+		status   HealthStatus
+		expected string
+	}{
+		{HealthStatusUnspecified, "unspecified"},
+		{HealthStatusHealthy, "healthy"},
+		{HealthStatusDegraded, "degraded"},
+		{HealthStatusUnhealthy, "unhealthy"},
+		{HealthStatus(99), "unspecified"},
+	}
+	for _, tt := range tests {
+		assert.Equal(t, tt.expected, tt.status.String())
+	}
+}
+
+/*
+Readiness and Healthiness tests
+*/func TestLivenessCheck_Healthy(t *testing.T) {
+	hm := NewHealthManager()
+	hm.Register(ComponentCollectorManager)
+	hm.UpdateStatus(ComponentCollectorManager, HealthStatusHealthy, "all good", nil)
+
+	err := hm.LivenessCheck(nil)
+	assert.NoError(t, err)
+}
+
+func TestLivenessCheck_DegradedIsStillAlive(t *testing.T) {
+	hm := NewHealthManager()
+	hm.Register(ComponentCollectorManager)
+	hm.UpdateStatus(ComponentCollectorManager, HealthStatusDegraded, "some issues", nil)
+
+	err := hm.LivenessCheck(nil)
+	assert.NoError(t, err)
+}
+
+func TestLivenessCheck_UnhealthyCollectorFails(t *testing.T) {
+	hm := NewHealthManager()
+	hm.Register(ComponentCollectorManager)
+	hm.UpdateStatus(ComponentCollectorManager, HealthStatusUnhealthy, "no collectors running", nil)
+
+	err := hm.LivenessCheck(nil)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "collector_manager")
+}
+
+func TestLivenessCheck_UnspecifiedPasses(t *testing.T) {
+	hm := NewHealthManager()
+	hm.Register(ComponentCollectorManager)
+	// Status is Unspecified (startup) — should still pass liveness
+	err := hm.LivenessCheck(nil)
+	assert.NoError(t, err)
+}
+
+func TestReadinessCheck_AllReady(t *testing.T) {
+	hm := NewHealthManager()
+	hm.Register(ComponentCollectorManager)
+	hm.Register(ComponentDakrTransport)
+	hm.UpdateStatus(ComponentCollectorManager, HealthStatusHealthy, "running", nil)
+	hm.UpdateStatus(ComponentDakrTransport, HealthStatusHealthy, "connected", nil)
+
+	err := hm.ReadinessCheck(nil)
+	assert.NoError(t, err)
+}
+
+func TestReadinessCheck_DegradedIsReady(t *testing.T) {
+	hm := NewHealthManager()
+	hm.Register(ComponentCollectorManager)
+	hm.Register(ComponentDakrTransport)
+	hm.UpdateStatus(ComponentCollectorManager, HealthStatusDegraded, "some issues", nil)
+	hm.UpdateStatus(ComponentDakrTransport, HealthStatusDegraded, "retrying", nil)
+
+	err := hm.ReadinessCheck(nil)
+	assert.NoError(t, err)
+}
+
+func TestReadinessCheck_CollectorUnspecifiedNotReady(t *testing.T) {
+	hm := NewHealthManager()
+	hm.Register(ComponentCollectorManager)
+	hm.Register(ComponentDakrTransport)
+	// collector_manager still Unspecified (not started yet)
+	hm.UpdateStatus(ComponentDakrTransport, HealthStatusHealthy, "connected", nil)
+
+	err := hm.ReadinessCheck(nil)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "collector_manager")
+}
+
+func TestReadinessCheck_TransportUnhealthyNotReady(t *testing.T) {
+	hm := NewHealthManager()
+	hm.Register(ComponentCollectorManager)
+	hm.Register(ComponentDakrTransport)
+	hm.UpdateStatus(ComponentCollectorManager, HealthStatusHealthy, "running", nil)
+	hm.UpdateStatus(ComponentDakrTransport, HealthStatusUnhealthy, "cannot reach dakr", nil)
+
+	err := hm.ReadinessCheck(nil)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "dakr_transport")
+}

@@ -31,7 +31,6 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
@@ -40,6 +39,7 @@ import (
 	monitoringv1 "github.com/devzero-inc/zxporter/api/v1"
 	"github.com/devzero-inc/zxporter/internal/controller"
 	// +kubebuilder:scaffold:imports
+	"github.com/devzero-inc/zxporter/internal/health"
 )
 
 var (
@@ -125,7 +125,7 @@ func main() {
 		Scheme:                 scheme,
 		Metrics:                metricsServerOptions,
 		WebhookServer:          webhookServer,
-		HealthProbeBindAddress: probeAddr,
+		HealthProbeBindAddress: "", // Disable the default health probe server since we are using a custom one in 'internal/health'
 		LeaderElection:         enableLeaderElection,
 		LeaderElectionID:       "055ced15.devzero.io",
 		// LeaderElectionReleaseOnCancel defines if the leader should step down voluntarily
@@ -162,12 +162,10 @@ func main() {
 	// No need to add the standard controller with kubebuilder:scaffold:builder
 	// The env-based controller doesn't rely on CRDs
 
-	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
-		setupLog.Error(err, "unable to set up health check")
-		os.Exit(1)
-	}
-	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
-		setupLog.Error(err, "unable to set up ready check")
+	// New health server from health package
+	healthServer := health.NewHealthServer(envController.Reconciler.HealthManager, probeAddr)
+	if err := healthServer.Start(); err != nil {
+		setupLog.Error(err, "unable to start health server")
 		os.Exit(1)
 	}
 
@@ -176,4 +174,14 @@ func main() {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
+
+	// TODO when we make sure that the custom health server works, we can remove the default health probe server and the related code below
+	// if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
+	// 	setupLog.Error(err, "unable to set up health check")
+	// 	os.Exit(1)
+	// }
+	// if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
+	// 	setupLog.Error(err, "unable to set up ready check")
+	// 	os.Exit(1)
+	// }
 }

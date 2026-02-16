@@ -1,6 +1,8 @@
 package health
 
 import (
+	"fmt"
+	"net/http"
 	"sync"
 )
 
@@ -107,4 +109,49 @@ func (hm *HealthManager) BuildReport() map[string]ComponentStatus {
 		}
 	}
 	return report
+}
+
+// LivenessCheck checks if all components are at least Degraded (not Unhealthy)
+func (hm *HealthManager) LivenessCheck(_ *http.Request) error {
+	hm.mu.RLock()
+	defer hm.mu.RUnlock()
+
+	component, exists := hm.components[ComponentCollectorManager]
+	if exists && component.Status == HealthStatusUnhealthy {
+		return fmt.Errorf("%s is %s: %s", ComponentCollectorManager, component.Status, component.Message)
+	}
+
+	return nil
+}
+
+// ReadinessCheck checks if all components are Healthy
+func (hm *HealthManager) ReadinessCheck(_ *http.Request) error {
+	hm.mu.RLock()
+	defer hm.mu.RUnlock()
+
+	readyComponents := []string{ComponentCollectorManager, ComponentDakrTransport}
+	for _, compName := range readyComponents {
+		component, exists := hm.components[compName]
+		if !exists {
+			return fmt.Errorf("%s is not registered", compName)
+		}
+		if component.Status != HealthStatusHealthy && component.Status != HealthStatusDegraded {
+			return fmt.Errorf("%s is not ready (status: %s)", compName, component.Status)
+		}
+	}
+	return nil
+}
+
+// String returns a human-readable representation of the HealthStatus
+func (s HealthStatus) String() string {
+	switch s {
+	case HealthStatusHealthy:
+		return "healthy"
+	case HealthStatusDegraded:
+		return "degraded"
+	case HealthStatusUnhealthy:
+		return "unhealthy"
+	default:
+		return "unspecified"
+	}
 }
