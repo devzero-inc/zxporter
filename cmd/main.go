@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"flag"
 	"os"
@@ -38,6 +39,7 @@ import (
 
 	monitoringv1 "github.com/devzero-inc/zxporter/api/v1"
 	"github.com/devzero-inc/zxporter/internal/controller"
+
 	// +kubebuilder:scaffold:imports
 	"github.com/devzero-inc/zxporter/internal/health"
 )
@@ -168,20 +170,17 @@ func main() {
 		setupLog.Error(err, "unable to start health server")
 		os.Exit(1)
 	}
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := healthServer.Stop(ctx); err != nil {
+			setupLog.Error(err, "error stopping health server")
+		}
+	}()
 
 	setupLog.Info("starting manager")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
-
-	// TODO when we make sure that the custom health server works, we can remove the default health probe server and the related code below
-	// if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
-	// 	setupLog.Error(err, "unable to set up health check")
-	// 	os.Exit(1)
-	// }
-	// if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
-	// 	setupLog.Error(err, "unable to set up ready check")
-	// 	os.Exit(1)
-	// }
 }
