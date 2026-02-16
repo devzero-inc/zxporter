@@ -43,3 +43,4 @@ debug_rendered.yaml
 helm-chart/zxporter/local_values.yaml
 
 docs/plans
+.DS_Store

@@ -127,7 +127,7 @@ func main() {
 		Scheme:                 scheme,
 		Metrics:                metricsServerOptions,
 		WebhookServer:          webhookServer,
-		HealthProbeBindAddress: "", // Disable the default health probe server since we are using a custom one in 'internal/health'
+		HealthProbeBindAddress: "", // Custom health server used instead
 		LeaderElection:         enableLeaderElection,
 		LeaderElectionID:       "055ced15.devzero.io",
 		// LeaderElectionReleaseOnCancel defines if the leader should step down voluntarily

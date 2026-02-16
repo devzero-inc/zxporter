@@ -52,7 +52,7 @@ func (s *HealthServer) Start() error {
 	if err != nil {
 		return err
 	}
-	go s.server.Serve(ln)
+	go s.server.Serve(ln) //nolint:errcheck // server always returns error on shutdown
 	return nil
 }
 
@@ -115,5 +115,5 @@ func buildComponentResponses(report map[string]ComponentStatus) map[string]Compo
 func writeJSON(w http.ResponseWriter, statusCode int, data any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
-	json.NewEncoder(w).Encode(data)
+	_ = json.NewEncoder(w).Encode(data)
 }
