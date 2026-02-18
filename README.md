@@ -1,6 +1,7 @@
 # ZXporter - Kubernetes Resource Exporter
 
-ZXporter is a Kubernetes operator that collects and exports various Kubernetes resources for monitoring and observability purposes. It provides a comprehensive solution for gathering metrics and data from different types of Kubernetes resources across your cluster.
+ZXporter is a Kubernetes operator that collects and exports various Kubernetes resources for monitoring and observability purposes. 
+It provides a comprehensive solution for gathering metrics and data from different types of Kubernetes resources across your cluster.
 
 ## Overview
 
