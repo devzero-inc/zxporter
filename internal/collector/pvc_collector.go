@@ -191,6 +191,13 @@ func (c *PersistentVolumeClaimCollector) pvcChanged(oldPVC, newPVC *corev1.Persi
 		return true
 	}
 
+	// Check for resource request changes (e.g., storage expansion)
+	oldRequests := oldPVC.Spec.Resources.Requests
+	newRequests := newPVC.Spec.Resources.Requests
+	if !resourceListEqual(oldRequests, newRequests) {
+		return true
+	}
+
 	// Check for capacity changes
 	oldCapacity := oldPVC.Status.Capacity
 	newCapacity := newPVC.Status.Capacity
@@ -323,4 +330,18 @@ func (c *PersistentVolumeClaimCollector) AddResource(resource interface{}) error
 
 	c.handlePVCEvent(pvc, EventTypeAdd)
 	return nil
+}
+
+// resourceListEqual compares two Kubernetes ResourceLists for equality.
+func resourceListEqual(a, b corev1.ResourceList) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for key, aVal := range a {
+		bVal, ok := b[key]
+		if !ok || !aVal.Equal(bVal) {
+			return false
+		}
+	}
+	return true
 }
