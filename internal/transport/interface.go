@@ -28,6 +28,9 @@ type DakrClient interface {
 
 	// SendNetworkTrafficMetrics pushes network traffic metrics from a node
 	SendNetworkTrafficMetrics(ctx context.Context, req *gen.SendNetworkTrafficMetricsRequest) (*gen.SendNetworkTrafficMetricsResponse, error)
+
+	// ReportHealth
+	ReportHealth(ctx context.Context, req *gen.ReportHealthRequest) error
 }
 
 // Sender defines methods for sending data to external systems

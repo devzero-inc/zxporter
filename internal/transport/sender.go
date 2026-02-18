@@ -186,3 +186,9 @@ func (c *SimpleDakrClient) SendNetworkTrafficMetrics(ctx context.Context, req *g
 		"lookupsCount", len(req.DnsLookups))
 	return &gen.SendNetworkTrafficMetricsResponse{ProcessedCount: int32(len(req.Items))}, nil
 }
+
+// ReportHealth implements SimpleDakrClient.
+func (c *SimpleDakrClient) ReportHealth(ctx context.Context, req *gen.ReportHealthRequest) error {
+	c.logger.Info("ReportHealth (simple client, no-op)", "cluster_id", req.ClusterId, "version", req.Version)
+	return nil
+}
