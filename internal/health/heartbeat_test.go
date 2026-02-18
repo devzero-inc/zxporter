@@ -1,7 +1,6 @@
 package health
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -9,17 +8,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-// mockDakrClient captures the ReportHealth call for testing.
-type mockDakrClient struct {
-	lastReq *gen.ReportHealthRequest
-	err     error
-}
-
-func (m *mockDakrClient) ReportHealth(ctx context.Context, req *gen.ReportHealthRequest) error {
-	m.lastReq = req
-	return m.err
-}
 
 func TestBuildHeartbeatRequest(t *testing.T) {
 	hm := NewHealthManager()
