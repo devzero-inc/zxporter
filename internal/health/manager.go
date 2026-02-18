@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
+	"time"
 )
 
 // HealthStatus matches proto enum for easy mapping
@@ -25,8 +26,9 @@ type ComponentStatus struct {
 }
 
 type HealthManager struct {
-	mu         sync.RWMutex
-	components map[string]*ComponentStatus
+	mu                 sync.RWMutex
+	components         map[string]*ComponentStatus
+	livenessGraceUntil time.Time // LivenessCheck always passes before this deadline
 }
 
 // NewHealthManager creates a new HealthManager
@@ -111,10 +113,36 @@ func (hm *HealthManager) BuildReport() map[string]ComponentStatus {
 	return report
 }
 
-// LivenessCheck checks if all components are at least Degraded (not Unhealthy)
+// SuppressLiveness makes LivenessCheck pass unconditionally for the given
+// duration. Use this before a planned collector restart so that the transient
+// Unhealthy window does not trigger a pod kill. The grace period is cleared
+// automatically when StartAll succeeds (via ClearLivenessSuppression) or when
+// the deadline expires.
+func (hm *HealthManager) SuppressLiveness(d time.Duration) {
+	hm.mu.Lock()
+	defer hm.mu.Unlock()
+	hm.livenessGraceUntil = time.Now().Add(d)
+}
+
+// ClearLivenessSuppression removes any active grace period so LivenessCheck
+// resumes normal evaluation. Call this after collectors are back up.
+func (hm *HealthManager) ClearLivenessSuppression() {
+	hm.mu.Lock()
+	defer hm.mu.Unlock()
+	hm.livenessGraceUntil = time.Time{}
+}
+
+// LivenessCheck checks if all components are at least Degraded (not Unhealthy).
+// During an active grace period (set via SuppressLiveness) it always returns nil
+// so that planned restarts do not trigger pod kills.
 func (hm *HealthManager) LivenessCheck(_ *http.Request) error {
 	hm.mu.RLock()
 	defer hm.mu.RUnlock()
+
+	// During a grace period, unconditionally pass liveness
+	if !hm.livenessGraceUntil.IsZero() && time.Now().Before(hm.livenessGraceUntil) {
+		return nil
+	}
 
 	component, exists := hm.components[ComponentCollectorManager]
 	if exists && component.Status == HealthStatusUnhealthy {

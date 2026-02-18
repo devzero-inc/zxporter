@@ -4,6 +4,7 @@ import (
 	"strconv"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -197,4 +198,68 @@ func TestReadinessCheck_TransportUnhealthyNotReady(t *testing.T) {
 	err := hm.ReadinessCheck(nil)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "dakr_transport")
+}
+
+// Liveness suppression tests — ensures planned restarts don't cause pod kills
+
+func TestLivenessCheck_SuppressedDuringGracePeriod(t *testing.T) {
+	hm := NewHealthManager()
+	hm.Register(ComponentCollectorManager)
+	hm.UpdateStatus(ComponentCollectorManager, HealthStatusUnhealthy, "stopped for restart", nil)
+
+	// Without suppression, liveness should fail
+	err := hm.LivenessCheck(nil)
+	assert.Error(t, err)
+
+	// Suppress liveness for planned restart
+	hm.SuppressLiveness(5 * time.Minute)
+
+	// Now liveness should pass even though collector_manager is Unhealthy
+	err = hm.LivenessCheck(nil)
+	assert.NoError(t, err)
+}
+
+func TestLivenessCheck_ClearSuppression(t *testing.T) {
+	hm := NewHealthManager()
+	hm.Register(ComponentCollectorManager)
+	hm.UpdateStatus(ComponentCollectorManager, HealthStatusUnhealthy, "stopped", nil)
+
+	hm.SuppressLiveness(5 * time.Minute)
+	assert.NoError(t, hm.LivenessCheck(nil)) // suppressed
+
+	// Clear suppression — should fail again since still Unhealthy
+	hm.ClearLivenessSuppression()
+	assert.Error(t, hm.LivenessCheck(nil))
+}
+
+func TestLivenessCheck_GracePeriodExpires(t *testing.T) {
+	hm := NewHealthManager()
+	hm.Register(ComponentCollectorManager)
+	hm.UpdateStatus(ComponentCollectorManager, HealthStatusUnhealthy, "stopped", nil)
+
+	// Set a grace period that is already expired
+	hm.mu.Lock()
+	hm.livenessGraceUntil = time.Now().Add(-1 * time.Second)
+	hm.mu.Unlock()
+
+	// Should fail because grace period has expired
+	err := hm.LivenessCheck(nil)
+	assert.Error(t, err)
+}
+
+func TestLivenessCheck_FullRestartCycle(t *testing.T) {
+	hm := NewHealthManager()
+	hm.Register(ComponentCollectorManager)
+	hm.UpdateStatus(ComponentCollectorManager, HealthStatusHealthy, "running", nil)
+	assert.NoError(t, hm.LivenessCheck(nil))
+
+	// Simulate planned restart: suppress, then set unhealthy
+	hm.SuppressLiveness(5 * time.Minute)
+	hm.UpdateStatus(ComponentCollectorManager, HealthStatusUnhealthy, "stopped for restart", nil)
+	assert.NoError(t, hm.LivenessCheck(nil)) // still passes
+
+	// Simulate collectors coming back: set healthy and clear suppression
+	hm.ClearLivenessSuppression()
+	hm.UpdateStatus(ComponentCollectorManager, HealthStatusHealthy, "restarted", nil)
+	assert.NoError(t, hm.LivenessCheck(nil)) // passes normally
 }
