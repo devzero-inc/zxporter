@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 For releases prior to automated changelog generation, please see the
 [GitHub Releases](https://github.com/devzero-inc/zxporter/releases) page.
 
+## [v0.0.63] - 2026-02-18
+
+<!-- Release notes generated using configuration in .github/release.yml at main -->
+
+### What's Changed
+### Other Changes
+* chore: update changelog for v0.0.62 by @github-actions[bot] in https://github.com/devzero-inc/zxporter/pull/277
+* Upgrade zxporter image to 0.0.62 by @Tzvonimir in https://github.com/devzero-inc/zxporter/pull/278
+* Upgrade netmon chart image version to 0.0.62 by @Tzvonimir in https://github.com/devzero-inc/zxporter/pull/279
+* chore(helm): update Chart.yaml version to 0.0.7 by @github-actions[bot] in https://github.com/devzero-inc/zxporter/pull/280
+* chore(helm): update Chart.yaml version to 0.0.41 by @github-actions[bot] in https://github.com/devzero-inc/zxporter/pull/281
+* PC-810 by @Parthiba-Hazra in https://github.com/devzero-inc/zxporter/pull/272
+* PC - 821 Replace existing probes with HealthManager-backed endpoints by @mutantkeyboard in https://github.com/devzero-inc/zxporter/pull/276
+* Add prometheus throttle by @Tzvonimir in https://github.com/devzero-inc/zxporter/pull/283
+
+
+**Full Changelog**: https://github.com/devzero-inc/zxporter/compare/v0.0.62...v0.0.63
+
 ## [v0.0.62] - 2026-02-16
 
 <!-- Release notes generated using configuration in .github/release.yml at main -->
