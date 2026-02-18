@@ -250,6 +250,9 @@ func (m *CollectionManager) StartAll(ctx context.Context) error {
 	}
 
 	m.started = true
+	if m.healthManager != nil {
+		m.healthManager.ClearLivenessSuppression()
+	}
 	m.updateHealthStatus(health.ComponentCollectorManager, health.HealthStatusHealthy, fmt.Sprintf("%d collectors started", len(m.collectors)), map[string]string{"collector_count": fmt.Sprintf("%d", len(m.collectors))})
 	m.updateHealthStatus(health.ComponentBufferQueue, health.HealthStatusHealthy, "Buffer is operational", map[string]string{"capacity": fmt.Sprintf("%d", m.bufferSize)})
 

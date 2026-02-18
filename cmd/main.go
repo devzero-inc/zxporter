@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"flag"
 	"os"
@@ -31,7 +32,6 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
@@ -39,7 +39,9 @@ import (
 
 	monitoringv1 "github.com/devzero-inc/zxporter/api/v1"
 	"github.com/devzero-inc/zxporter/internal/controller"
+
 	// +kubebuilder:scaffold:imports
+	"github.com/devzero-inc/zxporter/internal/health"
 )
 
 var (
@@ -125,7 +127,7 @@ func main() {
 		Scheme:                 scheme,
 		Metrics:                metricsServerOptions,
 		WebhookServer:          webhookServer,
-		HealthProbeBindAddress: probeAddr,
+		HealthProbeBindAddress: "", // Custom health server used instead
 		LeaderElection:         enableLeaderElection,
 		LeaderElectionID:       "055ced15.devzero.io",
 		// LeaderElectionReleaseOnCancel defines if the leader should step down voluntarily
@@ -162,14 +164,19 @@ func main() {
 	// No need to add the standard controller with kubebuilder:scaffold:builder
 	// The env-based controller doesn't rely on CRDs
 
-	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
-		setupLog.Error(err, "unable to set up health check")
+	// New health server from health package
+	healthServer := health.NewHealthServer(envController.Reconciler.HealthManager, probeAddr)
+	if err := healthServer.Start(); err != nil {
+		setupLog.Error(err, "unable to start health server")
 		os.Exit(1)
 	}
-	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
-		setupLog.Error(err, "unable to set up ready check")
-		os.Exit(1)
-	}
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := healthServer.Stop(ctx); err != nil {
+			setupLog.Error(err, "error stopping health server")
+		}
+	}()
 
 	setupLog.Info("starting manager")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {

@@ -986,6 +986,12 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 			},
 		)
 
+		// Suppress liveness during planned restart so the transient Unhealthy
+		// window between StopAll and StartAll does not trigger a pod kill.
+		if r.HealthManager != nil {
+			r.HealthManager.SuppressLiveness(5 * time.Minute)
+		}
+
 		// Stop all existing collectors
 		if r.CollectionManager != nil {
 			logger.Info("Stopping all collectors")
@@ -2145,6 +2151,11 @@ func (r *CollectionPolicyReconciler) setupAllCollectors(
 	clusterCollector collector.ResourceCollector,
 ) error {
 	logger.Info("Now registering and starting all collectors")
+
+	// Suppress liveness during reconfiguration restart
+	if r.HealthManager != nil {
+		r.HealthManager.SuppressLiveness(5 * time.Minute)
+	}
 
 	// Stop the collection manager to reconfigure with all collectors
 	if err := r.CollectionManager.StopAll(); err != nil {
