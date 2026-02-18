@@ -366,7 +366,19 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 
 			var ioMetrics map[string]float64
 			var gpuMetrics map[string]interface{}
+			var throttleFraction float64
 			if c.prometheusAPI != nil && queryCtx != nil {
+
+				// Fetch CPU throttle metrics for this container
+				throttleFraction, err = c.collectContainerCPUThrottleMetrics(queryCtx, pod, containerMetrics.Name)
+				if err != nil {
+					c.logger.Error(err, "Failed to collect CPU throttle metrics",
+						"namespace", podMetrics.Namespace,
+						"pod", podMetrics.Name,
+						"container", containerMetrics.Name)
+					// Continue with 0 throttle fraction
+					throttleFraction = 0
+				}
 
 				// Fetch I/O metrics for this container
 				if !c.config.DisableNetworkIOMetrics {
@@ -438,7 +450,7 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 				}
 			}
 			// Process the container metrics with optional network/IO data
-			c.processContainerMetrics(pod, containerMetrics, networkMetrics, ioMetrics, gpuMetrics)
+			c.processContainerMetrics(pod, containerMetrics, networkMetrics, ioMetrics, gpuMetrics, throttleFraction)
 		}
 	}
 }
@@ -450,6 +462,7 @@ func (c *ContainerResourceCollector) processContainerMetrics(
 	networkMetrics map[string]float64,
 	ioMetrics map[string]float64,
 	gpuMetrics map[string]interface{},
+	throttleFraction float64,
 ) {
 	// Find the container spec in the pod
 	var containerSpec *corev1.Container
@@ -589,6 +602,9 @@ func (c *ContainerResourceCollector) processContainerMetrics(
 		metricsSnapshot.FsWrites = ioMetrics["FSWrites"]
 	}
 
+	// Add CPU throttle fraction if available
+	metricsSnapshot.CpuThrottledFraction = throttleFraction
+
 	if len(gpuMetrics) > 0 {
 		metricsSnapshot.GpuUsage = gpuMetrics["GPUUsage"]
 		metricsSnapshot.GpuMetricsCount = gpuMetrics["GPUMetricsCount"]
@@ -700,6 +716,62 @@ func (c *ContainerResourceCollector) collectContainerIOMetrics(ctx context.Conte
 	}
 
 	return metrics, nil
+}
+
+// collectContainerCPUThrottleMetrics collects CFS bandwidth throttle metrics for a container.
+// Returns the throttle fraction (0.0-1.0): rate(throttled_periods) / rate(total_periods).
+func (c *ContainerResourceCollector) collectContainerCPUThrottleMetrics(ctx context.Context, pod *corev1.Pod, containerName string) (float64, error) {
+	throttledQuery := fmt.Sprintf(
+		`sum(rate(container_cpu_cfs_throttled_periods_total{namespace="%s", pod="%s", container="%s"}[5m]))`,
+		pod.Namespace, pod.Name, containerName,
+	)
+	totalQuery := fmt.Sprintf(
+		`sum(rate(container_cpu_cfs_periods_total{namespace="%s", pod="%s", container="%s"}[5m]))`,
+		pod.Namespace, pod.Name, containerName,
+	)
+
+	queryTime := time.Now()
+
+	// Query throttled periods rate
+	throttledResult, _, err := c.prometheusAPI.Query(ctx, throttledQuery, queryTime)
+	if err != nil {
+		return 0, fmt.Errorf("error querying throttled periods: %w", err)
+	}
+
+	// Query total periods rate
+	totalResult, _, err := c.prometheusAPI.Query(ctx, totalQuery, queryTime)
+	if err != nil {
+		return 0, fmt.Errorf("error querying total periods: %w", err)
+	}
+
+	// Extract values
+	var throttledRate, totalRate float64
+	if throttledResult.Type() == model.ValVector {
+		vector := throttledResult.(model.Vector)
+		if len(vector) > 0 {
+			throttledRate = float64(vector[0].Value)
+		}
+	}
+	if totalResult.Type() == model.ValVector {
+		vector := totalResult.(model.Vector)
+		if len(vector) > 0 {
+			totalRate = float64(vector[0].Value)
+		}
+	}
+
+	// Compute fraction; return 0 if no CFS data
+	if totalRate <= 0 {
+		return 0, nil
+	}
+
+	fraction := throttledRate / totalRate
+	if fraction < 0 {
+		fraction = 0
+	}
+	if fraction > 1 {
+		fraction = 1
+	}
+	return fraction, nil
 }
 
 // collectContainerGPUMetrics collects GPU metrics for a container using Prometheus queries
