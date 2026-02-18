@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"strings"
 	"sync"
 	"time"
@@ -759,13 +760,14 @@ func (c *ContainerResourceCollector) collectContainerCPUThrottleMetrics(ctx cont
 		}
 	}
 
-	// Compute fraction; return 0 if no CFS data
-	if totalRate <= 0 {
+	// Compute fraction; return 0 if no CFS data or NaN/Inf values from Prometheus
+	if totalRate <= 0 || math.IsNaN(totalRate) || math.IsInf(totalRate, 0) ||
+		math.IsNaN(throttledRate) || math.IsInf(throttledRate, 0) {
 		return 0, nil
 	}
 
 	fraction := throttledRate / totalRate
-	if fraction < 0 {
+	if fraction < 0 || math.IsNaN(fraction) {
 		fraction = 0
 	}
 	if fraction > 1 {
