@@ -2,7 +2,6 @@ package health
 
 import (
 	"fmt"
-	"net/http"
 	"sync"
 	"time"
 )
@@ -135,11 +134,14 @@ func (hm *HealthManager) ClearLivenessSuppression() {
 // LivenessCheck checks if all components are at least Degraded (not Unhealthy).
 // During an active grace period (set via SuppressLiveness) it always returns nil
 // so that planned restarts do not trigger pod kills.
-func (hm *HealthManager) LivenessCheck(_ *http.Request) error {
+func (hm *HealthManager) LivenessCheck() error {
 	hm.mu.RLock()
 	defer hm.mu.RUnlock()
+	return hm.livenessCheckLocked()
+}
 
-	// During a grace period, unconditionally pass liveness
+// livenessCheckLocked performs the liveness check while the caller holds mu.
+func (hm *HealthManager) livenessCheckLocked() error {
 	if !hm.livenessGraceUntil.IsZero() && time.Now().Before(hm.livenessGraceUntil) {
 		return nil
 	}
@@ -152,11 +154,15 @@ func (hm *HealthManager) LivenessCheck(_ *http.Request) error {
 	return nil
 }
 
-// ReadinessCheck checks if all components are Healthy
-func (hm *HealthManager) ReadinessCheck(_ *http.Request) error {
+// ReadinessCheck checks if all required components are Healthy or Degraded.
+func (hm *HealthManager) ReadinessCheck() error {
 	hm.mu.RLock()
 	defer hm.mu.RUnlock()
+	return hm.readinessCheckLocked()
+}
 
+// readinessCheckLocked performs the readiness check while the caller holds mu.
+func (hm *HealthManager) readinessCheckLocked() error {
 	readyComponents := []string{ComponentCollectorManager, ComponentDakrTransport}
 	for _, compName := range readyComponents {
 		component, exists := hm.components[compName]
@@ -168,6 +174,38 @@ func (hm *HealthManager) ReadinessCheck(_ *http.Request) error {
 		}
 	}
 	return nil
+}
+
+// CheckLiveness returns the report and liveness error atomically under a single
+// lock acquisition, avoiding TOCTOU between BuildReport and LivenessCheck.
+func (hm *HealthManager) CheckLiveness() (map[string]ComponentStatus, error) {
+	hm.mu.RLock()
+	defer hm.mu.RUnlock()
+	return hm.buildReportLocked(), hm.livenessCheckLocked()
+}
+
+// CheckReadiness returns the report and readiness error atomically.
+func (hm *HealthManager) CheckReadiness() (map[string]ComponentStatus, error) {
+	hm.mu.RLock()
+	defer hm.mu.RUnlock()
+	return hm.buildReportLocked(), hm.readinessCheckLocked()
+}
+
+// buildReportLocked builds the report while the caller holds mu.
+func (hm *HealthManager) buildReportLocked() map[string]ComponentStatus {
+	report := make(map[string]ComponentStatus, len(hm.components))
+	for name, comp := range hm.components {
+		meta := make(map[string]string, len(comp.Metadata))
+		for k, v := range comp.Metadata {
+			meta[k] = v
+		}
+		report[name] = ComponentStatus{
+			Status:   comp.Status,
+			Message:  comp.Message,
+			Metadata: meta,
+		}
+	}
+	return report
 }
 
 // String returns a human-readable representation of the HealthStatus

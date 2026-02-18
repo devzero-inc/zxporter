@@ -8,10 +8,10 @@ import (
 	"time"
 )
 
-// HealthResponse represents the JSON structuure for /healthz and /readyz responses
+// HealthResponse represents the JSON structure for /healthz and /readyz responses
 type HealthResponse struct {
 	Status     string                       `json:"status"`
-	Error      string                       `json:"message,omitempty"`
+	Error      string                       `json:"error,omitempty"`
 	Components map[string]ComponentResponse `json:"components,omitempty"`
 }
 
@@ -62,9 +62,8 @@ func (s *HealthServer) Stop(ctx context.Context) error {
 }
 
 // healthzHandler handles the /healthz endpoint
-func (s *HealthServer) healthzHandler(w http.ResponseWriter, r *http.Request) {
-	report := s.manager.BuildReport()
-	err := s.manager.LivenessCheck(r)
+func (s *HealthServer) healthzHandler(w http.ResponseWriter, _ *http.Request) {
+	report, err := s.manager.CheckLiveness()
 
 	response := HealthResponse{
 		Components: buildComponentResponses(report),
@@ -77,13 +76,11 @@ func (s *HealthServer) healthzHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	response.Status = "healthy"
 	writeJSON(w, http.StatusOK, response)
-
 }
 
 // readyzHandler handles the /readyz endpoint
-func (s *HealthServer) readyzHandler(w http.ResponseWriter, r *http.Request) {
-	report := s.manager.BuildReport()
-	err := s.manager.ReadinessCheck(r)
+func (s *HealthServer) readyzHandler(w http.ResponseWriter, _ *http.Request) {
+	report, err := s.manager.CheckReadiness()
 
 	response := HealthResponse{
 		Components: buildComponentResponses(report),
