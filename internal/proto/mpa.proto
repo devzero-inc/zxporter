@@ -58,6 +58,10 @@ message ContainerMetricItem {
   // Disk metrics (bytes/sec, placeholder until collection extended)
   int64 disk_read_bytes_per_sec = 16;
   int64 disk_write_bytes_per_sec = 17;
+
+  // CPU throttle fraction from CFS bandwidth controller (0.0-1.0)
+  // Derived from rate(container_cpu_cfs_throttled_periods_total) / rate(container_cpu_cfs_periods_total)
+  double cpu_throttle_fraction = 18;
 }
 
 // HistoricalMetricsSummary contains pre-aggregated percentile data from Prometheus

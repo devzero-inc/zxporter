@@ -55,6 +55,9 @@ type ContainerMetricsSnapshot struct {
 	FsReads      float64 `json:"fsReads,omitempty"`
 	FsWrites     float64 `json:"fsWrites,omitempty"`
 
+	// CPU throttle metrics from CFS bandwidth controller
+	CpuThrottledFraction float64 `json:"cpuThrottledFraction,omitempty"`
+
 	// GPU metrics
 	GpuUsage                 interface{} `json:"gpuUsage,omitempty"`
 	GpuMetricsCount          interface{} `json:"gpuMetricsCount,omitempty"`
