@@ -665,6 +665,8 @@ DAKR_MPA_PROTO_FILE ?= mpa.proto
 DAKR_MPA_PROTO ?= internal/proto/$(DAKR_MPA_PROTO_FILE)
 DAKR_CLUSTER_PROTO_FILE ?= cluster.proto
 DAKR_CLUSTER_PROTO ?= $(DAKR_DIR)/proto/api/v1/$(DAKR_CLUSTER_PROTO_FILE)
+DAKR_OPERATOR_HEALTH_PROTO_FILE ?= operator_health.proto
+DAKR_OPERATOR_HEALTH_PROTO ?= $(DAKR_DIR)/proto/api/v1/$(DAKR_OPERATOR_HEALTH_PROTO_FILE)
 
 # BUF_VERSION and BUF_BINARY_NAME are to generate a Dakr protobuf/gRPC client.
 BUF_VERSION := 1.31.0
@@ -692,7 +694,7 @@ generate-proto: install-buf ## Fetch latest Dakr protobuf
 	mkdir -p "$$PROTO_DIR/api/v1"; \
 	cp "$(DAKR_MPA_PROTO)" "$$PROTO_DIR/api/v1"; \
 	find "$$PROTO_DIR" -type f -name "*.yaml" -exec perl -pi -e 's|github.com/devzero-inc/services/dakr/gen|github.com/devzero-inc/zxporter/gen|g' {} +; \
-	buf build "$(DAKR_DIR)" --path "$(DAKR_METRICS_COLLECTOR_PROTO)" --path "$(DAKR_CLUSTER_PROTO)" -o "$$PROTO_DIR"/dakr_proto_descriptor.bin; \
+	buf build "$(DAKR_DIR)" --path "$(DAKR_METRICS_COLLECTOR_PROTO)" --path "$(DAKR_CLUSTER_PROTO)" --path "$(DAKR_OPERATOR_HEALTH_PROTO)" -o "$$PROTO_DIR"/dakr_proto_descriptor.bin; \
 	buf generate --include-imports "$$PROTO_DIR"/dakr_proto_descriptor.bin; 
 	buf generate --verbose --include-imports --timeout=5m .
 

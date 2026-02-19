@@ -118,10 +118,11 @@ func (h *ClientHeaders) AttachToRequest(header http.Header) {
 
 // RealDakrClient implements communication with Dakr service
 type RealDakrClient struct {
-	logger        logr.Logger
-	client        genconnect.MetricsCollectorServiceClient
-	clusterClient genconnect.ClusterServiceClient
-	clientHeaders *ClientHeaders
+	logger               logr.Logger
+	client               genconnect.MetricsCollectorServiceClient
+	clusterClient        genconnect.ClusterServiceClient
+	clientHeaders        *ClientHeaders
+	operatorHealthClient genconnect.OperatorHealthServiceClient
 }
 
 // NewDakrClient creates a new client for Dakr service
@@ -238,11 +239,18 @@ func NewDakrClient(dakrBaseURL string, clusterToken string, logger logr.Logger) 
 		clientOptions...,
 	)
 
+	operatorHealthClient := genconnect.NewOperatorHealthServiceClient(
+		httpClient,
+		dakrBaseURL,
+		clientOptions...,
+	)
+
 	return &RealDakrClient{
-		logger:        logger.WithName("dakr-client"),
-		client:        client,
-		clusterClient: clusterClient,
-		clientHeaders: clientHeaders,
+		logger:               logger.WithName("dakr-client"),
+		client:               client,
+		clusterClient:        clusterClient,
+		clientHeaders:        clientHeaders,
+		operatorHealthClient: operatorHealthClient,
 	}
 }
 
@@ -657,4 +665,10 @@ func (c *RealDakrClient) SendNetworkTrafficMetrics(ctx context.Context, req *gen
 	c.logger.Info("Successfully sent network traffic metrics", "status", "ok")
 
 	return resp.Msg, nil
+}
+
+// ReportHealth reports the health status of the operator to Dakr
+func (c *RealDakrClient) ReportHealth(ctx context.Context, req *gen.ReportHealthRequest) error {
+	_, err := c.operatorHealthClient.ReportHealth(ctx, connect.NewRequest(req))
+	return err
 }

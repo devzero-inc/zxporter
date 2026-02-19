@@ -58,6 +58,7 @@ type EnvBasedController struct {
 	stopCh            chan struct{}
 	reconcileInterval time.Duration
 	mpaServerPort     int
+	startTime         time.Time
 }
 
 // NewEnvBasedController creates a new environment-based controller
@@ -150,6 +151,8 @@ func NewEnvBasedController(mgr ctrl.Manager, reconcileInterval time.Duration, mp
 
 // Start implements the Runnable interface for manager.Add
 func (c *EnvBasedController) Start(ctx context.Context) error {
+	c.startTime = time.Now()
+
 	// Log version information at startup
 	versionInfo := version.Get()
 
@@ -193,25 +196,55 @@ func (c *EnvBasedController) Start(ctx context.Context) error {
 	return nil
 }
 
-// runHealthReporting periodically logs the health status of all registered components.
+// runHealthReporting periodically logs the health status of all registered components
+// and sends a heartbeat to dakr via the ReportHealth RPC.
 func (c *EnvBasedController) runHealthReporting(ctx context.Context) {
-	ticker := time.NewTicker(60 * time.Second) // Report health status every 60 seconds
+	ticker := time.NewTicker(60 * time.Second)
 	defer ticker.Stop()
+
+	// Send initial heartbeat immediately so dakr sees the operator right away
+	c.sendHealthReport(ctx)
 
 	for {
 		select {
 		case <-ticker.C:
-			report := c.Reconciler.HealthManager.BuildReport()
-			for name, status := range report {
-				c.Log.Info("Health status report", "component", name, "status", status.Status, "message", status.Message, "metadata", status.Metadata)
-			}
+			c.sendHealthReport(ctx)
 		case <-c.stopCh:
 			return
 		case <-ctx.Done():
 			return
 		}
-
 	}
+}
+
+// sendHealthReport logs component health and sends a heartbeat to dakr.
+// It builds the report once to keep local logs and the RPC payload consistent.
+func (c *EnvBasedController) sendHealthReport(ctx context.Context) {
+	report := c.Reconciler.HealthManager.BuildReport()
+	for name, status := range report {
+		c.Log.Info("Health status report", "component", name, "status", status.Status, "message", status.Message, "metadata", status.Metadata)
+	}
+
+	if c.Reconciler.DakrClient != nil {
+		versionInfo := version.Get()
+		req := health.BuildHeartbeatRequestFromReport(
+			report,
+			c.getClusterID(),
+			versionInfo.String(),
+			c.startTime,
+		)
+		if err := c.Reconciler.DakrClient.ReportHealth(ctx, req); err != nil {
+			c.Log.Error(err, "Failed to send health heartbeat to dakr")
+		}
+	}
+}
+
+// getClusterID returns the cluster ID from environment configuration.
+func (c *EnvBasedController) getClusterID() string {
+	if id := os.Getenv("CLUSTER_ID"); id != "" {
+		return id
+	}
+	return "unknown"
 }
 
 // NeedLeaderElection implements the LeaderElectionRunnable interface
