@@ -102,6 +102,9 @@ message ContainerHistoricalMetrics {
   int64 disk_p90 = 21;
   int64 disk_p95 = 22;
   int64 disk_p99 = 23;
+  // Pmax (max observed over 24h window) for spike protection
+  int64 cpu_pmax = 24;   // max CPU over 24h window (millicores)
+  int64 mem_pmax = 25;   // max memory over 24h window (bytes)
 }
 
 // MpaStreamResponse wraps both real-time and historical data on the same stream
