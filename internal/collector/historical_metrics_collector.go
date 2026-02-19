@@ -187,6 +187,31 @@ func (c *HistoricalMetricsCollector) fetchContainerPercentiles(ctx context.Conte
 		sampleCount = int32(countVal)
 	}
 
+	// Pmax queries: max observed value over 24h for spike protection
+	var cpuPmax, memPmax int64
+
+	cpuPmaxQuery := fmt.Sprintf(
+		`max_over_time(rate(container_cpu_usage_seconds_total{namespace="%s", pod=~"%s", container="%s"}[5m])[24h:%s])`,
+		workload.Namespace, workload.PodRegex, containerName, historicalStepInterval,
+	)
+	cpuPmaxVal, err := c.queryScalar(ctx, cpuPmaxQuery, now)
+	if err != nil {
+		c.logger.V(1).Info("CPU pmax query failed", "error", err)
+	} else {
+		cpuPmax = int64(cpuPmaxVal * 1000) // Convert cores to millicores
+	}
+
+	memPmaxQuery := fmt.Sprintf(
+		`max_over_time(container_memory_working_set_bytes{namespace="%s", pod=~"%s", container="%s"}[24h])`,
+		workload.Namespace, workload.PodRegex, containerName,
+	)
+	memPmaxVal, err := c.queryScalar(ctx, memPmaxQuery, now)
+	if err != nil {
+		c.logger.V(1).Info("Memory pmax query failed", "error", err)
+	} else {
+		memPmax = int64(memPmaxVal)
+	}
+
 	return &gen.ContainerHistoricalMetrics{
 		ContainerName: containerName,
 		CpuP50:        cpuValues[0.50],
@@ -199,6 +224,8 @@ func (c *HistoricalMetricsCollector) fetchContainerPercentiles(ctx context.Conte
 		MemP80:        memValues[0.80],
 		MemP90:        memValues[0.90],
 		MemP99:        memValues[0.99],
+		CpuPmax:       cpuPmax,
+		MemPmax:       memPmax,
 	}, sampleCount
 }
 
