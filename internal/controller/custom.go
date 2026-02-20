@@ -231,6 +231,7 @@ func (c *EnvBasedController) sendHealthReport(ctx context.Context) {
 			report,
 			c.getClusterID(),
 			versionInfo.String(),
+			versionInfo.GitCommit,
 			c.startTime,
 		)
 		if err := c.Reconciler.DakrClient.ReportHealth(ctx, req); err != nil {
