@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 For releases prior to automated changelog generation, please see the
 [GitHub Releases](https://github.com/devzero-inc/zxporter/releases) page.
 
+## [v0.0.64] - 2026-02-23
+
+<!-- Release notes generated using configuration in .github/release.yml at main -->
+
+### What's Changed
+### Other Changes
+* Bump zxporter image to v0.0.63 by @Tzvonimir in https://github.com/devzero-inc/zxporter/pull/285
+* chore(helm): update Chart.yaml version to 0.0.42 by @github-actions[bot] in https://github.com/devzero-inc/zxporter/pull/287
+* chore(helm): update Chart.yaml version to 0.0.8 by @github-actions[bot] in https://github.com/devzero-inc/zxporter/pull/286
+* chore: update changelog for v0.0.63 by @github-actions[bot] in https://github.com/devzero-inc/zxporter/pull/284
+* PC-822 Implement Heartbeat sender to Dakr by @mutantkeyboard in https://github.com/devzero-inc/zxporter/pull/282
+* Add pmax threshold check by @Tzvonimir in https://github.com/devzero-inc/zxporter/pull/288
+
+
+**Full Changelog**: https://github.com/devzero-inc/zxporter/compare/v0.0.63...v0.0.64
+
 ## [v0.0.63] - 2026-02-18
 
 <!-- Release notes generated using configuration in .github/release.yml at main -->
