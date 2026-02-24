@@ -18,10 +18,11 @@ func TestBuildHeartbeatRequest(t *testing.T) {
 
 	startTime := time.Now().Add(-10 * time.Minute)
 
-	req := BuildHeartbeatRequest(hm, "cluster-123", "1.2.3", startTime)
+	req := BuildHeartbeatRequest(hm, "cluster-123", "1.2.3", "abc123", startTime)
 
 	assert.Equal(t, "cluster-123", req.ClusterId)
 	assert.Equal(t, "1.2.3", req.Version)
+	assert.Equal(t, "abc123", req.Commit)
 	assert.Equal(t, gen.OperatorType_OPERATOR_TYPE_READ, req.OperatorType)
 	require.NotNil(t, req.UptimeSince)
 	assert.Equal(t, startTime.Unix(), req.UptimeSince.AsTime().Unix())
@@ -73,7 +74,7 @@ func TestBuildHeartbeatRequest_OverallStatus(t *testing.T) {
 				hm.UpdateStatus(name, s, "", nil)
 			}
 
-			req := BuildHeartbeatRequest(hm, "c1", "1.0.0", time.Now())
+			req := BuildHeartbeatRequest(hm, "c1", "1.0.0", "def456", time.Now())
 			assert.Equal(t, tt.expected, req.OverallStatus)
 		})
 	}
