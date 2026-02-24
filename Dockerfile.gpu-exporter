@@ -1,0 +1,43 @@
+# Build the gpu-exporter binary
+FROM golang:1.24 as builder
+ARG TARGETOS
+ARG TARGETARCH
+
+WORKDIR /workspace
+# Copy the Go Modules manifests
+COPY go.mod go.mod
+COPY go.sum go.sum
+# cache deps before building and copying source so that we don't need to re-download as much
+# and so that source changes don't invalidate our downloaded layer
+RUN go mod download
+
+# Copy the go source
+COPY cmd/ cmd/
+COPY internal/ internal/
+COPY gen/ gen/
+
+# Version build args
+ARG MAJOR=0
+ARG MINOR=0
+ARG PATCH=1
+ARG COMMIT_HASH=unknown
+ARG GIT_TREE_STATE=unknown
+ARG BUILD_DATE=unknown
+
+# Build
+RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} GO_VERSION=$(go version | awk '{print $3}') go build \
+    -ldflags "-X github.com/devzero-inc/zxporter/internal/version.major=${MAJOR} \
+    -X github.com/devzero-inc/zxporter/internal/version.minor=${MINOR} \
+    -X github.com/devzero-inc/zxporter/internal/version.patch=${PATCH} \
+    -X github.com/devzero-inc/zxporter/internal/version.gitCommit=${COMMIT_HASH} \
+    -X github.com/devzero-inc/zxporter/internal/version.gitTreeState=${GIT_TREE_STATE} \
+    -X github.com/devzero-inc/zxporter/internal/version.buildDate=${BUILD_DATE} \
+    -X github.com/devzero-inc/zxporter/internal/version.goVersion=${GO_VERSION}" \
+    -a -o zxporter-gpu-exporter cmd/zxporter-gpu-exporter/main.go
+
+# Use distroless as minimal base image.
+FROM gcr.io/distroless/static:latest
+WORKDIR /
+COPY --from=builder /workspace/zxporter-gpu-exporter .
+
+ENTRYPOINT ["/zxporter-gpu-exporter"]
