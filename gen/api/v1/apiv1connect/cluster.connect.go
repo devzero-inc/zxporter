@@ -45,6 +45,9 @@ const (
 	// ClusterServiceGetNetworkDependenciesProcedure is the fully-qualified name of the ClusterService's
 	// GetNetworkDependencies RPC.
 	ClusterServiceGetNetworkDependenciesProcedure = "/api.v1.ClusterService/GetNetworkDependencies"
+	// ClusterServiceGetNetworkMetricsTimeSeriesProcedure is the fully-qualified name of the
+	// ClusterService's GetNetworkMetricsTimeSeries RPC.
+	ClusterServiceGetNetworkMetricsTimeSeriesProcedure = "/api.v1.ClusterService/GetNetworkMetricsTimeSeries"
 )
 
 // ClusterServiceClient is a client for the api.v1.ClusterService service.
@@ -57,6 +60,8 @@ type ClusterServiceClient interface {
 	CreateClusterToken(context.Context, *connect.Request[v1.CreateClusterTokenRequest]) (*connect.Response[v1.CreateClusterTokenResponse], error)
 	// GetNetworkDependencies returns workload-level network dependencies for visualization
 	GetNetworkDependencies(context.Context, *connect.Request[v1.GetNetworkDependenciesRequest]) (*connect.Response[v1.GetNetworkDependenciesResponse], error)
+	// GetNetworkMetricsTimeSeries returns time-bucketed network metrics for charts
+	GetNetworkMetricsTimeSeries(context.Context, *connect.Request[v1.GetNetworkMetricsTimeSeriesRequest]) (*connect.Response[v1.GetNetworkMetricsTimeSeriesResponse], error)
 }
 
 // NewClusterServiceClient constructs a client for the api.v1.ClusterService service. By default, it
@@ -89,15 +94,21 @@ func NewClusterServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			baseURL+ClusterServiceGetNetworkDependenciesProcedure,
 			opts...,
 		),
+		getNetworkMetricsTimeSeries: connect.NewClient[v1.GetNetworkMetricsTimeSeriesRequest, v1.GetNetworkMetricsTimeSeriesResponse](
+			httpClient,
+			baseURL+ClusterServiceGetNetworkMetricsTimeSeriesProcedure,
+			opts...,
+		),
 	}
 }
 
 // clusterServiceClient implements ClusterServiceClient.
 type clusterServiceClient struct {
-	getClustersBasicInfo   *connect.Client[v1.GetClustersBasicInfoRequest, v1.GetClustersBasicInfoResponse]
-	getClustersWithMetrics *connect.Client[v1.GetClustersWithMetricsRequest, v1.GetClustersWithMetricsResponse]
-	createClusterToken     *connect.Client[v1.CreateClusterTokenRequest, v1.CreateClusterTokenResponse]
-	getNetworkDependencies *connect.Client[v1.GetNetworkDependenciesRequest, v1.GetNetworkDependenciesResponse]
+	getClustersBasicInfo        *connect.Client[v1.GetClustersBasicInfoRequest, v1.GetClustersBasicInfoResponse]
+	getClustersWithMetrics      *connect.Client[v1.GetClustersWithMetricsRequest, v1.GetClustersWithMetricsResponse]
+	createClusterToken          *connect.Client[v1.CreateClusterTokenRequest, v1.CreateClusterTokenResponse]
+	getNetworkDependencies      *connect.Client[v1.GetNetworkDependenciesRequest, v1.GetNetworkDependenciesResponse]
+	getNetworkMetricsTimeSeries *connect.Client[v1.GetNetworkMetricsTimeSeriesRequest, v1.GetNetworkMetricsTimeSeriesResponse]
 }
 
 // GetClustersBasicInfo calls api.v1.ClusterService.GetClustersBasicInfo.
@@ -120,6 +131,11 @@ func (c *clusterServiceClient) GetNetworkDependencies(ctx context.Context, req *
 	return c.getNetworkDependencies.CallUnary(ctx, req)
 }
 
+// GetNetworkMetricsTimeSeries calls api.v1.ClusterService.GetNetworkMetricsTimeSeries.
+func (c *clusterServiceClient) GetNetworkMetricsTimeSeries(ctx context.Context, req *connect.Request[v1.GetNetworkMetricsTimeSeriesRequest]) (*connect.Response[v1.GetNetworkMetricsTimeSeriesResponse], error) {
+	return c.getNetworkMetricsTimeSeries.CallUnary(ctx, req)
+}
+
 // ClusterServiceHandler is an implementation of the api.v1.ClusterService service.
 type ClusterServiceHandler interface {
 	// GetClustersBasicInfo retrieves basic information for all clusters in a team
@@ -130,6 +146,8 @@ type ClusterServiceHandler interface {
 	CreateClusterToken(context.Context, *connect.Request[v1.CreateClusterTokenRequest]) (*connect.Response[v1.CreateClusterTokenResponse], error)
 	// GetNetworkDependencies returns workload-level network dependencies for visualization
 	GetNetworkDependencies(context.Context, *connect.Request[v1.GetNetworkDependenciesRequest]) (*connect.Response[v1.GetNetworkDependenciesResponse], error)
+	// GetNetworkMetricsTimeSeries returns time-bucketed network metrics for charts
+	GetNetworkMetricsTimeSeries(context.Context, *connect.Request[v1.GetNetworkMetricsTimeSeriesRequest]) (*connect.Response[v1.GetNetworkMetricsTimeSeriesResponse], error)
 }
 
 // NewClusterServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -158,6 +176,11 @@ func NewClusterServiceHandler(svc ClusterServiceHandler, opts ...connect.Handler
 		svc.GetNetworkDependencies,
 		opts...,
 	)
+	clusterServiceGetNetworkMetricsTimeSeriesHandler := connect.NewUnaryHandler(
+		ClusterServiceGetNetworkMetricsTimeSeriesProcedure,
+		svc.GetNetworkMetricsTimeSeries,
+		opts...,
+	)
 	return "/api.v1.ClusterService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case ClusterServiceGetClustersBasicInfoProcedure:
@@ -168,6 +191,8 @@ func NewClusterServiceHandler(svc ClusterServiceHandler, opts ...connect.Handler
 			clusterServiceCreateClusterTokenHandler.ServeHTTP(w, r)
 		case ClusterServiceGetNetworkDependenciesProcedure:
 			clusterServiceGetNetworkDependenciesHandler.ServeHTTP(w, r)
+		case ClusterServiceGetNetworkMetricsTimeSeriesProcedure:
+			clusterServiceGetNetworkMetricsTimeSeriesHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -191,4 +216,8 @@ func (UnimplementedClusterServiceHandler) CreateClusterToken(context.Context, *c
 
 func (UnimplementedClusterServiceHandler) GetNetworkDependencies(context.Context, *connect.Request[v1.GetNetworkDependenciesRequest]) (*connect.Response[v1.GetNetworkDependenciesResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.ClusterService.GetNetworkDependencies is not implemented"))
+}
+
+func (UnimplementedClusterServiceHandler) GetNetworkMetricsTimeSeries(context.Context, *connect.Request[v1.GetNetworkMetricsTimeSeriesRequest]) (*connect.Response[v1.GetNetworkMetricsTimeSeriesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.ClusterService.GetNetworkMetricsTimeSeries is not implemented"))
 }

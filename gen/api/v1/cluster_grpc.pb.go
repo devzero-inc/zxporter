@@ -19,10 +19,11 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	ClusterService_GetClustersBasicInfo_FullMethodName   = "/api.v1.ClusterService/GetClustersBasicInfo"
-	ClusterService_GetClustersWithMetrics_FullMethodName = "/api.v1.ClusterService/GetClustersWithMetrics"
-	ClusterService_CreateClusterToken_FullMethodName     = "/api.v1.ClusterService/CreateClusterToken"
-	ClusterService_GetNetworkDependencies_FullMethodName = "/api.v1.ClusterService/GetNetworkDependencies"
+	ClusterService_GetClustersBasicInfo_FullMethodName        = "/api.v1.ClusterService/GetClustersBasicInfo"
+	ClusterService_GetClustersWithMetrics_FullMethodName      = "/api.v1.ClusterService/GetClustersWithMetrics"
+	ClusterService_CreateClusterToken_FullMethodName          = "/api.v1.ClusterService/CreateClusterToken"
+	ClusterService_GetNetworkDependencies_FullMethodName      = "/api.v1.ClusterService/GetNetworkDependencies"
+	ClusterService_GetNetworkMetricsTimeSeries_FullMethodName = "/api.v1.ClusterService/GetNetworkMetricsTimeSeries"
 )
 
 // ClusterServiceClient is the client API for ClusterService service.
@@ -37,6 +38,8 @@ type ClusterServiceClient interface {
 	CreateClusterToken(ctx context.Context, in *CreateClusterTokenRequest, opts ...grpc.CallOption) (*CreateClusterTokenResponse, error)
 	// GetNetworkDependencies returns workload-level network dependencies for visualization
 	GetNetworkDependencies(ctx context.Context, in *GetNetworkDependenciesRequest, opts ...grpc.CallOption) (*GetNetworkDependenciesResponse, error)
+	// GetNetworkMetricsTimeSeries returns time-bucketed network metrics for charts
+	GetNetworkMetricsTimeSeries(ctx context.Context, in *GetNetworkMetricsTimeSeriesRequest, opts ...grpc.CallOption) (*GetNetworkMetricsTimeSeriesResponse, error)
 }
 
 type clusterServiceClient struct {
@@ -83,6 +86,15 @@ func (c *clusterServiceClient) GetNetworkDependencies(ctx context.Context, in *G
 	return out, nil
 }
 
+func (c *clusterServiceClient) GetNetworkMetricsTimeSeries(ctx context.Context, in *GetNetworkMetricsTimeSeriesRequest, opts ...grpc.CallOption) (*GetNetworkMetricsTimeSeriesResponse, error) {
+	out := new(GetNetworkMetricsTimeSeriesResponse)
+	err := c.cc.Invoke(ctx, ClusterService_GetNetworkMetricsTimeSeries_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ClusterServiceServer is the server API for ClusterService service.
 // All implementations must embed UnimplementedClusterServiceServer
 // for forward compatibility
@@ -95,6 +107,8 @@ type ClusterServiceServer interface {
 	CreateClusterToken(context.Context, *CreateClusterTokenRequest) (*CreateClusterTokenResponse, error)
 	// GetNetworkDependencies returns workload-level network dependencies for visualization
 	GetNetworkDependencies(context.Context, *GetNetworkDependenciesRequest) (*GetNetworkDependenciesResponse, error)
+	// GetNetworkMetricsTimeSeries returns time-bucketed network metrics for charts
+	GetNetworkMetricsTimeSeries(context.Context, *GetNetworkMetricsTimeSeriesRequest) (*GetNetworkMetricsTimeSeriesResponse, error)
 	mustEmbedUnimplementedClusterServiceServer()
 }
 
@@ -113,6 +127,9 @@ func (UnimplementedClusterServiceServer) CreateClusterToken(context.Context, *Cr
 }
 func (UnimplementedClusterServiceServer) GetNetworkDependencies(context.Context, *GetNetworkDependenciesRequest) (*GetNetworkDependenciesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetNetworkDependencies not implemented")
+}
+func (UnimplementedClusterServiceServer) GetNetworkMetricsTimeSeries(context.Context, *GetNetworkMetricsTimeSeriesRequest) (*GetNetworkMetricsTimeSeriesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetNetworkMetricsTimeSeries not implemented")
 }
 func (UnimplementedClusterServiceServer) mustEmbedUnimplementedClusterServiceServer() {}
 
@@ -199,6 +216,24 @@ func _ClusterService_GetNetworkDependencies_Handler(srv interface{}, ctx context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ClusterService_GetNetworkMetricsTimeSeries_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetNetworkMetricsTimeSeriesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterServiceServer).GetNetworkMetricsTimeSeries(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterService_GetNetworkMetricsTimeSeries_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterServiceServer).GetNetworkMetricsTimeSeries(ctx, req.(*GetNetworkMetricsTimeSeriesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ClusterService_ServiceDesc is the grpc.ServiceDesc for ClusterService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -221,6 +256,10 @@ var ClusterService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetNetworkDependencies",
 			Handler:    _ClusterService_GetNetworkDependencies_Handler,
+		},
+		{
+			MethodName: "GetNetworkMetricsTimeSeries",
+			Handler:    _ClusterService_GetNetworkMetricsTimeSeries_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
