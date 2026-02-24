@@ -123,6 +123,31 @@ func main() {
 		metricsServerOptions.FilterProvider = filters.WithAuthenticationAndAuthorization
 	}
 
+	// Initialize HealthManager and register components
+	healthManager := health.NewHealthManager()
+	healthManager.Register(health.ComponentCollectorManager)
+	healthManager.Register(health.ComponentBufferQueue)
+	healthManager.Register(health.ComponentDakrTransport)
+	healthManager.Register(health.ComponentMpaServer)
+	healthManager.Register(health.ComponentPrometheus)
+
+	// No need to add the standard controller with kubebuilder:scaffold:builder
+	// The env-based controller doesn't rely on CRDs
+
+	// New health server from health package
+	healthServer := health.NewHealthServer(healthManager, probeAddr)
+	if err := healthServer.Start(); err != nil {
+		setupLog.Error(err, "unable to start health server")
+		os.Exit(1)
+	}
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := healthServer.Stop(ctx); err != nil {
+			setupLog.Error(err, "error stopping health server")
+		}
+	}()
+
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
 		Metrics:                metricsServerOptions,
@@ -148,7 +173,7 @@ func main() {
 	}
 
 	// Setup the env-based controller instead of the standard controller
-	envController, err := controller.NewEnvBasedController(mgr, reconcileInterval, mpaServerPort)
+	envController, err := controller.NewEnvBasedController(mgr, healthManager, reconcileInterval, mpaServerPort)
 	if err != nil {
 		setupLog.Error(err, "unable to create environment-based controller")
 		os.Exit(1)
@@ -160,23 +185,6 @@ func main() {
 		setupLog.Error(err, "unable to add environment-based controller to manager")
 		os.Exit(1)
 	}
-
-	// No need to add the standard controller with kubebuilder:scaffold:builder
-	// The env-based controller doesn't rely on CRDs
-
-	// New health server from health package
-	healthServer := health.NewHealthServer(envController.Reconciler.HealthManager, probeAddr)
-	if err := healthServer.Start(); err != nil {
-		setupLog.Error(err, "unable to start health server")
-		os.Exit(1)
-	}
-	defer func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		if err := healthServer.Stop(ctx); err != nil {
-			setupLog.Error(err, "error stopping health server")
-		}
-	}()
 
 	setupLog.Info("starting manager")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
