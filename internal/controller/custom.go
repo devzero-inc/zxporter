@@ -62,7 +62,7 @@ type EnvBasedController struct {
 }
 
 // NewEnvBasedController creates a new environment-based controller
-func NewEnvBasedController(mgr ctrl.Manager, reconcileInterval time.Duration, mpaServerPort int) (*EnvBasedController, error) {
+func NewEnvBasedController(mgr ctrl.Manager, healthManager *health.HealthManager, reconcileInterval time.Duration, mpaServerPort int) (*EnvBasedController, error) {
 	// Set up basic components
 	logger := util.NewLogger("env-controller")
 	zapLogger, err := zap.NewProduction()
@@ -96,14 +96,6 @@ func NewEnvBasedController(mgr ctrl.Manager, reconcileInterval time.Duration, mp
 	if err != nil {
 		return nil, fmt.Errorf("failed to create apiextensions client: %w", err)
 	}
-
-	// Initialize HealthManager and register components
-	healthManager := health.NewHealthManager()
-	healthManager.Register(health.ComponentCollectorManager)
-	healthManager.Register(health.ComponentBufferQueue)
-	healthManager.Register(health.ComponentDakrTransport)
-	healthManager.Register(health.ComponentMpaServer)
-	healthManager.Register(health.ComponentPrometheus)
 
 	// Create a shared Telemetry metrics instance
 	sharedTelemetryMetrics := collector.NewTelemetryMetrics()
