@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 For releases prior to automated changelog generation, please see the
 [GitHub Releases](https://github.com/devzero-inc/zxporter/releases) page.
 
+## [v0.0.65] - 2026-02-25
+
+<!-- Release notes generated using configuration in .github/release.yml at main -->
+
+### What's Changed
+### Other Changes
+* chore: update changelog for v0.0.64 by @github-actions[bot] in https://github.com/devzero-inc/zxporter/pull/290
+* Bump zxporter image to v0.0.64 by @Tzvonimir in https://github.com/devzero-inc/zxporter/pull/291
+* chore(helm): update Chart.yaml version to 0.0.43 by @github-actions[bot] in https://github.com/devzero-inc/zxporter/pull/292
+* chore(helm): update Chart.yaml version to 0.0.9 by @github-actions[bot] in https://github.com/devzero-inc/zxporter/pull/293
+* chore: Added additional field to existing proto  by @mutantkeyboard in https://github.com/devzero-inc/zxporter/pull/289
+* Add grace period to zxporter by @Tzvonimir in https://github.com/devzero-inc/zxporter/pull/297
+
+
+**Full Changelog**: https://github.com/devzero-inc/zxporter/compare/v0.0.64...v0.0.65
+
 ## [v0.0.64] - 2026-02-23
 
 <!-- Release notes generated using configuration in .github/release.yml at main -->
