@@ -25,10 +25,10 @@ type ComponentStatus struct {
 }
 
 type HealthManager struct {
-	mu                    sync.RWMutex
-	components            map[string]*ComponentStatus
-	livenessGraceUntil    time.Time // LivenessCheck always passes before this deadline
-	readinessGraceUntil   time.Time // ReadinessCheck always passes before this deadline
+	mu                  sync.RWMutex
+	components          map[string]*ComponentStatus
+	livenessGraceUntil  time.Time // LivenessCheck always passes before this deadline
+	readinessGraceUntil time.Time // ReadinessCheck always passes before this deadline
 }
 
 // NewHealthManager creates a new HealthManager
