@@ -131,6 +131,10 @@ func main() {
 	healthManager.Register(health.ComponentMpaServer)
 	healthManager.Register(health.ComponentPrometheus)
 
+	// Allow 2 minutes for the controller to win leader election and start
+	// reconciling before enforcing readiness checks.
+	healthManager.SuppressReadiness(2 * time.Minute)
+
 	// No need to add the standard controller with kubebuilder:scaffold:builder
 	// The env-based controller doesn't rely on CRDs
 

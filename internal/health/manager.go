@@ -25,9 +25,10 @@ type ComponentStatus struct {
 }
 
 type HealthManager struct {
-	mu                 sync.RWMutex
-	components         map[string]*ComponentStatus
-	livenessGraceUntil time.Time // LivenessCheck always passes before this deadline
+	mu                    sync.RWMutex
+	components            map[string]*ComponentStatus
+	livenessGraceUntil    time.Time // LivenessCheck always passes before this deadline
+	readinessGraceUntil   time.Time // ReadinessCheck always passes before this deadline
 }
 
 // NewHealthManager creates a new HealthManager
@@ -131,6 +132,24 @@ func (hm *HealthManager) ClearLivenessSuppression() {
 	hm.livenessGraceUntil = time.Time{}
 }
 
+// SuppressReadiness makes ReadinessCheck pass unconditionally for the given
+// duration. Use this at startup so the pod can become ready while waiting for
+// leader election. The grace period is cleared automatically when collectors
+// start (via ClearReadinessSuppression) or when the deadline expires.
+func (hm *HealthManager) SuppressReadiness(d time.Duration) {
+	hm.mu.Lock()
+	defer hm.mu.Unlock()
+	hm.readinessGraceUntil = time.Now().Add(d)
+}
+
+// ClearReadinessSuppression removes any active readiness grace period so
+// ReadinessCheck resumes normal evaluation.
+func (hm *HealthManager) ClearReadinessSuppression() {
+	hm.mu.Lock()
+	defer hm.mu.Unlock()
+	hm.readinessGraceUntil = time.Time{}
+}
+
 // LivenessCheck checks if all components are at least Degraded (not Unhealthy).
 // During an active grace period (set via SuppressLiveness) it always returns nil
 // so that planned restarts do not trigger pod kills.
@@ -163,6 +182,10 @@ func (hm *HealthManager) ReadinessCheck() error {
 
 // readinessCheckLocked performs the readiness check while the caller holds mu.
 func (hm *HealthManager) readinessCheckLocked() error {
+	if !hm.readinessGraceUntil.IsZero() && time.Now().Before(hm.readinessGraceUntil) {
+		return nil
+	}
+
 	readyComponents := []string{ComponentCollectorManager, ComponentDakrTransport}
 	for _, compName := range readyComponents {
 		component, exists := hm.components[compName]

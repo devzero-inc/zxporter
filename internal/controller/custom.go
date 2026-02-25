@@ -62,7 +62,7 @@ type EnvBasedController struct {
 }
 
 // NewEnvBasedController creates a new environment-based controller
-func NewEnvBasedController(mgr ctrl.Manager, healthManager, reconcileInterval time.Duration, mpaServerPort int) (*EnvBasedController, error) {
+func NewEnvBasedController(mgr ctrl.Manager, healthManager *health.HealthManager, reconcileInterval time.Duration, mpaServerPort int) (*EnvBasedController, error) {
 	// Set up basic components
 	logger := util.NewLogger("env-controller")
 	zapLogger, err := zap.NewProduction()

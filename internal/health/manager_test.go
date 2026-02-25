@@ -200,6 +200,68 @@ func TestReadinessCheck_TransportUnhealthyNotReady(t *testing.T) {
 	assert.Contains(t, err.Error(), "dakr_transport")
 }
 
+// Readiness suppression tests — ensures leader election delay doesn't block readiness
+
+func TestReadinessCheck_SuppressedDuringGracePeriod(t *testing.T) {
+	hm := NewHealthManager()
+	hm.Register(ComponentCollectorManager)
+	hm.Register(ComponentDakrTransport)
+	// Both components are Unspecified (startup) — readiness normally fails
+	err := hm.ReadinessCheck()
+	assert.Error(t, err)
+
+	// Suppress readiness for leader election grace
+	hm.SuppressReadiness(5 * time.Minute)
+
+	// Now readiness should pass even though components are Unspecified
+	err = hm.ReadinessCheck()
+	assert.NoError(t, err)
+}
+
+func TestReadinessCheck_ClearSuppression(t *testing.T) {
+	hm := NewHealthManager()
+	hm.Register(ComponentCollectorManager)
+	hm.Register(ComponentDakrTransport)
+
+	hm.SuppressReadiness(5 * time.Minute)
+	assert.NoError(t, hm.ReadinessCheck()) // suppressed
+
+	// Clear suppression — should fail again since components are still Unspecified
+	hm.ClearReadinessSuppression()
+	assert.Error(t, hm.ReadinessCheck())
+}
+
+func TestReadinessCheck_GracePeriodExpires(t *testing.T) {
+	hm := NewHealthManager()
+	hm.Register(ComponentCollectorManager)
+	hm.Register(ComponentDakrTransport)
+
+	// Set a grace period that is already expired
+	hm.mu.Lock()
+	hm.readinessGraceUntil = time.Now().Add(-1 * time.Second)
+	hm.mu.Unlock()
+
+	// Should fail because grace period has expired and components are Unspecified
+	err := hm.ReadinessCheck()
+	assert.Error(t, err)
+}
+
+func TestReadinessCheck_FullStartupCycle(t *testing.T) {
+	hm := NewHealthManager()
+	hm.Register(ComponentCollectorManager)
+	hm.Register(ComponentDakrTransport)
+
+	// Simulate startup: suppress readiness while waiting for leader election
+	hm.SuppressReadiness(5 * time.Minute)
+	assert.NoError(t, hm.ReadinessCheck()) // passes during grace
+
+	// Simulate controller starting: components become healthy, clear suppression
+	hm.UpdateStatus(ComponentCollectorManager, HealthStatusHealthy, "running", nil)
+	hm.UpdateStatus(ComponentDakrTransport, HealthStatusHealthy, "connected", nil)
+	hm.ClearReadinessSuppression()
+	assert.NoError(t, hm.ReadinessCheck()) // passes normally
+}
+
 // Liveness suppression tests — ensures planned restarts don't cause pod kills
 
 func TestLivenessCheck_SuppressedDuringGracePeriod(t *testing.T) {
