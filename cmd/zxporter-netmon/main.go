@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"net/http"
@@ -11,6 +12,8 @@ import (
 	"time"
 
 	"github.com/cilium/ebpf/rlimit"
+	gen "github.com/devzero-inc/zxporter/gen/api/v1"
+	"github.com/devzero-inc/zxporter/internal/health"
 	"github.com/devzero-inc/zxporter/internal/networkmonitor"
 	"github.com/devzero-inc/zxporter/internal/networkmonitor/dns"
 	"github.com/devzero-inc/zxporter/internal/networkmonitor/ebpf"
@@ -52,6 +55,20 @@ func main() {
 	zapLog, _ := zap.NewProduction()
 	logger := zapr.NewLogger(zapLog)
 
+	// Create HealthManager and register components early so probes are
+	// answered immediately, before component initialisation.
+	healthManager := health.NewHealthManager()
+	healthManager.Register(health.ComponentMonitor)
+	healthManager.Register(health.ComponentDakrTransport)
+	healthManager.Register(health.ComponentEBPFTracer)
+	healthManager.Register(health.ComponentPodCache)
+
+	// Allow 30 seconds for monitor, eBPF, and informer to initialize
+	// before readiness checks start failing on Unspecified statuses.
+	healthManager.SuppressReadiness(30 * time.Second)
+
+	startTime := time.Now()
+
 	nodeName := os.Getenv("NODE_NAME")
 	if nodeName == "" {
 		logger.Info("NODE_NAME environment variable not set, defaulting to localhost (dev mode)")
@@ -92,6 +109,7 @@ func main() {
 		logger.Info("Running in STANDALONE mode. K8s connection disabled.")
 		// Initialize PodCache with nil informer for standalone mode
 		podCache = networkmonitor.NewPodCache(nil)
+		healthManager.UpdateStatus(health.ComponentPodCache, health.HealthStatusHealthy, "standalone mode", nil)
 	}
 
 	// 4. Setup Client (Cilium or Netfilter)
@@ -134,12 +152,15 @@ func main() {
 		tracer = ebpf.NewTracer(logger, tracerCfg)
 		// DNS Collector uses the SAME tracer for DNS events
 		dnsCollector = dns.NewIP2DNS(tracer, logger)
+		healthManager.UpdateStatus(health.ComponentEBPFTracer, health.HealthStatusHealthy, "initialized", nil)
 	} else {
 		logger.Info("Kernel BTF not available, eBPF features disabled")
 		if *collectorMode == CollectorModeEBPF {
 			logger.Error(nil, "EBPF mode requested but BTF not available")
 			os.Exit(1)
 		}
+		// eBPF not available — deregister so it doesn't affect health checks
+		healthManager.Deregister(health.ComponentEBPFTracer)
 	}
 
 	// 6. Setup Dakr Client (Control Plane)
@@ -149,8 +170,11 @@ func main() {
 	if dakrURL != "" && clusterToken != "" {
 		logger.Info("Initializing Dakr Client", "url", dakrURL)
 		dakrClient = transport.NewDakrClient(dakrURL, clusterToken, logger)
+		healthManager.UpdateStatus(health.ComponentDakrTransport, health.HealthStatusHealthy, "initialized", nil)
 	} else {
 		logger.Info("Control Plane credentials not found. Metrics will solely be exposed locally.")
+		// No dakr connection — deregister so it doesn't block readiness
+		healthManager.Deregister(health.ComponentDakrTransport)
 	}
 
 	// 7. Setup Monitor
@@ -172,7 +196,7 @@ func main() {
 		OperatorVersion: versionInfo.String(),
 		OperatorCommit:  versionInfo.GitCommit,
 	}
-	monitor, err := networkmonitor.NewMonitor(monitorCfg, logger, podCache, client, tracer, dnsCollector, dakrClient)
+	monitor, err := networkmonitor.NewMonitor(monitorCfg, logger, podCache, client, tracer, dnsCollector, dakrClient, healthManager)
 	if err != nil {
 		logger.Error(err, "Failed to initialize monitor")
 		os.Exit(1)
@@ -185,6 +209,7 @@ func main() {
 	if !*standalone && informerFactory != nil {
 		informerFactory.Start(ctx.Done())
 		informerFactory.WaitForCacheSync(ctx.Done())
+		healthManager.UpdateStatus(health.ComponentPodCache, health.HealthStatusHealthy, "informer synced", nil)
 	}
 
 	// Start eBPF tracer if available (for DNS events and/or network flows)
@@ -192,6 +217,7 @@ func main() {
 		go func() {
 			if err := tracer.Run(ctx); err != nil {
 				logger.Error(err, "eBPF tracer failed")
+				healthManager.UpdateStatus(health.ComponentEBPFTracer, health.HealthStatusUnhealthy, err.Error(), nil)
 			}
 		}()
 	}
@@ -199,15 +225,87 @@ func main() {
 	// Start Monitor in background
 	go monitor.Start(ctx)
 
+	// Start heartbeat sender if dakr is configured
+	if dakrClient != nil {
+		go func() {
+			clusterID := os.Getenv("CLUSTER_ID")
+			if clusterID == "" {
+				clusterID = "unknown"
+			}
+			// Send initial heartbeat immediately
+			report := healthManager.BuildReport()
+			req := health.BuildHeartbeatRequestFromReport(report, clusterID, gen.OperatorType_OPERATOR_TYPE_NETWORK, versionInfo.String(), versionInfo.GitCommit, startTime)
+			if err := dakrClient.ReportHealth(ctx, req); err != nil {
+				logger.Error(err, "Failed to send initial health heartbeat to dakr")
+			}
+
+			ticker := time.NewTicker(60 * time.Second)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+					report := healthManager.BuildReport()
+					for name, status := range report {
+						logger.Info("Health status report", "component", name, "status", status.Status, "message", status.Message)
+					}
+					req := health.BuildHeartbeatRequestFromReport(report, clusterID, gen.OperatorType_OPERATOR_TYPE_NETWORK, versionInfo.String(), versionInfo.GitCommit, startTime)
+					if err := dakrClient.ReportHealth(ctx, req); err != nil {
+						logger.Error(err, "Failed to send health heartbeat to dakr")
+					}
+				}
+			}
+		}()
+	}
+
 	// HTTP Server
-	http.HandleFunc("/metrics", monitor.GetMetricsHandler)
-	http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/metrics", monitor.GetMetricsHandler)
+	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		report := healthManager.BuildReport()
+		resp := map[string]any{"components": report}
+		if cs, exists := report[health.ComponentMonitor]; exists && cs.Status == health.HealthStatusUnhealthy {
+			resp["status"] = "unhealthy"
+			resp["error"] = cs.Message
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_ = json.NewEncoder(w).Encode(resp)
+			return
+		}
+		resp["status"] = "healthy"
+		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("OK"))
+		_ = json.NewEncoder(w).Encode(resp)
+	})
+	mux.HandleFunc("/readyz", func(w http.ResponseWriter, r *http.Request) {
+		report := healthManager.BuildReport()
+		resp := map[string]any{"components": report}
+		// Check required components for readiness
+		for _, name := range []string{health.ComponentMonitor, health.ComponentDakrTransport} {
+			cs, exists := report[name]
+			if !exists {
+				// Component was deregistered (e.g., no dakr configured) — skip
+				continue
+			}
+			if cs.Status != health.HealthStatusHealthy && cs.Status != health.HealthStatusDegraded {
+				resp["status"] = "not ready"
+				resp["error"] = fmt.Sprintf("%s is not ready (status: %s)", name, cs.Status)
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusServiceUnavailable)
+				_ = json.NewEncoder(w).Encode(resp)
+				return
+			}
+		}
+		resp["status"] = "ready"
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(resp)
 	})
 
 	server := &http.Server{
-		Addr: *metricsAddr,
+		Addr:    *metricsAddr,
+		Handler: mux,
 	}
 
 	go func() {

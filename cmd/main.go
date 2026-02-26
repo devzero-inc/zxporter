@@ -215,9 +215,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	// No need to add the standard controller with kubebuilder:scaffold:builder
-	// The env-based controller doesn't rely on CRDs
-
 	setupLog.Info("starting manager")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		setupLog.Error(err, "problem running manager")

@@ -37,6 +37,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	gen "github.com/devzero-inc/zxporter/gen/api/v1"
 	"github.com/devzero-inc/zxporter/internal/collector"
 	"github.com/devzero-inc/zxporter/internal/health"
 	telemetry_logger "github.com/devzero-inc/zxporter/internal/logger"
@@ -222,6 +223,7 @@ func (c *EnvBasedController) sendHealthReport(ctx context.Context) {
 		req := health.BuildHeartbeatRequestFromReport(
 			report,
 			c.getClusterID(),
+			gen.OperatorType_OPERATOR_TYPE_READ,
 			versionInfo.String(),
 			versionInfo.GitCommit,
 			c.startTime,
