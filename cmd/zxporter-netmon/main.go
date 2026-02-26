@@ -196,7 +196,9 @@ func main() {
 		OperatorVersion: versionInfo.String(),
 		OperatorCommit:  versionInfo.GitCommit,
 	}
-	monitor, err := networkmonitor.NewMonitor(monitorCfg, logger, podCache, client, tracer, dnsCollector, dakrClient, healthManager)
+	monitor, err := networkmonitor.NewMonitor(
+		monitorCfg, logger, podCache, client, tracer, dnsCollector, dakrClient, healthManager,
+	)
 	if err != nil {
 		logger.Error(err, "Failed to initialize monitor")
 		os.Exit(1)
@@ -234,7 +236,10 @@ func main() {
 			}
 			// Send initial heartbeat immediately
 			report := healthManager.BuildReport()
-			req := health.BuildHeartbeatRequestFromReport(report, clusterID, gen.OperatorType_OPERATOR_TYPE_NETWORK, versionInfo.String(), versionInfo.GitCommit, startTime)
+			req := health.BuildHeartbeatRequestFromReport(
+			report, clusterID, gen.OperatorType_OPERATOR_TYPE_NETWORK,
+			versionInfo.String(), versionInfo.GitCommit, startTime,
+		)
 			if err := dakrClient.ReportHealth(ctx, req); err != nil {
 				logger.Error(err, "Failed to send initial health heartbeat to dakr")
 			}
@@ -250,7 +255,10 @@ func main() {
 					for name, status := range report {
 						logger.Info("Health status report", "component", name, "status", status.Status, "message", status.Message)
 					}
-					req := health.BuildHeartbeatRequestFromReport(report, clusterID, gen.OperatorType_OPERATOR_TYPE_NETWORK, versionInfo.String(), versionInfo.GitCommit, startTime)
+					req := health.BuildHeartbeatRequestFromReport(
+			report, clusterID, gen.OperatorType_OPERATOR_TYPE_NETWORK,
+			versionInfo.String(), versionInfo.GitCommit, startTime,
+		)
 					if err := dakrClient.ReportHealth(ctx, req); err != nil {
 						logger.Error(err, "Failed to send health heartbeat to dakr")
 					}
