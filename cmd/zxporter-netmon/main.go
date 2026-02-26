@@ -237,9 +237,9 @@ func main() {
 			// Send initial heartbeat immediately
 			report := healthManager.BuildReport()
 			req := health.BuildHeartbeatRequestFromReport(
-			report, clusterID, gen.OperatorType_OPERATOR_TYPE_NETWORK,
-			versionInfo.String(), versionInfo.GitCommit, startTime,
-		)
+				report, clusterID, gen.OperatorType_OPERATOR_TYPE_NETWORK,
+				versionInfo.String(), versionInfo.GitCommit, startTime,
+			)
 			if err := dakrClient.ReportHealth(ctx, req); err != nil {
 				logger.Error(err, "Failed to send initial health heartbeat to dakr")
 			}
@@ -256,9 +256,9 @@ func main() {
 						logger.Info("Health status report", "component", name, "status", status.Status, "message", status.Message)
 					}
 					req := health.BuildHeartbeatRequestFromReport(
-			report, clusterID, gen.OperatorType_OPERATOR_TYPE_NETWORK,
-			versionInfo.String(), versionInfo.GitCommit, startTime,
-		)
+						report, clusterID, gen.OperatorType_OPERATOR_TYPE_NETWORK,
+						versionInfo.String(), versionInfo.GitCommit, startTime,
+					)
 					if err := dakrClient.ReportHealth(ctx, req); err != nil {
 						logger.Error(err, "Failed to send health heartbeat to dakr")
 					}
