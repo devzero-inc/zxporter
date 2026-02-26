@@ -4,10 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/go-logr/logr"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 )
 
 // GPUExporterMetric represents a single GPU metric entry returned by the GPU exporter.
@@ -67,17 +71,38 @@ type gpuContainerKey struct {
 	Namespace string
 }
 
-// GPUExporterClient fetches GPU metrics from the zxporter-gpu-exporter HTTP endpoint.
+const (
+	// Well-known label used by the zxporter-gpu-exporter DaemonSet helm chart.
+	gpuExporterLabelSelector = "app.kubernetes.io/name=zxporter-gpu-exporter"
+	// Default HTTP port for the GPU exporter.
+	gpuExporterDefaultPort = 6061
+	// How long to cache the node→podIP mapping before re-discovering.
+	gpuExporterCacheTTL = 30 * time.Second
+)
+
+// GPUExporterClient auto-discovers zxporter-gpu-exporter DaemonSet pods and
+// routes metrics requests to the correct pod based on node name.
+// Discovery is cached with a TTL to handle new nodes and pod restarts.
 type GPUExporterClient struct {
-	baseURL    string
+	k8sClient  kubernetes.Interface
+	namespace  string
+	port       int
 	httpClient *http.Client
 	log        logr.Logger
+
+	// cached discovery
+	mu            sync.RWMutex
+	nodeToIP      map[string]string // nodeName → podIP
+	lastRefreshed time.Time
 }
 
-// NewGPUExporterClient creates a new client for the GPU exporter.
-func NewGPUExporterClient(baseURL string, log logr.Logger) *GPUExporterClient {
+// NewGPUExporterClient creates a client that auto-discovers GPU exporter pods
+// in the given namespace using well-known labels.
+func NewGPUExporterClient(k8sClient kubernetes.Interface, namespace string, log logr.Logger) *GPUExporterClient {
 	return &GPUExporterClient{
-		baseURL: baseURL,
+		k8sClient: k8sClient,
+		namespace: namespace,
+		port:      gpuExporterDefaultPort,
 		httpClient: &http.Client{
 			Timeout: 15 * time.Second,
 		},
@@ -85,14 +110,89 @@ func NewGPUExporterClient(baseURL string, log logr.Logger) *GPUExporterClient {
 	}
 }
 
-// FetchAllMetrics fetches all GPU metrics from the exporter (unfiltered).
-func (c *GPUExporterClient) FetchAllMetrics(ctx context.Context) ([]GPUExporterMetric, error) {
-	return c.fetchMetrics(ctx, c.baseURL+"/container/metrics")
+// refreshCache re-discovers GPU exporter pods if the cache has expired.
+func (c *GPUExporterClient) refreshCache(ctx context.Context) (map[string]string, error) {
+	c.mu.RLock()
+	if time.Since(c.lastRefreshed) < gpuExporterCacheTTL && c.nodeToIP != nil {
+		cached := c.nodeToIP
+		c.mu.RUnlock()
+		return cached, nil
+	}
+	c.mu.RUnlock()
+
+	// Cache expired — re-discover
+	pods, err := c.k8sClient.CoreV1().Pods(c.namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: gpuExporterLabelSelector,
+		FieldSelector: "status.phase=Running",
+	})
+	if err != nil {
+		return nil, fmt.Errorf("listing GPU exporter pods: %w", err)
+	}
+
+	nodeToIP := make(map[string]string)
+	for _, pod := range pods.Items {
+		if pod.Status.PodIP != "" && pod.Spec.NodeName != "" {
+			nodeToIP[pod.Spec.NodeName] = pod.Status.PodIP
+		}
+	}
+
+	c.mu.Lock()
+	c.nodeToIP = nodeToIP
+	c.lastRefreshed = time.Now()
+	c.mu.Unlock()
+
+	c.log.Info("Refreshed GPU exporter pod cache", "nodesWithGPU", len(nodeToIP))
+	return nodeToIP, nil
 }
 
-// FetchMetricsByNode fetches GPU metrics filtered by node name.
+// HasExporters returns true if any GPU exporter pods were discovered.
+func (c *GPUExporterClient) HasExporters(ctx context.Context) bool {
+	m, err := c.refreshCache(ctx)
+	if err != nil {
+		return false
+	}
+	return len(m) > 0
+}
+
+// FetchAllMetrics discovers all GPU exporter pods and fetches metrics from each,
+// merging the results into a single slice. Used by the container collector.
+func (c *GPUExporterClient) FetchAllMetrics(ctx context.Context) ([]GPUExporterMetric, error) {
+	nodeToIP, err := c.refreshCache(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if len(nodeToIP) == 0 {
+		return nil, nil
+	}
+
+	var allMetrics []GPUExporterMetric
+	for nodeName, podIP := range nodeToIP {
+		url := fmt.Sprintf("http://%s:%d/container/metrics", podIP, c.port)
+		metrics, fetchErr := c.fetchMetrics(ctx, url)
+		if fetchErr != nil {
+			c.log.Error(fetchErr, "Failed to fetch GPU metrics from exporter pod", "node", nodeName, "podIP", podIP)
+			continue
+		}
+		allMetrics = append(allMetrics, metrics...)
+	}
+
+	return allMetrics, nil
+}
+
+// FetchMetricsByNode fetches GPU metrics from the exporter pod running on the given node.
+// Returns nil if no exporter is running on that node (expected for non-GPU nodes).
 func (c *GPUExporterClient) FetchMetricsByNode(ctx context.Context, nodeName string) ([]GPUExporterMetric, error) {
-	url := fmt.Sprintf("%s/container/metrics?node=%s", c.baseURL, nodeName)
+	nodeToIP, err := c.refreshCache(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	podIP, ok := nodeToIP[nodeName]
+	if !ok {
+		return nil, nil
+	}
+
+	url := fmt.Sprintf("http://%s:%d/container/metrics", podIP, c.port)
 	return c.fetchMetrics(ctx, url)
 }
 
@@ -310,4 +410,141 @@ func NodeGPUMetricsFromExporter(gpuMetrics []GPUExporterMetric) map[string]inter
 	metrics["GPUUUIDs"] = gpuUUIDs
 
 	return metrics
+}
+
+// compareKeysNumeric is the set of keys to compare numerically between exporter and Prometheus.
+var compareKeysNumeric = []string{
+	"GPUMetricsCount",
+	"GPUUtilizationPercentage",
+	"GPUMemoryUsedMb",
+	"GPUMemoryFreeMb",
+	"GPUTotalMemoryMb",
+	"GPUPowerUsageWatts",
+	"GPUTemperatureCelsius",
+	"GPUSMClockMHz",
+	"GPUMemClockMHz",
+	"GPUUsage",
+	// Node-level keys
+	"GPUCount",
+	"GPUUtilizationAvg",
+	"GPUUtilizationMax",
+	"GPUMemoryUsedTotal",
+	"GPUMemoryFreeTotal",
+	"GPUMemoryTotalMb",
+	"GPUPowerUsageTotal",
+	"GPUTemperatureAvg",
+	"GPUTemperatureMax",
+	"GPUMemoryTemperatureAvg",
+	"GPUMemoryTemperatureMax",
+	"GPUTensorUtilizationAvg",
+	"GPUDramUtilizationAvg",
+	"GPUPCIeTxBytesTotal",
+	"GPUPCIeRxBytesTotal",
+	"GPUGraphicsUtilizationAvg",
+}
+
+// CompareGPUMetrics compares GPU metrics from the exporter and Prometheus, logging any diffs.
+// tolerance is the relative difference threshold (0.05 = 5%). Keys present in only one source
+// are also logged. The exporter result is always used as the primary source; this is purely
+// for observability.
+func CompareGPUMetrics(log logr.Logger, label string, exporterMetrics, prometheusMetrics map[string]interface{}) {
+	if len(exporterMetrics) == 0 && len(prometheusMetrics) == 0 {
+		return
+	}
+
+	const tolerance = 0.05 // 5% relative diff
+
+	var matchedKeys []string
+	var diffCount, onlyExpCount, onlyPromCount int
+
+	for _, key := range compareKeysNumeric {
+		expVal, expOk := toFloat64(exporterMetrics[key])
+		promVal, promOk := toFloat64(prometheusMetrics[key])
+
+		if !expOk && !promOk {
+			continue // key absent from both
+		}
+
+		if expOk && !promOk {
+			// Skip zero-valued exporter-only keys — these are DCGM profiling counters
+			// that are not enabled, so they're noise.
+			if expVal == 0 {
+				continue
+			}
+			log.Info("[GPU-COMPARE] key only in exporter",
+				"label", label, "key", key, "exporter", expVal)
+			onlyExpCount++
+			continue
+		}
+		if !expOk && promOk {
+			if promVal == 0 {
+				continue
+			}
+			log.Info("[GPU-COMPARE] key only in prometheus",
+				"label", label, "key", key, "prometheus", promVal)
+			onlyPromCount++
+			continue
+		}
+
+		// Both present — compare with tolerance
+		if !withinTolerance(expVal, promVal, tolerance) {
+			log.Info("[GPU-COMPARE] metric diff",
+				"label", label,
+				"key", key,
+				"exporter", expVal,
+				"prometheus", promVal,
+				"diffPercent", relativeDiffPct(expVal, promVal))
+			diffCount++
+		} else {
+			matchedKeys = append(matchedKeys, key)
+		}
+	}
+
+	// Always log a summary so user can see what matched
+	log.Info("[GPU-COMPARE] summary",
+		"label", label,
+		"matched", len(matchedKeys),
+		"diffs", diffCount,
+		"onlyInExporter", onlyExpCount,
+		"onlyInPrometheus", onlyPromCount,
+		"matchedKeys", matchedKeys)
+}
+
+func toFloat64(v interface{}) (float64, bool) {
+	if v == nil {
+		return 0, false
+	}
+	switch n := v.(type) {
+	case float64:
+		return n, true
+	case float32:
+		return float64(n), true
+	case int:
+		return float64(n), true
+	case int64:
+		return float64(n), true
+	case int32:
+		return float64(n), true
+	default:
+		return 0, false
+	}
+}
+
+func withinTolerance(a, b, tol float64) bool {
+	if a == b {
+		return true
+	}
+	denom := math.Max(math.Abs(a), math.Abs(b))
+	if denom == 0 {
+		return true
+	}
+	return math.Abs(a-b)/denom <= tol
+}
+
+func relativeDiffPct(a, b float64) float64 {
+	denom := math.Max(math.Abs(a), math.Abs(b))
+	if denom == 0 {
+		return 0
+	}
+	return math.Abs(a-b) / denom * 100
 }

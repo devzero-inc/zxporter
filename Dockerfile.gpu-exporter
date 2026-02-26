@@ -35,9 +35,10 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} GO_VERSION=$(go v
     -X github.com/devzero-inc/zxporter/internal/version.goVersion=${GO_VERSION}" \
     -a -o zxporter-gpu-exporter cmd/zxporter-gpu-exporter/main.go
 
-# Use distroless as minimal base image.
-FROM gcr.io/distroless/static:latest
+# Use distroless nonroot as minimal base image.
+FROM gcr.io/distroless/static:nonroot
 WORKDIR /
 COPY --from=builder /workspace/zxporter-gpu-exporter .
+USER 65532:65532
 
 ENTRYPOINT ["/zxporter-gpu-exporter"]
