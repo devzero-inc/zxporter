@@ -111,6 +111,10 @@ func main() {
 	healthManager.Register(health.ComponentMpaServer)
 	healthManager.Register(health.ComponentPrometheus)
 
+	// Allow 2 minutes for the controller to win leader election and start
+	// reconciling before enforcing readiness checks.
+	healthManager.SuppressReadiness(2 * time.Minute)
+
 	healthServer := health.NewHealthServer(healthManager, probeAddr)
 	if err := healthServer.Start(); err != nil {
 		setupLog.Error(err, "unable to start health server")
@@ -147,35 +151,6 @@ func main() {
 		// https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.19.0/pkg/metrics/filters#WithAuthenticationAndAuthorization
 		metricsServerOptions.FilterProvider = filters.WithAuthenticationAndAuthorization
 	}
-
-	// Initialize HealthManager and register components
-	healthManager := health.NewHealthManager()
-	healthManager.Register(health.ComponentCollectorManager)
-	healthManager.Register(health.ComponentBufferQueue)
-	healthManager.Register(health.ComponentDakrTransport)
-	healthManager.Register(health.ComponentMpaServer)
-	healthManager.Register(health.ComponentPrometheus)
-
-	// Allow 2 minutes for the controller to win leader election and start
-	// reconciling before enforcing readiness checks.
-	healthManager.SuppressReadiness(2 * time.Minute)
-
-	// No need to add the standard controller with kubebuilder:scaffold:builder
-	// The env-based controller doesn't rely on CRDs
-
-	// New health server from health package
-	healthServer := health.NewHealthServer(healthManager, probeAddr)
-	if err := healthServer.Start(); err != nil {
-		setupLog.Error(err, "unable to start health server")
-		os.Exit(1)
-	}
-	defer func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		if err := healthServer.Stop(ctx); err != nil {
-			setupLog.Error(err, "error stopping health server")
-		}
-	}()
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
