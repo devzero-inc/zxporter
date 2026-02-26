@@ -4,6 +4,7 @@ package collector
 import (
 	"context"
 	"fmt"
+	"os"
 	"reflect"
 	"strings"
 	"sync"
@@ -41,32 +42,32 @@ type NodeCollectorConfig struct {
 	// Default is false, so metrics are collected by default
 	DisableNetworkIOMetrics bool
 
-	// DisableGPUMetrics determines whether to disable GPU metrics collection
 	// Default is false, so metrics are collected by default
 	DisableGPUMetrics bool
 }
 
 // NodeCollector collects node events and resource metrics
 type NodeCollector struct {
-	k8sClient       kubernetes.Interface
-	metricsClient   *metricsv1.Clientset
-	prometheusAPI   v1.API
-	informerFactory informers.SharedInformerFactory
-	nodeInformer    cache.SharedIndexInformer
-	batchChan       chan CollectedResource   // Channel for individual resources -> input to batcher
-	resourceChan    chan []CollectedResource // Channel for batched resources -> output from batcher
-	batcher         *ResourcesBatcher
-	stopCh          chan struct{}
-	ticker          *time.Ticker
-	config          NodeCollectorConfig
-	excludedNodes   map[string]bool
-	logger          logr.Logger
-	metrics         *TelemetryMetrics
-	telemetryLogger telemetry_logger.Logger
-	mu              sync.RWMutex
-	nodeToPodsMap   map[string]map[string]*corev1.Pod // Maps node name -> pod key -> pod object
-	podInformer     cache.SharedIndexInformer
-	podMapMutex     sync.RWMutex
+	k8sClient         kubernetes.Interface
+	metricsClient     *metricsv1.Clientset
+	prometheusAPI     v1.API
+	gpuExporterClient *GPUExporterClient
+	informerFactory   informers.SharedInformerFactory
+	nodeInformer      cache.SharedIndexInformer
+	batchChan         chan CollectedResource   // Channel for individual resources -> input to batcher
+	resourceChan      chan []CollectedResource // Channel for batched resources -> output from batcher
+	batcher           *ResourcesBatcher
+	stopCh            chan struct{}
+	ticker            *time.Ticker
+	config            NodeCollectorConfig
+	excludedNodes     map[string]bool
+	logger            logr.Logger
+	metrics           *TelemetryMetrics
+	telemetryLogger   telemetry_logger.Logger
+	mu                sync.RWMutex
+	nodeToPodsMap     map[string]map[string]*corev1.Pod // Maps node name -> pod key -> pod object
+	podInformer       cache.SharedIndexInformer
+	podMapMutex       sync.RWMutex
 }
 
 // NewNodeCollector creates a new collector for node resources
@@ -196,10 +197,23 @@ func (c *NodeCollector) Start(ctx context.Context) error {
 		"disableNetworkIOMetrics", c.config.DisableNetworkIOMetrics,
 		"disableGPUMetrics", c.config.DisableGPUMetrics)
 
+	// Initialize GPU exporter client for auto-discovery
+	// It discovers DaemonSet pods by well-known label — no config needed.
+	if !c.config.DisableGPUMetrics {
+		ns := os.Getenv("POD_NAMESPACE")
+		if ns == "" {
+			ns = "devzero-zxporter"
+		}
+		c.gpuExporterClient = NewGPUExporterClient(c.k8sClient, ns, c.logger)
+		c.logger.Info("Initialized GPU exporter client (auto-discovery)", "namespace", ns)
+	}
+
 	// Initialize Prometheus client if network/IO metrics are not disabled
-	if !c.config.DisableNetworkIOMetrics || !c.config.DisableGPUMetrics {
-		// Use the more robust initialization method
+	// Always init Prometheus when GPU exporter is set — we need it for comparison mode
+	needPrometheus := !c.config.DisableNetworkIOMetrics || !c.config.DisableGPUMetrics
+	if needPrometheus {
 		if err := c.initPrometheusClient(ctx); err != nil {
+			c.logger.Error(err, "Failed to initialize Prometheus client, continuing with basic metrics")
 			// Log but continue - we can still collect CPU/memory metrics
 			c.logger.Info("Continuing with basic node metrics collection only")
 		}
@@ -685,28 +699,50 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 
 			// Fetch GPU metrics for the node if enabled
 			if !c.config.DisableGPUMetrics {
-				gpuMetrics, err = c.collectNodeGPUMetrics(queryCtx, node.Name)
-				if queryCtx.Err() != nil {
-					c.logger.Error(queryCtx.Err(), "Query context for node GPU metrics failed", "node", node.Name)
-				}
-				if err != nil {
-					if c.telemetryLogger != nil {
-						c.telemetryLogger.Report(
-							gen.LogLevel_LOG_LEVEL_WARN,
-							"NodeCollector",
-							"Failed to collect node GPU metrics from Prometheus",
-							err,
-							map[string]string{
-								"node":             node.Name,
-								"error_type":       "prometheus_gpu_query_failed",
-								"prometheus_url":   c.config.PrometheusURL,
-								"zxporter_version": version.Get().String(),
-							},
-						)
+				if c.gpuExporterClient != nil {
+					// Primary: GPU exporter
+					gpuExporterMetrics, fetchErr := c.gpuExporterClient.FetchMetricsByNode(queryCtx, node.Name)
+					if fetchErr != nil {
+						c.logger.Error(fetchErr, "GPU exporter failed, falling back to Prometheus", "node", node.Name)
+						// Fallback to Prometheus on exporter failure
+						if c.prometheusAPI != nil {
+							gpuMetrics, err = c.collectNodeGPUMetrics(queryCtx, node.Name)
+							if err != nil {
+								c.logger.Error(err, "Prometheus fallback also failed for node GPU metrics", "node", node.Name)
+								gpuMetrics = make(map[string]interface{})
+							}
+						} else {
+							gpuMetrics = make(map[string]interface{})
+						}
+					} else {
+						gpuMetrics = NodeGPUMetricsFromExporter(gpuExporterMetrics)
 					}
-					c.logger.Error(err, "Failed to collect node GPU metrics. If you are not using GPU, this is expected. To disable GPU metrics, set DISABLE_GPU_METRICS environment variable to true",
-						"name", node.Name)
-					// Continue with other metrics
+				} else if c.prometheusAPI != nil {
+					// No GPU exporter available — use Prometheus
+					gpuMetrics, err = c.collectNodeGPUMetrics(queryCtx, node.Name)
+					if queryCtx.Err() != nil {
+						c.logger.Error(queryCtx.Err(), "Query context for node GPU metrics failed", "node", node.Name)
+					}
+					if err != nil {
+						if c.telemetryLogger != nil {
+							c.telemetryLogger.Report(
+								gen.LogLevel_LOG_LEVEL_WARN,
+								"NodeCollector",
+								"Failed to collect node GPU metrics from Prometheus",
+								err,
+								map[string]string{
+									"node":             node.Name,
+									"error_type":       "prometheus_gpu_query_failed",
+									"prometheus_url":   c.config.PrometheusURL,
+									"zxporter_version": version.Get().String(),
+								},
+							)
+						}
+						c.logger.Error(err, "Failed to collect node GPU metrics",
+							"name", node.Name)
+						gpuMetrics = make(map[string]interface{})
+					}
+				} else {
 					gpuMetrics = make(map[string]interface{})
 				}
 			}

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -60,6 +61,7 @@ type ContainerResourceCollector struct {
 	k8sClient          kubernetes.Interface
 	metricsClient      *metricsv1.Clientset
 	prometheusAPI      v1.API
+	gpuExporterClient  *GPUExporterClient
 	informerFactory    informers.SharedInformerFactory
 	podInformer        cache.SharedIndexInformer
 	batchChan          chan CollectedResource   // Channel for individual resources -> input to batcher
@@ -161,8 +163,21 @@ func (c *ContainerResourceCollector) Start(ctx context.Context) error {
 		return fmt.Errorf("metrics client is not available, cannot collect container resources")
 	}
 
+	// Initialize GPU exporter client for auto-discovery
+	// It discovers DaemonSet pods by well-known label — no config needed.
+	if !c.config.DisableGPUMetrics {
+		ns := os.Getenv("POD_NAMESPACE")
+		if ns == "" {
+			ns = "devzero-zxporter"
+		}
+		c.gpuExporterClient = NewGPUExporterClient(c.k8sClient, ns, c.logger)
+		c.logger.Info("Initialized GPU exporter client (auto-discovery)", "namespace", ns)
+	}
+
 	// Initialize Prometheus client if network/IO metrics are not disabled
-	if !c.config.DisableNetworkIOMetrics && !c.config.DisableGPUMetrics {
+	// Always init Prometheus when GPU exporter is set — we need it for comparison mode
+	needPrometheus := !c.config.DisableNetworkIOMetrics || !c.config.DisableGPUMetrics
+	if needPrometheus {
 		c.logger.Info("Initializing Prometheus client for network/IO or GPU metrics",
 			"prometheusURL", c.config.PrometheusURL)
 
@@ -189,8 +204,8 @@ func (c *ContainerResourceCollector) Start(ctx context.Context) error {
 		} else {
 			c.prometheusAPI = v1.NewAPI(client)
 		}
-	} else {
-		c.logger.Info("Network, I/O and GPU metrics collection is disabled")
+	} else if c.config.DisableNetworkIOMetrics && (c.config.DisableGPUMetrics || c.gpuExporterClient != nil) {
+		c.logger.Info("Network and I/O metrics collection is disabled; GPU metrics via exporter")
 	}
 
 	// Create informer factory based on namespace configuration
@@ -310,6 +325,17 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 		)
 	}
 
+	// Pre-fetch GPU metrics from the GPU exporter (one HTTP call for the entire cycle)
+	var gpuIndex map[gpuContainerKey][]GPUExporterMetric
+	if c.gpuExporterClient != nil && !c.config.DisableGPUMetrics {
+		allGPUMetrics, err := c.gpuExporterClient.FetchAllMetrics(ctx)
+		if err != nil {
+			c.logger.Error(err, "Failed to fetch GPU metrics from GPU exporter, falling back")
+		} else {
+			gpuIndex = IndexByContainer(allGPUMetrics)
+		}
+	}
+
 	// Process each pod's metrics
 	for _, podMetrics := range podMetricsList.Items {
 		// Skip excluded pods
@@ -409,47 +435,78 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 						ioMetrics = make(map[string]float64)
 					}
 				}
+			}
 
-				// Add GPU metrics collection if enabled
-				if !c.config.DisableGPUMetrics {
-					// Check if container has GPU resources BEFORE querying Prometheus
-					hasGPU := false
-					for i := range pod.Spec.Containers {
-						if pod.Spec.Containers[i].Name == containerMetrics.Name {
-							requests := pod.Spec.Containers[i].Resources.Requests
-							limits := pod.Spec.Containers[i].Resources.Limits
+			// GPU metrics collection
+			if !c.config.DisableGPUMetrics {
+				// Check if container has GPU resources
+				hasGPU := false
+				var gpuRequestCount, gpuLimitCount int64
+				for i := range pod.Spec.Containers {
+					if pod.Spec.Containers[i].Name == containerMetrics.Name {
+						requests := pod.Spec.Containers[i].Resources.Requests
+						limits := pod.Spec.Containers[i].Resources.Limits
 
-							if requests != nil {
-								if gpuReq, ok := requests[gpuconst.GpuResource]; ok && gpuReq.Value() > 0 {
-									hasGPU = true
-								}
+						if requests != nil {
+							if gpuReq, ok := requests[gpuconst.GpuResource]; ok && gpuReq.Value() > 0 {
+								hasGPU = true
+								gpuRequestCount = gpuReq.Value()
 							}
-
-							if !hasGPU && limits != nil {
-								if gpuLim, ok := limits[gpuconst.GpuResource]; ok && gpuLim.Value() > 0 {
-									hasGPU = true
-								}
-							}
-							break
 						}
-					}
 
-					// Only query Prometheus if container has GPU resources
-					if hasGPU {
+						if limits != nil {
+							if gpuLim, ok := limits[gpuconst.GpuResource]; ok && gpuLim.Value() > 0 {
+								hasGPU = true
+								gpuLimitCount = gpuLim.Value()
+							}
+						}
+						break
+					}
+				}
+
+				if hasGPU {
+					if gpuIndex != nil {
+						// Primary: GPU exporter
+						key := gpuContainerKey{
+							Pod:       podMetrics.Name,
+							Container: containerMetrics.Name,
+							Namespace: podMetrics.Namespace,
+						}
+						if containerGPUs, ok := gpuIndex[key]; ok {
+							gpuMetrics = ContainerGPUMetricsFromExporter(containerGPUs, gpuRequestCount, gpuLimitCount)
+						} else {
+							// Exporter running but no GPU data for this container — fallback to Prometheus
+							if c.prometheusAPI != nil && queryCtx != nil {
+								gpuMetrics, err = c.collectContainerGPUMetrics(queryCtx, pod, containerMetrics.Name)
+								if err != nil {
+									c.logger.Error(err, "Prometheus fallback failed for container GPU metrics",
+										"namespace", podMetrics.Namespace,
+										"pod", podMetrics.Name,
+										"container", containerMetrics.Name)
+									gpuMetrics = make(map[string]interface{})
+								}
+							} else {
+								gpuMetrics = make(map[string]interface{})
+							}
+						}
+					} else if c.prometheusAPI != nil && queryCtx != nil {
+						// No GPU exporter available — use Prometheus
 						gpuMetrics, err = c.collectContainerGPUMetrics(queryCtx, pod, containerMetrics.Name)
 						if err != nil {
-							c.logger.Error(err, "Failed to collect container GPU metrics. If you are not using GPU, this is expected. To disable GPU metrics, set DISABLE_GPU_METRICS environment variable to true",
+							c.logger.Error(err, "Failed to collect container GPU metrics",
 								"namespace", podMetrics.Namespace,
 								"pod", podMetrics.Name,
 								"container", containerMetrics.Name)
-							// Continue with other metrics
 							gpuMetrics = make(map[string]interface{})
 						}
 					} else {
 						gpuMetrics = make(map[string]interface{})
 					}
+				} else {
+					gpuMetrics = make(map[string]interface{})
 				}
 			}
+
 			// Process the container metrics with optional network/IO data
 			c.processContainerMetrics(pod, containerMetrics, networkMetrics, ioMetrics, gpuMetrics, throttleFraction)
 		}

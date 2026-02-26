@@ -1,0 +1,73 @@
+provider: "" # gke | eks | aks | omni
+imagePullSecrets: [ ]
+
+serviceAccount:
+  create: true
+  automount: true
+  annotations: { }
+
+gpuMetricsExporter:
+  # the affinity field is the preffered way of adding affinity annotations
+  # for gke provider the gke.affinity will be used if this isn't defined but in the future custom affinity annotations
+  # should be defined in the gpuMetricsExporter.affinity field
+  affinity:
+  image:
+    repository: docker.io/parthiba007/zxporter-gpu-exporter
+    pullPolicy: IfNotPresent
+    tag: "v1"
+  config: { }
+  # config:
+  #   # address of the DCGM exporter instance
+  #   DCGM_HOST: ""
+  #   # comma-separated list of labels that the DCGM instances have
+  #   DCGM_LABELS: ""
+  resources:
+    limits:
+      cpu: 100m
+      memory: 128Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  securityContext:
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+  port: 6061
+  tolerations:
+    - effect: "NoExecute"
+      operator: "Exists"
+    - effect: "NoSchedule"
+      operator: "Exists"
+    - effect: "PreferNoSchedule"
+      operator: "Exists"
+  rbac:
+    clusterWide: true
+
+dcgmExporter:
+  enabled: true
+  image:
+    repository: nvcr.io/nvidia/k8s/dcgm-exporter
+    pullPolicy: IfNotPresent
+    tag: 3.3.7-3.5.0-ubuntu22.04
+  useExternalHostEngine: false
+
+gke:
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: cloud.google.com/gke-accelerator
+                operator: Exists
+
+migrate:
+  image:
+    repository: alpine/k8s
+    pullPolicy: IfNotPresent
+    tag: 1.31.0
+
+# updateStrategy -- Controls `daemonset.spec.updateStrategy` field.
+# updateStrategy:
+#   type: RollingUpdate
+#   rollingUpdate:
+#     maxUnavailable: 1
+updateStrategy: {}
