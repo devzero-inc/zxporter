@@ -18,7 +18,7 @@ func TestBuildHeartbeatRequest(t *testing.T) {
 
 	startTime := time.Now().Add(-10 * time.Minute)
 
-	req := BuildHeartbeatRequest(hm, "cluster-123", "1.2.3", "abc123", startTime)
+	req := BuildHeartbeatRequest(hm, "cluster-123", gen.OperatorType_OPERATOR_TYPE_READ, "1.2.3", "abc123", startTime)
 
 	assert.Equal(t, "cluster-123", req.ClusterId)
 	assert.Equal(t, "1.2.3", req.Version)
@@ -74,8 +74,27 @@ func TestBuildHeartbeatRequest_OverallStatus(t *testing.T) {
 				hm.UpdateStatus(name, s, "", nil)
 			}
 
-			req := BuildHeartbeatRequest(hm, "c1", "1.0.0", "def456", time.Now())
+			req := BuildHeartbeatRequest(hm, "c1", gen.OperatorType_OPERATOR_TYPE_READ, "1.0.0", "def456", time.Now())
 			assert.Equal(t, tt.expected, req.OverallStatus)
 		})
 	}
+}
+
+func TestBuildHeartbeatRequest_OperatorType(t *testing.T) {
+	hm := NewHealthManager()
+	hm.Register(ComponentMonitor)
+	hm.UpdateStatus(ComponentMonitor, HealthStatusHealthy, "running", nil)
+
+	startTime := time.Now()
+
+	t.Run("network operator type", func(t *testing.T) {
+		req := BuildHeartbeatRequest(hm, "cluster-456", gen.OperatorType_OPERATOR_TYPE_NETWORK, "0.1.0", "fff000", startTime)
+		assert.Equal(t, gen.OperatorType_OPERATOR_TYPE_NETWORK, req.OperatorType)
+		assert.Equal(t, "cluster-456", req.ClusterId)
+	})
+
+	t.Run("read operator type", func(t *testing.T) {
+		req := BuildHeartbeatRequest(hm, "cluster-789", gen.OperatorType_OPERATOR_TYPE_READ, "1.0.0", "aaa111", startTime)
+		assert.Equal(t, gen.OperatorType_OPERATOR_TYPE_READ, req.OperatorType)
+	})
 }

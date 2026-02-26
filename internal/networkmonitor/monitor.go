@@ -13,6 +13,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"inet.af/netaddr"
 
+	"github.com/devzero-inc/zxporter/internal/health"
 	"github.com/devzero-inc/zxporter/internal/networkmonitor/dns"
 	"github.com/devzero-inc/zxporter/internal/networkmonitor/ebpf"
 	"github.com/devzero-inc/zxporter/internal/transport"
@@ -71,13 +72,14 @@ type MetricsResponse struct {
 
 // Monitor collects network flows using conntrack and aggregates them
 type Monitor struct {
-	cfg        Config
-	log        logr.Logger
-	ct         Client
-	dns        dns.DNSCollector
-	tracer     *ebpf.Tracer
-	podCache   *PodCache
-	dakrClient transport.DakrClient
+	cfg           Config
+	log           logr.Logger
+	ct            Client
+	dns           dns.DNSCollector
+	tracer        *ebpf.Tracer
+	podCache      *PodCache
+	dakrClient    transport.DakrClient
+	healthManager *health.HealthManager
 
 	mu sync.RWMutex
 
@@ -91,18 +93,25 @@ type Monitor struct {
 }
 
 // NewMonitor creates a new Monitor instance
-func NewMonitor(cfg Config, log logr.Logger, podCache *PodCache, ct Client, tracer *ebpf.Tracer, dnsCollector dns.DNSCollector, dakrClient transport.DakrClient) (*Monitor, error) {
+func NewMonitor(cfg Config, log logr.Logger, podCache *PodCache, ct Client, tracer *ebpf.Tracer, dnsCollector dns.DNSCollector, dakrClient transport.DakrClient, healthManager *health.HealthManager) (*Monitor, error) {
 	return &Monitor{
-		cfg:          cfg,
-		log:          log,
-		ct:           ct,
-		tracer:       tracer,
-		dns:          dnsCollector,
-		podCache:     podCache,
-		dakrClient:   dakrClient,
-		entriesCache: make(map[uint64]*Entry),
-		podMetrics:   make(map[uint64]*NetworkFlow),
+		cfg:           cfg,
+		log:           log,
+		ct:            ct,
+		tracer:        tracer,
+		dns:           dnsCollector,
+		podCache:      podCache,
+		dakrClient:    dakrClient,
+		healthManager: healthManager,
+		entriesCache:  make(map[uint64]*Entry),
+		podMetrics:    make(map[uint64]*NetworkFlow),
 	}, nil
+}
+
+func (m *Monitor) updateHealth(component string, status health.HealthStatus, message string) {
+	if m.healthManager != nil {
+		m.healthManager.UpdateStatus(component, status, message, nil)
+	}
 }
 
 // Start begins the collection loop
@@ -131,15 +140,18 @@ func (m *Monitor) Start(ctx context.Context) {
 		case <-readTicker.C:
 			if err := m.collect(); err != nil {
 				m.log.Error(err, "Failed to collect conntrack entries")
+				m.updateHealth(health.ComponentMonitor, health.HealthStatusDegraded, err.Error())
+			} else {
+				m.updateHealth(health.ComponentMonitor, health.HealthStatusHealthy, "collecting")
 			}
 		case <-cleanupTicker.C:
 			m.cleanup()
 		case <-flushTicker.C:
-			// Run flush in goroutine to avoid blocking collection (unless we need strict ordering, but collection is fast)
-			// Actually, flushing needs read lock, collect needs write lock.
-			// We should probably just call it synchronously to ensure we don't pile up goroutines.
 			if err := m.flush(ctx); err != nil {
 				m.log.Error(err, "Failed to flush metrics to control plane")
+				m.updateHealth(health.ComponentDakrTransport, health.HealthStatusDegraded, err.Error())
+			} else {
+				m.updateHealth(health.ComponentDakrTransport, health.HealthStatusHealthy, "connected")
 			}
 		}
 	}

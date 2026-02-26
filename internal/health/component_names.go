@@ -7,4 +7,7 @@ const (
 	ComponentDakrTransport    = "dakr_transport"
 	ComponentMpaServer        = "mpa_server"
 	ComponentPrometheus       = "prometheus"
+	ComponentMonitor          = "monitor"
+	ComponentEBPFTracer       = "ebpf_tracer"
+	ComponentPodCache         = "pod_cache"
 )
