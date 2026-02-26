@@ -699,29 +699,26 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 
 			// Fetch GPU metrics for the node if enabled
 			if !c.config.DisableGPUMetrics {
-				// When both sources are available: fetch from both, compare, use exporter as primary
 				if c.gpuExporterClient != nil {
+					// Primary: GPU exporter
 					gpuExporterMetrics, fetchErr := c.gpuExporterClient.FetchMetricsByNode(queryCtx, node.Name)
 					if fetchErr != nil {
-						c.logger.Error(fetchErr, "Failed to fetch GPU metrics from GPU exporter", "node", node.Name)
-						gpuMetrics = make(map[string]interface{})
+						c.logger.Error(fetchErr, "GPU exporter failed, falling back to Prometheus", "node", node.Name)
+						// Fallback to Prometheus on exporter failure
+						if c.prometheusAPI != nil {
+							gpuMetrics, err = c.collectNodeGPUMetrics(queryCtx, node.Name)
+							if err != nil {
+								c.logger.Error(err, "Prometheus fallback also failed for node GPU metrics", "node", node.Name)
+								gpuMetrics = make(map[string]interface{})
+							}
+						} else {
+							gpuMetrics = make(map[string]interface{})
+						}
 					} else {
 						gpuMetrics = NodeGPUMetricsFromExporter(gpuExporterMetrics)
 					}
-
-					// Also fetch from Prometheus for comparison
-					if c.prometheusAPI != nil {
-						promGPUMetrics, promErr := c.collectNodeGPUMetrics(queryCtx, node.Name)
-						if promErr != nil {
-							c.logger.Error(promErr, "[GPU-COMPARE] Failed to fetch Prometheus GPU metrics for comparison",
-								"node", node.Name)
-						} else {
-							compareLabel := fmt.Sprintf("node:%s", node.Name)
-							CompareGPUMetrics(c.logger, compareLabel, gpuMetrics, promGPUMetrics)
-						}
-					}
 				} else if c.prometheusAPI != nil {
-					// Fallback to Prometheus only
+					// No GPU exporter available — use Prometheus
 					gpuMetrics, err = c.collectNodeGPUMetrics(queryCtx, node.Name)
 					if queryCtx.Err() != nil {
 						c.logger.Error(queryCtx.Err(), "Query context for node GPU metrics failed", "node", node.Name)

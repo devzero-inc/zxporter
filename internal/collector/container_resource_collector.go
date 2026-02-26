@@ -465,8 +465,8 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 				}
 
 				if hasGPU {
-					// When both sources are available: fetch from both, compare, use exporter as primary
 					if gpuIndex != nil {
+						// Primary: GPU exporter
 						key := gpuContainerKey{
 							Pod:       podMetrics.Name,
 							Container: containerMetrics.Name,
@@ -475,24 +475,22 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 						if containerGPUs, ok := gpuIndex[key]; ok {
 							gpuMetrics = ContainerGPUMetricsFromExporter(containerGPUs, gpuRequestCount, gpuLimitCount)
 						} else {
-							gpuMetrics = make(map[string]interface{})
-						}
-
-						// Also fetch from Prometheus for comparison
-						if c.prometheusAPI != nil && queryCtx != nil {
-							promGPUMetrics, promErr := c.collectContainerGPUMetrics(queryCtx, pod, containerMetrics.Name)
-							if promErr != nil {
-								c.logger.Error(promErr, "[GPU-COMPARE] Failed to fetch Prometheus GPU metrics for comparison",
-									"namespace", podMetrics.Namespace,
-									"pod", podMetrics.Name,
-									"container", containerMetrics.Name)
+							// Exporter running but no GPU data for this container — fallback to Prometheus
+							if c.prometheusAPI != nil && queryCtx != nil {
+								gpuMetrics, err = c.collectContainerGPUMetrics(queryCtx, pod, containerMetrics.Name)
+								if err != nil {
+									c.logger.Error(err, "Prometheus fallback failed for container GPU metrics",
+										"namespace", podMetrics.Namespace,
+										"pod", podMetrics.Name,
+										"container", containerMetrics.Name)
+									gpuMetrics = make(map[string]interface{})
+								}
 							} else {
-								compareLabel := fmt.Sprintf("container:%s/%s/%s", podMetrics.Namespace, podMetrics.Name, containerMetrics.Name)
-								CompareGPUMetrics(c.logger, compareLabel, gpuMetrics, promGPUMetrics)
+								gpuMetrics = make(map[string]interface{})
 							}
 						}
 					} else if c.prometheusAPI != nil && queryCtx != nil {
-						// Fallback to Prometheus only
+						// No GPU exporter available — use Prometheus
 						gpuMetrics, err = c.collectContainerGPUMetrics(queryCtx, pod, containerMetrics.Name)
 						if err != nil {
 							c.logger.Error(err, "Failed to collect container GPU metrics",
