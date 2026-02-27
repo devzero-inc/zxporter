@@ -117,13 +117,13 @@ spec:
           args:
           {{- if eq .Values.provider "gke"}}
             {{- if .Values.dcgmExporter.useExternalHostEngine }}
-            - hostname $NODE_NAME; dcgm-exporter --remote-hostengine-info $(NODE_IP) -f /etc/dcgm-exporter/counters.csv
+            - hostname $NODE_NAME; dcgm-exporter --remote-hostengine-info ${NODE_IP} -f /etc/dcgm-exporter/counters.csv
             {{- else }}
             - hostname $NODE_NAME; dcgm-exporter -f /etc/dcgm-exporter/counters.csv
             {{- end }}
           {{- else }}
             {{- if .Values.dcgmExporter.useExternalHostEngine }}
-            - hostname $NODE_NAME; for ((;;)) { r=$(dcgm-exporter --remote-hostengine-info $(NODE_IP) -f /etc/dcgm-exporter/counters.csv); echo "dcgm-exporter could not run"; sleep 60 ; }
+            - hostname $NODE_NAME; for ((;;)) { r=$(dcgm-exporter --remote-hostengine-info ${NODE_IP} -f /etc/dcgm-exporter/counters.csv); echo "dcgm-exporter could not run"; sleep 60 ; }
             {{- else }}
             - hostname $NODE_NAME; for ((;;)) { r=$(dcgm-exporter -f /etc/dcgm-exporter/counters.csv); echo "dcgm-exporter could not run"; sleep 60 ; }
             {{- end }}
@@ -142,11 +142,13 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
-            {{- if eq .Values.provider "gke" }}
+            {{- if .Values.dcgmExporter.useExternalHostEngine }}
             - name: "NODE_IP"
               valueFrom:
                 fieldRef:
                   fieldPath: status.hostIP
+            {{- end }}
+            {{- if eq .Values.provider "gke" }}
             - name: "LD_LIBRARY_PATH"
               value: "/usr/local/nvidia/lib64"
             - name: "DCGM_EXPORTER_KUBERNETES_GPU_ID_TYPE"
