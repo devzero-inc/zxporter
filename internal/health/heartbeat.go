@@ -33,14 +33,22 @@ func worstStatus(a, b gen.HealthStatus) gen.HealthStatus {
 
 // BuildHeartbeatRequest constructs a ReportHealthRequest from the current
 // HealthManager state. The zxporter operator type is OPERATOR_TYPE_READ.
-func BuildHeartbeatRequest(hm *HealthManager, clusterID, version, commit string, startTime time.Time) *gen.ReportHealthRequest {
+func BuildHeartbeatRequest(
+	hm *HealthManager,
+	clusterID, version, commit string,
+	startTime time.Time,
+) *gen.ReportHealthRequest {
 	return BuildHeartbeatRequestFromReport(hm.BuildReport(), clusterID, version, commit, startTime)
 }
 
 // BuildHeartbeatRequestFromReport constructs a ReportHealthRequest from an
 // already-built report map. Use this when you need to log and send the same
 // snapshot to avoid a double lock acquisition on HealthManager.
-func BuildHeartbeatRequestFromReport(report map[string]ComponentStatus, clusterID, version, commit string, startTime time.Time) *gen.ReportHealthRequest {
+func BuildHeartbeatRequestFromReport(
+	report map[string]ComponentStatus,
+	clusterID, version, commit string,
+	startTime time.Time,
+) *gen.ReportHealthRequest {
 	overall := gen.HealthStatus_HEALTH_STATUS_UNSPECIFIED
 	components := make([]*gen.ComponentHealth, 0, len(report))
 

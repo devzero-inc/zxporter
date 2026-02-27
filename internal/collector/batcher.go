@@ -128,7 +128,11 @@ func (b *ResourcesBatcher) start() {
 			for resource := range b.inputChan { // Reads until channel is closed and empty
 				batch = append(batch, resource)
 				if len(batch) >= b.batchSize {
-					b.logger.Info("Sending batch due to size limit during drain", "batchSize", len(batch))
+					b.logger.Info(
+						"Sending batch due to size limit during drain",
+						"batchSize",
+						len(batch),
+					)
 					b.outBatchChan <- batch
 					batch = make([]CollectedResource, 0, b.batchSize) // Reset batch
 				}

@@ -26,7 +26,11 @@ func bpfMapsExist() bool {
 	return err == nil && file != nil
 }
 
-func listRecords(maps []interface{}, clockSource ClockSource, filter EntriesFilter) ([]*Entry, error) {
+func listRecords(
+	maps []interface{},
+	clockSource ClockSource,
+	filter EntriesFilter,
+) ([]*Entry, error) {
 	entries := make([]*Entry, 0)
 
 	now := time.Now().UTC()
@@ -61,8 +65,14 @@ func listRecords(maps []interface{}, clockSource ClockSource, filter EntriesFilt
 			val := v.(*ctmap.CtEntry)
 			expireSeconds := timeDiff(int64(val.Lifetime))
 			record := &Entry{
-				Src:       netaddr.IPPortFrom(netaddr.IPv4(srcIP[0], srcIP[1], srcIP[2], srcIP[3]), k.SourcePort),
-				Dst:       netaddr.IPPortFrom(netaddr.IPv4(dstIP[0], dstIP[1], dstIP[2], dstIP[3]), k.DestPort),
+				Src: netaddr.IPPortFrom(
+					netaddr.IPv4(srcIP[0], srcIP[1], srcIP[2], srcIP[3]),
+					k.SourcePort,
+				),
+				Dst: netaddr.IPPortFrom(
+					netaddr.IPv4(dstIP[0], dstIP[1], dstIP[2], dstIP[3]),
+					k.DestPort,
+				),
 				TxBytes:   val.Bytes,
 				TxPackets: val.Packets,
 				RxBytes:   0,

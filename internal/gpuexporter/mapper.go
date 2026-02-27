@@ -27,7 +27,10 @@ type MetricMapper interface {
 
 // WorkloadResolver resolves the top-level owning workload for a pod.
 type WorkloadResolver interface {
-	FindWorkloadForPod(ctx context.Context, name, namespace string) (kind, workloadName string, err error)
+	FindWorkloadForPod(
+		ctx context.Context,
+		name, namespace string,
+	) (kind, workloadName string, err error)
 }
 
 type metricMapper struct {
@@ -66,7 +69,10 @@ func getLabelValue(labels []*dto.LabelPair, name string) string {
 }
 
 // MapToGPUMetrics maps scraped DCGM metric families into a flat GPUMetric slice.
-func (p *metricMapper) MapToGPUMetrics(ctx context.Context, metricFamilyMaps []MetricFamilyMap) []GPUMetric {
+func (p *metricMapper) MapToGPUMetrics(
+	ctx context.Context,
+	metricFamilyMaps []MetricFamilyMap,
+) []GPUMetric {
 	gpuMetrics := make(map[gpuMetricKey]*GPUMetric)
 
 	for _, familyMap := range metricFamilyMaps {
@@ -108,7 +114,11 @@ func (p *metricMapper) MapToGPUMetrics(ctx context.Context, metricFamilyMaps []M
 					}
 
 					if key.pod != "" && p.workloadResolver != nil {
-						kind, wName, err := p.workloadResolver.FindWorkloadForPod(ctx, key.pod, key.namespace)
+						kind, wName, err := p.workloadResolver.FindWorkloadForPod(
+							ctx,
+							key.pod,
+							key.namespace,
+						)
 						if err != nil {
 							p.log.Error(err, "Failed to resolve workload",
 								"pod", key.pod, "namespace", key.namespace)

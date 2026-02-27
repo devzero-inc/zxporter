@@ -91,7 +91,15 @@ type Monitor struct {
 }
 
 // NewMonitor creates a new Monitor instance
-func NewMonitor(cfg Config, log logr.Logger, podCache *PodCache, ct Client, tracer *ebpf.Tracer, dnsCollector dns.DNSCollector, dakrClient transport.DakrClient) (*Monitor, error) {
+func NewMonitor(
+	cfg Config,
+	log logr.Logger,
+	podCache *PodCache,
+	ct Client,
+	tracer *ebpf.Tracer,
+	dnsCollector dns.DNSCollector,
+	dakrClient transport.DakrClient,
+) (*Monitor, error) {
 	return &Monitor{
 		cfg:          cfg,
 		log:          log,
@@ -185,7 +193,9 @@ func (m *Monitor) collect() error {
 				RxBytes:   sum.RxBytes,
 				RxPackets: sum.RxPackets,
 				Proto:     key.Protocol,
-				Lifetime:  time.Now().Add(2 * time.Minute), // Simulated lifetime for delta-based metrics
+				Lifetime: time.Now().
+					Add(2 * time.Minute),
+				// Simulated lifetime for delta-based metrics
 			})
 		}
 		isDelta = true

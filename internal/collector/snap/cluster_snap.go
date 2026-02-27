@@ -120,7 +120,9 @@ func NewClusterSnapshotter(
 }
 
 // Generic extractor function using Go generics
-func extractFirstItem[T any, L interface{ ~[]T }](getItems func(runtime.Object) (L, bool)) ResourceExtractorFunc {
+func extractFirstItem[T any, L interface{ ~[]T }](
+	getItems func(runtime.Object) (L, bool),
+) ResourceExtractorFunc {
 	return func(listResult runtime.Object) (interface{}, error) {
 		items, ok := getItems(listResult)
 		if !ok {
@@ -182,12 +184,14 @@ func (c *ClusterSnapshotter) initializeResourceHandlers() {
 			Lister: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
 				return c.client.RbacV1().ClusterRoleBindings().List(ctx, options)
 			},
-			Extractor: extractFirstItem(func(obj runtime.Object) ([]rbacv1.ClusterRoleBinding, bool) {
-				if list, ok := obj.(*rbacv1.ClusterRoleBindingList); ok {
-					return list.Items, true
-				}
-				return nil, false
-			}),
+			Extractor: extractFirstItem(
+				func(obj runtime.Object) ([]rbacv1.ClusterRoleBinding, bool) {
+					if list, ok := obj.(*rbacv1.ClusterRoleBindingList); ok {
+						return list.Items, true
+					}
+					return nil, false
+				},
+			),
 			SnapshotExtractor: func(snapshot *gen.ClusterScopedSnapshot) map[string]*gen.ResourceIdentifier {
 				return snapshot.ClusterRoleBindings
 			},
@@ -224,12 +228,14 @@ func (c *ClusterSnapshotter) initializeResourceHandlers() {
 			Lister: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
 				return c.client.StorageV1().VolumeAttachments().List(ctx, options)
 			},
-			Extractor: extractFirstItem(func(obj runtime.Object) ([]storagev1.VolumeAttachment, bool) {
-				if list, ok := obj.(*storagev1.VolumeAttachmentList); ok {
-					return list.Items, true
-				}
-				return nil, false
-			}),
+			Extractor: extractFirstItem(
+				func(obj runtime.Object) ([]storagev1.VolumeAttachment, bool) {
+					if list, ok := obj.(*storagev1.VolumeAttachmentList); ok {
+						return list.Items, true
+					}
+					return nil, false
+				},
+			),
 			SnapshotExtractor: func(snapshot *gen.ClusterScopedSnapshot) map[string]*gen.ResourceIdentifier {
 				return snapshot.VolumeAttachments
 			},
@@ -238,12 +244,14 @@ func (c *ClusterSnapshotter) initializeResourceHandlers() {
 			Lister: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
 				return c.client.NetworkingV1().IngressClasses().List(ctx, options)
 			},
-			Extractor: extractFirstItem(func(obj runtime.Object) ([]networkingv1.IngressClass, bool) {
-				if list, ok := obj.(*networkingv1.IngressClassList); ok {
-					return list.Items, true
-				}
-				return nil, false
-			}),
+			Extractor: extractFirstItem(
+				func(obj runtime.Object) ([]networkingv1.IngressClass, bool) {
+					if list, ok := obj.(*networkingv1.IngressClassList); ok {
+						return list.Items, true
+					}
+					return nil, false
+				},
+			),
 			SnapshotExtractor: func(snapshot *gen.ClusterScopedSnapshot) map[string]*gen.ResourceIdentifier {
 				return snapshot.IngressClasses
 			},
@@ -328,12 +336,14 @@ func (c *ClusterSnapshotter) initializeNamespacedResourceHandlers() {
 			Lister: func(ctx context.Context, namespace string, options metav1.ListOptions) (runtime.Object, error) {
 				return c.client.CoreV1().PersistentVolumeClaims(namespace).List(ctx, options)
 			},
-			Extractor: extractFirstItem(func(obj runtime.Object) ([]corev1.PersistentVolumeClaim, bool) {
-				if list, ok := obj.(*corev1.PersistentVolumeClaimList); ok {
-					return list.Items, true
-				}
-				return nil, false
-			}),
+			Extractor: extractFirstItem(
+				func(obj runtime.Object) ([]corev1.PersistentVolumeClaim, bool) {
+					if list, ok := obj.(*corev1.PersistentVolumeClaimList); ok {
+						return list.Items, true
+					}
+					return nil, false
+				},
+			),
 			SnapshotExtractor: func(namespace *gen.Namespace) map[string]*gen.ResourceIdentifier {
 				return namespace.Pvcs
 			},
@@ -384,12 +394,14 @@ func (c *ClusterSnapshotter) initializeNamespacedResourceHandlers() {
 			Lister: func(ctx context.Context, namespace string, options metav1.ListOptions) (runtime.Object, error) {
 				return c.client.NetworkingV1().NetworkPolicies(namespace).List(ctx, options)
 			},
-			Extractor: extractFirstItem(func(obj runtime.Object) ([]networkingv1.NetworkPolicy, bool) {
-				if list, ok := obj.(*networkingv1.NetworkPolicyList); ok {
-					return list.Items, true
-				}
-				return nil, false
-			}),
+			Extractor: extractFirstItem(
+				func(obj runtime.Object) ([]networkingv1.NetworkPolicy, bool) {
+					if list, ok := obj.(*networkingv1.NetworkPolicyList); ok {
+						return list.Items, true
+					}
+					return nil, false
+				},
+			),
 			SnapshotExtractor: func(namespace *gen.Namespace) map[string]*gen.ResourceIdentifier {
 				return namespace.NetworkPolicies
 			},
@@ -452,14 +464,18 @@ func (c *ClusterSnapshotter) initializeNamespacedResourceHandlers() {
 		},
 		"horizontal_pod_autoscaler": {
 			Lister: func(ctx context.Context, namespace string, options metav1.ListOptions) (runtime.Object, error) {
-				return c.client.AutoscalingV2().HorizontalPodAutoscalers(namespace).List(ctx, options)
+				return c.client.AutoscalingV2().
+					HorizontalPodAutoscalers(namespace).
+					List(ctx, options)
 			},
-			Extractor: extractFirstItem(func(obj runtime.Object) ([]autoscalingv2.HorizontalPodAutoscaler, bool) {
-				if list, ok := obj.(*autoscalingv2.HorizontalPodAutoscalerList); ok {
-					return list.Items, true
-				}
-				return nil, false
-			}),
+			Extractor: extractFirstItem(
+				func(obj runtime.Object) ([]autoscalingv2.HorizontalPodAutoscaler, bool) {
+					if list, ok := obj.(*autoscalingv2.HorizontalPodAutoscalerList); ok {
+						return list.Items, true
+					}
+					return nil, false
+				},
+			),
 			SnapshotExtractor: func(namespace *gen.Namespace) map[string]*gen.ResourceIdentifier {
 				return namespace.HorizontalPodAutoscalers
 			},
@@ -557,7 +573,11 @@ func (c *ClusterSnapshotter) captureClusterState(ctx context.Context) (*ClusterS
 	return snapshot, nil
 }
 
-func (c *ClusterSnapshotter) sendSnapshot(ctx context.Context, snapshot *ClusterSnapshot, isFullSnapshot bool) {
+func (c *ClusterSnapshotter) sendSnapshot(
+	ctx context.Context,
+	snapshot *ClusterSnapshot,
+	isFullSnapshot bool,
+) {
 	// dont send multiple snapshots at once
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -593,7 +613,12 @@ func (c *ClusterSnapshotter) sendSnapshot(ctx context.Context, snapshot *Cluster
 		SendClusterSnapshotStream(ctx context.Context, snapshot *gen.ClusterSnapshot, snapshotID string, timestamp time.Time) (string, *gen.ClusterSnapshot, error)
 	}); ok {
 		var missingResources *gen.ClusterSnapshot
-		clusterID, missingResources, sendErr = streamingSender.SendClusterSnapshotStream(ctx, snapshot, snapshot.SnapshotId, snapshot.Timestamp.AsTime())
+		clusterID, missingResources, sendErr = streamingSender.SendClusterSnapshotStream(
+			ctx,
+			snapshot,
+			snapshot.SnapshotId,
+			snapshot.Timestamp.AsTime(),
+		)
 
 		// If we have missing resources, refresh them
 		if sendErr == nil && missingResources != nil {
@@ -651,11 +676,16 @@ func (c *ClusterSnapshotter) IsAvailable(ctx context.Context) bool {
 
 // AddResource manually adds a resource - not supported for cluster snapshotter
 func (c *ClusterSnapshotter) AddResource(resource interface{}) error {
-	return fmt.Errorf("AddResource not supported for cluster snapshotter - snapshots are collected automatically")
+	return fmt.Errorf(
+		"AddResource not supported for cluster snapshotter - snapshots are collected automatically",
+	)
 }
 
 // refreshMissingResources processes missing resources by fetching them from kubernetes and sending to collectors
-func (c *ClusterSnapshotter) refreshMissingResources(ctx context.Context, missingResources *gen.ClusterSnapshot) error {
+func (c *ClusterSnapshotter) refreshMissingResources(
+	ctx context.Context,
+	missingResources *gen.ClusterSnapshot,
+) error {
 	if c.collectorManager == nil {
 		return fmt.Errorf("collector manager not available")
 	}
@@ -671,7 +701,12 @@ func (c *ClusterSnapshotter) refreshMissingResources(ctx context.Context, missin
 	// Refresh namespaced resources
 	for nsUID, namespace := range missingResources.Namespaces {
 		if err := c.refreshNamespaceResources(ctx, nsUID, namespace); err != nil {
-			c.logger.Error(err, "Failed to refresh namespace resources", "namespace", namespace.Namespace.Name)
+			c.logger.Error(
+				err,
+				"Failed to refresh namespace resources",
+				"namespace",
+				namespace.Namespace.Name,
+			)
 			// Continue with other namespaces even if one fails
 		}
 	}
@@ -681,7 +716,10 @@ func (c *ClusterSnapshotter) refreshMissingResources(ctx context.Context, missin
 }
 
 // refreshClusterScopedResources refreshes cluster-scoped resources that are missing
-func (c *ClusterSnapshotter) refreshClusterScopedResources(ctx context.Context, clusterScoped *gen.ClusterScopedSnapshot) error {
+func (c *ClusterSnapshotter) refreshClusterScopedResources(
+	ctx context.Context,
+	clusterScoped *gen.ClusterScopedSnapshot,
+) error {
 	if clusterScoped == nil {
 		return nil
 	}
@@ -694,7 +732,16 @@ func (c *ClusterSnapshotter) refreshClusterScopedResources(ctx context.Context, 
 		// Refresh each resource in the map
 		for resourceUID, resource := range resourceMap {
 			if err := c.refreshResource(ctx, resourceType, resourceUID, resource.Name); err != nil {
-				c.logger.Error(err, "Failed to refresh cluster resource", "type", resourceType, "name", resource.Name, "uid", resourceUID)
+				c.logger.Error(
+					err,
+					"Failed to refresh cluster resource",
+					"type",
+					resourceType,
+					"name",
+					resource.Name,
+					"uid",
+					resourceUID,
+				)
 			}
 		}
 	}
@@ -703,7 +750,11 @@ func (c *ClusterSnapshotter) refreshClusterScopedResources(ctx context.Context, 
 }
 
 // refreshNamespaceResources refreshes namespaced resources that are missing
-func (c *ClusterSnapshotter) refreshNamespaceResources(ctx context.Context, nsUID string, namespace *gen.Namespace) error {
+func (c *ClusterSnapshotter) refreshNamespaceResources(
+	ctx context.Context,
+	nsUID string,
+	namespace *gen.Namespace,
+) error {
 	if namespace == nil {
 		return nil
 	}
@@ -719,7 +770,18 @@ func (c *ClusterSnapshotter) refreshNamespaceResources(ctx context.Context, nsUI
 		// Refresh each resource in the map
 		for resourceUID, resource := range resourceMap {
 			if err := c.refreshNamespacedResource(ctx, resourceType, nsName, resourceUID, resource.Name); err != nil {
-				c.logger.Error(err, "Failed to refresh namespaced resource", "type", resourceType, "name", resource.Name, "namespace", nsName, "uid", resourceUID)
+				c.logger.Error(
+					err,
+					"Failed to refresh namespaced resource",
+					"type",
+					resourceType,
+					"name",
+					resource.Name,
+					"namespace",
+					nsName,
+					"uid",
+					resourceUID,
+				)
 			}
 		}
 	}
@@ -728,14 +790,31 @@ func (c *ClusterSnapshotter) refreshNamespaceResources(ctx context.Context, nsUI
 }
 
 // refreshResource fetches and refreshes a cluster-scoped resource
-func (c *ClusterSnapshotter) refreshResource(ctx context.Context, resourceType, resourceUID, resourceName string) error {
+func (c *ClusterSnapshotter) refreshResource(
+	ctx context.Context,
+	resourceType, resourceUID, resourceName string,
+) error {
 	collector := c.collectorManager.GetCollector(resourceType)
 	if collector == nil {
-		c.logger.Info("No collector found for resource type", "type", resourceType, "name", resourceName)
+		c.logger.Info(
+			"No collector found for resource type",
+			"type",
+			resourceType,
+			"name",
+			resourceName,
+		)
 		return nil
 	}
 
-	c.logger.Info("Refreshing cluster resource", "type", resourceType, "name", resourceName, "uid", resourceUID)
+	c.logger.Info(
+		"Refreshing cluster resource",
+		"type",
+		resourceType,
+		"name",
+		resourceName,
+		"uid",
+		resourceUID,
+	)
 
 	// Fetch the resource from Kubernetes API using name
 	resource, err := c.fetchClusterResourceByName(ctx, resourceType, resourceName)
@@ -744,13 +823,26 @@ func (c *ClusterSnapshotter) refreshResource(ctx context.Context, resourceType, 
 	}
 
 	if resource == nil {
-		c.logger.Info("Resource not found in cluster", "type", resourceType, "name", resourceName, "uid", resourceUID)
+		c.logger.Info(
+			"Resource not found in cluster",
+			"type",
+			resourceType,
+			"name",
+			resourceName,
+			"uid",
+			resourceUID,
+		)
 		return nil
 	}
 
 	// Add the resource to the collector
 	if err := collector.AddResource(resource); err != nil {
-		return fmt.Errorf("failed to add %s with name %s to collector: %w", resourceType, resourceName, err)
+		return fmt.Errorf(
+			"failed to add %s with name %s to collector: %w",
+			resourceType,
+			resourceName,
+			err,
+		)
 	}
 
 	c.logger.Info("Successfully refreshed resource", "type", resourceType, "uid", resourceUID)
@@ -758,37 +850,91 @@ func (c *ClusterSnapshotter) refreshResource(ctx context.Context, resourceType, 
 }
 
 // refreshNamespacedResource fetches and refreshes a namespaced resource
-func (c *ClusterSnapshotter) refreshNamespacedResource(ctx context.Context, resourceType, namespace, resourceUID, resourceName string) error {
+func (c *ClusterSnapshotter) refreshNamespacedResource(
+	ctx context.Context,
+	resourceType, namespace, resourceUID, resourceName string,
+) error {
 	collector := c.collectorManager.GetCollector(resourceType)
 	if collector == nil {
-		c.logger.Info("No collector found for resource type", "type", resourceType, "name", resourceName, "namespace", namespace)
+		c.logger.Info(
+			"No collector found for resource type",
+			"type",
+			resourceType,
+			"name",
+			resourceName,
+			"namespace",
+			namespace,
+		)
 		return nil
 	}
 
-	c.logger.Info("Refreshing namespaced resource", "type", resourceType, "name", resourceName, "uid", resourceUID, "namespace", namespace)
+	c.logger.Info(
+		"Refreshing namespaced resource",
+		"type",
+		resourceType,
+		"name",
+		resourceName,
+		"uid",
+		resourceUID,
+		"namespace",
+		namespace,
+	)
 
 	// Fetch the resource from Kubernetes API using name
 	resource, err := c.fetchNamespacedResourceByName(ctx, resourceType, namespace, resourceName)
 	if err != nil {
-		return fmt.Errorf("failed to fetch %s with name %s in namespace %s: %w", resourceType, resourceName, namespace, err)
+		return fmt.Errorf(
+			"failed to fetch %s with name %s in namespace %s: %w",
+			resourceType,
+			resourceName,
+			namespace,
+			err,
+		)
 	}
 
 	if resource == nil {
-		c.logger.Info("Resource not found in cluster", "type", resourceType, "name", resourceName, "uid", resourceUID, "namespace", namespace)
+		c.logger.Info(
+			"Resource not found in cluster",
+			"type",
+			resourceType,
+			"name",
+			resourceName,
+			"uid",
+			resourceUID,
+			"namespace",
+			namespace,
+		)
 		return nil
 	}
 
 	// Add the resource to the collector
 	if err := collector.AddResource(resource); err != nil {
-		return fmt.Errorf("failed to add %s with name %s in namespace %s to collector: %w", resourceType, resourceName, namespace, err)
+		return fmt.Errorf(
+			"failed to add %s with name %s in namespace %s to collector: %w",
+			resourceType,
+			resourceName,
+			namespace,
+			err,
+		)
 	}
 
-	c.logger.Info("Successfully refreshed resource", "type", resourceType, "uid", resourceUID, "namespace", namespace)
+	c.logger.Info(
+		"Successfully refreshed resource",
+		"type",
+		resourceType,
+		"uid",
+		resourceUID,
+		"namespace",
+		namespace,
+	)
 	return nil
 }
 
 // fetchClusterResourceByName fetches a cluster-scoped resource from Kubernetes API by name
-func (c *ClusterSnapshotter) fetchClusterResourceByName(ctx context.Context, resourceType, resourceName string) (interface{}, error) {
+func (c *ClusterSnapshotter) fetchClusterResourceByName(
+	ctx context.Context,
+	resourceType, resourceName string,
+) (interface{}, error) {
 	handler, exists := c.clusterHandlers[resourceType]
 	if !exists {
 		c.logger.Info("Unknown cluster-scoped resource type", "type", resourceType)
@@ -812,10 +958,19 @@ func (c *ClusterSnapshotter) fetchClusterResourceByName(ctx context.Context, res
 }
 
 // fetchNamespacedResourceByName fetches a namespaced resource from Kubernetes API by name
-func (c *ClusterSnapshotter) fetchNamespacedResourceByName(ctx context.Context, resourceType, namespace, resourceName string) (interface{}, error) {
+func (c *ClusterSnapshotter) fetchNamespacedResourceByName(
+	ctx context.Context,
+	resourceType, namespace, resourceName string,
+) (interface{}, error) {
 	handler, exists := c.namespacedHandlers[resourceType]
 	if !exists {
-		c.logger.Info("Unknown namespaced resource type", "type", resourceType, "namespace", namespace)
+		c.logger.Info(
+			"Unknown namespaced resource type",
+			"type",
+			resourceType,
+			"namespace",
+			namespace,
+		)
 		return nil, nil
 	}
 

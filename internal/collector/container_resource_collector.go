@@ -121,7 +121,10 @@ func NewContainerResourceCollector(
 	}
 
 	// Create channels
-	batchChan := make(chan CollectedResource, 500)      // Keep original buffer size for individual items
+	batchChan := make(
+		chan CollectedResource,
+		500,
+	) // Keep original buffer size for individual items
 	resourceChan := make(chan []CollectedResource, 200) // Buffer for batches
 
 	// Create the batcher
@@ -200,7 +203,10 @@ func (c *ContainerResourceCollector) Start(ctx context.Context) error {
 				},
 			)
 
-			c.logger.Error(err, "Failed to create Prometheus client, network/IO and GPU metrics will be disabled")
+			c.logger.Error(
+				err,
+				"Failed to create Prometheus client, network/IO and GPU metrics will be disabled",
+			)
 		} else {
 			c.prometheusAPI = v1.NewAPI(client)
 		}
@@ -286,7 +292,9 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 
 	if len(c.namespaces) == 1 && c.namespaces[0] != "" {
 		// Fetch metrics for a specific namespace
-		podMetricsList, err = c.metricsClient.MetricsV1beta1().PodMetricses(c.namespaces[0]).List(ctx, metav1.ListOptions{})
+		podMetricsList, err = c.metricsClient.MetricsV1beta1().
+			PodMetricses(c.namespaces[0]).
+			List(ctx, metav1.ListOptions{})
 	} else {
 		// Fetch metrics for all namespaces
 		podMetricsList, err = c.metricsClient.MetricsV1beta1().PodMetricses("").List(ctx, metav1.ListOptions{})
@@ -397,7 +405,11 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 			if c.prometheusAPI != nil && queryCtx != nil {
 
 				// Fetch CPU throttle metrics for this container
-				throttleFraction, err = c.collectContainerCPUThrottleMetrics(queryCtx, pod, containerMetrics.Name)
+				throttleFraction, err = c.collectContainerCPUThrottleMetrics(
+					queryCtx,
+					pod,
+					containerMetrics.Name,
+				)
 				if err != nil {
 					c.logger.Error(err, "Failed to collect CPU throttle metrics",
 						"namespace", podMetrics.Namespace,
@@ -409,7 +421,11 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 
 				// Fetch I/O metrics for this container
 				if !c.config.DisableNetworkIOMetrics {
-					ioMetrics, err = c.collectContainerIOMetrics(queryCtx, pod, containerMetrics.Name)
+					ioMetrics, err = c.collectContainerIOMetrics(
+						queryCtx,
+						pod,
+						containerMetrics.Name,
+					)
 					if err != nil {
 						if c.telemetryLogger != nil {
 							c.telemetryLogger.Report(
@@ -448,14 +464,16 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 						limits := pod.Spec.Containers[i].Resources.Limits
 
 						if requests != nil {
-							if gpuReq, ok := requests[gpuconst.GpuResource]; ok && gpuReq.Value() > 0 {
+							if gpuReq, ok := requests[gpuconst.GpuResource]; ok &&
+								gpuReq.Value() > 0 {
 								hasGPU = true
 								gpuRequestCount = gpuReq.Value()
 							}
 						}
 
 						if limits != nil {
-							if gpuLim, ok := limits[gpuconst.GpuResource]; ok && gpuLim.Value() > 0 {
+							if gpuLim, ok := limits[gpuconst.GpuResource]; ok &&
+								gpuLim.Value() > 0 {
 								hasGPU = true
 								gpuLimitCount = gpuLim.Value()
 							}
@@ -473,7 +491,11 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 							Namespace: podMetrics.Namespace,
 						}
 						if containerGPUs, ok := gpuIndex[key]; ok {
-							gpuMetrics = ContainerGPUMetricsFromExporter(containerGPUs, gpuRequestCount, gpuLimitCount)
+							gpuMetrics = ContainerGPUMetricsFromExporter(
+								containerGPUs,
+								gpuRequestCount,
+								gpuLimitCount,
+							)
 						} else {
 							// Exporter running but no GPU data for this container — fallback to Prometheus
 							if c.prometheusAPI != nil && queryCtx != nil {
@@ -508,7 +530,14 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 			}
 
 			// Process the container metrics with optional network/IO data
-			c.processContainerMetrics(pod, containerMetrics, networkMetrics, ioMetrics, gpuMetrics, throttleFraction)
+			c.processContainerMetrics(
+				pod,
+				containerMetrics,
+				networkMetrics,
+				ioMetrics,
+				gpuMetrics,
+				throttleFraction,
+			)
 		}
 	}
 }
@@ -700,19 +729,54 @@ func (c *ContainerResourceCollector) processContainerMetrics(
 }
 
 // collectPodNetworkMetrics collects network metrics for a pod using Prometheus queries
-func (c *ContainerResourceCollector) collectPodNetworkMetrics(ctx context.Context, pod *corev1.Pod) (map[string]float64, error) {
+func (c *ContainerResourceCollector) collectPodNetworkMetrics(
+	ctx context.Context,
+	pod *corev1.Pod,
+) (map[string]float64, error) {
 	metrics := make(map[string]float64)
 
 	// Define queries for network metrics
 	queries := map[string]string{
-		"NetworkReceiveBytes":    fmt.Sprintf(`sum(rate(container_network_receive_bytes_total{namespace="%s", pod="%s"}[5m]))`, pod.Namespace, pod.Name),
-		"NetworkTransmitBytes":   fmt.Sprintf(`sum(rate(container_network_transmit_bytes_total{namespace="%s", pod="%s"}[5m]))`, pod.Namespace, pod.Name),
-		"NetworkReceivePackets":  fmt.Sprintf(`sum(rate(container_network_receive_packets_total{namespace="%s", pod="%s"}[5m]))`, pod.Namespace, pod.Name),
-		"NetworkTransmitPackets": fmt.Sprintf(`sum(rate(container_network_transmit_packets_total{namespace="%s", pod="%s"}[5m]))`, pod.Namespace, pod.Name),
-		"NetworkReceiveErrors":   fmt.Sprintf(`sum(rate(container_network_receive_errors_total{namespace="%s", pod="%s"}[5m]))`, pod.Namespace, pod.Name),
-		"NetworkTransmitErrors":  fmt.Sprintf(`sum(rate(container_network_transmit_errors_total{namespace="%s", pod="%s"}[5m]))`, pod.Namespace, pod.Name),
-		"NetworkReceiveDropped":  fmt.Sprintf(`sum(rate(container_network_receive_packets_dropped_total{namespace="%s", pod="%s"}[5m]))`, pod.Namespace, pod.Name),
-		"NetworkTransmitDropped": fmt.Sprintf(`sum(rate(container_network_transmit_packets_dropped_total{namespace="%s", pod="%s"}[5m]))`, pod.Namespace, pod.Name),
+		"NetworkReceiveBytes": fmt.Sprintf(
+			`sum(rate(container_network_receive_bytes_total{namespace="%s", pod="%s"}[5m]))`,
+			pod.Namespace,
+			pod.Name,
+		),
+		"NetworkTransmitBytes": fmt.Sprintf(
+			`sum(rate(container_network_transmit_bytes_total{namespace="%s", pod="%s"}[5m]))`,
+			pod.Namespace,
+			pod.Name,
+		),
+		"NetworkReceivePackets": fmt.Sprintf(
+			`sum(rate(container_network_receive_packets_total{namespace="%s", pod="%s"}[5m]))`,
+			pod.Namespace,
+			pod.Name,
+		),
+		"NetworkTransmitPackets": fmt.Sprintf(
+			`sum(rate(container_network_transmit_packets_total{namespace="%s", pod="%s"}[5m]))`,
+			pod.Namespace,
+			pod.Name,
+		),
+		"NetworkReceiveErrors": fmt.Sprintf(
+			`sum(rate(container_network_receive_errors_total{namespace="%s", pod="%s"}[5m]))`,
+			pod.Namespace,
+			pod.Name,
+		),
+		"NetworkTransmitErrors": fmt.Sprintf(
+			`sum(rate(container_network_transmit_errors_total{namespace="%s", pod="%s"}[5m]))`,
+			pod.Namespace,
+			pod.Name,
+		),
+		"NetworkReceiveDropped": fmt.Sprintf(
+			`sum(rate(container_network_receive_packets_dropped_total{namespace="%s", pod="%s"}[5m]))`,
+			pod.Namespace,
+			pod.Name,
+		),
+		"NetworkTransmitDropped": fmt.Sprintf(
+			`sum(rate(container_network_transmit_packets_dropped_total{namespace="%s", pod="%s"}[5m]))`,
+			pod.Namespace,
+			pod.Name,
+		),
 	}
 
 	// Execute each query and store the result
@@ -740,15 +804,39 @@ func (c *ContainerResourceCollector) collectPodNetworkMetrics(ctx context.Contex
 }
 
 // collectContainerIOMetrics collects I/O metrics for a container using Prometheus queries
-func (c *ContainerResourceCollector) collectContainerIOMetrics(ctx context.Context, pod *corev1.Pod, containerName string) (map[string]float64, error) {
+func (c *ContainerResourceCollector) collectContainerIOMetrics(
+	ctx context.Context,
+	pod *corev1.Pod,
+	containerName string,
+) (map[string]float64, error) {
 	metrics := make(map[string]float64)
 
 	// Define queries for I/O metrics
 	queries := map[string]string{
-		"FSReadBytes":  fmt.Sprintf(`sum(rate(container_fs_reads_bytes_total{namespace="%s", pod="%s", container="%s"}[5m]))`, pod.Namespace, pod.Name, containerName),
-		"FSWriteBytes": fmt.Sprintf(`sum(rate(container_fs_writes_bytes_total{namespace="%s", pod="%s", container="%s"}[5m]))`, pod.Namespace, pod.Name, containerName),
-		"FSReads":      fmt.Sprintf(`sum(rate(container_fs_reads_total{namespace="%s", pod="%s", container="%s"}[5m]))`, pod.Namespace, pod.Name, containerName),
-		"FSWrites":     fmt.Sprintf(`sum(rate(container_fs_writes_total{namespace="%s", pod="%s", container="%s"}[5m]))`, pod.Namespace, pod.Name, containerName),
+		"FSReadBytes": fmt.Sprintf(
+			`sum(rate(container_fs_reads_bytes_total{namespace="%s", pod="%s", container="%s"}[5m]))`,
+			pod.Namespace,
+			pod.Name,
+			containerName,
+		),
+		"FSWriteBytes": fmt.Sprintf(
+			`sum(rate(container_fs_writes_bytes_total{namespace="%s", pod="%s", container="%s"}[5m]))`,
+			pod.Namespace,
+			pod.Name,
+			containerName,
+		),
+		"FSReads": fmt.Sprintf(
+			`sum(rate(container_fs_reads_total{namespace="%s", pod="%s", container="%s"}[5m]))`,
+			pod.Namespace,
+			pod.Name,
+			containerName,
+		),
+		"FSWrites": fmt.Sprintf(
+			`sum(rate(container_fs_writes_total{namespace="%s", pod="%s", container="%s"}[5m]))`,
+			pod.Namespace,
+			pod.Name,
+			containerName,
+		),
 	}
 
 	// Execute each query and store the result
@@ -778,10 +866,16 @@ func (c *ContainerResourceCollector) collectContainerIOMetrics(ctx context.Conte
 
 // collectContainerCPUThrottleMetrics collects CFS bandwidth throttle metrics for a container.
 // Returns the throttle fraction (0.0-1.0): rate(throttled_periods) / rate(total_periods).
-func (c *ContainerResourceCollector) collectContainerCPUThrottleMetrics(ctx context.Context, pod *corev1.Pod, containerName string) (float64, error) {
+func (c *ContainerResourceCollector) collectContainerCPUThrottleMetrics(
+	ctx context.Context,
+	pod *corev1.Pod,
+	containerName string,
+) (float64, error) {
 	throttledQuery := fmt.Sprintf(
 		`sum(rate(container_cpu_cfs_throttled_periods_total{namespace="%s", pod="%s", container="%s"}[5m]))`,
-		pod.Namespace, pod.Name, containerName,
+		pod.Namespace,
+		pod.Name,
+		containerName,
 	)
 	totalQuery := fmt.Sprintf(
 		`sum(rate(container_cpu_cfs_periods_total{namespace="%s", pod="%s", container="%s"}[5m]))`,
@@ -834,12 +928,21 @@ func (c *ContainerResourceCollector) collectContainerCPUThrottleMetrics(ctx cont
 }
 
 // collectContainerGPUMetrics collects GPU metrics for a container using Prometheus queries
-func (c *ContainerResourceCollector) collectContainerGPUMetrics(ctx context.Context, pod *corev1.Pod, containerName string) (map[string]interface{}, error) {
+func (c *ContainerResourceCollector) collectContainerGPUMetrics(
+	ctx context.Context,
+	pod *corev1.Pod,
+	containerName string,
+) (map[string]interface{}, error) {
 	metrics := make(map[string]interface{})
 
 	namespace := pod.Namespace
 	podName := pod.Name
-	baseLabels := fmt.Sprintf(`namespace="%s", pod="%s", container="%s"`, namespace, podName, containerName)
+	baseLabels := fmt.Sprintf(
+		`namespace="%s", pod="%s", container="%s"`,
+		namespace,
+		podName,
+		containerName,
+	)
 	queryTime := time.Now()
 
 	stateKey := fmt.Sprintf("%s/%s/%s", pod.Namespace, pod.Name, containerName)
@@ -923,7 +1026,13 @@ func (c *ContainerResourceCollector) collectContainerGPUMetrics(ctx context.Cont
 		aggregateOp string // Aggregation operation (sum, avg)
 		metricKey   string // Field name in aggregate metrics
 	}{
-		{"GPU Utilization", "DCGM_FI_DEV_GPU_UTIL", "Utilization", "avg", "GPUUtilizationPercentage"},
+		{
+			"GPU Utilization",
+			"DCGM_FI_DEV_GPU_UTIL",
+			"Utilization",
+			"avg",
+			"GPUUtilizationPercentage",
+		},
 		{"Memory Used", "DCGM_FI_DEV_FB_USED", "MemoryUsed", "sum", "GPUMemoryUsedMb"},
 		{"Memory Free", "DCGM_FI_DEV_FB_FREE", "MemoryFree", "sum", "GPUMemoryFreeMb"},
 		{"Power Usage", "DCGM_FI_DEV_POWER_USAGE", "PowerUsage", "sum", "GPUPowerUsageWatts"},
@@ -1223,7 +1332,11 @@ func (c *ContainerResourceCollector) IsAvailable(ctx context.Context) bool {
 						"zxporter_version": version.Get().String(),
 					},
 				)
-				c.logger.Info("Prometheus API not available for network and I/O metrics", "error", err.Error())
+				c.logger.Info(
+					"Prometheus API not available for network and I/O metrics",
+					"error",
+					err.Error(),
+				)
 				// Still return true since the main metrics are available
 			}
 		}

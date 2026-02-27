@@ -34,7 +34,13 @@ type Exporter struct {
 }
 
 // NewExporter creates a new GPU metrics exporter.
-func NewExporter(cfg ExporterConfig, dynClient dynamic.Interface, scraper Scraper, mapper MetricMapper, log logr.Logger) *Exporter {
+func NewExporter(
+	cfg ExporterConfig,
+	dynClient dynamic.Interface,
+	scraper Scraper,
+	mapper MetricMapper,
+	log logr.Logger,
+) *Exporter {
 	return &Exporter{
 		cfg:     cfg,
 		dynamic: dynClient,
@@ -72,7 +78,12 @@ func (e *Exporter) QueryMetrics(ctx context.Context) ([]GPUMetric, error) {
 func (e *Exporter) getDCGMUrls(ctx context.Context) ([]string, error) {
 	if e.cfg.DCGMHost != "" {
 		return []string{
-			fmt.Sprintf("http://%s:%d%s", e.cfg.DCGMHost, e.cfg.DCGMPort, e.cfg.DCGMMetricsEndpoint),
+			fmt.Sprintf(
+				"http://%s:%d%s",
+				e.cfg.DCGMHost,
+				e.cfg.DCGMPort,
+				e.cfg.DCGMMetricsEndpoint,
+			),
 		}, nil
 	}
 
@@ -81,10 +92,12 @@ func (e *Exporter) getDCGMUrls(ctx context.Context) ([]string, error) {
 		fieldSelector = fmt.Sprintf("%s,spec.nodeName=%s", fieldSelector, e.cfg.NodeName)
 	}
 
-	dcgmExporterList, err := e.dynamic.Resource(dcgmPodGVR).Namespace("").List(ctx, metav1.ListOptions{
-		LabelSelector: e.cfg.DCGMLabels,
-		FieldSelector: fieldSelector,
-	})
+	dcgmExporterList, err := e.dynamic.Resource(dcgmPodGVR).
+		Namespace("").
+		List(ctx, metav1.ListOptions{
+			LabelSelector: e.cfg.DCGMLabels,
+			FieldSelector: fieldSelector,
+		})
 	if err != nil {
 		return nil, fmt.Errorf("listing DCGM exporter pods: %w", err)
 	}
@@ -95,7 +108,12 @@ func (e *Exporter) getDCGMUrls(ctx context.Context) ([]string, error) {
 		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(dcgmExporterList.Items[i].Object, &pod); err != nil {
 			return nil, fmt.Errorf("converting unstructured to pod: %w", err)
 		}
-		urls[i] = fmt.Sprintf("http://%s:%d%s", pod.Status.PodIP, e.cfg.DCGMPort, e.cfg.DCGMMetricsEndpoint)
+		urls[i] = fmt.Sprintf(
+			"http://%s:%d%s",
+			pod.Status.PodIP,
+			e.cfg.DCGMPort,
+			e.cfg.DCGMMetricsEndpoint,
+		)
 	}
 
 	return urls, nil

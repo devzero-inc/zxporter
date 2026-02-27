@@ -214,7 +214,10 @@ func (c *KarpenterCollector) Start(ctx context.Context) error {
 	}
 	// Check if all informers failed to sync
 	if len(syncErrors) == len(resources) {
-		return fmt.Errorf("failed to sync any Karpenter resources. Errors: %s", strings.Join(syncErrors, "; "))
+		return fmt.Errorf(
+			"failed to sync any Karpenter resources. Errors: %s",
+			strings.Join(syncErrors, "; "),
+		)
 	}
 
 	// Start the batcher since at least one informer synced
@@ -236,7 +239,10 @@ func (c *KarpenterCollector) Start(ctx context.Context) error {
 }
 
 // startResourceInformer creates and starts an informer for a specific Karpenter resource
-func (c *KarpenterCollector) startResourceInformer(ctx context.Context, res KarpenterResource) error {
+func (c *KarpenterCollector) startResourceInformer(
+	ctx context.Context,
+	res KarpenterResource,
+) error {
 	// Create a resource-specific GVR
 	gvr := schema.GroupVersionResource{
 		Group:    res.GroupVersion.Group,
@@ -245,7 +251,12 @@ func (c *KarpenterCollector) startResourceInformer(ctx context.Context, res Karp
 	}
 
 	// Create a unique key for this resource
-	resKey := fmt.Sprintf("%s.%s.%s", res.GroupVersion.Group, res.GroupVersion.Version, res.Resource)
+	resKey := fmt.Sprintf(
+		"%s.%s.%s",
+		res.GroupVersion.Group,
+		res.GroupVersion.Version,
+		res.Resource,
+	)
 
 	// First check if the resource exists in the cluster
 	_, err := c.dynamicClient.Resource(gvr).List(ctx, metav1.ListOptions{Limit: 1})
@@ -282,13 +293,23 @@ func (c *KarpenterCollector) startResourceInformer(ctx context.Context, res Karp
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			_, ok := oldObj.(*unstructured.Unstructured)
 			if !ok {
-				c.logger.Error(nil, "Failed to convert old object to unstructured", "resource", resKey)
+				c.logger.Error(
+					nil,
+					"Failed to convert old object to unstructured",
+					"resource",
+					resKey,
+				)
 				return
 			}
 
 			newU, ok := newObj.(*unstructured.Unstructured)
 			if !ok {
-				c.logger.Error(nil, "Failed to convert new object to unstructured", "resource", resKey)
+				c.logger.Error(
+					nil,
+					"Failed to convert new object to unstructured",
+					"resource",
+					resKey,
+				)
 				return
 			}
 
@@ -394,7 +415,9 @@ func (c *KarpenterCollector) handleKarpenterResourceEvent(
 }
 
 // processProvisioner extracts relevant fields from Provisioner objects
-func (c *KarpenterCollector) processProvisioner(obj *unstructured.Unstructured) map[string]interface{} {
+func (c *KarpenterCollector) processProvisioner(
+	obj *unstructured.Unstructured,
+) map[string]interface{} {
 	result := c.extractCommonFields(obj)
 
 	// Extract provisioner-specific fields
@@ -449,7 +472,9 @@ func (c *KarpenterCollector) processMachine(obj *unstructured.Unstructured) map[
 }
 
 // processNodePool extracts relevant fields from NodePool objects
-func (c *KarpenterCollector) processNodePool(obj *unstructured.Unstructured) map[string]interface{} {
+func (c *KarpenterCollector) processNodePool(
+	obj *unstructured.Unstructured,
+) map[string]interface{} {
 	result := c.extractCommonFields(obj)
 
 	// Extract nodepool-specific fields
@@ -478,7 +503,9 @@ func (c *KarpenterCollector) processNodePool(obj *unstructured.Unstructured) map
 }
 
 // processNodeClaim extracts relevant fields from NodeClaim objects
-func (c *KarpenterCollector) processNodeClaim(obj *unstructured.Unstructured) map[string]interface{} {
+func (c *KarpenterCollector) processNodeClaim(
+	obj *unstructured.Unstructured,
+) map[string]interface{} {
 	result := c.extractCommonFields(obj)
 
 	// Extract nodeclaim-specific fields
@@ -514,7 +541,9 @@ func (c *KarpenterCollector) processNodeClaim(obj *unstructured.Unstructured) ma
 }
 
 // processAWSNodeTemplate extracts relevant fields from AWSNodeTemplate objects
-func (c *KarpenterCollector) processAWSNodeTemplate(obj *unstructured.Unstructured) map[string]interface{} {
+func (c *KarpenterCollector) processAWSNodeTemplate(
+	obj *unstructured.Unstructured,
+) map[string]interface{} {
 	result := c.extractCommonFields(obj)
 
 	// Extract AWS-specific fields
@@ -528,7 +557,11 @@ func (c *KarpenterCollector) processAWSNodeTemplate(obj *unstructured.Unstructur
 		result["subnetSelector"] = subnetSelector
 	}
 
-	securityGroupSelector, found, _ := unstructured.NestedMap(obj.Object, "spec", "securityGroupSelector")
+	securityGroupSelector, found, _ := unstructured.NestedMap(
+		obj.Object,
+		"spec",
+		"securityGroupSelector",
+	)
 	if found {
 		result["securityGroupSelector"] = securityGroupSelector
 	}
@@ -542,7 +575,9 @@ func (c *KarpenterCollector) processAWSNodeTemplate(obj *unstructured.Unstructur
 }
 
 // processEC2NodeClass extracts relevant fields from EC2NodeClass objects
-func (c *KarpenterCollector) processEC2NodeClass(obj *unstructured.Unstructured) map[string]interface{} {
+func (c *KarpenterCollector) processEC2NodeClass(
+	obj *unstructured.Unstructured,
+) map[string]interface{} {
 	result := c.extractCommonFields(obj)
 
 	// Extract EC2NodeClass-specific fields
@@ -551,12 +586,20 @@ func (c *KarpenterCollector) processEC2NodeClass(obj *unstructured.Unstructured)
 		result["instanceTypes"] = instanceTypes
 	}
 
-	subnetSelectorTerms, found, _ := unstructured.NestedSlice(obj.Object, "spec", "subnetSelectorTerms")
+	subnetSelectorTerms, found, _ := unstructured.NestedSlice(
+		obj.Object,
+		"spec",
+		"subnetSelectorTerms",
+	)
 	if found {
 		result["subnetSelectorTerms"] = subnetSelectorTerms
 	}
 
-	securityGroupSelectorTerms, found, _ := unstructured.NestedSlice(obj.Object, "spec", "securityGroupSelectorTerms")
+	securityGroupSelectorTerms, found, _ := unstructured.NestedSlice(
+		obj.Object,
+		"spec",
+		"securityGroupSelectorTerms",
+	)
 	if found {
 		result["securityGroupSelectorTerms"] = securityGroupSelectorTerms
 	}
@@ -586,12 +629,16 @@ func (c *KarpenterCollector) processEC2NodeClass(obj *unstructured.Unstructured)
 }
 
 // processGenericResource provides basic processing for unknown resource types
-func (c *KarpenterCollector) processGenericResource(obj *unstructured.Unstructured) map[string]interface{} {
+func (c *KarpenterCollector) processGenericResource(
+	obj *unstructured.Unstructured,
+) map[string]interface{} {
 	return c.extractCommonFields(obj)
 }
 
 // extractCommonFields gets fields common to all Karpenter resources
-func (c *KarpenterCollector) extractCommonFields(obj *unstructured.Unstructured) map[string]interface{} {
+func (c *KarpenterCollector) extractCommonFields(
+	obj *unstructured.Unstructured,
+) map[string]interface{} {
 	// Basic metadata
 	result := map[string]interface{}{
 		"name":              obj.GetName(),
@@ -732,7 +779,13 @@ func (c *KarpenterCollector) GetType() string {
 
 // detectKarpenterVersion detects the version of Karpenter from the deployment object
 func (c *KarpenterCollector) detectKarpenterVersion(obj *unstructured.Unstructured) {
-	containers, found, _ := unstructured.NestedSlice(obj.Object, "spec", "template", "spec", "containers")
+	containers, found, _ := unstructured.NestedSlice(
+		obj.Object,
+		"spec",
+		"template",
+		"spec",
+		"containers",
+	)
 	if !found {
 		return
 	}
@@ -812,7 +865,9 @@ func (c *KarpenterCollector) IsAvailable(ctx context.Context) bool {
 }
 
 // determineKarpenterResourceType determines the KarpenterResource type from an unstructured object
-func (c *KarpenterCollector) determineKarpenterResourceType(obj *unstructured.Unstructured) (KarpenterResource, error) {
+func (c *KarpenterCollector) determineKarpenterResourceType(
+	obj *unstructured.Unstructured,
+) (KarpenterResource, error) {
 	kind := obj.GetKind()
 	apiVersion := obj.GetAPIVersion()
 
@@ -908,7 +963,11 @@ func (c *KarpenterCollector) determineKarpenterResourceType(obj *unstructured.Un
 		}, nil
 
 	default:
-		return KarpenterResource{}, fmt.Errorf("unsupported Karpenter resource: kind=%s, apiVersion=%s", kind, apiVersion)
+		return KarpenterResource{}, fmt.Errorf(
+			"unsupported Karpenter resource: kind=%s, apiVersion=%s",
+			kind,
+			apiVersion,
+		)
 	}
 }
 

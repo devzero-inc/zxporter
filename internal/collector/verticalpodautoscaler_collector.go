@@ -161,7 +161,10 @@ func (c *VerticalPodAutoscalerCollector) Start(ctx context.Context) error {
 }
 
 // handleVPAEvent processes VPA events
-func (c *VerticalPodAutoscalerCollector) handleVPAEvent(vpa *unstructured.Unstructured, eventType EventType) {
+func (c *VerticalPodAutoscalerCollector) handleVPAEvent(
+	vpa *unstructured.Unstructured,
+	eventType EventType,
+) {
 	if c.isExcluded(vpa) {
 		return
 	}
@@ -180,7 +183,9 @@ func (c *VerticalPodAutoscalerCollector) handleVPAEvent(vpa *unstructured.Unstru
 }
 
 // vpaChanged detects meaningful changes in a VPA
-func (c *VerticalPodAutoscalerCollector) vpaChanged(oldVPA, newVPA *unstructured.Unstructured) bool {
+func (c *VerticalPodAutoscalerCollector) vpaChanged(
+	oldVPA, newVPA *unstructured.Unstructured,
+) bool {
 	// Ignore changes to ResourceVersion, which always changes even for irrelevant updates
 	if oldVPA.GetResourceVersion() == newVPA.GetResourceVersion() {
 		return false

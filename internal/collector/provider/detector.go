@@ -30,7 +30,11 @@ type Detector struct {
 }
 
 // NewDetector creates a new provider detector
-func NewDetector(logger logr.Logger, k8sClient kubernetes.Interface, opts ...DetectorOpt) *Detector {
+func NewDetector(
+	logger logr.Logger,
+	k8sClient kubernetes.Interface,
+	opts ...DetectorOpt,
+) *Detector {
 	detectorOptions := detectorOptions{}
 	for _, opt := range opts {
 		opt(&detectorOptions)

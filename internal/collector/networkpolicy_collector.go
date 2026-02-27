@@ -56,7 +56,10 @@ func NewNetworkPolicyCollector(
 	}
 
 	// Create channels
-	batchChan := make(chan CollectedResource, 50) // Keep lower buffer for infrequent NetworkPolicies
+	batchChan := make(
+		chan CollectedResource,
+		50,
+	) // Keep lower buffer for infrequent NetworkPolicies
 	resourceChan := make(chan []CollectedResource, 50)
 
 	// Create the batcher
@@ -156,7 +159,10 @@ func (c *NetworkPolicyCollector) Start(ctx context.Context) error {
 }
 
 // handleNetworkPolicyEvent processes networkpolicy events
-func (c *NetworkPolicyCollector) handleNetworkPolicyEvent(networkPolicy *networkingv1.NetworkPolicy, eventType EventType) {
+func (c *NetworkPolicyCollector) handleNetworkPolicyEvent(
+	networkPolicy *networkingv1.NetworkPolicy,
+	eventType EventType,
+) {
 	if c.isExcluded(networkPolicy) {
 		return
 	}
@@ -172,7 +178,9 @@ func (c *NetworkPolicyCollector) handleNetworkPolicyEvent(networkPolicy *network
 }
 
 // networkPolicyChanged detects meaningful changes in a networkpolicy
-func (c *NetworkPolicyCollector) networkPolicyChanged(oldNetworkPolicy, newNetworkPolicy *networkingv1.NetworkPolicy) bool {
+func (c *NetworkPolicyCollector) networkPolicyChanged(
+	oldNetworkPolicy, newNetworkPolicy *networkingv1.NetworkPolicy,
+) bool {
 	changed := c.cDHelper.objectMetaChanged(
 		c.GetType(),
 		oldNetworkPolicy.Name,

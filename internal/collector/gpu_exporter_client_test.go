@@ -64,7 +64,10 @@ func assertStringSliceLen(t *testing.T, m map[string]interface{}, key string, wa
 
 // --- makeGPU is a builder for test GPU metrics ---
 
-func makeGPU(node, model, device, uuid, pod, container, ns string, util, fbUsed, fbFree, power, temp, smClk, memClk float64) GPUExporterMetric {
+func makeGPU(
+	node, model, device, uuid, pod, container, ns string,
+	util, fbUsed, fbFree, power, temp, smClk, memClk float64,
+) GPUExporterMetric {
 	return GPUExporterMetric{
 		NodeName:        node,
 		ModelName:       model,

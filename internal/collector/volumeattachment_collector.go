@@ -136,7 +136,10 @@ func (c *VolumeAttachmentCollector) Start(ctx context.Context) error {
 }
 
 // handleVolumeAttachmentEvent processes VolumeAttachment events
-func (c *VolumeAttachmentCollector) handleVolumeAttachmentEvent(va *storagev1.VolumeAttachment, eventType EventType) {
+func (c *VolumeAttachmentCollector) handleVolumeAttachmentEvent(
+	va *storagev1.VolumeAttachment,
+	eventType EventType,
+) {
 	if c.isExcluded(va) {
 		return
 	}
@@ -152,7 +155,9 @@ func (c *VolumeAttachmentCollector) handleVolumeAttachmentEvent(va *storagev1.Vo
 }
 
 // volumeAttachmentChanged detects meaningful changes in a VolumeAttachment
-func (c *VolumeAttachmentCollector) volumeAttachmentChanged(oldVA, newVA *storagev1.VolumeAttachment) bool {
+func (c *VolumeAttachmentCollector) volumeAttachmentChanged(
+	oldVA, newVA *storagev1.VolumeAttachment,
+) bool {
 	changed := c.cDHelper.objectMetaChanged(
 		c.GetType(),
 		oldVA.Name,

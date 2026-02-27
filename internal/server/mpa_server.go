@@ -27,7 +27,11 @@ type MpaServer struct {
 
 // NewMpaServer creates a new MpaServer.
 // historicalCollector may be nil if Prometheus is not available.
-func NewMpaServer(logger logr.Logger, historicalCollector *collector.HistoricalMetricsCollector, healthManager *health.HealthManager) *MpaServer {
+func NewMpaServer(
+	logger logr.Logger,
+	historicalCollector *collector.HistoricalMetricsCollector,
+	healthManager *health.HealthManager,
+) *MpaServer {
 	return &MpaServer{
 		logger:              logger.WithName("mpa-server"),
 		subscriptionManager: NewSubscriptionManager(logger),
@@ -40,7 +44,11 @@ func NewMpaServer(logger logr.Logger, historicalCollector *collector.HistoricalM
 func (s *MpaServer) Start(port int) error {
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
 	if err != nil {
-		s.updateHealthStatus(health.HealthStatusUnhealthy, fmt.Sprintf("Failed to listen on port %d", port), map[string]string{"port": fmt.Sprintf("%d", port), "error": err.Error()})
+		s.updateHealthStatus(
+			health.HealthStatusUnhealthy,
+			fmt.Sprintf("Failed to listen on port %d", port),
+			map[string]string{"port": fmt.Sprintf("%d", port), "error": err.Error()},
+		)
 		return fmt.Errorf("failed to listen on port %d: %w", port, err)
 	}
 
@@ -52,10 +60,18 @@ func (s *MpaServer) Start(port int) error {
 	go func() {
 		if err := s.grpcServer.Serve(lis); err != nil {
 			s.logger.Error(err, "Failed to serve gRPC")
-			s.updateHealthStatus(health.HealthStatusUnhealthy, "gRPC server failed", map[string]string{"error": err.Error()})
+			s.updateHealthStatus(
+				health.HealthStatusUnhealthy,
+				"gRPC server failed",
+				map[string]string{"error": err.Error()},
+			)
 		}
 	}()
-	s.updateHealthStatus(health.HealthStatusHealthy, "gRPC server listening", map[string]string{"port": fmt.Sprintf("%d", port)})
+	s.updateHealthStatus(
+		health.HealthStatusHealthy,
+		"gRPC server listening",
+		map[string]string{"port": fmt.Sprintf("%d", port)},
+	)
 	return nil
 }
 
@@ -117,7 +133,13 @@ func (s *MpaServer) StreamWorkloadMetrics(stream gen.MpaService_StreamWorkloadMe
 
 		// Update subscription for this client
 		s.subscriptionManager.UpdateSubscription(clientID, sub)
-		s.logger.Info("Updated subscription", "clientID", clientID, "workloads_count", len(sub.Workloads))
+		s.logger.Info(
+			"Updated subscription",
+			"clientID",
+			clientID,
+			"workloads_count",
+			len(sub.Workloads),
+		)
 
 		// Fetch historical data for newly subscribed workloads
 		interests := make([]WorkloadInterest, 0, len(sub.Workloads))
@@ -133,12 +155,19 @@ func (s *MpaServer) StreamWorkloadMetrics(stream gen.MpaService_StreamWorkloadMe
 }
 
 // PublishMetrics is called by the collector to broadcast new metrics
-func (s *MpaServer) PublishMetrics(metrics *collector.ContainerMetricsSnapshot, timestamp time.Time) {
+func (s *MpaServer) PublishMetrics(
+	metrics *collector.ContainerMetricsSnapshot,
+	timestamp time.Time,
+) {
 	s.subscriptionManager.Broadcast(metrics, timestamp)
 }
 
 // updateHealthStatus reports MPA server component health if a HealthManager is configured.
-func (s *MpaServer) updateHealthStatus(status health.HealthStatus, message string, metadata map[string]string) {
+func (s *MpaServer) updateHealthStatus(
+	status health.HealthStatus,
+	message string,
+	metadata map[string]string,
+) {
 	if s.healthManager != nil {
 		s.healthManager.UpdateStatus(health.ComponentMpaServer, status, message, metadata)
 	}
@@ -192,7 +221,10 @@ func (sm *SubscriptionManager) Unregister(id string) {
 	}
 }
 
-func (sm *SubscriptionManager) UpdateSubscription(clientID string, sub *gen.MpaWorkloadSubscription) {
+func (sm *SubscriptionManager) UpdateSubscription(
+	clientID string,
+	sub *gen.MpaWorkloadSubscription,
+) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
@@ -204,7 +236,17 @@ func (sm *SubscriptionManager) UpdateSubscription(clientID string, sub *gen.MpaW
 	// Replace current interests
 	newInterests := make([]WorkloadInterest, 0, len(sub.Workloads))
 	for _, w := range sub.Workloads {
-		sm.logger.Info("Registering workload interest", "clientID", clientID, "namespace", w.Namespace, "name", w.Name, "kind", w.Kind)
+		sm.logger.Info(
+			"Registering workload interest",
+			"clientID",
+			clientID,
+			"namespace",
+			w.Namespace,
+			"name",
+			w.Name,
+			"kind",
+			w.Kind,
+		)
 		newInterests = append(newInterests, WorkloadInterest{
 			Namespace: w.Namespace,
 			Name:      w.Name,
@@ -230,7 +272,10 @@ func (sm *SubscriptionManager) GetInterests(clientID string) []WorkloadInterest 
 }
 
 // Broadcast filters and dispatches metrics to interested clients
-func (sm *SubscriptionManager) Broadcast(data *collector.ContainerMetricsSnapshot, timestamp time.Time) {
+func (sm *SubscriptionManager) Broadcast(
+	data *collector.ContainerMetricsSnapshot,
+	timestamp time.Time,
+) {
 	// Parse metric data
 	ns := data.Namespace
 	pod := data.PodName
@@ -318,7 +363,10 @@ func (sm *SubscriptionManager) Broadcast(data *collector.ContainerMetricsSnapsho
 }
 
 // sendHistoricalForSubscriptions fetches and sends historical metrics for subscribed workloads.
-func (s *MpaServer) sendHistoricalForSubscriptions(stream gen.MpaService_StreamWorkloadMetricsServer, interests []WorkloadInterest) {
+func (s *MpaServer) sendHistoricalForSubscriptions(
+	stream gen.MpaService_StreamWorkloadMetricsServer,
+	interests []WorkloadInterest,
+) {
 	if s.historicalCollector == nil {
 		return
 	}

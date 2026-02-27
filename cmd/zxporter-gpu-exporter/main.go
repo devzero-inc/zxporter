@@ -66,10 +66,14 @@ func main() {
 	// Create components
 	httpClient := &http.Client{Timeout: 15 * time.Second}
 	scraper := gpuexporter.NewScraper(httpClient, logger)
-	workloadResolver := gpuexporter.NewWorkloadResolver(dynClient, gpuexporter.WorkloadResolverConfig{
-		LabelKeys: nil, // can be configured via env if needed
-		CacheSize: 256,
-	}, logger)
+	workloadResolver := gpuexporter.NewWorkloadResolver(
+		dynClient,
+		gpuexporter.WorkloadResolverConfig{
+			LabelKeys: nil, // can be configured via env if needed
+			CacheSize: 256,
+		},
+		logger,
+	)
 	mapper := gpuexporter.NewMapper(cfg.NodeName, workloadResolver, logger)
 
 	// Create exporter

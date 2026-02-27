@@ -98,7 +98,11 @@ type GPUExporterClient struct {
 
 // NewGPUExporterClient creates a client that auto-discovers GPU exporter pods
 // in the given namespace using well-known labels.
-func NewGPUExporterClient(k8sClient kubernetes.Interface, namespace string, log logr.Logger) *GPUExporterClient {
+func NewGPUExporterClient(
+	k8sClient kubernetes.Interface,
+	namespace string,
+	log logr.Logger,
+) *GPUExporterClient {
 	return &GPUExporterClient{
 		k8sClient: k8sClient,
 		namespace: namespace,
@@ -170,7 +174,14 @@ func (c *GPUExporterClient) FetchAllMetrics(ctx context.Context) ([]GPUExporterM
 		url := fmt.Sprintf("http://%s:%d/container/metrics", podIP, c.port)
 		metrics, fetchErr := c.fetchMetrics(ctx, url)
 		if fetchErr != nil {
-			c.log.Error(fetchErr, "Failed to fetch GPU metrics from exporter pod", "node", nodeName, "podIP", podIP)
+			c.log.Error(
+				fetchErr,
+				"Failed to fetch GPU metrics from exporter pod",
+				"node",
+				nodeName,
+				"podIP",
+				podIP,
+			)
 			continue
 		}
 		allMetrics = append(allMetrics, metrics...)
@@ -181,7 +192,10 @@ func (c *GPUExporterClient) FetchAllMetrics(ctx context.Context) ([]GPUExporterM
 
 // FetchMetricsByNode fetches GPU metrics from the exporter pod running on the given node.
 // Returns nil if no exporter is running on that node (expected for non-GPU nodes).
-func (c *GPUExporterClient) FetchMetricsByNode(ctx context.Context, nodeName string) ([]GPUExporterMetric, error) {
+func (c *GPUExporterClient) FetchMetricsByNode(
+	ctx context.Context,
+	nodeName string,
+) ([]GPUExporterMetric, error) {
 	nodeToIP, err := c.refreshCache(ctx)
 	if err != nil {
 		return nil, err
@@ -196,7 +210,10 @@ func (c *GPUExporterClient) FetchMetricsByNode(ctx context.Context, nodeName str
 	return c.fetchMetrics(ctx, url)
 }
 
-func (c *GPUExporterClient) fetchMetrics(ctx context.Context, url string) ([]GPUExporterMetric, error) {
+func (c *GPUExporterClient) fetchMetrics(
+	ctx context.Context,
+	url string,
+) ([]GPUExporterMetric, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("creating request: %w", err)
@@ -237,7 +254,10 @@ func IndexByContainer(metrics []GPUExporterMetric) map[gpuContainerKey][]GPUExpo
 
 // ContainerGPUMetricsFromExporter converts GPU exporter metrics for a container into
 // the map[string]interface{} format expected by processContainerMetrics.
-func ContainerGPUMetricsFromExporter(gpuMetrics []GPUExporterMetric, gpuRequestCount, gpuLimitCount int64) map[string]interface{} {
+func ContainerGPUMetricsFromExporter(
+	gpuMetrics []GPUExporterMetric,
+	gpuRequestCount, gpuLimitCount int64,
+) map[string]interface{} {
 	if len(gpuMetrics) == 0 {
 		return make(map[string]interface{})
 	}
@@ -447,7 +467,11 @@ var compareKeysNumeric = []string{
 // tolerance is the relative difference threshold (0.05 = 5%). Keys present in only one source
 // are also logged. The exporter result is always used as the primary source; this is purely
 // for observability.
-func CompareGPUMetrics(log logr.Logger, label string, exporterMetrics, prometheusMetrics map[string]interface{}) {
+func CompareGPUMetrics(
+	log logr.Logger,
+	label string,
+	exporterMetrics, prometheusMetrics map[string]interface{},
+) {
 	if len(exporterMetrics) == 0 && len(prometheusMetrics) == 0 {
 		return
 	}

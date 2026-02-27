@@ -113,7 +113,7 @@ type LabelPair struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Name  *string `protobuf:"bytes,1,opt,name=name" json:"name,omitempty"`
+	Name  *string `protobuf:"bytes,1,opt,name=name"  json:"name,omitempty"`
 	Value *string `protobuf:"bytes,2,opt,name=value" json:"value,omitempty"`
 }
 
@@ -215,8 +215,8 @@ type Counter struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Value            *float64               `protobuf:"fixed64,1,opt,name=value" json:"value,omitempty"`
-	Exemplar         *Exemplar              `protobuf:"bytes,2,opt,name=exemplar" json:"exemplar,omitempty"`
+	Value            *float64               `protobuf:"fixed64,1,opt,name=value"                                 json:"value,omitempty"`
+	Exemplar         *Exemplar              `protobuf:"bytes,2,opt,name=exemplar"                                json:"exemplar,omitempty"`
 	CreatedTimestamp *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=created_timestamp,json=createdTimestamp" json:"created_timestamp,omitempty"`
 }
 
@@ -279,7 +279,7 @@ type Quantile struct {
 	unknownFields protoimpl.UnknownFields
 
 	Quantile *float64 `protobuf:"fixed64,1,opt,name=quantile" json:"quantile,omitempty"`
-	Value    *float64 `protobuf:"fixed64,2,opt,name=value" json:"value,omitempty"`
+	Value    *float64 `protobuf:"fixed64,2,opt,name=value"    json:"value,omitempty"`
 }
 
 func (x *Quantile) Reset() {
@@ -333,9 +333,9 @@ type Summary struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	SampleCount      *uint64                `protobuf:"varint,1,opt,name=sample_count,json=sampleCount" json:"sample_count,omitempty"`
-	SampleSum        *float64               `protobuf:"fixed64,2,opt,name=sample_sum,json=sampleSum" json:"sample_sum,omitempty"`
-	Quantile         []*Quantile            `protobuf:"bytes,3,rep,name=quantile" json:"quantile,omitempty"`
+	SampleCount      *uint64                `protobuf:"varint,1,opt,name=sample_count,json=sampleCount"          json:"sample_count,omitempty"`
+	SampleSum        *float64               `protobuf:"fixed64,2,opt,name=sample_sum,json=sampleSum"             json:"sample_sum,omitempty"`
+	Quantile         []*Quantile            `protobuf:"bytes,3,rep,name=quantile"                                json:"quantile,omitempty"`
 	CreatedTimestamp *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=created_timestamp,json=createdTimestamp" json:"created_timestamp,omitempty"`
 }
 
@@ -451,40 +451,40 @@ type Histogram struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	SampleCount      *uint64  `protobuf:"varint,1,opt,name=sample_count,json=sampleCount" json:"sample_count,omitempty"`
+	SampleCount      *uint64  `protobuf:"varint,1,opt,name=sample_count,json=sampleCount"             json:"sample_count,omitempty"`
 	SampleCountFloat *float64 `protobuf:"fixed64,4,opt,name=sample_count_float,json=sampleCountFloat" json:"sample_count_float,omitempty"` // Overrides sample_count if > 0.
-	SampleSum        *float64 `protobuf:"fixed64,2,opt,name=sample_sum,json=sampleSum" json:"sample_sum,omitempty"`
+	SampleSum        *float64 `protobuf:"fixed64,2,opt,name=sample_sum,json=sampleSum"                json:"sample_sum,omitempty"`
 	// Buckets for the conventional histogram.
-	Bucket           []*Bucket              `protobuf:"bytes,3,rep,name=bucket" json:"bucket,omitempty"` // Ordered in increasing order of upper_bound, +Inf bucket is optional.
-	CreatedTimestamp *timestamppb.Timestamp `protobuf:"bytes,15,opt,name=created_timestamp,json=createdTimestamp" json:"created_timestamp,omitempty"`
+	Bucket           []*Bucket              `protobuf:"bytes,3,rep,name=bucket"                                     json:"bucket,omitempty"` // Ordered in increasing order of upper_bound, +Inf bucket is optional.
+	CreatedTimestamp *timestamppb.Timestamp `protobuf:"bytes,15,opt,name=created_timestamp,json=createdTimestamp"   json:"created_timestamp,omitempty"`
 	// schema defines the bucket schema. Currently, valid numbers are -4 <= n <= 8.
 	// They are all for base-2 bucket schemas, where 1 is a bucket boundary in each case, and
 	// then each power of two is divided into 2^n logarithmic buckets.
 	// Or in other words, each bucket boundary is the previous boundary times 2^(2^-n).
 	// In the future, more bucket schemas may be added using numbers < -4 or > 8.
-	Schema         *int32   `protobuf:"zigzag32,5,opt,name=schema" json:"schema,omitempty"`
-	ZeroThreshold  *float64 `protobuf:"fixed64,6,opt,name=zero_threshold,json=zeroThreshold" json:"zero_threshold,omitempty"`      // Breadth of the zero bucket.
-	ZeroCount      *uint64  `protobuf:"varint,7,opt,name=zero_count,json=zeroCount" json:"zero_count,omitempty"`                   // Count in zero bucket.
-	ZeroCountFloat *float64 `protobuf:"fixed64,8,opt,name=zero_count_float,json=zeroCountFloat" json:"zero_count_float,omitempty"` // Overrides sb_zero_count if > 0.
+	Schema         *int32   `protobuf:"zigzag32,5,opt,name=schema"                                  json:"schema,omitempty"`
+	ZeroThreshold  *float64 `protobuf:"fixed64,6,opt,name=zero_threshold,json=zeroThreshold"        json:"zero_threshold,omitempty"`   // Breadth of the zero bucket.
+	ZeroCount      *uint64  `protobuf:"varint,7,opt,name=zero_count,json=zeroCount"                 json:"zero_count,omitempty"`       // Count in zero bucket.
+	ZeroCountFloat *float64 `protobuf:"fixed64,8,opt,name=zero_count_float,json=zeroCountFloat"     json:"zero_count_float,omitempty"` // Overrides sb_zero_count if > 0.
 	// Negative buckets for the native histogram.
-	NegativeSpan []*BucketSpan `protobuf:"bytes,9,rep,name=negative_span,json=negativeSpan" json:"negative_span,omitempty"`
+	NegativeSpan []*BucketSpan `protobuf:"bytes,9,rep,name=negative_span,json=negativeSpan"            json:"negative_span,omitempty"`
 	// Use either "negative_delta" or "negative_count", the former for
 	// regular histograms with integer counts, the latter for float
 	// histograms.
-	NegativeDelta []int64   `protobuf:"zigzag64,10,rep,name=negative_delta,json=negativeDelta" json:"negative_delta,omitempty"` // Count delta of each bucket compared to previous one (or to zero for 1st bucket).
-	NegativeCount []float64 `protobuf:"fixed64,11,rep,name=negative_count,json=negativeCount" json:"negative_count,omitempty"`  // Absolute count of each bucket.
+	NegativeDelta []int64   `protobuf:"zigzag64,10,rep,name=negative_delta,json=negativeDelta"      json:"negative_delta,omitempty"` // Count delta of each bucket compared to previous one (or to zero for 1st bucket).
+	NegativeCount []float64 `protobuf:"fixed64,11,rep,name=negative_count,json=negativeCount"       json:"negative_count,omitempty"` // Absolute count of each bucket.
 	// Positive buckets for the native histogram.
 	// Use a no-op span (offset 0, length 0) for a native histogram without any
 	// observations yet and with a zero_threshold of 0. Otherwise, it would be
 	// indistinguishable from a classic histogram.
-	PositiveSpan []*BucketSpan `protobuf:"bytes,12,rep,name=positive_span,json=positiveSpan" json:"positive_span,omitempty"`
+	PositiveSpan []*BucketSpan `protobuf:"bytes,12,rep,name=positive_span,json=positiveSpan"           json:"positive_span,omitempty"`
 	// Use either "positive_delta" or "positive_count", the former for
 	// regular histograms with integer counts, the latter for float
 	// histograms.
-	PositiveDelta []int64   `protobuf:"zigzag64,13,rep,name=positive_delta,json=positiveDelta" json:"positive_delta,omitempty"` // Count delta of each bucket compared to previous one (or to zero for 1st bucket).
-	PositiveCount []float64 `protobuf:"fixed64,14,rep,name=positive_count,json=positiveCount" json:"positive_count,omitempty"`  // Absolute count of each bucket.
+	PositiveDelta []int64   `protobuf:"zigzag64,13,rep,name=positive_delta,json=positiveDelta"      json:"positive_delta,omitempty"` // Count delta of each bucket compared to previous one (or to zero for 1st bucket).
+	PositiveCount []float64 `protobuf:"fixed64,14,rep,name=positive_count,json=positiveCount"       json:"positive_count,omitempty"` // Absolute count of each bucket.
 	// Only used for native histograms. These exemplars MUST have a timestamp.
-	Exemplars []*Exemplar `protobuf:"bytes,16,rep,name=exemplars" json:"exemplars,omitempty"`
+	Exemplars []*Exemplar `protobuf:"bytes,16,rep,name=exemplars"                                 json:"exemplars,omitempty"`
 }
 
 func (x *Histogram) Reset() {
@@ -638,10 +638,10 @@ type Bucket struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	CumulativeCount      *uint64   `protobuf:"varint,1,opt,name=cumulative_count,json=cumulativeCount" json:"cumulative_count,omitempty"`                   // Cumulative in increasing order.
+	CumulativeCount      *uint64   `protobuf:"varint,1,opt,name=cumulative_count,json=cumulativeCount"             json:"cumulative_count,omitempty"`       // Cumulative in increasing order.
 	CumulativeCountFloat *float64  `protobuf:"fixed64,4,opt,name=cumulative_count_float,json=cumulativeCountFloat" json:"cumulative_count_float,omitempty"` // Overrides cumulative_count if > 0.
-	UpperBound           *float64  `protobuf:"fixed64,2,opt,name=upper_bound,json=upperBound" json:"upper_bound,omitempty"`                                 // Inclusive.
-	Exemplar             *Exemplar `protobuf:"bytes,3,opt,name=exemplar" json:"exemplar,omitempty"`
+	UpperBound           *float64  `protobuf:"fixed64,2,opt,name=upper_bound,json=upperBound"                      json:"upper_bound,omitempty"`            // Inclusive.
+	Exemplar             *Exemplar `protobuf:"bytes,3,opt,name=exemplar"                                           json:"exemplar,omitempty"`
 }
 
 func (x *Bucket) Reset() {
@@ -716,7 +716,7 @@ type BucketSpan struct {
 	unknownFields protoimpl.UnknownFields
 
 	Offset *int32  `protobuf:"zigzag32,1,opt,name=offset" json:"offset,omitempty"` // Gap to previous span, or starting point for 1st span (which can be negative).
-	Length *uint32 `protobuf:"varint,2,opt,name=length" json:"length,omitempty"`   // Length of consecutive buckets.
+	Length *uint32 `protobuf:"varint,2,opt,name=length"   json:"length,omitempty"` // Length of consecutive buckets.
 }
 
 func (x *BucketSpan) Reset() {
@@ -770,8 +770,8 @@ type Exemplar struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Label     []*LabelPair           `protobuf:"bytes,1,rep,name=label" json:"label,omitempty"`
-	Value     *float64               `protobuf:"fixed64,2,opt,name=value" json:"value,omitempty"`
+	Label     []*LabelPair           `protobuf:"bytes,1,rep,name=label"     json:"label,omitempty"`
+	Value     *float64               `protobuf:"fixed64,2,opt,name=value"   json:"value,omitempty"`
 	Timestamp *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=timestamp" json:"timestamp,omitempty"` // OpenMetrics-style.
 }
 
@@ -833,12 +833,12 @@ type Metric struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Label       []*LabelPair `protobuf:"bytes,1,rep,name=label" json:"label,omitempty"`
-	Gauge       *Gauge       `protobuf:"bytes,2,opt,name=gauge" json:"gauge,omitempty"`
-	Counter     *Counter     `protobuf:"bytes,3,opt,name=counter" json:"counter,omitempty"`
-	Summary     *Summary     `protobuf:"bytes,4,opt,name=summary" json:"summary,omitempty"`
-	Untyped     *Untyped     `protobuf:"bytes,5,opt,name=untyped" json:"untyped,omitempty"`
-	Histogram   *Histogram   `protobuf:"bytes,7,opt,name=histogram" json:"histogram,omitempty"`
+	Label       []*LabelPair `protobuf:"bytes,1,rep,name=label"                          json:"label,omitempty"`
+	Gauge       *Gauge       `protobuf:"bytes,2,opt,name=gauge"                          json:"gauge,omitempty"`
+	Counter     *Counter     `protobuf:"bytes,3,opt,name=counter"                        json:"counter,omitempty"`
+	Summary     *Summary     `protobuf:"bytes,4,opt,name=summary"                        json:"summary,omitempty"`
+	Untyped     *Untyped     `protobuf:"bytes,5,opt,name=untyped"                        json:"untyped,omitempty"`
+	Histogram   *Histogram   `protobuf:"bytes,7,opt,name=histogram"                      json:"histogram,omitempty"`
 	TimestampMs *int64       `protobuf:"varint,6,opt,name=timestamp_ms,json=timestampMs" json:"timestamp_ms,omitempty"`
 }
 
@@ -928,11 +928,11 @@ type MetricFamily struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Name   *string     `protobuf:"bytes,1,opt,name=name" json:"name,omitempty"`
-	Help   *string     `protobuf:"bytes,2,opt,name=help" json:"help,omitempty"`
+	Name   *string     `protobuf:"bytes,1,opt,name=name"                                       json:"name,omitempty"`
+	Help   *string     `protobuf:"bytes,2,opt,name=help"                                       json:"help,omitempty"`
 	Type   *MetricType `protobuf:"varint,3,opt,name=type,enum=io.prometheus.client.MetricType" json:"type,omitempty"`
-	Metric []*Metric   `protobuf:"bytes,4,rep,name=metric" json:"metric,omitempty"`
-	Unit   *string     `protobuf:"bytes,5,opt,name=unit" json:"unit,omitempty"`
+	Metric []*Metric   `protobuf:"bytes,4,rep,name=metric"                                     json:"metric,omitempty"`
+	Unit   *string     `protobuf:"bytes,5,opt,name=unit"                                       json:"unit,omitempty"`
 }
 
 func (x *MetricFamily) Reset() {
@@ -1183,7 +1183,9 @@ var (
 
 func file_io_prometheus_client_metrics_proto_rawDescGZIP() []byte {
 	file_io_prometheus_client_metrics_proto_rawDescOnce.Do(func() {
-		file_io_prometheus_client_metrics_proto_rawDescData = protoimpl.X.CompressGZIP(file_io_prometheus_client_metrics_proto_rawDescData)
+		file_io_prometheus_client_metrics_proto_rawDescData = protoimpl.X.CompressGZIP(
+			file_io_prometheus_client_metrics_proto_rawDescData,
+		)
 	})
 	return file_io_prometheus_client_metrics_proto_rawDescData
 }

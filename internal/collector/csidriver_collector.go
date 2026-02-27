@@ -136,7 +136,10 @@ func (c *CSIDriverCollector) Start(ctx context.Context) error {
 }
 
 // handleCSIDriverEvent processes CSIDriver events
-func (c *CSIDriverCollector) handleCSIDriverEvent(driver *storagev1.CSIDriver, eventType EventType) {
+func (c *CSIDriverCollector) handleCSIDriverEvent(
+	driver *storagev1.CSIDriver,
+	eventType EventType,
+) {
 	if c.isExcluded(driver) {
 		return
 	}

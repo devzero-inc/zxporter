@@ -81,7 +81,10 @@ type PrometheusRoundTripper struct {
 }
 
 // NewPrometheusRoundTripper creates a new round tripper that captures metrics
-func NewPrometheusRoundTripper(next http.RoundTripper, metrics *TelemetryMetrics) *PrometheusRoundTripper {
+func NewPrometheusRoundTripper(
+	next http.RoundTripper,
+	metrics *TelemetryMetrics,
+) *PrometheusRoundTripper {
 	if next == nil {
 		next = http.DefaultTransport
 	}

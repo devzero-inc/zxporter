@@ -91,7 +91,12 @@ func TestHealthzHandler_IncludesComponents(t *testing.T) {
 	hm := NewHealthManager()
 	hm.Register(ComponentCollectorManager)
 	hm.Register(ComponentDakrTransport)
-	hm.UpdateStatus(ComponentCollectorManager, HealthStatusHealthy, "55/60 active", map[string]string{"active": "55"})
+	hm.UpdateStatus(
+		ComponentCollectorManager,
+		HealthStatusHealthy,
+		"55/60 active",
+		map[string]string{"active": "55"},
+	)
 	hm.UpdateStatus(ComponentDakrTransport, HealthStatusDegraded, "retrying", nil)
 
 	srv := NewHealthServer(hm, ":8081")

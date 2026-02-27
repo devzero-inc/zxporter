@@ -63,7 +63,11 @@ func TestClusterSnapshotIntervalConfiguration(t *testing.T) {
 			config, _ := r.createNewConfig(mockSpec, logr.Discard())
 
 			if config.ClusterSnapshotInterval != tt.expectedResult {
-				t.Errorf("Expected ClusterSnapshotInterval %v, got %v", tt.expectedResult, config.ClusterSnapshotInterval)
+				t.Errorf(
+					"Expected ClusterSnapshotInterval %v, got %v",
+					tt.expectedResult,
+					config.ClusterSnapshotInterval,
+				)
 			}
 		})
 	}
@@ -101,15 +105,25 @@ func TestClusterSnapshotIntervalNetworkOptimization(t *testing.T) {
 			config, _ := r.createNewConfig(mockSpec, logr.Discard())
 
 			if config.ClusterSnapshotInterval.String() != tc.expectedText {
-				t.Errorf("Expected interval %s, got %s", tc.expectedText, config.ClusterSnapshotInterval.String())
+				t.Errorf(
+					"Expected interval %s, got %s",
+					tc.expectedText,
+					config.ClusterSnapshotInterval.String(),
+				)
 			}
 
 			// Verify the interval is longer than the new default 3 hours for extended optimization
 			if config.ClusterSnapshotInterval <= 3*time.Hour {
-				t.Errorf("Expected interval %v to be longer than default 3h", config.ClusterSnapshotInterval)
+				t.Errorf(
+					"Expected interval %v to be longer than default 3h",
+					config.ClusterSnapshotInterval,
+				)
 			}
 
-			t.Logf("✅ Successfully configured cluster snapshot interval: %v", config.ClusterSnapshotInterval)
+			t.Logf(
+				"✅ Successfully configured cluster snapshot interval: %v",
+				config.ClusterSnapshotInterval,
+			)
 			t.Logf("   This provides %.1fx reduction in snapshot frequency compared to default",
 				float64(config.ClusterSnapshotInterval)/float64(3*time.Hour))
 		})

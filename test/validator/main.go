@@ -50,7 +50,11 @@ func parseResourceValue(value string) (float64, error) {
 }
 
 // compareResourceValues compares two resource values with a tolerance
-func compareResourceValues(actual, expected string, tolerance float64, isStrict bool) (bool, string, float64) {
+func compareResourceValues(
+	actual, expected string,
+	tolerance float64,
+	isStrict bool,
+) (bool, string, float64) {
 	// For strict comparison (requests and limits), we compare the strings directly
 	if isStrict {
 		if actual == expected {
@@ -87,11 +91,19 @@ func compareResourceValues(actual, expected string, tolerance float64, isStrict 
 		return true, "", diffPercentage
 	}
 
-	return false, fmt.Sprintf("expected %s, got %s (diff: %.2f%%)", expected, actual, diffPercentage), diffPercentage
+	return false, fmt.Sprintf(
+		"expected %s, got %s (diff: %.2f%%)",
+		expected,
+		actual,
+		diffPercentage,
+	), diffPercentage
 }
 
 // validatePods validates the actual pod usage against expected pod usage
-func validatePods(actual, expected map[string]stats.PodResourceUsage, tolerance float64) (bool, []string) {
+func validatePods(
+	actual, expected map[string]stats.PodResourceUsage,
+	tolerance float64,
+) (bool, []string) {
 	var errors []string
 	valid := true
 
@@ -109,14 +121,20 @@ func validatePods(actual, expected map[string]stats.PodResourceUsage, tolerance 
 			actualValue, exists := actualPod.Requests[resourceName]
 			if !exists {
 				valid = false
-				errors = append(errors, fmt.Sprintf("Pod %s: request for %s not found", podName, resourceName))
+				errors = append(
+					errors,
+					fmt.Sprintf("Pod %s: request for %s not found", podName, resourceName),
+				)
 				continue
 			}
 
 			match, errMsg, _ := compareResourceValues(actualValue, expectedValue, 0, true)
 			if !match {
 				valid = false
-				errors = append(errors, fmt.Sprintf("Pod %s: request for %s %s", podName, resourceName, errMsg))
+				errors = append(
+					errors,
+					fmt.Sprintf("Pod %s: request for %s %s", podName, resourceName, errMsg),
+				)
 			}
 		}
 
@@ -125,14 +143,20 @@ func validatePods(actual, expected map[string]stats.PodResourceUsage, tolerance 
 			actualValue, exists := actualPod.Limits[resourceName]
 			if !exists {
 				valid = false
-				errors = append(errors, fmt.Sprintf("Pod %s: limit for %s not found", podName, resourceName))
+				errors = append(
+					errors,
+					fmt.Sprintf("Pod %s: limit for %s not found", podName, resourceName),
+				)
 				continue
 			}
 
 			match, errMsg, _ := compareResourceValues(actualValue, expectedValue, 0, true)
 			if !match {
 				valid = false
-				errors = append(errors, fmt.Sprintf("Pod %s: limit for %s %s", podName, resourceName, errMsg))
+				errors = append(
+					errors,
+					fmt.Sprintf("Pod %s: limit for %s %s", podName, resourceName, errMsg),
+				)
 			}
 		}
 
@@ -141,7 +165,10 @@ func validatePods(actual, expected map[string]stats.PodResourceUsage, tolerance 
 			actualContainer, exists := actualPod.Containers[containerName]
 			if !exists {
 				valid = false
-				errors = append(errors, fmt.Sprintf("Pod %s: container %s not found", podName, containerName))
+				errors = append(
+					errors,
+					fmt.Sprintf("Pod %s: container %s not found", podName, containerName),
+				)
 				continue
 			}
 
@@ -149,14 +176,36 @@ func validatePods(actual, expected map[string]stats.PodResourceUsage, tolerance 
 				actualValue, exists := actualContainer[metricName]
 				if !exists {
 					valid = false
-					errors = append(errors, fmt.Sprintf("Pod %s: container %s: metric %s not found", podName, containerName, metricName))
+					errors = append(
+						errors,
+						fmt.Sprintf(
+							"Pod %s: container %s: metric %s not found",
+							podName,
+							containerName,
+							metricName,
+						),
+					)
 					continue
 				}
 
-				match, errMsg, diffPercentage := compareResourceValues(actualValue, expectedValue, tolerance, false)
+				match, errMsg, diffPercentage := compareResourceValues(
+					actualValue,
+					expectedValue,
+					tolerance,
+					false,
+				)
 				if !match {
 					valid = false
-					errors = append(errors, fmt.Sprintf("Pod %s: container %s: metric %s %s", podName, containerName, metricName, errMsg))
+					errors = append(
+						errors,
+						fmt.Sprintf(
+							"Pod %s: container %s: metric %s %s",
+							podName,
+							containerName,
+							metricName,
+							errMsg,
+						),
+					)
 				} else {
 					fmt.Printf("✅ Pod %s: container %s: metric %s within tolerance (diff: %.2f%%)\n", podName, containerName, metricName, diffPercentage)
 				}
@@ -168,7 +217,10 @@ func validatePods(actual, expected map[string]stats.PodResourceUsage, tolerance 
 }
 
 // validateCluster validates the actual cluster resource data against expected cluster resource data
-func validateCluster(actual map[string]stats.ClusterResourceUsage, expected stats.ClusterResourceUsage) (bool, []string) {
+func validateCluster(
+	actual map[string]stats.ClusterResourceUsage,
+	expected stats.ClusterResourceUsage,
+) (bool, []string) {
 	var errors []string
 	valid := true
 
@@ -177,7 +229,14 @@ func validateCluster(actual map[string]stats.ClusterResourceUsage, expected stat
 		// cluster name is kinda ephemeral cuz Kind - so we're gonna not depend on the expected vals for this one
 		if !strings.EqualFold(clusterData.Name, clusterName) {
 			valid = false
-			errors = append(errors, fmt.Sprintf("Cluster name actual: %s; cluster name reported: %s", clusterName, clusterData.Name))
+			errors = append(
+				errors,
+				fmt.Sprintf(
+					"Cluster name actual: %s; cluster name reported: %s",
+					clusterName,
+					clusterData.Name,
+				),
+			)
 			continue // no point going on cuz cluster name is super important for the rest of the tests to work fine
 		}
 
@@ -219,7 +278,11 @@ func main() {
 	// Define command-line flags
 	statsFile := flag.String("stats", "", "Path to the stats JSON file")
 	expectedFile := flag.String("expected", "", "Path to the expected pods JSON file")
-	tolerance := flag.Float64("tolerance", 10.0, "Tolerance percentage for container usage validation")
+	tolerance := flag.Float64(
+		"tolerance",
+		10.0,
+		"Tolerance percentage for container usage validation",
+	)
 
 	// Parse command-line flags
 	flag.Parse()
@@ -262,7 +325,11 @@ func main() {
 	fmt.Printf("Validating pod resource usage with tolerance: %.2f%%\n", *tolerance)
 
 	// Validate pods
-	validPods, errors := validatePods(statsObj.UsageReportPods, expectedObj.UsageReportPods, *tolerance)
+	validPods, errors := validatePods(
+		statsObj.UsageReportPods,
+		expectedObj.UsageReportPods,
+		*tolerance,
+	)
 	if !validPods {
 		fmt.Println("\n❌ Pod Resource Validation failed with the following errors:")
 		for _, err := range errors {
@@ -272,7 +339,10 @@ func main() {
 	}
 
 	// validate cluster
-	validCluster, errors := validateCluster(statsObj.UsageReportCluster, expectedObj.UsageReportCluster)
+	validCluster, errors := validateCluster(
+		statsObj.UsageReportCluster,
+		expectedObj.UsageReportCluster,
+	)
 	if !validCluster {
 		fmt.Println("\n❌ Cluster Resource Validation failed with the following errors:")
 		for _, err := range errors {

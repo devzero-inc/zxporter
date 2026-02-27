@@ -146,7 +146,9 @@ func (c *CRDCollector) GetType() string {
 }
 
 func (c *CRDCollector) IsAvailable(ctx context.Context) bool {
-	_, err := c.client.ApiextensionsV1().CustomResourceDefinitions().List(ctx, metav1.ListOptions{Limit: 1})
+	_, err := c.client.ApiextensionsV1().
+		CustomResourceDefinitions().
+		List(ctx, metav1.ListOptions{Limit: 1})
 	return err == nil
 }
 

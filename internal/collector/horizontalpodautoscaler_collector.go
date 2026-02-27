@@ -101,7 +101,10 @@ func (c *HorizontalPodAutoscalerCollector) Start(ctx context.Context) error {
 	}
 
 	// Create HPA informer - use v2 version which is more feature-rich
-	c.horizontalPodAutoscalerInformer = c.informerFactory.Autoscaling().V2().HorizontalPodAutoscalers().Informer()
+	c.horizontalPodAutoscalerInformer = c.informerFactory.Autoscaling().
+		V2().
+		HorizontalPodAutoscalers().
+		Informer()
 
 	// Add event handlers
 	_, err := c.horizontalPodAutoscalerInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -156,7 +159,10 @@ func (c *HorizontalPodAutoscalerCollector) Start(ctx context.Context) error {
 }
 
 // handleHPAEvent processes HPA events
-func (c *HorizontalPodAutoscalerCollector) handleHPAEvent(hpa *autoscalingv2.HorizontalPodAutoscaler, eventType EventType) {
+func (c *HorizontalPodAutoscalerCollector) handleHPAEvent(
+	hpa *autoscalingv2.HorizontalPodAutoscaler,
+	eventType EventType,
+) {
 	if c.isExcluded(hpa) {
 		return
 	}
@@ -172,7 +178,9 @@ func (c *HorizontalPodAutoscalerCollector) handleHPAEvent(hpa *autoscalingv2.Hor
 }
 
 // hpaChanged detects meaningful changes in a HPA
-func (c *HorizontalPodAutoscalerCollector) hpaChanged(oldHPA, newHPA *autoscalingv2.HorizontalPodAutoscaler) bool {
+func (c *HorizontalPodAutoscalerCollector) hpaChanged(
+	oldHPA, newHPA *autoscalingv2.HorizontalPodAutoscaler,
+) bool {
 	changed := c.cDHelper.objectMetaChanged(
 		c.GetType(),
 		oldHPA.Name,
@@ -231,7 +239,9 @@ func (c *HorizontalPodAutoscalerCollector) hpaChanged(oldHPA, newHPA *autoscalin
 }
 
 // isExcluded checks if a HPA should be excluded from collection
-func (c *HorizontalPodAutoscalerCollector) isExcluded(hpa *autoscalingv2.HorizontalPodAutoscaler) bool {
+func (c *HorizontalPodAutoscalerCollector) isExcluded(
+	hpa *autoscalingv2.HorizontalPodAutoscaler,
+) bool {
 	// Check if monitoring specific namespaces and this HPA isn't in them
 	if len(c.namespaces) > 0 && c.namespaces[0] != "" {
 		found := false

@@ -23,7 +23,10 @@ type mockScraper struct {
 	urls   []string
 }
 
-func (m *mockScraper) Scrape(_ context.Context, urls []string) ([]gpuexporter.MetricFamilyMap, error) {
+func (m *mockScraper) Scrape(
+	_ context.Context,
+	urls []string,
+) ([]gpuexporter.MetricFamilyMap, error) {
 	m.urls = urls
 	return m.result, m.err
 }
@@ -34,7 +37,10 @@ type mockMapper struct {
 	input  []gpuexporter.MetricFamilyMap
 }
 
-func (m *mockMapper) MapToGPUMetrics(_ context.Context, metrics []gpuexporter.MetricFamilyMap) []gpuexporter.GPUMetric {
+func (m *mockMapper) MapToGPUMetrics(
+	_ context.Context,
+	metrics []gpuexporter.MetricFamilyMap,
+) []gpuexporter.GPUMetric {
 	m.input = metrics
 	return m.result
 }

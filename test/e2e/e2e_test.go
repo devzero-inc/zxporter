@@ -101,7 +101,10 @@ var _ = Describe("controller", Ordered, func() {
 					return fmt.Errorf("expect 1 controller pods running, but got %d", len(podNames))
 				}
 				controllerPodName = podNames[0]
-				ExpectWithOffset(2, controllerPodName).Should(ContainSubstring("controller-manager"))
+				ExpectWithOffset(
+					2,
+					controllerPodName,
+				).Should(ContainSubstring("controller-manager"))
 
 				// Validate pod status
 				cmd = exec.Command("kubectl", "get",

@@ -30,8 +30,14 @@ type CompressionResult struct {
 }
 
 func (cr CompressionResult) String() string {
-	return fmt.Sprintf("Original: %d bytes, Compressed: %d bytes, Ratio: %.3f, Savings: %d bytes (%.1f%%)",
-		cr.OriginalSize, cr.CompressedSize, cr.Ratio, cr.Savings, cr.SavingsPercent)
+	return fmt.Sprintf(
+		"Original: %d bytes, Compressed: %d bytes, Ratio: %.3f, Savings: %d bytes (%.1f%%)",
+		cr.OriginalSize,
+		cr.CompressedSize,
+		cr.Ratio,
+		cr.Savings,
+		cr.SavingsPercent,
+	)
 }
 
 // compressData compresses data with gzip and returns metrics
@@ -201,7 +207,10 @@ func TestResourceSerializationCompression(t *testing.T) {
 	t.Logf("Protobuf+Compression vs Raw JSON efficiency: %.3f (lower is better)", efficiency)
 
 	if efficiency > 0.7 {
-		t.Errorf("Expected protobuf+compression to be smaller than raw JSON, got %.1f%% efficiency", efficiency*100)
+		t.Errorf(
+			"Expected protobuf+compression to be smaller than raw JSON, got %.1f%% efficiency",
+			efficiency*100,
+		)
 	}
 }
 
@@ -276,7 +285,10 @@ func TestClusterSnapshotCompression(t *testing.T) {
 
 		// Verify chunk compression is effective
 		if chunkResult.SavingsPercent < 30.0 {
-			t.Errorf("Expected at least 30%% chunk compression savings, got %.1f%%", chunkResult.SavingsPercent)
+			t.Errorf(
+				"Expected at least 30%% chunk compression savings, got %.1f%%",
+				chunkResult.SavingsPercent,
+			)
 		}
 	}
 
@@ -325,8 +337,12 @@ func TestEstimateResourceSizeOptimization(t *testing.T) {
 	t.Logf("Uncompressed size estimation error: %.1f%%", estimationError*100)
 
 	if estimationError > 0.2 { // Within 20% is reasonable for proto size estimation
-		t.Errorf("Size estimation is too far off: estimated %d, actual uncompressed %d (%.1f%% error)",
-			estimatedSize, actualSize, estimationError*100)
+		t.Errorf(
+			"Size estimation is too far off: estimated %d, actual uncompressed %d (%.1f%% error)",
+			estimatedSize,
+			actualSize,
+			estimationError*100,
+		)
 	}
 
 	// Log compression ratio for reference

@@ -154,7 +154,10 @@ func (c *DeploymentCollector) Start(ctx context.Context) error {
 }
 
 // handleDeploymentEvent processes deployment events
-func (c *DeploymentCollector) handleDeploymentEvent(deployment *appsv1.Deployment, eventType EventType) {
+func (c *DeploymentCollector) handleDeploymentEvent(
+	deployment *appsv1.Deployment,
+	eventType EventType,
+) {
 	if c.isExcluded(deployment) {
 		return
 	}
@@ -170,7 +173,9 @@ func (c *DeploymentCollector) handleDeploymentEvent(deployment *appsv1.Deploymen
 }
 
 // deploymentChanged detects meaningful changes in a deployment
-func (c *DeploymentCollector) deploymentChanged(oldDeployment, newDeployment *appsv1.Deployment) bool {
+func (c *DeploymentCollector) deploymentChanged(
+	oldDeployment, newDeployment *appsv1.Deployment,
+) bool {
 	changed := c.cDHelper.objectMetaChanged(
 		c.GetType(),
 		oldDeployment.Name,

@@ -47,7 +47,11 @@ type GenericProvider struct {
 }
 
 // NewGenericProvider creates a new generic provider
-func NewGenericProvider(logger logr.Logger, k8sClient kubernetes.Interface, kubeContextName string) *GenericProvider {
+func NewGenericProvider(
+	logger logr.Logger,
+	k8sClient kubernetes.Interface,
+	kubeContextName string,
+) *GenericProvider {
 	return &GenericProvider{
 		logger:          logger.WithName("generic-provider"),
 		k8sClient:       k8sClient,

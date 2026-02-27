@@ -157,7 +157,10 @@ func (c *NodeCollector) initPrometheusClient(ctx context.Context) error {
 				},
 			)
 		}
-		c.logger.Error(err, "Failed to create Prometheus client, node network, I/O and GPU metrics will be disabled")
+		c.logger.Error(
+			err,
+			"Failed to create Prometheus client, node network, I/O and GPU metrics will be disabled",
+		)
 		return err
 	}
 
@@ -171,9 +174,15 @@ func (c *NodeCollector) initPrometheusClient(ctx context.Context) error {
 	_, _, err = c.prometheusAPI.Query(queryCtx, "up", time.Now())
 	if err != nil {
 		// Check if this is a permission error
-		if strings.Contains(err.Error(), "forbidden") || strings.Contains(err.Error(), "unauthorized") {
-			c.logger.Error(err, "Permission denied when accessing Prometheus. Please ensure the service account has proper RBAC permissions")
-			c.logger.Info("You may need to apply the 'zxporter-prometheus-reader' ClusterRole and ClusterRoleBinding")
+		if strings.Contains(err.Error(), "forbidden") ||
+			strings.Contains(err.Error(), "unauthorized") {
+			c.logger.Error(
+				err,
+				"Permission denied when accessing Prometheus. Please ensure the service account has proper RBAC permissions",
+			)
+			c.logger.Info(
+				"You may need to apply the 'zxporter-prometheus-reader' ClusterRole and ClusterRoleBinding",
+			)
 
 			// Continue with basic metrics only
 			c.prometheusAPI = nil
@@ -181,7 +190,10 @@ func (c *NodeCollector) initPrometheusClient(ctx context.Context) error {
 		}
 
 		// Handle other connection errors
-		c.logger.Error(err, "Failed to connect to Prometheus, node network, I/O and GPU metrics will be disabled")
+		c.logger.Error(
+			err,
+			"Failed to connect to Prometheus, node network, I/O and GPU metrics will be disabled",
+		)
 		c.prometheusAPI = nil
 		return err
 	}
@@ -213,7 +225,10 @@ func (c *NodeCollector) Start(ctx context.Context) error {
 	needPrometheus := !c.config.DisableNetworkIOMetrics || !c.config.DisableGPUMetrics
 	if needPrometheus {
 		if err := c.initPrometheusClient(ctx); err != nil {
-			c.logger.Error(err, "Failed to initialize Prometheus client, continuing with basic metrics")
+			c.logger.Error(
+				err,
+				"Failed to initialize Prometheus client, continuing with basic metrics",
+			)
 			// Log but continue - we can still collect CPU/memory metrics
 			c.logger.Info("Continuing with basic node metrics collection only")
 		}
@@ -541,7 +556,9 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 	}
 
 	// Fetch node metrics from the metrics server
-	nodeMetricsList, err := c.metricsClient.MetricsV1beta1().NodeMetricses().List(ctx, metav1.ListOptions{})
+	nodeMetricsList, err := c.metricsClient.MetricsV1beta1().
+		NodeMetricses().
+		List(ctx, metav1.ListOptions{})
 	if err != nil {
 		if c.telemetryLogger != nil {
 			c.telemetryLogger.Report(
@@ -673,7 +690,12 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 			if !c.config.DisableNetworkIOMetrics {
 				networkMetrics, err = c.collectNodeNetworkIOMetrics(queryCtx, node.Name)
 				if queryCtx.Err() != nil {
-					c.logger.Error(queryCtx.Err(), "Query context for node network metrics failed", "node", node.Name)
+					c.logger.Error(
+						queryCtx.Err(),
+						"Query context for node network metrics failed",
+						"node",
+						node.Name,
+					)
 				}
 				if err != nil {
 					if c.telemetryLogger != nil {
@@ -701,14 +723,27 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 			if !c.config.DisableGPUMetrics {
 				if c.gpuExporterClient != nil {
 					// Primary: GPU exporter
-					gpuExporterMetrics, fetchErr := c.gpuExporterClient.FetchMetricsByNode(queryCtx, node.Name)
+					gpuExporterMetrics, fetchErr := c.gpuExporterClient.FetchMetricsByNode(
+						queryCtx,
+						node.Name,
+					)
 					if fetchErr != nil {
-						c.logger.Error(fetchErr, "GPU exporter failed, falling back to Prometheus", "node", node.Name)
+						c.logger.Error(
+							fetchErr,
+							"GPU exporter failed, falling back to Prometheus",
+							"node",
+							node.Name,
+						)
 						// Fallback to Prometheus on exporter failure
 						if c.prometheusAPI != nil {
 							gpuMetrics, err = c.collectNodeGPUMetrics(queryCtx, node.Name)
 							if err != nil {
-								c.logger.Error(err, "Prometheus fallback also failed for node GPU metrics", "node", node.Name)
+								c.logger.Error(
+									err,
+									"Prometheus fallback also failed for node GPU metrics",
+									"node",
+									node.Name,
+								)
 								gpuMetrics = make(map[string]interface{})
 							}
 						} else {
@@ -847,24 +882,63 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 }
 
 // collectNodeNetworkIOMetrics collects network metrics for a node using Prometheus queries
-func (c *NodeCollector) collectNodeNetworkIOMetrics(ctx context.Context, nodeName string) (map[string]float64, error) {
+func (c *NodeCollector) collectNodeNetworkIOMetrics(
+	ctx context.Context,
+	nodeName string,
+) (map[string]float64, error) {
 	metrics := make(map[string]float64)
 
 	queries := map[string]string{
 		// Define queries for network metrics
-		"NetworkReceiveBytes":    fmt.Sprintf(`sum(rate(node_network_receive_bytes_total{node="%s"}[5m]))`, nodeName),
-		"NetworkTransmitBytes":   fmt.Sprintf(`sum(rate(node_network_transmit_bytes_total{node="%s"}[5m]))`, nodeName),
-		"NetworkReceivePackets":  fmt.Sprintf(`sum(rate(node_network_receive_packets_total{node="%s"}[5m]))`, nodeName),
-		"NetworkTransmitPackets": fmt.Sprintf(`sum(rate(node_network_transmit_packets_total{node="%s"}[5m]))`, nodeName),
-		"NetworkReceiveErrors":   fmt.Sprintf(`sum(rate(node_network_receive_errs_total{node="%s"}[5m]))`, nodeName),
-		"NetworkTransmitErrors":  fmt.Sprintf(`sum(rate(node_network_transmit_errs_total{node="%s"}[5m]))`, nodeName),
-		"NetworkReceiveDropped":  fmt.Sprintf(`sum(rate(node_network_receive_drop_total{node="%s"}[5m]))`, nodeName),
-		"NetworkTransmitDropped": fmt.Sprintf(`sum(rate(node_network_transmit_drop_total{node="%s"}[5m]))`, nodeName),
+		"NetworkReceiveBytes": fmt.Sprintf(
+			`sum(rate(node_network_receive_bytes_total{node="%s"}[5m]))`,
+			nodeName,
+		),
+		"NetworkTransmitBytes": fmt.Sprintf(
+			`sum(rate(node_network_transmit_bytes_total{node="%s"}[5m]))`,
+			nodeName,
+		),
+		"NetworkReceivePackets": fmt.Sprintf(
+			`sum(rate(node_network_receive_packets_total{node="%s"}[5m]))`,
+			nodeName,
+		),
+		"NetworkTransmitPackets": fmt.Sprintf(
+			`sum(rate(node_network_transmit_packets_total{node="%s"}[5m]))`,
+			nodeName,
+		),
+		"NetworkReceiveErrors": fmt.Sprintf(
+			`sum(rate(node_network_receive_errs_total{node="%s"}[5m]))`,
+			nodeName,
+		),
+		"NetworkTransmitErrors": fmt.Sprintf(
+			`sum(rate(node_network_transmit_errs_total{node="%s"}[5m]))`,
+			nodeName,
+		),
+		"NetworkReceiveDropped": fmt.Sprintf(
+			`sum(rate(node_network_receive_drop_total{node="%s"}[5m]))`,
+			nodeName,
+		),
+		"NetworkTransmitDropped": fmt.Sprintf(
+			`sum(rate(node_network_transmit_drop_total{node="%s"}[5m]))`,
+			nodeName,
+		),
 		// Define queries for I/O metrics
-		"FSReadBytes":  fmt.Sprintf(`sum(rate(node_disk_read_bytes_total{node="%s"}[5m]))`, nodeName),
-		"FSWriteBytes": fmt.Sprintf(`sum(rate(node_disk_written_bytes_total{node="%s"}[5m]))`, nodeName),
-		"FSReads":      fmt.Sprintf(`sum(rate(node_disk_reads_completed_total{node="%s"}[5m]))`, nodeName),
-		"FSWrites":     fmt.Sprintf(`sum(rate(node_disk_writes_completed_total{node="%s"}[5m]))`, nodeName),
+		"FSReadBytes": fmt.Sprintf(
+			`sum(rate(node_disk_read_bytes_total{node="%s"}[5m]))`,
+			nodeName,
+		),
+		"FSWriteBytes": fmt.Sprintf(
+			`sum(rate(node_disk_written_bytes_total{node="%s"}[5m]))`,
+			nodeName,
+		),
+		"FSReads": fmt.Sprintf(
+			`sum(rate(node_disk_reads_completed_total{node="%s"}[5m]))`,
+			nodeName,
+		),
+		"FSWrites": fmt.Sprintf(
+			`sum(rate(node_disk_writes_completed_total{node="%s"}[5m]))`,
+			nodeName,
+		),
 	}
 
 	// Execute each query and store the result
@@ -893,7 +967,10 @@ func (c *NodeCollector) collectNodeNetworkIOMetrics(ctx context.Context, nodeNam
 }
 
 // collectNodeGPUMetrics collects GPU metrics for a node using Prometheus queries
-func (c *NodeCollector) collectNodeGPUMetrics(ctx context.Context, nodeName string) (map[string]interface{}, error) {
+func (c *NodeCollector) collectNodeGPUMetrics(
+	ctx context.Context,
+	nodeName string,
+) (map[string]interface{}, error) {
 	metrics := make(map[string]interface{})
 
 	// First query to check if this node has any GPUs
@@ -920,21 +997,48 @@ func (c *NodeCollector) collectNodeGPUMetrics(ctx context.Context, nodeName stri
 
 	// Node has GPUs, collect metrics
 	queries := map[string]string{
-		"GPUCount":                  fmt.Sprintf(`count(DCGM_FI_DEV_GPU_UTIL{node="%s"})`, nodeName),
-		"GPUUtilizationAvg":         fmt.Sprintf(`avg(DCGM_FI_DEV_GPU_UTIL{node="%s"})`, nodeName),
-		"GPUUtilizationMax":         fmt.Sprintf(`max(DCGM_FI_DEV_GPU_UTIL{node="%s"})`, nodeName),
-		"GPUMemoryUsedTotal":        fmt.Sprintf(`sum(DCGM_FI_DEV_FB_USED{node="%s"})`, nodeName),
-		"GPUMemoryFreeTotal":        fmt.Sprintf(`sum(DCGM_FI_DEV_FB_FREE{node="%s"})`, nodeName),
-		"GPUPowerUsageTotal":        fmt.Sprintf(`sum(DCGM_FI_DEV_POWER_USAGE{node="%s"})`, nodeName),
-		"GPUTemperatureAvg":         fmt.Sprintf(`avg(DCGM_FI_DEV_GPU_TEMP{node="%s"})`, nodeName),
-		"GPUTemperatureMax":         fmt.Sprintf(`max(DCGM_FI_DEV_GPU_TEMP{node="%s"})`, nodeName),
-		"GPUMemoryTemperatureAvg":   fmt.Sprintf(`avg(DCGM_FI_DEV_MEMORY_TEMP{node="%s"})`, nodeName),
-		"GPUMemoryTemperatureMax":   fmt.Sprintf(`max(DCGM_FI_DEV_MEMORY_TEMP{node="%s"})`, nodeName),
-		"GPUTensorUtilizationAvg":   fmt.Sprintf(`avg(DCGM_FI_PROF_PIPE_TENSOR_ACTIVE{node="%s"})`, nodeName),
-		"GPUDramUtilizationAvg":     fmt.Sprintf(`avg(DCGM_FI_PROF_DRAM_ACTIVE{node="%s"})`, nodeName),
-		"GPUPCIeTxBytesTotal":       fmt.Sprintf(`sum(DCGM_FI_PROF_PCIE_TX_BYTES{node="%s"})`, nodeName),
-		"GPUPCIeRxBytesTotal":       fmt.Sprintf(`sum(DCGM_FI_PROF_PCIE_RX_BYTES{node="%s"})`, nodeName),
-		"GPUGraphicsUtilizationAvg": fmt.Sprintf(`avg(DCGM_FI_PROF_GR_ENGINE_ACTIVE{node="%s"})`, nodeName),
+		"GPUCount": fmt.Sprintf(
+			`count(DCGM_FI_DEV_GPU_UTIL{node="%s"})`,
+			nodeName,
+		),
+		"GPUUtilizationAvg":  fmt.Sprintf(`avg(DCGM_FI_DEV_GPU_UTIL{node="%s"})`, nodeName),
+		"GPUUtilizationMax":  fmt.Sprintf(`max(DCGM_FI_DEV_GPU_UTIL{node="%s"})`, nodeName),
+		"GPUMemoryUsedTotal": fmt.Sprintf(`sum(DCGM_FI_DEV_FB_USED{node="%s"})`, nodeName),
+		"GPUMemoryFreeTotal": fmt.Sprintf(`sum(DCGM_FI_DEV_FB_FREE{node="%s"})`, nodeName),
+		"GPUPowerUsageTotal": fmt.Sprintf(
+			`sum(DCGM_FI_DEV_POWER_USAGE{node="%s"})`,
+			nodeName,
+		),
+		"GPUTemperatureAvg": fmt.Sprintf(`avg(DCGM_FI_DEV_GPU_TEMP{node="%s"})`, nodeName),
+		"GPUTemperatureMax": fmt.Sprintf(`max(DCGM_FI_DEV_GPU_TEMP{node="%s"})`, nodeName),
+		"GPUMemoryTemperatureAvg": fmt.Sprintf(
+			`avg(DCGM_FI_DEV_MEMORY_TEMP{node="%s"})`,
+			nodeName,
+		),
+		"GPUMemoryTemperatureMax": fmt.Sprintf(
+			`max(DCGM_FI_DEV_MEMORY_TEMP{node="%s"})`,
+			nodeName,
+		),
+		"GPUTensorUtilizationAvg": fmt.Sprintf(
+			`avg(DCGM_FI_PROF_PIPE_TENSOR_ACTIVE{node="%s"})`,
+			nodeName,
+		),
+		"GPUDramUtilizationAvg": fmt.Sprintf(
+			`avg(DCGM_FI_PROF_DRAM_ACTIVE{node="%s"})`,
+			nodeName,
+		),
+		"GPUPCIeTxBytesTotal": fmt.Sprintf(
+			`sum(DCGM_FI_PROF_PCIE_TX_BYTES{node="%s"})`,
+			nodeName,
+		),
+		"GPUPCIeRxBytesTotal": fmt.Sprintf(
+			`sum(DCGM_FI_PROF_PCIE_RX_BYTES{node="%s"})`,
+			nodeName,
+		),
+		"GPUGraphicsUtilizationAvg": fmt.Sprintf(
+			`avg(DCGM_FI_PROF_GR_ENGINE_ACTIVE{node="%s"})`,
+			nodeName,
+		),
 	}
 
 	gpuCountValue := 0.0

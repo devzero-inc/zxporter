@@ -61,7 +61,11 @@ type workloadResolver struct {
 // NewWorkloadResolver creates a WorkloadResolver that uses the K8s dynamic client
 // to walk owner references and find the top-level owning workload.
 // Supports LRU caching and label-based workload name resolution.
-func NewWorkloadResolver(dynClient dynamic.Interface, cfg WorkloadResolverConfig, log logr.Logger) WorkloadResolver {
+func NewWorkloadResolver(
+	dynClient dynamic.Interface,
+	cfg WorkloadResolverConfig,
+	log logr.Logger,
+) WorkloadResolver {
 	cacheSize := cfg.CacheSize
 	if cacheSize <= 0 {
 		cacheSize = 256
@@ -76,13 +80,18 @@ func NewWorkloadResolver(dynClient dynamic.Interface, cfg WorkloadResolverConfig
 	}
 }
 
-func (r *workloadResolver) FindWorkloadForPod(ctx context.Context, name, namespace string) (string, string, error) {
+func (r *workloadResolver) FindWorkloadForPod(
+	ctx context.Context,
+	name, namespace string,
+) (string, string, error) {
 	key := cacheKey{namespace: namespace, name: name}
 	if w, ok := r.lru.Get(key); ok {
 		return w.Kind, w.Name, nil
 	}
 
-	pod, err := r.dynClient.Resource(kindToGVR[KindPod]).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
+	pod, err := r.dynClient.Resource(kindToGVR[KindPod]).
+		Namespace(namespace).
+		Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
 		return "", "", fmt.Errorf("getting pod %s/%s: %w", namespace, name, err)
 	}
@@ -133,7 +142,9 @@ func (r *workloadResolver) findTopControllerKind(ctx context.Context, obj metav1
 			return kind
 		}
 
-		next, err := r.dynClient.Resource(gvr).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
+		next, err := r.dynClient.Resource(gvr).
+			Namespace(namespace).
+			Get(ctx, name, metav1.GetOptions{})
 		if err != nil {
 			return kind
 		}
@@ -162,12 +173,15 @@ func (r *workloadResolver) findPodOwner(ctx context.Context, pod metav1.Object) 
 
 	switch ownerRef.Kind {
 	case KindReplicaSet:
-		rs, err := r.dynClient.Resource(kindToGVR[KindReplicaSet]).Namespace(namespace).Get(ctx, ownerRef.Name, metav1.GetOptions{})
+		rs, err := r.dynClient.Resource(kindToGVR[KindReplicaSet]).
+			Namespace(namespace).
+			Get(ctx, ownerRef.Name, metav1.GetOptions{})
 		if err != nil {
 			return nil, fmt.Errorf("getting replicaset %s/%s: %w", namespace, ownerRef.Name, err)
 		}
 
-		if rsOwner := metav1.GetControllerOfNoCopy(rs); rsOwner != nil && (rsOwner.Kind == KindDeployment || rsOwner.Kind == KindRollout) {
+		if rsOwner := metav1.GetControllerOfNoCopy(rs); rsOwner != nil &&
+			(rsOwner.Kind == KindDeployment || rsOwner.Kind == KindRollout) {
 			return &Workload{
 				Name:      rsOwner.Name,
 				Namespace: namespace,
@@ -182,11 +196,14 @@ func (r *workloadResolver) findPodOwner(ctx context.Context, pod metav1.Object) 
 		}, nil
 
 	case KindJob:
-		job, err := r.dynClient.Resource(kindToGVR[KindJob]).Namespace(namespace).Get(ctx, ownerRef.Name, metav1.GetOptions{})
+		job, err := r.dynClient.Resource(kindToGVR[KindJob]).
+			Namespace(namespace).
+			Get(ctx, ownerRef.Name, metav1.GetOptions{})
 		if err != nil {
 			return nil, fmt.Errorf("getting job %s/%s: %w", namespace, ownerRef.Name, err)
 		}
-		if jobOwner := metav1.GetControllerOfNoCopy(job); jobOwner != nil && jobOwner.Kind == KindCronJob {
+		if jobOwner := metav1.GetControllerOfNoCopy(job); jobOwner != nil &&
+			jobOwner.Kind == KindCronJob {
 			return &Workload{
 				Name:      jobOwner.Name,
 				Namespace: namespace,

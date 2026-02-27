@@ -138,7 +138,10 @@ func (c *StorageClassCollector) Start(ctx context.Context) error {
 }
 
 // handleStorageClassEvent processes StorageClass events
-func (c *StorageClassCollector) handleStorageClassEvent(sc *storagev1.StorageClass, eventType EventType) {
+func (c *StorageClassCollector) handleStorageClassEvent(
+	sc *storagev1.StorageClass,
+	eventType EventType,
+) {
 	if c.isExcluded(sc) {
 		return
 	}

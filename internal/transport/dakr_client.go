@@ -147,54 +147,64 @@ func NewDakrClient(dakrBaseURL string, clusterToken string, logger logr.Logger) 
 
 	// Create the retry interceptor directly using connect.UnaryInterceptorFunc
 	retryLog := logger.WithName("retry-interceptor")
-	retryInterceptor := connect.UnaryInterceptorFunc(func(next connect.UnaryFunc) connect.UnaryFunc {
-		return connect.UnaryFunc(func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
-			var lastErr error
-			for currentAttempt := 0; currentAttempt < retryPolicy.MaxAttempts; currentAttempt++ {
-				if currentAttempt > 0 { // Backoff only for retries
-					multiplier := time.Duration(1 << (currentAttempt - 1))
-					backoffDuration := retryPolicy.InitialBackoff * multiplier
-					if backoffDuration > retryPolicy.MaxBackoff {
-						backoffDuration = retryPolicy.MaxBackoff
-					}
-					retryLog.V(1).Info("Retrying request",
-						"attempt", currentAttempt,
-						"procedure", req.Spec().Procedure,
-						"delay", backoffDuration.String(),
-						"error", lastErr)
-					select {
-					case <-time.After(backoffDuration):
-					case <-ctx.Done():
-						retryLog.Info("Context cancelled during backoff", "procedure", req.Spec().Procedure, "error", ctx.Err())
-						return nil, ctx.Err()
-					}
-				}
+	retryInterceptor := connect.UnaryInterceptorFunc(
+		func(next connect.UnaryFunc) connect.UnaryFunc {
+			return connect.UnaryFunc(
+				func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
+					var lastErr error
+					for currentAttempt := 0; currentAttempt < retryPolicy.MaxAttempts; currentAttempt++ {
+						if currentAttempt > 0 { // Backoff only for retries
+							multiplier := time.Duration(1 << (currentAttempt - 1))
+							backoffDuration := retryPolicy.InitialBackoff * multiplier
+							if backoffDuration > retryPolicy.MaxBackoff {
+								backoffDuration = retryPolicy.MaxBackoff
+							}
+							retryLog.V(1).Info("Retrying request",
+								"attempt", currentAttempt,
+								"procedure", req.Spec().Procedure,
+								"delay", backoffDuration.String(),
+								"error", lastErr)
+							select {
+							case <-time.After(backoffDuration):
+							case <-ctx.Done():
+								retryLog.Info(
+									"Context cancelled during backoff",
+									"procedure",
+									req.Spec().Procedure,
+									"error",
+									ctx.Err(),
+								)
+								return nil, ctx.Err()
+							}
+						}
 
-				resp, err := next(ctx, req)
-				if err == nil {
-					return resp, nil
-				}
-				lastErr = err
+						resp, err := next(ctx, req)
+						if err == nil {
+							return resp, nil
+						}
+						lastErr = err
 
-				if retryPolicy.IsRetryable != nil && retryPolicy.IsRetryable(err) {
-					if currentAttempt == retryPolicy.MaxAttempts-1 { // Last attempt, don't retry further
-						retryLog.Info("Max retry attempts reached",
-							"procedure", req.Spec().Procedure,
-							"attempts", retryPolicy.MaxAttempts,
-							"error", lastErr)
-						break
+						if retryPolicy.IsRetryable != nil && retryPolicy.IsRetryable(err) {
+							if currentAttempt == retryPolicy.MaxAttempts-1 { // Last attempt, don't retry further
+								retryLog.Info("Max retry attempts reached",
+									"procedure", req.Spec().Procedure,
+									"attempts", retryPolicy.MaxAttempts,
+									"error", lastErr)
+								break
+							}
+							continue // Continue to next attempt in the loop
+						} else { // Non-retryable error
+							retryLog.V(1).Info("Non-retryable error or IsRetryable not defined",
+								"procedure", req.Spec().Procedure,
+								"error", lastErr)
+							break // Exit loop for non-retryable errors
+						}
 					}
-					continue // Continue to next attempt in the loop
-				} else { // Non-retryable error
-					retryLog.V(1).Info("Non-retryable error or IsRetryable not defined",
-						"procedure", req.Spec().Procedure,
-						"error", lastErr)
-					break // Exit loop for non-retryable errors
-				}
-			}
-			return nil, lastErr // Return the last error encountered
-		})
-	})
+					return nil, lastErr // Return the last error encountered
+				},
+			)
+		},
+	)
 
 	clientHeadersInterceptor := newClientHeadersInterceptor(clientHeaders)
 
@@ -256,10 +266,12 @@ func NewDakrClient(dakrBaseURL string, clusterToken string, logger logr.Logger) 
 
 func newClientHeadersInterceptor(headers *ClientHeaders) connect.UnaryInterceptorFunc {
 	return connect.UnaryInterceptorFunc(func(next connect.UnaryFunc) connect.UnaryFunc {
-		return connect.UnaryFunc(func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
-			headers.AttachToRequest(req.Header())
-			return next(ctx, req)
-		})
+		return connect.UnaryFunc(
+			func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
+				headers.AttachToRequest(req.Header())
+				return next(ctx, req)
+			},
+		)
 	})
 }
 
@@ -282,7 +294,10 @@ func (c *RealDakrClient) toStructpb(data interface{}) (*structpb.Struct, error) 
 }
 
 // SendResource sends the resource to Dakr through gRPC
-func (c *RealDakrClient) SendResource(ctx context.Context, resource collector.CollectedResource) (string, error) {
+func (c *RealDakrClient) SendResource(
+	ctx context.Context,
+	resource collector.CollectedResource,
+) (string, error) {
 	// Convert resource.Object to a protobuf struct using the helper
 	dataStruct, err := c.toStructpb(resource.Object)
 	if err != nil {
@@ -385,14 +400,23 @@ func (c *RealDakrClient) splitBatchBySize(resourceItems []*gen.ResourceItem) [][
 }
 
 // SendResourceBatch sends a batch of resources to Dakr through gRPC
-func (c *RealDakrClient) SendResourceBatch(ctx context.Context, resources []collector.CollectedResource, resourceType collector.ResourceType) (string, error) {
+func (c *RealDakrClient) SendResourceBatch(
+	ctx context.Context,
+	resources []collector.CollectedResource,
+	resourceType collector.ResourceType,
+) (string, error) {
 	resourceItems := make([]*gen.ResourceItem, 0, len(resources))
 
 	for _, resource := range resources {
 		// Convert resource data to structpb for protobuf serialization
 		data, err := c.toStructpb(resource.Object)
 		if err != nil {
-			c.logger.Error(err, "Failed to convert resource data to structpb for batch item", "key", resource.Key)
+			c.logger.Error(
+				err,
+				"Failed to convert resource data to structpb for batch item",
+				"key",
+				resource.Key,
+			)
 			// Skip this item
 			continue
 		}
@@ -480,7 +504,10 @@ func (c *RealDakrClient) SendResourceBatch(ctx context.Context, resources []coll
 }
 
 // SendTelemetryMetrics sends telemetry metrics to Dakr
-func (c *RealDakrClient) SendTelemetryMetrics(ctx context.Context, metrics []*dto.MetricFamily) (int32, error) {
+func (c *RealDakrClient) SendTelemetryMetrics(
+	ctx context.Context,
+	metrics []*dto.MetricFamily,
+) (int32, error) {
 	// Create the request
 	telemetryReq := &gen.SendTelemetryMetricsRequest{
 		MetricFamilies: metrics,
@@ -505,7 +532,12 @@ func (c *RealDakrClient) SendTelemetryMetrics(ctx context.Context, metrics []*dt
 }
 
 // SendClusterSnapshotStream sends cluster snapshot data in chunks via streaming
-func (c *RealDakrClient) SendClusterSnapshotStream(ctx context.Context, snapshot *gen.ClusterSnapshot, snapshotID string, timestamp time.Time) (string, *gen.ClusterSnapshot, error) {
+func (c *RealDakrClient) SendClusterSnapshotStream(
+	ctx context.Context,
+	snapshot *gen.ClusterSnapshot,
+	snapshotID string,
+	timestamp time.Time,
+) (string, *gen.ClusterSnapshot, error) {
 	c.logger.Info("Sending cluster snapshot", "snapshotId", snapshotID)
 
 	protoBytes, err := proto.Marshal(snapshot)
@@ -576,7 +608,10 @@ func (c *RealDakrClient) SendClusterSnapshotStream(ctx context.Context, snapshot
 }
 
 // SendTelemetryLogs sends a batch of log entries to the Dakr service.
-func (c *RealDakrClient) SendTelemetryLogs(ctx context.Context, in *gen.SendTelemetryLogsRequest) (*gen.SendTelemetryLogsResponse, error) {
+func (c *RealDakrClient) SendTelemetryLogs(
+	ctx context.Context,
+	in *gen.SendTelemetryLogsRequest,
+) (*gen.SendTelemetryLogsResponse, error) {
 	c.logger.V(1).Info("Sending telemetry logs to Dakr", "count", len(in.Logs))
 
 	req := connect.NewRequest(in)
@@ -601,12 +636,16 @@ func (c *RealDakrClient) SendTelemetryLogs(ctx context.Context, in *gen.SendTele
 		return nil, fmt.Errorf("failed to send telemetry logs to Dakr: %w", err)
 	}
 
-	c.logger.V(1).Info("Successfully sent telemetry logs to Dakr", "processed_count", resp.Msg.ProcessedCount)
+	c.logger.V(1).
+		Info("Successfully sent telemetry logs to Dakr", "processed_count", resp.Msg.ProcessedCount)
 	return resp.Msg, nil
 }
 
 // ExchangePATForClusterToken exchanges a PAT token for a cluster token
-func (c *RealDakrClient) ExchangePATForClusterToken(ctx context.Context, patToken, clusterName, k8sProvider string) (string, string, error) {
+func (c *RealDakrClient) ExchangePATForClusterToken(
+	ctx context.Context,
+	patToken, clusterName, k8sProvider string,
+) (string, string, error) {
 	// Create the request
 	req := connect.NewRequest(&gen.CreateClusterTokenRequest{
 		ClusterName: clusterName,
@@ -642,7 +681,10 @@ func (c *RealDakrClient) ExchangePATForClusterToken(ctx context.Context, patToke
 }
 
 // SendNetworkTrafficMetrics pushes network traffic metrics from a node
-func (c *RealDakrClient) SendNetworkTrafficMetrics(ctx context.Context, req *gen.SendNetworkTrafficMetricsRequest) (*gen.SendNetworkTrafficMetricsResponse, error) {
+func (c *RealDakrClient) SendNetworkTrafficMetrics(
+	ctx context.Context,
+	req *gen.SendNetworkTrafficMetricsRequest,
+) (*gen.SendNetworkTrafficMetricsResponse, error) {
 	connectReq := connect.NewRequest(req)
 
 	// Pass through context values if needed (e.g. cluster_id)

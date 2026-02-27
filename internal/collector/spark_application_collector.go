@@ -250,7 +250,10 @@ func (c *SparkApplicationCollector) Start(ctx context.Context) error {
 }
 
 // handleApplicationEvent processes SparkApplication events
-func (c *SparkApplicationCollector) handleApplicationEvent(obj *unstructured.Unstructured, eventType EventType) {
+func (c *SparkApplicationCollector) handleApplicationEvent(
+	obj *unstructured.Unstructured,
+	eventType EventType,
+) {
 	name := obj.GetName()
 	namespace := obj.GetNamespace()
 
@@ -264,7 +267,15 @@ func (c *SparkApplicationCollector) handleApplicationEvent(obj *unstructured.Uns
 	key := fmt.Sprintf("%s/%s", namespace, name)
 
 	// Send the processed resource to the batch channel
-	c.logger.Info("Collected SparkApplication resource", "key", key, "eventType", eventType, "resource", processedObj)
+	c.logger.Info(
+		"Collected SparkApplication resource",
+		"key",
+		key,
+		"eventType",
+		eventType,
+		"resource",
+		processedObj,
+	)
 	c.batchChan <- CollectedResource{
 		ResourceType: SparkApplication,
 		Object:       processedObj,
@@ -275,7 +286,9 @@ func (c *SparkApplicationCollector) handleApplicationEvent(obj *unstructured.Uns
 }
 
 // processApplication extracts relevant fields from SparkApplication objects
-func (c *SparkApplicationCollector) processApplication(obj *unstructured.Unstructured) map[string]interface{} {
+func (c *SparkApplicationCollector) processApplication(
+	obj *unstructured.Unstructured,
+) map[string]interface{} {
 	result := map[string]interface{}{
 		"name":              obj.GetName(),
 		"namespace":         obj.GetNamespace(),
@@ -373,7 +386,11 @@ func (c *SparkApplicationCollector) IsAvailable(ctx context.Context) bool {
 
 	_, err := c.dynamicClient.Resource(gvr).List(ctx, metav1.ListOptions{Limit: 1})
 	if err != nil {
-		c.logger.Info("SparkApplication resources not available in the cluster", "error", err.Error())
+		c.logger.Info(
+			"SparkApplication resources not available in the cluster",
+			"error",
+			err.Error(),
+		)
 		c.telemetryLogger.Report(
 			gen.LogLevel_LOG_LEVEL_WARN,
 			"SparkApplicationCollector_IsAvailable",

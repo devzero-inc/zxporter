@@ -161,7 +161,10 @@ func (c *ScaledObjectCollector) Start(ctx context.Context) error {
 }
 
 // handleScaledObjectEvent processes ScaledObject events
-func (c *ScaledObjectCollector) handleScaledObjectEvent(scaledObject *kedav1alpha1.ScaledObject, eventType EventType) {
+func (c *ScaledObjectCollector) handleScaledObjectEvent(
+	scaledObject *kedav1alpha1.ScaledObject,
+	eventType EventType,
+) {
 	if c.isExcluded(scaledObject) {
 		return
 	}
@@ -177,7 +180,9 @@ func (c *ScaledObjectCollector) handleScaledObjectEvent(scaledObject *kedav1alph
 }
 
 // scaledObjectChanged detects meaningful changes in a ScaledObject
-func (c *ScaledObjectCollector) scaledObjectChanged(oldScaledObject, newScaledObject *kedav1alpha1.ScaledObject) bool {
+func (c *ScaledObjectCollector) scaledObjectChanged(
+	oldScaledObject, newScaledObject *kedav1alpha1.ScaledObject,
+) bool {
 	changed := c.cDHelper.objectMetaChanged(
 		c.GetType(),
 		oldScaledObject.Name,
@@ -212,7 +217,9 @@ func (c *ScaledObjectCollector) scaledObjectChanged(oldScaledObject, newScaledOb
 }
 
 // scaledObjectStatusEqual compares ScaledObject status for meaningful changes
-func (c *ScaledObjectCollector) scaledObjectStatusEqual(oldStatus, newStatus *kedav1alpha1.ScaledObjectStatus) bool {
+func (c *ScaledObjectCollector) scaledObjectStatusEqual(
+	oldStatus, newStatus *kedav1alpha1.ScaledObjectStatus,
+) bool {
 	// Compare scale target name changes
 	if oldStatus.ScaleTargetGVKR != newStatus.ScaleTargetGVKR {
 		return false

@@ -15,7 +15,13 @@ import (
 // noopTelemetryLogger is a no-op implementation of telemetry_logger.Logger
 type noopTelemetryLogger struct{}
 
-func (n *noopTelemetryLogger) Report(level gen.LogLevel, source string, msg string, err error, fields map[string]string) {
+func (n *noopTelemetryLogger) Report(
+	level gen.LogLevel,
+	source string,
+	msg string,
+	err error,
+	fields map[string]string,
+) {
 }
 func (n *noopTelemetryLogger) Stop() {}
 
@@ -116,7 +122,13 @@ type mockCollector struct {
 	started       bool
 }
 
-func (m *mockCollector) Start(ctx context.Context) error                { m.started = true; return nil }
+func (m *mockCollector) Start(
+	ctx context.Context,
+) error {
+	m.started = true
+	return nil
+}
+
 func (m *mockCollector) Stop() error                                    { close(m.resourceCh); return nil }
 func (m *mockCollector) GetType() string                                { return m.collectorType }
 func (m *mockCollector) GetResourceChannel() <-chan []CollectedResource { return m.resourceCh }

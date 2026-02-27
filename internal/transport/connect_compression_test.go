@@ -221,7 +221,10 @@ func TestConnectRPCCompressionIntegration(t *testing.T) {
 			if tc.enableCompression {
 				// For large payloads, should be compressed
 				if batch.SizeBytes > tc.minBytes && !batch.IsCompressed {
-					t.Logf("Warning: Expected compression for large payload (%d bytes), but Content-Encoding not detected", batch.SizeBytes)
+					t.Logf(
+						"Warning: Expected compression for large payload (%d bytes), but Content-Encoding not detected",
+						batch.SizeBytes,
+					)
 					// Note: Connect might handle compression transparently at HTTP level
 				}
 			}
@@ -338,7 +341,10 @@ func TestCompressionEffectivenessComparison(t *testing.T) {
 
 		// Verify significant compression
 		if result.SavingsPercent < 60.0 {
-			t.Errorf("Expected at least 60%% compression savings, got %.1f%%", result.SavingsPercent)
+			t.Errorf(
+				"Expected at least 60%% compression savings, got %.1f%%",
+				result.SavingsPercent,
+			)
 		}
 	})
 }
@@ -359,7 +365,11 @@ func createLargeKubernetesResource(index int) *corev1.Pod {
 
 	// Add many annotations (realistic for production)
 	for i := 0; i < 15; i++ {
-		annotations[fmt.Sprintf("annotation-%d", i)] = fmt.Sprintf("long-annotation-value-%d-%d-with-lots-of-text", index, i)
+		annotations[fmt.Sprintf("annotation-%d", i)] = fmt.Sprintf(
+			"long-annotation-value-%d-%d-with-lots-of-text",
+			index,
+			i,
+		)
 	}
 	annotations["kubectl.kubernetes.io/last-applied-configuration"] = fmt.Sprintf(`{
 		"apiVersion": "v1",
@@ -412,7 +422,10 @@ func createLargeKubernetesResource(index int) *corev1.Pod {
 						{Name: "ENV_VAR_1", Value: fmt.Sprintf("value-%d-1", index)},
 						{Name: "ENV_VAR_2", Value: fmt.Sprintf("value-%d-2", index)},
 						{Name: "ENV_VAR_3", Value: fmt.Sprintf("value-%d-3", index)},
-						{Name: "LARGE_CONFIG", Value: strings.Repeat(fmt.Sprintf("config-data-%d-", index), 50)},
+						{
+							Name:  "LARGE_CONFIG",
+							Value: strings.Repeat(fmt.Sprintf("config-data-%d-", index), 50),
+						},
 					},
 				},
 				{

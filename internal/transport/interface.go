@@ -16,18 +16,33 @@ type DakrClient interface {
 	// SendResource sends any resource data to Dakr
 	SendResource(ctx context.Context, resource collector.CollectedResource) (string, error)
 	// SendResourceBatch sends a batch of resources of the same type to Dakr
-	SendResourceBatch(ctx context.Context, resources []collector.CollectedResource, resourceType collector.ResourceType) (string, error)
+	SendResourceBatch(
+		ctx context.Context,
+		resources []collector.CollectedResource,
+		resourceType collector.ResourceType,
+	) (string, error)
 	// SendTelemetryMetrics sends telemetry metrics to Dakr
 	SendTelemetryMetrics(ctx context.Context, metrics []*dto.MetricFamily) (int32, error)
 	// SendClusterSnapshotStream sends cluster snapshot data via streaming for large payloads
-	SendClusterSnapshotStream(ctx context.Context, snapshot *gen.ClusterSnapshot, snapshotID string, timestamp time.Time) (string, *gen.ClusterSnapshot, error)
+	SendClusterSnapshotStream(
+		ctx context.Context,
+		snapshot *gen.ClusterSnapshot,
+		snapshotID string,
+		timestamp time.Time,
+	) (string, *gen.ClusterSnapshot, error)
 	// telemetry_logger.TelemetryLogSender sends a batch of log entries to Dakr
 	telemetry_logger.TelemetryLogSender
 	// ExchangePATForClusterToken exchanges a PAT token for a cluster token
-	ExchangePATForClusterToken(ctx context.Context, patToken, clusterName, k8sProvider string) (string, string, error)
+	ExchangePATForClusterToken(
+		ctx context.Context,
+		patToken, clusterName, k8sProvider string,
+	) (string, string, error)
 
 	// SendNetworkTrafficMetrics pushes network traffic metrics from a node
-	SendNetworkTrafficMetrics(ctx context.Context, req *gen.SendNetworkTrafficMetricsRequest) (*gen.SendNetworkTrafficMetricsResponse, error)
+	SendNetworkTrafficMetrics(
+		ctx context.Context,
+		req *gen.SendNetworkTrafficMetricsRequest,
+	) (*gen.SendNetworkTrafficMetricsResponse, error)
 
 	// ReportHealth
 	ReportHealth(ctx context.Context, req *gen.ReportHealthRequest) error
@@ -48,13 +63,22 @@ type Sender interface {
 // DirectSender defines methods for sending data to external systems directly
 type DirectSender interface {
 	// SendBatch transmits a batch of resources of the same type to the target system
-	SendBatch(ctx context.Context, resource []collector.CollectedResource, resourceType collector.ResourceType) (string, error)
+	SendBatch(
+		ctx context.Context,
+		resource []collector.CollectedResource,
+		resourceType collector.ResourceType,
+	) (string, error)
 
 	// Send transmits a resource to the target system
 	Send(ctx context.Context, resource collector.CollectedResource) (string, error)
 
 	// SendClusterSnapshotStream sends large cluster snapshot data using streaming
-	SendClusterSnapshotStream(ctx context.Context, snapshot *gen.ClusterSnapshot, snapshotID string, timestamp time.Time) (string, *gen.ClusterSnapshot, error)
+	SendClusterSnapshotStream(
+		ctx context.Context,
+		snapshot *gen.ClusterSnapshot,
+		snapshotID string,
+		timestamp time.Time,
+	) (string, *gen.ClusterSnapshot, error)
 
 	// telemetry_logger.TelemetryLogSender sends a batch of log entries.
 	telemetry_logger.TelemetryLogSender

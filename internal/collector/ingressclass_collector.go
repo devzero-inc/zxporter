@@ -139,7 +139,10 @@ func (c *IngressClassCollector) Start(ctx context.Context) error {
 }
 
 // handleIngressClassEvent processes IngressClass events
-func (c *IngressClassCollector) handleIngressClassEvent(ingressClass *networkingv1.IngressClass, eventType EventType) {
+func (c *IngressClassCollector) handleIngressClassEvent(
+	ingressClass *networkingv1.IngressClass,
+	eventType EventType,
+) {
 	if c.isExcluded(ingressClass) {
 		return
 	}
@@ -155,7 +158,9 @@ func (c *IngressClassCollector) handleIngressClassEvent(ingressClass *networking
 }
 
 // ingressClassChanged detects meaningful changes in an IngressClass
-func (c *IngressClassCollector) ingressClassChanged(oldIngressClass, newIngressClass *networkingv1.IngressClass) bool {
+func (c *IngressClassCollector) ingressClassChanged(
+	oldIngressClass, newIngressClass *networkingv1.IngressClass,
+) bool {
 	changed := c.cDHelper.objectMetaChanged(
 		c.GetType(),
 		oldIngressClass.Name,

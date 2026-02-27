@@ -99,7 +99,10 @@ func (c *ReplicationControllerCollector) Start(ctx context.Context) error {
 	}
 
 	// Create replicationcontroller informer
-	c.replicationControllerInformer = c.informerFactory.Core().V1().ReplicationControllers().Informer()
+	c.replicationControllerInformer = c.informerFactory.Core().
+		V1().
+		ReplicationControllers().
+		Informer()
 
 	// Add event handlers
 	_, err := c.replicationControllerInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -154,7 +157,10 @@ func (c *ReplicationControllerCollector) Start(ctx context.Context) error {
 }
 
 // handleReplicationControllerEvent processes replicationcontroller events
-func (c *ReplicationControllerCollector) handleReplicationControllerEvent(rc *corev1.ReplicationController, eventType EventType) {
+func (c *ReplicationControllerCollector) handleReplicationControllerEvent(
+	rc *corev1.ReplicationController,
+	eventType EventType,
+) {
 	if c.isExcluded(rc) {
 		return
 	}
@@ -170,7 +176,9 @@ func (c *ReplicationControllerCollector) handleReplicationControllerEvent(rc *co
 }
 
 // replicationControllerChanged detects meaningful changes in a replicationcontroller
-func (c *ReplicationControllerCollector) replicationControllerChanged(oldRC, newRC *corev1.ReplicationController) bool {
+func (c *ReplicationControllerCollector) replicationControllerChanged(
+	oldRC, newRC *corev1.ReplicationController,
+) bool {
 	changed := c.cDHelper.objectMetaChanged(
 		c.GetType(),
 		oldRC.Name,

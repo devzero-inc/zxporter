@@ -9,7 +9,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func (c *ClusterSnapshotter) captureNamespaces(ctx context.Context, snapshot *ClusterSnapshot) error {
+func (c *ClusterSnapshotter) captureNamespaces(
+	ctx context.Context,
+	snapshot *ClusterSnapshot,
+) error {
 	targetNamespaces := c.getTargetNamespaces(ctx)
 
 	for _, nsName := range targetNamespaces {
@@ -62,7 +65,11 @@ func (c *ClusterSnapshotter) captureNamespaces(ctx context.Context, snapshot *Cl
 	return nil
 }
 
-func (c *ClusterSnapshotter) captureNamespaceResources(ctx context.Context, namespace string, nsData *Namespace) error {
+func (c *ClusterSnapshotter) captureNamespaceResources(
+	ctx context.Context,
+	namespace string,
+	nsData *Namespace,
+) error {
 	// Capture unscheduled pods only (scheduled pods are captured with nodes)
 	pods, err := c.client.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
@@ -121,7 +128,11 @@ func (c *ClusterSnapshotter) captureNamespaceResources(ctx context.Context, name
 	return nil
 }
 
-func (c *ClusterSnapshotter) captureOtherResources(ctx context.Context, namespace string, nsData *Namespace) {
+func (c *ClusterSnapshotter) captureOtherResources(
+	ctx context.Context,
+	namespace string,
+	nsData *Namespace,
+) {
 	if services, err := c.client.CoreV1().Services(namespace).List(ctx, metav1.ListOptions{}); err == nil {
 		for _, svc := range services.Items {
 			uid := string(svc.UID)

@@ -41,11 +41,25 @@ func TestFindWorkloadForPod(t *testing.T) {
 	})
 
 	t.Run("pod owned by replicaset owned by deployment", func(t *testing.T) {
-		pod := newUnstructuredObj("v1", "Pod", "my-deploy-abc-xyz", "default", nil,
-			[]metav1.OwnerReference{{Kind: KindReplicaSet, Name: "my-deploy-abc", Controller: &isController}},
+		pod := newUnstructuredObj(
+			"v1",
+			"Pod",
+			"my-deploy-abc-xyz",
+			"default",
+			nil,
+			[]metav1.OwnerReference{
+				{Kind: KindReplicaSet, Name: "my-deploy-abc", Controller: &isController},
+			},
 		)
-		rs := newUnstructuredObj("apps/v1", "ReplicaSet", "my-deploy-abc", "default", nil,
-			[]metav1.OwnerReference{{Kind: KindDeployment, Name: "my-deploy", Controller: &isController}},
+		rs := newUnstructuredObj(
+			"apps/v1",
+			"ReplicaSet",
+			"my-deploy-abc",
+			"default",
+			nil,
+			[]metav1.OwnerReference{
+				{Kind: KindDeployment, Name: "my-deploy", Controller: &isController},
+			},
 		)
 		r := newTestResolver(t, nil, pod, rs)
 
@@ -56,8 +70,15 @@ func TestFindWorkloadForPod(t *testing.T) {
 	})
 
 	t.Run("pod owned by replicaset with no deployment", func(t *testing.T) {
-		pod := newUnstructuredObj("v1", "Pod", "my-rs-xyz", "default", nil,
-			[]metav1.OwnerReference{{Kind: KindReplicaSet, Name: "my-rs", Controller: &isController}},
+		pod := newUnstructuredObj(
+			"v1",
+			"Pod",
+			"my-rs-xyz",
+			"default",
+			nil,
+			[]metav1.OwnerReference{
+				{Kind: KindReplicaSet, Name: "my-rs", Controller: &isController},
+			},
 		)
 		rs := newUnstructuredObj("apps/v1", "ReplicaSet", "my-rs", "default", nil, nil)
 		r := newTestResolver(t, nil, pod, rs)
@@ -69,11 +90,25 @@ func TestFindWorkloadForPod(t *testing.T) {
 	})
 
 	t.Run("pod owned by replicaset owned by rollout", func(t *testing.T) {
-		pod := newUnstructuredObj("v1", "Pod", "my-rollout-abc-xyz", "default", nil,
-			[]metav1.OwnerReference{{Kind: KindReplicaSet, Name: "my-rollout-abc", Controller: &isController}},
+		pod := newUnstructuredObj(
+			"v1",
+			"Pod",
+			"my-rollout-abc-xyz",
+			"default",
+			nil,
+			[]metav1.OwnerReference{
+				{Kind: KindReplicaSet, Name: "my-rollout-abc", Controller: &isController},
+			},
 		)
-		rs := newUnstructuredObj("apps/v1", "ReplicaSet", "my-rollout-abc", "default", nil,
-			[]metav1.OwnerReference{{Kind: KindRollout, Name: "my-rollout", Controller: &isController}},
+		rs := newUnstructuredObj(
+			"apps/v1",
+			"ReplicaSet",
+			"my-rollout-abc",
+			"default",
+			nil,
+			[]metav1.OwnerReference{
+				{Kind: KindRollout, Name: "my-rollout", Controller: &isController},
+			},
 		)
 		r := newTestResolver(t, nil, pod, rs)
 
@@ -84,8 +119,15 @@ func TestFindWorkloadForPod(t *testing.T) {
 	})
 
 	t.Run("pod owned by statefulset", func(t *testing.T) {
-		pod := newUnstructuredObj("v1", "Pod", "my-sts-0", "default", nil,
-			[]metav1.OwnerReference{{Kind: KindStatefulSet, Name: "my-sts", Controller: &isController}},
+		pod := newUnstructuredObj(
+			"v1",
+			"Pod",
+			"my-sts-0",
+			"default",
+			nil,
+			[]metav1.OwnerReference{
+				{Kind: KindStatefulSet, Name: "my-sts", Controller: &isController},
+			},
 		)
 		r := newTestResolver(t, nil, pod)
 
@@ -96,8 +138,15 @@ func TestFindWorkloadForPod(t *testing.T) {
 	})
 
 	t.Run("pod owned by daemonset", func(t *testing.T) {
-		pod := newUnstructuredObj("v1", "Pod", "my-ds-abc", "default", nil,
-			[]metav1.OwnerReference{{Kind: KindDaemonSet, Name: "my-ds", Controller: &isController}},
+		pod := newUnstructuredObj(
+			"v1",
+			"Pod",
+			"my-ds-abc",
+			"default",
+			nil,
+			[]metav1.OwnerReference{
+				{Kind: KindDaemonSet, Name: "my-ds", Controller: &isController},
+			},
 		)
 		r := newTestResolver(t, nil, pod)
 
@@ -108,11 +157,25 @@ func TestFindWorkloadForPod(t *testing.T) {
 	})
 
 	t.Run("pod owned by job owned by cronjob", func(t *testing.T) {
-		pod := newUnstructuredObj("v1", "Pod", "my-cron-job-abc-xyz", "default", nil,
-			[]metav1.OwnerReference{{Kind: KindJob, Name: "my-cron-job-abc", Controller: &isController}},
+		pod := newUnstructuredObj(
+			"v1",
+			"Pod",
+			"my-cron-job-abc-xyz",
+			"default",
+			nil,
+			[]metav1.OwnerReference{
+				{Kind: KindJob, Name: "my-cron-job-abc", Controller: &isController},
+			},
 		)
-		job := newUnstructuredObj("batch/v1", "Job", "my-cron-job-abc", "default", nil,
-			[]metav1.OwnerReference{{Kind: KindCronJob, Name: "my-cron", Controller: &isController}},
+		job := newUnstructuredObj(
+			"batch/v1",
+			"Job",
+			"my-cron-job-abc",
+			"default",
+			nil,
+			[]metav1.OwnerReference{
+				{Kind: KindCronJob, Name: "my-cron", Controller: &isController},
+			},
 		)
 		r := newTestResolver(t, nil, pod, job)
 
@@ -136,12 +199,25 @@ func TestFindWorkloadForPod(t *testing.T) {
 	})
 
 	t.Run("label-based resolution uses label name and owner kind", func(t *testing.T) {
-		pod := newUnstructuredObj("v1", "Pod", "my-deploy-abc-xyz", "default",
+		pod := newUnstructuredObj(
+			"v1",
+			"Pod",
+			"my-deploy-abc-xyz",
+			"default",
 			map[string]string{"app.kubernetes.io/name": "my-app"},
-			[]metav1.OwnerReference{{Kind: KindReplicaSet, Name: "my-deploy-abc", Controller: &isController}},
+			[]metav1.OwnerReference{
+				{Kind: KindReplicaSet, Name: "my-deploy-abc", Controller: &isController},
+			},
 		)
-		rs := newUnstructuredObj("apps/v1", "ReplicaSet", "my-deploy-abc", "default", nil,
-			[]metav1.OwnerReference{{Kind: KindDeployment, Name: "my-deploy", Controller: &isController}},
+		rs := newUnstructuredObj(
+			"apps/v1",
+			"ReplicaSet",
+			"my-deploy-abc",
+			"default",
+			nil,
+			[]metav1.OwnerReference{
+				{Kind: KindDeployment, Name: "my-deploy", Controller: &isController},
+			},
 		)
 		r := newTestResolver(t, []string{"app.kubernetes.io/name"}, pod, rs)
 
@@ -185,8 +261,15 @@ func TestFindWorkloadForPod(t *testing.T) {
 	})
 
 	t.Run("replicaset fetch error falls back to pod", func(t *testing.T) {
-		pod := newUnstructuredObj("v1", "Pod", "orphan-pod", "default", nil,
-			[]metav1.OwnerReference{{Kind: KindReplicaSet, Name: "deleted-rs", Controller: &isController}},
+		pod := newUnstructuredObj(
+			"v1",
+			"Pod",
+			"orphan-pod",
+			"default",
+			nil,
+			[]metav1.OwnerReference{
+				{Kind: KindReplicaSet, Name: "deleted-rs", Controller: &isController},
+			},
 		)
 		// ReplicaSet not in fake client — will cause fetch error
 		r := newTestResolver(t, nil, pod)
@@ -198,7 +281,11 @@ func TestFindWorkloadForPod(t *testing.T) {
 	})
 }
 
-func newTestResolver(t *testing.T, labelKeys []string, objects ...*unstructured.Unstructured) WorkloadResolver {
+func newTestResolver(
+	t *testing.T,
+	labelKeys []string,
+	objects ...*unstructured.Unstructured,
+) WorkloadResolver {
 	t.Helper()
 
 	zapLog, _ := zap.NewDevelopment()
@@ -210,7 +297,10 @@ func newTestResolver(t *testing.T, labelKeys []string, objects ...*unstructured.
 		runtimeObjects = append(runtimeObjects, obj)
 	}
 
-	dynClient := fakedynamic.NewSimpleDynamicClientWithCustomListKinds(scheme, testGVRs, runtimeObjects...)
+	dynClient := fakedynamic.NewSimpleDynamicClientWithCustomListKinds(
+		scheme,
+		testGVRs,
+		runtimeObjects...)
 
 	return NewWorkloadResolver(dynClient, WorkloadResolverConfig{
 		LabelKeys: labelKeys,
@@ -218,7 +308,11 @@ func newTestResolver(t *testing.T, labelKeys []string, objects ...*unstructured.
 	}, log)
 }
 
-func newUnstructuredObj(apiVersion, kind, name, namespace string, labels map[string]string, ownerRefs []metav1.OwnerReference) *unstructured.Unstructured {
+func newUnstructuredObj(
+	apiVersion, kind, name, namespace string,
+	labels map[string]string,
+	ownerRefs []metav1.OwnerReference,
+) *unstructured.Unstructured {
 	obj := &unstructured.Unstructured{
 		Object: map[string]any{
 			"apiVersion": apiVersion,
