@@ -196,6 +196,55 @@ data:
         regex: 'node_network_(receive|transmit)_(bytes|packets|errs|drop)_total|node_disk_(read_bytes|written_bytes|reads_completed|writes_completed)_total|kubelet_volume_stats_(used|capacity|available)_bytes'
         source_labels:
         - __name__
+    - honor_labels: true
+      job_name: kubernetes-pods-cnpg
+      kubernetes_sd_configs:
+      - role: pod
+      relabel_configs:
+      - action: keep
+        regex: .+
+        source_labels:
+        - __meta_kubernetes_pod_label_cnpg_io_cluster
+      - action: drop
+        regex: Pending|Succeeded|Failed|Completed
+        source_labels:
+        - __meta_kubernetes_pod_phase
+      - action: replace
+        regex: (.+)
+        source_labels:
+        - __meta_kubernetes_pod_annotation_prometheus_io_path
+        target_label: __metrics_path__
+      - action: replace
+        regex: (\d+);(([A-Fa-f0-9]{1,4}::?){1,7}[A-Fa-f0-9]{1,4})
+        replacement: '[$2]:$1'
+        source_labels:
+        - __meta_kubernetes_pod_annotation_prometheus_io_port
+        - __meta_kubernetes_pod_ip
+        target_label: __address__
+      - action: replace
+        regex: (\d+);((([0-9]+?)(\.|$)){4})
+        replacement: $2:$1
+        source_labels:
+        - __meta_kubernetes_pod_annotation_prometheus_io_port
+        - __meta_kubernetes_pod_ip
+        target_label: __address__
+      - action: replace
+        source_labels:
+        - __meta_kubernetes_pod_label_cnpg_io_cluster
+        target_label: cluster
+      - action: replace
+        source_labels:
+        - __meta_kubernetes_namespace
+        target_label: namespace
+      - action: replace
+        source_labels:
+        - __meta_kubernetes_pod_name
+        target_label: pod
+      metric_relabel_configs:
+      - action: keep
+        regex: 'cnpg_.*'
+        source_labels:
+        - __name__
   recording_rules.yml: |
     {}
   rules: |
