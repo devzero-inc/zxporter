@@ -1553,6 +1553,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 			replacedCollector = snap.NewClusterSnapshotter(
 				r.K8sClient,
 				r.KEDAClient,
+				r.DynamicClient,
 				newConfig.ClusterSnapshotInterval,
 				r.Sender,
 				r.CollectionManager,
@@ -2810,6 +2811,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 			collector: snap.NewClusterSnapshotter(
 				r.K8sClient,
 				r.KEDAClient,
+				r.DynamicClient,
 				config.ClusterSnapshotInterval,
 				r.Sender,
 				r.CollectionManager,
@@ -3615,6 +3617,7 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 				replacedCollector = snap.NewClusterSnapshotter(
 					r.K8sClient,
 					r.KEDAClient,
+					r.DynamicClient,
 					newConfig.ClusterSnapshotInterval,
 					r.Sender,
 					r.CollectionManager,

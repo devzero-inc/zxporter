@@ -326,8 +326,7 @@ func (r ResourceType) ProtoType() gen.ResourceType {
 	case WorkloadRule:
 		return gen.ResourceType_RESOURCE_TYPE_WORKLOAD_RULE
 	case CNPGCluster:
-		// TODO: add RESOURCE_TYPE_CNPG_CLUSTER to the dakr proto
-		return gen.ResourceType_RESOURCE_TYPE_UNSPECIFIED
+		return gen.ResourceType_RESOURCE_TYPE_CNPG_CLUSTER
 	default:
 		return gen.ResourceType_RESOURCE_TYPE_UNSPECIFIED
 	}
