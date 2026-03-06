@@ -1652,17 +1652,12 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 			)
 		case "cnpg_cluster":
 			replacedCollector = collector.NewCNPGCollector(
-				collector.CNPGCollectorConfig{
-					PrometheusURL:  newConfig.PrometheusURL,
-					UpdateInterval: newConfig.UpdateInterval,
-					QueryTimeout:   10 * time.Second,
-				},
+				r.DynamicClient,
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedCNPGClusters,
 				collector.DefaultMaxBatchSize,
 				newConfig.UpdateInterval,
 				logger,
-				r.TelemetryMetrics,
 				r.TelemetryLogger,
 			)
 		default:
@@ -2994,17 +2989,12 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 		},
 		{
 			collector: collector.NewCNPGCollector(
-				collector.CNPGCollectorConfig{
-					PrometheusURL:  config.PrometheusURL,
-					UpdateInterval: config.UpdateInterval,
-					QueryTimeout:   10 * time.Second,
-				},
+				r.DynamicClient,
 				config.TargetNamespaces,
 				config.ExcludedCNPGClusters,
 				collector.DefaultMaxBatchSize,
 				config.UpdateInterval,
 				logger,
-				r.TelemetryMetrics,
 				r.TelemetryLogger,
 			),
 			name: collector.CNPGCluster,
@@ -3696,17 +3686,12 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 				)
 			case "cnpg_cluster":
 				replacedCollector = collector.NewCNPGCollector(
-					collector.CNPGCollectorConfig{
-						PrometheusURL:  newConfig.PrometheusURL,
-						UpdateInterval: newConfig.UpdateInterval,
-						QueryTimeout:   10 * time.Second,
-					},
+					r.DynamicClient,
 					newConfig.TargetNamespaces,
 					newConfig.ExcludedCNPGClusters,
 					collector.DefaultMaxBatchSize,
 					newConfig.UpdateInterval,
 					logger,
-					r.TelemetryMetrics,
 					r.TelemetryLogger,
 				)
 			default:
