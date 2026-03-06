@@ -140,6 +140,7 @@ type PolicyConfig struct {
 	ExcludedVolcanoJobs                []collector.ExcludedVolcanoJob
 	ExcludedSparkApplications          []collector.ExcludedSparkApplication
 	ExcludedScheduledSparkApplications []collector.ExcludedScheduledSparkApplication
+	ExcludedCNPGClusters               []collector.ExcludedCNPGCluster
 
 	DisabledCollectors []string
 
@@ -685,6 +686,14 @@ func (r *CollectionPolicyReconciler) createNewConfig(envSpec *monitoringv1.Colle
 		})
 	}
 
+	// CloudNativePG Clusters
+	for _, cluster := range envSpec.Exclusions.ExcludedCNPGClusters {
+		newConfig.ExcludedCNPGClusters = append(newConfig.ExcludedCNPGClusters, collector.ExcludedCNPGCluster{
+			Namespace: cluster.Namespace,
+			Name:      cluster.Name,
+		})
+	}
+
 	// Events - these are special with more fields
 	for _, event := range envSpec.Exclusions.ExcludedEvents {
 		newConfig.ExcludedEvents = append(newConfig.ExcludedEvents, collector.ExcludedEvent{
@@ -886,6 +895,10 @@ func (r *CollectionPolicyReconciler) identifyAffectedCollectors(oldConfig, newCo
 
 	if !reflect.DeepEqual(oldConfig.ExcludedScheduledSparkApplications, newConfig.ExcludedScheduledSparkApplications) {
 		affectedCollectors["scheduled_spark_application"] = true
+	}
+
+	if !reflect.DeepEqual(oldConfig.ExcludedCNPGClusters, newConfig.ExcludedCNPGClusters) {
+		affectedCollectors["cnpg_cluster"] = true
 	}
 
 	// Check if the special node collectors are affected by the update interval change
@@ -1634,6 +1647,21 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
 				logger,
+				r.TelemetryLogger,
+			)
+		case "cnpg_cluster":
+			replacedCollector = collector.NewCNPGCollector(
+				collector.CNPGCollectorConfig{
+					PrometheusURL:  newConfig.PrometheusURL,
+					UpdateInterval: newConfig.UpdateInterval,
+					QueryTimeout:   10 * time.Second,
+				},
+				newConfig.TargetNamespaces,
+				newConfig.ExcludedCNPGClusters,
+				collector.DefaultMaxBatchSize,
+				newConfig.UpdateInterval,
+				logger,
+				r.TelemetryMetrics,
 				r.TelemetryLogger,
 			)
 		default:
@@ -2962,6 +2990,23 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				)
 			},
 		},
+		{
+			collector: collector.NewCNPGCollector(
+				collector.CNPGCollectorConfig{
+					PrometheusURL:  config.PrometheusURL,
+					UpdateInterval: config.UpdateInterval,
+					QueryTimeout:   10 * time.Second,
+				},
+				config.TargetNamespaces,
+				config.ExcludedCNPGClusters,
+				collector.DefaultMaxBatchSize,
+				config.UpdateInterval,
+				logger,
+				r.TelemetryMetrics,
+				r.TelemetryLogger,
+			),
+			name: collector.CNPGCluster,
+		},
 	}
 
 	// Register all collectors
@@ -3644,6 +3689,21 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					collector.DefaultMaxBatchSize,
 					collector.DefaultMaxBatchTime,
 					logger,
+					r.TelemetryLogger,
+				)
+			case "cnpg_cluster":
+				replacedCollector = collector.NewCNPGCollector(
+					collector.CNPGCollectorConfig{
+						PrometheusURL:  newConfig.PrometheusURL,
+						UpdateInterval: newConfig.UpdateInterval,
+						QueryTimeout:   10 * time.Second,
+					},
+					newConfig.TargetNamespaces,
+					newConfig.ExcludedCNPGClusters,
+					collector.DefaultMaxBatchSize,
+					newConfig.UpdateInterval,
+					logger,
+					r.TelemetryMetrics,
 					r.TelemetryLogger,
 				)
 			default:
