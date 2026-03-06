@@ -393,14 +393,6 @@ rules:
   - list
   - watch
 - apiGroups:
-  - postgresql.cnpg.io
-  resources:
-  - clusters
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
   - metrics.k8s.io
   resources:
   - nodes
@@ -423,6 +415,14 @@ rules:
   - policy
   resources:
   - poddisruptionbudgets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - postgresql.cnpg.io
+  resources:
+  - clusters
   verbs:
   - get
   - list

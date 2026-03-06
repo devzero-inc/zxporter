@@ -270,6 +270,7 @@ type PolicyConfig struct {
 //+kubebuilder:rbac:groups=keda.sh,resources=scaledobjects;scaledjobs;triggerauthentications;clustertriggerauthentications,verbs=get;list;watch
 //+kubebuilder:rbac:groups=kubeflow.org,resources=notebooks,verbs=get;list;watch
 //+kubebuilder:rbac:groups=batch.volcano.sh,resources=jobs,verbs=get;list;watch
+//+kubebuilder:rbac:groups=postgresql.cnpg.io,resources=clusters,verbs=get;list;watch
 // +kubebuilder:rbac:groups=sparkoperator.k8s.io,resources=sparkapplications;scheduledsparkapplications,verbs=get;list;watch
 
 // WorkloadRecommendation CRD for syncing in-cluster recommendations back to control plane
