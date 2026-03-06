@@ -21,6 +21,7 @@ const _ = grpc.SupportPackageIsVersion7
 const (
 	OperatorHealthService_ReportHealth_FullMethodName             = "/api.v1.OperatorHealthService/ReportHealth"
 	OperatorHealthService_GetClusterOperatorHealth_FullMethodName = "/api.v1.OperatorHealthService/GetClusterOperatorHealth"
+	OperatorHealthService_WatchClusterLifecycle_FullMethodName    = "/api.v1.OperatorHealthService/WatchClusterLifecycle"
 )
 
 // OperatorHealthServiceClient is the client API for OperatorHealthService service.
@@ -29,6 +30,7 @@ const (
 type OperatorHealthServiceClient interface {
 	ReportHealth(ctx context.Context, in *ReportHealthRequest, opts ...grpc.CallOption) (*ReportHealthResponse, error)
 	GetClusterOperatorHealth(ctx context.Context, in *GetClusterOperatorHealthRequest, opts ...grpc.CallOption) (*GetClusterOperatorHealthResponse, error)
+	WatchClusterLifecycle(ctx context.Context, in *WatchClusterLifecycleRequest, opts ...grpc.CallOption) (OperatorHealthService_WatchClusterLifecycleClient, error)
 }
 
 type operatorHealthServiceClient struct {
@@ -57,12 +59,45 @@ func (c *operatorHealthServiceClient) GetClusterOperatorHealth(ctx context.Conte
 	return out, nil
 }
 
+func (c *operatorHealthServiceClient) WatchClusterLifecycle(ctx context.Context, in *WatchClusterLifecycleRequest, opts ...grpc.CallOption) (OperatorHealthService_WatchClusterLifecycleClient, error) {
+	stream, err := c.cc.NewStream(ctx, &OperatorHealthService_ServiceDesc.Streams[0], OperatorHealthService_WatchClusterLifecycle_FullMethodName, opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &operatorHealthServiceWatchClusterLifecycleClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type OperatorHealthService_WatchClusterLifecycleClient interface {
+	Recv() (*WatchClusterLifecycleResponse, error)
+	grpc.ClientStream
+}
+
+type operatorHealthServiceWatchClusterLifecycleClient struct {
+	grpc.ClientStream
+}
+
+func (x *operatorHealthServiceWatchClusterLifecycleClient) Recv() (*WatchClusterLifecycleResponse, error) {
+	m := new(WatchClusterLifecycleResponse)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // OperatorHealthServiceServer is the server API for OperatorHealthService service.
 // All implementations must embed UnimplementedOperatorHealthServiceServer
 // for forward compatibility
 type OperatorHealthServiceServer interface {
 	ReportHealth(context.Context, *ReportHealthRequest) (*ReportHealthResponse, error)
 	GetClusterOperatorHealth(context.Context, *GetClusterOperatorHealthRequest) (*GetClusterOperatorHealthResponse, error)
+	WatchClusterLifecycle(*WatchClusterLifecycleRequest, OperatorHealthService_WatchClusterLifecycleServer) error
 	mustEmbedUnimplementedOperatorHealthServiceServer()
 }
 
@@ -75,6 +110,9 @@ func (UnimplementedOperatorHealthServiceServer) ReportHealth(context.Context, *R
 }
 func (UnimplementedOperatorHealthServiceServer) GetClusterOperatorHealth(context.Context, *GetClusterOperatorHealthRequest) (*GetClusterOperatorHealthResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetClusterOperatorHealth not implemented")
+}
+func (UnimplementedOperatorHealthServiceServer) WatchClusterLifecycle(*WatchClusterLifecycleRequest, OperatorHealthService_WatchClusterLifecycleServer) error {
+	return status.Errorf(codes.Unimplemented, "method WatchClusterLifecycle not implemented")
 }
 func (UnimplementedOperatorHealthServiceServer) mustEmbedUnimplementedOperatorHealthServiceServer() {}
 
@@ -125,6 +163,27 @@ func _OperatorHealthService_GetClusterOperatorHealth_Handler(srv interface{}, ct
 	return interceptor(ctx, in, info, handler)
 }
 
+func _OperatorHealthService_WatchClusterLifecycle_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(WatchClusterLifecycleRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(OperatorHealthServiceServer).WatchClusterLifecycle(m, &operatorHealthServiceWatchClusterLifecycleServer{stream})
+}
+
+type OperatorHealthService_WatchClusterLifecycleServer interface {
+	Send(*WatchClusterLifecycleResponse) error
+	grpc.ServerStream
+}
+
+type operatorHealthServiceWatchClusterLifecycleServer struct {
+	grpc.ServerStream
+}
+
+func (x *operatorHealthServiceWatchClusterLifecycleServer) Send(m *WatchClusterLifecycleResponse) error {
+	return x.ServerStream.SendMsg(m)
+}
+
 // OperatorHealthService_ServiceDesc is the grpc.ServiceDesc for OperatorHealthService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -141,6 +200,12 @@ var OperatorHealthService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _OperatorHealthService_GetClusterOperatorHealth_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "WatchClusterLifecycle",
+			Handler:       _OperatorHealthService_WatchClusterLifecycle_Handler,
+			ServerStreams: true,
+		},
+	},
 	Metadata: "api/v1/operator_health.proto",
 }
