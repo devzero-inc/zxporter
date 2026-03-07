@@ -482,16 +482,16 @@ func (c *PodCollector) emitContainerOOMEvent(pod *corev1.Pod, status corev1.Cont
 		ResourceType: ContainerOOMEvent,
 		Object: map[string]interface{}{
 			"namespace":            pod.Namespace,
-			"workload_name":       workloadName,
-			"workload_kind":       workloadKind,
-			"pod_name":            pod.Name,
-			"container_name":      status.Name,
-			"memory_usage_bytes":  usageBytes,
+			"workload_name":        workloadName,
+			"workload_kind":        workloadKind,
+			"pod_name":             pod.Name,
+			"container_name":       status.Name,
+			"memory_usage_bytes":   usageBytes,
 			"memory_request_bytes": requestBytes,
-			"memory_limit_bytes":  limitBytes,
-			"restart_count":       status.RestartCount,
-			"exit_code":           exitCode,
-			"timestamp":           time.Now().Format(time.RFC3339Nano),
+			"memory_limit_bytes":   limitBytes,
+			"restart_count":        status.RestartCount,
+			"exit_code":            exitCode,
+			"timestamp":            time.Now().Format(time.RFC3339Nano),
 		},
 		Timestamp: time.Now(),
 		EventType: EventTypeAdd,
@@ -522,7 +522,7 @@ func (c *PodCollector) emitContainerCrashLoopEvent(pod *corev1.Pod, status corev
 	c.batchChan <- CollectedResource{
 		ResourceType: ContainerCrashLoopEvent,
 		Object: map[string]interface{}{
-			"namespace":                pod.Namespace,
+			"namespace":               pod.Namespace,
 			"workload_name":           workloadName,
 			"workload_kind":           workloadKind,
 			"pod_name":                pod.Name,
@@ -540,7 +540,7 @@ func (c *PodCollector) emitContainerCrashLoopEvent(pod *corev1.Pod, status corev
 }
 
 // trackStartupLifecycle tracks container startup phase transitions and emits lifecycle events.
-func (c *PodCollector) trackStartupLifecycle(oldPod, newPod *corev1.Pod) {
+func (c *PodCollector) trackStartupLifecycle(_, newPod *corev1.Pod) {
 	now := time.Now()
 
 	// Periodically clean up stale entries
