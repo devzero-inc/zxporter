@@ -524,6 +524,7 @@ serverFiles:
             regex: "node_network_(receive|transmit)_(bytes|packets|errs|drop)_total|node_disk_(read_bytes|written_bytes|reads_completed|writes_completed)_total|kubelet_volume_stats_(used|capacity|available)_bytes"
             source_labels:
               - __name__
+
 ## DEVZERO COMMENTED OUT TO PREVENT SCRAPING
 #      # Example Scrape config for pods which should be scraped slower. An useful example
 #      # would be stackriver-exporter which queries an API on every scrape of the pod

@@ -1236,6 +1236,14 @@ rules:
       - list
       - watch
   - apiGroups:
+      - postgresql.cnpg.io
+    resources:
+      - clusters
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
       - rbac.authorization.k8s.io
     resources:
       - clusterrolebindings

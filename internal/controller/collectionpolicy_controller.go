@@ -140,6 +140,7 @@ type PolicyConfig struct {
 	ExcludedVolcanoJobs                []collector.ExcludedVolcanoJob
 	ExcludedSparkApplications          []collector.ExcludedSparkApplication
 	ExcludedScheduledSparkApplications []collector.ExcludedScheduledSparkApplication
+	ExcludedCNPGClusters               []collector.ExcludedCNPGCluster
 
 	DisabledCollectors []string
 
@@ -160,9 +161,9 @@ type PolicyConfig struct {
 // ========================================
 // COLLECTION POLICY CRD MANAGEMENT
 // ========================================
-//+kubebuilder:rbac:groups=devzero.io,resources=collectionpolicies,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=devzero.io,resources=collectionpolicies/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=devzero.io,resources=collectionpolicies/finalizers,verbs=update
+// +kubebuilder:rbac:groups=devzero.io,resources=collectionpolicies,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=devzero.io,resources=collectionpolicies/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=devzero.io,resources=collectionpolicies/finalizers,verbs=update
 
 // ========================================
 // BOOTSTRAP PERMISSIONS (entrypoint.sh)
@@ -171,81 +172,81 @@ type PolicyConfig struct {
 // via kubectl apply in entrypoint.sh when metrics-server is not detected
 
 // ServiceAccount creation for metrics-server
-//+kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;create;update;patch
+// +kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;create;update;patch
 
 // RBAC setup for metrics-server (ClusterRoles, ClusterRoleBindings, RoleBindings)
-//+kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=clusterroles,verbs=get;list;watch;create;update;patch
-//+kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=clusterrolebindings,verbs=get;list;watch;create;update;patch
-//+kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=rolebindings,verbs=get;list;watch;create;update;patch
+// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=clusterroles,verbs=get;list;watch;create;update;patch
+// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=clusterrolebindings,verbs=get;list;watch;create;update;patch
+// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=rolebindings,verbs=get;list;watch;create;update;patch
 
 // Service and Deployment creation for metrics-server
-//+kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch
-//+kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch
+// +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch
+// +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch
 
 // APIService registration for metrics-server API
-//+kubebuilder:rbac:groups=apiregistration.k8s.io,resources=apiservices,verbs=get;list;watch;create;update;patch
+// +kubebuilder:rbac:groups=apiregistration.k8s.io,resources=apiservices,verbs=get;list;watch;create;update;patch
 
 // ========================================
 // RUNTIME PERMISSIONS
 // ========================================
 // ConfigMap access for cluster token persistence (ONLY write permission in runtime)
-//+kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;update
+// +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;update
 
 // Secret access for cluster token persistence when useSecretForToken is enabled
-//+kubebuilder:rbac:groups="",resources=secrets,resourceNames=devzero-zxporter-token,verbs=get;update;patch
-//+kubebuilder:rbac:groups="",resources=secrets,verbs=create
+// +kubebuilder:rbac:groups="",resources=secrets,resourceNames=devzero-zxporter-token,verbs=get;update;patch
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=create
 
 // Metrics access
-//+kubebuilder:rbac:groups="",resources=nodes/metrics,verbs=get
+// +kubebuilder:rbac:groups="",resources=nodes/metrics,verbs=get
 
 // Core Kubernetes resources (READ-ONLY monitoring and collection)
-//+kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch
-//+kubebuilder:rbac:groups="",resources=pods/status,verbs=get
-//+kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch
-//+kubebuilder:rbac:groups="",resources=nodes/status,verbs=get
-//+kubebuilder:rbac:groups="",resources=namespaces,verbs=get;list;watch
-//+kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch
-//+kubebuilder:rbac:groups="",resources=events,verbs=get;list;watch
-//+kubebuilder:rbac:groups="",resources=limitranges,verbs=get;list;watch
-//+kubebuilder:rbac:groups="",resources=resourcequotas,verbs=get;list;watch
-//+kubebuilder:rbac:groups="",resources=replicationcontrollers,verbs=get;list;watch
-//+kubebuilder:rbac:groups="",resources=persistentvolumes,verbs=get;list;watch
-//+kubebuilder:rbac:groups="",resources=endpoints,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=pods/status,verbs=get
+// +kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=nodes/status,verbs=get
+// +kubebuilder:rbac:groups="",resources=namespaces,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=events,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=limitranges,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=resourcequotas,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=replicationcontrollers,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=persistentvolumes,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=endpoints,verbs=get;list;watch
 
 // Apps API Group resources (READ-ONLY monitoring - note: deployments also needs write for metrics-server bootstrap)
-//+kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch
-//+kubebuilder:rbac:groups=apps,resources=daemonsets,verbs=get;list;watch
-//+kubebuilder:rbac:groups=apps,resources=replicasets,verbs=get;list;watch
+// +kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch
+// +kubebuilder:rbac:groups=apps,resources=daemonsets,verbs=get;list;watch
+// +kubebuilder:rbac:groups=apps,resources=replicasets,verbs=get;list;watch
 
 // Batch API Group resources
-//+kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch
-//+kubebuilder:rbac:groups=batch,resources=cronjobs,verbs=get;list;watch
+// +kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch
+// +kubebuilder:rbac:groups=batch,resources=cronjobs,verbs=get;list;watch
 
 // Metrics API Group resources
-//+kubebuilder:rbac:groups=metrics.k8s.io,resources=pods,verbs=get;list;watch
-//+kubebuilder:rbac:groups=metrics.k8s.io,resources=nodes,verbs=get;list;watch
+// +kubebuilder:rbac:groups=metrics.k8s.io,resources=pods,verbs=get;list;watch
+// +kubebuilder:rbac:groups=metrics.k8s.io,resources=nodes,verbs=get;list;watch
 
 // Networking API Group resources
-//+kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses,verbs=get;list;watch
-//+kubebuilder:rbac:groups=networking.k8s.io,resources=networkpolicies,verbs=get;list;watch
-//+kubebuilder:rbac:groups=networking.k8s.io,resources=ingressclasses,verbs=get;list;watch
+// +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses,verbs=get;list;watch
+// +kubebuilder:rbac:groups=networking.k8s.io,resources=networkpolicies,verbs=get;list;watch
+// +kubebuilder:rbac:groups=networking.k8s.io,resources=ingressclasses,verbs=get;list;watch
 
 // RBAC resources (READ-ONLY monitoring - note: write permissions declared above for bootstrap)
-//+kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=roles,verbs=get;list;watch
+// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=roles,verbs=get;list;watch
 
 // Autoscaling API Group resources
-//+kubebuilder:rbac:groups=autoscaling,resources=horizontalpodautoscalers,verbs=get;list;watch
-//+kubebuilder:rbac:groups=autoscaling.k8s.io,resources=verticalpodautoscalers,verbs=get;list;watch
+// +kubebuilder:rbac:groups=autoscaling,resources=horizontalpodautoscalers,verbs=get;list;watch
+// +kubebuilder:rbac:groups=autoscaling.k8s.io,resources=verticalpodautoscalers,verbs=get;list;watch
 
 // Policy API Group resources
 //+kubebuilder:rbac:groups=policy,resources=poddisruptionbudgets,verbs=get;list;watch
 
 // Storage API Group resources
-//+kubebuilder:rbac:groups=storage.k8s.io,resources=storageclasses,verbs=get;list;watch
-//+kubebuilder:rbac:groups=storage.k8s.io,resources=csinodes,verbs=get;list;watch
-//+kubebuilder:rbac:groups=storage.k8s.io,resources=csidrivers,verbs=get;list;watch
-//+kubebuilder:rbac:groups=storage.k8s.io,resources=csistoragecapacities,verbs=get;list;watch
-//+kubebuilder:rbac:groups=storage.k8s.io,resources=volumeattachments,verbs=get;list;watch
+// +kubebuilder:rbac:groups=storage.k8s.io,resources=storageclasses,verbs=get;list;watch
+// +kubebuilder:rbac:groups=storage.k8s.io,resources=csinodes,verbs=get;list;watch
+// +kubebuilder:rbac:groups=storage.k8s.io,resources=csidrivers,verbs=get;list;watch
+// +kubebuilder:rbac:groups=storage.k8s.io,resources=csistoragecapacities,verbs=get;list;watch
+// +kubebuilder:rbac:groups=storage.k8s.io,resources=volumeattachments,verbs=get;list;watch
 
 // ========================================
 // OPTIONAL THIRD-PARTY RESOURCES
@@ -254,21 +255,22 @@ type PolicyConfig struct {
 // All collectors gracefully handle missing CRDs and can be disabled via DisabledCollectors config.
 
 // Karpenter node provisioning (optional - only if Karpenter operator installed)
-//+kubebuilder:rbac:groups=karpenter.sh,resources=provisioners;machines;nodepools;nodeclaims;nodeoverlays,verbs=get;list;watch
-//+kubebuilder:rbac:groups=karpenter.k8s.aws,resources=awsnodetemplates;ec2nodeclasses,verbs=get;list;watch
-//+kubebuilder:rbac:groups=karpenter.azure.com,resources=aksnodeclasses,verbs=get;list;watch
-//+kubebuilder:rbac:groups=karpenter.k8s.oracle,resources=ocinodeclasses,verbs=get;list;watch
-//+kubebuilder:rbac:groups=karpenter.k8s.gcp,resources=gcenodeclasses,verbs=get;list;watch
+// +kubebuilder:rbac:groups=karpenter.sh,resources=provisioners;machines;nodepools;nodeclaims;nodeoverlays,verbs=get;list;watch
+// +kubebuilder:rbac:groups=karpenter.k8s.aws,resources=awsnodetemplates;ec2nodeclasses,verbs=get;list;watch
+// +kubebuilder:rbac:groups=karpenter.azure.com,resources=aksnodeclasses,verbs=get;list;watch
+// +kubebuilder:rbac:groups=karpenter.k8s.oracle,resources=ocinodeclasses,verbs=get;list;watch
+// +kubebuilder:rbac:groups=karpenter.k8s.gcp,resources=gcenodeclasses,verbs=get;list;watch
 
 // API Extensions (READ-ONLY for CRD discovery)
 //+kubebuilder:rbac:groups=apiextensions.k8s.io,resources=customresourcedefinitions,verbs=get;list;watch
 
 // Optional third-party monitoring integrations
-//+kubebuilder:rbac:groups=datadoghq.com,resources=extendeddaemonsetreplicasets,verbs=get;list;watch
-//+kubebuilder:rbac:groups=argoproj.io,resources=rollouts,verbs=get;list;watch
-//+kubebuilder:rbac:groups=keda.sh,resources=scaledobjects;scaledjobs;triggerauthentications;clustertriggerauthentications,verbs=get;list;watch
-//+kubebuilder:rbac:groups=kubeflow.org,resources=notebooks,verbs=get;list;watch
-//+kubebuilder:rbac:groups=batch.volcano.sh,resources=jobs,verbs=get;list;watch
+// +kubebuilder:rbac:groups=datadoghq.com,resources=extendeddaemonsetreplicasets,verbs=get;list;watch
+// +kubebuilder:rbac:groups=argoproj.io,resources=rollouts,verbs=get;list;watch
+// +kubebuilder:rbac:groups=keda.sh,resources=scaledobjects;scaledjobs;triggerauthentications;clustertriggerauthentications,verbs=get;list;watch
+// +kubebuilder:rbac:groups=kubeflow.org,resources=notebooks,verbs=get;list;watch
+// +kubebuilder:rbac:groups=batch.volcano.sh,resources=jobs,verbs=get;list;watch
+// +kubebuilder:rbac:groups=postgresql.cnpg.io,resources=clusters,verbs=get;list;watch
 // +kubebuilder:rbac:groups=sparkoperator.k8s.io,resources=sparkapplications;scheduledsparkapplications,verbs=get;list;watch
 
 // WorkloadRecommendation CRD for syncing in-cluster recommendations back to control plane
@@ -685,6 +687,14 @@ func (r *CollectionPolicyReconciler) createNewConfig(envSpec *monitoringv1.Colle
 		})
 	}
 
+	// CloudNativePG Clusters
+	for _, cluster := range envSpec.Exclusions.ExcludedCNPGClusters {
+		newConfig.ExcludedCNPGClusters = append(newConfig.ExcludedCNPGClusters, collector.ExcludedCNPGCluster{
+			Namespace: cluster.Namespace,
+			Name:      cluster.Name,
+		})
+	}
+
 	// Events - these are special with more fields
 	for _, event := range envSpec.Exclusions.ExcludedEvents {
 		newConfig.ExcludedEvents = append(newConfig.ExcludedEvents, collector.ExcludedEvent{
@@ -886,6 +896,10 @@ func (r *CollectionPolicyReconciler) identifyAffectedCollectors(oldConfig, newCo
 
 	if !reflect.DeepEqual(oldConfig.ExcludedScheduledSparkApplications, newConfig.ExcludedScheduledSparkApplications) {
 		affectedCollectors["scheduled_spark_application"] = true
+	}
+
+	if !reflect.DeepEqual(oldConfig.ExcludedCNPGClusters, newConfig.ExcludedCNPGClusters) {
+		affectedCollectors["cnpg_cluster"] = true
 	}
 
 	// Check if the special node collectors are affected by the update interval change
@@ -1540,6 +1554,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 			replacedCollector = snap.NewClusterSnapshotter(
 				r.K8sClient,
 				r.KEDAClient,
+				r.DynamicClient,
 				newConfig.ClusterSnapshotInterval,
 				r.Sender,
 				r.CollectionManager,
@@ -1633,6 +1648,16 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				newConfig.TargetNamespaces,
 				collector.DefaultMaxBatchSize,
 				collector.DefaultMaxBatchTime,
+				logger,
+				r.TelemetryLogger,
+			)
+		case "cnpg_cluster":
+			replacedCollector = collector.NewCNPGCollector(
+				r.DynamicClient,
+				newConfig.TargetNamespaces,
+				newConfig.ExcludedCNPGClusters,
+				collector.DefaultMaxBatchSize,
+				newConfig.UpdateInterval,
 				logger,
 				r.TelemetryLogger,
 			)
@@ -2782,6 +2807,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 			collector: snap.NewClusterSnapshotter(
 				r.K8sClient,
 				r.KEDAClient,
+				r.DynamicClient,
 				config.ClusterSnapshotInterval,
 				r.Sender,
 				r.CollectionManager,
@@ -2961,6 +2987,18 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 					r.TelemetryLogger,
 				)
 			},
+		},
+		{
+			collector: collector.NewCNPGCollector(
+				r.DynamicClient,
+				config.TargetNamespaces,
+				config.ExcludedCNPGClusters,
+				collector.DefaultMaxBatchSize,
+				config.UpdateInterval,
+				logger,
+				r.TelemetryLogger,
+			),
+			name: collector.CNPGCluster,
 		},
 	}
 
@@ -3570,6 +3608,7 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 				replacedCollector = snap.NewClusterSnapshotter(
 					r.K8sClient,
 					r.KEDAClient,
+					r.DynamicClient,
 					newConfig.ClusterSnapshotInterval,
 					r.Sender,
 					r.CollectionManager,
@@ -3643,6 +3682,16 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					newConfig.ExcludedScheduledSparkApplications,
 					collector.DefaultMaxBatchSize,
 					collector.DefaultMaxBatchTime,
+					logger,
+					r.TelemetryLogger,
+				)
+			case "cnpg_cluster":
+				replacedCollector = collector.NewCNPGCollector(
+					r.DynamicClient,
+					newConfig.TargetNamespaces,
+					newConfig.ExcludedCNPGClusters,
+					collector.DefaultMaxBatchSize,
+					newConfig.UpdateInterval,
 					logger,
 					r.TelemetryLogger,
 				)

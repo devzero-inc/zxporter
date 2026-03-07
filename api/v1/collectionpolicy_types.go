@@ -103,6 +103,9 @@ type Exclusions struct {
 	// Spark Applications Exclusions
 	ExcludedSparkApplications          []ExcludedSparkApplication          `json:"excludedSparkApplications,omitempty"`
 	ExcludedScheduledSparkApplications []ExcludedScheduledSparkApplication `json:"excludedScheduledSparkApplications,omitempty"`
+
+	// CloudNativePG Exclusions
+	ExcludedCNPGClusters []ExcludedCNPGCluster `json:"excludedCNPGClusters,omitempty"`
 }
 
 // Common exclusion patterns
@@ -419,6 +422,15 @@ type ExcludedScheduledSparkApplication struct {
 	Namespace string `json:"namespace"`
 
 	// Name is the Scheduled Spark Application's name
+	Name string `json:"name"`
+}
+
+// ExcludedCNPGCluster identifies a CloudNativePG cluster to exclude from collection
+type ExcludedCNPGCluster struct {
+	// Namespace is the CNPG cluster's namespace
+	Namespace string `json:"namespace"`
+
+	// Name is the CNPG cluster's name
 	Name string `json:"name"`
 }
 

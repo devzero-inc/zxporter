@@ -23,6 +23,7 @@ import (
 	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 )
 
@@ -59,6 +60,7 @@ type NamespacedResourceHandler struct {
 type ClusterSnapshotter struct {
 	client             kubernetes.Interface
 	kedaClient         kedaclient.Interface
+	dynamicClient      dynamic.Interface
 	logger             logr.Logger
 	sender             transport.DirectSender
 	collectorManager   *collector.CollectionManager
@@ -76,6 +78,7 @@ type ClusterSnapshotter struct {
 func NewClusterSnapshotter(
 	client kubernetes.Interface,
 	kedaClient kedaclient.Interface,
+	dynamicClient dynamic.Interface,
 	interval time.Duration,
 	sender transport.DirectSender,
 	collectorManager *collector.CollectionManager,
@@ -102,6 +105,7 @@ func NewClusterSnapshotter(
 	cs := &ClusterSnapshotter{
 		client:           client,
 		kedaClient:       kedaClient,
+		dynamicClient:    dynamicClient,
 		logger:           logger.WithName("cluster-snapshotter"),
 		sender:           sender,
 		collectorManager: collectorManager,
