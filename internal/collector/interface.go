@@ -146,6 +146,9 @@ const (
 	WorkloadRecommendation
 	WorkloadRule
 	CNPGCluster
+	ContainerOOMEvent
+	ContainerCrashLoopEvent
+	ContainerStartupLifecycle
 )
 
 // String returns the string representation of the ResourceType
@@ -206,6 +209,9 @@ func (r ResourceType) String() string {
 		WorkloadRecommendation:       "workload_recommendation",
 		WorkloadRule:                 "workload_rule",
 		CNPGCluster:                  "cnpg_cluster",
+		ContainerOOMEvent:            "container_oom_event",
+		ContainerCrashLoopEvent:      "container_crashloop_event",
+		ContainerStartupLifecycle:    "container_startup_lifecycle",
 	}
 
 	if name, ok := names[r]; ok {
@@ -327,6 +333,12 @@ func (r ResourceType) ProtoType() gen.ResourceType {
 		return gen.ResourceType_RESOURCE_TYPE_WORKLOAD_RULE
 	case CNPGCluster:
 		return gen.ResourceType_RESOURCE_TYPE_CNPG_CLUSTER
+	case ContainerOOMEvent:
+		return gen.ResourceType_RESOURCE_TYPE_CONTAINER_OOM_EVENT
+	case ContainerCrashLoopEvent:
+		return gen.ResourceType_RESOURCE_TYPE_CONTAINER_CRASHLOOP_EVENT
+	case ContainerStartupLifecycle:
+		return gen.ResourceType_RESOURCE_TYPE_CONTAINER_STARTUP_LIFECYCLE
 	default:
 		return gen.ResourceType_RESOURCE_TYPE_UNSPECIFIED
 	}
