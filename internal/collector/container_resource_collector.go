@@ -55,6 +55,12 @@ type gpuQueryState struct {
 	lastFailed bool
 }
 
+// throttleTracker tracks last emission time for CPU throttle events per container to avoid duplicates.
+type throttleTracker struct {
+	lastEmitted map[string]time.Time // key: "ns/pod/container" → last emit time
+	mu          sync.Mutex
+}
+
 // ContainerResourceCollector collects container resource usage metrics
 type ContainerResourceCollector struct {
 	k8sClient          kubernetes.Interface
@@ -76,6 +82,7 @@ type ContainerResourceCollector struct {
 	mu                 sync.RWMutex
 	gpuQueryErrorState map[string]*gpuQueryState // most of the case we are not deploying zxporter to GPU nodes which cause GPU query to fail infinitely, and we dont want to get that GPU query fails error every minute for every container
 	gpuQueryMu         sync.Mutex
+	throttle           throttleTracker
 	// Removed manual cache
 	rsLister   appslisters.ReplicaSetLister
 	rsInformer cache.SharedIndexInformer
@@ -145,6 +152,7 @@ func NewContainerResourceCollector(
 		metrics:            metrics,
 		telemetryLogger:    telemetryLogger,
 		gpuQueryErrorState: make(map[string]*gpuQueryState),
+		throttle:           throttleTracker{lastEmitted: make(map[string]time.Time)},
 	}
 }
 
@@ -379,6 +387,11 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 						"container", containerMetrics.Name)
 					// Continue with 0 throttle fraction
 					throttleFraction = 0
+				}
+
+				// Emit CPU throttle event if fraction exceeds threshold
+				if throttleFraction > 0.1 {
+					c.emitCPUThrottleEvent(pod, containerMetrics, throttleFraction)
 				}
 
 				// Fetch I/O metrics for this container
@@ -774,6 +787,68 @@ func (c *ContainerResourceCollector) collectContainerCPUThrottleMetrics(ctx cont
 		fraction = 1
 	}
 	return fraction, nil
+}
+
+// emitCPUThrottleEvent sends a CPU throttle event through the batch channel with 5-minute deduplication.
+func (c *ContainerResourceCollector) emitCPUThrottleEvent(pod *corev1.Pod, containerMetrics metricsv1beta1.ContainerMetrics, throttleFraction float64) {
+	dedupKey := fmt.Sprintf("%s/%s/%s", pod.Namespace, pod.Name, containerMetrics.Name)
+
+	c.throttle.mu.Lock()
+	if lastEmit, ok := c.throttle.lastEmitted[dedupKey]; ok && time.Since(lastEmit) < 5*time.Minute {
+		c.throttle.mu.Unlock()
+		return
+	}
+	c.throttle.lastEmitted[dedupKey] = time.Now()
+	c.throttle.mu.Unlock()
+
+	// Resolve workload info
+	workloadKind, workloadName := c.resolveWorkload(pod)
+	if workloadKind == "" {
+		workloadKind = "Pod"
+		workloadName = pod.Name
+	}
+
+	// Get CPU resources from container spec
+	var cpuUsageMillis, cpuRequestMillis, cpuLimitMillis int64
+	cpuUsageMillis = containerMetrics.Usage.Cpu().MilliValue()
+	for i := range pod.Spec.Containers {
+		if pod.Spec.Containers[i].Name == containerMetrics.Name {
+			if pod.Spec.Containers[i].Resources.Requests != nil {
+				if cpu := pod.Spec.Containers[i].Resources.Requests.Cpu(); cpu != nil {
+					cpuRequestMillis = cpu.MilliValue()
+				}
+			}
+			if pod.Spec.Containers[i].Resources.Limits != nil {
+				if cpu := pod.Spec.Containers[i].Resources.Limits.Cpu(); cpu != nil {
+					cpuLimitMillis = cpu.MilliValue()
+				}
+			}
+			break
+		}
+	}
+
+	// Round timestamp to nearest minute for DB dedup
+	now := time.Now()
+	roundedTS := now.Truncate(time.Minute)
+
+	c.batchChan <- CollectedResource{
+		ResourceType: ContainerCPUThrottleEvent,
+		Object: map[string]interface{}{
+			"namespace":              pod.Namespace,
+			"workload_name":          workloadName,
+			"workload_kind":          workloadKind,
+			"pod_name":               pod.Name,
+			"container_name":         containerMetrics.Name,
+			"cpu_usage_millicores":   cpuUsageMillis,
+			"cpu_request_millicores": cpuRequestMillis,
+			"cpu_limit_millicores":   cpuLimitMillis,
+			"throttled_fraction":     throttleFraction,
+			"timestamp":              roundedTS.Format(time.RFC3339Nano),
+		},
+		Timestamp: now,
+		EventType: EventTypeAdd,
+		Key:       fmt.Sprintf("cpu-throttle/%s/%s/%s", pod.Namespace, pod.Name, containerMetrics.Name),
+	}
 }
 
 // collectContainerGPUMetrics collects GPU metrics for a container using Prometheus queries

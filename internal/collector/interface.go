@@ -149,6 +149,7 @@ const (
 	ContainerOOMEvent
 	ContainerCrashLoopEvent
 	ContainerStartupLifecycle
+	ContainerCPUThrottleEvent
 )
 
 // String returns the string representation of the ResourceType
@@ -212,6 +213,7 @@ func (r ResourceType) String() string {
 		ContainerOOMEvent:            "container_oom_event",
 		ContainerCrashLoopEvent:      "container_crashloop_event",
 		ContainerStartupLifecycle:    "container_startup_lifecycle",
+		ContainerCPUThrottleEvent:    "container_cpu_throttle_event",
 	}
 
 	if name, ok := names[r]; ok {
@@ -339,6 +341,8 @@ func (r ResourceType) ProtoType() gen.ResourceType {
 		return gen.ResourceType_RESOURCE_TYPE_CONTAINER_CRASHLOOP_EVENT
 	case ContainerStartupLifecycle:
 		return gen.ResourceType_RESOURCE_TYPE_CONTAINER_STARTUP_LIFECYCLE
+	case ContainerCPUThrottleEvent:
+		return gen.ResourceType_RESOURCE_TYPE_CONTAINER_CPU_THROTTLE_EVENT
 	default:
 		return gen.ResourceType_RESOURCE_TYPE_UNSPECIFIED
 	}
