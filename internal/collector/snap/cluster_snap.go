@@ -14,7 +14,6 @@ import (
 	gen "github.com/devzero-inc/zxporter/gen/api/v1"
 	"github.com/go-logr/logr"
 	kedaclient "github.com/kedacore/keda/v2/pkg/generated/clientset/versioned"
-	"k8s.io/client-go/dynamic"
 	appsv1 "k8s.io/api/apps/v1"
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	batchv1 "k8s.io/api/batch/v1"
@@ -24,6 +23,7 @@ import (
 	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 )
 
