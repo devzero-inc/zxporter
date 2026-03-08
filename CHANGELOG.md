@@ -6,6 +6,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 For releases prior to automated changelog generation, please see the
 [GitHub Releases](https://github.com/devzero-inc/zxporter/releases) page.
 
+## [v0.0.67] - 2026-03-08
+
+<!-- Release notes generated using configuration in .github/release.yml at main -->
+
+### What's Changed
+### Other Changes
+* Bump zxporter image to v0.0.66 by @Tzvonimir in https://github.com/devzero-inc/zxporter/pull/307
+* Update health events by @Tzvonimir in https://github.com/devzero-inc/zxporter/pull/310
+
+
+**Full Changelog**: https://github.com/devzero-inc/zxporter/compare/v0.0.66...v0.0.67
+
+## [v0.0.66] - 2026-03-07
+
+<!-- Release notes generated using configuration in .github/release.yml at main -->
+
+### What's Changed
+### Other Changes
+* chore: update changelog for v0.0.65 by @github-actions[bot] in https://github.com/devzero-inc/zxporter/pull/298
+* Bump image to 0.0.65 by @Tzvonimir in https://github.com/devzero-inc/zxporter/pull/299
+* chore(helm): update Chart.yaml version to 0.0.10 by @github-actions[bot] in https://github.com/devzero-inc/zxporter/pull/300
+* chore(helm): update Chart.yaml version to 0.0.44 by @github-actions[bot] in https://github.com/devzero-inc/zxporter/pull/301
+* PC-902 Netmon heatlcheck + endpoints by @mutantkeyboard in https://github.com/devzero-inc/zxporter/pull/303
+* Add CNPG Cluster collector by @Rupam-It in https://github.com/devzero-inc/zxporter/pull/305
+
+
+**Full Changelog**: https://github.com/devzero-inc/zxporter/compare/v0.0.65...v0.0.66
+
 ## [v0.0.65] - 2026-02-25
 
 <!-- Release notes generated using configuration in .github/release.yml at main -->
