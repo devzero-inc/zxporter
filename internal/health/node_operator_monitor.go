@@ -72,7 +72,7 @@ func (m *NodeOperatorMonitor) BuildNodeOperatorReport(ctx context.Context) (map[
 		return report, version, commit, uptimeSince
 	}
 
-	var probes []podProbeResult
+	probes := make([]podProbeResult, 0, len(pods))
 	for _, pod := range pods {
 		if pod.Status.PodIP == "" || pod.Status.Phase != corev1.PodRunning {
 			probes = append(probes, podProbeResult{healthzOK: false, readyzOK: false})
@@ -111,7 +111,7 @@ func (m *NodeOperatorMonitor) discoverDeployment(ctx context.Context) (*appsv1.D
 }
 
 func (m *NodeOperatorMonitor) discoverPods(ctx context.Context, namespace string, labels map[string]string) ([]corev1.Pod, error) {
-	var parts []string
+	parts := make([]string, 0, len(labels))
 	for k, v := range labels {
 		parts = append(parts, fmt.Sprintf("%s=%s", k, v))
 	}
@@ -142,7 +142,7 @@ func (m *NodeOperatorMonitor) probeEndpoint(ctx context.Context, url string) boo
 	if err != nil {
 		return false
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	return resp.StatusCode == http.StatusOK
 }
 
