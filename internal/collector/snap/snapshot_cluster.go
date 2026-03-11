@@ -9,7 +9,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func (c *ClusterSnapshotter) captureClusterInfo(ctx context.Context, snapshot *ClusterSnapshot) error {
+func (c *ClusterSnapshotter) captureClusterInfo(
+	ctx context.Context,
+	snapshot *ClusterSnapshot,
+) error {
 	version, err := c.client.Discovery().ServerVersion()
 	if err != nil {
 		c.logger.Error(err, "Failed to get server version")
@@ -32,13 +35,18 @@ func (c *ClusterSnapshotter) captureClusterInfo(ctx context.Context, snapshot *C
 	return nil
 }
 
-func (c *ClusterSnapshotter) captureClusterScopedResources(ctx context.Context, snapshot *ClusterSnapshot) error {
+func (c *ClusterSnapshotter) captureClusterScopedResources(
+	ctx context.Context,
+	snapshot *ClusterSnapshot,
+) error {
 	clusterScoped := snapshot.ClusterScoped
 	clusterScoped.PersistentVolumes = make(map[string]*ResourceIdentifier)
 	clusterScoped.StorageClasses = make(map[string]*ResourceIdentifier)
 	clusterScoped.ClusterRoles = make(map[string]*ResourceIdentifier)
 	clusterScoped.ClusterRoleBindings = make(map[string]*ResourceIdentifier)
-	clusterScoped.CustomResourceDefinitions = make(map[string]*ResourceIdentifier) // Not implemented
+	clusterScoped.CustomResourceDefinitions = make(
+		map[string]*ResourceIdentifier,
+	) // Not implemented
 	clusterScoped.IngressClasses = make(map[string]*ResourceIdentifier)
 	clusterScoped.CsiNodes = make(map[string]*ResourceIdentifier)
 	clusterScoped.CsiDrivers = make(map[string]*ResourceIdentifier)
@@ -104,7 +112,9 @@ func (c *ClusterSnapshotter) captureClusterScopedResources(ctx context.Context, 
 	return nil
 }
 
-func (c *ClusterSnapshotter) calculateClusterScopedHash(clusterScoped *ClusterScopedSnapshot) string {
+func (c *ClusterSnapshotter) calculateClusterScopedHash(
+	clusterScoped *ClusterScopedSnapshot,
+) string {
 	h := sha256.New()
 	if csBytes, err := json.Marshal(clusterScoped); err == nil {
 		h.Write(csBytes)

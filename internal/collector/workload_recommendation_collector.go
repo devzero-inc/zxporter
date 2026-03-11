@@ -164,7 +164,10 @@ func (c *WorkloadRecommendationCollector) Start(ctx context.Context) error {
 }
 
 // handleWorkloadRecommendationEvent processes WorkloadRecommendation events
-func (c *WorkloadRecommendationCollector) handleWorkloadRecommendationEvent(wr *unstructured.Unstructured, eventType EventType) {
+func (c *WorkloadRecommendationCollector) handleWorkloadRecommendationEvent(
+	wr *unstructured.Unstructured,
+	eventType EventType,
+) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	if c.stopped {
@@ -212,7 +215,9 @@ func (c *WorkloadRecommendationCollector) handleWorkloadRecommendationEvent(wr *
 }
 
 // workloadRecommendationChanged detects meaningful changes in a WorkloadRecommendation
-func (c *WorkloadRecommendationCollector) workloadRecommendationChanged(oldWR, newWR *unstructured.Unstructured) bool {
+func (c *WorkloadRecommendationCollector) workloadRecommendationChanged(
+	oldWR, newWR *unstructured.Unstructured,
+) bool {
 	// Ignore changes to ResourceVersion, which always changes even for irrelevant updates
 	if oldWR.GetResourceVersion() == newWR.GetResourceVersion() {
 		return false

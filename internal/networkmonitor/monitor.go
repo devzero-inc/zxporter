@@ -197,7 +197,9 @@ func (m *Monitor) collect() error {
 				RxBytes:   sum.RxBytes,
 				RxPackets: sum.RxPackets,
 				Proto:     key.Protocol,
-				Lifetime:  time.Now().Add(2 * time.Minute), // Simulated lifetime for delta-based metrics
+				Lifetime: time.Now().
+					Add(2 * time.Minute),
+				// Simulated lifetime for delta-based metrics
 			})
 		}
 		isDelta = true

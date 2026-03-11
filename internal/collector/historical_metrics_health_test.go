@@ -17,7 +17,12 @@ type errorPrometheusAPI struct {
 	mockPrometheusAPI
 }
 
-func (m *errorPrometheusAPI) Query(ctx context.Context, query string, ts time.Time, opts ...v1.Option) (model.Value, v1.Warnings, error) {
+func (m *errorPrometheusAPI) Query(
+	ctx context.Context,
+	query string,
+	ts time.Time,
+	opts ...v1.Option,
+) (model.Value, v1.Warnings, error) {
 	return nil, nil, fmt.Errorf("prometheus unavailable")
 }
 

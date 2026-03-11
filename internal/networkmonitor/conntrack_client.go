@@ -78,7 +78,8 @@ func processSessions(sessions []ct.Con, filter EntriesFilter) []*Entry {
 	for _, sess := range sessions {
 		if sess.Origin == nil || sess.Origin.Src == nil || sess.Origin.Dst == nil || sess.Origin.Proto == nil ||
 			sess.Reply == nil || sess.Reply.Dst == nil || sess.Reply.Proto == nil ||
-			sess.CounterOrigin == nil || sess.CounterReply == nil {
+			sess.CounterOrigin == nil ||
+			sess.CounterReply == nil {
 			continue
 		}
 

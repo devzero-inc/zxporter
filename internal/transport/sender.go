@@ -12,6 +12,14 @@ import (
 	dto "github.com/prometheus/client_model/go"
 )
 
+// contextKey is a custom type for context keys to avoid collisions.
+type contextKey string
+
+const (
+	clusterIDContextKey contextKey = "cluster_id"
+	teamIDContextKey    contextKey = "team_id"
+)
+
 // DirectDakrSender sends resources directly to Dakr without buffering
 type DirectDakrSender struct {
 	dakrClient DakrClient
@@ -43,13 +51,16 @@ func NewDirectDakrSender(dakrClient DakrClient, logger logr.Logger) Sender {
 }
 
 // Send transmits a resource directly to Dakr
-func (s *DirectDakrSender) Send(ctx context.Context, resource collector.CollectedResource) (string, error) {
+func (s *DirectDakrSender) Send(
+	ctx context.Context,
+	resource collector.CollectedResource,
+) (string, error) {
 	if s.dakrClient == nil {
 		return "", fmt.Errorf("dakr client is nil, cannot send resource")
 	}
 
-	ctxWithCluster := context.WithValue(ctx, "cluster_id", s.clusterID)
-	ctxWithTeam := context.WithValue(ctxWithCluster, "team_id", s.teamID)
+	ctxWithCluster := context.WithValue(ctx, clusterIDContextKey, s.clusterID)
+	ctxWithTeam := context.WithValue(ctxWithCluster, teamIDContextKey, s.teamID)
 	clusterID, err := s.dakrClient.SendResource(ctxWithTeam, resource)
 	if clusterID != "" {
 		s.SetClusterID(clusterID)
@@ -71,13 +82,17 @@ func (s *DirectDakrSender) Stop() error {
 }
 
 // SendBatch transmits a batch of resources of the same type to Dakr
-func (s *DirectDakrSender) SendBatch(ctx context.Context, resources []collector.CollectedResource, resourceType collector.ResourceType) (string, error) {
+func (s *DirectDakrSender) SendBatch(
+	ctx context.Context,
+	resources []collector.CollectedResource,
+	resourceType collector.ResourceType,
+) (string, error) {
 	if s.dakrClient == nil {
 		return "", fmt.Errorf("dakr client is nil, cannot send resource batch")
 	}
 
-	ctxWithCluster := context.WithValue(ctx, "cluster_id", s.clusterID)
-	ctxWithTeam := context.WithValue(ctxWithCluster, "team_id", s.teamID)
+	ctxWithCluster := context.WithValue(ctx, clusterIDContextKey, s.clusterID)
+	ctxWithTeam := context.WithValue(ctxWithCluster, teamIDContextKey, s.teamID)
 
 	clusterID, err := s.dakrClient.SendResourceBatch(ctxWithTeam, resources, resourceType)
 	if clusterID != "" {
@@ -100,7 +115,10 @@ func NewSimpleDakrClient(logger logr.Logger) DakrClient {
 }
 
 // SendResource logs the resource data (for development/testing)
-func (c *SimpleDakrClient) SendResource(ctx context.Context, resource collector.CollectedResource) (string, error) {
+func (c *SimpleDakrClient) SendResource(
+	ctx context.Context,
+	resource collector.CollectedResource,
+) (string, error) {
 	// For now, just log that we would send something
 	c.logger.Info("Would send resource to Dakr",
 		"resourceType", resource.ResourceType,
@@ -110,7 +128,11 @@ func (c *SimpleDakrClient) SendResource(ctx context.Context, resource collector.
 }
 
 // SendResourceBatch logs the batch resource data (for development/testing)
-func (c *SimpleDakrClient) SendResourceBatch(ctx context.Context, resources []collector.CollectedResource, resourceType collector.ResourceType) (string, error) {
+func (c *SimpleDakrClient) SendResourceBatch(
+	ctx context.Context,
+	resources []collector.CollectedResource,
+	resourceType collector.ResourceType,
+) (string, error) {
 	// For now, just log that we would send something
 	c.logger.Info("Would send resource batch to Dakr",
 		"resourceType", resourceType,
@@ -119,7 +141,10 @@ func (c *SimpleDakrClient) SendResourceBatch(ctx context.Context, resources []co
 }
 
 // SendTelemetryMetrics logs the telemetry metrics data (for development/testing)
-func (c *SimpleDakrClient) SendTelemetryMetrics(ctx context.Context, metrics []*dto.MetricFamily) (int32, error) {
+func (c *SimpleDakrClient) SendTelemetryMetrics(
+	ctx context.Context,
+	metrics []*dto.MetricFamily,
+) (int32, error) {
 	// For now, just log that we would send something
 	c.logger.Info("Would send telemetry metrics to Dakr", "count", len(metrics))
 
@@ -137,15 +162,25 @@ func (c *SimpleDakrClient) SendTelemetryMetrics(ctx context.Context, metrics []*
 }
 
 // Update sender.go with fallback logic
-func (s *DirectDakrSender) SendClusterSnapshotStream(ctx context.Context, snapshot *gen.ClusterSnapshot, snapshotID string, timestamp time.Time) (string, *gen.ClusterSnapshot, error) {
+func (s *DirectDakrSender) SendClusterSnapshotStream(
+	ctx context.Context,
+	snapshot *gen.ClusterSnapshot,
+	snapshotID string,
+	timestamp time.Time,
+) (string, *gen.ClusterSnapshot, error) {
 	if s.dakrClient == nil {
 		return "", nil, fmt.Errorf("dakr client is nil, cannot send cluster snapshot stream")
 	}
 
-	ctxWithCluster := context.WithValue(ctx, "cluster_id", s.clusterID)
-	ctxWithTeam := context.WithValue(ctxWithCluster, "team_id", s.teamID) // Assuming you add teamID field
+	ctxWithCluster := context.WithValue(ctx, clusterIDContextKey, s.clusterID)
+	ctxWithTeam := context.WithValue(ctxWithCluster, teamIDContextKey, s.teamID)
 
-	clusterID, missingResources, err := s.dakrClient.SendClusterSnapshotStream(ctxWithTeam, snapshot, snapshotID, timestamp)
+	clusterID, missingResources, err := s.dakrClient.SendClusterSnapshotStream(
+		ctxWithTeam,
+		snapshot,
+		snapshotID,
+		timestamp,
+	)
 	if clusterID != "" {
 		s.SetClusterID(clusterID)
 	}
@@ -154,7 +189,12 @@ func (s *DirectDakrSender) SendClusterSnapshotStream(ctx context.Context, snapsh
 }
 
 // Update sender.go with fallback logic
-func (c *SimpleDakrClient) SendClusterSnapshotStream(ctx context.Context, snapshot *gen.ClusterSnapshot, snapshotID string, timestamp time.Time) (string, *gen.ClusterSnapshot, error) {
+func (c *SimpleDakrClient) SendClusterSnapshotStream(
+	ctx context.Context,
+	snapshot *gen.ClusterSnapshot,
+	snapshotID string,
+	timestamp time.Time,
+) (string, *gen.ClusterSnapshot, error) {
 	// For now, just log that we would send something
 	c.logger.Info("Would send cluster snapshot to Dakr",
 		"snapshotId", snapshotID,
@@ -164,13 +204,19 @@ func (c *SimpleDakrClient) SendClusterSnapshotStream(ctx context.Context, snapsh
 }
 
 // SendTelemetryLogs implements SimpleDakrClient.
-func (c *SimpleDakrClient) SendTelemetryLogs(ctx context.Context, in *gen.SendTelemetryLogsRequest) (*gen.SendTelemetryLogsResponse, error) {
+func (c *SimpleDakrClient) SendTelemetryLogs(
+	ctx context.Context,
+	in *gen.SendTelemetryLogsRequest,
+) (*gen.SendTelemetryLogsResponse, error) {
 	//
 	return nil, nil
 }
 
 // ExchangePATForClusterToken implements SimpleDakrClient.
-func (c *SimpleDakrClient) ExchangePATForClusterToken(ctx context.Context, patToken, clusterName, k8sProvider string) (string, string, error) {
+func (c *SimpleDakrClient) ExchangePATForClusterToken(
+	ctx context.Context,
+	patToken, clusterName, k8sProvider string,
+) (string, string, error) {
 	c.logger.Info("Would exchange PAT token for cluster token",
 		"clusterName", clusterName,
 		"k8sProvider", k8sProvider)
@@ -179,7 +225,10 @@ func (c *SimpleDakrClient) ExchangePATForClusterToken(ctx context.Context, patTo
 }
 
 // SendNetworkTrafficMetrics implements SimpleDakrClient.
-func (c *SimpleDakrClient) SendNetworkTrafficMetrics(ctx context.Context, req *gen.SendNetworkTrafficMetricsRequest) (*gen.SendNetworkTrafficMetricsResponse, error) {
+func (c *SimpleDakrClient) SendNetworkTrafficMetrics(
+	ctx context.Context,
+	req *gen.SendNetworkTrafficMetricsRequest,
+) (*gen.SendNetworkTrafficMetricsResponse, error) {
 	c.logger.Info("Would send network traffic metrics to Dakr",
 		"nodeName", req.NodeName,
 		"itemsCount", len(req.Items),
@@ -189,6 +238,12 @@ func (c *SimpleDakrClient) SendNetworkTrafficMetrics(ctx context.Context, req *g
 
 // ReportHealth implements SimpleDakrClient.
 func (c *SimpleDakrClient) ReportHealth(ctx context.Context, req *gen.ReportHealthRequest) error {
-	c.logger.Info("ReportHealth (simple client, no-op)", "cluster_id", req.ClusterId, "version", req.Version)
+	c.logger.Info(
+		"ReportHealth (simple client, no-op)",
+		"cluster_id",
+		req.ClusterId,
+		"version",
+		req.Version,
+	)
 	return nil
 }

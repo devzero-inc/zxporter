@@ -13,7 +13,12 @@ func TestBuildHeartbeatRequest(t *testing.T) {
 	hm := NewHealthManager()
 	hm.Register(ComponentCollectorManager)
 	hm.Register(ComponentDakrTransport)
-	hm.UpdateStatus(ComponentCollectorManager, HealthStatusHealthy, "all good", map[string]string{"active": "5"})
+	hm.UpdateStatus(
+		ComponentCollectorManager,
+		HealthStatusHealthy,
+		"all good",
+		map[string]string{"active": "5"},
+	)
 	hm.UpdateStatus(ComponentDakrTransport, HealthStatusDegraded, "retrying", nil)
 
 	startTime := time.Now().Add(-10 * time.Minute)
