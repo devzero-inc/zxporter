@@ -10,6 +10,5 @@ const (
 	ComponentMonitor             = "monitor"
 	ComponentEBPFTracer          = "ebpf_tracer"
 	ComponentPodCache            = "pod_cache"
-	ComponentKarpenterHealth     = "karpenter_health"
 	ComponentKarpenterDeployment = "karpenter_deployment"
 )

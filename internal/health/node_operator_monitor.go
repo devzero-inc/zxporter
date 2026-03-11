@@ -9,16 +9,16 @@ import (
 
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 )
 
 const (
-	karpenterLabelName  = "app.kubernetes.io/name=karpenter"
-	devzeroManagedLabel = "dakr.devzero.io/managed=true"
-	defaultHealthPort   = "8081"
-	defaultProbeTimeout = 5 * time.Second
+	karpenterLabelName   = "app.kubernetes.io/name=karpenter"
+	devzeroImagePrefix   = "public.ecr.aws/devzeroinc/"
+	defaultHealthPort    = "8081"
+	defaultProbeTimeout  = 5 * time.Second
+	karpenterServiceName = "karpenter"
 )
 
 type podProbeResult struct {
@@ -59,71 +59,78 @@ func (m *NodeOperatorMonitor) BuildNodeOperatorReport(ctx context.Context) (map[
 	version, commit := extractVersionInfo(dep)
 	uptimeSince := dep.CreationTimestamp.Time
 
-	selectorLabels := dep.Spec.Selector.MatchLabels
-	pods, err := m.discoverPods(ctx, dep.Namespace, selectorLabels)
+	svcEndpoint, err := m.discoverServiceEndpoint(ctx, dep.Namespace)
 	if err != nil {
-		m.logger.Error(err, "Failed to discover dzKarp pods", "namespace", dep.Namespace)
-		report := make(map[string]ComponentStatus, 2)
-		report[ComponentKarpenterHealth] = ComponentStatus{
-			Status:  HealthStatusUnhealthy,
-			Message: fmt.Sprintf("failed to list pods: %v", err),
-		}
+		m.logger.Error(err, "Failed to discover dzKarp service", "namespace", dep.Namespace)
+		report := make(map[string]ComponentStatus, 1)
 		report[ComponentKarpenterDeployment] = m.buildDeploymentStatus(dep)
 		return report, version, commit, uptimeSince
 	}
 
-	probes := make([]podProbeResult, 0, len(pods))
-	for _, pod := range pods {
-		if pod.Status.PodIP == "" || pod.Status.Phase != corev1.PodRunning {
-			probes = append(probes, podProbeResult{healthzOK: false, readyzOK: false})
-			continue
+	probe := m.probePodHealth(ctx, svcEndpoint)
+
+	report := make(map[string]ComponentStatus, 1)
+	status := m.buildDeploymentStatus(dep)
+
+	// Override deployment status with service health probe if it indicates unhealthy
+	if !probe.healthzOK || !probe.readyzOK {
+		if status.Status == HealthStatusHealthy {
+			status.Status = HealthStatusDegraded
 		}
-		result := m.probePodHealth(ctx, fmt.Sprintf("%s:%s", pod.Status.PodIP, m.healthPort))
-		probes = append(probes, result)
+		status.Message = fmt.Sprintf("%s (service healthz=%t readyz=%t)", status.Message, probe.healthzOK, probe.readyzOK)
 	}
-
-	report := make(map[string]ComponentStatus, 2)
-
-	healthStatus, healthMsg, healthMeta := aggregateProbeStatus(probes)
-	report[ComponentKarpenterHealth] = ComponentStatus{
-		Status:   healthStatus,
-		Message:  healthMsg,
-		Metadata: healthMeta,
+	if status.Metadata == nil {
+		status.Metadata = make(map[string]string)
 	}
+	status.Metadata["service_healthz"] = fmt.Sprintf("%t", probe.healthzOK)
+	status.Metadata["service_readyz"] = fmt.Sprintf("%t", probe.readyzOK)
 
-	report[ComponentKarpenterDeployment] = m.buildDeploymentStatus(dep)
+	report[ComponentKarpenterDeployment] = status
 
 	return report, version, commit, uptimeSince
 }
 
 func (m *NodeOperatorMonitor) discoverDeployment(ctx context.Context) (*appsv1.Deployment, error) {
-	labelSelector := karpenterLabelName + "," + devzeroManagedLabel
 	deployments, err := m.clientset.AppsV1().Deployments("").List(ctx, metav1.ListOptions{
-		LabelSelector: labelSelector,
+		LabelSelector: karpenterLabelName,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("listing deployments with selector %q: %w", labelSelector, err)
+		return nil, fmt.Errorf("listing deployments with selector %q: %w", karpenterLabelName, err)
 	}
-	if len(deployments.Items) == 0 {
-		return nil, nil
+	for i := range deployments.Items {
+		if isDevZeroImage(&deployments.Items[i]) {
+			return &deployments.Items[i], nil
+		}
 	}
-	return &deployments.Items[0], nil
+	return nil, nil
 }
 
-func (m *NodeOperatorMonitor) discoverPods(ctx context.Context, namespace string, labels map[string]string) ([]corev1.Pod, error) {
-	parts := make([]string, 0, len(labels))
-	for k, v := range labels {
-		parts = append(parts, fmt.Sprintf("%s=%s", k, v))
+// isDevZeroImage checks whether the deployment uses a DevZero container image.
+func isDevZeroImage(dep *appsv1.Deployment) bool {
+	for _, c := range dep.Spec.Template.Spec.Containers {
+		if strings.HasPrefix(c.Image, devzeroImagePrefix) {
+			return true
+		}
 	}
-	labelSelector := strings.Join(parts, ",")
+	return false
+}
 
-	podList, err := m.clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
-		LabelSelector: labelSelector,
-	})
+func (m *NodeOperatorMonitor) discoverServiceEndpoint(ctx context.Context, namespace string) (string, error) {
+	svc, err := m.clientset.CoreV1().Services(namespace).Get(ctx, karpenterServiceName, metav1.GetOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("listing pods with selector %q in namespace %q: %w", labelSelector, namespace, err)
+		return "", fmt.Errorf("getting service %q in namespace %q: %w", karpenterServiceName, namespace, err)
 	}
-	return podList.Items, nil
+
+	port := m.healthPort
+	// Check if the service has a specific health port
+	for _, p := range svc.Spec.Ports {
+		if p.Name == "http" || p.Name == "health" {
+			port = fmt.Sprintf("%d", p.Port)
+			break
+		}
+	}
+
+	return fmt.Sprintf("%s.%s.svc:%s", svc.Name, svc.Namespace, port), nil
 }
 
 func (m *NodeOperatorMonitor) probePodHealth(ctx context.Context, hostPort string) podProbeResult {
@@ -161,36 +168,6 @@ func (m *NodeOperatorMonitor) buildDeploymentStatus(dep *appsv1.Deployment) Comp
 		Status:   status,
 		Message:  msg,
 		Metadata: meta,
-	}
-}
-
-func aggregateProbeStatus(probes []podProbeResult) (HealthStatus, string, map[string]string) {
-	if len(probes) == 0 {
-		return HealthStatusUnhealthy, "no pods found", map[string]string{
-			"pod_count":    "0",
-			"pods_healthy": "0",
-		}
-	}
-
-	healthyCount := 0
-	for _, p := range probes {
-		if p.healthzOK && p.readyzOK {
-			healthyCount++
-		}
-	}
-
-	meta := map[string]string{
-		"pod_count":    fmt.Sprintf("%d", len(probes)),
-		"pods_healthy": fmt.Sprintf("%d", healthyCount),
-	}
-
-	switch {
-	case healthyCount == len(probes):
-		return HealthStatusHealthy, fmt.Sprintf("all %d pods healthy", len(probes)), meta
-	case healthyCount > 0:
-		return HealthStatusDegraded, fmt.Sprintf("%d/%d pods healthy", healthyCount, len(probes)), meta
-	default:
-		return HealthStatusUnhealthy, fmt.Sprintf("0/%d pods healthy", len(probes)), meta
 	}
 }
 
