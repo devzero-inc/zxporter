@@ -325,7 +325,7 @@ func ContainerGPUMetricsFromExporter(
 	metrics["GPUTemperatureCelsius"] = avgTemp
 	metrics["GPUSMClockMHz"] = avgSMClock
 	metrics["GPUMemClockMHz"] = avgMemClock
-	metrics["GPUUsage"] = (avgUtil * gpuCount) / 100.0
+	metrics["GPUUsage"] = totalUtil / 100.0
 
 	gpuUUIDs := make([]string, 0, len(gpuUUIDSet))
 	for uuid := range gpuUUIDSet {
@@ -415,7 +415,7 @@ func NodeGPUMetricsFromExporter(gpuMetrics []GPUExporterMetric) map[string]inter
 	metrics["GPUPCIeTxBytesTotal"] = totalPCIeTx
 	metrics["GPUPCIeRxBytesTotal"] = totalPCIeRx
 	metrics["GPUGraphicsUtilizationAvg"] = totalGraphics / gpuCount
-	metrics["GPUUsage"] = (totalUtil / gpuCount * gpuCount) / 100.0
+	metrics["GPUUsage"] = totalUtil / 100.0
 
 	gpuUUIDs := make([]string, 0, len(gpuUUIDSet))
 	for uuid := range gpuUUIDSet {

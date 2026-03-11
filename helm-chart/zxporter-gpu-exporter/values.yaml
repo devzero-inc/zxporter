@@ -12,9 +12,9 @@ gpuMetricsExporter:
   # should be defined in the gpuMetricsExporter.affinity field
   affinity:
   image:
-    repository: docker.io/parthiba007/zxporter-gpu-exporter
+    repository: docker.io/devzeroinc/zxporter-gpu-exporter
     pullPolicy: IfNotPresent
-    tag: "v1"
+    tag: "v0.0.1"
   config: { }
   # config:
   #   # address of the DCGM exporter instance

@@ -134,9 +134,13 @@ func (p *metricMapper) MapToGPUMetrics(
 				var value float64
 				switch family.Type.String() {
 				case "COUNTER":
-					value = *m.GetCounter().Value
+					if counter := m.GetCounter(); counter != nil && counter.Value != nil {
+						value = *counter.Value
+					}
 				case "GAUGE":
-					value = *m.GetGauge().Value
+					if gauge := m.GetGauge(); gauge != nil && gauge.Value != nil {
+						value = *gauge.Value
+					}
 				}
 
 				switch name {
