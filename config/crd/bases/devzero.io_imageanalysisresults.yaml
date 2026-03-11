@@ -1,0 +1,294 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.16.5
+  name: imageanalysisresults.devzero.io
+spec:
+  group: devzero.io
+  names:
+    kind: ImageAnalysisResult
+    listKind: ImageAnalysisResultList
+    plural: imageanalysisresults
+    singular: imageanalysisresult
+  scope: Cluster
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.imageRef
+      name: Image
+      type: string
+    - jsonPath: .spec.analysis.efficiency
+      name: Efficiency
+      type: string
+    - jsonPath: .spec.analysis.passed
+      name: Passed
+      type: boolean
+    - jsonPath: .spec.imageSource.type
+      name: Source
+      priority: 1
+      type: string
+    - jsonPath: .status.phase
+      name: Phase
+      type: string
+    - jsonPath: .status.analyzedAt
+      name: Analyzed At
+      type: date
+    name: v1
+    schema:
+      openAPIV3Schema:
+        description: |-
+          ImageAnalysisResult is the Schema for the imageanalysisresults API.
+          It stores dive analysis results for a container image including efficiency metrics,
+          layer breakdown, wasted space details, and references to workloads using the image.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: ImageAnalysisResultSpec defines the desired state of ImageAnalysisResult
+            properties:
+              analysis:
+                description: Analysis contains the dive analysis results
+                properties:
+                  efficiency:
+                    description: |-
+                      Efficiency is the image efficiency ratio as a string (e.g. "0.9516")
+                      Stored as string for cross-language CRD compatibility. Range: "0.0" to "1.0".
+                    type: string
+                  fileAnalysis:
+                    description: FileAnalysis contains aggregate file statistics across
+                      all layers
+                    properties:
+                      addedFiles:
+                        description: AddedFiles is the count of files added across
+                          layers
+                        type: integer
+                      modifiedFiles:
+                        description: ModifiedFiles is the count of files modified
+                          across layers
+                        type: integer
+                      removedFiles:
+                        description: RemovedFiles is the count of files removed across
+                          layers
+                        type: integer
+                      totalFiles:
+                        description: TotalFiles is the total number of files in the
+                          image
+                        type: integer
+                    type: object
+                  layerCount:
+                    description: LayerCount is the total number of layers in the image
+                    type: integer
+                  layers:
+                    description: Layers contains details for each image layer
+                    items:
+                      description: LayerInfo contains details about a single image
+                        layer
+                      properties:
+                        command:
+                          description: Command is the Dockerfile instruction that
+                            created this layer (truncated to 200 chars)
+                          type: string
+                        digest:
+                          description: Digest is the layer digest
+                          type: string
+                        index:
+                          description: Index is the layer position (0 = base layer)
+                          type: integer
+                        sizeBytes:
+                          description: SizeBytes is the layer size in bytes
+                          format: int64
+                          type: integer
+                      required:
+                      - index
+                      - sizeBytes
+                      type: object
+                    type: array
+                  passed:
+                    description: Passed indicates whether the image meets the configured
+                      efficiency thresholds
+                    type: boolean
+                  userWastedPercent:
+                    description: |-
+                      UserWastedPercent is the percentage of user image space that is wasted as a string (e.g. "0.016")
+                      Stored as string for cross-language CRD compatibility. Range: "0.0" to "1.0".
+                    type: string
+                  wastedBytes:
+                    description: WastedBytes is the total wasted space in bytes
+                    format: int64
+                    type: integer
+                  wastedFiles:
+                    description: WastedFiles lists the top files contributing to wasted
+                      space (capped at 50)
+                    items:
+                      description: WastedFile identifies a file or directory contributing
+                        to wasted space
+                      properties:
+                        path:
+                          description: Path is the file or directory path
+                          type: string
+                        sizeBytes:
+                          description: SizeBytes is the wasted space from this file
+                            in bytes
+                          format: int64
+                          type: integer
+                      required:
+                      - path
+                      - sizeBytes
+                      type: object
+                    type: array
+                required:
+                - efficiency
+                - layerCount
+                - passed
+                - userWastedPercent
+                - wastedBytes
+                type: object
+              imageDigest:
+                description: ImageDigest is the image digest (e.g. "sha256:a1b2c3d4e5f6...")
+                type: string
+              imageRef:
+                description: ImageRef is the full image reference including tag (e.g.
+                  "docker.io/library/nginx:1.25.3")
+                type: string
+              imageSizeBytes:
+                description: ImageSizeBytes is the total size of the image in bytes
+                format: int64
+                type: integer
+              imageSource:
+                description: ImageSource describes how the image was acquired for
+                  analysis
+                properties:
+                  batchJobName:
+                    description: BatchJobName is the name of the batch job that analyzed
+                      this image
+                    type: string
+                  exportDurationMs:
+                    description: ExportDurationMs is how long it took to export/pull
+                      the image in milliseconds
+                    format: int64
+                    type: integer
+                  nodeName:
+                    description: NodeName is the node where the analysis job ran
+                    type: string
+                  type:
+                    description: 'Type is the image acquisition method: "local-containerd"
+                      or "remote-pull"'
+                    enum:
+                    - local-containerd
+                    - remote-pull
+                    type: string
+                required:
+                - nodeName
+                - type
+                type: object
+              workloadReferences:
+                description: WorkloadReferences lists the workloads using this image
+                  (capped at 200, sorted by replica count desc)
+                items:
+                  description: WorkloadReference identifies a workload that uses this
+                    image
+                  properties:
+                    containerNames:
+                      description: ContainerNames lists the container names within
+                        the workload that use this image
+                      items:
+                        type: string
+                      type: array
+                    namespace:
+                      description: Namespace is the workload's namespace
+                      type: string
+                    replicas:
+                      description: Replicas is the current replica count of the workload
+                      format: int32
+                      type: integer
+                    workloadName:
+                      description: WorkloadName is the name of the workload
+                      type: string
+                    workloadType:
+                      description: WorkloadType is the kind of workload (e.g. "Deployment",
+                        "StatefulSet", "DaemonSet", "Job", "CronJob")
+                      type: string
+                    workloadUID:
+                      description: WorkloadUID is the UID of the workload
+                      type: string
+                  required:
+                  - namespace
+                  - workloadName
+                  - workloadType
+                  - workloadUID
+                  type: object
+                type: array
+              workloadSummary:
+                description: WorkloadSummary is a high-level summary of workloads
+                  using this image
+                properties:
+                  namespaces:
+                    description: Namespaces lists the namespaces where this image
+                      is used
+                    items:
+                      type: string
+                    type: array
+                  nodesRunningImage:
+                    description: NodesRunningImage is the count of nodes that have
+                      containers running this image
+                    type: integer
+                  totalContainers:
+                    description: TotalContainers is the total number of container
+                      instances using this image across the cluster
+                    type: integer
+                  totalWorkloads:
+                    description: TotalWorkloads is the count of unique workloads (Deployments,
+                      StatefulSets, etc.) using this image
+                    type: integer
+                type: object
+            required:
+            - analysis
+            - imageDigest
+            - imageRef
+            - imageSource
+            type: object
+          status:
+            description: ImageAnalysisResultStatus defines the observed state of ImageAnalysisResult
+            properties:
+              analysisDurationSeconds:
+                description: AnalysisDurationSeconds is how long the dive analysis
+                  took
+                type: integer
+              analyzedAt:
+                description: AnalyzedAt is when the image was analyzed
+                format: date-time
+                type: string
+              message:
+                description: Message contains additional information about the current
+                  phase (e.g. error details)
+                type: string
+              phase:
+                description: Phase is the current state of the analysis
+                enum:
+                - Pending
+                - Analyzing
+                - Completed
+                - Failed
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
