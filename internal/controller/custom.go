@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -49,17 +50,18 @@ import (
 // EnvBasedController is a controller that uses environment variables instead of CRDs
 type EnvBasedController struct {
 	client.Client
-	Scheme            *runtime.Scheme
-	Log               logr.Logger
-	K8sClient         *kubernetes.Clientset
-	DynamicClient     *dynamic.DynamicClient
-	DiscoveryClient   *discovery.DiscoveryClient
-	ApiExtensions     *apiextensionsclientset.Clientset
-	Reconciler        *CollectionPolicyReconciler
-	stopCh            chan struct{}
-	reconcileInterval time.Duration
-	mpaServerPort     int
-	startTime         time.Time
+	Scheme              *runtime.Scheme
+	Log                 logr.Logger
+	K8sClient           *kubernetes.Clientset
+	DynamicClient       *dynamic.DynamicClient
+	DiscoveryClient     *discovery.DiscoveryClient
+	ApiExtensions       *apiextensionsclientset.Clientset
+	Reconciler          *CollectionPolicyReconciler
+	stopCh              chan struct{}
+	reconcileInterval   time.Duration
+	mpaServerPort       int
+	startTime           time.Time
+	nodeOperatorMonitor *health.NodeOperatorMonitor
 }
 
 // NewEnvBasedController creates a new environment-based controller
@@ -127,18 +129,25 @@ func NewEnvBasedController(mgr ctrl.Manager, healthManager *health.HealthManager
 
 	logger.Info("Checking 2nd reconcile interval", "reconcile", reconcileInterval)
 
+	nodeOperatorMonitor := health.NewNodeOperatorMonitor(
+		logger.WithName("node-operator-monitor"),
+		clientset,
+		&http.Client{Timeout: 5 * time.Second},
+	)
+
 	return &EnvBasedController{
-		Client:            mgr.GetClient(),
-		Scheme:            mgr.GetScheme(),
-		Log:               logger,
-		K8sClient:         clientset,
-		DynamicClient:     dynamicClient,
-		DiscoveryClient:   discoveryClient,
-		ApiExtensions:     apiExtensionClient,
-		Reconciler:        reconciler,
-		stopCh:            make(chan struct{}),
-		reconcileInterval: reconcileInterval,
-		mpaServerPort:     mpaServerPort,
+		Client:              mgr.GetClient(),
+		Scheme:              mgr.GetScheme(),
+		Log:                 logger,
+		K8sClient:           clientset,
+		DynamicClient:       dynamicClient,
+		DiscoveryClient:     discoveryClient,
+		ApiExtensions:       apiExtensionClient,
+		Reconciler:          reconciler,
+		stopCh:              make(chan struct{}),
+		reconcileInterval:   reconcileInterval,
+		mpaServerPort:       mpaServerPort,
+		nodeOperatorMonitor: nodeOperatorMonitor,
 	}, nil
 }
 
@@ -197,11 +206,13 @@ func (c *EnvBasedController) runHealthReporting(ctx context.Context) {
 
 	// Send initial heartbeat immediately so dakr sees the operator right away
 	c.sendHealthReport(ctx)
+	c.sendNodeOperatorHealthReport(ctx)
 
 	for {
 		select {
 		case <-ticker.C:
 			c.sendHealthReport(ctx)
+			c.sendNodeOperatorHealthReport(ctx)
 		case <-c.stopCh:
 			return
 		case <-ctx.Done():
@@ -240,6 +251,33 @@ func (c *EnvBasedController) sendHealthReport(ctx context.Context) {
 		)
 		if err := c.Reconciler.DakrClient.ReportHealth(ctx, req); err != nil {
 			c.Log.Error(err, "Failed to send health heartbeat to dakr")
+		}
+	}
+}
+
+// sendNodeOperatorHealthReport discovers dzKarp, probes its health, and sends
+// a separate ReportHealth heartbeat with OPERATOR_TYPE_NODE to the control plane.
+func (c *EnvBasedController) sendNodeOperatorHealthReport(ctx context.Context) {
+	report, nodeVersion, nodeCommit, uptimeSince := c.nodeOperatorMonitor.BuildNodeOperatorReport(ctx)
+	if report == nil {
+		return // dzKarp not found in cluster, nothing to report
+	}
+
+	for name, status := range report {
+		c.Log.Info("Node operator health status", "component", name, "status", status.Status, "message", status.Message, "metadata", status.Metadata)
+	}
+
+	if c.Reconciler.DakrClient != nil {
+		req := health.BuildHeartbeatRequestFromReport(
+			report,
+			c.getClusterID(),
+			gen.OperatorType_OPERATOR_TYPE_NODE,
+			nodeVersion,
+			nodeCommit,
+			uptimeSince,
+		)
+		if err := c.Reconciler.DakrClient.ReportHealth(ctx, req); err != nil {
+			c.Log.Error(err, "Failed to send node operator health heartbeat to dakr")
 		}
 	}
 }
