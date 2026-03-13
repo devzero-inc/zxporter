@@ -177,9 +177,13 @@ func (c *DaemonSetCollector) daemonSetChanged(oldDaemonSet, newDaemonSet *appsv1
 		oldDaemonSet.ObjectMeta,
 		newDaemonSet.ObjectMeta,
 	)
-	if changed != IgnoreChanges {
-		return changed == PushChanges
+	if changed == IgnoreChanges {
+		return false
 	}
+	if changed == PushChanges {
+		return true
+	}
+	// changed == UnknownChanges: fall through to field-by-field checks
 
 	// Check for status changes
 	if oldDaemonSet.Status.CurrentNumberScheduled != newDaemonSet.Status.CurrentNumberScheduled ||
@@ -226,6 +230,11 @@ func (c *DaemonSetCollector) daemonSetChanged(oldDaemonSet, newDaemonSet *appsv1
 	}
 
 	if !reflect.DeepEqual(oldDaemonSet.UID, newDaemonSet.UID) {
+		return true
+	}
+
+	// Catch-all: deep compare specs to detect any remaining changes
+	if !reflect.DeepEqual(oldDaemonSet.Spec, newDaemonSet.Spec) {
 		return true
 	}
 

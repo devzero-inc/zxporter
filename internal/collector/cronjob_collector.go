@@ -179,9 +179,13 @@ func (c *CronJobCollector) cronJobChanged(oldCronJob, newCronJob *batchv1.CronJo
 		oldCronJob.ObjectMeta,
 		newCronJob.ObjectMeta,
 	)
-	if changed != IgnoreChanges {
-		return changed == PushChanges
+	if changed == IgnoreChanges {
+		return false
 	}
+	if changed == PushChanges {
+		return true
+	}
+	// changed == UnknownChanges: fall through to field-by-field checks
 
 	// Check for schedule changes
 	if oldCronJob.Spec.Schedule != newCronJob.Spec.Schedule {
@@ -225,6 +229,11 @@ func (c *CronJobCollector) cronJobChanged(oldCronJob, newCronJob *batchv1.CronJo
 	}
 
 	if !reflect.DeepEqual(oldCronJob.UID, newCronJob.UID) {
+		return true
+	}
+
+	// Catch-all: deep compare specs to detect any remaining changes
+	if !reflect.DeepEqual(oldCronJob.Spec, newCronJob.Spec) {
 		return true
 	}
 

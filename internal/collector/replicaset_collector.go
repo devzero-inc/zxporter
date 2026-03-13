@@ -177,16 +177,24 @@ func (c *ReplicaSetCollector) replicaSetChanged(oldReplicaSet, newReplicaSet *ap
 		oldReplicaSet.ObjectMeta,
 		newReplicaSet.ObjectMeta,
 	)
-	if changed != IgnoreChanges {
-		return changed == PushChanges
+	if changed == IgnoreChanges {
+		return false
 	}
-
-	// Check if replicas changed
-	if oldReplicaSet.Spec.Replicas == nil || newReplicaSet.Spec.Replicas == nil {
+	if changed == PushChanges {
 		return true
 	}
+	// changed == UnknownChanges: fall through to field-by-field checks
 
-	if *oldReplicaSet.Spec.Replicas != *newReplicaSet.Spec.Replicas {
+	// Check if replicas changed — treat nil Replicas as the Kubernetes default (1).
+	oldReplicas := int32(1)
+	if oldReplicaSet.Spec.Replicas != nil {
+		oldReplicas = *oldReplicaSet.Spec.Replicas
+	}
+	newReplicas := int32(1)
+	if newReplicaSet.Spec.Replicas != nil {
+		newReplicas = *newReplicaSet.Spec.Replicas
+	}
+	if oldReplicas != newReplicas {
 		return true
 	}
 
@@ -230,6 +238,11 @@ func (c *ReplicaSetCollector) replicaSetChanged(oldReplicaSet, newReplicaSet *ap
 	}
 
 	if !reflect.DeepEqual(oldReplicaSet.UID, newReplicaSet.UID) {
+		return true
+	}
+
+	// Catch-all: deep compare specs to detect any remaining changes
+	if !reflect.DeepEqual(oldReplicaSet.Spec, newReplicaSet.Spec) {
 		return true
 	}
 

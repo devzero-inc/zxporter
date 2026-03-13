@@ -177,16 +177,24 @@ func (c *DeploymentCollector) deploymentChanged(oldDeployment, newDeployment *ap
 		oldDeployment.ObjectMeta,
 		newDeployment.ObjectMeta,
 	)
-	if changed != IgnoreChanges {
-		return changed == PushChanges
+	if changed == IgnoreChanges {
+		return false
 	}
-
-	// Check for spec changes
-	if oldDeployment.Spec.Replicas == nil || newDeployment.Spec.Replicas == nil {
+	if changed == PushChanges {
 		return true
 	}
+	// changed == UnknownChanges: fall through to field-by-field checks
 
-	if *oldDeployment.Spec.Replicas != *newDeployment.Spec.Replicas {
+	// Check for spec changes — treat nil Replicas as the Kubernetes default (1).
+	oldReplicas := int32(1)
+	if oldDeployment.Spec.Replicas != nil {
+		oldReplicas = *oldDeployment.Spec.Replicas
+	}
+	newReplicas := int32(1)
+	if newDeployment.Spec.Replicas != nil {
+		newReplicas = *newDeployment.Spec.Replicas
+	}
+	if oldReplicas != newReplicas {
 		return true
 	}
 
@@ -226,6 +234,11 @@ func (c *DeploymentCollector) deploymentChanged(oldDeployment, newDeployment *ap
 	}
 
 	if !reflect.DeepEqual(oldDeployment.UID, newDeployment.UID) {
+		return true
+	}
+
+	// Catch-all: deep compare specs to detect any remaining changes
+	if !reflect.DeepEqual(oldDeployment.Spec, newDeployment.Spec) {
 		return true
 	}
 

@@ -177,16 +177,24 @@ func (c *StatefulSetCollector) statefulSetChanged(oldStatefulSet, newStatefulSet
 		oldStatefulSet.ObjectMeta,
 		newStatefulSet.ObjectMeta,
 	)
-	if changed != IgnoreChanges {
-		return changed == PushChanges
+	if changed == IgnoreChanges {
+		return false
 	}
-
-	// Check for spec changes
-	if oldStatefulSet.Spec.Replicas == nil || newStatefulSet.Spec.Replicas == nil {
+	if changed == PushChanges {
 		return true
 	}
+	// changed == UnknownChanges: fall through to field-by-field checks
 
-	if *oldStatefulSet.Spec.Replicas != *newStatefulSet.Spec.Replicas {
+	// Check for spec changes — treat nil Replicas as the Kubernetes default (1).
+	oldReplicas := int32(1)
+	if oldStatefulSet.Spec.Replicas != nil {
+		oldReplicas = *oldStatefulSet.Spec.Replicas
+	}
+	newReplicas := int32(1)
+	if newStatefulSet.Spec.Replicas != nil {
+		newReplicas = *newStatefulSet.Spec.Replicas
+	}
+	if oldReplicas != newReplicas {
 		return true
 	}
 
@@ -233,6 +241,11 @@ func (c *StatefulSetCollector) statefulSetChanged(oldStatefulSet, newStatefulSet
 	}
 
 	if !reflect.DeepEqual(oldStatefulSet.UID, newStatefulSet.UID) {
+		return true
+	}
+
+	// Catch-all: deep compare specs to detect any remaining changes
+	if !reflect.DeepEqual(oldStatefulSet.Spec, newStatefulSet.Spec) {
 		return true
 	}
 

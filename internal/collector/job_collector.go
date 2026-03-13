@@ -177,9 +177,13 @@ func (c *JobCollector) jobChanged(oldJob, newJob *batchv1.Job) bool {
 		oldJob.ObjectMeta,
 		newJob.ObjectMeta,
 	)
-	if changed != IgnoreChanges {
-		return changed == PushChanges
+	if changed == IgnoreChanges {
+		return false
 	}
+	if changed == PushChanges {
+		return true
+	}
+	// changed == UnknownChanges: fall through to field-by-field checks
 
 	// Check for status changes
 	if oldJob.Status.Active != newJob.Status.Active ||
@@ -245,6 +249,11 @@ func (c *JobCollector) jobChanged(oldJob, newJob *batchv1.Job) bool {
 	}
 
 	if !reflect.DeepEqual(oldJob.UID, newJob.UID) {
+		return true
+	}
+
+	// Catch-all: deep compare specs to detect any remaining changes
+	if !reflect.DeepEqual(oldJob.Spec, newJob.Spec) {
 		return true
 	}
 

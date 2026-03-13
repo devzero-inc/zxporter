@@ -413,21 +413,23 @@ func (m *CollectionManager) processCollectorChannel(collectorType string, collec
 		case m.combinedChannel <- resources:
 			// Successfully sent
 		case <-time.After(5 * time.Second):
+			keys := make([]string, 0, len(resources))
+			for i, r := range resources {
+				if i >= 10 {
+					break
+				}
+				keys = append(keys, r.Key)
+			}
 			m.logger.Error(nil, "Combined channel buffer full, dropping resources after timeout",
 				"count", len(resources),
-				"type", resources[0].ResourceType.String())
+				"type", resources[0].ResourceType.String(),
+				"sample_keys", keys)
 			m.updateHealthStatus(health.ComponentBufferQueue, health.HealthStatusDegraded, "Buffer full, dropping resources", map[string]string{"capacity": fmt.Sprintf("%d", m.bufferSize), "resource_type": resources[0].ResourceType.String()})
 			m.telemetryMetrics.MessagesDropped.WithLabelValues(resources[0].ResourceType.String()).Add(float64(len(resources)))
 		}
 	}
 
 	m.logger.Info("Collector channel closed, stopping processor", "type", collectorType)
-}
-
-// shouldCollectResource checks if a resource should be collected based on configuration
-func (m *CollectionManager) shouldCollectResource(resource CollectedResource) bool {
-	// Implement filtering logic based on configuration
-	return true
 }
 
 // GetCombinedChannel returns the combined channel for all collectors
