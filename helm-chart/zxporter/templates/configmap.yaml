@@ -53,6 +53,42 @@ data:
   TOKEN_SECRET_NAME: "{{ .Values.zxporter.tokenSecretName }}"
   USE_SECRET_FOR_TOKEN: "{{ .Values.zxporter.useSecretForToken }}"
   WATCHED_CRDS: ""
+  # === Image Analysis Configuration ===
+  {{- if .Values.imageAnalysis.enabled }}
+  IMAGE_ANALYSIS_ENABLED: "true"
+  IMAGE_ANALYSIS_INTERVAL_DAYS: "{{ .Values.imageAnalysis.intervalDays }}"
+  IMAGE_ANALYSIS_CRON_EXPRESSION: ""
+  IMAGE_ANALYSIS_MAX_CONCURRENT_JOBS: "{{ .Values.imageAnalysis.maxConcurrentJobs }}"
+  IMAGE_ANALYSIS_MAX_JOBS_PER_NODE: "{{ .Values.imageAnalysis.maxJobsPerNode }}"
+  IMAGE_ANALYSIS_BATCH_SIZE: "{{ .Values.imageAnalysis.batchSize }}"
+  IMAGE_ANALYSIS_JOB_TIMEOUT_MINUTES: "{{ .Values.imageAnalysis.jobTimeoutMinutes }}"
+  IMAGE_ANALYSIS_MAX_RETRIES: "{{ .Values.imageAnalysis.maxRetries }}"
+  IMAGE_ANALYSIS_JOB_NAMESPACE: "{{ .Values.namespace }}"
+  IMAGE_ANALYSIS_ANALYZER_IMAGE: "{{ .Values.imageAnalysis.analyzerImage.repository }}:{{ .Values.imageAnalysis.analyzerImage.tag }}"
+  IMAGE_ANALYSIS_JOB_CPU_REQUEST: "{{ .Values.imageAnalysis.jobResources.requests.cpu }}"
+  IMAGE_ANALYSIS_JOB_CPU_LIMIT: "{{ .Values.imageAnalysis.jobResources.limits.cpu }}"
+  IMAGE_ANALYSIS_JOB_MEMORY_REQUEST: "{{ .Values.imageAnalysis.jobResources.requests.memory }}"
+  IMAGE_ANALYSIS_JOB_MEMORY_LIMIT: "{{ .Values.imageAnalysis.jobResources.limits.memory }}"
+  IMAGE_ANALYSIS_WORKSPACE_SIZE_LIMIT: "{{ .Values.imageAnalysis.workspaceSizeLimit }}"
+  IMAGE_ANALYSIS_REGISTRY_PULL_RATE_PER_MINUTE: "30"
+  IMAGE_ANALYSIS_JOB_TOLERATIONS: "{{ .Values.imageAnalysis.jobTolerations | toJson }}"
+  IMAGE_ANALYSIS_PREFER_LOCAL: "{{ .Values.imageAnalysis.imageSource.preferLocal }}"
+  IMAGE_ANALYSIS_CONTAINERD_SOCKET_PATH: "{{ .Values.imageAnalysis.imageSource.containerdSocketPath }}"
+  IMAGE_ANALYSIS_CONTAINERD_NAMESPACE: "{{ .Values.imageAnalysis.imageSource.containerdNamespace }}"
+  IMAGE_ANALYSIS_FALLBACK_TO_REMOTE: "{{ .Values.imageAnalysis.imageSource.fallbackToRemote }}"
+  IMAGE_ANALYSIS_REMOTE_PULL_TIMEOUT: "{{ .Values.imageAnalysis.imageSource.remotePullTimeout }}"
+  IMAGE_ANALYSIS_REGISTRY_AUTH_SECRET: "{{ .Values.imageAnalysis.registryAuthSecret }}"
+  IMAGE_ANALYSIS_TARGET_NAMESPACES: ""
+  IMAGE_ANALYSIS_EXCLUDED_NAMESPACES: "{{ join "," .Values.imageAnalysis.excludedNamespaces }}"
+  IMAGE_ANALYSIS_EXCLUDED_IMAGES: "{{ join "," .Values.imageAnalysis.excludedImages }}"
+  IMAGE_ANALYSIS_INCLUDED_IMAGES: ""
+  IMAGE_ANALYSIS_LOWEST_EFFICIENCY: "{{ .Values.imageAnalysis.thresholds.lowestEfficiency }}"
+  IMAGE_ANALYSIS_HIGHEST_WASTED_BYTES: "{{ .Values.imageAnalysis.thresholds.highestWastedBytes }}"
+  IMAGE_ANALYSIS_HIGHEST_USER_WASTED_PERCENT: "{{ .Values.imageAnalysis.thresholds.highestUserWastedPercent }}"
+  IMAGE_ANALYSIS_RESULT_RETENTION_DAYS: "{{ .Values.imageAnalysis.resultRetentionDays }}"
+  {{- else }}
+  IMAGE_ANALYSIS_ENABLED: "false"
+  {{- end }}
 kind: ConfigMap
 metadata:
   name: {{ .Values.zxporter.tokenConfigMapName }}

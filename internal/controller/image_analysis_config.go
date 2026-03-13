@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/devzero-inc/zxporter/internal/util"
 )
@@ -305,6 +306,21 @@ func LoadImageAnalysisConfigFromEnv() (ImageAnalysisConfig, error) {
 	// === Cleanup ===
 	if cfg.ResultRetentionDays, err = parseInt(_ENV_IMAGE_ANALYSIS_RESULT_RETENTION_DAYS, cfg.ResultRetentionDays); err != nil {
 		return cfg, err
+	}
+
+	// === Validate resource quantities to catch bad values at load time (not at Job creation) ===
+	for _, check := range []struct {
+		name, value string
+	}{
+		{"JobCPURequest", cfg.JobCPURequest},
+		{"JobCPULimit", cfg.JobCPULimit},
+		{"JobMemoryRequest", cfg.JobMemoryRequest},
+		{"JobMemoryLimit", cfg.JobMemoryLimit},
+		{"WorkspaceSizeLimit", cfg.WorkspaceSizeLimit},
+	} {
+		if _, err := resource.ParseQuantity(check.value); err != nil {
+			return cfg, fmt.Errorf("invalid resource quantity for %s (%q): %w", check.name, check.value, err)
+		}
 	}
 
 	return cfg, nil

@@ -47,8 +47,8 @@ type ImageAnalysisResultSpec struct {
 
 // ImageSourceInfo describes how the image was acquired for analysis
 type ImageSourceInfo struct {
-	// Type is the image acquisition method: "local-containerd" or "remote-pull"
-	// +kubebuilder:validation:Enum=local-containerd;remote-pull
+	// Type is the image acquisition method: "local-containerd", "remote-pull", or "failed"
+	// +kubebuilder:validation:Enum=local-containerd;remote-pull;failed
 	Type string `json:"type"`
 
 	// NodeName is the node where the analysis job ran

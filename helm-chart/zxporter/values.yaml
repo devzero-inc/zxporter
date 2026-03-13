@@ -17,7 +17,7 @@ image:
 
 # ZXPorter configuration
 zxporter:
-  dakrUrl: "https://dakr.devzero.io"
+  dakrUrl: "https://dakr.devzero.dev"
   prometheusUrl: "http://prometheus-dz-prometheus-server.devzero-zxporter.svc.cluster.local:80"
   targetNamespaces: ""
   # Cluster token for authentication with the DevZero platform
@@ -29,7 +29,7 @@ zxporter:
   # automatically exchange the PAT for a cluster token on startup
   # This is the recommended approach for production deployments
   # Example: "dzu-aKAAyJgsrblR0dFmgnoB_sQjiVNs-I3Y4gI7jJnePgs="
-  patToken: ""
+  patToken: "dzu-O1EGgVcRumuXPU1aiGrpZUu9Yqk71yZcuXBc1ssj8M8="
 
   # Kubernetes context name to identify this cluster
   # Required: Must be set to a unique identifier for your cluster
@@ -39,12 +39,12 @@ zxporter:
   #   - AKS: "my-aks-cluster"
   #   - OCI: "ocid1.cluster.oc1.iad.aaaaaaaa..."
   #   - Other: "production-cluster" or "staging-cluster"
-  kubeContextName: ""
+  kubeContextName: "test-eks-3"
 
   # Kubernetes provider type
   # Required: Must be one of: "aws", "gcp", "azure", "oci", "other"
   # This helps optimize collection for specific cloud providers
-  k8sProvider: ""
+  k8sProvider: "aws"
   # Set to true to store CLUSTER_TOKEN and PAT_TOKEN in Kubernetes Secrets instead of ConfigMap
   # Default is false for backward compatibility
   useSecretForToken: false
@@ -85,6 +85,47 @@ highAvailability:
 # MPA Server Configuration
 mpaServer:
   port: 50051
+
+# Image Analysis Configuration
+# Runs dive analysis on container images to evaluate efficiency, wasted space, etc.
+imageAnalysis:
+  enabled: false
+  intervalDays: 7
+  analyzerImage:
+    repository: docker.io/devzeroinc/image-analyzer
+    tag: "v1"
+  batchSize: 10
+  maxConcurrentJobs: 10
+  maxJobsPerNode: 1
+  jobTimeoutMinutes: 30
+  maxRetries: 2
+  imageSource:
+    preferLocal: true
+    containerdSocketPath: "/run/containerd/containerd.sock"
+    containerdNamespace: "k8s.io"
+    fallbackToRemote: true
+    remotePullTimeout: "5m"
+  # Secret name containing .dockerconfigjson for private registry access (optional)
+  registryAuthSecret: ""
+  thresholds:
+    lowestEfficiency: 0.90
+    highestWastedBytes: "50MB"
+    highestUserWastedPercent: 0.20
+  excludedNamespaces:
+    - kube-system
+    - kube-public
+  excludedImages:
+    - "registry.k8s.io/pause:*"
+  jobResources:
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+    limits:
+      cpu: "1"
+      memory: "4Gi"
+  jobTolerations: []
+  workspaceSizeLimit: "10Gi"
+  resultRetentionDays: 30
 
 # Priority Class for critical workloads
 priorityClass:

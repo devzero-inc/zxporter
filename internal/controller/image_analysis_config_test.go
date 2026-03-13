@@ -247,6 +247,26 @@ func TestLoadImageAnalysisConfigFromEnv_EmptyTolerationsArray(t *testing.T) {
 	assert.Empty(t, cfg.JobTolerations)
 }
 
+func TestLoadImageAnalysisConfigFromEnv_InvalidResourceQuantity(t *testing.T) {
+	clearImageAnalysisEnvVars(t)
+
+	t.Setenv(_ENV_IMAGE_ANALYSIS_JOB_CPU_REQUEST, "not-a-resource")
+
+	_, err := LoadImageAnalysisConfigFromEnv()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid resource quantity for JobCPURequest")
+}
+
+func TestLoadImageAnalysisConfigFromEnv_InvalidMemoryQuantity(t *testing.T) {
+	clearImageAnalysisEnvVars(t)
+
+	t.Setenv(_ENV_IMAGE_ANALYSIS_JOB_MEMORY_LIMIT, "xyz")
+
+	_, err := LoadImageAnalysisConfigFromEnv()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid resource quantity for JobMemoryLimit")
+}
+
 func TestLoadImageAnalysisConfigFromEnv_CSVTrimming(t *testing.T) {
 	clearImageAnalysisEnvVars(t)
 

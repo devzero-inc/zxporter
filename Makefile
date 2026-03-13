@@ -250,6 +250,17 @@ stress-docker-build: ## Build docker image for the stress test.
 stress-docker-push: ## Push docker image for the stress test.
 	$(CONTAINER_TOOL) push ${STRESS_IMG}
 
+# Image analyzer for dive batch analysis
+IMG_ANALYZER ?= ttl.sh/zxporter-image-analyzer:latest
+
+.PHONY: docker-build-analyzer
+docker-build-analyzer: ## Build docker image for the image analyzer
+	$(CONTAINER_TOOL) build -t ${IMG_ANALYZER} -f internal/analyzer/Dockerfile internal/analyzer/
+
+.PHONY: docker-push-analyzer
+docker-push-analyzer: ## Push docker image for the image analyzer
+	$(CONTAINER_TOOL) push ${IMG_ANALYZER}
+
 # zxporter-netmon images
 IMG_NETMON ?= ttl.sh/zxporter-netmon:latest
 
