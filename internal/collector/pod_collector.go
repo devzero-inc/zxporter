@@ -579,6 +579,14 @@ func (c *PodCollector) trackStartupLifecycle(_, newPod *corev1.Pod) {
 				}
 			}
 
+			// Skip containers that are already Running and Ready — these were running
+			// before tracking began and aren't new startups. snapshotStartupLifecycles
+			// (called during ADD events) already handles these correctly.
+			if newStatus.State.Running != nil && newStatus.Ready {
+				c.startupTrackerMu.Unlock()
+				continue
+			}
+
 			c.startupTracker[key] = entry
 		}
 
@@ -615,7 +623,19 @@ func (c *PodCollector) trackStartupLifecycle(_, newPod *corev1.Pod) {
 					timeToRunningMs = &ms
 				}
 				if entry.pendingAt != nil {
-					ms := now.Sub(*entry.pendingAt).Milliseconds()
+					// Use the ContainersReady condition's LastTransitionTime for a more
+					// precise ready_at instead of time.Now().
+					readyTime := now
+					for _, cond := range newPod.Status.Conditions {
+						if cond.Type == corev1.ContainersReady && cond.Status == corev1.ConditionTrue {
+							t := cond.LastTransitionTime.Time
+							if !t.IsZero() {
+								readyTime = t
+							}
+							break
+						}
+					}
+					ms := readyTime.Sub(*entry.pendingAt).Milliseconds()
 					timeToReadyMs = &ms
 				}
 			}
