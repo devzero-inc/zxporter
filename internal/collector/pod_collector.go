@@ -746,14 +746,14 @@ func (c *PodCollector) snapshotStartupLifecycles(pod *corev1.Pod) {
 				timeToReadyMs = &ms
 			}
 		} else {
-			ms := runningAt.Sub(pendingAt).Milliseconds()
-			if ms > 0 {
-				timeToRunningMs = &ms
+			runMs := runningAt.Sub(pendingAt).Milliseconds()
+			if runMs > 0 {
+				timeToRunningMs = &runMs
 			}
 
-			ms = readyAt.Sub(pendingAt).Milliseconds()
-			if ms > 0 {
-				timeToReadyMs = &ms
+			readyMs := readyAt.Sub(pendingAt).Milliseconds()
+			if readyMs > 0 {
+				timeToReadyMs = &readyMs
 			}
 		}
 
