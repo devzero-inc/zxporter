@@ -26,7 +26,7 @@ const (
 // across karpenter-provider-aws, karpenter-provider-azure, and
 // karpenter-provider-gcp.
 var dzKarpImageIdentifiers = []string{
-	"devzeroinc",  // AWS and Azure providers
+	"devzeroinc",   // AWS and Azure providers
 	"cloudpilotai", // GCP provider
 }
 
