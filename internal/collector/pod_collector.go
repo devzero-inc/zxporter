@@ -602,13 +602,22 @@ func (c *PodCollector) trackStartupLifecycle(_, newPod *corev1.Pod) {
 		if newStatus.Ready && entry.runningAt != nil {
 			// Calculate durations
 			var timeToRunningMs, timeToReadyMs *int64
-			if entry.pendingAt != nil && entry.runningAt != nil {
-				ms := entry.runningAt.Sub(*entry.pendingAt).Milliseconds()
-				timeToRunningMs = &ms
-			}
-			if entry.pendingAt != nil {
-				ms := now.Sub(*entry.pendingAt).Milliseconds()
-				timeToReadyMs = &ms
+			if entry.isRestart {
+				// For restarts, pendingAt is the pod's original creation time (never resets),
+				// so measure from runningAt to get the actual per-restart duration.
+				if entry.runningAt != nil {
+					ms := now.Sub(*entry.runningAt).Milliseconds()
+					timeToReadyMs = &ms
+				}
+			} else {
+				if entry.pendingAt != nil && entry.runningAt != nil {
+					ms := entry.runningAt.Sub(*entry.pendingAt).Milliseconds()
+					timeToRunningMs = &ms
+				}
+				if entry.pendingAt != nil {
+					ms := now.Sub(*entry.pendingAt).Milliseconds()
+					timeToReadyMs = &ms
+				}
 			}
 
 			c.emitStartupLifecycleEvent(entry, &now, timeToRunningMs, timeToReadyMs)
@@ -729,14 +738,23 @@ func (c *PodCollector) snapshotStartupLifecycles(pod *corev1.Pod) {
 
 		var timeToRunningMs, timeToReadyMs *int64
 
-		ms := runningAt.Sub(pendingAt).Milliseconds()
-		if ms > 0 {
-			timeToRunningMs = &ms
-		}
+		if entry.isRestart {
+			// For restarts, pendingAt is the pod's original creation time (never resets),
+			// so measure from runningAt to get the actual per-restart duration.
+			ms := readyAt.Sub(runningAt).Milliseconds()
+			if ms > 0 {
+				timeToReadyMs = &ms
+			}
+		} else {
+			runMs := runningAt.Sub(pendingAt).Milliseconds()
+			if runMs > 0 {
+				timeToRunningMs = &runMs
+			}
 
-		ms = readyAt.Sub(pendingAt).Milliseconds()
-		if ms > 0 {
-			timeToReadyMs = &ms
+			readyMs := readyAt.Sub(pendingAt).Milliseconds()
+			if readyMs > 0 {
+				timeToReadyMs = &readyMs
+			}
 		}
 
 		c.emitStartupLifecycleEvent(entry, readyAt, timeToRunningMs, timeToReadyMs)
