@@ -749,11 +749,25 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 						} else {
 							gpuMetrics = make(map[string]interface{})
 						}
-					} else {
+					} else if len(gpuExporterMetrics) > 0 {
+						// GPU exporter returned data
 						gpuMetrics = NodeGPUMetricsFromExporter(gpuExporterMetrics)
+					} else if c.prometheusAPI != nil {
+						// GPU exporter returned no data (no exporter on this node) — fallback to Prometheus
+						gpuMetrics, err = c.collectNodeGPUMetrics(queryCtx, node.Name)
+						if err != nil {
+							c.logger.Info(
+								"Prometheus fallback returned no GPU metrics for node (node may not have GPUs)",
+								"node", node.Name,
+								"error", err.Error(),
+							)
+							gpuMetrics = make(map[string]interface{})
+						}
+					} else {
+						gpuMetrics = make(map[string]interface{})
 					}
 				} else if c.prometheusAPI != nil {
-					// No GPU exporter available — use Prometheus
+					// No GPU exporter client initialized — use Prometheus
 					gpuMetrics, err = c.collectNodeGPUMetrics(queryCtx, node.Name)
 					if queryCtx.Err() != nil {
 						c.logger.Error(queryCtx.Err(), "Query context for node GPU metrics failed", "node", node.Name)

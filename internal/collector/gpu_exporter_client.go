@@ -94,6 +94,10 @@ type GPUExporterClient struct {
 	mu            sync.RWMutex
 	nodeToIP      map[string]string // nodeName → podIP
 	lastRefreshed time.Time
+
+	// state tracking
+	lastKnownCount int  // last known number of GPU exporter pods
+	stateLogged    bool // whether we've logged the initial state
 }
 
 // NewGPUExporterClient creates a client that auto-discovers GPU exporter pods
@@ -140,12 +144,36 @@ func (c *GPUExporterClient) refreshCache(ctx context.Context) (map[string]string
 		}
 	}
 
+	currentCount := len(nodeToIP)
+
 	c.mu.Lock()
 	c.nodeToIP = nodeToIP
 	c.lastRefreshed = time.Now()
+	previousCount := c.lastKnownCount
+	wasLogged := c.stateLogged
+	c.lastKnownCount = currentCount
+	c.stateLogged = true
 	c.mu.Unlock()
 
-	c.log.Info("Refreshed GPU exporter pod cache", "nodesWithGPU", len(nodeToIP))
+	// Only log when state changes or on first discovery
+	if !wasLogged {
+		if currentCount > 0 {
+			c.log.Info("GPU exporter pods discovered", "nodesWithGPU", currentCount)
+		} else {
+			c.log.Info("No GPU exporter pods found, will use Prometheus for GPU metrics")
+		}
+	} else if currentCount != previousCount {
+		if previousCount == 0 && currentCount > 0 {
+			c.log.Info("GPU exporter pods now available", "nodesWithGPU", currentCount)
+		} else if previousCount > 0 && currentCount == 0 {
+			c.log.Info("GPU exporter pods no longer available, falling back to Prometheus")
+		} else {
+			// Count changed but still > 0
+			c.log.Info("GPU exporter pod count changed", "previous", previousCount, "current", currentCount)
+		}
+	}
+	// If state hasn't changed, don't log anything (reduces noise)
+
 	return nodeToIP, nil
 }
 
