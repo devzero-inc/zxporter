@@ -207,6 +207,8 @@ func (s *TelemetrySender) sendMetrics(ctx context.Context) error {
 }
 
 // collectAndResetTelemetryMetrics gathers metrics from the Prometheus registry and converts them to TelemetryMetric objects
+//
+//nolint:unparam
 func (s *TelemetrySender) collectAndResetTelemetryMetrics(
 	metrics []collector.ResettableCollector,
 ) ([]*dto.MetricFamily, error) {

@@ -35,6 +35,7 @@ func (c *ClusterSnapshotter) captureClusterInfo(
 	return nil
 }
 
+//nolint:unparam
 func (c *ClusterSnapshotter) captureClusterScopedResources(
 	ctx context.Context,
 	snapshot *ClusterSnapshot,

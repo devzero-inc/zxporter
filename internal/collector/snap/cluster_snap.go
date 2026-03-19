@@ -720,6 +720,8 @@ func (c *ClusterSnapshotter) refreshMissingResources(
 }
 
 // refreshClusterScopedResources refreshes cluster-scoped resources that are missing
+//
+//nolint:unparam
 func (c *ClusterSnapshotter) refreshClusterScopedResources(
 	ctx context.Context,
 	clusterScoped *gen.ClusterScopedSnapshot,
@@ -754,6 +756,8 @@ func (c *ClusterSnapshotter) refreshClusterScopedResources(
 }
 
 // refreshNamespaceResources refreshes namespaced resources that are missing
+//
+//nolint:unparam
 func (c *ClusterSnapshotter) refreshNamespaceResources(
 	ctx context.Context,
 	nsUID string,

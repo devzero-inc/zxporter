@@ -379,29 +379,7 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 		// Fetch network metrics
 		var networkMetrics map[string]float64
 		if !c.config.DisableNetworkIOMetrics && c.prometheusAPI != nil && queryCtx != nil {
-			networkMetrics, err = c.collectPodNetworkMetrics(queryCtx, pod)
-			if err != nil {
-				if c.telemetryLogger != nil {
-					c.telemetryLogger.Report(
-						gen.LogLevel_LOG_LEVEL_WARN,
-						"ContainerResourceCollector",
-						"Failed to collect network metrics from Prometheus",
-						err,
-						map[string]string{
-							"namespace":        podMetrics.Namespace,
-							"pod":              podMetrics.Name,
-							"error_type":       "prometheus_network_query_failed",
-							"prometheus_url":   c.config.PrometheusURL,
-							"zxporter_version": version.Get().String(),
-						},
-					)
-				}
-				c.logger.Error(err, "Failed to collect network metrics",
-					"namespace", podMetrics.Namespace,
-					"name", podMetrics.Name)
-				// Continue with CPU/memory metrics
-				networkMetrics = make(map[string]float64)
-			}
+			networkMetrics = c.collectPodNetworkMetrics(queryCtx, pod)
 		}
 
 		// Process each container's metrics
@@ -434,35 +412,11 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 
 				// Fetch I/O metrics for this container
 				if !c.config.DisableNetworkIOMetrics {
-					ioMetrics, err = c.collectContainerIOMetrics(
+					ioMetrics = c.collectContainerIOMetrics(
 						queryCtx,
 						pod,
 						containerMetrics.Name,
 					)
-					if err != nil {
-						if c.telemetryLogger != nil {
-							c.telemetryLogger.Report(
-								gen.LogLevel_LOG_LEVEL_WARN,
-								"ContainerResourceCollector",
-								"Failed to collect I/O metrics from Prometheus",
-								err,
-								map[string]string{
-									"namespace":        podMetrics.Namespace,
-									"pod":              podMetrics.Name,
-									"container":        containerMetrics.Name,
-									"error_type":       "prometheus_io_query_failed",
-									"prometheus_url":   c.config.PrometheusURL,
-									"zxporter_version": version.Get().String(),
-								},
-							)
-						}
-						c.logger.Error(err, "Failed to collect I/O metrics",
-							"namespace", podMetrics.Namespace,
-							"pod", podMetrics.Name,
-							"container", containerMetrics.Name)
-						// Continue with CPU/memory metrics
-						ioMetrics = make(map[string]float64)
-					}
 				}
 			}
 
@@ -745,7 +699,7 @@ func (c *ContainerResourceCollector) processContainerMetrics(
 func (c *ContainerResourceCollector) collectPodNetworkMetrics(
 	ctx context.Context,
 	pod *corev1.Pod,
-) (map[string]float64, error) {
+) map[string]float64 {
 	metrics := make(map[string]float64)
 
 	// Define queries for network metrics
@@ -813,7 +767,7 @@ func (c *ContainerResourceCollector) collectPodNetworkMetrics(
 		}
 	}
 
-	return metrics, nil
+	return metrics
 }
 
 // collectContainerIOMetrics collects I/O metrics for a container using Prometheus queries
@@ -821,7 +775,7 @@ func (c *ContainerResourceCollector) collectContainerIOMetrics(
 	ctx context.Context,
 	pod *corev1.Pod,
 	containerName string,
-) (map[string]float64, error) {
+) map[string]float64 {
 	metrics := make(map[string]float64)
 
 	// Define queries for I/O metrics
@@ -874,7 +828,7 @@ func (c *ContainerResourceCollector) collectContainerIOMetrics(
 		}
 	}
 
-	return metrics, nil
+	return metrics
 }
 
 // collectContainerCPUThrottleMetrics collects CFS bandwidth throttle metrics for a container.
@@ -1003,6 +957,8 @@ func (c *ContainerResourceCollector) emitCPUThrottleEvent(pod *corev1.Pod, conta
 }
 
 // collectContainerGPUMetrics collects GPU metrics for a container using Prometheus queries
+//
+//nolint:gocyclo
 func (c *ContainerResourceCollector) collectContainerGPUMetrics(
 	ctx context.Context,
 	pod *corev1.Pod,

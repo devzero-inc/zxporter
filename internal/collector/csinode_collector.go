@@ -213,6 +213,8 @@ func (c *CSINodeCollector) sendCSIDriverEvent(
 }
 
 // sendCSIDriverRemovedEvent sends an event when a driver is removed
+//
+//nolint:unused
 func (c *CSINodeCollector) sendCSIDriverRemovedEvent(
 	csiNode *storagev1.CSINode,
 	driverName string,

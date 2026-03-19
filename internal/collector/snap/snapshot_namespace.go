@@ -10,6 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
+//nolint:unparam
 func (c *ClusterSnapshotter) captureNamespaces(
 	ctx context.Context,
 	snapshot *ClusterSnapshot,
@@ -130,6 +131,7 @@ func (c *ClusterSnapshotter) captureNamespaceResources(
 	return nil
 }
 
+//nolint:gocyclo
 func (c *ClusterSnapshotter) captureOtherResources(
 	ctx context.Context,
 	namespace string,

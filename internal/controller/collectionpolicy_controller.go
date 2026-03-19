@@ -377,6 +377,8 @@ func (r *CollectionPolicyReconciler) retryPendingCollectors(ctx context.Context)
 }
 
 // createNewConfig creates a new config by merging policy and environment variables
+//
+//nolint:gocyclo
 func (r *CollectionPolicyReconciler) createNewConfig(
 	envSpec *monitoringv1.CollectionPolicySpec,
 	logger logr.Logger,
@@ -782,6 +784,8 @@ func (r *CollectionPolicyReconciler) createNewConfig(
 }
 
 // identifyAffectedCollectors determines which collectors are affected by configuration changes
+//
+//nolint:gocyclo
 func (r *CollectionPolicyReconciler) identifyAffectedCollectors(
 	oldConfig, newConfig *PolicyConfig,
 ) map[string]bool {
@@ -1009,6 +1013,8 @@ func (r *CollectionPolicyReconciler) identifyAffectedCollectors(
 }
 
 // restartCollectors stops existing collectors and starts new ones with updated config
+//
+//nolint:gocyclo
 func (r *CollectionPolicyReconciler) restartCollectors(
 	ctx context.Context,
 	newConfig *PolicyConfig,
@@ -1997,6 +2003,8 @@ func (r *CollectionPolicyReconciler) initializeCollectors(
 }
 
 // setupCollectionManager initializes the collection manager and sender
+//
+//nolint:unparam
 func (r *CollectionPolicyReconciler) setupCollectionManager(
 	ctx context.Context,
 	config *PolicyConfig,

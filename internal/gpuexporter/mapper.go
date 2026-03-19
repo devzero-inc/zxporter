@@ -69,6 +69,8 @@ func getLabelValue(labels []*dto.LabelPair, name string) string {
 }
 
 // MapToGPUMetrics maps scraped DCGM metric families into a flat GPUMetric slice.
+//
+//nolint:gocyclo
 func (p *metricMapper) MapToGPUMetrics(
 	ctx context.Context,
 	metricFamilyMaps []MetricFamilyMap,

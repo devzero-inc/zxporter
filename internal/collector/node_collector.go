@@ -882,6 +882,8 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 }
 
 // collectNodeNetworkIOMetrics collects network metrics for a node using Prometheus queries
+//
+//nolint:unparam
 func (c *NodeCollector) collectNodeNetworkIOMetrics(
 	ctx context.Context,
 	nodeName string,
