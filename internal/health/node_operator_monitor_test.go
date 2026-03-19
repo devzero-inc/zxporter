@@ -178,7 +178,7 @@ func TestNodeOperatorMonitor_DiscoverDeployment(t *testing.T) {
 }
 
 func TestNodeOperatorMonitor_IsDevZeroImage(t *testing.T) {
-	t.Run("devzero AWS image", func(t *testing.T) {
+	t.Run("devzero public ECR image", func(t *testing.T) {
 		dep := &appsv1.Deployment{
 			Spec: appsv1.DeploymentSpec{
 				Template: corev1.PodTemplateSpec{
@@ -193,13 +193,43 @@ func TestNodeOperatorMonitor_IsDevZeroImage(t *testing.T) {
 		assert.True(t, isDevZeroImage(dep))
 	})
 
-	t.Run("devzero GCP image", func(t *testing.T) {
+	t.Run("devzero private ECR image", func(t *testing.T) {
 		dep := &appsv1.Deployment{
 			Spec: appsv1.DeploymentSpec{
 				Template: corev1.PodTemplateSpec{
 					Spec: corev1.PodSpec{
 						Containers: []corev1.Container{
-							{Image: "public.ecr.aws/devzeroinc/dzkarp-gcp/controller:abc123"},
+							{Image: "123456789.dkr.ecr.us-east-1.amazonaws.com/devzeroinc/dzkarp-aws/controller:abc123"},
+						},
+					},
+				},
+			},
+		}
+		assert.True(t, isDevZeroImage(dep))
+	})
+
+	t.Run("devzero Azure ACR image", func(t *testing.T) {
+		dep := &appsv1.Deployment{
+			Spec: appsv1.DeploymentSpec{
+				Template: corev1.PodTemplateSpec{
+					Spec: corev1.PodSpec{
+						Containers: []corev1.Container{
+							{Image: "devzeroinc.azurecr.io/dzkarp-azure/controller:abc123"},
+						},
+					},
+				},
+			},
+		}
+		assert.True(t, isDevZeroImage(dep))
+	})
+
+	t.Run("devzero GCP image (cloudpilotai)", func(t *testing.T) {
+		dep := &appsv1.Deployment{
+			Spec: appsv1.DeploymentSpec{
+				Template: corev1.PodTemplateSpec{
+					Spec: corev1.PodSpec{
+						Containers: []corev1.Container{
+							{Image: "public.ecr.aws/cloudpilotai/gcp/karpenter:abc123"},
 						},
 					},
 				},
