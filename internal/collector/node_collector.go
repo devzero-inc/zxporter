@@ -51,7 +51,7 @@ type NodeCollector struct {
 	k8sClient         kubernetes.Interface
 	metricsClient     *metricsv1.Clientset
 	prometheusAPI     v1.API
-	gpuExporterClient *GPUExporterClient
+	nodemonClient *NodemonClient
 	informerFactory   informers.SharedInformerFactory
 	nodeInformer      cache.SharedIndexInformer
 	batchChan         chan CollectedResource   // Channel for individual resources -> input to batcher
@@ -209,19 +209,19 @@ func (c *NodeCollector) Start(ctx context.Context) error {
 		"disableNetworkIOMetrics", c.config.DisableNetworkIOMetrics,
 		"disableGPUMetrics", c.config.DisableGPUMetrics)
 
-	// Initialize GPU exporter client for auto-discovery
+	// Initialize nodemon client for auto-discovery
 	// It discovers DaemonSet pods by well-known label — no config needed.
 	if !c.config.DisableGPUMetrics {
 		ns := os.Getenv("POD_NAMESPACE")
 		if ns == "" {
 			ns = "devzero-zxporter"
 		}
-		c.gpuExporterClient = NewGPUExporterClient(c.k8sClient, ns, c.logger)
-		c.logger.Info("Initialized GPU exporter client (auto-discovery)", "namespace", ns)
+		c.nodemonClient = NewNodemonClient(c.k8sClient, ns, c.logger)
+		c.logger.Info("Initialized nodemon client (auto-discovery)", "namespace", ns)
 	}
 
 	// Initialize Prometheus client if network/IO metrics are not disabled
-	// Always init Prometheus when GPU exporter is set — we need it for comparison mode
+	// Always init Prometheus when nodemon is set — we need it for comparison mode
 	needPrometheus := !c.config.DisableNetworkIOMetrics || !c.config.DisableGPUMetrics
 	if needPrometheus {
 		if err := c.initPrometheusClient(ctx); err != nil {
@@ -721,16 +721,16 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 
 			// Fetch GPU metrics for the node if enabled
 			if !c.config.DisableGPUMetrics {
-				if c.gpuExporterClient != nil {
-					// Primary: GPU exporter
-					gpuExporterMetrics, fetchErr := c.gpuExporterClient.FetchMetricsByNode(
+				if c.nodemonClient != nil {
+					// Primary: nodemon
+					nodemonMetrics, fetchErr := c.nodemonClient.FetchMetricsByNode(
 						queryCtx,
 						node.Name,
 					)
 					if fetchErr != nil {
 						c.logger.Error(
 							fetchErr,
-							"GPU exporter failed, falling back to Prometheus",
+							"nodemon failed, falling back to Prometheus",
 							"node",
 							node.Name,
 						)
@@ -749,11 +749,11 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 						} else {
 							gpuMetrics = make(map[string]interface{})
 						}
-					} else if len(gpuExporterMetrics) > 0 {
-						// GPU exporter returned data
-						gpuMetrics = NodeGPUMetricsFromExporter(gpuExporterMetrics)
+					} else if len(nodemonMetrics) > 0 {
+						// nodemon returned data
+						gpuMetrics = NodeGPUMetricsFromNodemon(nodemonMetrics)
 					} else if c.prometheusAPI != nil {
-						// GPU exporter returned no data (no exporter on this node) — fallback to Prometheus
+						// nodemon returned no data (no exporter on this node) — fallback to Prometheus
 						gpuMetrics, err = c.collectNodeGPUMetrics(queryCtx, node.Name)
 						if err != nil {
 							c.logger.Info(
@@ -767,7 +767,7 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 						gpuMetrics = make(map[string]interface{})
 					}
 				} else if c.prometheusAPI != nil {
-					// No GPU exporter client initialized — use Prometheus
+					// No nodemon client initialized — use Prometheus
 					gpuMetrics, err = c.collectNodeGPUMetrics(queryCtx, node.Name)
 					if queryCtx.Err() != nil {
 						c.logger.Error(queryCtx.Err(), "Query context for node GPU metrics failed", "node", node.Name)

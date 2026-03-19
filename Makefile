@@ -261,16 +261,16 @@ docker-build-netmon: ## Build docker image for zxporter-netmon
 docker-push-netmon: ## Push docker image for zxporter-netmon
 	$(CONTAINER_TOOL) push ${IMG_NETMON}
 
-# zxporter-gpu-exporter images
-IMG_GPU_EXPORTER ?= ttl.sh/zxporter-gpu-exporter:latest
+# zxporter-nodemon images
+IMG_NODEMON ?= ttl.sh/zxporter-nodemon:latest
 
-.PHONY: docker-build-gpu-exporter
-docker-build-gpu-exporter: ## Build docker image for zxporter-gpu-exporter
-	$(CONTAINER_TOOL) buildx build $(BUILD_ARGS) -t ${IMG_GPU_EXPORTER} -f Dockerfile.gpu-exporter .
+.PHONY: docker-build-nodemon
+docker-build-nodemon: ## Build docker image for zxporter-nodemon
+	$(CONTAINER_TOOL) buildx build $(BUILD_ARGS) -t ${IMG_NODEMON} -f Dockerfile.nodemon .
 
-.PHONY: docker-push-gpu-exporter
-docker-push-gpu-exporter: ## Push docker image for zxporter-gpu-exporter
-	$(CONTAINER_TOOL) push ${IMG_GPU_EXPORTER}
+.PHONY: docker-push-nodemon
+docker-push-nodemon: ## Push docker image for zxporter-nodemon
+	$(CONTAINER_TOOL) push ${IMG_NODEMON}
 
 # PLATFORMS defines the target platforms for the manager image be built to provide support to multiple
 # architectures. (i.e. make docker-buildx IMG=myregistry/mypoperator:0.0.1). To use this option you need to:

@@ -67,7 +67,7 @@ type ContainerResourceCollector struct {
 	k8sClient          kubernetes.Interface
 	metricsClient      *metricsv1.Clientset
 	prometheusAPI      v1.API
-	gpuExporterClient  *GPUExporterClient
+	nodemonClient  *NodemonClient
 	informerFactory    informers.SharedInformerFactory
 	podInformer        cache.SharedIndexInformer
 	batchChan          chan CollectedResource   // Channel for individual resources -> input to batcher
@@ -174,19 +174,19 @@ func (c *ContainerResourceCollector) Start(ctx context.Context) error {
 		return fmt.Errorf("metrics client is not available, cannot collect container resources")
 	}
 
-	// Initialize GPU exporter client for auto-discovery
+	// Initialize nodemon client for auto-discovery
 	// It discovers DaemonSet pods by well-known label — no config needed.
 	if !c.config.DisableGPUMetrics {
 		ns := os.Getenv("POD_NAMESPACE")
 		if ns == "" {
 			ns = "devzero-zxporter"
 		}
-		c.gpuExporterClient = NewGPUExporterClient(c.k8sClient, ns, c.logger)
-		c.logger.Info("Initialized GPU exporter client (auto-discovery)", "namespace", ns)
+		c.nodemonClient = NewNodemonClient(c.k8sClient, ns, c.logger)
+		c.logger.Info("Initialized nodemon client (auto-discovery)", "namespace", ns)
 	}
 
 	// Initialize Prometheus client if network/IO metrics are not disabled
-	// Always init Prometheus when GPU exporter is set — we need it for comparison mode
+	// Always init Prometheus when nodemon is set — we need it for comparison mode
 	needPrometheus := !c.config.DisableNetworkIOMetrics || !c.config.DisableGPUMetrics
 	if needPrometheus {
 		c.logger.Info("Initializing Prometheus client for network/IO or GPU metrics",
@@ -218,7 +218,7 @@ func (c *ContainerResourceCollector) Start(ctx context.Context) error {
 		} else {
 			c.prometheusAPI = v1.NewAPI(client)
 		}
-	} else if c.config.DisableNetworkIOMetrics && (c.config.DisableGPUMetrics || c.gpuExporterClient != nil) {
+	} else if c.config.DisableNetworkIOMetrics && (c.config.DisableGPUMetrics || c.nodemonClient != nil) {
 		c.logger.Info("Network and I/O metrics collection is disabled; GPU metrics via exporter")
 	}
 
@@ -341,12 +341,12 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 		)
 	}
 
-	// Pre-fetch GPU metrics from the GPU exporter (one HTTP call for the entire cycle)
-	var gpuIndex map[gpuContainerKey][]GPUExporterMetric
-	if c.gpuExporterClient != nil && !c.config.DisableGPUMetrics {
-		allGPUMetrics, err := c.gpuExporterClient.FetchAllMetrics(ctx)
+	// Pre-fetch GPU metrics from the nodemon (one HTTP call for the entire cycle)
+	var gpuIndex map[gpuContainerKey][]NodemonMetric
+	if c.nodemonClient != nil && !c.config.DisableGPUMetrics {
+		allGPUMetrics, err := c.nodemonClient.FetchAllMetrics(ctx)
 		if err != nil {
-			c.logger.Error(err, "Failed to fetch GPU metrics from GPU exporter, falling back")
+			c.logger.Error(err, "Failed to fetch GPU metrics from nodemon, falling back")
 		} else {
 			gpuIndex = IndexByContainer(allGPUMetrics)
 		}
@@ -451,14 +451,14 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 
 				if hasGPU {
 					if gpuIndex != nil {
-						// Primary: GPU exporter
+						// Primary: nodemon
 						key := gpuContainerKey{
 							Pod:       podMetrics.Name,
 							Container: containerMetrics.Name,
 							Namespace: podMetrics.Namespace,
 						}
 						if containerGPUs, ok := gpuIndex[key]; ok {
-							gpuMetrics = ContainerGPUMetricsFromExporter(
+							gpuMetrics = ContainerGPUMetricsFromNodemon(
 								containerGPUs,
 								gpuRequestCount,
 								gpuLimitCount,
@@ -479,7 +479,7 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 							}
 						}
 					} else if c.prometheusAPI != nil && queryCtx != nil {
-						// No GPU exporter available — use Prometheus
+						// No nodemon available — use Prometheus
 						gpuMetrics, err = c.collectContainerGPUMetrics(queryCtx, pod, containerMetrics.Name)
 						if err != nil {
 							c.logger.Error(err, "Failed to collect container GPU metrics",
