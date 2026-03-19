@@ -15,11 +15,20 @@ import (
 
 const (
 	karpenterLabelName   = "app.kubernetes.io/name=karpenter"
-	devzeroImagePrefix   = "public.ecr.aws/devzeroinc/"
 	defaultHealthPort    = "8081"
 	defaultProbeTimeout  = 5 * time.Second
 	karpenterServiceName = "karpenter"
 )
+
+// dzKarpImageIdentifiers are substrings that identify a DevZero-managed
+// Karpenter image regardless of the container registry used (public ECR,
+// private ECR, ACR, GCR, etc.). Matches the default helm chart repositories
+// across karpenter-provider-aws, karpenter-provider-azure, and
+// karpenter-provider-gcp.
+var dzKarpImageIdentifiers = []string{
+	"devzeroinc",   // AWS and Azure providers
+	"cloudpilotai", // GCP provider
+}
 
 type podProbeResult struct {
 	healthzOK bool
@@ -105,11 +114,16 @@ func (m *NodeOperatorMonitor) discoverDeployment(ctx context.Context) (*appsv1.D
 	return nil, nil
 }
 
-// isDevZeroImage checks whether the deployment uses a DevZero container image.
+// isDevZeroImage checks whether the deployment uses a DevZero-managed
+// Karpenter image by looking for known image identifiers in the container
+// image string. Uses Contains to match any registry (public ECR, private ECR,
+// ACR, GCR, etc.).
 func isDevZeroImage(dep *appsv1.Deployment) bool {
 	for _, c := range dep.Spec.Template.Spec.Containers {
-		if strings.HasPrefix(c.Image, devzeroImagePrefix) {
-			return true
+		for _, id := range dzKarpImageIdentifiers {
+			if strings.Contains(c.Image, id) {
+				return true
+			}
 		}
 	}
 	return false
