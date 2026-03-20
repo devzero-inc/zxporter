@@ -1,0 +1,59 @@
+name: Helm Chart Validation
+
+on:
+  pull_request:
+    paths:
+      - 'helm-chart/zxporter/**'
+      - 'helm-chart/zxporter-netmon/**'
+  workflow_dispatch:
+
+jobs:
+  validate-zxporter:
+    name: Lint & template zxporter chart
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: '3.12.3'
+
+      - name: Update chart dependencies
+        run: helm dependency update helm-chart/zxporter
+
+      - name: Lint chart
+        run: helm lint helm-chart/zxporter
+
+      - name: Template render check
+        run: |
+          helm template zxporter helm-chart/zxporter \
+            --set zxporter.clusterToken=ci-test-token \
+            --set zxporter.kubeContextName=ci-test-cluster \
+            --set zxporter.k8sProvider=other \
+            > /dev/null
+          echo "zxporter chart rendered successfully"
+
+  validate-netmon:
+    name: Lint & template zxporter-netmon chart
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: '3.12.3'
+
+      - name: Update chart dependencies
+        run: helm dependency update helm-chart/zxporter-netmon
+
+      - name: Lint chart
+        run: helm lint helm-chart/zxporter-netmon
+
+      - name: Template render check
+        run: |
+          helm template zxporter-netmon helm-chart/zxporter-netmon > /dev/null
+          echo "zxporter-netmon chart rendered successfully"
