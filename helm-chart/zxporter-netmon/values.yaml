@@ -54,6 +54,7 @@ dnsPolicy: ClusterFirstWithHostNet
 
 # Config for collection
 config:
+  containerPort: 8081
   logLevel: "info"
   mainConfigMapName: "devzero-zxporter-env-config"
   # Default scrape interval 5s

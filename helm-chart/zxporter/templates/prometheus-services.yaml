@@ -72,8 +72,8 @@ metadata:
 spec:
   type: ClusterIP
   ports:
-    - port: 9101
-      targetPort: 9101
+    - port: {{ .Values.nodeExporter.port }}
+      targetPort: {{ .Values.nodeExporter.port }}
       protocol: TCP
       name: metrics
   selector:
