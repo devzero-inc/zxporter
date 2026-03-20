@@ -21,9 +21,9 @@ data:
     {}
   prometheus.yml: |
     global:
-      evaluation_interval: 1m
-      scrape_interval: 1m
-      scrape_timeout: 10s
+      evaluation_interval: {{ .Values.prometheus.evaluationInterval }}
+      scrape_interval: {{ .Values.prometheus.scrapeInterval }}
+      scrape_timeout: {{ .Values.prometheus.scrapeTimeout }}
     rule_files:
     - /etc/config/recording_rules.yml
     - /etc/config/alerting_rules.yml
