@@ -17,8 +17,10 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
-// WorkloadRuleCollector watches WorkloadRule CRD status changes and sends OOM events
+// WorkloadRuleCollector watches WorkloadRule CRDs and sends spec/status changes
 // back to the control plane via SendResourceBatch.
+// Handles two-way sync: sends on Add (kubectl apply), Delete (kubectl delete),
+// and Update (spec changes or OOM/throttle status changes).
 type WorkloadRuleCollector struct {
 	client          dynamic.Interface
 	informerFactory dynamicinformer.DynamicSharedInformerFactory
@@ -94,6 +96,16 @@ func (c *WorkloadRuleCollector) Start(ctx context.Context) error {
 	c.wrInformer = c.informerFactory.ForResource(workloadRuleGVR).Informer()
 
 	_, err := c.wrInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			wr, ok := obj.(*unstructured.Unstructured)
+			if !ok {
+				c.logger.Error(nil, "WorkloadRule AddFunc: failed to convert object to unstructured")
+				return
+			}
+			c.logger.Info("WorkloadRule added, sending to control plane",
+				"namespace", wr.GetNamespace(), "name", wr.GetName())
+			c.handleWorkloadRuleEvent(wr, EventTypeAdd)
+		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			oldWR := oldObj.(*unstructured.Unstructured)
 			newWR := newObj.(*unstructured.Unstructured)
@@ -106,10 +118,29 @@ func (c *WorkloadRuleCollector) Start(ctx context.Context) error {
 				return
 			}
 
-			// Only send when OOM events have changed
-			if c.oomEventsChanged(oldWR, newWR) {
+			// Send when spec or OOM/throttle status has changed
+			if c.specChanged(oldWR, newWR) || c.oomEventsChanged(oldWR, newWR) {
 				c.handleWorkloadRuleEvent(newWR, EventTypeUpdate)
 			}
+		},
+		DeleteFunc: func(obj interface{}) {
+			wr, ok := obj.(*unstructured.Unstructured)
+			if !ok {
+				// Handle tombstone (object already deleted from cache)
+				if tombstone, ok := obj.(cache.DeletedFinalStateUnknown); ok {
+					if wr, ok = tombstone.Obj.(*unstructured.Unstructured); ok {
+						c.logger.Info("WorkloadRule deleted (tombstone), sending to control plane",
+							"namespace", wr.GetNamespace(), "name", wr.GetName())
+						c.handleWorkloadRuleEvent(wr, EventTypeDelete)
+						return
+					}
+				}
+				c.logger.Error(nil, "WorkloadRule DeleteFunc: failed to convert object")
+				return
+			}
+			c.logger.Info("WorkloadRule deleted, sending to control plane",
+				"namespace", wr.GetNamespace(), "name", wr.GetName())
+			c.handleWorkloadRuleEvent(wr, EventTypeDelete)
 		},
 	})
 	if err != nil {
@@ -140,7 +171,7 @@ func (c *WorkloadRuleCollector) Start(ctx context.Context) error {
 	return nil
 }
 
-// handleWorkloadRuleEvent processes a WorkloadRule status update containing OOM events
+// handleWorkloadRuleEvent processes a WorkloadRule event (add, update, or delete)
 func (c *WorkloadRuleCollector) handleWorkloadRuleEvent(wr *unstructured.Unstructured, eventType EventType) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -151,9 +182,10 @@ func (c *WorkloadRuleCollector) handleWorkloadRuleEvent(wr *unstructured.Unstruc
 	namespace := wr.GetNamespace()
 	name := wr.GetName()
 
-	c.logger.Info("Sending WorkloadRule status with OOM events to control plane",
+	c.logger.Info("Sending WorkloadRule event to control plane",
 		"namespace", namespace,
 		"name", name,
+		"eventType", eventType.String(),
 	)
 	c.batchChan <- CollectedResource{
 		ResourceType: WorkloadRule,
@@ -178,6 +210,15 @@ func (c *WorkloadRuleCollector) oomEventsChanged(oldWR, newWR *unstructured.Unst
 	oldEvents, _, _ := unstructured.NestedSlice(oldWR.Object, "status", "oomEvents")
 	newEvents, _, _ := unstructured.NestedSlice(newWR.Object, "status", "oomEvents")
 	return !reflect.DeepEqual(oldEvents, newEvents)
+}
+
+// specChanged detects if the WorkloadRule spec has changed between old and new versions.
+// Used for two-way sync: when a user edits the CRD via kubectl, the spec changes
+// and the CP needs to be notified.
+func (c *WorkloadRuleCollector) specChanged(oldWR, newWR *unstructured.Unstructured) bool {
+	oldSpec, _, _ := unstructured.NestedMap(oldWR.Object, "spec")
+	newSpec, _, _ := unstructured.NestedMap(newWR.Object, "spec")
+	return !reflect.DeepEqual(oldSpec, newSpec)
 }
 
 // Stop gracefully shuts down the WorkloadRule collector
