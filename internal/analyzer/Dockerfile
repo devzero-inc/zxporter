@@ -18,7 +18,7 @@ RUN apk add --no-cache bash jq coreutils
 COPY --from=gcr.io/go-containerregistry/crane:latest /ko-app/crane /usr/local/bin/crane
 
 # dive — the core image analysis tool
-COPY --from=wagoodman/dive:latest /usr/local/bin/dive /usr/local/bin/dive
+COPY --from=wagoodman/dive:v0.13 /usr/local/bin/dive /usr/local/bin/dive
 
 # ctr — containerd CLI for local image export
 COPY --from=docker.io/rancher/k3s:v1.31.4-k3s1 /bin/ctr /usr/local/bin/ctr
