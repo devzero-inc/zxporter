@@ -24,4 +24,6 @@ resources:
 # if you do not want those helpers be installed with your Project.
 - collectionpolicy_editor_role.yaml
 - collectionpolicy_viewer_role.yaml
+# ServiceAccount for image analysis batch jobs (imagePullSecrets only, no API access)
+- image_analyzer_service_account.yaml
 

@@ -832,6 +832,15 @@ metadata:
   name: devzero-zxporter-controller-manager
   namespace: devzero-zxporter
 ---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app.kubernetes.io/component: image-analysis
+    app.kubernetes.io/name: devzero-zxporter
+  name: devzero-zxporter-image-analyzer
+  namespace: devzero-zxporter
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:

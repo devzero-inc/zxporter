@@ -261,6 +261,15 @@ docker-build-analyzer: ## Build docker image for the image analyzer
 docker-push-analyzer: ## Push docker image for the image analyzer
 	$(CONTAINER_TOOL) push ${IMG_ANALYZER}
 
+.PHONY: docker-buildx-analyzer
+docker-buildx-analyzer: ## Build and push multi-arch docker image for the image analyzer
+	$(CONTAINER_TOOL) buildx build \
+		--platform linux/amd64,linux/arm64 \
+		--push \
+		-t ${IMG_ANALYZER} \
+		-f internal/analyzer/Dockerfile \
+		internal/analyzer/
+
 # zxporter-netmon images
 IMG_NETMON ?= ttl.sh/zxporter-netmon:latest
 
