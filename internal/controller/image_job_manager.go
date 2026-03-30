@@ -319,7 +319,14 @@ func (m *JobManager) buildJobObject(spec BatchJobSpec) (*batchv1.Job, error) {
 	activeDeadlineSeconds := int64(m.config.JobTimeoutMinutes * 60)
 
 	// backoffLimit from config.
-	backoffLimit := int32(m.config.MaxRetries)
+	retries := m.config.MaxRetries
+	if retries <= 0 {
+		retries = 1
+	} else if retries > 10 {
+		// Prevent overflow and unreasonable retry counts.
+		retries = 10
+	}
+	backoffLimit := int32(retries)
 
 	ttl := int32(ttlSecondsAfterFinished)
 
