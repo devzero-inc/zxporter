@@ -184,9 +184,9 @@ type ImageAnalysisResultStatus struct {
 	Message string `json:"message,omitempty"`
 }
 
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
-//+kubebuilder:resource:scope=Cluster
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
+// +kubebuilder:resource:scope=Cluster
 //+kubebuilder:printcolumn:name="Image",type="string",JSONPath=".spec.imageRef",priority=0
 //+kubebuilder:printcolumn:name="Efficiency",type="string",JSONPath=".spec.analysis.efficiency",priority=0
 //+kubebuilder:printcolumn:name="Passed",type="boolean",JSONPath=".spec.analysis.passed",priority=0

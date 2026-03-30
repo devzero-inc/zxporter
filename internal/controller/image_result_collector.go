@@ -58,6 +58,11 @@ const (
 
 	// Annotation keys.
 	AnnotationFullImageRef = "devzero.io/full-image-ref"
+
+	// Image source types from the batch analyzer.
+	sourceLocalContainerd = "local-containerd"
+	sourceRemotePull      = "remote-pull"
+	sourceFailed          = "failed"
 )
 
 // --- Dive JSON types (matches dive's export format) ---
@@ -115,16 +120,16 @@ type DiveFile struct {
 
 // CollectionResult holds the outcome of collecting results from a single batch Job.
 type CollectionResult struct {
-	JobName          string
-	NodeName         string
-	ScanID           string
-	Succeeded        []BatchImageResult // images that were analyzed successfully
-	Failed           []BatchImageResult // images that failed (source="failed" or error!="")
-	ParseErrors      int                // count of NDJSON lines that couldn't be parsed
-	TotalLines       int                // total NDJSON lines parsed
-	LocalContainerd  int                // count of images acquired via containerd
-	RemotePull       int                // count of images acquired via remote pull
-	AcquisitionFailed int               // count of images where acquisition failed
+	JobName           string
+	NodeName          string
+	ScanID            string
+	Succeeded         []BatchImageResult // images that were analyzed successfully
+	Failed            []BatchImageResult // images that failed (source="failed" or error!="")
+	ParseErrors       int                // count of NDJSON lines that couldn't be parsed
+	TotalLines        int                // total NDJSON lines parsed
+	LocalContainerd   int                // count of images acquired via containerd
+	RemotePull        int                // count of images acquired via remote pull
+	AcquisitionFailed int                // count of images where acquisition failed
 }
 
 // --- ResultCollector ---
@@ -182,7 +187,7 @@ func (rc *ResultCollector) CollectFromJob(ctx context.Context, job *batchv1.Job)
 	if err != nil {
 		return nil, fmt.Errorf("reading logs from pod %s: %w", pod.Name, err)
 	}
-	defer logStream.Close()
+	defer func() { _ = logStream.Close() }()
 
 	// Parse NDJSON lines.
 	scanner := bufio.NewScanner(logStream)
@@ -211,13 +216,13 @@ func (rc *ResultCollector) CollectFromJob(ctx context.Context, job *batchv1.Job)
 
 		// Classify the result.
 		switch {
-		case imgResult.Source == "failed" || imgResult.Error != "":
+		case imgResult.Source == sourceFailed || imgResult.Error != "":
 			result.Failed = append(result.Failed, imgResult)
 			result.AcquisitionFailed++
-		case imgResult.Source == "local-containerd":
+		case imgResult.Source == sourceLocalContainerd:
 			result.Succeeded = append(result.Succeeded, imgResult)
 			result.LocalContainerd++
-		case imgResult.Source == "remote-pull":
+		case imgResult.Source == sourceRemotePull:
 			result.Succeeded = append(result.Succeeded, imgResult)
 			result.RemotePull++
 		default:

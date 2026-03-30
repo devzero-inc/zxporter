@@ -23,7 +23,6 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -586,24 +585,3 @@ func (c *ImageAnalysisController) pruneStaleResults(ctx context.Context, discove
 	}
 }
 
-// updateWorkloadRefs updates workload references for existing CRDs without re-analyzing.
-// Used when an image is still running but workload refs may have changed.
-func (c *ImageAnalysisController) updateWorkloadRefs(
-	ctx context.Context,
-	digest string,
-	workloadRefs WorkloadRefMap,
-) {
-	crdName := generateCRDName(digest)
-	existing := &v1.ImageAnalysisResult{}
-	if err := c.crdClient.Get(ctx, types.NamespacedName{Name: crdName}, existing); err != nil {
-		return // not found, nothing to update
-	}
-
-	newRefs, newSummary := buildWorkloadData(digest, workloadRefs)
-	existing.Spec.WorkloadReferences = newRefs
-	existing.Spec.WorkloadSummary = newSummary
-
-	if err := c.crdClient.Update(ctx, existing); err != nil {
-		c.log.V(1).Info("failed to update workload refs", "name", crdName, "error", err)
-	}
-}

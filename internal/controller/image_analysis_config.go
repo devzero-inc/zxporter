@@ -38,18 +38,18 @@ const (
 	_ENV_IMAGE_ANALYSIS_CRON_EXPRESSION = "IMAGE_ANALYSIS_CRON_EXPRESSION"
 
 	// Job execution tuning
-	_ENV_IMAGE_ANALYSIS_MAX_CONCURRENT_JOBS         = "IMAGE_ANALYSIS_MAX_CONCURRENT_JOBS"
-	_ENV_IMAGE_ANALYSIS_MAX_JOBS_PER_NODE            = "IMAGE_ANALYSIS_MAX_JOBS_PER_NODE"
-	_ENV_IMAGE_ANALYSIS_BATCH_SIZE                   = "IMAGE_ANALYSIS_BATCH_SIZE"
-	_ENV_IMAGE_ANALYSIS_JOB_TIMEOUT_MINUTES          = "IMAGE_ANALYSIS_JOB_TIMEOUT_MINUTES"
-	_ENV_IMAGE_ANALYSIS_MAX_RETRIES                  = "IMAGE_ANALYSIS_MAX_RETRIES"
-	_ENV_IMAGE_ANALYSIS_JOB_NAMESPACE                = "IMAGE_ANALYSIS_JOB_NAMESPACE"
-	_ENV_IMAGE_ANALYSIS_ANALYZER_IMAGE               = "IMAGE_ANALYSIS_ANALYZER_IMAGE"
-	_ENV_IMAGE_ANALYSIS_JOB_CPU_REQUEST              = "IMAGE_ANALYSIS_JOB_CPU_REQUEST"
-	_ENV_IMAGE_ANALYSIS_JOB_CPU_LIMIT                = "IMAGE_ANALYSIS_JOB_CPU_LIMIT"
-	_ENV_IMAGE_ANALYSIS_JOB_MEMORY_REQUEST           = "IMAGE_ANALYSIS_JOB_MEMORY_REQUEST"
-	_ENV_IMAGE_ANALYSIS_JOB_MEMORY_LIMIT             = "IMAGE_ANALYSIS_JOB_MEMORY_LIMIT"
-	_ENV_IMAGE_ANALYSIS_WORKSPACE_SIZE_LIMIT         = "IMAGE_ANALYSIS_WORKSPACE_SIZE_LIMIT"
+	_ENV_IMAGE_ANALYSIS_MAX_CONCURRENT_JOBS          = "IMAGE_ANALYSIS_MAX_CONCURRENT_JOBS"
+	_ENV_IMAGE_ANALYSIS_MAX_JOBS_PER_NODE             = "IMAGE_ANALYSIS_MAX_JOBS_PER_NODE"
+	_ENV_IMAGE_ANALYSIS_BATCH_SIZE                    = "IMAGE_ANALYSIS_BATCH_SIZE"
+	_ENV_IMAGE_ANALYSIS_JOB_TIMEOUT_MINUTES           = "IMAGE_ANALYSIS_JOB_TIMEOUT_MINUTES"
+	_ENV_IMAGE_ANALYSIS_MAX_RETRIES                   = "IMAGE_ANALYSIS_MAX_RETRIES"
+	_ENV_IMAGE_ANALYSIS_JOB_NAMESPACE                 = "IMAGE_ANALYSIS_JOB_NAMESPACE"
+	_ENV_IMAGE_ANALYSIS_ANALYZER_IMAGE                = "IMAGE_ANALYSIS_ANALYZER_IMAGE"
+	_ENV_IMAGE_ANALYSIS_JOB_CPU_REQUEST               = "IMAGE_ANALYSIS_JOB_CPU_REQUEST"
+	_ENV_IMAGE_ANALYSIS_JOB_CPU_LIMIT                 = "IMAGE_ANALYSIS_JOB_CPU_LIMIT"
+	_ENV_IMAGE_ANALYSIS_JOB_MEMORY_REQUEST            = "IMAGE_ANALYSIS_JOB_MEMORY_REQUEST"
+	_ENV_IMAGE_ANALYSIS_JOB_MEMORY_LIMIT              = "IMAGE_ANALYSIS_JOB_MEMORY_LIMIT"
+	_ENV_IMAGE_ANALYSIS_WORKSPACE_SIZE_LIMIT          = "IMAGE_ANALYSIS_WORKSPACE_SIZE_LIMIT"
 	_ENV_IMAGE_ANALYSIS_REGISTRY_PULL_RATE_PER_MINUTE = "IMAGE_ANALYSIS_REGISTRY_PULL_RATE_PER_MINUTE"
 
 	// Job tolerations
@@ -308,7 +308,11 @@ func LoadImageAnalysisConfigFromEnv() (ImageAnalysisConfig, error) {
 		return cfg, err
 	}
 
-	// === Validate resource quantities to catch bad values at load time (not at Job creation) ===
+	return cfg, validateResourceQuantities(cfg)
+}
+
+// validateResourceQuantities checks that resource quantity strings are valid at config load time.
+func validateResourceQuantities(cfg ImageAnalysisConfig) error {
 	for _, check := range []struct {
 		name, value string
 	}{
@@ -319,9 +323,8 @@ func LoadImageAnalysisConfigFromEnv() (ImageAnalysisConfig, error) {
 		{"WorkspaceSizeLimit", cfg.WorkspaceSizeLimit},
 	} {
 		if _, err := resource.ParseQuantity(check.value); err != nil {
-			return cfg, fmt.Errorf("invalid resource quantity for %s (%q): %w", check.name, check.value, err)
+			return fmt.Errorf("invalid resource quantity for %s (%q): %w", check.name, check.value, err)
 		}
 	}
-
-	return cfg, nil
+	return nil
 }

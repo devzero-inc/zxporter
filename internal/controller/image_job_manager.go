@@ -177,7 +177,7 @@ func (m *JobManager) SubmitBatches(ctx context.Context, specs []BatchJobSpec) ([
 		maxPerNode = 1
 	}
 
-	var created []*batchv1.Job
+	created := make([]*batchv1.Job, 0, len(specs))
 
 	for _, spec := range specs {
 		// Check cluster-level concurrency.

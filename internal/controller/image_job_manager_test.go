@@ -235,8 +235,8 @@ func TestParseDurationToSeconds(t *testing.T) {
 	assert.Equal(t, 60, parseDurationToSeconds("1m"))
 	assert.Equal(t, 600, parseDurationToSeconds("10m"))
 	assert.Equal(t, 30, parseDurationToSeconds("30s"))
-	assert.Equal(t, 300, parseDurationToSeconds("invalid"))  // fallback
-	assert.Equal(t, 300, parseDurationToSeconds(""))          // fallback
+	assert.Equal(t, 300, parseDurationToSeconds("invalid")) // fallback
+	assert.Equal(t, 300, parseDurationToSeconds(""))        // fallback
 	assert.Equal(t, 3600, parseDurationToSeconds("1h"))
 }
 

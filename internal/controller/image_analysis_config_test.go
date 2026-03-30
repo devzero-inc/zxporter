@@ -60,7 +60,7 @@ func clearImageAnalysisEnvVars(t *testing.T) {
 		_ENV_IMAGE_ANALYSIS_RESULT_RETENTION_DAYS,
 	}
 	for _, v := range envVars {
-		os.Unsetenv(v)
+		_ = os.Unsetenv(v)
 	}
 }
 

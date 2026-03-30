@@ -178,7 +178,7 @@ func (d *ImageDiscoverer) Discover(ctx context.Context) (*DiscoveryResult, error
 func (d *ImageDiscoverer) processContainerStatuses(
 	pod *corev1.Pod,
 	statuses []corev1.ContainerStatus,
-	isInit bool,
+	_ bool,
 	result *DiscoveryResult,
 	globalDedup map[string]bool,
 	containerCountByDigest map[string]int,

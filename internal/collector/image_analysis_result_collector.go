@@ -206,11 +206,7 @@ func (c *ImageAnalysisResultCollector) analysisChanged(oldIAR, newIAR *unstructu
 	// Check if phase changed
 	oldPhase, _, _ := unstructured.NestedString(oldIAR.Object, "status", "phase")
 	newPhase, _, _ := unstructured.NestedString(newIAR.Object, "status", "phase")
-	if oldPhase != newPhase {
-		return true
-	}
-
-	return false
+	return oldPhase != newPhase
 }
 
 // Stop gracefully shuts down the collector.

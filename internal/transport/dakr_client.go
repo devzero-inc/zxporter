@@ -392,7 +392,7 @@ func compressZstd(data []byte) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create zstd encoder: %w", err)
 	}
-	defer enc.Close()
+	defer func() { _ = enc.Close() }()
 	return enc.EncodeAll(data, make([]byte, 0, len(data)/2)), nil
 }
 
