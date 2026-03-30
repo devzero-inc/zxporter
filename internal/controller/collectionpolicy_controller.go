@@ -3000,6 +3000,17 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 			),
 			name: collector.CNPGCluster,
 		},
+		// ImageAnalysisResult collector for syncing dive image analysis results to control plane
+		{
+			collector: collector.NewImageAnalysisResultCollector(
+				r.DynamicClient,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+				r.TelemetryLogger,
+			),
+			name: collector.ImageAnalysisResult,
+		},
 	}
 
 	// Register all collectors
