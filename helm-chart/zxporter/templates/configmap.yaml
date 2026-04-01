@@ -1,6 +1,7 @@
 apiVersion: v1
 data:
   BUFFER_SIZE: ""
+  CLUSTER_IDENTIFIER: "{{ .Values.zxporter.clusterIdentifier }}"
   {{- if not .Values.zxporter.useSecretForToken }}
   CLUSTER_TOKEN: "{{ .Values.zxporter.clusterToken }}"
   PAT_TOKEN: "{{ .Values.zxporter.patToken }}"

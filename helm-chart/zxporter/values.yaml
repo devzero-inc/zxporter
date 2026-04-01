@@ -29,6 +29,11 @@ zxporter:
   # Example: "dzu-aKAAyJgsrblR0dFmgnoB_sQjiVNs-I3Y4gI7jJnePgs="
   patToken: ""
 
+  # Optional stable DNS-label identifier for the cluster (e.g. "prod-us-east").
+  # When set alongside patToken, ReattachCluster is used instead of CreateClusterToken,
+  # allowing the cluster to be found-or-created by identifier across reinstalls.
+  clusterIdentifier: ""
+
   # Kubernetes context name to identify this cluster
   # Required: Must be set to a unique identifier for your cluster
   # Examples:

@@ -449,6 +449,11 @@ type Policies struct {
 	// If ClusterToken is not provided but PATToken is, the system will exchange it for a cluster token
 	PATToken string `json:"patToken,omitempty"`
 
+	// ClusterIdentifier is an optional stable DNS-label identifier for the cluster.
+	// When set alongside PATToken, ReattachCluster is called instead of ExchangePATForClusterToken.
+	// +optional
+	ClusterIdentifier string `json:"clusterIdentifier,omitempty"`
+
 	// PrometheusURL is the URL of the Prometheus server to query for metrics
 	// If not provided, defaults to in-cluster Prometheus at "http://prometheus-service.monitoring.svc.cluster.local:8080"
 	// +optional

@@ -361,9 +361,12 @@ func (c *EnvBasedController) initializeTelemetryComponents(ctx context.Context) 
 	// Handle PAT token exchange if no cluster token is available
 	if envSpec.Policies.ClusterToken == "" && envSpec.Policies.PATToken != "" {
 		// First try to recover existing stored token
-		if storedToken := c.tryRecoverStoredClusterToken(ctx); storedToken != "" {
+		if storedToken, storedIdentifier := c.tryRecoverStoredClusterToken(ctx); storedToken != "" {
 			c.Log.Info("Found existing cluster token in storage, skipping PAT exchange")
 			envSpec.Policies.ClusterToken = storedToken
+			if storedIdentifier != "" && envSpec.Policies.ClusterIdentifier == "" {
+				envSpec.Policies.ClusterIdentifier = storedIdentifier
+			}
 		} else {
 			// Only do PAT exchange if no stored token found
 			c.Log.Info("No stored cluster token found, attempting PAT token exchange")
@@ -397,9 +400,9 @@ func (c *EnvBasedController) initializeTelemetryComponents(ctx context.Context) 
 			c.Log.Info("Successfully obtained cluster token", "clusterId", clusterId)
 			envSpec.Policies.ClusterToken = token
 
-			// Persist the token to ConfigMap or Secret based on configuration
+			// Persist the token (and identifier if set) to ConfigMap or Secret based on configuration
 			// If it fails, continue anyway - the token is in memory
-			if err := c.persistClusterToken(ctx, token); err != nil {
+			if err := c.persistClusterToken(ctx, token, envSpec.Policies.ClusterIdentifier); err != nil {
 				c.Log.Error(err, "Failed to persist cluster token")
 			}
 		}
@@ -474,19 +477,16 @@ func (c *EnvBasedController) shouldUseSecretStorage() bool {
 	return strings.ToLower(useSecret) == "true"
 }
 
-// persistClusterToken persists the cluster token to ConfigMap or Secret based on configuration
-func (c *EnvBasedController) persistClusterToken(ctx context.Context, token string) error {
+// persistClusterToken persists the cluster token (and optional identifier) to ConfigMap or Secret based on configuration
+func (c *EnvBasedController) persistClusterToken(ctx context.Context, token, identifier string) error {
 	if c.shouldUseSecretStorage() {
-		return c.persistClusterTokenToSecret(ctx, token)
+		return c.persistClusterTokenToSecret(ctx, token, identifier)
 	}
-	return c.persistClusterTokenToConfigMap(ctx, token)
+	return c.persistClusterTokenToConfigMap(ctx, token, identifier)
 }
 
-// persistClusterTokenToConfigMap persists the cluster token to the ConfigMap
-func (c *EnvBasedController) persistClusterTokenToConfigMap(
-	ctx context.Context,
-	token string,
-) error {
+// persistClusterTokenToConfigMap persists the cluster token (and optional identifier) to the ConfigMap
+func (c *EnvBasedController) persistClusterTokenToConfigMap(ctx context.Context, token, identifier string) error {
 	// Get namespace from environment variable or use default
 	namespace := os.Getenv("POD_NAMESPACE")
 	if namespace == "" {
@@ -525,6 +525,9 @@ func (c *EnvBasedController) persistClusterTokenToConfigMap(
 		configMap.Data = make(map[string]string)
 	}
 	configMap.Data["CLUSTER_TOKEN"] = token
+	if identifier != "" {
+		configMap.Data["CLUSTER_IDENTIFIER"] = identifier
+	}
 
 	// Update the ConfigMap
 	_, err = c.K8sClient.CoreV1().
@@ -538,8 +541,8 @@ func (c *EnvBasedController) persistClusterTokenToConfigMap(
 	return nil
 }
 
-// persistClusterTokenToSecret persists the cluster token to a Kubernetes Secret
-func (c *EnvBasedController) persistClusterTokenToSecret(ctx context.Context, token string) error {
+// persistClusterTokenToSecret persists the cluster token (and optional identifier) to a Kubernetes Secret
+func (c *EnvBasedController) persistClusterTokenToSecret(ctx context.Context, token, identifier string) error {
 	// Get namespace from environment variable or use default
 	namespace := os.Getenv("POD_NAMESPACE")
 	if namespace == "" {
@@ -583,6 +586,12 @@ func (c *EnvBasedController) persistClusterTokenToSecret(ctx context.Context, to
 	if err != nil {
 		if errors.IsNotFound(err) {
 			// Create new Secret if it doesn't exist
+			secretData := map[string][]byte{
+				"CLUSTER_TOKEN": []byte(token),
+			}
+			if identifier != "" {
+				secretData["CLUSTER_IDENTIFIER"] = []byte(identifier)
+			}
 			secret = &corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      runtimeSecretName,
@@ -593,9 +602,7 @@ func (c *EnvBasedController) persistClusterTokenToSecret(ctx context.Context, to
 					},
 				},
 				Type: corev1.SecretTypeOpaque,
-				Data: map[string][]byte{
-					"CLUSTER_TOKEN": []byte(token),
-				},
+				Data: secretData,
 			}
 			_, err = c.K8sClient.CoreV1().
 				Secrets(namespace).
@@ -617,6 +624,9 @@ func (c *EnvBasedController) persistClusterTokenToSecret(ctx context.Context, to
 			secret.Data = make(map[string][]byte)
 		}
 		secret.Data["CLUSTER_TOKEN"] = []byte(token)
+		if identifier != "" {
+			secret.Data["CLUSTER_IDENTIFIER"] = []byte(identifier)
+		}
 
 		_, err = c.K8sClient.CoreV1().Secrets(namespace).Update(ctx, secret, metav1.UpdateOptions{})
 		if err != nil {
@@ -628,16 +638,18 @@ func (c *EnvBasedController) persistClusterTokenToSecret(ctx context.Context, to
 	return nil
 }
 
-// tryRecoverStoredClusterToken attempts to read a previously stored cluster token
-func (c *EnvBasedController) tryRecoverStoredClusterToken(ctx context.Context) string {
+// tryRecoverStoredClusterToken attempts to read a previously stored cluster token and identifier.
+// Returns (token, identifier) — identifier may be empty if not previously persisted.
+func (c *EnvBasedController) tryRecoverStoredClusterToken(ctx context.Context) (string, string) {
 	if c.shouldUseSecretStorage() {
 		return c.readClusterTokenFromSecret(ctx)
 	}
 	return c.readClusterTokenFromConfigMap(ctx)
 }
 
-// readClusterTokenFromSecret reads cluster token from runtime secret
-func (c *EnvBasedController) readClusterTokenFromSecret(ctx context.Context) string {
+// readClusterTokenFromSecret reads cluster token and identifier from runtime secret.
+// Returns (token, identifier) — identifier may be empty if not previously persisted.
+func (c *EnvBasedController) readClusterTokenFromSecret(ctx context.Context) (string, string) {
 	// Get namespace from environment variable or use default
 	namespace := os.Getenv("POD_NAMESPACE")
 	if namespace == "" {
@@ -678,37 +690,29 @@ func (c *EnvBasedController) readClusterTokenFromSecret(ctx context.Context) str
 		Get(ctx, runtimeSecretName, metav1.GetOptions{})
 	if err != nil {
 		// Log the error but don't fail - this is a recovery attempt
-		c.Log.Info(
-			"Could not read cluster token from Secret",
-			"error",
-			err.Error(),
-			"secret",
-			runtimeSecretName,
-		)
-		return ""
+		c.Log.Info("Could not read cluster token from Secret", "error", err.Error(), "secret", runtimeSecretName)
+		return "", ""
 	}
 
-	// Extract CLUSTER_TOKEN from Secret data
+	// Extract CLUSTER_TOKEN (and optional CLUSTER_IDENTIFIER) from Secret data
 	if secret.Data != nil {
 		if tokenBytes, exists := secret.Data["CLUSTER_TOKEN"]; exists {
 			token := strings.TrimSpace(string(tokenBytes))
 			if token != "" {
-				c.Log.Info(
-					"Successfully recovered cluster token from Secret",
-					"secret",
-					runtimeSecretName,
-				)
-				return token
+				identifier := strings.TrimSpace(string(secret.Data["CLUSTER_IDENTIFIER"]))
+				c.Log.Info("Successfully recovered cluster token from Secret", "secret", runtimeSecretName)
+				return token, identifier
 			}
 		}
 	}
 
 	c.Log.Info("No cluster token found in Secret", "secret", runtimeSecretName)
-	return ""
+	return "", ""
 }
 
-// readClusterTokenFromConfigMap reads cluster token from configmap
-func (c *EnvBasedController) readClusterTokenFromConfigMap(ctx context.Context) string {
+// readClusterTokenFromConfigMap reads cluster token and identifier from configmap.
+// Returns (token, identifier) — identifier may be empty if not previously persisted.
+func (c *EnvBasedController) readClusterTokenFromConfigMap(ctx context.Context) (string, string) {
 	// Get namespace from environment variable or use default
 	namespace := os.Getenv("POD_NAMESPACE")
 	if namespace == "" {
@@ -740,31 +744,22 @@ func (c *EnvBasedController) readClusterTokenFromConfigMap(ctx context.Context) 
 		Get(ctx, configMapName, metav1.GetOptions{})
 	if err != nil {
 		// Log the error but don't fail - this is a recovery attempt
-		c.Log.Info(
-			"Could not read cluster token from ConfigMap",
-			"error",
-			err.Error(),
-			"configMap",
-			configMapName,
-		)
-		return ""
+		c.Log.Info("Could not read cluster token from ConfigMap", "error", err.Error(), "configMap", configMapName)
+		return "", ""
 	}
 
-	// Extract CLUSTER_TOKEN from ConfigMap data
+	// Extract CLUSTER_TOKEN (and optional CLUSTER_IDENTIFIER) from ConfigMap data
 	if configMap.Data != nil {
 		if token, exists := configMap.Data["CLUSTER_TOKEN"]; exists {
 			token = strings.TrimSpace(token)
 			if token != "" {
-				c.Log.Info(
-					"Successfully recovered cluster token from ConfigMap",
-					"configMap",
-					configMapName,
-				)
-				return token
+				identifier := strings.TrimSpace(configMap.Data["CLUSTER_IDENTIFIER"])
+				c.Log.Info("Successfully recovered cluster token from ConfigMap", "configMap", configMapName)
+				return token, identifier
 			}
 		}
 	}
 
 	c.Log.Info("No cluster token found in ConfigMap", "configMap", configMapName)
-	return ""
+	return "", ""
 }

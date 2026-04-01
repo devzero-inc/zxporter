@@ -54,6 +54,9 @@ const (
 	// ClusterServiceGetNodeTypeCountsProcedure is the fully-qualified name of the ClusterService's
 	// GetNodeTypeCounts RPC.
 	ClusterServiceGetNodeTypeCountsProcedure = "/api.v1.ClusterService/GetNodeTypeCounts"
+	// ClusterServiceReattachClusterProcedure is the fully-qualified name of the ClusterService's
+	// ReattachCluster RPC.
+	ClusterServiceReattachClusterProcedure = "/api.v1.ClusterService/ReattachCluster"
 )
 
 // ClusterServiceClient is a client for the api.v1.ClusterService service.
@@ -72,6 +75,8 @@ type ClusterServiceClient interface {
 	GetNetworkMetricsTimeSeries(context.Context, *connect.Request[v1.GetNetworkMetricsTimeSeriesRequest]) (*connect.Response[v1.GetNetworkMetricsTimeSeriesResponse], error)
 	// GetNodeTypeCounts retrieves node type breakdown for given clusters and time range
 	GetNodeTypeCounts(context.Context, *connect.Request[v1.GetNodeTypeCountsRequest]) (*connect.Response[v1.GetNodeTypeCountsResponse], error)
+	// ReattachCluster finds an existing cluster by identifier or creates a new one, returning a fresh token
+	ReattachCluster(context.Context, *connect.Request[v1.ReattachClusterRequest]) (*connect.Response[v1.ReattachClusterResponse], error)
 }
 
 // NewClusterServiceClient constructs a client for the api.v1.ClusterService service. By default, it
@@ -119,6 +124,11 @@ func NewClusterServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			baseURL+ClusterServiceGetNodeTypeCountsProcedure,
 			opts...,
 		),
+		reattachCluster: connect.NewClient[v1.ReattachClusterRequest, v1.ReattachClusterResponse](
+			httpClient,
+			baseURL+ClusterServiceReattachClusterProcedure,
+			opts...,
+		),
 	}
 }
 
@@ -131,6 +141,7 @@ type clusterServiceClient struct {
 	getNetworkDependencies      *connect.Client[v1.GetNetworkDependenciesRequest, v1.GetNetworkDependenciesResponse]
 	getNetworkMetricsTimeSeries *connect.Client[v1.GetNetworkMetricsTimeSeriesRequest, v1.GetNetworkMetricsTimeSeriesResponse]
 	getNodeTypeCounts           *connect.Client[v1.GetNodeTypeCountsRequest, v1.GetNodeTypeCountsResponse]
+	reattachCluster             *connect.Client[v1.ReattachClusterRequest, v1.ReattachClusterResponse]
 }
 
 // GetClustersBasicInfo calls api.v1.ClusterService.GetClustersBasicInfo.
@@ -168,6 +179,11 @@ func (c *clusterServiceClient) GetNodeTypeCounts(ctx context.Context, req *conne
 	return c.getNodeTypeCounts.CallUnary(ctx, req)
 }
 
+// ReattachCluster calls api.v1.ClusterService.ReattachCluster.
+func (c *clusterServiceClient) ReattachCluster(ctx context.Context, req *connect.Request[v1.ReattachClusterRequest]) (*connect.Response[v1.ReattachClusterResponse], error) {
+	return c.reattachCluster.CallUnary(ctx, req)
+}
+
 // ClusterServiceHandler is an implementation of the api.v1.ClusterService service.
 type ClusterServiceHandler interface {
 	// GetClustersBasicInfo retrieves basic information for all clusters in a team
@@ -184,6 +200,8 @@ type ClusterServiceHandler interface {
 	GetNetworkMetricsTimeSeries(context.Context, *connect.Request[v1.GetNetworkMetricsTimeSeriesRequest]) (*connect.Response[v1.GetNetworkMetricsTimeSeriesResponse], error)
 	// GetNodeTypeCounts retrieves node type breakdown for given clusters and time range
 	GetNodeTypeCounts(context.Context, *connect.Request[v1.GetNodeTypeCountsRequest]) (*connect.Response[v1.GetNodeTypeCountsResponse], error)
+	// ReattachCluster finds an existing cluster by identifier or creates a new one, returning a fresh token
+	ReattachCluster(context.Context, *connect.Request[v1.ReattachClusterRequest]) (*connect.Response[v1.ReattachClusterResponse], error)
 }
 
 // NewClusterServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -227,6 +245,11 @@ func NewClusterServiceHandler(svc ClusterServiceHandler, opts ...connect.Handler
 		svc.GetNodeTypeCounts,
 		opts...,
 	)
+	clusterServiceReattachClusterHandler := connect.NewUnaryHandler(
+		ClusterServiceReattachClusterProcedure,
+		svc.ReattachCluster,
+		opts...,
+	)
 	return "/api.v1.ClusterService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case ClusterServiceGetClustersBasicInfoProcedure:
@@ -243,6 +266,8 @@ func NewClusterServiceHandler(svc ClusterServiceHandler, opts ...connect.Handler
 			clusterServiceGetNetworkMetricsTimeSeriesHandler.ServeHTTP(w, r)
 		case ClusterServiceGetNodeTypeCountsProcedure:
 			clusterServiceGetNodeTypeCountsHandler.ServeHTTP(w, r)
+		case ClusterServiceReattachClusterProcedure:
+			clusterServiceReattachClusterHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -278,4 +303,8 @@ func (UnimplementedClusterServiceHandler) GetNetworkMetricsTimeSeries(context.Co
 
 func (UnimplementedClusterServiceHandler) GetNodeTypeCounts(context.Context, *connect.Request[v1.GetNodeTypeCountsRequest]) (*connect.Response[v1.GetNodeTypeCountsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.ClusterService.GetNodeTypeCounts is not implemented"))
+}
+
+func (UnimplementedClusterServiceHandler) ReattachCluster(context.Context, *connect.Request[v1.ReattachClusterRequest]) (*connect.Response[v1.ReattachClusterResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.ClusterService.ReattachCluster is not implemented"))
 }
