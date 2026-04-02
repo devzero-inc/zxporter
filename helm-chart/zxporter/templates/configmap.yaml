@@ -3,7 +3,9 @@ data:
   BUFFER_SIZE: ""
   CLUSTER_IDENTIFIER: "{{ .Values.zxporter.clusterIdentifier }}"
   {{- if not .Values.zxporter.useSecretForToken }}
+  {{- if .Values.zxporter.clusterToken }}
   CLUSTER_TOKEN: "{{ .Values.zxporter.clusterToken }}"
+  {{- end }}
   PAT_TOKEN: "{{ .Values.zxporter.patToken }}"
   {{- end }}
   COLLECTION_FREQUENCY: ""
