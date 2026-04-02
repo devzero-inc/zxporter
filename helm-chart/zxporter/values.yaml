@@ -8,8 +8,6 @@
 #
 # For production deployments, we recommend using patToken for automatic token exchange.
 
-namespace: devzero-zxporter
-
 image:
   repository: docker.io/devzeroinc/zxporter
   pullPolicy: IfNotPresent
