@@ -680,6 +680,39 @@ func (c *RealDakrClient) ExchangePATForClusterToken(
 	return resp.Msg.Token, resp.Msg.ClusterId, nil
 }
 
+// ReattachCluster finds or creates a cluster by identifier, returning a fresh token
+func (c *RealDakrClient) ReattachCluster(ctx context.Context, patToken, clusterIdentifier, clusterName, k8sProvider string) (string, string, error) {
+	req := connect.NewRequest(&gen.ReattachClusterRequest{
+		ClusterIdentifier: clusterIdentifier,
+		ClusterName:       clusterName,
+		K8SProvider:       k8sProvider,
+	})
+	req.Header().Set("Authorization", fmt.Sprintf("Bearer %s", patToken))
+
+	versionInfo := version.Get()
+	clientHeader := DefaultOperatorType
+	if versionInfo.String() != "" {
+		clientHeader = fmt.Sprintf("%s/%s", DefaultOperatorType, versionInfo.String())
+	}
+	req.Header().Set(HeaderClient, clientHeader)
+	req.Header().Set(HeaderOperatorType, DefaultOperatorType)
+	if versionInfo.String() != "" {
+		req.Header().Set(HeaderOperatorVersion, versionInfo.String())
+	}
+	if versionInfo.GitCommit != "" {
+		req.Header().Set(HeaderOperatorGitSHA, versionInfo.GitCommit)
+	}
+
+	resp, err := c.clusterClient.ReattachCluster(ctx, req)
+	if err != nil {
+		c.logger.Error(err, "Failed to reattach cluster")
+		return "", "", fmt.Errorf("failed to reattach cluster: %w", err)
+	}
+
+	c.logger.Info("Successfully reattached cluster", "clusterId", resp.Msg.ClusterId, "isReattachment", resp.Msg.IsReattachment)
+	return resp.Msg.Token, resp.Msg.ClusterId, nil
+}
+
 // SendNetworkTrafficMetrics pushes network traffic metrics from a node
 func (c *RealDakrClient) SendNetworkTrafficMetrics(
 	ctx context.Context,

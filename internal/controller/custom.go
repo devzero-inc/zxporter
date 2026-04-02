@@ -391,8 +391,15 @@ func (c *EnvBasedController) initializeTelemetryComponents(ctx context.Context) 
 			// Create a temporary client with empty cluster token for PAT exchange
 			tempClient := c.dakrClientFactory(dakrURL, "", c.Log)
 
-			// Exchange PAT for cluster token
-			token, clusterId, err := tempClient.ExchangePATForClusterToken(ctx, envSpec.Policies.PATToken, clusterName, k8sProvider)
+			// Exchange PAT for cluster token — use ReattachCluster when clusterIdentifier is set
+			// so reinstalls find the same cluster instead of creating a new one.
+			var token, clusterId string
+			var err error
+			if envSpec.Policies.ClusterIdentifier != "" {
+				token, clusterId, err = tempClient.ReattachCluster(ctx, envSpec.Policies.PATToken, envSpec.Policies.ClusterIdentifier, clusterName, k8sProvider)
+			} else {
+				token, clusterId, err = tempClient.ExchangePATForClusterToken(ctx, envSpec.Policies.PATToken, clusterName, k8sProvider)
+			}
 			if err != nil {
 				c.Log.Error(err, "Failed to exchange PAT for cluster token")
 				return fmt.Errorf("failed to exchange PAT for cluster token: %w", err)
