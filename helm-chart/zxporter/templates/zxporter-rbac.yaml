@@ -47,9 +47,20 @@ rules:
       - update
       - patch
       - delete
+{{- if .Values.zxporter.clusterIdentitySecretName }}
+  # Read-only access to user-provided cluster identity Secret
+  - apiGroups:
+      - ""
+    resourceNames:
+      - {{ .Values.zxporter.clusterIdentitySecretName }}
+    resources:
+      - secrets
+    verbs:
+      - get
+{{- end }}
 {{- if .Values.zxporter.useSecretForToken }}
   # Secret access for cluster token persistence when useSecretForToken is enabled
-  
+
   # General Secret create permission (needed to create runtime token secret)
   - apiGroups:
       - ""
@@ -57,7 +68,7 @@ rules:
       - secrets
     verbs:
       - create
-  
+
   # Read-only access to credentials Secret (user-provided PAT/CLUSTER tokens)
   - apiGroups:
       - ""
@@ -67,7 +78,7 @@ rules:
       - secrets
     verbs:
       - get
-  
+
   # Read/write access to runtime token Secret (exchanged tokens)
   - apiGroups:
       - ""

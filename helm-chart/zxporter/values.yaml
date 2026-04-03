@@ -34,6 +34,13 @@ zxporter:
   # allowing the cluster to be found-or-created by identifier across reinstalls.
   clusterIdentifier: ""
 
+  # Optional: name of a user-managed Secret containing CLUSTER_IDENTIFIER key.
+  # If set, the operator reads clusterIdentifier from this Secret first,
+  # overriding the clusterIdentifier field above.
+  # Create the Secret before installing: kubectl create secret generic <name> \
+  #   --from-literal=CLUSTER_IDENTIFIER=<your-identifier> -n <namespace>
+  clusterIdentitySecretName: ""
+
   # Kubernetes context name to identify this cluster
   # Required: Must be set to a unique identifier for your cluster
   # Examples:

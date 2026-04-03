@@ -358,6 +358,21 @@ func (c *EnvBasedController) initializeTelemetryComponents(ctx context.Context) 
 		// Continue with default values
 	}
 
+	// Resolve clusterIdentifier from user-provided Secret if configured.
+	// This takes priority over the clusterIdentifier field in values.yaml/ConfigMap.
+	// ConfigMap is mounted as files at /etc/zxporter/config/, not as env vars.
+	clusterIdentitySecretName := os.Getenv("CLUSTER_IDENTITY_SECRET_NAME")
+	if clusterIdentitySecretName == "" {
+		if data, err := os.ReadFile("/etc/zxporter/config/CLUSTER_IDENTITY_SECRET_NAME"); err == nil {
+			clusterIdentitySecretName = strings.TrimSpace(string(data))
+		}
+	}
+	if clusterIdentitySecretName != "" {
+		if identifier := c.readClusterIdentifierFromSecret(ctx, clusterIdentitySecretName); identifier != "" {
+			envSpec.Policies.ClusterIdentifier = identifier
+		}
+	}
+
 	// Handle PAT token exchange if no cluster token is available
 	if envSpec.Policies.ClusterToken == "" && envSpec.Policies.PATToken != "" {
 		// First try to recover existing stored token
@@ -769,4 +784,39 @@ func (c *EnvBasedController) readClusterTokenFromConfigMap(ctx context.Context) 
 
 	c.Log.Info("No cluster token found in ConfigMap", "configMap", configMapName)
 	return "", ""
+}
+
+// readClusterIdentifierFromSecret reads CLUSTER_IDENTIFIER from a user-provided Secret.
+// This Secret is read-only — the operator never writes to it.
+// Returns empty string if Secret not found, key missing, or any error occurs.
+func (c *EnvBasedController) readClusterIdentifierFromSecret(ctx context.Context, secretName string) string {
+	namespace := os.Getenv("POD_NAMESPACE")
+	if namespace == "" {
+		if data, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace"); err == nil {
+			namespace = strings.TrimSpace(string(data))
+		} else {
+			namespace = "devzero-zxporter"
+		}
+	}
+
+	secret, err := c.K8sClient.CoreV1().Secrets(namespace).Get(ctx, secretName, metav1.GetOptions{})
+	if err != nil {
+		c.Log.Info("Could not read cluster identity Secret, falling back to values.yaml",
+			"secret", secretName, "error", err.Error())
+		return ""
+	}
+
+	if secret.Data != nil {
+		if val, exists := secret.Data["CLUSTER_IDENTIFIER"]; exists {
+			identifier := strings.TrimSpace(string(val))
+			if identifier != "" {
+				c.Log.Info("Read clusterIdentifier from user Secret",
+					"secret", secretName, "identifier", identifier)
+				return identifier
+			}
+		}
+	}
+
+	c.Log.Info("CLUSTER_IDENTIFIER key not found in Secret", "secret", secretName)
+	return ""
 }
