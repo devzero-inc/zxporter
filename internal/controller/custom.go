@@ -817,6 +817,7 @@ func (c *EnvBasedController) readClusterIdentifierFromSecret(ctx context.Context
 		}
 	}
 
-	c.Log.Info("CLUSTER_IDENTIFIER key not found in Secret", "secret", secretName)
+	c.Log.Info("CLUSTER_IDENTIFIER key missing or empty in Secret, falling back to values.yaml",
+		"secret", secretName, "hint", "set clusterIdentifier in values.yaml and run helm upgrade to populate the Secret")
 	return ""
 }
