@@ -463,15 +463,25 @@ func (c *NodeCollector) nodeStatusChanged(oldNode, newNode *corev1.Node) bool {
 		}
 	}
 
-	// Check if allocatable resources changed
+	// Check if allocatable resources changed (CPU, memory, GPU)
 	if !oldNode.Status.Allocatable.Cpu().Equal(*newNode.Status.Allocatable.Cpu()) ||
 		!oldNode.Status.Allocatable.Memory().Equal(*newNode.Status.Allocatable.Memory()) {
 		return true
 	}
+	oldAllocGPU := oldNode.Status.Allocatable[corev1.ResourceName(gpuconst.GpuResource)]
+	newAllocGPU := newNode.Status.Allocatable[corev1.ResourceName(gpuconst.GpuResource)]
+	if !oldAllocGPU.Equal(newAllocGPU) {
+		return true
+	}
 
-	// Check if capacity changed
+	// Check if capacity changed (CPU, memory, GPU)
 	if !oldNode.Status.Capacity.Cpu().Equal(*newNode.Status.Capacity.Cpu()) ||
 		!oldNode.Status.Capacity.Memory().Equal(*newNode.Status.Capacity.Memory()) {
+		return true
+	}
+	oldCapGPU := oldNode.Status.Capacity[corev1.ResourceName(gpuconst.GpuResource)]
+	newCapGPU := newNode.Status.Capacity[corev1.ResourceName(gpuconst.GpuResource)]
+	if !oldCapGPU.Equal(newCapGPU) {
 		return true
 	}
 
