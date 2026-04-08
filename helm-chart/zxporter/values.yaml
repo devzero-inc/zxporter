@@ -11,7 +11,7 @@
 image:
   repository: docker.io/devzeroinc/zxporter
   pullPolicy: IfNotPresent
-  tag: "v0.0.71"
+  tag: "v0.0.73"
 
 # ZXPorter configuration
 zxporter:
