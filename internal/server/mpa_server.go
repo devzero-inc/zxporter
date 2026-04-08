@@ -297,6 +297,9 @@ func (sm *SubscriptionManager) Broadcast(data *collector.ContainerMetricsSnapsho
 				MemoryLimitBytes:   data.MemoryLimitBytes,
 				// CPU throttle fraction from CFS bandwidth controller
 				CpuThrottleFraction: data.CpuThrottledFraction,
+				// Network metrics (bytes/sec from Prometheus rate queries)
+				NetworkReceiveBytesPerSec:  int64(data.NetworkReceiveBytes),
+				NetworkTransmitBytesPerSec: int64(data.NetworkTransmitBytes),
 			}
 
 			batch := &gen.ContainerMetricsBatch{
