@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 For releases prior to automated changelog generation, please see the
 [GitHub Releases](https://github.com/devzero-inc/zxporter/releases) page.
 
+## [v0.0.73] - 2026-04-08
+
+<!-- Release notes generated using configuration in .github/release.yml at main -->
+
+### What's Changed
+### Other Changes
+* chore: update changelog for v0.0.72 by @github-actions[bot] in https://github.com/devzero-inc/zxporter/pull/340
+* chore(helm): update Chart.yaml version to 0.0.16 by @github-actions[bot] in https://github.com/devzero-inc/zxporter/pull/342
+* chore(helm): update Chart.yaml version to 0.0.50 by @github-actions[bot] in https://github.com/devzero-inc/zxporter/pull/341
+* add crd binding by @f-leu in https://github.com/devzero-inc/zxporter/pull/344
+* fix: detect GPU capacity changes in nodeStatusChanged by @dray92 in https://github.com/devzero-inc/zxporter/pull/347
+
+
+**Full Changelog**: https://github.com/devzero-inc/zxporter/compare/v0.0.72...v0.0.73
+
 ## [v0.0.72] - 2026-03-24
 
 <!-- Release notes generated using configuration in .github/release.yml at main -->
