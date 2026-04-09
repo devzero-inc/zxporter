@@ -15,6 +15,7 @@ import (
 	"github.com/devzero-inc/zxporter/internal/collector"
 	"github.com/devzero-inc/zxporter/internal/version"
 	"github.com/go-logr/logr"
+	"github.com/klauspost/compress/zstd"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -384,11 +385,45 @@ func (c *RealDakrClient) splitBatchBySize(resourceItems []*gen.ResourceItem) [][
 	return batches
 }
 
+// compressZstd compresses data using zstd at default speed level.
+// This provides ~70-80% compression on JSON payloads while being faster to decompress than gzip.
+func compressZstd(data []byte) ([]byte, error) {
+	enc, err := zstd.NewWriter(nil, zstd.WithEncoderLevel(zstd.SpeedDefault))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create zstd encoder: %w", err)
+	}
+	defer func() { _ = enc.Close() }()
+	return enc.EncodeAll(data, make([]byte, 0, len(data)/2)), nil
+}
+
 // SendResourceBatch sends a batch of resources to Dakr through gRPC
 func (c *RealDakrClient) SendResourceBatch(ctx context.Context, resources []collector.CollectedResource, resourceType collector.ResourceType) (string, error) {
 	resourceItems := make([]*gen.ResourceItem, 0, len(resources))
 
 	for _, resource := range resources {
+		// ImageAnalysisResult: use data_bytes with zstd compression to minimize payload
+		if resource.ResourceType == collector.ImageAnalysisResult {
+			jsonBytes, err := json.Marshal(resource.Object)
+			if err != nil {
+				c.logger.Error(err, "Failed to marshal ImageAnalysisResult for batch item", "key", resource.Key)
+				continue
+			}
+			compressed, err := compressZstd(jsonBytes)
+			if err != nil {
+				c.logger.Error(err, "Failed to compress ImageAnalysisResult, falling back to raw JSON", "key", resource.Key)
+				compressed = jsonBytes
+			}
+			item := &gen.ResourceItem{
+				Key:          resource.Key,
+				Timestamp:    timestamppb.New(resource.Timestamp),
+				EventType:    resource.EventType.ProtoType(),
+				DataBytes:    compressed,
+				ResourceType: resource.ResourceType.ProtoType(),
+			}
+			resourceItems = append(resourceItems, item)
+			continue
+		}
+
 		// Convert resource data to structpb for protobuf serialization
 		data, err := c.toStructpb(resource.Object)
 		if err != nil {

@@ -29,6 +29,7 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/kubernetes"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -188,6 +189,36 @@ func main() {
 	if err != nil {
 		setupLog.Error(err, "unable to add environment-based controller to manager")
 		os.Exit(1)
+	}
+
+	// Setup image analysis controller (if enabled).
+	imageAnalysisConfig, err := controller.LoadImageAnalysisConfigFromEnv()
+	if err != nil {
+		setupLog.Error(err, "failed to load image analysis config, feature disabled")
+	} else if imageAnalysisConfig.Enabled {
+		k8sClient, err := kubernetes.NewForConfig(mgr.GetConfig())
+		if err != nil {
+			setupLog.Error(err, "failed to create kubernetes client for image analysis")
+			os.Exit(1)
+		}
+
+		imageAnalysisController := controller.NewImageAnalysisController(
+			k8sClient,
+			mgr.GetClient(),
+			ctrl.Log.WithName("image-analysis"),
+			imageAnalysisConfig,
+		)
+
+		if err := mgr.Add(imageAnalysisController); err != nil {
+			setupLog.Error(err, "unable to add image analysis controller to manager")
+			os.Exit(1)
+		}
+		setupLog.Info("image analysis controller registered",
+			"intervalDays", imageAnalysisConfig.IntervalDays,
+			"batchSize", imageAnalysisConfig.BatchSize,
+		)
+	} else {
+		setupLog.Info("image analysis controller disabled")
 	}
 
 	setupLog.Info("starting manager")

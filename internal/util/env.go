@@ -259,6 +259,12 @@ const (
 
 const configVolumeMountPath = "/etc/zxporter/config"
 
+// GetEnv reads a configuration value by key, first checking environment variables,
+// then falling back to a file at /etc/zxporter/config/<key>.
+func GetEnv(key string) string {
+	return getEnv(key)
+}
+
 func getEnv(key string) string {
 	if data := os.Getenv(key); data != "" {
 		return data

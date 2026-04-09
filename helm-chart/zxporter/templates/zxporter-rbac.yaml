@@ -337,11 +337,23 @@ rules:
   - batch
   resources:
   - cronjobs
+  verbs:
+  - get
+  - list
+  - watch
+# Jobs: read-only for monitoring, plus create/delete for image analysis batch jobs
+- apiGroups:
+  - batch
+  resources:
   - jobs
   verbs:
   - get
   - list
   - watch
+{{- if .Values.imageAnalysis.enabled }}
+  - create
+  - delete
+{{- end }}
 - apiGroups:
   - batch.volcano.sh
   resources:
@@ -393,6 +405,49 @@ rules:
   - get
   - patch
   - update
+{{- if .Values.imageAnalysis.enabled }}
+# ==========================================
+# IMAGE ANALYSIS PERMISSIONS
+# ==========================================
+# ImageAnalysisResult CRD CRUD (cluster-scoped)
+- apiGroups:
+  - devzero.io
+  resources:
+  - imageanalysisresults
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - update
+  - watch
+# ImageAnalysisResult status subresource
+- apiGroups:
+  - devzero.io
+  resources:
+  - imageanalysisresults/status
+  verbs:
+  - get
+  - update
+# Pod log access for reading batch job output
+- apiGroups:
+  - ""
+  resources:
+  - pods/log
+  verbs:
+  - get
+{{- if .Values.imageAnalysis.registryAuthSecret }}
+# Registry auth secret access for private image pulls
+- apiGroups:
+  - ""
+  resourceNames:
+  - {{ .Values.imageAnalysis.registryAuthSecret }}
+  resources:
+  - secrets
+  verbs:
+  - get
+{{- end }}
+{{- end }}
 # ==========================================
 # OPTIONAL THIRD-PARTY RESOURCES
 # ==========================================
