@@ -135,6 +135,15 @@ func main() {
 	// reconciling before enforcing readiness checks.
 	healthManager.SuppressReadiness(2 * time.Minute)
 
+	// When leader election is enabled, mark this pod as standby until it wins
+	// the lease. Standby pods return 200 on /readyz so Kubernetes does not
+	// repeatedly mark them unhealthy while they wait. The flag is cleared
+	// (inside the goroutine below) the moment this pod is elected leader, at
+	// which point the normal 2-minute readiness grace period takes over.
+	if enableLeaderElection {
+		healthManager.SetStandby(true)
+	}
+
 	// No need to add the standard controller with kubebuilder:scaffold:builder
 	// The env-based controller doesn't rely on CRDs
 
@@ -190,8 +199,22 @@ func main() {
 		os.Exit(1)
 	}
 
+	ctx := ctrl.SetupSignalHandler()
+
+	// Clear standby the moment this pod wins leader election so that normal
+	// readiness checks (with the 2-minute grace period) take over.
+	if enableLeaderElection {
+		go func() {
+			select {
+			case <-mgr.Elected():
+				healthManager.SetStandby(false)
+			case <-ctx.Done():
+			}
+		}()
+	}
+
 	setupLog.Info("starting manager")
-	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
+	if err := mgr.Start(ctx); err != nil {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}

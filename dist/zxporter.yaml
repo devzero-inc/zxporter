@@ -664,7 +664,7 @@ metadata:
   name: devzero-zxporter-controller-manager
   namespace: devzero-zxporter
 spec:
-  replicas: 1
+  replicas: 2
   selector:
     matchLabels:
       control-plane: controller-manager
@@ -735,7 +735,7 @@ metadata:
   name: devzero-zxporter-devzero-zxporter-pdb
   namespace: devzero-zxporter
 spec:
-  minAvailable: 0
+  minAvailable: 1
   selector:
     matchLabels:
       control-plane: controller-manager

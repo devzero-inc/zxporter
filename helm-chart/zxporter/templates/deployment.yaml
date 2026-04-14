@@ -9,7 +9,7 @@ metadata:
   name: devzero-zxporter-controller-manager
   namespace: {{ .Release.Namespace }}
 spec:
-  replicas: 1
+  replicas: {{ if .Values.highAvailability.enabled }}2{{ else }}1{{ end }}
   selector:
     matchLabels:
       control-plane: controller-manager

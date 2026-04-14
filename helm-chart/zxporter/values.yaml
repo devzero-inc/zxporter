@@ -140,11 +140,10 @@ affinity: {}
 
 # High Availability Configuration
 highAvailability:
-  enabled: false
+  enabled: true
   podDisruptionBudget:
     enabled: true
-    minAvailable: 0
-    # Alternative: maxUnavailable: 1
+    minAvailable: 1
 
 # MPA Server Configuration
 mpaServer:
