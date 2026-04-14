@@ -4,7 +4,7 @@ metadata:
   name: devzero-zxporter-pdb
   namespace: system
 spec:
-  minAvailable: 1
+  minAvailable: 0
   selector:
     matchLabels:
       control-plane: controller-manager

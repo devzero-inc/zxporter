@@ -735,7 +735,7 @@ metadata:
   name: devzero-zxporter-devzero-zxporter-pdb
   namespace: devzero-zxporter
 spec:
-  minAvailable: 1
+  minAvailable: 0
   selector:
     matchLabels:
       control-plane: controller-manager
