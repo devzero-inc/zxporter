@@ -414,9 +414,10 @@ func TestNodeOperatorMonitor_BuildReport(t *testing.T) {
 
 		deployComp, ok := report[ComponentKarpenterDeployment]
 		require.True(t, ok)
-		// Service endpoint is unreachable in tests (DNS), so status is degraded
-		assert.Equal(t, HealthStatusDegraded, deployComp.Status)
+		// Service endpoint is unreachable in tests (DNS), but deployment is 1/1 so status stays healthy.
+		assert.Equal(t, HealthStatusHealthy, deployComp.Status)
 		assert.Equal(t, "false", deployComp.Metadata["service_healthz"])
+		assert.Contains(t, deployComp.Message, "service healthz=false")
 	})
 
 	t.Run("no service falls back to deployment status only", func(t *testing.T) {
