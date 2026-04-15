@@ -5,7 +5,7 @@ apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: dz-prometheus-node-exporter
-  namespace: {{ .Values.namespace }}
+  namespace: {{ .Release.Namespace }}
   labels:
     helm.sh/chart: prometheus-node-exporter-4.47.0
     app.kubernetes.io/managed-by: Helm
@@ -52,14 +52,14 @@ spec:
       serviceAccountName: dz-prometheus-node-exporter
       containers:
         - name: node-exporter
-          image: quay.io/prometheus/node-exporter:v1.9.1
-          imagePullPolicy: IfNotPresent
+          image: {{ .Values.nodeExporter.image.repository }}:{{ .Values.nodeExporter.image.tag }}
+          imagePullPolicy: {{ .Values.nodeExporter.image.pullPolicy }}
           args:
             - --path.procfs=/host/proc
             - --path.sysfs=/host/sys
             - --path.rootfs=/host/root
             - --path.udev.data=/host/root/run/udev/data
-            - --web.listen-address=[$(HOST_IP)]:9101
+            - --web.listen-address=[$(HOST_IP)]:{{ .Values.nodeExporter.port }}
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -68,14 +68,14 @@ spec:
               value: 0.0.0.0
           ports:
             - name: metrics
-              containerPort: 9101
+              containerPort: {{ .Values.nodeExporter.port }}
               protocol: TCP
           livenessProbe:
             failureThreshold: 3
             httpGet:
               httpHeaders:
               path: /
-              port: 9101
+              port: {{ .Values.nodeExporter.port }}
               scheme: HTTP
             initialDelaySeconds: 0
             periodSeconds: 10
@@ -86,7 +86,7 @@ spec:
             httpGet:
               httpHeaders:
               path: /
-              port: 9101
+              port: {{ .Values.nodeExporter.port }}
               scheme: HTTP
             initialDelaySeconds: 0
             periodSeconds: 10
@@ -104,13 +104,9 @@ spec:
               mountPropagation: HostToContainer
               readOnly: true
           resources:
-            requests:
-              memory: "500Mi"
-              cpu: "250m"
-            limits:
-              memory: "500Mi"
-      hostNetwork: true
-      hostPID: true
+            {{- toYaml .Values.nodeExporter.resources | nindent 12 }}
+      hostNetwork: {{ .Values.nodeExporter.hostNetwork }}
+      hostPID: {{ .Values.nodeExporter.hostPID }}
       hostIPC: false
       {{- with .Values.affinity }}
       affinity:

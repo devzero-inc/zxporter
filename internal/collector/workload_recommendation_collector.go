@@ -183,6 +183,17 @@ func (c *WorkloadRecommendationCollector) handleWorkloadRecommendationEvent(
 		"name", name,
 	)
 
+	// Skip recommendations older than 24 hours — they are no longer relevant
+	creationTime := wr.GetCreationTimestamp().Time
+	if !creationTime.IsZero() && time.Since(creationTime) > 24*time.Hour {
+		c.logger.Info("Skipping WorkloadRecommendation older than 24 hours",
+			"namespace", namespace,
+			"name", name,
+			"age", time.Since(creationTime).Round(time.Minute),
+		)
+		return
+	}
+
 	// Only send recommendations that have reached a terminal state
 	// Delete events are always sent so the control plane knows about removals
 	if eventType != EventTypeDelete {
