@@ -81,18 +81,20 @@ func (m *NodeOperatorMonitor) BuildNodeOperatorReport(ctx context.Context) (map[
 	report := make(map[string]ComponentStatus, 1)
 	status := m.buildDeploymentStatus(dep)
 
-	// Override deployment status with service health probe if it indicates unhealthy
-	if !probe.healthzOK || !probe.readyzOK {
-		if status.Status == HealthStatusHealthy {
-			status.Status = HealthStatusDegraded
-		}
-		status.Message = fmt.Sprintf("%s (service healthz=%t readyz=%t)", status.Message, probe.healthzOK, probe.readyzOK)
-	}
 	if status.Metadata == nil {
 		status.Metadata = make(map[string]string)
 	}
 	status.Metadata["service_healthz"] = fmt.Sprintf("%t", probe.healthzOK)
 	status.Metadata["service_readyz"] = fmt.Sprintf("%t", probe.readyzOK)
+
+	// Annotate the message with probe results when probes fail, but do not
+	// downgrade a healthy deployment: K8s replica health is the authoritative
+	// signal. Probe failures on a ready deployment are typically transient
+	// (network policy, brief endpoint churn during rollouts, service port
+	// mismatches) and should not cause false DEGRADED alerts.
+	if !probe.healthzOK || !probe.readyzOK {
+		status.Message = fmt.Sprintf("%s (service healthz=%t readyz=%t)", status.Message, probe.healthzOK, probe.readyzOK)
+	}
 
 	report[ComponentKarpenterDeployment] = status
 
