@@ -47,8 +47,15 @@ rules:
       - update
       - patch
       - delete
+  # Note: 'create' cannot be restricted by resourceName (k8s limitation), so it is
+  # granted generally within this namespace.
+  - apiGroups:
+      - ""
+    resources:
+      - secrets
+    verbs:
+      - create
 {{- if .Values.zxporter.clusterIdentitySecretName }}
-  # Read-only access to user-provided cluster identity Secret
   - apiGroups:
       - ""
     resourceNames:
@@ -57,6 +64,8 @@ rules:
       - secrets
     verbs:
       - get
+      - update
+      - patch
 {{- end }}
 {{- if .Values.zxporter.useSecretForToken }}
   # Secret access for cluster token persistence when useSecretForToken is enabled
@@ -232,16 +241,30 @@ rules:
   - list
   - watch
   - update
-{{- if .Values.zxporter.useSecretForToken }}
-# Secret access for cluster token persistence when useSecretForToken is enabled
-
-# General Secret create permission (needed to create runtime token secret)
+# General Secret create permission — needed to auto-create the cluster identity Secret
+# when useSecretForToken is enabled, the runtime token Secret.
+# Note: 'create' cannot be restricted by resourceName (k8s limitation).
 - apiGroups:
   - ""
   resources:
   - secrets
   verbs:
   - create
+# Read/write access to cluster identity Secret (always needed)
+{{- if .Values.zxporter.clusterIdentitySecretName }}
+- apiGroups:
+  - ""
+  resourceNames:
+  - {{ .Values.zxporter.clusterIdentitySecretName }}
+  resources:
+  - secrets
+  verbs:
+  - get
+  - update
+  - patch
+{{- end }}
+{{- if .Values.zxporter.useSecretForToken }}
+# Secret access for cluster token persistence when useSecretForToken is enabled
 
 # Read-only access to credentials Secret (user-provided PAT/CLUSTER tokens)
 - apiGroups:
