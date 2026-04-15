@@ -67,7 +67,7 @@ type ContainerResourceCollector struct {
 	k8sClient          kubernetes.Interface
 	metricsClient      *metricsv1.Clientset
 	prometheusAPI      v1.API
-	nodemonClient  *NodemonClient
+	nodemonClient      *NodemonClient
 	informerFactory    informers.SharedInformerFactory
 	podInformer        cache.SharedIndexInformer
 	batchChan          chan CollectedResource   // Channel for individual resources -> input to batcher
@@ -895,7 +895,11 @@ func (c *ContainerResourceCollector) collectContainerCPUThrottleMetrics(
 }
 
 // emitCPUThrottleEvent sends a CPU throttle event through the batch channel with 5-minute deduplication.
-func (c *ContainerResourceCollector) emitCPUThrottleEvent(pod *corev1.Pod, containerMetrics metricsv1beta1.ContainerMetrics, throttleFraction float64) {
+func (c *ContainerResourceCollector) emitCPUThrottleEvent(
+	pod *corev1.Pod,
+	containerMetrics metricsv1beta1.ContainerMetrics,
+	throttleFraction float64,
+) {
 	dedupKey := fmt.Sprintf("%s/%s/%s", pod.Namespace, pod.Name, containerMetrics.Name)
 
 	c.throttle.mu.Lock()

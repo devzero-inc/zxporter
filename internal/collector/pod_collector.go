@@ -601,7 +601,8 @@ func (c *PodCollector) trackStartupLifecycle(_, newPod *corev1.Pod) {
 		entry.lastSeen = now
 
 		// Track ContainerCreating phase
-		if newStatus.State.Waiting != nil && newStatus.State.Waiting.Reason == "ContainerCreating" && entry.creatingAt == nil {
+		if newStatus.State.Waiting != nil && newStatus.State.Waiting.Reason == "ContainerCreating" &&
+			entry.creatingAt == nil {
 			entry.creatingAt = &now
 		}
 
@@ -649,7 +650,11 @@ func (c *PodCollector) trackStartupLifecycle(_, newPod *corev1.Pod) {
 }
 
 // emitStartupLifecycleEvent sends a completed startup lifecycle event through the batch channel.
-func (c *PodCollector) emitStartupLifecycleEvent(entry *startupLifecycleEntry, readyAt *time.Time, timeToRunningMs, timeToReadyMs *int64) {
+func (c *PodCollector) emitStartupLifecycleEvent(
+	entry *startupLifecycleEntry,
+	readyAt *time.Time,
+	timeToRunningMs, timeToReadyMs *int64,
+) {
 	payload := map[string]interface{}{
 		"namespace":      entry.namespace,
 		"workload_name":  entry.workloadName,

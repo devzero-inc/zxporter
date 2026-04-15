@@ -65,7 +65,12 @@ type EnvBasedController struct {
 }
 
 // NewEnvBasedController creates a new environment-based controller
-func NewEnvBasedController(mgr ctrl.Manager, healthManager *health.HealthManager, reconcileInterval time.Duration, mpaServerPort int) (*EnvBasedController, error) {
+func NewEnvBasedController(
+	mgr ctrl.Manager,
+	healthManager *health.HealthManager,
+	reconcileInterval time.Duration,
+	mpaServerPort int,
+) (*EnvBasedController, error) {
 	// Set up basic components
 	logger := util.NewLogger("env-controller")
 	zapLogger, err := zap.NewProduction()
@@ -264,7 +269,17 @@ func (c *EnvBasedController) sendNodeOperatorHealthReport(ctx context.Context) {
 	}
 
 	for name, status := range report {
-		c.Log.Info("Node operator health status", "component", name, "status", status.Status, "message", status.Message, "metadata", status.Metadata)
+		c.Log.Info(
+			"Node operator health status",
+			"component",
+			name,
+			"status",
+			status.Status,
+			"message",
+			status.Message,
+			"metadata",
+			status.Metadata,
+		)
 	}
 
 	if c.Reconciler.DakrClient != nil {

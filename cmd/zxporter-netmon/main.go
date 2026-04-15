@@ -280,7 +280,15 @@ func main() {
 				case <-ticker.C:
 					report := healthManager.BuildReport()
 					for name, status := range report {
-						logger.Info("Health status report", "component", name, "status", status.Status, "message", status.Message)
+						logger.Info(
+							"Health status report",
+							"component",
+							name,
+							"status",
+							status.Status,
+							"message",
+							status.Message,
+						)
 					}
 					req := health.BuildHeartbeatRequestFromReport(
 						report, clusterID, gen.OperatorType_OPERATOR_TYPE_NETWORK,

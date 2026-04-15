@@ -48,26 +48,26 @@ type NodeCollectorConfig struct {
 
 // NodeCollector collects node events and resource metrics
 type NodeCollector struct {
-	k8sClient         kubernetes.Interface
-	metricsClient     *metricsv1.Clientset
-	prometheusAPI     v1.API
-	nodemonClient *NodemonClient
-	informerFactory   informers.SharedInformerFactory
-	nodeInformer      cache.SharedIndexInformer
-	batchChan         chan CollectedResource   // Channel for individual resources -> input to batcher
-	resourceChan      chan []CollectedResource // Channel for batched resources -> output from batcher
-	batcher           *ResourcesBatcher
-	stopCh            chan struct{}
-	ticker            *time.Ticker
-	config            NodeCollectorConfig
-	excludedNodes     map[string]bool
-	logger            logr.Logger
-	metrics           *TelemetryMetrics
-	telemetryLogger   telemetry_logger.Logger
-	mu                sync.RWMutex
-	nodeToPodsMap     map[string]map[string]*corev1.Pod // Maps node name -> pod key -> pod object
-	podInformer       cache.SharedIndexInformer
-	podMapMutex       sync.RWMutex
+	k8sClient       kubernetes.Interface
+	metricsClient   *metricsv1.Clientset
+	prometheusAPI   v1.API
+	nodemonClient   *NodemonClient
+	informerFactory informers.SharedInformerFactory
+	nodeInformer    cache.SharedIndexInformer
+	batchChan       chan CollectedResource   // Channel for individual resources -> input to batcher
+	resourceChan    chan []CollectedResource // Channel for batched resources -> output from batcher
+	batcher         *ResourcesBatcher
+	stopCh          chan struct{}
+	ticker          *time.Ticker
+	config          NodeCollectorConfig
+	excludedNodes   map[string]bool
+	logger          logr.Logger
+	metrics         *TelemetryMetrics
+	telemetryLogger telemetry_logger.Logger
+	mu              sync.RWMutex
+	nodeToPodsMap   map[string]map[string]*corev1.Pod // Maps node name -> pod key -> pod object
+	podInformer     cache.SharedIndexInformer
+	podMapMutex     sync.RWMutex
 }
 
 // NewNodeCollector creates a new collector for node resources
