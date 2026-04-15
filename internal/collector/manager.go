@@ -159,7 +159,11 @@ func (m *CollectionManager) stopCollectorInternal(collectorType string) error {
 		case <-done:
 			m.logger.Info("Processor goroutine finished cleanly", "type", collectorType)
 		case <-time.After(5 * time.Second):
-			m.logger.Info("Timeout waiting for processor goroutine to finish", "type", collectorType)
+			m.logger.Info(
+				"Timeout waiting for processor goroutine to finish",
+				"type",
+				collectorType,
+			)
 		}
 	}
 
@@ -217,7 +221,13 @@ func (m *CollectionManager) StartAll(ctx context.Context) error {
 							"zxporter_version": version.Get().String(),
 						},
 					)
-					m.logger.Info("Failed to start collector", "type", collectorType, "error", err.Error())
+					m.logger.Info(
+						"Failed to start collector",
+						"type",
+						collectorType,
+						"error",
+						err.Error(),
+					)
 				} else {
 					m.telemetryLogger.Report(
 						gen.LogLevel_LOG_LEVEL_INFO,
@@ -244,7 +254,12 @@ func (m *CollectionManager) StartAll(ctx context.Context) error {
 						"zxporter_version": version.Get().String(),
 					},
 				)
-				m.logger.Error(errors.New("timeout"), "Timed out starting collector", "type", collectorType)
+				m.logger.Error(
+					errors.New("timeout"),
+					"Timed out starting collector",
+					"type",
+					collectorType,
+				)
 			}
 		}(collectorType, collector)
 	}
@@ -254,8 +269,18 @@ func (m *CollectionManager) StartAll(ctx context.Context) error {
 		m.healthManager.ClearLivenessSuppression()
 		m.healthManager.ClearReadinessSuppression()
 	}
-	m.updateHealthStatus(health.ComponentCollectorManager, health.HealthStatusHealthy, fmt.Sprintf("%d collectors started", len(m.collectors)), map[string]string{"collector_count": fmt.Sprintf("%d", len(m.collectors))})
-	m.updateHealthStatus(health.ComponentBufferQueue, health.HealthStatusHealthy, "Buffer is operational", map[string]string{"capacity": fmt.Sprintf("%d", m.bufferSize)})
+	m.updateHealthStatus(
+		health.ComponentCollectorManager,
+		health.HealthStatusHealthy,
+		fmt.Sprintf("%d collectors started", len(m.collectors)),
+		map[string]string{"collector_count": fmt.Sprintf("%d", len(m.collectors))},
+	)
+	m.updateHealthStatus(
+		health.ComponentBufferQueue,
+		health.HealthStatusHealthy,
+		"Buffer is operational",
+		map[string]string{"capacity": fmt.Sprintf("%d", m.bufferSize)},
+	)
 
 	return nil
 }
@@ -278,7 +303,10 @@ func (m *CollectionManager) StartCollector(ctx context.Context, collectorType st
 }
 
 // startCollectorInternal is a helper function to start a collector with appropriate context management
-func (m *CollectionManager) startCollectorInternal(collectorType string, collector ResourceCollector) error {
+func (m *CollectionManager) startCollectorInternal(
+	collectorType string,
+	collector ResourceCollector,
+) error {
 	m.mu.Lock()
 	m.logger.Info("Starting collector", "type", collectorType)
 
@@ -299,7 +327,12 @@ func (m *CollectionManager) startCollectorInternal(collectorType string, collect
 		m.mu.Lock()
 		delete(m.collectorCtxs, collectorType)
 		m.mu.Unlock()
-		m.updateHealthStatus(health.ComponentCollectorManager, health.HealthStatusDegraded, fmt.Sprintf("collector %s failed to start", collectorType), map[string]string{"failed_collector": collectorType})
+		m.updateHealthStatus(
+			health.ComponentCollectorManager,
+			health.HealthStatusDegraded,
+			fmt.Sprintf("collector %s failed to start", collectorType),
+			map[string]string{"failed_collector": collectorType},
+		)
 		return fmt.Errorf("failed to start collector %s: %w", collectorType, err)
 	}
 
@@ -353,7 +386,11 @@ func (m *CollectionManager) StopAll() error {
 		case <-done:
 			m.logger.Info("Processor goroutine finished cleanly", "type", collectorType)
 		case <-time.After(5 * time.Second):
-			m.logger.Info("Timeout waiting for processor goroutine to finish", "type", collectorType)
+			m.logger.Info(
+				"Timeout waiting for processor goroutine to finish",
+				"type",
+				collectorType,
+			)
 		}
 	}
 
@@ -381,13 +418,27 @@ func (m *CollectionManager) StopAll() error {
 	}
 
 	m.started = false
-	m.updateHealthStatus(health.ComponentCollectorManager, health.HealthStatusUnhealthy, "All collectors stopped", nil)
-	m.updateHealthStatus(health.ComponentBufferQueue, health.HealthStatusUnhealthy, "Buffer stopped", nil)
+	m.updateHealthStatus(
+		health.ComponentCollectorManager,
+		health.HealthStatusUnhealthy,
+		"All collectors stopped",
+		nil,
+	)
+	m.updateHealthStatus(
+		health.ComponentBufferQueue,
+		health.HealthStatusUnhealthy,
+		"Buffer stopped",
+		nil,
+	)
 	return nil
 }
 
 // processCollectorChannel reads from a collector's channel and forwards to the combined channel
-func (m *CollectionManager) processCollectorChannel(collectorType string, collector ResourceCollector, wg *sync.WaitGroup) {
+func (m *CollectionManager) processCollectorChannel(
+	collectorType string,
+	collector ResourceCollector,
+	wg *sync.WaitGroup,
+) {
 	defer m.wg.Done()
 	defer wg.Done()
 
@@ -406,7 +457,8 @@ func (m *CollectionManager) processCollectorChannel(collectorType string, collec
 		}
 
 		// Update metrics for the ingested resources
-		m.telemetryMetrics.MessagesIngested.WithLabelValues(resources[0].ResourceType.String()).Add(float64(len(resources)))
+		m.telemetryMetrics.MessagesIngested.WithLabelValues(resources[0].ResourceType.String()).
+			Add(float64(len(resources)))
 
 		// Forward to the combined channel with a timeout to reduce silent drops
 		select {
@@ -416,8 +468,17 @@ func (m *CollectionManager) processCollectorChannel(collectorType string, collec
 			m.logger.Error(nil, "Combined channel buffer full, dropping resources after timeout",
 				"count", len(resources),
 				"type", resources[0].ResourceType.String())
-			m.updateHealthStatus(health.ComponentBufferQueue, health.HealthStatusDegraded, "Buffer full, dropping resources", map[string]string{"capacity": fmt.Sprintf("%d", m.bufferSize), "resource_type": resources[0].ResourceType.String()})
-			m.telemetryMetrics.MessagesDropped.WithLabelValues(resources[0].ResourceType.String()).Add(float64(len(resources)))
+			m.updateHealthStatus(
+				health.ComponentBufferQueue,
+				health.HealthStatusDegraded,
+				"Buffer full, dropping resources",
+				map[string]string{
+					"capacity":      fmt.Sprintf("%d", m.bufferSize),
+					"resource_type": resources[0].ResourceType.String(),
+				},
+			)
+			m.telemetryMetrics.MessagesDropped.WithLabelValues(resources[0].ResourceType.String()).
+				Add(float64(len(resources)))
 		}
 	}
 
@@ -469,7 +530,12 @@ func (m *CollectionManager) GetCollector(collectorType string) ResourceCollector
 }
 
 // updateHealthStatus updates the health status of the collection manager
-func (m *CollectionManager) updateHealthStatus(component string, status health.HealthStatus, message string, metadata map[string]string) {
+func (m *CollectionManager) updateHealthStatus(
+	component string,
+	status health.HealthStatus,
+	message string,
+	metadata map[string]string,
+) {
 	if m.healthManager != nil {
 		m.healthManager.UpdateStatus(component, status, message, metadata)
 	}

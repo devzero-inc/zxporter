@@ -83,7 +83,10 @@ func NewPodCollector(
 	}
 
 	// Create channels
-	batchChan := make(chan CollectedResource, 500)      // Keep original buffer size for individual items
+	batchChan := make(
+		chan CollectedResource,
+		500,
+	) // Keep original buffer size for individual items
 	resourceChan := make(chan []CollectedResource, 200) // Buffer for batches
 
 	// Create the batcher, passing through the configurable parameters
@@ -288,13 +291,21 @@ func (c *PodCollector) checkForContainerEvents(oldPod, newPod *corev1.Pod) {
 						gen.LogLevel_LOG_LEVEL_WARN,
 						"PodCollector",
 						"Container OOM killed",
-						fmt.Errorf("container %s in pod %s/%s was OOM killed", newStatus.Name, newPod.Namespace, newPod.Name),
+						fmt.Errorf(
+							"container %s in pod %s/%s was OOM killed",
+							newStatus.Name,
+							newPod.Namespace,
+							newPod.Name,
+						),
 						map[string]string{
-							"namespace":         newPod.Namespace,
-							"pod":               newPod.Name,
-							"container":         newStatus.Name,
-							"restartCount":      fmt.Sprintf("%d", newStatus.RestartCount),
-							"exitCode":          fmt.Sprintf("%d", newStatus.LastTerminationState.Terminated.ExitCode),
+							"namespace":    newPod.Namespace,
+							"pod":          newPod.Name,
+							"container":    newStatus.Name,
+							"restartCount": fmt.Sprintf("%d", newStatus.RestartCount),
+							"exitCode": fmt.Sprintf(
+								"%d",
+								newStatus.LastTerminationState.Terminated.ExitCode,
+							),
 							"terminationReason": newStatus.LastTerminationState.Terminated.Reason,
 							"zxporter_version":  version.Get().String(),
 						},
@@ -319,7 +330,12 @@ func (c *PodCollector) checkForContainerEvents(oldPod, newPod *corev1.Pod) {
 }
 
 // sendContainerEvent sends a container-specific event
-func (c *PodCollector) sendContainerEvent(pod *corev1.Pod, containerName string, eventType EventType, status *corev1.ContainerStatus) {
+func (c *PodCollector) sendContainerEvent(
+	pod *corev1.Pod,
+	containerName string,
+	eventType EventType,
+	status *corev1.ContainerStatus,
+) {
 	containerKey := fmt.Sprintf("%s/%s/%s", pod.Namespace, pod.Name, containerName)
 
 	// Send the container event to the batch channel
@@ -585,7 +601,8 @@ func (c *PodCollector) trackStartupLifecycle(_, newPod *corev1.Pod) {
 		entry.lastSeen = now
 
 		// Track ContainerCreating phase
-		if newStatus.State.Waiting != nil && newStatus.State.Waiting.Reason == "ContainerCreating" && entry.creatingAt == nil {
+		if newStatus.State.Waiting != nil && newStatus.State.Waiting.Reason == "ContainerCreating" &&
+			entry.creatingAt == nil {
 			entry.creatingAt = &now
 		}
 
@@ -633,7 +650,11 @@ func (c *PodCollector) trackStartupLifecycle(_, newPod *corev1.Pod) {
 }
 
 // emitStartupLifecycleEvent sends a completed startup lifecycle event through the batch channel.
-func (c *PodCollector) emitStartupLifecycleEvent(entry *startupLifecycleEntry, readyAt *time.Time, timeToRunningMs, timeToReadyMs *int64) {
+func (c *PodCollector) emitStartupLifecycleEvent(
+	entry *startupLifecycleEntry,
+	readyAt *time.Time,
+	timeToRunningMs, timeToReadyMs *int64,
+) {
 	payload := map[string]interface{}{
 		"namespace":      entry.namespace,
 		"workload_name":  entry.workloadName,

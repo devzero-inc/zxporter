@@ -137,7 +137,10 @@ func (c *ClusterRoleBindingCollector) Start(ctx context.Context) error {
 }
 
 // handleClusterRoleBindingEvent processes ClusterRoleBinding events
-func (c *ClusterRoleBindingCollector) handleClusterRoleBindingEvent(crb *rbacv1.ClusterRoleBinding, eventType EventType) {
+func (c *ClusterRoleBindingCollector) handleClusterRoleBindingEvent(
+	crb *rbacv1.ClusterRoleBinding,
+	eventType EventType,
+) {
 	if c.isExcluded(crb) {
 		return
 	}
@@ -153,7 +156,9 @@ func (c *ClusterRoleBindingCollector) handleClusterRoleBindingEvent(crb *rbacv1.
 }
 
 // clusterRoleBindingChanged detects meaningful changes in a ClusterRoleBinding
-func (c *ClusterRoleBindingCollector) clusterRoleBindingChanged(oldCRB, newCRB *rbacv1.ClusterRoleBinding) bool {
+func (c *ClusterRoleBindingCollector) clusterRoleBindingChanged(
+	oldCRB, newCRB *rbacv1.ClusterRoleBinding,
+) bool {
 	changed := c.cDHelper.objectMetaChanged(
 		c.GetType(),
 		oldCRB.Name,

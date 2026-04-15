@@ -30,12 +30,36 @@ import (
 )
 
 var (
-	metricsAddr     = flag.String("metrics-bind-address", ":8081", "The address the metric endpoint binds to.")
-	readInterval    = flag.Duration("read-interval", 5*time.Second, "Interval between conntrack reads.")
-	cleanupInterval = flag.Duration("cleanup-interval", 60*time.Second, "Interval for cleaning up stale entries.")
-	kubeconfig      = flag.String("metrics-kubeconfig", "", "Path to a kubeconfig. Only required if out-of-cluster.")
-	collectorMode   = flag.String("collector-mode", "netfilter", "Collector mode: 'netfilter' or 'bpf'.")
-	standalone      = flag.Bool("standalone", false, "Run in standalone mode without K8s connection")
+	metricsAddr = flag.String(
+		"metrics-bind-address",
+		":8081",
+		"The address the metric endpoint binds to.",
+	)
+	readInterval = flag.Duration(
+		"read-interval",
+		5*time.Second,
+		"Interval between conntrack reads.",
+	)
+	cleanupInterval = flag.Duration(
+		"cleanup-interval",
+		60*time.Second,
+		"Interval for cleaning up stale entries.",
+	)
+	kubeconfig = flag.String(
+		"metrics-kubeconfig",
+		"",
+		"Path to a kubeconfig. Only required if out-of-cluster.",
+	)
+	collectorMode = flag.String(
+		"collector-mode",
+		"netfilter",
+		"Collector mode: 'netfilter' or 'bpf'.",
+	)
+	standalone = flag.Bool(
+		"standalone",
+		false,
+		"Run in standalone mode without K8s connection",
+	)
 )
 
 const (
@@ -130,7 +154,10 @@ func main() {
 		logger.Info("Running in EBPF mode. Conntrack client disabled.")
 		client = nil // Client is optional now
 	default:
-		logger.Error(fmt.Errorf("unknown collector mode: %s", *collectorMode), "Initialization failed")
+		logger.Error(
+			fmt.Errorf("unknown collector mode: %s", *collectorMode),
+			"Initialization failed",
+		)
 		os.Exit(1)
 	}
 
@@ -253,7 +280,15 @@ func main() {
 				case <-ticker.C:
 					report := healthManager.BuildReport()
 					for name, status := range report {
-						logger.Info("Health status report", "component", name, "status", status.Status, "message", status.Message)
+						logger.Info(
+							"Health status report",
+							"component",
+							name,
+							"status",
+							status.Status,
+							"message",
+							status.Message,
+						)
 					}
 					req := health.BuildHeartbeatRequestFromReport(
 						report, clusterID, gen.OperatorType_OPERATOR_TYPE_NETWORK,

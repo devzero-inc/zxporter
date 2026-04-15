@@ -171,8 +171,11 @@ func (c *WorkloadRuleCollector) Start(ctx context.Context) error {
 	return nil
 }
 
-// handleWorkloadRuleEvent processes a WorkloadRule event (add, update, or delete)
-func (c *WorkloadRuleCollector) handleWorkloadRuleEvent(wr *unstructured.Unstructured, eventType EventType) {
+// handleWorkloadRuleEvent processes a WorkloadRule status update containing OOM events
+func (c *WorkloadRuleCollector) handleWorkloadRuleEvent(
+	wr *unstructured.Unstructured,
+	eventType EventType,
+) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	if c.stopped {

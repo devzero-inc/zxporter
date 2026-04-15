@@ -154,7 +154,10 @@ func (c *DaemonSetCollector) Start(ctx context.Context) error {
 }
 
 // handleDaemonSetEvent processes daemonset events
-func (c *DaemonSetCollector) handleDaemonSetEvent(daemonset *appsv1.DaemonSet, eventType EventType) {
+func (c *DaemonSetCollector) handleDaemonSetEvent(
+	daemonset *appsv1.DaemonSet,
+	eventType EventType,
+) {
 	if c.isExcluded(daemonset) {
 		return
 	}

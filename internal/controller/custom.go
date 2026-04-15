@@ -65,7 +65,12 @@ type EnvBasedController struct {
 }
 
 // NewEnvBasedController creates a new environment-based controller
-func NewEnvBasedController(mgr ctrl.Manager, healthManager *health.HealthManager, reconcileInterval time.Duration, mpaServerPort int) (*EnvBasedController, error) {
+func NewEnvBasedController(
+	mgr ctrl.Manager,
+	healthManager *health.HealthManager,
+	reconcileInterval time.Duration,
+	mpaServerPort int,
+) (*EnvBasedController, error) {
 	// Set up basic components
 	logger := util.NewLogger("env-controller")
 	zapLogger, err := zap.NewProduction()
@@ -226,7 +231,17 @@ func (c *EnvBasedController) runHealthReporting(ctx context.Context) {
 func (c *EnvBasedController) sendHealthReport(ctx context.Context) {
 	report := c.Reconciler.HealthManager.BuildReport()
 	for name, status := range report {
-		c.Log.Info("Health status report", "component", name, "status", status.Status, "message", status.Message, "metadata", status.Metadata)
+		c.Log.Info(
+			"Health status report",
+			"component",
+			name,
+			"status",
+			status.Status,
+			"message",
+			status.Message,
+			"metadata",
+			status.Metadata,
+		)
 	}
 
 	if c.Reconciler.DakrClient != nil {
@@ -254,7 +269,17 @@ func (c *EnvBasedController) sendNodeOperatorHealthReport(ctx context.Context) {
 	}
 
 	for name, status := range report {
-		c.Log.Info("Node operator health status", "component", name, "status", status.Status, "message", status.Message, "metadata", status.Metadata)
+		c.Log.Info(
+			"Node operator health status",
+			"component",
+			name,
+			"status",
+			status.Status,
+			"message",
+			status.Message,
+			"metadata",
+			status.Metadata,
+		)
 	}
 
 	if c.Reconciler.DakrClient != nil {
@@ -365,7 +390,11 @@ func (c *EnvBasedController) initializeTelemetryComponents(ctx context.Context) 
 	// Create dakr client and sender
 	var dakrClient transport.DakrClient
 	if envSpec.Policies.DakrURL != "" && envSpec.Policies.ClusterToken != "" {
-		dakrClient = transport.NewDakrClient(envSpec.Policies.DakrURL, envSpec.Policies.ClusterToken, c.Log)
+		dakrClient = transport.NewDakrClient(
+			envSpec.Policies.DakrURL,
+			envSpec.Policies.ClusterToken,
+			c.Log,
+		)
 		c.Log.Info("Created Dakr client with configured URL", "url", envSpec.Policies.DakrURL)
 	} else {
 		dakrClient = transport.NewSimpleDakrClient(c.Log)
@@ -436,7 +465,10 @@ func (c *EnvBasedController) persistClusterToken(ctx context.Context, token stri
 }
 
 // persistClusterTokenToConfigMap persists the cluster token to the ConfigMap
-func (c *EnvBasedController) persistClusterTokenToConfigMap(ctx context.Context, token string) error {
+func (c *EnvBasedController) persistClusterTokenToConfigMap(
+	ctx context.Context,
+	token string,
+) error {
 	// Get namespace from environment variable or use default
 	namespace := os.Getenv("POD_NAMESPACE")
 	if namespace == "" {
@@ -463,7 +495,9 @@ func (c *EnvBasedController) persistClusterTokenToConfigMap(ctx context.Context,
 	}
 
 	// Get the existing ConfigMap
-	configMap, err := c.K8sClient.CoreV1().ConfigMaps(namespace).Get(ctx, configMapName, metav1.GetOptions{})
+	configMap, err := c.K8sClient.CoreV1().
+		ConfigMaps(namespace).
+		Get(ctx, configMapName, metav1.GetOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to get ConfigMap: %w", err)
 	}
@@ -475,7 +509,9 @@ func (c *EnvBasedController) persistClusterTokenToConfigMap(ctx context.Context,
 	configMap.Data["CLUSTER_TOKEN"] = token
 
 	// Update the ConfigMap
-	_, err = c.K8sClient.CoreV1().ConfigMaps(namespace).Update(ctx, configMap, metav1.UpdateOptions{})
+	_, err = c.K8sClient.CoreV1().
+		ConfigMaps(namespace).
+		Update(ctx, configMap, metav1.UpdateOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to update ConfigMap with cluster token: %w", err)
 	}
@@ -523,7 +559,9 @@ func (c *EnvBasedController) persistClusterTokenToSecret(ctx context.Context, to
 	}
 
 	// Try to get the existing Secret first
-	secret, err := c.K8sClient.CoreV1().Secrets(namespace).Get(ctx, runtimeSecretName, metav1.GetOptions{})
+	secret, err := c.K8sClient.CoreV1().
+		Secrets(namespace).
+		Get(ctx, runtimeSecretName, metav1.GetOptions{})
 	if err != nil {
 		if errors.IsNotFound(err) {
 			// Create new Secret if it doesn't exist
@@ -541,11 +579,17 @@ func (c *EnvBasedController) persistClusterTokenToSecret(ctx context.Context, to
 					"CLUSTER_TOKEN": []byte(token),
 				},
 			}
-			_, err = c.K8sClient.CoreV1().Secrets(namespace).Create(ctx, secret, metav1.CreateOptions{})
+			_, err = c.K8sClient.CoreV1().
+				Secrets(namespace).
+				Create(ctx, secret, metav1.CreateOptions{})
 			if err != nil {
 				return fmt.Errorf("failed to create Secret: %w", err)
 			}
-			c.Log.Info("Successfully created Secret with cluster token", "secret", runtimeSecretName)
+			c.Log.Info(
+				"Successfully created Secret with cluster token",
+				"secret",
+				runtimeSecretName,
+			)
 		} else {
 			return fmt.Errorf("failed to get Secret: %w", err)
 		}
@@ -611,10 +655,18 @@ func (c *EnvBasedController) readClusterTokenFromSecret(ctx context.Context) str
 	}
 
 	// Try to read the Secret
-	secret, err := c.K8sClient.CoreV1().Secrets(namespace).Get(ctx, runtimeSecretName, metav1.GetOptions{})
+	secret, err := c.K8sClient.CoreV1().
+		Secrets(namespace).
+		Get(ctx, runtimeSecretName, metav1.GetOptions{})
 	if err != nil {
 		// Log the error but don't fail - this is a recovery attempt
-		c.Log.Info("Could not read cluster token from Secret", "error", err.Error(), "secret", runtimeSecretName)
+		c.Log.Info(
+			"Could not read cluster token from Secret",
+			"error",
+			err.Error(),
+			"secret",
+			runtimeSecretName,
+		)
 		return ""
 	}
 
@@ -623,7 +675,11 @@ func (c *EnvBasedController) readClusterTokenFromSecret(ctx context.Context) str
 		if tokenBytes, exists := secret.Data["CLUSTER_TOKEN"]; exists {
 			token := strings.TrimSpace(string(tokenBytes))
 			if token != "" {
-				c.Log.Info("Successfully recovered cluster token from Secret", "secret", runtimeSecretName)
+				c.Log.Info(
+					"Successfully recovered cluster token from Secret",
+					"secret",
+					runtimeSecretName,
+				)
 				return token
 			}
 		}
@@ -661,10 +717,18 @@ func (c *EnvBasedController) readClusterTokenFromConfigMap(ctx context.Context) 
 	}
 
 	// Try to read the ConfigMap
-	configMap, err := c.K8sClient.CoreV1().ConfigMaps(namespace).Get(ctx, configMapName, metav1.GetOptions{})
+	configMap, err := c.K8sClient.CoreV1().
+		ConfigMaps(namespace).
+		Get(ctx, configMapName, metav1.GetOptions{})
 	if err != nil {
 		// Log the error but don't fail - this is a recovery attempt
-		c.Log.Info("Could not read cluster token from ConfigMap", "error", err.Error(), "configMap", configMapName)
+		c.Log.Info(
+			"Could not read cluster token from ConfigMap",
+			"error",
+			err.Error(),
+			"configMap",
+			configMapName,
+		)
 		return ""
 	}
 
@@ -673,7 +737,11 @@ func (c *EnvBasedController) readClusterTokenFromConfigMap(ctx context.Context) 
 		if token, exists := configMap.Data["CLUSTER_TOKEN"]; exists {
 			token = strings.TrimSpace(token)
 			if token != "" {
-				c.Log.Info("Successfully recovered cluster token from ConfigMap", "configMap", configMapName)
+				c.Log.Info(
+					"Successfully recovered cluster token from ConfigMap",
+					"configMap",
+					configMapName,
+				)
 				return token
 			}
 		}

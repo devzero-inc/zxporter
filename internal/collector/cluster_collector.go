@@ -240,7 +240,9 @@ func (c *ClusterCollector) detectCNIPlugins(ctx context.Context) []string {
 // getClusterAPIEndpoint tries to determine the Kubernetes API endpoint
 func (c *ClusterCollector) getClusterAPIEndpoint(ctx context.Context) string {
 	// Try to get from kubeadm ConfigMap
-	configMap, err := c.k8sClient.CoreV1().ConfigMaps("kube-system").Get(ctx, "kubeadm-config", metav1.GetOptions{})
+	configMap, err := c.k8sClient.CoreV1().
+		ConfigMaps("kube-system").
+		Get(ctx, "kubeadm-config", metav1.GetOptions{})
 	if err == nil {
 		if clusterConfig, ok := configMap.Data["ClusterConfiguration"]; ok {
 			// Very simple extraction - in a real implementation you'd parse the YAML
@@ -317,5 +319,7 @@ func (c *ClusterCollector) IsAvailable(ctx context.Context) bool {
 
 // AddResource manually adds a cluster resource - not supported for cluster collector
 func (c *ClusterCollector) AddResource(resource interface{}) error {
-	return fmt.Errorf("AddResource not supported for cluster collector - cluster information is collected automatically")
+	return fmt.Errorf(
+		"AddResource not supported for cluster collector - cluster information is collected automatically",
+	)
 }

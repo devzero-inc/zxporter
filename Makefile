@@ -261,6 +261,17 @@ docker-build-netmon: ## Build docker image for zxporter-netmon
 docker-push-netmon: ## Push docker image for zxporter-netmon
 	$(CONTAINER_TOOL) push ${IMG_NETMON}
 
+# zxporter-nodemon images
+IMG_NODEMON ?= ttl.sh/zxporter-nodemon:latest
+
+.PHONY: docker-build-nodemon
+docker-build-nodemon: ## Build docker image for zxporter-nodemon
+	$(CONTAINER_TOOL) buildx build $(BUILD_ARGS) -t ${IMG_NODEMON} -f Dockerfile.nodemon .
+
+.PHONY: docker-push-nodemon
+docker-push-nodemon: ## Push docker image for zxporter-nodemon
+	$(CONTAINER_TOOL) push ${IMG_NODEMON}
+
 # PLATFORMS defines the target platforms for the manager image be built to provide support to multiple
 # architectures. (i.e. make docker-buildx IMG=myregistry/mypoperator:0.0.1). To use this option you need to:
 # - be able to use docker buildx. More info: https://docs.docker.com/build/buildx/

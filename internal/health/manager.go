@@ -60,7 +60,12 @@ func (hm *HealthManager) Deregister(name string) {
 }
 
 // UpdateStatus updates the health status, message, and metadata for a component
-func (hm *HealthManager) UpdateStatus(name string, status HealthStatus, message string, metadata map[string]string) {
+func (hm *HealthManager) UpdateStatus(
+	name string,
+	status HealthStatus,
+	message string,
+	metadata map[string]string,
+) {
 	hm.mu.Lock()
 	defer hm.mu.Unlock()
 	if comp, exists := hm.components[name]; exists {
@@ -178,7 +183,12 @@ func (hm *HealthManager) livenessCheckLocked() error {
 
 	component, exists := hm.components[ComponentCollectorManager]
 	if exists && component.Status == HealthStatusUnhealthy {
-		return fmt.Errorf("%s is %s: %s", ComponentCollectorManager, component.Status, component.Message)
+		return fmt.Errorf(
+			"%s is %s: %s",
+			ComponentCollectorManager,
+			component.Status,
+			component.Message,
+		)
 	}
 
 	return nil

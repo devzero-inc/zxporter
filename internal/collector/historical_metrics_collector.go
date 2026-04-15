@@ -39,7 +39,11 @@ type HistoricalMetricsCollector struct {
 }
 
 // NewHistoricalMetricsCollector creates a new collector.
-func NewHistoricalMetricsCollector(logger logr.Logger, prometheusAPI v1.API, healthManager *health.HealthManager) *HistoricalMetricsCollector {
+func NewHistoricalMetricsCollector(
+	logger logr.Logger,
+	prometheusAPI v1.API,
+	healthManager *health.HealthManager,
+) *HistoricalMetricsCollector {
 	return &HistoricalMetricsCollector{
 		logger:        logger.WithName("historical-metrics"),
 		prometheusAPI: prometheusAPI,
@@ -49,7 +53,10 @@ func NewHistoricalMetricsCollector(logger logr.Logger, prometheusAPI v1.API, hea
 }
 
 // FetchPercentiles queries Prometheus for 24h percentiles for a workload.
-func (c *HistoricalMetricsCollector) FetchPercentiles(ctx context.Context, workload HistoricalWorkloadQuery) (*gen.HistoricalMetricsSummary, error) {
+func (c *HistoricalMetricsCollector) FetchPercentiles(
+	ctx context.Context,
+	workload HistoricalWorkloadQuery,
+) (*gen.HistoricalMetricsSummary, error) {
 	now := time.Now()
 	windowStart := now.Add(-historicalWindow)
 
@@ -64,7 +71,11 @@ func (c *HistoricalMetricsCollector) FetchPercentiles(ctx context.Context, workl
 		}
 	}
 
-	c.updateHealthStatus(health.HealthStatusHealthy, "Prometheus queries succeeding", map[string]string{"workload ->": workload.WorkloadName})
+	c.updateHealthStatus(
+		health.HealthStatusHealthy,
+		"Prometheus queries succeeding",
+		map[string]string{"workload ->": workload.WorkloadName},
+	)
 
 	return &gen.HistoricalMetricsSummary{
 		Workload: &gen.MpaWorkloadIdentifier{
@@ -80,7 +91,10 @@ func (c *HistoricalMetricsCollector) FetchPercentiles(ctx context.Context, workl
 }
 
 // FetchPercentilesForAll queries Prometheus for all workloads concurrently with rate limiting.
-func (c *HistoricalMetricsCollector) FetchPercentilesForAll(ctx context.Context, workloads []HistoricalWorkloadQuery) map[string]*gen.HistoricalMetricsSummary {
+func (c *HistoricalMetricsCollector) FetchPercentilesForAll(
+	ctx context.Context,
+	workloads []HistoricalWorkloadQuery,
+) map[string]*gen.HistoricalMetricsSummary {
 	results := make(map[string]*gen.HistoricalMetricsSummary)
 	var mu sync.Mutex
 	var wg sync.WaitGroup
@@ -101,7 +115,12 @@ func (c *HistoricalMetricsCollector) FetchPercentilesForAll(ctx context.Context,
 				return
 			}
 
-			key := fmt.Sprintf("%s/%s/%s", workload.Namespace, workload.WorkloadKind, workload.WorkloadName)
+			key := fmt.Sprintf(
+				"%s/%s/%s",
+				workload.Namespace,
+				workload.WorkloadKind,
+				workload.WorkloadName,
+			)
 			mu.Lock()
 			results[key] = summary
 			mu.Unlock()
@@ -113,14 +132,22 @@ func (c *HistoricalMetricsCollector) FetchPercentilesForAll(ctx context.Context,
 }
 
 // DiscoverContainers discovers container names for a workload from Prometheus.
-func (c *HistoricalMetricsCollector) DiscoverContainers(ctx context.Context, namespace, podRegex string) ([]string, error) {
+func (c *HistoricalMetricsCollector) DiscoverContainers(
+	ctx context.Context,
+	namespace, podRegex string,
+) ([]string, error) {
 	query := fmt.Sprintf(
 		`group by (container) (container_memory_working_set_bytes{namespace="%s", pod=~"%s", container!="", container!="POD"})`,
-		namespace, podRegex,
+		namespace,
+		podRegex,
 	)
 	result, _, err := c.prometheusAPI.Query(ctx, query, time.Now())
 	if err != nil {
-		c.updateHealthStatus(health.HealthStatusDegraded, "Prometheus query failed", map[string]string{"error": err.Error()})
+		c.updateHealthStatus(
+			health.HealthStatusDegraded,
+			"Prometheus query failed",
+			map[string]string{"error": err.Error()},
+		)
 		return nil, err
 	}
 
@@ -138,7 +165,12 @@ func (c *HistoricalMetricsCollector) DiscoverContainers(ctx context.Context, nam
 	return containers, nil
 }
 
-func (c *HistoricalMetricsCollector) fetchContainerPercentiles(ctx context.Context, workload HistoricalWorkloadQuery, containerName string, now time.Time) (*gen.ContainerHistoricalMetrics, int32) {
+func (c *HistoricalMetricsCollector) fetchContainerPercentiles(
+	ctx context.Context,
+	workload HistoricalWorkloadQuery,
+	containerName string,
+	now time.Time,
+) (*gen.ContainerHistoricalMetrics, int32) {
 	percentiles := []float64{0.50, 0.75, 0.80, 0.90, 0.99}
 
 	cpuValues := make(map[float64]int64)
@@ -150,7 +182,11 @@ func (c *HistoricalMetricsCollector) fetchContainerPercentiles(ctx context.Conte
 		// CPU query: rate over 5m, percentile over 24h
 		cpuQuery := fmt.Sprintf(
 			`quantile_over_time(%.2f, rate(container_cpu_usage_seconds_total{namespace="%s", pod=~"%s", container="%s"}[5m])[24h:%s])`,
-			p, workload.Namespace, workload.PodRegex, containerName, historicalStepInterval,
+			p,
+			workload.Namespace,
+			workload.PodRegex,
+			containerName,
+			historicalStepInterval,
 		)
 
 		cpuVal, err := c.queryScalar(ctx, cpuQuery, now)
@@ -165,7 +201,10 @@ func (c *HistoricalMetricsCollector) fetchContainerPercentiles(ctx context.Conte
 		// Memory query: direct percentile over 24h
 		memQuery := fmt.Sprintf(
 			`quantile_over_time(%.2f, container_memory_working_set_bytes{namespace="%s", pod=~"%s", container="%s"}[24h])`,
-			p, workload.Namespace, workload.PodRegex, containerName,
+			p,
+			workload.Namespace,
+			workload.PodRegex,
+			containerName,
 		)
 
 		memVal, err := c.queryScalar(ctx, memQuery, now)
@@ -180,7 +219,9 @@ func (c *HistoricalMetricsCollector) fetchContainerPercentiles(ctx context.Conte
 	// Estimate sample count from Prometheus
 	countQuery := fmt.Sprintf(
 		`count_over_time(container_memory_working_set_bytes{namespace="%s", pod=~"%s", container="%s"}[24h])`,
-		workload.Namespace, workload.PodRegex, containerName,
+		workload.Namespace,
+		workload.PodRegex,
+		containerName,
 	)
 	countVal, err := c.queryScalar(ctx, countQuery, now)
 	if err == nil {
@@ -192,7 +233,10 @@ func (c *HistoricalMetricsCollector) fetchContainerPercentiles(ctx context.Conte
 
 	cpuPmaxQuery := fmt.Sprintf(
 		`max_over_time(rate(container_cpu_usage_seconds_total{namespace="%s", pod=~"%s", container="%s"}[5m])[24h:%s])`,
-		workload.Namespace, workload.PodRegex, containerName, historicalStepInterval,
+		workload.Namespace,
+		workload.PodRegex,
+		containerName,
+		historicalStepInterval,
 	)
 	cpuPmaxVal, err := c.queryScalar(ctx, cpuPmaxQuery, now)
 	if err != nil {
@@ -203,7 +247,9 @@ func (c *HistoricalMetricsCollector) fetchContainerPercentiles(ctx context.Conte
 
 	memPmaxQuery := fmt.Sprintf(
 		`max_over_time(container_memory_working_set_bytes{namespace="%s", pod=~"%s", container="%s"}[24h])`,
-		workload.Namespace, workload.PodRegex, containerName,
+		workload.Namespace,
+		workload.PodRegex,
+		containerName,
 	)
 	memPmaxVal, err := c.queryScalar(ctx, memPmaxQuery, now)
 	if err != nil {
@@ -229,10 +275,18 @@ func (c *HistoricalMetricsCollector) fetchContainerPercentiles(ctx context.Conte
 	}, sampleCount
 }
 
-func (c *HistoricalMetricsCollector) queryScalar(ctx context.Context, query string, ts time.Time) (float64, error) {
+func (c *HistoricalMetricsCollector) queryScalar(
+	ctx context.Context,
+	query string,
+	ts time.Time,
+) (float64, error) {
 	result, warnings, err := c.prometheusAPI.Query(ctx, query, ts)
 	if err != nil {
-		c.updateHealthStatus(health.HealthStatusDegraded, "Prometheus query failed", map[string]string{"error": err.Error()})
+		c.updateHealthStatus(
+			health.HealthStatusDegraded,
+			"Prometheus query failed",
+			map[string]string{"error": err.Error()},
+		)
 		return 0, fmt.Errorf("prometheus query failed: %w", err)
 	}
 	if len(warnings) > 0 {
@@ -253,7 +307,11 @@ func (c *HistoricalMetricsCollector) queryScalar(ctx context.Context, query stri
 }
 
 // updateHealthStatus reports Prometheus component health if a HealthManager is configured.
-func (c *HistoricalMetricsCollector) updateHealthStatus(status health.HealthStatus, message string, metadata map[string]string) {
+func (c *HistoricalMetricsCollector) updateHealthStatus(
+	status health.HealthStatus,
+	message string,
+	metadata map[string]string,
+) {
 	if c.healthManager != nil {
 		c.healthManager.UpdateStatus(health.ComponentPrometheus, status, message, metadata)
 	}

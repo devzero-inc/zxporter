@@ -107,7 +107,11 @@ func (s *TelemetrySender) recordSuccess() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.consecutiveFailures = 0
-	s.updateHealthStatus(health.HealthStatusHealthy, "Transport operational", map[string]string{"consecutive_failures": "0", "circuit_breaker": "closed"})
+	s.updateHealthStatus(
+		health.HealthStatusHealthy,
+		"Transport operational",
+		map[string]string{"consecutive_failures": "0", "circuit_breaker": "closed"},
+	)
 	s.circuitOpenUntil = time.Time{}
 }
 
@@ -129,7 +133,14 @@ func (s *TelemetrySender) recordFailure() {
 			"failures", s.consecutiveFailures,
 			"reopenAt", s.circuitOpenUntil.Format(time.RFC3339),
 			"backoffDuration", backoffDuration.String())
-		s.updateHealthStatus(health.HealthStatusUnhealthy, fmt.Sprintf("Circuit breaker open, %d consecutive failures", s.consecutiveFailures), map[string]string{"circuit_breaker": "open", "reopen_at": s.circuitOpenUntil.Format(time.RFC3339)})
+		s.updateHealthStatus(
+			health.HealthStatusUnhealthy,
+			fmt.Sprintf("Circuit breaker open, %d consecutive failures", s.consecutiveFailures),
+			map[string]string{
+				"circuit_breaker": "open",
+				"reopen_at":       s.circuitOpenUntil.Format(time.RFC3339),
+			},
+		)
 	} else {
 		s.logger.Info("Recorded telemetry send failure",
 			"consecutiveFailures", s.consecutiveFailures)
@@ -201,7 +212,11 @@ func (s *TelemetrySender) sendMetrics(ctx context.Context) error {
 }
 
 // collectAndResetTelemetryMetrics gathers metrics from the Prometheus registry and converts them to TelemetryMetric objects
-func (s *TelemetrySender) collectAndResetTelemetryMetrics(metrics []collector.ResettableCollector) ([]*dto.MetricFamily, error) {
+//
+//nolint:unparam
+func (s *TelemetrySender) collectAndResetTelemetryMetrics(
+	metrics []collector.ResettableCollector,
+) ([]*dto.MetricFamily, error) {
 	var telemetryMetrics []*dto.MetricFamily
 
 	// Check if metrics are available
@@ -287,7 +302,11 @@ func getMetricName(descStr string) string {
 }
 
 // updateHealthStatus reports Dakr transport component health if a HealthManager is configured.
-func (s *TelemetrySender) updateHealthStatus(status health.HealthStatus, message string, metadata map[string]string) {
+func (s *TelemetrySender) updateHealthStatus(
+	status health.HealthStatus,
+	message string,
+	metadata map[string]string,
+) {
 	if s.healthManager != nil {
 		s.healthManager.UpdateStatus(health.ComponentDakrTransport, status, message, metadata)
 	}
