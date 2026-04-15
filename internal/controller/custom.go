@@ -564,9 +564,8 @@ func (c *EnvBasedController) persistClusterTokenToConfigMap(ctx context.Context,
 		configMap.Data = make(map[string]string)
 	}
 	configMap.Data["CLUSTER_TOKEN"] = token
-	if identifier != "" {
-		configMap.Data["CLUSTER_IDENTIFIER"] = identifier
-	}
+	// CLUSTER_IDENTIFIER is NOT written here — the identity Secret is the sole owner
+	// of that field so Helm can manage it in the ConfigMap without SSA conflicts.
 
 	// Update the ConfigMap
 	_, err = c.K8sClient.CoreV1().
@@ -627,9 +626,7 @@ func (c *EnvBasedController) persistClusterTokenToSecret(ctx context.Context, to
 			// Create new Secret if it doesn't exist
 			secretData := map[string][]byte{
 				"CLUSTER_TOKEN": []byte(token),
-			}
-			if identifier != "" {
-				secretData["CLUSTER_IDENTIFIER"] = []byte(identifier)
+				// CLUSTER_IDENTIFIER is NOT written here — identity Secret is the sole owner.
 			}
 			secret = &corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
@@ -663,9 +660,7 @@ func (c *EnvBasedController) persistClusterTokenToSecret(ctx context.Context, to
 			secret.Data = make(map[string][]byte)
 		}
 		secret.Data["CLUSTER_TOKEN"] = []byte(token)
-		if identifier != "" {
-			secret.Data["CLUSTER_IDENTIFIER"] = []byte(identifier)
-		}
+		// CLUSTER_IDENTIFIER is NOT written here — identity Secret is the sole owner.
 
 		_, err = c.K8sClient.CoreV1().Secrets(namespace).Update(ctx, secret, metav1.UpdateOptions{})
 		if err != nil {

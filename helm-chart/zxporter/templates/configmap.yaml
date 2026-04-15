@@ -1,7 +1,10 @@
 apiVersion: v1
 data:
   BUFFER_SIZE: ""
-  CLUSTER_IDENTIFIER: "{{ .Values.zxporter.clusterIdentifier }}"
+  # CLUSTER_IDENTIFIER is intentionally omitted here.
+  # It is owned by the cluster identity Secret (clusterIdentitySecretName) and written
+  # by the operator at runtime. Keeping it in the ConfigMap causes SSA conflicts on
+  # helm upgrade when the operator has already written to that field.
   CLUSTER_IDENTITY_SECRET_NAME: "{{ .Values.zxporter.clusterIdentitySecretName }}"
   {{- if not .Values.zxporter.useSecretForToken }}
   {{- if .Values.zxporter.clusterToken }}
