@@ -254,7 +254,10 @@ func (c *KubeflowNotebookCollector) Start(ctx context.Context) error {
 }
 
 // handleNotebookEvent processes Kubeflow Notebook events
-func (c *KubeflowNotebookCollector) handleNotebookEvent(obj *unstructured.Unstructured, eventType EventType) {
+func (c *KubeflowNotebookCollector) handleNotebookEvent(
+	obj *unstructured.Unstructured,
+	eventType EventType,
+) {
 	name := obj.GetName()
 	namespace := obj.GetNamespace()
 
@@ -268,7 +271,15 @@ func (c *KubeflowNotebookCollector) handleNotebookEvent(obj *unstructured.Unstru
 	key := fmt.Sprintf("%s/%s", namespace, name)
 
 	// Send the processed resource to the batch channel
-	c.logger.Info("Collected Kubeflow Notebook resource", "key", key, "eventType", eventType, "resource", processedObj)
+	c.logger.Info(
+		"Collected Kubeflow Notebook resource",
+		"key",
+		key,
+		"eventType",
+		eventType,
+		"resource",
+		processedObj,
+	)
 	c.batchChan <- CollectedResource{
 		ResourceType: KubeflowNotebook,
 		Object:       processedObj,
@@ -279,7 +290,9 @@ func (c *KubeflowNotebookCollector) handleNotebookEvent(obj *unstructured.Unstru
 }
 
 // processNotebook extracts relevant fields from Kubeflow Notebook objects
-func (c *KubeflowNotebookCollector) processNotebook(obj *unstructured.Unstructured) map[string]interface{} {
+func (c *KubeflowNotebookCollector) processNotebook(
+	obj *unstructured.Unstructured,
+) map[string]interface{} {
 	result := map[string]interface{}{
 		"name":              obj.GetName(),
 		"namespace":         obj.GetNamespace(),
@@ -377,7 +390,11 @@ func (c *KubeflowNotebookCollector) IsAvailable(ctx context.Context) bool {
 
 	_, err := c.dynamicClient.Resource(gvr).List(ctx, metav1.ListOptions{Limit: 1})
 	if err != nil {
-		c.logger.Info("Kubeflow Notebook resources not available in the cluster", "error", err.Error())
+		c.logger.Info(
+			"Kubeflow Notebook resources not available in the cluster",
+			"error",
+			err.Error(),
+		)
 		c.telemetryLogger.Report(
 			gen.LogLevel_LOG_LEVEL_WARN,
 			"KubeflowNotebookCollector_IsAvailable",

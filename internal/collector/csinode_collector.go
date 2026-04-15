@@ -213,7 +213,12 @@ func (c *CSINodeCollector) sendCSIDriverEvent(
 }
 
 // sendCSIDriverRemovedEvent sends an event when a driver is removed
-func (c *CSINodeCollector) sendCSIDriverRemovedEvent(csiNode *storagev1.CSINode, driverName string) {
+//
+//nolint:unused
+func (c *CSINodeCollector) sendCSIDriverRemovedEvent(
+	csiNode *storagev1.CSINode,
+	driverName string,
+) {
 	driverInfo := map[string]interface{}{
 		"node":        csiNode.Name,
 		"driver_name": driverName,

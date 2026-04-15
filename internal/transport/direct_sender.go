@@ -26,7 +26,11 @@ func NewDirectSender(dakrClient DakrClient, logger logr.Logger) DirectSender {
 }
 
 // SendBatch transmits a batch of resources of the same type directly using the DakrClient.
-func (s *directSenderImpl) SendBatch(ctx context.Context, resources []collector.CollectedResource, resourceType collector.ResourceType) (string, error) {
+func (s *directSenderImpl) SendBatch(
+	ctx context.Context,
+	resources []collector.CollectedResource,
+	resourceType collector.ResourceType,
+) (string, error) {
 	clusterID, err := s.dakrClient.SendResourceBatch(ctx, resources, resourceType)
 	if err != nil {
 		s.logger.Error(err, "Failed to send resource batch directly", "type", resourceType)
@@ -36,27 +40,55 @@ func (s *directSenderImpl) SendBatch(ctx context.Context, resources []collector.
 }
 
 // Send transmits a single resource directly using the DakrClient.
-func (s *directSenderImpl) Send(ctx context.Context, resource collector.CollectedResource) (string, error) {
+func (s *directSenderImpl) Send(
+	ctx context.Context,
+	resource collector.CollectedResource,
+) (string, error) {
 	clusterID, err := s.dakrClient.SendResource(ctx, resource)
 	if err != nil {
-		s.logger.Error(err, "Failed to send single resource directly", "type", resource.ResourceType, "key", resource.Key)
+		s.logger.Error(
+			err,
+			"Failed to send single resource directly",
+			"type",
+			resource.ResourceType,
+			"key",
+			resource.Key,
+		)
 		return clusterID, err
 	}
 	return clusterID, nil
 }
 
 // Foword the snapshot data to stream to the control plane
-func (s *directSenderImpl) SendClusterSnapshotStream(ctx context.Context, snapshot *gen.ClusterSnapshot, snapshotID string, timestamp time.Time) (string, *gen.ClusterSnapshot, error) {
-	clusterID, missingResources, err := s.dakrClient.SendClusterSnapshotStream(ctx, snapshot, snapshotID, timestamp)
+func (s *directSenderImpl) SendClusterSnapshotStream(
+	ctx context.Context,
+	snapshot *gen.ClusterSnapshot,
+	snapshotID string,
+	timestamp time.Time,
+) (string, *gen.ClusterSnapshot, error) {
+	clusterID, missingResources, err := s.dakrClient.SendClusterSnapshotStream(
+		ctx,
+		snapshot,
+		snapshotID,
+		timestamp,
+	)
 	if err != nil {
-		s.logger.Error(err, "Failed to send cluster snapshot via streaming", "snapshotId", snapshotID)
+		s.logger.Error(
+			err,
+			"Failed to send cluster snapshot via streaming",
+			"snapshotId",
+			snapshotID,
+		)
 		return clusterID, nil, err
 	}
 	return clusterID, missingResources, nil
 }
 
 // SendTelemetryLogs forwards a telemetry log request directly using the DakrClient.
-func (s *directSenderImpl) SendTelemetryLogs(ctx context.Context, in *gen.SendTelemetryLogsRequest) (*gen.SendTelemetryLogsResponse, error) {
+func (s *directSenderImpl) SendTelemetryLogs(
+	ctx context.Context,
+	in *gen.SendTelemetryLogsRequest,
+) (*gen.SendTelemetryLogsResponse, error) {
 	resp, err := s.dakrClient.SendTelemetryLogs(ctx, in)
 	if err != nil {
 		s.logger.Error(err, "Failed to send telemetry logs directly")

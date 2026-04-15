@@ -18,7 +18,10 @@ import (
 // Forcefully had to do this as, was not fully convinced to put this in transport layer
 // and cant use the DackerClient/DirectSender interface here for circular dependency
 type TelemetryLogSender interface {
-	SendTelemetryLogs(ctx context.Context, in *gen.SendTelemetryLogsRequest) (*gen.SendTelemetryLogsResponse, error)
+	SendTelemetryLogs(
+		ctx context.Context,
+		in *gen.SendTelemetryLogsRequest,
+	) (*gen.SendTelemetryLogsResponse, error)
 }
 
 // Logger is the interface that collectors will use to report critical errors.
@@ -58,7 +61,13 @@ type logger struct {
 }
 
 // NewLogger creates and starts a new telemetry logger.
-func NewLogger(ctx context.Context, client TelemetryLogSender, config Config, zapLogger *zap.Logger, defaultLogger logr.Logger) Logger {
+func NewLogger(
+	ctx context.Context,
+	client TelemetryLogSender,
+	config Config,
+	zapLogger *zap.Logger,
+	defaultLogger logr.Logger,
+) Logger {
 	l := &logger{
 		client:   client,
 		config:   config,
@@ -78,7 +87,13 @@ func NewLogger(ctx context.Context, client TelemetryLogSender, config Config, za
 }
 
 // Report sends a log entry to the processing queue. It is non-blocking.
-func (l *logger) Report(level gen.LogLevel, source string, msg string, err error, fields map[string]string) {
+func (l *logger) Report(
+	level gen.LogLevel,
+	source string,
+	msg string,
+	err error,
+	fields map[string]string,
+) {
 	errorString := ""
 	if err != nil {
 		errorString = err.Error()
@@ -86,7 +101,8 @@ func (l *logger) Report(level gen.LogLevel, source string, msg string, err error
 	logHash := hash(source, msg, errorString, fields)
 
 	l.rateLimitMutex.Lock()
-	if lastSent, found := l.rateLimiter[logHash]; found && time.Since(lastSent) < l.rateLimitWindow {
+	if lastSent, found := l.rateLimiter[logHash]; found &&
+		time.Since(lastSent) < l.rateLimitWindow {
 		l.rateLimitMutex.Unlock()
 		return // Drop the log as it was sent recently.
 	}

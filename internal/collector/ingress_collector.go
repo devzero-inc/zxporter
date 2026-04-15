@@ -245,7 +245,11 @@ func ingressRulesEqual(rules1, rules2 []networkingv1.IngressRule) bool {
 			for _, path := range rule.HTTP.Paths {
 				pathKey := fmt.Sprintf("%s:%s:%s", key, path.Path, string(*path.PathType))
 				if path.Backend.Service != nil {
-					pathKey += fmt.Sprintf(":%s:%s", path.Backend.Service.Name, path.Backend.Service.Port.String())
+					pathKey += fmt.Sprintf(
+						":%s:%s",
+						path.Backend.Service.Name,
+						path.Backend.Service.Port.String(),
+					)
 				}
 				rules1Map[pathKey] = true
 			}
@@ -260,7 +264,11 @@ func ingressRulesEqual(rules1, rules2 []networkingv1.IngressRule) bool {
 			for _, path := range rule.HTTP.Paths {
 				pathKey := fmt.Sprintf("%s:%s:%s", key, path.Path, string(*path.PathType))
 				if path.Backend.Service != nil {
-					pathKey += fmt.Sprintf(":%s:%s", path.Backend.Service.Name, path.Backend.Service.Port.String())
+					pathKey += fmt.Sprintf(
+						":%s:%s",
+						path.Backend.Service.Name,
+						path.Backend.Service.Port.String(),
+					)
 				}
 				rules2Map[pathKey] = true
 			}

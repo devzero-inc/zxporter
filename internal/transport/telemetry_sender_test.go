@@ -33,7 +33,9 @@ func TestCollectAndResetTelemetryMetrics(t *testing.T) {
 	}
 
 	// Call the function being tested
-	metricFamilies, err := sender.collectAndResetTelemetryMetrics([]collector.ResettableCollector{counter})
+	metricFamilies, err := sender.collectAndResetTelemetryMetrics(
+		[]collector.ResettableCollector{counter},
+	)
 
 	// Assertions
 	assert.NoError(t, err)
@@ -99,7 +101,9 @@ func TestCollectAndResetTelemetryMetricsMultiple(t *testing.T) {
 	}
 
 	// Call the function being tested
-	metricFamilies, err := sender.collectAndResetTelemetryMetrics([]collector.ResettableCollector{counter1, counter2})
+	metricFamilies, err := sender.collectAndResetTelemetryMetrics(
+		[]collector.ResettableCollector{counter1, counter2},
+	)
 
 	// Assertions
 	assert.NoError(t, err)

@@ -13,7 +13,12 @@ func TestBuildHeartbeatRequest(t *testing.T) {
 	hm := NewHealthManager()
 	hm.Register(ComponentCollectorManager)
 	hm.Register(ComponentDakrTransport)
-	hm.UpdateStatus(ComponentCollectorManager, HealthStatusHealthy, "all good", map[string]string{"active": "5"})
+	hm.UpdateStatus(
+		ComponentCollectorManager,
+		HealthStatusHealthy,
+		"all good",
+		map[string]string{"active": "5"},
+	)
 	hm.UpdateStatus(ComponentDakrTransport, HealthStatusDegraded, "retrying", nil)
 
 	startTime := time.Now().Add(-10 * time.Minute)
@@ -88,13 +93,27 @@ func TestBuildHeartbeatRequest_OperatorType(t *testing.T) {
 	startTime := time.Now()
 
 	t.Run("network operator type", func(t *testing.T) {
-		req := BuildHeartbeatRequest(hm, "cluster-456", gen.OperatorType_OPERATOR_TYPE_NETWORK, "0.1.0", "fff000", startTime)
+		req := BuildHeartbeatRequest(
+			hm,
+			"cluster-456",
+			gen.OperatorType_OPERATOR_TYPE_NETWORK,
+			"0.1.0",
+			"fff000",
+			startTime,
+		)
 		assert.Equal(t, gen.OperatorType_OPERATOR_TYPE_NETWORK, req.OperatorType)
 		assert.Equal(t, "cluster-456", req.ClusterId)
 	})
 
 	t.Run("read operator type", func(t *testing.T) {
-		req := BuildHeartbeatRequest(hm, "cluster-789", gen.OperatorType_OPERATOR_TYPE_READ, "1.0.0", "aaa111", startTime)
+		req := BuildHeartbeatRequest(
+			hm,
+			"cluster-789",
+			gen.OperatorType_OPERATOR_TYPE_READ,
+			"1.0.0",
+			"aaa111",
+			startTime,
+		)
 		assert.Equal(t, gen.OperatorType_OPERATOR_TYPE_READ, req.OperatorType)
 	})
 }
