@@ -683,7 +683,7 @@ func (c *RealDakrClient) ExchangePATForClusterToken(
 // ReattachCluster finds or creates a cluster by identifier, returning a fresh token
 func (c *RealDakrClient) ReattachCluster(ctx context.Context, patToken, clusterIdentifier, clusterName, k8sProvider string) (string, string, error) {
 	req := connect.NewRequest(&gen.ReattachClusterRequest{
-		ClusterIdentifier: clusterIdentifier,
+		ClusterIdentifier: &clusterIdentifier,
 		ClusterName:       clusterName,
 		K8SProvider:       k8sProvider,
 	})
