@@ -256,7 +256,11 @@ func (c *EnvBasedController) sendHealthReport(ctx context.Context) {
 		)
 		if err := c.Reconciler.DakrClient.ReportHealth(ctx, req); err != nil {
 			c.Log.Error(err, "Failed to send health heartbeat to dakr, retrying in 5s")
-			time.Sleep(5 * time.Second)
+			select {
+			case <-time.After(5 * time.Second):
+			case <-ctx.Done():
+				return
+			}
 			if err := c.Reconciler.DakrClient.ReportHealth(ctx, req); err != nil {
 				c.Log.Error(err, "Retry also failed for health heartbeat")
 			}
@@ -297,7 +301,11 @@ func (c *EnvBasedController) sendNodeOperatorHealthReport(ctx context.Context) {
 		)
 		if err := c.Reconciler.DakrClient.ReportHealth(ctx, req); err != nil {
 			c.Log.Error(err, "Failed to send node operator health heartbeat to dakr, retrying in 5s")
-			time.Sleep(5 * time.Second)
+			select {
+			case <-time.After(5 * time.Second):
+			case <-ctx.Done():
+				return
+			}
 			if err := c.Reconciler.DakrClient.ReportHealth(ctx, req); err != nil {
 				c.Log.Error(err, "Retry also failed for node operator health heartbeat")
 			}
