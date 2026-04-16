@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 For releases prior to automated changelog generation, please see the
 [GitHub Releases](https://github.com/devzero-inc/zxporter/releases) page.
 
+## [v0.0.74] - 2026-04-16
+
+<!-- Release notes generated using configuration in .github/release.yml at main -->
+
+### What's Changed
+### Other Changes
+* chore: update changelog for v0.0.73 by @github-actions[bot] in https://github.com/devzero-inc/zxporter/pull/348
+* Update values.yaml to v0.0.73 for zxporter by @dray92 in https://github.com/devzero-inc/zxporter/pull/349
+* chore(helm): update Chart.yaml version to 0.0.51 by @github-actions[bot] in https://github.com/devzero-inc/zxporter/pull/350
+* [HPA] broadcast network metrics also for HPA by @Parthiba-Hazra in https://github.com/devzero-inc/zxporter/pull/346
+* zxporter-gpu-exporter first iteration- run as a daemonset and now zxp… by @Parthiba-Hazra in https://github.com/devzero-inc/zxporter/pull/295
+* Fix report from karpenter by @mutantkeyboard in https://github.com/devzero-inc/zxporter/pull/353
+* Lower health report tick to 15 seconds by @mutantkeyboard in https://github.com/devzero-inc/zxporter/pull/354
+* fix: run zxporter controller-manager as 2 replicas with proper HA guards by @sandipanpanda in https://github.com/devzero-inc/zxporter/pull/352
+
+
+**Full Changelog**: https://github.com/devzero-inc/zxporter/compare/v0.0.73...v0.0.74
+
 ## [v0.0.73] - 2026-04-08
 
 <!-- Release notes generated using configuration in .github/release.yml at main -->
