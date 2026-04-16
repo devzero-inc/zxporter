@@ -74,6 +74,11 @@ func (s *TelemetrySender) Start(ctx context.Context) error {
 	s.logger.Info("Starting telemetry sender", "interval", s.interval)
 	s.isRunning = true
 
+	// Mark transport as healthy optimistically so the readiness probe does not
+	// return 503 while waiting for the first successful send. The circuit
+	// breaker will downgrade the status if actual sends fail.
+	s.updateHealthStatus(health.HealthStatusHealthy, "Transport starting", nil)
+
 	go s.run(ctx)
 	return nil
 }

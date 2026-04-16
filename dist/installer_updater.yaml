@@ -1424,7 +1424,7 @@ metadata:
   name: devzero-zxporter-controller-manager
   namespace: devzero-zxporter
 spec:
-  replicas: 1
+  replicas: 2
   selector:
     matchLabels:
       control-plane: controller-manager
