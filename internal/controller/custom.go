@@ -206,7 +206,7 @@ func (c *EnvBasedController) Start(ctx context.Context) error {
 // runHealthReporting periodically logs the health status of all registered components
 // and sends a heartbeat to dakr via the ReportHealth RPC.
 func (c *EnvBasedController) runHealthReporting(ctx context.Context) {
-	ticker := time.NewTicker(60 * time.Second)
+	ticker := time.NewTicker(15 * time.Second)
 	defer ticker.Stop()
 
 	// Send initial heartbeat immediately so dakr sees the operator right away
@@ -255,7 +255,15 @@ func (c *EnvBasedController) sendHealthReport(ctx context.Context) {
 			c.startTime,
 		)
 		if err := c.Reconciler.DakrClient.ReportHealth(ctx, req); err != nil {
-			c.Log.Error(err, "Failed to send health heartbeat to dakr")
+			c.Log.Error(err, "Failed to send health heartbeat to dakr, retrying in 5s")
+			select {
+			case <-time.After(5 * time.Second):
+			case <-ctx.Done():
+				return
+			}
+			if err := c.Reconciler.DakrClient.ReportHealth(ctx, req); err != nil {
+				c.Log.Error(err, "Retry also failed for health heartbeat")
+			}
 		}
 	}
 }
@@ -292,7 +300,15 @@ func (c *EnvBasedController) sendNodeOperatorHealthReport(ctx context.Context) {
 			uptimeSince,
 		)
 		if err := c.Reconciler.DakrClient.ReportHealth(ctx, req); err != nil {
-			c.Log.Error(err, "Failed to send node operator health heartbeat to dakr")
+			c.Log.Error(err, "Failed to send node operator health heartbeat to dakr, retrying in 5s")
+			select {
+			case <-time.After(5 * time.Second):
+			case <-ctx.Done():
+				return
+			}
+			if err := c.Reconciler.DakrClient.ReportHealth(ctx, req); err != nil {
+				c.Log.Error(err, "Retry also failed for node operator health heartbeat")
+			}
 		}
 	}
 }
