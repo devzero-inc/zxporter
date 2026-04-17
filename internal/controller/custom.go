@@ -24,6 +24,7 @@ import (
 	"strings"
 	"time"
 
+	"connectrpc.com/connect"
 	"github.com/go-logr/logr"
 	kedaclient "github.com/kedacore/keda/v2/pkg/generated/clientset/versioned"
 	"go.uber.org/zap"
@@ -46,6 +47,10 @@ import (
 	"github.com/devzero-inc/zxporter/internal/util"
 	"github.com/devzero-inc/zxporter/internal/version"
 )
+
+// clusterIdentitySecretName is the fixed name of the Secret where the operator
+// stores the backend-assigned cluster UUID. Internal constant — never user-configured.
+const clusterIdentitySecretName = "devzero-zxporter-cluster-identity"
 
 // EnvBasedController is a controller that uses environment variables instead of CRDs
 type EnvBasedController struct {
@@ -358,25 +363,16 @@ func (c *EnvBasedController) initializeTelemetryComponents(ctx context.Context) 
 		// Continue with default values
 	}
 
-	// Resolve clusterIdentifier from the cluster identity Secret if configured.
-	// Secret value takes priority over clusterIdentifier in values.yaml/ConfigMap.
-	// ConfigMap is mounted as files at /etc/zxporter/config/, not as env vars.
-	clusterIdentitySecretName := os.Getenv("CLUSTER_IDENTITY_SECRET_NAME")
-	if clusterIdentitySecretName == "" {
-		if data, err := os.ReadFile("/etc/zxporter/config/CLUSTER_IDENTITY_SECRET_NAME"); err == nil {
-			clusterIdentitySecretName = strings.TrimSpace(string(data))
-		}
+	// Resolve clusterIdentifier from the well-known cluster identity Secret.
+	// The secret name is fixed — users never need to configure it.
+	identifier, secretErr := c.readClusterIdentifierFromSecret(ctx, clusterIdentitySecretName)
+	if secretErr != nil {
+		// Case 5: Secret exists but CLUSTER_IDENTIFIER is missing/empty — fail loudly.
+		c.Log.Error(secretErr, "Cannot start: cluster identity Secret is misconfigured")
+		return secretErr
 	}
-	if clusterIdentitySecretName != "" {
-		identifier, secretErr := c.readClusterIdentifierFromSecret(ctx, clusterIdentitySecretName)
-		if secretErr != nil {
-			// Case 5: Secret exists but CLUSTER_IDENTIFIER is missing/empty — fail loudly.
-			c.Log.Error(secretErr, "Cannot start: cluster identity Secret is misconfigured")
-			return secretErr
-		}
-		if identifier != "" {
-			envSpec.Policies.ClusterIdentifier = identifier
-		}
+	if identifier != "" {
+		envSpec.Policies.ClusterIdentifier = identifier
 	}
 
 	// Handle PAT token exchange if no cluster token is available
@@ -390,7 +386,7 @@ func (c *EnvBasedController) initializeTelemetryComponents(ctx context.Context) 
 			}
 		} else {
 			// Only do PAT exchange if no stored token found
-			c.Log.Info("No stored cluster token found, attempting PAT token exchange")
+			c.Log.Info("No stored cluster token found, attempting cluster registration/reattach")
 
 			// Get cluster name and provider
 			clusterName := envSpec.Policies.KubeContextName
@@ -403,46 +399,55 @@ func (c *EnvBasedController) initializeTelemetryComponents(ctx context.Context) 
 				k8sProvider = provider
 			}
 
-			// Use a temporary DakrClient just for PAT exchange
+			// Use a temporary DakrClient just for registration
 			dakrURL := envSpec.Policies.DakrURL
 			if dakrURL == "" {
 				dakrURL = "https://dakr.devzero.io"
 			}
+			tempClient := transport.NewDakrClient(dakrURL, "", c.Log)
 
-			// Create a temporary client with empty cluster token for PAT exchange
-			tempClient := c.dakrClientFactory(dakrURL, "", c.Log)
-
-			// Exchange PAT for cluster token — use ReattachCluster when clusterIdentifier is set
-			// so reinstalls find the same cluster instead of creating a new one.
-			var token, clusterId string
-			var err error
+			// Always use ReattachCluster.
+			// First call (no stored identifier): pass nil — backend assigns a UUID.
+			// Subsequent calls: pass stored UUID — backend reattaches the same cluster.
+			// If backend returns CodeNotFound the cluster was deleted; retry as first call.
+			var identifierArg *string
 			if envSpec.Policies.ClusterIdentifier != "" {
-				token, clusterId, err = tempClient.ReattachCluster(ctx, envSpec.Policies.PATToken, envSpec.Policies.ClusterIdentifier, clusterName, k8sProvider)
-			} else {
-				token, clusterId, err = tempClient.ExchangePATForClusterToken(ctx, envSpec.Policies.PATToken, clusterName, k8sProvider)
+				identifierArg = &envSpec.Policies.ClusterIdentifier
 			}
-			if err != nil {
-				c.Log.Error(err, "Failed to exchange PAT for cluster token")
-				return fmt.Errorf("failed to exchange PAT for cluster token: %w", err)
-			}
-			c.Log.Info("Successfully obtained cluster token", "clusterId", clusterId)
-			envSpec.Policies.ClusterToken = token
 
-			// Case 3: both clusterIdentifier and identity Secret were absent.
-			// The API returned a clusterId — persist it to the identity Secret so future
-			// restarts/reinstalls reuse the same cluster identity instead of creating a new one.
-			if envSpec.Policies.ClusterIdentifier == "" && clusterId != "" && clusterIdentitySecretName != "" {
-				envSpec.Policies.ClusterIdentifier = clusterId
-				if err := c.persistClusterIdentifierToIdentitySecret(ctx, clusterIdentitySecretName, clusterId); err != nil {
-					c.Log.Error(err, "Failed to persist cluster identifier to identity Secret")
-					// Non-fatal: token is in memory, operator can still run
+			token, clusterIdentifier, err := tempClient.ReattachCluster(ctx, envSpec.Policies.PATToken, identifierArg, clusterName, k8sProvider)
+			if err != nil {
+				if connect.CodeOf(err) == connect.CodeNotFound && identifierArg != nil {
+					// Cluster was deleted on the backend — re-register as a brand-new cluster.
+					c.Log.Info("Cluster not found on backend (deleted), re-registering as new cluster",
+						"oldIdentifier", envSpec.Policies.ClusterIdentifier)
+					// Clear stale identity so a fresh one is assigned
+					envSpec.Policies.ClusterIdentifier = ""
+					token, clusterIdentifier, err = tempClient.ReattachCluster(ctx, envSpec.Policies.PATToken, nil, clusterName, k8sProvider)
 				}
 			}
+			if err != nil {
+				c.Log.Error(err, "Failed to register/reattach cluster")
+			} else {
+				c.Log.Info("Successfully registered/reattached cluster", "clusterIdentifier", clusterIdentifier)
+				envSpec.Policies.ClusterToken = token
 
-			// Persist the token (and identifier if set) to ConfigMap or Secret based on configuration
-			if err := c.persistClusterToken(ctx, token, envSpec.Policies.ClusterIdentifier); err != nil {
-				c.Log.Error(err, "Failed to persist cluster token")
-				// Continue anyway - the token is in memory
+				// Persist the backend-assigned identifier to the identity Secret so future
+				// restarts/reinstalls reuse the same cluster (cases 1, 2, 3).
+				// Never generate our own identifier — always use what the backend returned.
+				if clusterIdentifier != "" && clusterIdentitySecretName != "" {
+					if clusterIdentifier != envSpec.Policies.ClusterIdentifier {
+						// identifier changed (new cluster or first call) — update the identity Secret
+						envSpec.Policies.ClusterIdentifier = clusterIdentifier
+						if err := c.persistClusterIdentifierToIdentitySecret(ctx, clusterIdentitySecretName, clusterIdentifier); err != nil {
+							c.Log.Error(err, "Failed to persist cluster identifier to identity Secret")
+						}
+					}
+				}
+				// Persist the cluster token to ConfigMap or Secret
+				if err := c.persistClusterToken(ctx, token, envSpec.Policies.ClusterIdentifier); err != nil {
+					c.Log.Error(err, "Failed to persist cluster token")
+				}
 			}
 		}
 	}

@@ -55,18 +55,16 @@ rules:
       - secrets
     verbs:
       - create
-{{- if .Values.zxporter.clusterIdentitySecretName }}
   - apiGroups:
       - ""
     resourceNames:
-      - {{ .Values.zxporter.clusterIdentitySecretName }}
+      - devzero-zxporter-cluster-identity
     resources:
       - secrets
     verbs:
       - get
       - update
       - patch
-{{- end }}
 {{- if .Values.zxporter.useSecretForToken }}
   # Secret access for cluster token persistence when useSecretForToken is enabled
 
@@ -251,18 +249,16 @@ rules:
   verbs:
   - create
 # Read/write access to cluster identity Secret (always needed)
-{{- if .Values.zxporter.clusterIdentitySecretName }}
 - apiGroups:
   - ""
   resourceNames:
-  - {{ .Values.zxporter.clusterIdentitySecretName }}
+  - devzero-zxporter-cluster-identity
   resources:
   - secrets
   verbs:
   - get
   - update
   - patch
-{{- end }}
 {{- if .Values.zxporter.useSecretForToken }}
 # Secret access for cluster token persistence when useSecretForToken is enabled
 

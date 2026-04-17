@@ -29,17 +29,10 @@ zxporter:
   # Example: "dzu-aKAAyJgsrblR0dFmgnoB_sQjiVNs-I3Y4gI7jJnePgs="
   patToken: ""
 
-  # Optional stable DNS-label identifier for the cluster (e.g. "prod-us-east").
-  # When set alongside patToken, ReattachCluster is used instead of CreateClusterToken,
-  # allowing the cluster to be found-or-created by identifier across reinstalls.
-  clusterIdentifier: ""
-
-  # Name of the Secret that stores CLUSTER_IDENTIFIER as the durable source of truth.
-  # - If clusterIdentifier is also set, Helm auto-creates/updates this Secret with that value.
-  # - If clusterIdentifier is empty, the user is expected to create this Secret manually.
-  # - The operator always reads clusterIdentifier from this Secret first (Secret wins over values.yaml).
-  # - Default name is used when not overridden.
-  clusterIdentitySecretName: "devzero-zxporter-cluster-identity"
+  # NOTE: cluster identity is managed automatically.
+  # The operator stores the backend-assigned cluster UUID in a fixed Secret named
+  # "devzero-zxporter-cluster-identity". No user configuration required.
+  # To re-register a cluster, delete that Secret and restart the operator.
 
   # Kubernetes context name to identify this cluster
   # Required: Must be set to a unique identifier for your cluster

@@ -680,12 +680,14 @@ func (c *RealDakrClient) ExchangePATForClusterToken(
 	return resp.Msg.Token, resp.Msg.ClusterId, nil
 }
 
-// ReattachCluster finds or creates a cluster by identifier, returning a fresh token
-func (c *RealDakrClient) ReattachCluster(ctx context.Context, patToken, clusterIdentifier, clusterName, k8sProvider string) (string, string, error) {
+// ReattachCluster registers or reattaches a cluster, returning (token, clusterIdentifier, error).
+// Pass clusterIdentifier=nil on the first call; the backend assigns and returns a UUID.
+// Pass clusterIdentifier=&uuid on subsequent calls to reattach the same cluster.
+func (c *RealDakrClient) ReattachCluster(ctx context.Context, patToken string, clusterIdentifier *string, clusterName, k8sProvider string) (string, string, error) {
 	req := connect.NewRequest(&gen.ReattachClusterRequest{
-		ClusterIdentifier: &clusterIdentifier,
-		ClusterName:       clusterName,
-		K8SProvider:       k8sProvider,
+		ClusterId:   clusterIdentifier, // nil → first call; &uuid → reattach
+		ClusterName: clusterName,
+		K8SProvider: k8sProvider,
 	})
 	req.Header().Set("Authorization", fmt.Sprintf("Bearer %s", patToken))
 
@@ -709,7 +711,10 @@ func (c *RealDakrClient) ReattachCluster(ctx context.Context, patToken, clusterI
 		return "", "", fmt.Errorf("failed to reattach cluster: %w", err)
 	}
 
-	c.logger.Info("Successfully reattached cluster", "clusterId", resp.Msg.ClusterId, "isReattachment", resp.Msg.IsReattachment)
+	c.logger.Info("Successfully reattached cluster",
+		"clusterId", resp.Msg.ClusterId,
+		"isReattachment", resp.Msg.IsReattachment)
+	// ClusterId is the authoritative UUID assigned by the backend
 	return resp.Msg.Token, resp.Msg.ClusterId, nil
 }
 

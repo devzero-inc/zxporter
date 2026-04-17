@@ -224,10 +224,14 @@ func (c *SimpleDakrClient) ExchangePATForClusterToken(
 	return "", "", fmt.Errorf("PAT token exchange not supported in simple client")
 }
 
-// ReattachCluster implements SimpleDakrClient.
-func (c *SimpleDakrClient) ReattachCluster(ctx context.Context, patToken, clusterIdentifier, clusterName, k8sProvider string) (string, string, error) {
+// ReattachCluster implements DakrClient.
+func (c *SimpleDakrClient) ReattachCluster(ctx context.Context, patToken string, clusterIdentifier *string, clusterName, k8sProvider string) (string, string, error) {
+	id := "<nil>"
+	if clusterIdentifier != nil {
+		id = *clusterIdentifier
+	}
 	c.logger.Info("Would reattach cluster",
-		"clusterIdentifier", clusterIdentifier,
+		"clusterIdentifier", id,
 		"clusterName", clusterName,
 		"k8sProvider", k8sProvider)
 	return "", "", fmt.Errorf("ReattachCluster not supported in simple client")
