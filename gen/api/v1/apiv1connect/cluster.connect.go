@@ -54,6 +54,12 @@ const (
 	// ClusterServiceGetNodeTypeCountsProcedure is the fully-qualified name of the ClusterService's
 	// GetNodeTypeCounts RPC.
 	ClusterServiceGetNodeTypeCountsProcedure = "/api.v1.ClusterService/GetNodeTypeCounts"
+	// ClusterServiceGetClusterIDByNameProcedure is the fully-qualified name of the ClusterService's
+	// GetClusterIDByName RPC.
+	ClusterServiceGetClusterIDByNameProcedure = "/api.v1.ClusterService/GetClusterIDByName"
+	// ClusterServiceGetClusterInfoByNameProcedure is the fully-qualified name of the ClusterService's
+	// GetClusterInfoByName RPC.
+	ClusterServiceGetClusterInfoByNameProcedure = "/api.v1.ClusterService/GetClusterInfoByName"
 	// ClusterServiceReattachClusterProcedure is the fully-qualified name of the ClusterService's
 	// ReattachCluster RPC.
 	ClusterServiceReattachClusterProcedure = "/api.v1.ClusterService/ReattachCluster"
@@ -75,6 +81,10 @@ type ClusterServiceClient interface {
 	GetNetworkMetricsTimeSeries(context.Context, *connect.Request[v1.GetNetworkMetricsTimeSeriesRequest]) (*connect.Response[v1.GetNetworkMetricsTimeSeriesResponse], error)
 	// GetNodeTypeCounts retrieves node type breakdown for given clusters and time range
 	GetNodeTypeCounts(context.Context, *connect.Request[v1.GetNodeTypeCountsRequest]) (*connect.Response[v1.GetNodeTypeCountsResponse], error)
+	// GetClusterIDByName retrieves the ID of the first active cluster matching the given team and name
+	GetClusterIDByName(context.Context, *connect.Request[v1.GetClusterIDByNameRequest]) (*connect.Response[v1.GetClusterIDByNameResponse], error)
+	// GetClusterInfoByName retrieves full info of the first active cluster matching the given team and name
+	GetClusterInfoByName(context.Context, *connect.Request[v1.GetClusterInfoByNameRequest]) (*connect.Response[v1.GetClusterInfoByNameResponse], error)
 	// ReattachCluster finds an existing cluster by identifier or creates a new one, returning a fresh token
 	ReattachCluster(context.Context, *connect.Request[v1.ReattachClusterRequest]) (*connect.Response[v1.ReattachClusterResponse], error)
 }
@@ -124,6 +134,16 @@ func NewClusterServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			baseURL+ClusterServiceGetNodeTypeCountsProcedure,
 			opts...,
 		),
+		getClusterIDByName: connect.NewClient[v1.GetClusterIDByNameRequest, v1.GetClusterIDByNameResponse](
+			httpClient,
+			baseURL+ClusterServiceGetClusterIDByNameProcedure,
+			opts...,
+		),
+		getClusterInfoByName: connect.NewClient[v1.GetClusterInfoByNameRequest, v1.GetClusterInfoByNameResponse](
+			httpClient,
+			baseURL+ClusterServiceGetClusterInfoByNameProcedure,
+			opts...,
+		),
 		reattachCluster: connect.NewClient[v1.ReattachClusterRequest, v1.ReattachClusterResponse](
 			httpClient,
 			baseURL+ClusterServiceReattachClusterProcedure,
@@ -141,6 +161,8 @@ type clusterServiceClient struct {
 	getNetworkDependencies      *connect.Client[v1.GetNetworkDependenciesRequest, v1.GetNetworkDependenciesResponse]
 	getNetworkMetricsTimeSeries *connect.Client[v1.GetNetworkMetricsTimeSeriesRequest, v1.GetNetworkMetricsTimeSeriesResponse]
 	getNodeTypeCounts           *connect.Client[v1.GetNodeTypeCountsRequest, v1.GetNodeTypeCountsResponse]
+	getClusterIDByName          *connect.Client[v1.GetClusterIDByNameRequest, v1.GetClusterIDByNameResponse]
+	getClusterInfoByName        *connect.Client[v1.GetClusterInfoByNameRequest, v1.GetClusterInfoByNameResponse]
 	reattachCluster             *connect.Client[v1.ReattachClusterRequest, v1.ReattachClusterResponse]
 }
 
@@ -179,6 +201,16 @@ func (c *clusterServiceClient) GetNodeTypeCounts(ctx context.Context, req *conne
 	return c.getNodeTypeCounts.CallUnary(ctx, req)
 }
 
+// GetClusterIDByName calls api.v1.ClusterService.GetClusterIDByName.
+func (c *clusterServiceClient) GetClusterIDByName(ctx context.Context, req *connect.Request[v1.GetClusterIDByNameRequest]) (*connect.Response[v1.GetClusterIDByNameResponse], error) {
+	return c.getClusterIDByName.CallUnary(ctx, req)
+}
+
+// GetClusterInfoByName calls api.v1.ClusterService.GetClusterInfoByName.
+func (c *clusterServiceClient) GetClusterInfoByName(ctx context.Context, req *connect.Request[v1.GetClusterInfoByNameRequest]) (*connect.Response[v1.GetClusterInfoByNameResponse], error) {
+	return c.getClusterInfoByName.CallUnary(ctx, req)
+}
+
 // ReattachCluster calls api.v1.ClusterService.ReattachCluster.
 func (c *clusterServiceClient) ReattachCluster(ctx context.Context, req *connect.Request[v1.ReattachClusterRequest]) (*connect.Response[v1.ReattachClusterResponse], error) {
 	return c.reattachCluster.CallUnary(ctx, req)
@@ -200,6 +232,10 @@ type ClusterServiceHandler interface {
 	GetNetworkMetricsTimeSeries(context.Context, *connect.Request[v1.GetNetworkMetricsTimeSeriesRequest]) (*connect.Response[v1.GetNetworkMetricsTimeSeriesResponse], error)
 	// GetNodeTypeCounts retrieves node type breakdown for given clusters and time range
 	GetNodeTypeCounts(context.Context, *connect.Request[v1.GetNodeTypeCountsRequest]) (*connect.Response[v1.GetNodeTypeCountsResponse], error)
+	// GetClusterIDByName retrieves the ID of the first active cluster matching the given team and name
+	GetClusterIDByName(context.Context, *connect.Request[v1.GetClusterIDByNameRequest]) (*connect.Response[v1.GetClusterIDByNameResponse], error)
+	// GetClusterInfoByName retrieves full info of the first active cluster matching the given team and name
+	GetClusterInfoByName(context.Context, *connect.Request[v1.GetClusterInfoByNameRequest]) (*connect.Response[v1.GetClusterInfoByNameResponse], error)
 	// ReattachCluster finds an existing cluster by identifier or creates a new one, returning a fresh token
 	ReattachCluster(context.Context, *connect.Request[v1.ReattachClusterRequest]) (*connect.Response[v1.ReattachClusterResponse], error)
 }
@@ -245,6 +281,16 @@ func NewClusterServiceHandler(svc ClusterServiceHandler, opts ...connect.Handler
 		svc.GetNodeTypeCounts,
 		opts...,
 	)
+	clusterServiceGetClusterIDByNameHandler := connect.NewUnaryHandler(
+		ClusterServiceGetClusterIDByNameProcedure,
+		svc.GetClusterIDByName,
+		opts...,
+	)
+	clusterServiceGetClusterInfoByNameHandler := connect.NewUnaryHandler(
+		ClusterServiceGetClusterInfoByNameProcedure,
+		svc.GetClusterInfoByName,
+		opts...,
+	)
 	clusterServiceReattachClusterHandler := connect.NewUnaryHandler(
 		ClusterServiceReattachClusterProcedure,
 		svc.ReattachCluster,
@@ -266,6 +312,10 @@ func NewClusterServiceHandler(svc ClusterServiceHandler, opts ...connect.Handler
 			clusterServiceGetNetworkMetricsTimeSeriesHandler.ServeHTTP(w, r)
 		case ClusterServiceGetNodeTypeCountsProcedure:
 			clusterServiceGetNodeTypeCountsHandler.ServeHTTP(w, r)
+		case ClusterServiceGetClusterIDByNameProcedure:
+			clusterServiceGetClusterIDByNameHandler.ServeHTTP(w, r)
+		case ClusterServiceGetClusterInfoByNameProcedure:
+			clusterServiceGetClusterInfoByNameHandler.ServeHTTP(w, r)
 		case ClusterServiceReattachClusterProcedure:
 			clusterServiceReattachClusterHandler.ServeHTTP(w, r)
 		default:
@@ -303,6 +353,14 @@ func (UnimplementedClusterServiceHandler) GetNetworkMetricsTimeSeries(context.Co
 
 func (UnimplementedClusterServiceHandler) GetNodeTypeCounts(context.Context, *connect.Request[v1.GetNodeTypeCountsRequest]) (*connect.Response[v1.GetNodeTypeCountsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.ClusterService.GetNodeTypeCounts is not implemented"))
+}
+
+func (UnimplementedClusterServiceHandler) GetClusterIDByName(context.Context, *connect.Request[v1.GetClusterIDByNameRequest]) (*connect.Response[v1.GetClusterIDByNameResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.ClusterService.GetClusterIDByName is not implemented"))
+}
+
+func (UnimplementedClusterServiceHandler) GetClusterInfoByName(context.Context, *connect.Request[v1.GetClusterInfoByNameRequest]) (*connect.Response[v1.GetClusterInfoByNameResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.ClusterService.GetClusterInfoByName is not implemented"))
 }
 
 func (UnimplementedClusterServiceHandler) ReattachCluster(context.Context, *connect.Request[v1.ReattachClusterRequest]) (*connect.Response[v1.ReattachClusterResponse], error) {
