@@ -48,6 +48,7 @@ rules:
   - ""
   resourceNames:
   - devzero-zxporter-token
+  - devzero-zxporter-cluster-identity
   resources:
   - secrets
   verbs:
