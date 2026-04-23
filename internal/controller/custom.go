@@ -52,7 +52,7 @@ type EnvBasedController struct {
 	client.Client
 	Scheme              *runtime.Scheme
 	Log                 logr.Logger
-	K8sClient           *kubernetes.Clientset
+	K8sClient           kubernetes.Interface
 	DynamicClient       *dynamic.DynamicClient
 	DiscoveryClient     *discovery.DiscoveryClient
 	ApiExtensions       *apiextensionsclientset.Clientset
@@ -62,6 +62,7 @@ type EnvBasedController struct {
 	mpaServerPort       int
 	startTime           time.Time
 	nodeOperatorMonitor *health.NodeOperatorMonitor
+	dakrClientFactory   func(dakrBaseURL string, clusterToken string, logger logr.Logger) transport.DakrClient
 }
 
 // NewEnvBasedController creates a new environment-based controller
@@ -153,6 +154,7 @@ func NewEnvBasedController(
 		reconcileInterval:   reconcileInterval,
 		mpaServerPort:       mpaServerPort,
 		nodeOperatorMonitor: nodeOperatorMonitor,
+		dakrClientFactory:   transport.NewDakrClient,
 	}, nil
 }
 
@@ -384,21 +386,21 @@ func (c *EnvBasedController) initializeTelemetryComponents(ctx context.Context) 
 			}
 
 			// Create a temporary client with empty cluster token for PAT exchange
-			tempClient := transport.NewDakrClient(dakrURL, "", c.Log)
+			tempClient := c.dakrClientFactory(dakrURL, "", c.Log)
 
 			// Exchange PAT for cluster token
 			token, clusterId, err := tempClient.ExchangePATForClusterToken(ctx, envSpec.Policies.PATToken, clusterName, k8sProvider)
 			if err != nil {
 				c.Log.Error(err, "Failed to exchange PAT for cluster token")
-			} else {
-				c.Log.Info("Successfully obtained cluster token", "clusterId", clusterId)
-				envSpec.Policies.ClusterToken = token
+				return fmt.Errorf("failed to exchange PAT for cluster token: %w", err)
+			}
+			c.Log.Info("Successfully obtained cluster token", "clusterId", clusterId)
+			envSpec.Policies.ClusterToken = token
 
-				// Persist the token to ConfigMap or Secret based on configuration
-				if err := c.persistClusterToken(ctx, token); err != nil {
-					c.Log.Error(err, "Failed to persist cluster token")
-					// Continue anyway - the token is in memory
-				}
+			// Persist the token to ConfigMap or Secret based on configuration
+			// If it fails, continue anyway - the token is in memory
+			if err := c.persistClusterToken(ctx, token); err != nil {
+				c.Log.Error(err, "Failed to persist cluster token")
 			}
 		}
 	}
