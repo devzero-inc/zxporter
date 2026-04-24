@@ -157,7 +157,10 @@ func (c *DatadogCollector) Start(ctx context.Context) error {
 		},
 	})
 	if err != nil {
-		return fmt.Errorf("failed to add event handler to informer for ExtendedDaemonSetReplicaSets: %w", err)
+		return fmt.Errorf(
+			"failed to add event handler to informer for ExtendedDaemonSetReplicaSets: %w",
+			err,
+		)
 	}
 
 	// Store informer and create stop channel
@@ -197,7 +200,10 @@ func (c *DatadogCollector) Start(ctx context.Context) error {
 }
 
 // handleReplicaSetEvent processes DataDog ExtendedDaemonSetReplicaSet events
-func (c *DatadogCollector) handleReplicaSetEvent(obj *unstructured.Unstructured, eventType EventType) {
+func (c *DatadogCollector) handleReplicaSetEvent(
+	obj *unstructured.Unstructured,
+	eventType EventType,
+) {
 	name := obj.GetName()
 	namespace := obj.GetNamespace()
 
@@ -306,7 +312,11 @@ func (c *DatadogCollector) IsAvailable(ctx context.Context) bool {
 
 	_, err := c.dynamicClient.Resource(gvr).List(ctx, metav1.ListOptions{Limit: 1})
 	if err != nil {
-		c.logger.Info("DataDog ExtendedDaemonSetReplicaSet resources not available in the cluster", "error", err.Error())
+		c.logger.Info(
+			"DataDog ExtendedDaemonSetReplicaSet resources not available in the cluster",
+			"error",
+			err.Error(),
+		)
 		return false
 	}
 	return true

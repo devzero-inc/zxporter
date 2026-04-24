@@ -31,7 +31,10 @@ type MetricsServer struct {
 }
 
 // SendTelemetryMetrics implements apiv1connect.MetricsCollectorServiceHandler.
-func (s *MetricsServer) SendTelemetryMetrics(ctx context.Context, req *connect.Request[apiv1.SendTelemetryMetricsRequest]) (*connect.Response[apiv1.SendTelemetryMetricsResponse], error) {
+func (s *MetricsServer) SendTelemetryMetrics(
+	ctx context.Context,
+	req *connect.Request[apiv1.SendTelemetryMetricsRequest],
+) (*connect.Response[apiv1.SendTelemetryMetricsResponse], error) {
 	// Log all metric family names
 	fmt.Fprintf(os.Stderr, "Received telemetry metrics - metric families: ")
 	processedCount := 0
@@ -115,7 +118,10 @@ func (s *MetricsServer) processResourceItem(resource *apiv1.ResourceItem) {
 }
 
 // SendResource implements the SendResource RPC method
-func (s *MetricsServer) SendResource(ctx context.Context, req *connect.Request[apiv1.SendResourceRequest]) (*connect.Response[apiv1.SendResourceResponse], error) {
+func (s *MetricsServer) SendResource(
+	ctx context.Context,
+	req *connect.Request[apiv1.SendResourceRequest],
+) (*connect.Response[apiv1.SendResourceResponse], error) {
 	// Create a ResourceItem from the request message
 	resourceItem := &apiv1.ResourceItem{
 		Key:          req.Msg.Key,
@@ -129,7 +135,10 @@ func (s *MetricsServer) SendResource(ctx context.Context, req *connect.Request[a
 	jsonData, err := json.Marshal(req.Msg)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error marshaling request to JSON: %v\n", err)
-		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("error marshaling request to JSON: %w", err))
+		return nil, connect.NewError(
+			connect.CodeInternal,
+			fmt.Errorf("error marshaling request to JSON: %w", err),
+		)
 	}
 
 	// Write the JSON to the output file
@@ -143,13 +152,19 @@ func (s *MetricsServer) SendResource(ctx context.Context, req *connect.Request[a
 	f, err := os.OpenFile(s.outputFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o666)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error opening output file: %v\n", err)
-		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("error opening output file: %w", err))
+		return nil, connect.NewError(
+			connect.CodeInternal,
+			fmt.Errorf("error opening output file: %w", err),
+		)
 	}
 	defer f.Close()
 
 	if _, err := f.WriteString(string(jsonData) + "\n"); err != nil {
 		fmt.Fprintf(os.Stderr, "Error writing to output file: %v\n", err)
-		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("error writing to output file: %w", err))
+		return nil, connect.NewError(
+			connect.CodeInternal,
+			fmt.Errorf("error writing to output file: %w", err),
+		)
 	}
 
 	// Return a response
@@ -162,7 +177,10 @@ func (s *MetricsServer) SendResource(ctx context.Context, req *connect.Request[a
 }
 
 // SendResourceBatch implements the SendResourceBatch RPC method
-func (s *MetricsServer) SendResourceBatch(ctx context.Context, req *connect.Request[apiv1.SendResourceBatchRequest]) (*connect.Response[apiv1.SendResourceBatchResponse], error) {
+func (s *MetricsServer) SendResourceBatch(
+	ctx context.Context,
+	req *connect.Request[apiv1.SendResourceBatchRequest],
+) (*connect.Response[apiv1.SendResourceBatchResponse], error) {
 	// Convert the batch request to JSON for logging
 	jsonData, err := json.Marshal(req.Msg)
 	if err != nil {
@@ -180,14 +198,20 @@ func (s *MetricsServer) SendResourceBatch(ctx context.Context, req *connect.Requ
 		if fileErr != nil {
 			fmt.Fprintf(os.Stderr, "Error opening output file for batch: %v\n", fileErr)
 			// Return error as file writing is crucial for testing
-			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("error opening output file for batch: %w", fileErr))
+			return nil, connect.NewError(
+				connect.CodeInternal,
+				fmt.Errorf("error opening output file for batch: %w", fileErr),
+			)
 		}
 		defer f.Close() // Ensure file is closed even if writing fails
 
 		if _, writeErr := f.WriteString(string(jsonData) + "\n"); writeErr != nil {
 			fmt.Fprintf(os.Stderr, "Error writing batch to output file: %v\n", writeErr)
 			// Return error as file writing is crucial for testing
-			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("error writing batch to output file: %w", writeErr))
+			return nil, connect.NewError(
+				connect.CodeInternal,
+				fmt.Errorf("error writing batch to output file: %w", writeErr),
+			)
 		}
 	}
 
@@ -271,20 +295,34 @@ func (s *MetricsServer) SendClusterSnapshotStream(
 			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("missing chunk %d", i))
 		}
 	}
-	fmt.Fprintf(os.Stderr, "Step 2 Complete: Reassembled %d bytes of snapshot data\n", len(completeData))
+	fmt.Fprintf(
+		os.Stderr,
+		"Step 2 Complete: Reassembled %d bytes of snapshot data\n",
+		len(completeData),
+	)
 
 	// Step 3: Deserialize the cluster snapshot
 	fmt.Fprintf(os.Stderr, "Step 3: Deserializing cluster snapshot...\n")
 	var clusterSnapshot apiv1.ClusterSnapshot
 	if err := proto.Unmarshal(completeData, &clusterSnapshot); err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: Failed to deserialize cluster snapshot: %v\n", err)
-		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to deserialize snapshot: %w", err))
+		return nil, connect.NewError(
+			connect.CodeInternal,
+			fmt.Errorf("failed to deserialize snapshot: %w", err),
+		)
 	}
 	fmt.Fprintf(os.Stderr, "Step 3 Complete: Successfully deserialized cluster snapshot\n")
 
 	// Step 4: Extract detailed resource statistics
 	fmt.Fprintf(os.Stderr, "Step 4: Extracting resource statistics...\n")
-	snapshotStats := s.extractSnapshotStatistics(&clusterSnapshot, snapshotID, clusterID, chunksReceived, totalSize, receivedAt)
+	snapshotStats := s.extractSnapshotStatistics(
+		&clusterSnapshot,
+		snapshotID,
+		clusterID,
+		chunksReceived,
+		totalSize,
+		receivedAt,
+	)
 	fmt.Fprintf(os.Stderr, "Step 4 Complete: Extracted statistics for %d nodes, %d namespaces\n",
 		len(snapshotStats.NodeResources), len(snapshotStats.NamespaceResources))
 
@@ -321,7 +359,11 @@ func (s *MetricsServer) SendClusterSnapshotStream(
 	fmt.Fprintf(os.Stderr, "  - Processing time: %v\n", processingDuration)
 	fmt.Fprintf(os.Stderr, "  - Nodes: %d\n", len(snapshotStats.NodeResources))
 	fmt.Fprintf(os.Stderr, "  - Namespaces: %d\n", len(snapshotStats.NamespaceResources))
-	fmt.Fprintf(os.Stderr, "  - Cluster-scoped resources: %d types\n", len(snapshotStats.ClusterScopedResources))
+	fmt.Fprintf(
+		os.Stderr,
+		"  - Cluster-scoped resources: %d types\n",
+		len(snapshotStats.ClusterScopedResources),
+	)
 
 	resp := connect.NewResponse(&apiv1.SendClusterSnapshotStreamResponse{
 		ClusterId:        clusterID,
@@ -334,12 +376,18 @@ func (s *MetricsServer) SendClusterSnapshotStream(
 }
 
 // SendTelemetryLogs implements apiv1connect.MetricsCollectorServiceHandler.
-func (s *MetricsServer) SendTelemetryLogs(context.Context, *connect.Request[apiv1.SendTelemetryLogsRequest]) (*connect.Response[apiv1.SendTelemetryLogsResponse], error) {
+func (s *MetricsServer) SendTelemetryLogs(
+	context.Context,
+	*connect.Request[apiv1.SendTelemetryLogsRequest],
+) (*connect.Response[apiv1.SendTelemetryLogsResponse], error) {
 	return &connect.Response[apiv1.SendTelemetryLogsResponse]{}, nil
 }
 
 // NodeMetadata implements apiv1connect.MetricsCollectorServiceHandler.
-func (s *MetricsServer) NodeMetadata(ctx context.Context, req *connect.Request[apiv1.NodeMetadataRequest]) (*connect.Response[apiv1.NodeMetadataResponse], error) {
+func (s *MetricsServer) NodeMetadata(
+	ctx context.Context,
+	req *connect.Request[apiv1.NodeMetadataRequest],
+) (*connect.Response[apiv1.NodeMetadataResponse], error) {
 	// Return an empty response for the test server implementation
 	return connect.NewResponse(&apiv1.NodeMetadataResponse{
 		NodeToMeta: make(map[string]*apiv1.Node),
@@ -449,7 +497,8 @@ func (s *MetricsServer) extractPodResourceInfo(key string, data *structpb.Struct
 		specData := specValue.GetStructValue().GetFields()
 
 		// Extract container specs
-		if containersValue, ok := specData["containers"]; ok && containersValue.GetListValue() != nil {
+		if containersValue, ok := specData["containers"]; ok &&
+			containersValue.GetListValue() != nil {
 			containers := containersValue.GetListValue().GetValues()
 
 			for _, containerValue := range containers {
@@ -471,11 +520,13 @@ func (s *MetricsServer) extractPodResourceInfo(key string, data *structpb.Struct
 				s.stats.UsageReportPods[key] = podUsage
 
 				// Extract resource requests and limits
-				if resourcesValue, ok := containerData["resources"]; ok && resourcesValue.GetStructValue() != nil {
+				if resourcesValue, ok := containerData["resources"]; ok &&
+					resourcesValue.GetStructValue() != nil {
 					resourcesData := resourcesValue.GetStructValue().GetFields()
 
 					// Extract requests
-					if requestsValue, ok := resourcesData["requests"]; ok && requestsValue.GetStructValue() != nil {
+					if requestsValue, ok := resourcesData["requests"]; ok &&
+						requestsValue.GetStructValue() != nil {
 						requestsData := requestsValue.GetStructValue().GetFields()
 
 						for resourceName, resourceValue := range requestsData {
@@ -486,7 +537,8 @@ func (s *MetricsServer) extractPodResourceInfo(key string, data *structpb.Struct
 					}
 
 					// Extract limits
-					if limitsValue, ok := resourcesData["limits"]; ok && limitsValue.GetStructValue() != nil {
+					if limitsValue, ok := resourcesData["limits"]; ok &&
+						limitsValue.GetStructValue() != nil {
 						limitsData := limitsValue.GetStructValue().GetFields()
 
 						for resourceName, resourceValue := range limitsData {
@@ -544,11 +596,17 @@ func (s *MetricsServer) extractContainerResourceInfo(data *structpb.Struct) {
 
 	// Extract CPU and memory usage
 	if cpuUsage, ok := containerData["cpuUsageMillis"]; ok {
-		podUsage.Containers[containerName]["used_cpu"] = fmt.Sprintf("%dm", int64(cpuUsage.GetNumberValue()))
+		podUsage.Containers[containerName]["used_cpu"] = fmt.Sprintf(
+			"%dm",
+			int64(cpuUsage.GetNumberValue()),
+		)
 	}
 
 	if memoryUsage, ok := containerData["memoryUsageBytes"]; ok {
-		podUsage.Containers[containerName]["used_memory"] = fmt.Sprintf("%d", int64(memoryUsage.GetNumberValue()))
+		podUsage.Containers[containerName]["used_memory"] = fmt.Sprintf(
+			"%d",
+			int64(memoryUsage.GetNumberValue()),
+		)
 	}
 
 	// Update the pod usage
@@ -597,7 +655,10 @@ func (s *MetricsServer) extractNodeResourceInfo(key string, data *structpb.Struc
 
 	if memoryAllocatable, ok := nodeData["memoryAllocatableBytes"]; ok {
 		nodeUsage := s.stats.UsageReportNodes[key]
-		nodeUsage.Allocatable["memory"] = fmt.Sprintf("%d", int64(memoryAllocatable.GetNumberValue()))
+		nodeUsage.Allocatable["memory"] = fmt.Sprintf(
+			"%d",
+			int64(memoryAllocatable.GetNumberValue()),
+		)
 		s.stats.UsageReportNodes[key] = nodeUsage
 	}
 
@@ -756,12 +817,24 @@ func (s *MetricsServer) extractSnapshotStatistics(
 
 	fmt.Fprintf(os.Stderr, "    Analyzing cluster-scoped resources...\n")
 	if snapshot.ClusterScoped != nil {
-		snapshotStats.ClusterScopedResources["PersistentVolumes"] = len(snapshot.ClusterScoped.PersistentVolumes)
-		snapshotStats.ClusterScopedResources["StorageClasses"] = len(snapshot.ClusterScoped.StorageClasses)
-		snapshotStats.ClusterScopedResources["ClusterRoles"] = len(snapshot.ClusterScoped.ClusterRoles)
-		snapshotStats.ClusterScopedResources["ClusterRoleBindings"] = len(snapshot.ClusterScoped.ClusterRoleBindings)
-		snapshotStats.ClusterScopedResources["CustomResourceDefinitions"] = len(snapshot.ClusterScoped.CustomResourceDefinitions)
-		snapshotStats.ClusterScopedResources["IngressClasses"] = len(snapshot.ClusterScoped.IngressClasses)
+		snapshotStats.ClusterScopedResources["PersistentVolumes"] = len(
+			snapshot.ClusterScoped.PersistentVolumes,
+		)
+		snapshotStats.ClusterScopedResources["StorageClasses"] = len(
+			snapshot.ClusterScoped.StorageClasses,
+		)
+		snapshotStats.ClusterScopedResources["ClusterRoles"] = len(
+			snapshot.ClusterScoped.ClusterRoles,
+		)
+		snapshotStats.ClusterScopedResources["ClusterRoleBindings"] = len(
+			snapshot.ClusterScoped.ClusterRoleBindings,
+		)
+		snapshotStats.ClusterScopedResources["CustomResourceDefinitions"] = len(
+			snapshot.ClusterScoped.CustomResourceDefinitions,
+		)
+		snapshotStats.ClusterScopedResources["IngressClasses"] = len(
+			snapshot.ClusterScoped.IngressClasses,
+		)
 		snapshotStats.ClusterScopedResources["CSINodes"] = len(snapshot.ClusterScoped.CsiNodes)
 
 		for resourceType, count := range snapshotStats.ClusterScopedResources {

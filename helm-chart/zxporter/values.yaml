@@ -8,12 +8,10 @@
 #
 # For production deployments, we recommend using patToken for automatic token exchange.
 
-namespace: devzero-zxporter
-
 image:
   repository: docker.io/devzeroinc/zxporter
   pullPolicy: IfNotPresent
-  tag: "v0.0.70"
+  tag: "v0.0.74"
 
 # ZXPorter configuration
 zxporter:
@@ -62,6 +60,72 @@ zxporter:
   # ConfigMap: Contains configuration and tokens when useSecretForToken=false
   tokenConfigMapName: "devzero-zxporter-env-config"
 
+# ZXPorter controller resources
+resources:
+  requests:
+    cpu: 200m
+    memory: 128Mi
+  limits: {}
+
+# Node Exporter configuration
+nodeExporter:
+  image:
+    repository: quay.io/prometheus/node-exporter
+    tag: v1.9.1
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 250m
+      memory: 500Mi
+    limits:
+      memory: 500Mi
+  port: 9101
+  hostNetwork: true
+  hostPID: true
+
+# Kube State Metrics configuration
+kubeStateMetrics:
+  image:
+    repository: registry.k8s.io/kube-state-metrics/kube-state-metrics
+    tag: v2.15.0
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 250m
+      memory: 500Mi
+    limits:
+      memory: 500Mi
+  replicas: 1
+
+# Prometheus Server configuration
+prometheus:
+  image:
+    repository: quay.io/prometheus/prometheus
+    tag: v3.4.1
+    pullPolicy: IfNotPresent
+  configReloader:
+    image:
+      repository: quay.io/prometheus-operator/prometheus-config-reloader
+      tag: v0.83.0
+      pullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: 250m
+        memory: 500Mi
+      limits:
+        memory: 500Mi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 2Gi
+    limits:
+      memory: 2Gi
+  replicas: 1
+  retention: 2d
+  scrapeInterval: 1m
+  evaluationInterval: 1m
+  scrapeTimeout: 10s
+
 # Monitoring components (set to false to use your own Prometheus/Node Exporter)
 monitoring:
   enabled: true
@@ -76,11 +140,10 @@ affinity: {}
 
 # High Availability Configuration
 highAvailability:
-  enabled: false
+  enabled: true
   podDisruptionBudget:
     enabled: true
     minAvailable: 1
-    # Alternative: maxUnavailable: 1
 
 # MPA Server Configuration
 mpaServer:

@@ -5,7 +5,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: prometheus-kube-state-metrics
-  namespace: {{ .Values.namespace }}
+  namespace: {{ .Release.Namespace }}
   labels:
     helm.sh/chart: kube-state-metrics-5.33.2
     app.kubernetes.io/managed-by: Helm
@@ -19,7 +19,7 @@ spec:
     matchLabels:
       app.kubernetes.io/name: kube-state-metrics
       app.kubernetes.io/instance: prometheus
-  replicas: 1
+  replicas: {{ .Values.kubeStateMetrics.replicas }}
   strategy:
     type: RollingUpdate
   revisionHistoryLimit: 10
@@ -65,8 +65,8 @@ spec:
           args:
             - --port=8080
             - --resources=nodes
-          imagePullPolicy: IfNotPresent
-          image: registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.15.0
+          imagePullPolicy: {{ .Values.kubeStateMetrics.image.pullPolicy }}
+          image: {{ .Values.kubeStateMetrics.image.repository }}:{{ .Values.kubeStateMetrics.image.tag }}
           ports:
             - containerPort: 8080
               name: "http"
@@ -93,11 +93,7 @@ spec:
             successThreshold: 1
             timeoutSeconds: 5
           resources:
-            requests:
-              memory: "500Mi"
-              cpu: "250m"
-            limits:
-              memory: "500Mi"
+            {{- toYaml .Values.kubeStateMetrics.resources | nindent 12 }}
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -117,14 +113,14 @@ metadata:
     helm.sh/chart: prometheus-27.20.0
     app.kubernetes.io/part-of: dz-prometheus
   name: prometheus-dz-prometheus-server
-  namespace: {{ .Values.namespace }}
+  namespace: {{ .Release.Namespace }}
 spec:
   selector:
     matchLabels:
       app.kubernetes.io/component: server
       app.kubernetes.io/name: dz-prometheus
       app.kubernetes.io/instance: prometheus
-  replicas: 1
+  replicas: {{ .Values.prometheus.replicas }}
   revisionHistoryLimit: 10
   strategy:
     type: Recreate
@@ -158,8 +154,8 @@ spec:
       {{- end }}
       containers:
         - name: dz-prometheus-server-configmap-reload
-          image: "quay.io/prometheus-operator/prometheus-config-reloader:v0.83.0"
-          imagePullPolicy: "IfNotPresent"
+          image: "{{ .Values.prometheus.configReloader.image.repository }}:{{ .Values.prometheus.configReloader.image.tag }}"
+          imagePullPolicy: "{{ .Values.prometheus.configReloader.image.pullPolicy }}"
           args:
             - --watched-dir=/etc/config
             - --listen-address=0.0.0.0:8080
@@ -185,16 +181,12 @@ spec:
               mountPath: /etc/config
               readOnly: true
           resources:
-            requests:
-              memory: "500Mi"
-              cpu: "250m"
-            limits:
-              memory: "500Mi"
+            {{- toYaml .Values.prometheus.configReloader.resources | nindent 12 }}
         - name: dz-prometheus-server
-          image: "quay.io/prometheus/prometheus:v3.4.1"
-          imagePullPolicy: "IfNotPresent"
+          image: "{{ .Values.prometheus.image.repository }}:{{ .Values.prometheus.image.tag }}"
+          imagePullPolicy: "{{ .Values.prometheus.image.pullPolicy }}"
           args:
-            - --storage.tsdb.retention.time=2d
+            - --storage.tsdb.retention.time={{ .Values.prometheus.retention }}
             - --config.file=/etc/config/prometheus.yml
             - --storage.tsdb.path=/data
             - --web.console.libraries=/etc/prometheus/console_libraries
@@ -229,11 +221,7 @@ spec:
               mountPath: /data
               subPath: ""
           resources:
-            requests:
-              memory: "2Gi"
-              cpu: "100m"
-            limits:
-              memory: "2Gi"
+            {{- toYaml .Values.prometheus.resources | nindent 12 }}
       dnsPolicy: ClusterFirst
       securityContext:
         fsGroup: 65534

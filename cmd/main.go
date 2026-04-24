@@ -65,14 +65,28 @@ func main() {
 	var reconcileInterval time.Duration
 	var mpaServerPort int
 	var tlsOpts []func(*tls.Config)
-	flag.StringVar(&metricsAddr, "metrics-bind-address", "0", "The address the metrics endpoint binds to. "+
-		"Use :8443 for HTTPS or :8080 for HTTP, or leave as 0 to disable the metrics service.")
-	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
+	flag.StringVar(
+		&metricsAddr,
+		"metrics-bind-address",
+		"0",
+		"The address the metrics endpoint binds to. "+
+			"Use :8443 for HTTPS or :8080 for HTTP, or leave as 0 to disable the metrics service.",
+	)
+	flag.StringVar(
+		&probeAddr,
+		"health-probe-bind-address",
+		":8081",
+		"The address the probe endpoint binds to.",
+	)
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
-	flag.BoolVar(&secureMetrics, "metrics-secure", true,
-		"If set, the metrics endpoint is served securely via HTTPS. Use --metrics-secure=false to use HTTP instead.")
+	flag.BoolVar(
+		&secureMetrics,
+		"metrics-secure",
+		true,
+		"If set, the metrics endpoint is served securely via HTTPS. Use --metrics-secure=false to use HTTP instead.",
+	)
 	flag.BoolVar(&enableHTTP2, "enable-http2", false,
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
 	flag.DurationVar(&reconcileInterval, "reconcile-interval", 5*time.Second,
@@ -135,6 +149,15 @@ func main() {
 	// reconciling before enforcing readiness checks.
 	healthManager.SuppressReadiness(2 * time.Minute)
 
+	// When leader election is enabled, mark this pod as standby until it wins
+	// the lease. Standby pods return 200 on /readyz so Kubernetes does not
+	// repeatedly mark them unhealthy while they wait. The flag is cleared
+	// (inside the goroutine below) the moment this pod is elected leader, at
+	// which point the normal 2-minute readiness grace period takes over.
+	if enableLeaderElection {
+		healthManager.SetStandby(true)
+	}
+
 	// No need to add the standard controller with kubebuilder:scaffold:builder
 	// The env-based controller doesn't rely on CRDs
 
@@ -190,8 +213,22 @@ func main() {
 		os.Exit(1)
 	}
 
+	ctx := ctrl.SetupSignalHandler()
+
+	// Clear standby the moment this pod wins leader election so that normal
+	// readiness checks (with the 2-minute grace period) take over.
+	if enableLeaderElection {
+		go func() {
+			select {
+			case <-mgr.Elected():
+				healthManager.SetStandby(false)
+			case <-ctx.Done():
+			}
+		}()
+	}
+
 	setupLog.Info("starting manager")
-	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
+	if err := mgr.Start(ctx); err != nil {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}

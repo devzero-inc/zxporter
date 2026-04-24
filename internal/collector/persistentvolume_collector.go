@@ -137,7 +137,10 @@ func (c *PersistentVolumeCollector) Start(ctx context.Context) error {
 }
 
 // handlePVEvent processes PV events
-func (c *PersistentVolumeCollector) handlePVEvent(pv *corev1.PersistentVolume, eventType EventType) {
+func (c *PersistentVolumeCollector) handlePVEvent(
+	pv *corev1.PersistentVolume,
+	eventType EventType,
+) {
 	if c.isExcluded(pv) {
 		return
 	}

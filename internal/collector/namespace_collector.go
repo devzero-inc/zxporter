@@ -137,7 +137,10 @@ func (c *NamespaceCollector) Start(ctx context.Context) error {
 }
 
 // handleNamespaceEvent processes namespace events
-func (c *NamespaceCollector) handleNamespaceEvent(namespace *corev1.Namespace, eventType EventType) {
+func (c *NamespaceCollector) handleNamespaceEvent(
+	namespace *corev1.Namespace,
+	eventType EventType,
+) {
 	if c.isExcluded(namespace) {
 		return
 	}

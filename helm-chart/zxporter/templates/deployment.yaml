@@ -7,9 +7,9 @@ metadata:
     app.kubernetes.io/name: devzero-zxporter
     control-plane: controller-manager
   name: devzero-zxporter-controller-manager
-  namespace: {{ .Values.namespace }}
+  namespace: {{ .Release.Namespace }}
 spec:
-  replicas: 1
+  replicas: {{ if .Values.highAvailability.enabled }}2{{ else }}1{{ end }}
   selector:
     matchLabels:
       control-plane: controller-manager
@@ -86,9 +86,7 @@ spec:
             initialDelaySeconds: 5
             periodSeconds: 10
           resources:
-            requests:
-              cpu: 200m
-              memory: 128Mi
+            {{- toYaml .Values.resources | nindent 12 }}
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:

@@ -164,7 +164,10 @@ func (c *WorkloadRecommendationCollector) Start(ctx context.Context) error {
 }
 
 // handleWorkloadRecommendationEvent processes WorkloadRecommendation events
-func (c *WorkloadRecommendationCollector) handleWorkloadRecommendationEvent(wr *unstructured.Unstructured, eventType EventType) {
+func (c *WorkloadRecommendationCollector) handleWorkloadRecommendationEvent(
+	wr *unstructured.Unstructured,
+	eventType EventType,
+) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	if c.stopped {
@@ -179,6 +182,17 @@ func (c *WorkloadRecommendationCollector) handleWorkloadRecommendationEvent(wr *
 		"namespace", namespace,
 		"name", name,
 	)
+
+	// Skip recommendations older than 24 hours — they are no longer relevant
+	creationTime := wr.GetCreationTimestamp().Time
+	if !creationTime.IsZero() && time.Since(creationTime) > 24*time.Hour {
+		c.logger.Info("Skipping WorkloadRecommendation older than 24 hours",
+			"namespace", namespace,
+			"name", name,
+			"age", time.Since(creationTime).Round(time.Minute),
+		)
+		return
+	}
 
 	// Only send recommendations that have reached a terminal state
 	// Delete events are always sent so the control plane knows about removals
@@ -212,7 +226,9 @@ func (c *WorkloadRecommendationCollector) handleWorkloadRecommendationEvent(wr *
 }
 
 // workloadRecommendationChanged detects meaningful changes in a WorkloadRecommendation
-func (c *WorkloadRecommendationCollector) workloadRecommendationChanged(oldWR, newWR *unstructured.Unstructured) bool {
+func (c *WorkloadRecommendationCollector) workloadRecommendationChanged(
+	oldWR, newWR *unstructured.Unstructured,
+) bool {
 	// Ignore changes to ResourceVersion, which always changes even for irrelevant updates
 	if oldWR.GetResourceVersion() == newWR.GetResourceVersion() {
 		return false

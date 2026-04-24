@@ -108,7 +108,7 @@ data:
       - role: node
       metric_relabel_configs:
       - action: keep
-        regex: container_network_(receive|transmit)_(bytes|packets|errors|packets_dropped)_total|container_fs_(reads|writes)_(bytes_)?total|kubelet_volume_stats_(used|capacity|available)_bytes
+        regex: container_network_(receive|transmit)_(bytes|packets|errors|packets_dropped)_total|container_fs_(reads|writes)_(bytes_)?total|kubelet_volume_stats_(used|capacity|available)_bytes|container_cpu_cfs_(throttled_)?periods_total
         source_labels:
         - __name__
       - action: labeldrop
@@ -1424,7 +1424,7 @@ metadata:
   name: devzero-zxporter-controller-manager
   namespace: devzero-zxporter
 spec:
-  replicas: 1
+  replicas: 2
   selector:
     matchLabels:
       control-plane: controller-manager
