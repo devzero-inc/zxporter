@@ -26,6 +26,8 @@ const (
 	ClusterService_GetNetworkDependencies_FullMethodName      = "/api.v1.ClusterService/GetNetworkDependencies"
 	ClusterService_GetNetworkMetricsTimeSeries_FullMethodName = "/api.v1.ClusterService/GetNetworkMetricsTimeSeries"
 	ClusterService_GetNodeTypeCounts_FullMethodName           = "/api.v1.ClusterService/GetNodeTypeCounts"
+	ClusterService_GetClusterIDByName_FullMethodName          = "/api.v1.ClusterService/GetClusterIDByName"
+	ClusterService_GetClusterInfoByName_FullMethodName        = "/api.v1.ClusterService/GetClusterInfoByName"
 )
 
 // ClusterServiceClient is the client API for ClusterService service.
@@ -46,6 +48,10 @@ type ClusterServiceClient interface {
 	GetNetworkMetricsTimeSeries(ctx context.Context, in *GetNetworkMetricsTimeSeriesRequest, opts ...grpc.CallOption) (*GetNetworkMetricsTimeSeriesResponse, error)
 	// GetNodeTypeCounts retrieves node type breakdown for given clusters and time range
 	GetNodeTypeCounts(ctx context.Context, in *GetNodeTypeCountsRequest, opts ...grpc.CallOption) (*GetNodeTypeCountsResponse, error)
+	// GetClusterIDByName retrieves the ID of the first active cluster matching the given team and name
+	GetClusterIDByName(ctx context.Context, in *GetClusterIDByNameRequest, opts ...grpc.CallOption) (*GetClusterIDByNameResponse, error)
+	// GetClusterInfoByName retrieves full info of the first active cluster matching the given team and name
+	GetClusterInfoByName(ctx context.Context, in *GetClusterInfoByNameRequest, opts ...grpc.CallOption) (*GetClusterInfoByNameResponse, error)
 }
 
 type clusterServiceClient struct {
@@ -119,6 +125,24 @@ func (c *clusterServiceClient) GetNodeTypeCounts(ctx context.Context, in *GetNod
 	return out, nil
 }
 
+func (c *clusterServiceClient) GetClusterIDByName(ctx context.Context, in *GetClusterIDByNameRequest, opts ...grpc.CallOption) (*GetClusterIDByNameResponse, error) {
+	out := new(GetClusterIDByNameResponse)
+	err := c.cc.Invoke(ctx, ClusterService_GetClusterIDByName_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *clusterServiceClient) GetClusterInfoByName(ctx context.Context, in *GetClusterInfoByNameRequest, opts ...grpc.CallOption) (*GetClusterInfoByNameResponse, error) {
+	out := new(GetClusterInfoByNameResponse)
+	err := c.cc.Invoke(ctx, ClusterService_GetClusterInfoByName_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ClusterServiceServer is the server API for ClusterService service.
 // All implementations must embed UnimplementedClusterServiceServer
 // for forward compatibility
@@ -137,6 +161,10 @@ type ClusterServiceServer interface {
 	GetNetworkMetricsTimeSeries(context.Context, *GetNetworkMetricsTimeSeriesRequest) (*GetNetworkMetricsTimeSeriesResponse, error)
 	// GetNodeTypeCounts retrieves node type breakdown for given clusters and time range
 	GetNodeTypeCounts(context.Context, *GetNodeTypeCountsRequest) (*GetNodeTypeCountsResponse, error)
+	// GetClusterIDByName retrieves the ID of the first active cluster matching the given team and name
+	GetClusterIDByName(context.Context, *GetClusterIDByNameRequest) (*GetClusterIDByNameResponse, error)
+	// GetClusterInfoByName retrieves full info of the first active cluster matching the given team and name
+	GetClusterInfoByName(context.Context, *GetClusterInfoByNameRequest) (*GetClusterInfoByNameResponse, error)
 	mustEmbedUnimplementedClusterServiceServer()
 }
 
@@ -164,6 +192,12 @@ func (UnimplementedClusterServiceServer) GetNetworkMetricsTimeSeries(context.Con
 }
 func (UnimplementedClusterServiceServer) GetNodeTypeCounts(context.Context, *GetNodeTypeCountsRequest) (*GetNodeTypeCountsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetNodeTypeCounts not implemented")
+}
+func (UnimplementedClusterServiceServer) GetClusterIDByName(context.Context, *GetClusterIDByNameRequest) (*GetClusterIDByNameResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetClusterIDByName not implemented")
+}
+func (UnimplementedClusterServiceServer) GetClusterInfoByName(context.Context, *GetClusterInfoByNameRequest) (*GetClusterInfoByNameResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetClusterInfoByName not implemented")
 }
 func (UnimplementedClusterServiceServer) mustEmbedUnimplementedClusterServiceServer() {}
 
@@ -304,6 +338,42 @@ func _ClusterService_GetNodeTypeCounts_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ClusterService_GetClusterIDByName_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetClusterIDByNameRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterServiceServer).GetClusterIDByName(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterService_GetClusterIDByName_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterServiceServer).GetClusterIDByName(ctx, req.(*GetClusterIDByNameRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ClusterService_GetClusterInfoByName_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetClusterInfoByNameRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterServiceServer).GetClusterInfoByName(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterService_GetClusterInfoByName_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterServiceServer).GetClusterInfoByName(ctx, req.(*GetClusterInfoByNameRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ClusterService_ServiceDesc is the grpc.ServiceDesc for ClusterService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -338,6 +408,14 @@ var ClusterService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetNodeTypeCounts",
 			Handler:    _ClusterService_GetNodeTypeCounts_Handler,
+		},
+		{
+			MethodName: "GetClusterIDByName",
+			Handler:    _ClusterService_GetClusterIDByName_Handler,
+		},
+		{
+			MethodName: "GetClusterInfoByName",
+			Handler:    _ClusterService_GetClusterInfoByName_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

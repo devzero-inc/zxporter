@@ -54,6 +54,12 @@ const (
 	// ClusterServiceGetNodeTypeCountsProcedure is the fully-qualified name of the ClusterService's
 	// GetNodeTypeCounts RPC.
 	ClusterServiceGetNodeTypeCountsProcedure = "/api.v1.ClusterService/GetNodeTypeCounts"
+	// ClusterServiceGetClusterIDByNameProcedure is the fully-qualified name of the ClusterService's
+	// GetClusterIDByName RPC.
+	ClusterServiceGetClusterIDByNameProcedure = "/api.v1.ClusterService/GetClusterIDByName"
+	// ClusterServiceGetClusterInfoByNameProcedure is the fully-qualified name of the ClusterService's
+	// GetClusterInfoByName RPC.
+	ClusterServiceGetClusterInfoByNameProcedure = "/api.v1.ClusterService/GetClusterInfoByName"
 )
 
 // ClusterServiceClient is a client for the api.v1.ClusterService service.
@@ -72,6 +78,10 @@ type ClusterServiceClient interface {
 	GetNetworkMetricsTimeSeries(context.Context, *connect.Request[v1.GetNetworkMetricsTimeSeriesRequest]) (*connect.Response[v1.GetNetworkMetricsTimeSeriesResponse], error)
 	// GetNodeTypeCounts retrieves node type breakdown for given clusters and time range
 	GetNodeTypeCounts(context.Context, *connect.Request[v1.GetNodeTypeCountsRequest]) (*connect.Response[v1.GetNodeTypeCountsResponse], error)
+	// GetClusterIDByName retrieves the ID of the first active cluster matching the given team and name
+	GetClusterIDByName(context.Context, *connect.Request[v1.GetClusterIDByNameRequest]) (*connect.Response[v1.GetClusterIDByNameResponse], error)
+	// GetClusterInfoByName retrieves full info of the first active cluster matching the given team and name
+	GetClusterInfoByName(context.Context, *connect.Request[v1.GetClusterInfoByNameRequest]) (*connect.Response[v1.GetClusterInfoByNameResponse], error)
 }
 
 // NewClusterServiceClient constructs a client for the api.v1.ClusterService service. By default, it
@@ -119,6 +129,16 @@ func NewClusterServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			baseURL+ClusterServiceGetNodeTypeCountsProcedure,
 			opts...,
 		),
+		getClusterIDByName: connect.NewClient[v1.GetClusterIDByNameRequest, v1.GetClusterIDByNameResponse](
+			httpClient,
+			baseURL+ClusterServiceGetClusterIDByNameProcedure,
+			opts...,
+		),
+		getClusterInfoByName: connect.NewClient[v1.GetClusterInfoByNameRequest, v1.GetClusterInfoByNameResponse](
+			httpClient,
+			baseURL+ClusterServiceGetClusterInfoByNameProcedure,
+			opts...,
+		),
 	}
 }
 
@@ -131,6 +151,8 @@ type clusterServiceClient struct {
 	getNetworkDependencies      *connect.Client[v1.GetNetworkDependenciesRequest, v1.GetNetworkDependenciesResponse]
 	getNetworkMetricsTimeSeries *connect.Client[v1.GetNetworkMetricsTimeSeriesRequest, v1.GetNetworkMetricsTimeSeriesResponse]
 	getNodeTypeCounts           *connect.Client[v1.GetNodeTypeCountsRequest, v1.GetNodeTypeCountsResponse]
+	getClusterIDByName          *connect.Client[v1.GetClusterIDByNameRequest, v1.GetClusterIDByNameResponse]
+	getClusterInfoByName        *connect.Client[v1.GetClusterInfoByNameRequest, v1.GetClusterInfoByNameResponse]
 }
 
 // GetClustersBasicInfo calls api.v1.ClusterService.GetClustersBasicInfo.
@@ -168,6 +190,16 @@ func (c *clusterServiceClient) GetNodeTypeCounts(ctx context.Context, req *conne
 	return c.getNodeTypeCounts.CallUnary(ctx, req)
 }
 
+// GetClusterIDByName calls api.v1.ClusterService.GetClusterIDByName.
+func (c *clusterServiceClient) GetClusterIDByName(ctx context.Context, req *connect.Request[v1.GetClusterIDByNameRequest]) (*connect.Response[v1.GetClusterIDByNameResponse], error) {
+	return c.getClusterIDByName.CallUnary(ctx, req)
+}
+
+// GetClusterInfoByName calls api.v1.ClusterService.GetClusterInfoByName.
+func (c *clusterServiceClient) GetClusterInfoByName(ctx context.Context, req *connect.Request[v1.GetClusterInfoByNameRequest]) (*connect.Response[v1.GetClusterInfoByNameResponse], error) {
+	return c.getClusterInfoByName.CallUnary(ctx, req)
+}
+
 // ClusterServiceHandler is an implementation of the api.v1.ClusterService service.
 type ClusterServiceHandler interface {
 	// GetClustersBasicInfo retrieves basic information for all clusters in a team
@@ -184,6 +216,10 @@ type ClusterServiceHandler interface {
 	GetNetworkMetricsTimeSeries(context.Context, *connect.Request[v1.GetNetworkMetricsTimeSeriesRequest]) (*connect.Response[v1.GetNetworkMetricsTimeSeriesResponse], error)
 	// GetNodeTypeCounts retrieves node type breakdown for given clusters and time range
 	GetNodeTypeCounts(context.Context, *connect.Request[v1.GetNodeTypeCountsRequest]) (*connect.Response[v1.GetNodeTypeCountsResponse], error)
+	// GetClusterIDByName retrieves the ID of the first active cluster matching the given team and name
+	GetClusterIDByName(context.Context, *connect.Request[v1.GetClusterIDByNameRequest]) (*connect.Response[v1.GetClusterIDByNameResponse], error)
+	// GetClusterInfoByName retrieves full info of the first active cluster matching the given team and name
+	GetClusterInfoByName(context.Context, *connect.Request[v1.GetClusterInfoByNameRequest]) (*connect.Response[v1.GetClusterInfoByNameResponse], error)
 }
 
 // NewClusterServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -227,6 +263,16 @@ func NewClusterServiceHandler(svc ClusterServiceHandler, opts ...connect.Handler
 		svc.GetNodeTypeCounts,
 		opts...,
 	)
+	clusterServiceGetClusterIDByNameHandler := connect.NewUnaryHandler(
+		ClusterServiceGetClusterIDByNameProcedure,
+		svc.GetClusterIDByName,
+		opts...,
+	)
+	clusterServiceGetClusterInfoByNameHandler := connect.NewUnaryHandler(
+		ClusterServiceGetClusterInfoByNameProcedure,
+		svc.GetClusterInfoByName,
+		opts...,
+	)
 	return "/api.v1.ClusterService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case ClusterServiceGetClustersBasicInfoProcedure:
@@ -243,6 +289,10 @@ func NewClusterServiceHandler(svc ClusterServiceHandler, opts ...connect.Handler
 			clusterServiceGetNetworkMetricsTimeSeriesHandler.ServeHTTP(w, r)
 		case ClusterServiceGetNodeTypeCountsProcedure:
 			clusterServiceGetNodeTypeCountsHandler.ServeHTTP(w, r)
+		case ClusterServiceGetClusterIDByNameProcedure:
+			clusterServiceGetClusterIDByNameHandler.ServeHTTP(w, r)
+		case ClusterServiceGetClusterInfoByNameProcedure:
+			clusterServiceGetClusterInfoByNameHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -278,4 +328,12 @@ func (UnimplementedClusterServiceHandler) GetNetworkMetricsTimeSeries(context.Co
 
 func (UnimplementedClusterServiceHandler) GetNodeTypeCounts(context.Context, *connect.Request[v1.GetNodeTypeCountsRequest]) (*connect.Response[v1.GetNodeTypeCountsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.ClusterService.GetNodeTypeCounts is not implemented"))
+}
+
+func (UnimplementedClusterServiceHandler) GetClusterIDByName(context.Context, *connect.Request[v1.GetClusterIDByNameRequest]) (*connect.Response[v1.GetClusterIDByNameResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.ClusterService.GetClusterIDByName is not implemented"))
+}
+
+func (UnimplementedClusterServiceHandler) GetClusterInfoByName(context.Context, *connect.Request[v1.GetClusterInfoByNameRequest]) (*connect.Response[v1.GetClusterInfoByNameResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.ClusterService.GetClusterInfoByName is not implemented"))
 }

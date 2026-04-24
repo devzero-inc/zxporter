@@ -36,19 +36,11 @@ const (
 	// OperatorHealthServiceReportHealthProcedure is the fully-qualified name of the
 	// OperatorHealthService's ReportHealth RPC.
 	OperatorHealthServiceReportHealthProcedure = "/api.v1.OperatorHealthService/ReportHealth"
-	// OperatorHealthServiceGetClusterOperatorHealthProcedure is the fully-qualified name of the
-	// OperatorHealthService's GetClusterOperatorHealth RPC.
-	OperatorHealthServiceGetClusterOperatorHealthProcedure = "/api.v1.OperatorHealthService/GetClusterOperatorHealth"
-	// OperatorHealthServiceWatchClusterLifecycleProcedure is the fully-qualified name of the
-	// OperatorHealthService's WatchClusterLifecycle RPC.
-	OperatorHealthServiceWatchClusterLifecycleProcedure = "/api.v1.OperatorHealthService/WatchClusterLifecycle"
 )
 
 // OperatorHealthServiceClient is a client for the api.v1.OperatorHealthService service.
 type OperatorHealthServiceClient interface {
 	ReportHealth(context.Context, *connect.Request[v1.ReportHealthRequest]) (*connect.Response[v1.ReportHealthResponse], error)
-	GetClusterOperatorHealth(context.Context, *connect.Request[v1.GetClusterOperatorHealthRequest]) (*connect.Response[v1.GetClusterOperatorHealthResponse], error)
-	WatchClusterLifecycle(context.Context, *connect.Request[v1.WatchClusterLifecycleRequest]) (*connect.ServerStreamForClient[v1.WatchClusterLifecycleResponse], error)
 }
 
 // NewOperatorHealthServiceClient constructs a client for the api.v1.OperatorHealthService service.
@@ -66,24 +58,12 @@ func NewOperatorHealthServiceClient(httpClient connect.HTTPClient, baseURL strin
 			baseURL+OperatorHealthServiceReportHealthProcedure,
 			opts...,
 		),
-		getClusterOperatorHealth: connect.NewClient[v1.GetClusterOperatorHealthRequest, v1.GetClusterOperatorHealthResponse](
-			httpClient,
-			baseURL+OperatorHealthServiceGetClusterOperatorHealthProcedure,
-			opts...,
-		),
-		watchClusterLifecycle: connect.NewClient[v1.WatchClusterLifecycleRequest, v1.WatchClusterLifecycleResponse](
-			httpClient,
-			baseURL+OperatorHealthServiceWatchClusterLifecycleProcedure,
-			opts...,
-		),
 	}
 }
 
 // operatorHealthServiceClient implements OperatorHealthServiceClient.
 type operatorHealthServiceClient struct {
-	reportHealth             *connect.Client[v1.ReportHealthRequest, v1.ReportHealthResponse]
-	getClusterOperatorHealth *connect.Client[v1.GetClusterOperatorHealthRequest, v1.GetClusterOperatorHealthResponse]
-	watchClusterLifecycle    *connect.Client[v1.WatchClusterLifecycleRequest, v1.WatchClusterLifecycleResponse]
+	reportHealth *connect.Client[v1.ReportHealthRequest, v1.ReportHealthResponse]
 }
 
 // ReportHealth calls api.v1.OperatorHealthService.ReportHealth.
@@ -91,21 +71,9 @@ func (c *operatorHealthServiceClient) ReportHealth(ctx context.Context, req *con
 	return c.reportHealth.CallUnary(ctx, req)
 }
 
-// GetClusterOperatorHealth calls api.v1.OperatorHealthService.GetClusterOperatorHealth.
-func (c *operatorHealthServiceClient) GetClusterOperatorHealth(ctx context.Context, req *connect.Request[v1.GetClusterOperatorHealthRequest]) (*connect.Response[v1.GetClusterOperatorHealthResponse], error) {
-	return c.getClusterOperatorHealth.CallUnary(ctx, req)
-}
-
-// WatchClusterLifecycle calls api.v1.OperatorHealthService.WatchClusterLifecycle.
-func (c *operatorHealthServiceClient) WatchClusterLifecycle(ctx context.Context, req *connect.Request[v1.WatchClusterLifecycleRequest]) (*connect.ServerStreamForClient[v1.WatchClusterLifecycleResponse], error) {
-	return c.watchClusterLifecycle.CallServerStream(ctx, req)
-}
-
 // OperatorHealthServiceHandler is an implementation of the api.v1.OperatorHealthService service.
 type OperatorHealthServiceHandler interface {
 	ReportHealth(context.Context, *connect.Request[v1.ReportHealthRequest]) (*connect.Response[v1.ReportHealthResponse], error)
-	GetClusterOperatorHealth(context.Context, *connect.Request[v1.GetClusterOperatorHealthRequest]) (*connect.Response[v1.GetClusterOperatorHealthResponse], error)
-	WatchClusterLifecycle(context.Context, *connect.Request[v1.WatchClusterLifecycleRequest], *connect.ServerStream[v1.WatchClusterLifecycleResponse]) error
 }
 
 // NewOperatorHealthServiceHandler builds an HTTP handler from the service implementation. It
@@ -119,24 +87,10 @@ func NewOperatorHealthServiceHandler(svc OperatorHealthServiceHandler, opts ...c
 		svc.ReportHealth,
 		opts...,
 	)
-	operatorHealthServiceGetClusterOperatorHealthHandler := connect.NewUnaryHandler(
-		OperatorHealthServiceGetClusterOperatorHealthProcedure,
-		svc.GetClusterOperatorHealth,
-		opts...,
-	)
-	operatorHealthServiceWatchClusterLifecycleHandler := connect.NewServerStreamHandler(
-		OperatorHealthServiceWatchClusterLifecycleProcedure,
-		svc.WatchClusterLifecycle,
-		opts...,
-	)
 	return "/api.v1.OperatorHealthService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case OperatorHealthServiceReportHealthProcedure:
 			operatorHealthServiceReportHealthHandler.ServeHTTP(w, r)
-		case OperatorHealthServiceGetClusterOperatorHealthProcedure:
-			operatorHealthServiceGetClusterOperatorHealthHandler.ServeHTTP(w, r)
-		case OperatorHealthServiceWatchClusterLifecycleProcedure:
-			operatorHealthServiceWatchClusterLifecycleHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -148,12 +102,4 @@ type UnimplementedOperatorHealthServiceHandler struct{}
 
 func (UnimplementedOperatorHealthServiceHandler) ReportHealth(context.Context, *connect.Request[v1.ReportHealthRequest]) (*connect.Response[v1.ReportHealthResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.OperatorHealthService.ReportHealth is not implemented"))
-}
-
-func (UnimplementedOperatorHealthServiceHandler) GetClusterOperatorHealth(context.Context, *connect.Request[v1.GetClusterOperatorHealthRequest]) (*connect.Response[v1.GetClusterOperatorHealthResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.OperatorHealthService.GetClusterOperatorHealth is not implemented"))
-}
-
-func (UnimplementedOperatorHealthServiceHandler) WatchClusterLifecycle(context.Context, *connect.Request[v1.WatchClusterLifecycleRequest], *connect.ServerStream[v1.WatchClusterLifecycleResponse]) error {
-	return connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.OperatorHealthService.WatchClusterLifecycle is not implemented"))
 }

@@ -1609,6 +1609,14 @@ func (r *CollectionPolicyReconciler) restartCollectors(
 				logger,
 				r.TelemetryLogger,
 			)
+		case "karpenter-settings":
+			replacedCollector = collector.NewKarpenterSettingsCollector(
+				r.DynamicClient,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+				r.TelemetryLogger,
+			)
 		case "datadog":
 			replacedCollector = collector.NewDatadogCollector(
 				r.DynamicClient,
@@ -2837,6 +2845,25 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 			},
 		},
 		{
+			collector: collector.NewKarpenterSettingsCollector(
+				r.DynamicClient,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+				r.TelemetryLogger,
+			),
+			name: collector.KarpenterSettings,
+			factory: func() collector.ResourceCollector {
+				return collector.NewKarpenterSettingsCollector(
+					r.DynamicClient,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+					r.TelemetryLogger,
+				)
+			},
+		},
+		{
 			collector: collector.NewDatadogCollector(
 				r.DynamicClient,
 				config.TargetNamespaces,
@@ -3709,6 +3736,14 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 				)
 			case "karpenter":
 				replacedCollector = collector.NewKarpenterCollector(
+					r.DynamicClient,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+					r.TelemetryLogger,
+				)
+			case "karpenter-settings":
+				replacedCollector = collector.NewKarpenterSettingsCollector(
 					r.DynamicClient,
 					collector.DefaultMaxBatchSize,
 					collector.DefaultMaxBatchTime,

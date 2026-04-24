@@ -197,17 +197,6 @@ func (c *KarpenterCollector) Start(ctx context.Context) error {
 			Kind:         "EC2NodeClass",
 		},
 
-		// DevZero-specific CRDs
-		{
-			GroupVersion: schema.GroupVersion{Group: "devzero.karpenter.sh", Version: "v1alpha1"},
-			Resource:     "karpentersettings",
-			Kind:         "KarpenterSettings",
-			// Cluster-scoped singleton written by the Karpenter fork. spec carries user
-			// overrides; status.bootstrap carries the helm/env/CLI baseline observed at
-			// Karpenter startup. dakr reads status.bootstrap to populate helm_defaults
-			// placeholder text in the Advanced Karpenter Settings UI.
-			// https://github.com/devzero-inc/karpenter/blob/main/pkg/apis/devzero/v1alpha1/karpentersettings_types.go
-		},
 	}
 
 	// Create informers for each resource type

@@ -10,7 +10,7 @@ func AllResourceTypes() []ResourceType {
 		Role, RoleBinding, ClusterRole, ClusterRoleBinding, PodDisruptionBudget,
 		StorageClass, PersistentVolume, IngressClass, Node, NodeResource,
 		Cluster, ContainerResource,
-		Namespace, CSINode, Karpenter, Datadog, ArgoRollouts, KedaScaledJob,
+		Namespace, CSINode, Karpenter, KarpenterSettings, Datadog, ArgoRollouts, KedaScaledJob,
 		KedaScaledObject, ClusterSnapshot, CSIDriver, CSIStorageCapacity,
 		VolumeAttachment, KubeflowNotebook, VolcanoJob, SparkApplication, ScheduledSparkApplication,
 		CNPGCluster,
