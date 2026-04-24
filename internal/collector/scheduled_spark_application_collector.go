@@ -196,7 +196,10 @@ func (c *ScheduledSparkApplicationCollector) Start(ctx context.Context) error {
 				"resource": "scheduledsparkapplications",
 			},
 		)
-		return fmt.Errorf("failed to add event handler to informer for ScheduledSparkApplications: %w", err)
+		return fmt.Errorf(
+			"failed to add event handler to informer for ScheduledSparkApplications: %w",
+			err,
+		)
 	}
 
 	appKey := "scheduled-spark-applications"
@@ -250,7 +253,10 @@ func (c *ScheduledSparkApplicationCollector) Start(ctx context.Context) error {
 }
 
 // handleApplicationEvent processes ScheduledSparkApplication events
-func (c *ScheduledSparkApplicationCollector) handleApplicationEvent(obj *unstructured.Unstructured, eventType EventType) {
+func (c *ScheduledSparkApplicationCollector) handleApplicationEvent(
+	obj *unstructured.Unstructured,
+	eventType EventType,
+) {
 	name := obj.GetName()
 	namespace := obj.GetNamespace()
 
@@ -264,7 +270,15 @@ func (c *ScheduledSparkApplicationCollector) handleApplicationEvent(obj *unstruc
 	key := fmt.Sprintf("%s/%s", namespace, name)
 
 	// Send the processed resource to the batch channel
-	c.logger.Info("Collected ScheduledSparkApplication resource", "key", key, "eventType", eventType, "resource", processedObj)
+	c.logger.Info(
+		"Collected ScheduledSparkApplication resource",
+		"key",
+		key,
+		"eventType",
+		eventType,
+		"resource",
+		processedObj,
+	)
 	c.batchChan <- CollectedResource{
 		ResourceType: ScheduledSparkApplication,
 		Object:       processedObj,
@@ -275,7 +289,9 @@ func (c *ScheduledSparkApplicationCollector) handleApplicationEvent(obj *unstruc
 }
 
 // processApplication extracts relevant fields from ScheduledSparkApplication objects
-func (c *ScheduledSparkApplicationCollector) processApplication(obj *unstructured.Unstructured) map[string]interface{} {
+func (c *ScheduledSparkApplicationCollector) processApplication(
+	obj *unstructured.Unstructured,
+) map[string]interface{} {
 	result := map[string]interface{}{
 		"name":              obj.GetName(),
 		"namespace":         obj.GetNamespace(),
@@ -373,7 +389,11 @@ func (c *ScheduledSparkApplicationCollector) IsAvailable(ctx context.Context) bo
 
 	_, err := c.dynamicClient.Resource(gvr).List(ctx, metav1.ListOptions{Limit: 1})
 	if err != nil {
-		c.logger.Info("ScheduledSparkApplication resources not available in the cluster", "error", err.Error())
+		c.logger.Info(
+			"ScheduledSparkApplication resources not available in the cluster",
+			"error",
+			err.Error(),
+		)
 		c.telemetryLogger.Report(
 			gen.LogLevel_LOG_LEVEL_WARN,
 			"ScheduledSparkApplicationCollector_IsAvailable",

@@ -77,7 +77,8 @@ func NewResourceQuotaCollector(
 		excludedResourceQuotas: excludedResourceQuotasMap,
 		logger:                 newLogger,
 		telemetryLogger:        telemetryLogger,
-		cDHelper:               ChangeDetectionHelper{logger: newLogger}}
+		cDHelper:               ChangeDetectionHelper{logger: newLogger},
+	}
 }
 
 // Start begins the resourcequota collection process
@@ -153,7 +154,10 @@ func (c *ResourceQuotaCollector) Start(ctx context.Context) error {
 }
 
 // handleResourceQuotaEvent processes resourcequota events
-func (c *ResourceQuotaCollector) handleResourceQuotaEvent(rq *corev1.ResourceQuota, eventType EventType) {
+func (c *ResourceQuotaCollector) handleResourceQuotaEvent(
+	rq *corev1.ResourceQuota,
+	eventType EventType,
+) {
 	if c.isExcluded(rq) {
 		return
 	}

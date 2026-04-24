@@ -189,7 +189,10 @@ func (c *CronJobCollector) cronJobChanged(oldCronJob, newCronJob *batchv1.CronJo
 	}
 
 	// Check for last successful execution time changes
-	if !timePointerEqual(oldCronJob.Status.LastSuccessfulTime, newCronJob.Status.LastSuccessfulTime) {
+	if !timePointerEqual(
+		oldCronJob.Status.LastSuccessfulTime,
+		newCronJob.Status.LastSuccessfulTime,
+	) {
 		return true
 	}
 
@@ -209,12 +212,18 @@ func (c *CronJobCollector) cronJobChanged(oldCronJob, newCronJob *batchv1.CronJo
 	}
 
 	// Check for starting deadline seconds changes
-	if !int64PointerEqual(oldCronJob.Spec.StartingDeadlineSeconds, newCronJob.Spec.StartingDeadlineSeconds) {
+	if !int64PointerEqual(
+		oldCronJob.Spec.StartingDeadlineSeconds,
+		newCronJob.Spec.StartingDeadlineSeconds,
+	) {
 		return true
 	}
 
 	// Check for history limit changes
-	if !int32PointerEqual(oldCronJob.Spec.SuccessfulJobsHistoryLimit, newCronJob.Spec.SuccessfulJobsHistoryLimit) ||
+	if !int32PointerEqual(
+		oldCronJob.Spec.SuccessfulJobsHistoryLimit,
+		newCronJob.Spec.SuccessfulJobsHistoryLimit,
+	) ||
 		!int32PointerEqual(oldCronJob.Spec.FailedJobsHistoryLimit, newCronJob.Spec.FailedJobsHistoryLimit) {
 		return true
 	}
@@ -305,7 +314,6 @@ func (c *CronJobCollector) IsAvailable(ctx context.Context) bool {
 	_, err := c.client.BatchV1().CronJobs("").List(ctx, metav1.ListOptions{
 		Limit: 1,
 	})
-
 	if err != nil {
 		// Check if this is a "resource not found" type error
 		if strings.Contains(err.Error(), "the server could not find the requested resource") {

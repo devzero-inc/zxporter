@@ -1,0 +1,763 @@
+# Load simulation manifests for testing zxporter at scale.
+#
+# Creates a high density of Kubernetes objects across resource types
+# that zxporter collects, plus a churn generator that continuously
+# creates and deletes resources to stress watch/reconciliation loops.
+#
+# Usage:
+#   kubectl apply -f verification/load-simulation.yaml
+#   # To tear down:
+#   kubectl delete ns load-test
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: load-test
+  labels:
+    purpose: zxporter-load-test
+
+# ---------- ConfigMaps (bulk) ----------
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: config-batch-1
+  namespace: load-test
+  labels:
+    app: load-sim
+    test: zxporter-scale
+data:
+  key1: "value1"
+  key2: "value2"
+  key3: "value3"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: config-batch-2
+  namespace: load-test
+  labels:
+    app: load-sim
+    test: zxporter-scale
+data:
+  key1: "value1"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: config-batch-3
+  namespace: load-test
+  labels:
+    app: load-sim
+    test: zxporter-scale
+data:
+  key1: "value1"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: config-batch-4
+  namespace: load-test
+  labels:
+    app: load-sim
+    test: zxporter-scale
+data:
+  key1: "value1"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: config-batch-5
+  namespace: load-test
+  labels:
+    app: load-sim
+    test: zxporter-scale
+data:
+  key1: "value1"
+
+# ---------- Secrets (bulk) ----------
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: secret-batch-1
+  namespace: load-test
+  labels:
+    app: load-sim
+    test: zxporter-scale
+type: Opaque
+stringData:
+  password: "fake-secret-1"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: secret-batch-2
+  namespace: load-test
+  labels:
+    app: load-sim
+    test: zxporter-scale
+type: Opaque
+stringData:
+  password: "fake-secret-2"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: secret-batch-3
+  namespace: load-test
+  labels:
+    app: load-sim
+    test: zxporter-scale
+type: Opaque
+stringData:
+  password: "fake-secret-3"
+
+# ---------- ServiceAccounts ----------
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: load-sa-1
+  namespace: load-test
+  labels:
+    app: load-sim
+    test: zxporter-scale
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: load-sa-2
+  namespace: load-test
+  labels:
+    app: load-sim
+    test: zxporter-scale
+
+# ---------- RBAC ----------
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: load-role
+  namespace: load-test
+  labels:
+    app: load-sim
+    test: zxporter-scale
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "configmaps"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: load-rolebinding
+  namespace: load-test
+  labels:
+    app: load-sim
+    test: zxporter-scale
+subjects:
+  - kind: ServiceAccount
+    name: load-sa-1
+    namespace: load-test
+roleRef:
+  kind: Role
+  name: load-role
+  apiGroup: rbac.authorization.k8s.io
+
+# ---------- ResourceQuota & LimitRange ----------
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: load-quota
+  namespace: load-test
+  labels:
+    app: load-sim
+    test: zxporter-scale
+spec:
+  hard:
+    pods: "500"
+    requests.cpu: "100"
+    requests.memory: 200Gi
+    limits.cpu: "200"
+    limits.memory: 400Gi
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: load-limitrange
+  namespace: load-test
+  labels:
+    app: load-sim
+    test: zxporter-scale
+spec:
+  limits:
+    - default:
+        cpu: 200m
+        memory: 256Mi
+      defaultRequest:
+        cpu: 50m
+        memory: 64Mi
+      type: Container
+
+# ---------- Services ----------
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: load-svc-1
+  namespace: load-test
+  labels:
+    app: load-sim
+    test: zxporter-scale
+spec:
+  selector:
+    app: load-web
+  ports:
+    - port: 80
+      targetPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: load-svc-2
+  namespace: load-test
+  labels:
+    app: load-sim
+    test: zxporter-scale
+spec:
+  selector:
+    app: load-api
+  ports:
+    - port: 80
+      targetPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: load-svc-3
+  namespace: load-test
+  labels:
+    app: load-sim
+    test: zxporter-scale
+spec:
+  selector:
+    app: load-worker
+  ports:
+    - port: 80
+      targetPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: load-svc-headless
+  namespace: load-test
+  labels:
+    app: load-sim
+    test: zxporter-scale
+spec:
+  clusterIP: None
+  selector:
+    app: load-stateful
+  ports:
+    - port: 80
+      targetPort: 8080
+
+# ---------- NetworkPolicy ----------
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: load-netpol
+  namespace: load-test
+  labels:
+    app: load-sim
+    test: zxporter-scale
+spec:
+  podSelector:
+    matchLabels:
+      app: load-web
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: load-api
+      ports:
+        - port: 8080
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: load-api
+
+# ---------- Deployments (multiple, with replicas) ----------
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: load-web
+  namespace: load-test
+  labels:
+    app: load-sim
+    test: zxporter-scale
+spec:
+  replicas: 10
+  selector:
+    matchLabels:
+      app: load-web
+  template:
+    metadata:
+      labels:
+        app: load-web
+        test: zxporter-scale
+    spec:
+      terminationGracePeriodSeconds: 1
+      containers:
+        - name: web
+          image: registry.k8s.io/pause:3.9
+          resources:
+            requests:
+              cpu: 1m
+              memory: 4Mi
+            limits:
+              cpu: 10m
+              memory: 16Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: load-api
+  namespace: load-test
+  labels:
+    app: load-sim
+    test: zxporter-scale
+spec:
+  replicas: 10
+  selector:
+    matchLabels:
+      app: load-api
+  template:
+    metadata:
+      labels:
+        app: load-api
+        test: zxporter-scale
+    spec:
+      terminationGracePeriodSeconds: 1
+      containers:
+        - name: api
+          image: registry.k8s.io/pause:3.9
+          resources:
+            requests:
+              cpu: 1m
+              memory: 4Mi
+            limits:
+              cpu: 10m
+              memory: 16Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: load-worker
+  namespace: load-test
+  labels:
+    app: load-sim
+    test: zxporter-scale
+spec:
+  replicas: 8
+  selector:
+    matchLabels:
+      app: load-worker
+  template:
+    metadata:
+      labels:
+        app: load-worker
+        test: zxporter-scale
+    spec:
+      terminationGracePeriodSeconds: 1
+      containers:
+        - name: worker
+          image: registry.k8s.io/pause:3.9
+          resources:
+            requests:
+              cpu: 1m
+              memory: 4Mi
+            limits:
+              cpu: 10m
+              memory: 16Mi
+        - name: sidecar
+          image: registry.k8s.io/pause:3.9
+          resources:
+            requests:
+              cpu: 1m
+              memory: 4Mi
+            limits:
+              cpu: 10m
+              memory: 16Mi
+
+# ---------- StatefulSet ----------
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: load-stateful
+  namespace: load-test
+  labels:
+    app: load-sim
+    test: zxporter-scale
+spec:
+  serviceName: load-svc-headless
+  replicas: 5
+  selector:
+    matchLabels:
+      app: load-stateful
+  template:
+    metadata:
+      labels:
+        app: load-stateful
+        test: zxporter-scale
+    spec:
+      terminationGracePeriodSeconds: 1
+      containers:
+        - name: stateful
+          image: registry.k8s.io/pause:3.9
+          resources:
+            requests:
+              cpu: 1m
+              memory: 4Mi
+            limits:
+              cpu: 10m
+              memory: 16Mi
+
+# ---------- DaemonSet ----------
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: load-daemonset
+  namespace: load-test
+  labels:
+    app: load-sim
+    test: zxporter-scale
+spec:
+  selector:
+    matchLabels:
+      app: load-daemon
+  template:
+    metadata:
+      labels:
+        app: load-daemon
+        test: zxporter-scale
+    spec:
+      terminationGracePeriodSeconds: 1
+      containers:
+        - name: daemon
+          image: registry.k8s.io/pause:3.9
+          resources:
+            requests:
+              cpu: 1m
+              memory: 4Mi
+            limits:
+              cpu: 10m
+              memory: 16Mi
+
+# ---------- Jobs ----------
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: load-job-1
+  namespace: load-test
+  labels:
+    app: load-sim
+    test: zxporter-scale
+spec:
+  completions: 3
+  parallelism: 3
+  template:
+    metadata:
+      labels:
+        app: load-job
+        test: zxporter-scale
+    spec:
+      restartPolicy: Never
+      terminationGracePeriodSeconds: 1
+      containers:
+        - name: job
+          image: busybox:1.36
+          command: ["sh", "-c", "echo done && sleep 30"]
+          resources:
+            requests:
+              cpu: 1m
+              memory: 4Mi
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: load-job-2
+  namespace: load-test
+  labels:
+    app: load-sim
+    test: zxporter-scale
+spec:
+  completions: 5
+  parallelism: 5
+  template:
+    metadata:
+      labels:
+        app: load-job
+        test: zxporter-scale
+    spec:
+      restartPolicy: Never
+      terminationGracePeriodSeconds: 1
+      containers:
+        - name: job
+          image: busybox:1.36
+          command: ["sh", "-c", "echo done && sleep 60"]
+          resources:
+            requests:
+              cpu: 1m
+              memory: 4Mi
+
+# ---------- CronJob ----------
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: load-cronjob
+  namespace: load-test
+  labels:
+    app: load-sim
+    test: zxporter-scale
+spec:
+  schedule: "*/1 * * * *"
+  successfulJobsHistoryLimit: 5
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: load-cronjob
+            test: zxporter-scale
+        spec:
+          restartPolicy: Never
+          terminationGracePeriodSeconds: 1
+          containers:
+            - name: cron
+              image: busybox:1.36
+              command: ["sh", "-c", "echo tick && sleep 10"]
+              resources:
+                requests:
+                  cpu: 1m
+                  memory: 4Mi
+
+# ---------- HPA ----------
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: load-hpa-web
+  namespace: load-test
+  labels:
+    app: load-sim
+    test: zxporter-scale
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: load-web
+  minReplicas: 5
+  maxReplicas: 30
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 50
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: load-hpa-api
+  namespace: load-test
+  labels:
+    app: load-sim
+    test: zxporter-scale
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: load-api
+  minReplicas: 5
+  maxReplicas: 20
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+
+# ---------- PersistentVolumeClaims ----------
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: load-pvc-1
+  namespace: load-test
+  labels:
+    app: load-sim
+    test: zxporter-scale
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: load-pvc-2
+  namespace: load-test
+  labels:
+    app: load-sim
+    test: zxporter-scale
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 1Gi
+
+# ========================================
+# Resource Churn Generator
+#
+# Creates and deletes ConfigMaps and Pods in a loop to produce
+# continuous API object churn, stressing zxporter's watch handlers.
+# ========================================
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: churn-generator
+  namespace: load-test
+  labels:
+    app: load-sim
+    test: zxporter-scale
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: churn-generator
+  namespace: load-test
+  labels:
+    app: load-sim
+    test: zxporter-scale
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "configmaps"]
+    verbs: ["create", "delete", "list", "get"]
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["create", "delete", "list", "get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: churn-generator
+  namespace: load-test
+  labels:
+    app: load-sim
+    test: zxporter-scale
+subjects:
+  - kind: ServiceAccount
+    name: churn-generator
+    namespace: load-test
+roleRef:
+  kind: Role
+  name: churn-generator
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: churn-generator
+  namespace: load-test
+  labels:
+    app: load-sim
+    test: zxporter-scale
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: churn-generator
+  template:
+    metadata:
+      labels:
+        app: churn-generator
+        test: zxporter-scale
+    spec:
+      serviceAccountName: churn-generator
+      terminationGracePeriodSeconds: 1
+      containers:
+        - name: churn
+          image: bitnami/kubectl:latest
+          command: ["/bin/bash"]
+          args:
+            - "-c"
+            - |
+              BATCH=0
+              while true; do
+                BATCH=$((BATCH + 1))
+                echo "=== Churn batch $BATCH ==="
+
+                # Create a wave of ConfigMaps
+                for i in $(seq 1 20); do
+                  kubectl create configmap "churn-cm-${BATCH}-${i}" \
+                    -n load-test \
+                    --from-literal=batch="${BATCH}" \
+                    --from-literal=index="${i}" \
+                    --from-literal=data="$(head -c 512 /dev/urandom | base64)" \
+                    2>/dev/null &
+                done
+                wait
+
+                # Create a wave of short-lived Pods
+                for i in $(seq 1 10); do
+                  kubectl run "churn-pod-${BATCH}-${i}" \
+                    -n load-test \
+                    --image=busybox:1.36 \
+                    --restart=Never \
+                    --labels="app=churn-pod,batch=${BATCH}" \
+                    --command -- sh -c "sleep $((RANDOM % 20 + 5))" \
+                    2>/dev/null &
+                done
+                wait
+
+                # Let resources exist and be collected
+                sleep 15
+
+                # Delete the ConfigMaps from this batch
+                for i in $(seq 1 20); do
+                  kubectl delete configmap "churn-cm-${BATCH}-${i}" \
+                    -n load-test --ignore-not-found 2>/dev/null &
+                done
+                wait
+
+                # Clean up completed/old churn pods
+                kubectl delete pods -n load-test -l app=churn-pod \
+                  --field-selector=status.phase!=Running --ignore-not-found 2>/dev/null
+
+                sleep 5
+              done
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi

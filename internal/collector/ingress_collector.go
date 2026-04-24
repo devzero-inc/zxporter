@@ -245,7 +245,11 @@ func ingressRulesEqual(rules1, rules2 []networkingv1.IngressRule) bool {
 			for _, path := range rule.HTTP.Paths {
 				pathKey := fmt.Sprintf("%s:%s:%s", key, path.Path, string(*path.PathType))
 				if path.Backend.Service != nil {
-					pathKey += fmt.Sprintf(":%s:%s", path.Backend.Service.Name, path.Backend.Service.Port.String())
+					pathKey += fmt.Sprintf(
+						":%s:%s",
+						path.Backend.Service.Name,
+						path.Backend.Service.Port.String(),
+					)
 				}
 				rules1Map[pathKey] = true
 			}
@@ -260,7 +264,11 @@ func ingressRulesEqual(rules1, rules2 []networkingv1.IngressRule) bool {
 			for _, path := range rule.HTTP.Paths {
 				pathKey := fmt.Sprintf("%s:%s:%s", key, path.Path, string(*path.PathType))
 				if path.Backend.Service != nil {
-					pathKey += fmt.Sprintf(":%s:%s", path.Backend.Service.Name, path.Backend.Service.Port.String())
+					pathKey += fmt.Sprintf(
+						":%s:%s",
+						path.Backend.Service.Name,
+						path.Backend.Service.Port.String(),
+					)
 				}
 				rules2Map[pathKey] = true
 			}
@@ -468,7 +476,6 @@ func (c *IngressCollector) IsAvailable(ctx context.Context) bool {
 	_, err := c.client.NetworkingV1().Ingresses("").List(ctx, metav1.ListOptions{
 		Limit: 1,
 	})
-
 	if err != nil {
 		// Check if this is a "resource not found" type error
 		if strings.Contains(err.Error(),

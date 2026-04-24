@@ -139,7 +139,10 @@ func (c *IngressClassCollector) Start(ctx context.Context) error {
 }
 
 // handleIngressClassEvent processes IngressClass events
-func (c *IngressClassCollector) handleIngressClassEvent(ingressClass *networkingv1.IngressClass, eventType EventType) {
+func (c *IngressClassCollector) handleIngressClassEvent(
+	ingressClass *networkingv1.IngressClass,
+	eventType EventType,
+) {
 	if c.isExcluded(ingressClass) {
 		return
 	}
@@ -155,7 +158,9 @@ func (c *IngressClassCollector) handleIngressClassEvent(ingressClass *networking
 }
 
 // ingressClassChanged detects meaningful changes in an IngressClass
-func (c *IngressClassCollector) ingressClassChanged(oldIngressClass, newIngressClass *networkingv1.IngressClass) bool {
+func (c *IngressClassCollector) ingressClassChanged(
+	oldIngressClass, newIngressClass *networkingv1.IngressClass,
+) bool {
 	changed := c.cDHelper.objectMetaChanged(
 		c.GetType(),
 		oldIngressClass.Name,
@@ -247,7 +252,6 @@ func (c *IngressClassCollector) IsAvailable(ctx context.Context) bool {
 	_, err := c.client.NetworkingV1().IngressClasses().List(ctx, metav1.ListOptions{
 		Limit: 1,
 	})
-
 	if err != nil {
 		// Check if this is a "resource not found" type error
 		if strings.Contains(err.Error(),

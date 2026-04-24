@@ -5,9 +5,11 @@ import (
 )
 
 // aliases for proto types to maintain compatibility for now
-type ResourceIdentifier = gen.ResourceIdentifier
-type ClusterSnapshot = gen.ClusterSnapshot
-type ClusterInfo = gen.ClusterInfo
-type NodeData = gen.NodeData
-type Namespace = gen.Namespace
-type ClusterScopedSnapshot = gen.ClusterScopedSnapshot
+type (
+	ResourceIdentifier    = gen.ResourceIdentifier
+	ClusterSnapshot       = gen.ClusterSnapshot
+	ClusterInfo           = gen.ClusterInfo
+	NodeData              = gen.NodeData
+	Namespace             = gen.Namespace
+	ClusterScopedSnapshot = gen.ClusterScopedSnapshot
+)

@@ -21,7 +21,7 @@ func init() {
 // mountCgroup2 mounts cgroup2.
 // It should be used on systems that don't have cgroup2 mounted by default.
 func mountCgroup2() error {
-	err := os.Mkdir(mountPoint, 0755)
+	err := os.Mkdir(mountPoint, 0o755)
 	if err != nil {
 		return fmt.Errorf("creating directory at %q: %w", mountPoint, err)
 	}

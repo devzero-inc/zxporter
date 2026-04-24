@@ -50,7 +50,7 @@ func (c *mpaServiceClient) StreamWorkloadMetrics(ctx context.Context, opts ...gr
 
 type MpaService_StreamWorkloadMetricsClient interface {
 	Send(*MpaWorkloadSubscription) error
-	Recv() (*ContainerMetricsBatch, error)
+	Recv() (*MpaStreamResponse, error)
 	grpc.ClientStream
 }
 
@@ -62,8 +62,8 @@ func (x *mpaServiceStreamWorkloadMetricsClient) Send(m *MpaWorkloadSubscription)
 	return x.ClientStream.SendMsg(m)
 }
 
-func (x *mpaServiceStreamWorkloadMetricsClient) Recv() (*ContainerMetricsBatch, error) {
-	m := new(ContainerMetricsBatch)
+func (x *mpaServiceStreamWorkloadMetricsClient) Recv() (*MpaStreamResponse, error) {
+	m := new(MpaStreamResponse)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
@@ -105,7 +105,7 @@ func _MpaService_StreamWorkloadMetrics_Handler(srv interface{}, stream grpc.Serv
 }
 
 type MpaService_StreamWorkloadMetricsServer interface {
-	Send(*ContainerMetricsBatch) error
+	Send(*MpaStreamResponse) error
 	Recv() (*MpaWorkloadSubscription, error)
 	grpc.ServerStream
 }
@@ -114,7 +114,7 @@ type mpaServiceStreamWorkloadMetricsServer struct {
 	grpc.ServerStream
 }
 
-func (x *mpaServiceStreamWorkloadMetricsServer) Send(m *ContainerMetricsBatch) error {
+func (x *mpaServiceStreamWorkloadMetricsServer) Send(m *MpaStreamResponse) error {
 	return x.ServerStream.SendMsg(m)
 }
 

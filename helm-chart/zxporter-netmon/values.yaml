@@ -2,7 +2,7 @@ image:
   repository: devzeroinc/zxporter-netmon
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "v0.0.52"
+  tag: "v0.0.74"
 
 imagePullSecrets: []
 nameOverride: ""
@@ -54,6 +54,7 @@ dnsPolicy: ClusterFirstWithHostNet
 
 # Config for collection
 config:
+  containerPort: 8081
   logLevel: "info"
   mainConfigMapName: "devzero-zxporter-env-config"
   # Default scrape interval 5s

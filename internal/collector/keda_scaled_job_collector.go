@@ -161,7 +161,10 @@ func (c *ScaledJobCollector) Start(ctx context.Context) error {
 }
 
 // handleScaledJobEvent processes ScaledJob events
-func (c *ScaledJobCollector) handleScaledJobEvent(scaledJob *kedav1alpha1.ScaledJob, eventType EventType) {
+func (c *ScaledJobCollector) handleScaledJobEvent(
+	scaledJob *kedav1alpha1.ScaledJob,
+	eventType EventType,
+) {
 	if c.isExcluded(scaledJob) {
 		return
 	}
@@ -177,7 +180,9 @@ func (c *ScaledJobCollector) handleScaledJobEvent(scaledJob *kedav1alpha1.Scaled
 }
 
 // scaledJobChanged detects meaningful changes in a ScaledJob
-func (c *ScaledJobCollector) scaledJobChanged(oldScaledJob, newScaledJob *kedav1alpha1.ScaledJob) bool {
+func (c *ScaledJobCollector) scaledJobChanged(
+	oldScaledJob, newScaledJob *kedav1alpha1.ScaledJob,
+) bool {
 	changed := c.cDHelper.objectMetaChanged(
 		c.GetType(),
 		oldScaledJob.Name,
@@ -212,7 +217,9 @@ func (c *ScaledJobCollector) scaledJobChanged(oldScaledJob, newScaledJob *kedav1
 }
 
 // scaledJobStatusEqual compares ScaledJob status for meaningful changes
-func (c *ScaledJobCollector) scaledJobStatusEqual(oldStatus, newStatus *kedav1alpha1.ScaledJobStatus) bool {
+func (c *ScaledJobCollector) scaledJobStatusEqual(
+	oldStatus, newStatus *kedav1alpha1.ScaledJobStatus,
+) bool {
 	// Compare last active time changes (important for job scheduling)
 	if (oldStatus.LastActiveTime == nil) != (newStatus.LastActiveTime == nil) {
 		return false

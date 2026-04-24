@@ -11,7 +11,7 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/name: devzero-zxporter
   name: devzero-zxporter-leader-election-role
-  namespace: {{ .Values.namespace }}
+  namespace: {{ .Release.Namespace }}
 rules:
   # Leader election coordination
   - apiGroups:
@@ -465,6 +465,32 @@ rules:
   - get
   - list
   - watch
+# WorkloadRecommendation CRD for syncing in-cluster recommendations back to control plane
+- apiGroups:
+  - dakr.devzero.io
+  resources:
+  - workloadrecommendations
+  verbs:
+  - get
+  - list
+  - watch
+# WorkloadRule CRD for syncing OOM events back to control plane
+- apiGroups:
+  - dakr.devzero.io
+  resources:
+  - workloadrules
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - postgresql.cnpg.io
+  resources:
+  - clusters
+  verbs:
+  - get
+  - list
+  - watch
 - apiGroups:
   - metrics.k8s.io
   resources:
@@ -553,7 +579,7 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/name: devzero-zxporter
   name: devzero-zxporter-leader-election-rolebinding
-  namespace: {{ .Values.namespace }}
+  namespace: {{ .Release.Namespace }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
@@ -561,7 +587,7 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: devzero-zxporter-controller-manager
-    namespace: {{ .Values.namespace }}
+    namespace: {{ .Release.Namespace }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -577,7 +603,7 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: devzero-zxporter-controller-manager
-    namespace: {{ .Values.namespace }}
+    namespace: {{ .Release.Namespace }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -590,4 +616,4 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: devzero-zxporter-controller-manager
-    namespace: {{ .Values.namespace }}
+    namespace: {{ .Release.Namespace }}

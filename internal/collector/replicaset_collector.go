@@ -77,7 +77,8 @@ func NewReplicaSetCollector(
 		excludedReplicaSets: excludedReplicaSetsMap,
 		logger:              newLogger,
 		telemetryLogger:     telemetryLogger,
-		cDHelper:            ChangeDetectionHelper{logger: newLogger}}
+		cDHelper:            ChangeDetectionHelper{logger: newLogger},
+	}
 }
 
 // Start begins the replicaset collection process
@@ -153,7 +154,10 @@ func (c *ReplicaSetCollector) Start(ctx context.Context) error {
 }
 
 // handleReplicaSetEvent processes replicaset events
-func (c *ReplicaSetCollector) handleReplicaSetEvent(replicaset *appsv1.ReplicaSet, eventType EventType) {
+func (c *ReplicaSetCollector) handleReplicaSetEvent(
+	replicaset *appsv1.ReplicaSet,
+	eventType EventType,
+) {
 	if c.isExcluded(replicaset) {
 		return
 	}
@@ -169,7 +173,9 @@ func (c *ReplicaSetCollector) handleReplicaSetEvent(replicaset *appsv1.ReplicaSe
 }
 
 // replicaSetChanged detects meaningful changes in a replicaset
-func (c *ReplicaSetCollector) replicaSetChanged(oldReplicaSet, newReplicaSet *appsv1.ReplicaSet) bool {
+func (c *ReplicaSetCollector) replicaSetChanged(
+	oldReplicaSet, newReplicaSet *appsv1.ReplicaSet,
+) bool {
 	changed := c.cDHelper.objectMetaChanged(
 		c.GetType(),
 		oldReplicaSet.Name,

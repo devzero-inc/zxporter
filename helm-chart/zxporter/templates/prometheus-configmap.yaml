@@ -12,7 +12,7 @@ metadata:
     helm.sh/chart: prometheus-27.20.0
     app.kubernetes.io/part-of: dz-prometheus
   name: prometheus-dz-prometheus-server
-  namespace: {{ .Values.namespace }}
+  namespace: {{ .Release.Namespace }}
 data:
   allow-snippet-annotations: "false"
   alerting_rules.yml: |
@@ -21,9 +21,9 @@ data:
     {}
   prometheus.yml: |
     global:
-      evaluation_interval: 1m
-      scrape_interval: 1m
-      scrape_timeout: 10s
+      evaluation_interval: {{ .Values.prometheus.evaluationInterval }}
+      scrape_interval: {{ .Values.prometheus.scrapeInterval }}
+      scrape_timeout: {{ .Values.prometheus.scrapeTimeout }}
     rule_files:
     - /etc/config/recording_rules.yml
     - /etc/config/alerting_rules.yml
@@ -53,7 +53,7 @@ data:
         ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
       metric_relabel_configs:
       - action: keep
-        regex: 'node_network_(receive|transmit)_(bytes|packets|errs|drop)_total|node_disk_(read_bytes|written_bytes|reads_completed|writes_completed)_total'
+        regex: 'node_network_(receive|transmit)_(bytes|packets|errs|drop)_total|node_disk_(read_bytes|written_bytes|reads_completed|writes_completed)_total|kubelet_volume_stats_(used|capacity|available)_bytes'
         source_labels:
         - __name__
     - bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
@@ -75,7 +75,7 @@ data:
         ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
       metric_relabel_configs:
       - action: keep
-        regex: 'container_network_(receive|transmit)_(bytes|packets|errors|packets_dropped)_total|container_fs_(reads|writes)_(bytes_)?total'
+        regex: 'container_network_(receive|transmit)_(bytes|packets|errors|packets_dropped)_total|container_fs_(reads|writes)_(bytes_)?total|kubelet_volume_stats_(used|capacity|available)_bytes|container_cpu_cfs_(throttled_)?periods_total'
         source_labels:
         - __name__
       - action: labeldrop
@@ -193,7 +193,7 @@ data:
         target_label: node
       metric_relabel_configs:
       - action: keep
-        regex: 'node_network_(receive|transmit)_(bytes|packets|errs|drop)_total|node_disk_(read_bytes|written_bytes|reads_completed|writes_completed)_total'
+        regex: 'node_network_(receive|transmit)_(bytes|packets|errs|drop)_total|node_disk_(read_bytes|written_bytes|reads_completed|writes_completed)_total|kubelet_volume_stats_(used|capacity|available)_bytes'
         source_labels:
         - __name__
   recording_rules.yml: |

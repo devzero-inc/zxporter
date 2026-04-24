@@ -103,6 +103,9 @@ type Exclusions struct {
 	// Spark Applications Exclusions
 	ExcludedSparkApplications          []ExcludedSparkApplication          `json:"excludedSparkApplications,omitempty"`
 	ExcludedScheduledSparkApplications []ExcludedScheduledSparkApplication `json:"excludedScheduledSparkApplications,omitempty"`
+
+	// CloudNativePG Exclusions
+	ExcludedCNPGClusters []ExcludedCNPGCluster `json:"excludedCNPGClusters,omitempty"`
 }
 
 // Common exclusion patterns
@@ -422,6 +425,15 @@ type ExcludedScheduledSparkApplication struct {
 	Name string `json:"name"`
 }
 
+// ExcludedCNPGCluster identifies a CloudNativePG cluster to exclude from collection
+type ExcludedCNPGCluster struct {
+	// Namespace is the CNPG cluster's namespace
+	Namespace string `json:"namespace"`
+
+	// Name is the CNPG cluster's name
+	Name string `json:"name"`
+}
+
 // Policies defines collection behavior
 type Policies struct {
 	// KubeContextName is the name of the current context being used to apply the installation yaml
@@ -525,8 +537,8 @@ type CollectionPolicy struct {
 
 // CollectionPolicyList contains a list of CollectionPolicy
 type CollectionPolicyList struct {
-	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
+	metav1.TypeMeta `                   json:",inline"`
+	metav1.ListMeta `                   json:"metadata,omitempty"`
 	Items           []CollectionPolicy `json:"items"`
 }
 

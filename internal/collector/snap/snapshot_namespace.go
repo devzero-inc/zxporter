@@ -7,9 +7,14 @@ import (
 	"fmt"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-func (c *ClusterSnapshotter) captureNamespaces(ctx context.Context, snapshot *ClusterSnapshot) error {
+//nolint:unparam
+func (c *ClusterSnapshotter) captureNamespaces(
+	ctx context.Context,
+	snapshot *ClusterSnapshot,
+) error {
 	targetNamespaces := c.getTargetNamespaces(ctx)
 
 	for _, nsName := range targetNamespaces {
@@ -37,6 +42,7 @@ func (c *ClusterSnapshotter) captureNamespaces(ctx context.Context, snapshot *Cl
 			KedaScaledJobs:           make(map[string]*ResourceIdentifier), // Not implemented
 			KedaScaledObjects:        make(map[string]*ResourceIdentifier), // Not implemented
 			CsiStorageCapacities:     make(map[string]*ResourceIdentifier),
+			CnpgClusters:             make(map[string]*ResourceIdentifier),
 		}
 
 		ns, err := c.client.CoreV1().Namespaces().Get(ctx, nsName, metav1.GetOptions{})
@@ -62,7 +68,11 @@ func (c *ClusterSnapshotter) captureNamespaces(ctx context.Context, snapshot *Cl
 	return nil
 }
 
-func (c *ClusterSnapshotter) captureNamespaceResources(ctx context.Context, namespace string, nsData *Namespace) error {
+func (c *ClusterSnapshotter) captureNamespaceResources(
+	ctx context.Context,
+	namespace string,
+	nsData *Namespace,
+) error {
 	// Capture unscheduled pods only (scheduled pods are captured with nodes)
 	pods, err := c.client.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
@@ -121,7 +131,12 @@ func (c *ClusterSnapshotter) captureNamespaceResources(ctx context.Context, name
 	return nil
 }
 
-func (c *ClusterSnapshotter) captureOtherResources(ctx context.Context, namespace string, nsData *Namespace) {
+//nolint:gocyclo
+func (c *ClusterSnapshotter) captureOtherResources(
+	ctx context.Context,
+	namespace string,
+	nsData *Namespace,
+) {
 	if services, err := c.client.CoreV1().Services(namespace).List(ctx, metav1.ListOptions{}); err == nil {
 		for _, svc := range services.Items {
 			uid := string(svc.UID)
@@ -252,6 +267,21 @@ func (c *ClusterSnapshotter) captureOtherResources(ctx context.Context, namespac
 		for _, csc := range csiStorageCapacities.Items {
 			uid := string(csc.UID)
 			nsData.CsiStorageCapacities[uid] = &ResourceIdentifier{Name: csc.Name}
+		}
+	}
+
+	// Capture CloudNativePG clusters
+	if c.dynamicClient != nil {
+		cnpgGVR := schema.GroupVersionResource{
+			Group:    "postgresql.cnpg.io",
+			Version:  "v1",
+			Resource: "clusters",
+		}
+		if cnpgList, err := c.dynamicClient.Resource(cnpgGVR).Namespace(namespace).List(ctx, metav1.ListOptions{}); err == nil {
+			for _, cluster := range cnpgList.Items {
+				uid := string(cluster.GetUID())
+				nsData.CnpgClusters[uid] = &ResourceIdentifier{Name: cluster.GetName()}
+			}
 		}
 	}
 }

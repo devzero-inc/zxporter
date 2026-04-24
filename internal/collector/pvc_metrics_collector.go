@@ -182,7 +182,10 @@ func (c *PersistentVolumeClaimMetricsCollector) Start(ctx context.Context) error
 		select {
 		case <-ctx.Done():
 			if err := c.Stop(); err != nil {
-				c.logger.Error(err, "Failed to stop PVC metrics collector during context cancellation")
+				c.logger.Error(
+					err,
+					"Failed to stop PVC metrics collector during context cancellation",
+				)
 			}
 		case <-stopCh:
 		}
@@ -505,9 +508,21 @@ func (c *PersistentVolumeClaimMetricsCollector) getFilesystemUsageFromPrometheus
 
 	// Prometheus queries for PVC volume stats
 	queries := map[string]string{
-		"used":      fmt.Sprintf(`kubelet_volume_stats_used_bytes{namespace="%s", persistentvolumeclaim="%s"}`, pvc.Namespace, pvc.Name),
-		"capacity":  fmt.Sprintf(`kubelet_volume_stats_capacity_bytes{namespace="%s", persistentvolumeclaim="%s"}`, pvc.Namespace, pvc.Name),
-		"available": fmt.Sprintf(`kubelet_volume_stats_available_bytes{namespace="%s", persistentvolumeclaim="%s"}`, pvc.Namespace, pvc.Name),
+		"used": fmt.Sprintf(
+			`kubelet_volume_stats_used_bytes{namespace="%s", persistentvolumeclaim="%s"}`,
+			pvc.Namespace,
+			pvc.Name,
+		),
+		"capacity": fmt.Sprintf(
+			`kubelet_volume_stats_capacity_bytes{namespace="%s", persistentvolumeclaim="%s"}`,
+			pvc.Namespace,
+			pvc.Name,
+		),
+		"available": fmt.Sprintf(
+			`kubelet_volume_stats_available_bytes{namespace="%s", persistentvolumeclaim="%s"}`,
+			pvc.Namespace,
+			pvc.Name,
+		),
 	}
 
 	usage := &filesystemUsage{}
@@ -559,7 +574,10 @@ func (c *PersistentVolumeClaimMetricsCollector) getFilesystemUsageFromPrometheus
 }
 
 // emitSnapshot sends the metrics snapshot to the batch channel
-func (c *PersistentVolumeClaimMetricsCollector) emitSnapshot(pvc *corev1.PersistentVolumeClaim, snapshot *PersistentVolumeClaimMetricsSnapshot) {
+func (c *PersistentVolumeClaimMetricsCollector) emitSnapshot(
+	pvc *corev1.PersistentVolumeClaim,
+	snapshot *PersistentVolumeClaimMetricsSnapshot,
+) {
 	pvcKey := fmt.Sprintf("pvc/%s/%s", pvc.Namespace, pvc.Name)
 
 	c.logger.V(1).Info("Emitting PVC metrics snapshot",

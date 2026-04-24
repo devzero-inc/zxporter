@@ -143,6 +143,13 @@ const (
 	VolcanoJob
 	SparkApplication
 	ScheduledSparkApplication
+	WorkloadRecommendation
+	WorkloadRule
+	CNPGCluster
+	ContainerOOMEvent
+	ContainerCrashLoopEvent
+	ContainerStartupLifecycle
+	ContainerCPUThrottleEvent
 )
 
 // String returns the string representation of the ResourceType
@@ -200,6 +207,13 @@ func (r ResourceType) String() string {
 		VolcanoJob:                   "volcano_job",
 		SparkApplication:             "spark_application",
 		ScheduledSparkApplication:    "scheduled_spark_application",
+		WorkloadRecommendation:       "workload_recommendation",
+		WorkloadRule:                 "workload_rule",
+		CNPGCluster:                  "cnpg_cluster",
+		ContainerOOMEvent:            "container_oom_event",
+		ContainerCrashLoopEvent:      "container_crashloop_event",
+		ContainerStartupLifecycle:    "container_startup_lifecycle",
+		ContainerCPUThrottleEvent:    "container_cpu_throttle_event",
 	}
 
 	if name, ok := names[r]; ok {
@@ -315,6 +329,20 @@ func (r ResourceType) ProtoType() gen.ResourceType {
 		return gen.ResourceType_RESOURCE_TYPE_SPARK_APPLICATION
 	case ScheduledSparkApplication:
 		return gen.ResourceType_RESOURCE_TYPE_SCHEDULED_SPARK_APPLICATION
+	case WorkloadRecommendation:
+		return gen.ResourceType_RESOURCE_TYPE_WORKLOAD_RECOMMENDATION
+	case WorkloadRule:
+		return gen.ResourceType_RESOURCE_TYPE_WORKLOAD_RULE
+	case CNPGCluster:
+		return gen.ResourceType_RESOURCE_TYPE_CNPG_CLUSTER
+	case ContainerOOMEvent:
+		return gen.ResourceType_RESOURCE_TYPE_CONTAINER_OOM_EVENT
+	case ContainerCrashLoopEvent:
+		return gen.ResourceType_RESOURCE_TYPE_CONTAINER_CRASHLOOP_EVENT
+	case ContainerStartupLifecycle:
+		return gen.ResourceType_RESOURCE_TYPE_CONTAINER_STARTUP_LIFECYCLE
+	case ContainerCPUThrottleEvent:
+		return gen.ResourceType_RESOURCE_TYPE_CONTAINER_CPU_THROTTLE_EVENT
 	default:
 		return gen.ResourceType_RESOURCE_TYPE_UNSPECIFIED
 	}

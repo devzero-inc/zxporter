@@ -42,9 +42,18 @@ const (
 	// ClusterServiceCreateClusterTokenProcedure is the fully-qualified name of the ClusterService's
 	// CreateClusterToken RPC.
 	ClusterServiceCreateClusterTokenProcedure = "/api.v1.ClusterService/CreateClusterToken"
+	// ClusterServiceGetClustersDeltaMetricsProcedure is the fully-qualified name of the
+	// ClusterService's GetClustersDeltaMetrics RPC.
+	ClusterServiceGetClustersDeltaMetricsProcedure = "/api.v1.ClusterService/GetClustersDeltaMetrics"
 	// ClusterServiceGetNetworkDependenciesProcedure is the fully-qualified name of the ClusterService's
 	// GetNetworkDependencies RPC.
 	ClusterServiceGetNetworkDependenciesProcedure = "/api.v1.ClusterService/GetNetworkDependencies"
+	// ClusterServiceGetNetworkMetricsTimeSeriesProcedure is the fully-qualified name of the
+	// ClusterService's GetNetworkMetricsTimeSeries RPC.
+	ClusterServiceGetNetworkMetricsTimeSeriesProcedure = "/api.v1.ClusterService/GetNetworkMetricsTimeSeries"
+	// ClusterServiceGetNodeTypeCountsProcedure is the fully-qualified name of the ClusterService's
+	// GetNodeTypeCounts RPC.
+	ClusterServiceGetNodeTypeCountsProcedure = "/api.v1.ClusterService/GetNodeTypeCounts"
 )
 
 // ClusterServiceClient is a client for the api.v1.ClusterService service.
@@ -55,8 +64,14 @@ type ClusterServiceClient interface {
 	GetClustersWithMetrics(context.Context, *connect.Request[v1.GetClustersWithMetricsRequest]) (*connect.Response[v1.GetClustersWithMetricsResponse], error)
 	// CreateClusterToken creates a new cluster registration with authentication token
 	CreateClusterToken(context.Context, *connect.Request[v1.CreateClusterTokenRequest]) (*connect.Response[v1.CreateClusterTokenResponse], error)
+	// GetClustersDeltaMetrics retrieves lightweight aggregate metrics for delta/comparison calculations
+	GetClustersDeltaMetrics(context.Context, *connect.Request[v1.GetClustersDeltaMetricsRequest]) (*connect.Response[v1.GetClustersDeltaMetricsResponse], error)
 	// GetNetworkDependencies returns workload-level network dependencies for visualization
 	GetNetworkDependencies(context.Context, *connect.Request[v1.GetNetworkDependenciesRequest]) (*connect.Response[v1.GetNetworkDependenciesResponse], error)
+	// GetNetworkMetricsTimeSeries returns time-bucketed network metrics for charts
+	GetNetworkMetricsTimeSeries(context.Context, *connect.Request[v1.GetNetworkMetricsTimeSeriesRequest]) (*connect.Response[v1.GetNetworkMetricsTimeSeriesResponse], error)
+	// GetNodeTypeCounts retrieves node type breakdown for given clusters and time range
+	GetNodeTypeCounts(context.Context, *connect.Request[v1.GetNodeTypeCountsRequest]) (*connect.Response[v1.GetNodeTypeCountsResponse], error)
 }
 
 // NewClusterServiceClient constructs a client for the api.v1.ClusterService service. By default, it
@@ -84,9 +99,24 @@ func NewClusterServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			baseURL+ClusterServiceCreateClusterTokenProcedure,
 			opts...,
 		),
+		getClustersDeltaMetrics: connect.NewClient[v1.GetClustersDeltaMetricsRequest, v1.GetClustersDeltaMetricsResponse](
+			httpClient,
+			baseURL+ClusterServiceGetClustersDeltaMetricsProcedure,
+			opts...,
+		),
 		getNetworkDependencies: connect.NewClient[v1.GetNetworkDependenciesRequest, v1.GetNetworkDependenciesResponse](
 			httpClient,
 			baseURL+ClusterServiceGetNetworkDependenciesProcedure,
+			opts...,
+		),
+		getNetworkMetricsTimeSeries: connect.NewClient[v1.GetNetworkMetricsTimeSeriesRequest, v1.GetNetworkMetricsTimeSeriesResponse](
+			httpClient,
+			baseURL+ClusterServiceGetNetworkMetricsTimeSeriesProcedure,
+			opts...,
+		),
+		getNodeTypeCounts: connect.NewClient[v1.GetNodeTypeCountsRequest, v1.GetNodeTypeCountsResponse](
+			httpClient,
+			baseURL+ClusterServiceGetNodeTypeCountsProcedure,
 			opts...,
 		),
 	}
@@ -94,10 +124,13 @@ func NewClusterServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 
 // clusterServiceClient implements ClusterServiceClient.
 type clusterServiceClient struct {
-	getClustersBasicInfo   *connect.Client[v1.GetClustersBasicInfoRequest, v1.GetClustersBasicInfoResponse]
-	getClustersWithMetrics *connect.Client[v1.GetClustersWithMetricsRequest, v1.GetClustersWithMetricsResponse]
-	createClusterToken     *connect.Client[v1.CreateClusterTokenRequest, v1.CreateClusterTokenResponse]
-	getNetworkDependencies *connect.Client[v1.GetNetworkDependenciesRequest, v1.GetNetworkDependenciesResponse]
+	getClustersBasicInfo        *connect.Client[v1.GetClustersBasicInfoRequest, v1.GetClustersBasicInfoResponse]
+	getClustersWithMetrics      *connect.Client[v1.GetClustersWithMetricsRequest, v1.GetClustersWithMetricsResponse]
+	createClusterToken          *connect.Client[v1.CreateClusterTokenRequest, v1.CreateClusterTokenResponse]
+	getClustersDeltaMetrics     *connect.Client[v1.GetClustersDeltaMetricsRequest, v1.GetClustersDeltaMetricsResponse]
+	getNetworkDependencies      *connect.Client[v1.GetNetworkDependenciesRequest, v1.GetNetworkDependenciesResponse]
+	getNetworkMetricsTimeSeries *connect.Client[v1.GetNetworkMetricsTimeSeriesRequest, v1.GetNetworkMetricsTimeSeriesResponse]
+	getNodeTypeCounts           *connect.Client[v1.GetNodeTypeCountsRequest, v1.GetNodeTypeCountsResponse]
 }
 
 // GetClustersBasicInfo calls api.v1.ClusterService.GetClustersBasicInfo.
@@ -115,9 +148,24 @@ func (c *clusterServiceClient) CreateClusterToken(ctx context.Context, req *conn
 	return c.createClusterToken.CallUnary(ctx, req)
 }
 
+// GetClustersDeltaMetrics calls api.v1.ClusterService.GetClustersDeltaMetrics.
+func (c *clusterServiceClient) GetClustersDeltaMetrics(ctx context.Context, req *connect.Request[v1.GetClustersDeltaMetricsRequest]) (*connect.Response[v1.GetClustersDeltaMetricsResponse], error) {
+	return c.getClustersDeltaMetrics.CallUnary(ctx, req)
+}
+
 // GetNetworkDependencies calls api.v1.ClusterService.GetNetworkDependencies.
 func (c *clusterServiceClient) GetNetworkDependencies(ctx context.Context, req *connect.Request[v1.GetNetworkDependenciesRequest]) (*connect.Response[v1.GetNetworkDependenciesResponse], error) {
 	return c.getNetworkDependencies.CallUnary(ctx, req)
+}
+
+// GetNetworkMetricsTimeSeries calls api.v1.ClusterService.GetNetworkMetricsTimeSeries.
+func (c *clusterServiceClient) GetNetworkMetricsTimeSeries(ctx context.Context, req *connect.Request[v1.GetNetworkMetricsTimeSeriesRequest]) (*connect.Response[v1.GetNetworkMetricsTimeSeriesResponse], error) {
+	return c.getNetworkMetricsTimeSeries.CallUnary(ctx, req)
+}
+
+// GetNodeTypeCounts calls api.v1.ClusterService.GetNodeTypeCounts.
+func (c *clusterServiceClient) GetNodeTypeCounts(ctx context.Context, req *connect.Request[v1.GetNodeTypeCountsRequest]) (*connect.Response[v1.GetNodeTypeCountsResponse], error) {
+	return c.getNodeTypeCounts.CallUnary(ctx, req)
 }
 
 // ClusterServiceHandler is an implementation of the api.v1.ClusterService service.
@@ -128,8 +176,14 @@ type ClusterServiceHandler interface {
 	GetClustersWithMetrics(context.Context, *connect.Request[v1.GetClustersWithMetricsRequest]) (*connect.Response[v1.GetClustersWithMetricsResponse], error)
 	// CreateClusterToken creates a new cluster registration with authentication token
 	CreateClusterToken(context.Context, *connect.Request[v1.CreateClusterTokenRequest]) (*connect.Response[v1.CreateClusterTokenResponse], error)
+	// GetClustersDeltaMetrics retrieves lightweight aggregate metrics for delta/comparison calculations
+	GetClustersDeltaMetrics(context.Context, *connect.Request[v1.GetClustersDeltaMetricsRequest]) (*connect.Response[v1.GetClustersDeltaMetricsResponse], error)
 	// GetNetworkDependencies returns workload-level network dependencies for visualization
 	GetNetworkDependencies(context.Context, *connect.Request[v1.GetNetworkDependenciesRequest]) (*connect.Response[v1.GetNetworkDependenciesResponse], error)
+	// GetNetworkMetricsTimeSeries returns time-bucketed network metrics for charts
+	GetNetworkMetricsTimeSeries(context.Context, *connect.Request[v1.GetNetworkMetricsTimeSeriesRequest]) (*connect.Response[v1.GetNetworkMetricsTimeSeriesResponse], error)
+	// GetNodeTypeCounts retrieves node type breakdown for given clusters and time range
+	GetNodeTypeCounts(context.Context, *connect.Request[v1.GetNodeTypeCountsRequest]) (*connect.Response[v1.GetNodeTypeCountsResponse], error)
 }
 
 // NewClusterServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -153,9 +207,24 @@ func NewClusterServiceHandler(svc ClusterServiceHandler, opts ...connect.Handler
 		svc.CreateClusterToken,
 		opts...,
 	)
+	clusterServiceGetClustersDeltaMetricsHandler := connect.NewUnaryHandler(
+		ClusterServiceGetClustersDeltaMetricsProcedure,
+		svc.GetClustersDeltaMetrics,
+		opts...,
+	)
 	clusterServiceGetNetworkDependenciesHandler := connect.NewUnaryHandler(
 		ClusterServiceGetNetworkDependenciesProcedure,
 		svc.GetNetworkDependencies,
+		opts...,
+	)
+	clusterServiceGetNetworkMetricsTimeSeriesHandler := connect.NewUnaryHandler(
+		ClusterServiceGetNetworkMetricsTimeSeriesProcedure,
+		svc.GetNetworkMetricsTimeSeries,
+		opts...,
+	)
+	clusterServiceGetNodeTypeCountsHandler := connect.NewUnaryHandler(
+		ClusterServiceGetNodeTypeCountsProcedure,
+		svc.GetNodeTypeCounts,
 		opts...,
 	)
 	return "/api.v1.ClusterService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -166,8 +235,14 @@ func NewClusterServiceHandler(svc ClusterServiceHandler, opts ...connect.Handler
 			clusterServiceGetClustersWithMetricsHandler.ServeHTTP(w, r)
 		case ClusterServiceCreateClusterTokenProcedure:
 			clusterServiceCreateClusterTokenHandler.ServeHTTP(w, r)
+		case ClusterServiceGetClustersDeltaMetricsProcedure:
+			clusterServiceGetClustersDeltaMetricsHandler.ServeHTTP(w, r)
 		case ClusterServiceGetNetworkDependenciesProcedure:
 			clusterServiceGetNetworkDependenciesHandler.ServeHTTP(w, r)
+		case ClusterServiceGetNetworkMetricsTimeSeriesProcedure:
+			clusterServiceGetNetworkMetricsTimeSeriesHandler.ServeHTTP(w, r)
+		case ClusterServiceGetNodeTypeCountsProcedure:
+			clusterServiceGetNodeTypeCountsHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -189,6 +264,18 @@ func (UnimplementedClusterServiceHandler) CreateClusterToken(context.Context, *c
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.ClusterService.CreateClusterToken is not implemented"))
 }
 
+func (UnimplementedClusterServiceHandler) GetClustersDeltaMetrics(context.Context, *connect.Request[v1.GetClustersDeltaMetricsRequest]) (*connect.Response[v1.GetClustersDeltaMetricsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.ClusterService.GetClustersDeltaMetrics is not implemented"))
+}
+
 func (UnimplementedClusterServiceHandler) GetNetworkDependencies(context.Context, *connect.Request[v1.GetNetworkDependenciesRequest]) (*connect.Response[v1.GetNetworkDependenciesResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.ClusterService.GetNetworkDependencies is not implemented"))
+}
+
+func (UnimplementedClusterServiceHandler) GetNetworkMetricsTimeSeries(context.Context, *connect.Request[v1.GetNetworkMetricsTimeSeriesRequest]) (*connect.Response[v1.GetNetworkMetricsTimeSeriesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.ClusterService.GetNetworkMetricsTimeSeries is not implemented"))
+}
+
+func (UnimplementedClusterServiceHandler) GetNodeTypeCounts(context.Context, *connect.Request[v1.GetNodeTypeCountsRequest]) (*connect.Response[v1.GetNodeTypeCountsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.ClusterService.GetNodeTypeCounts is not implemented"))
 }

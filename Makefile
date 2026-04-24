@@ -261,6 +261,17 @@ docker-build-netmon: ## Build docker image for zxporter-netmon
 docker-push-netmon: ## Push docker image for zxporter-netmon
 	$(CONTAINER_TOOL) push ${IMG_NETMON}
 
+# zxporter-nodemon images
+IMG_NODEMON ?= ttl.sh/zxporter-nodemon:latest
+
+.PHONY: docker-build-nodemon
+docker-build-nodemon: ## Build docker image for zxporter-nodemon
+	$(CONTAINER_TOOL) buildx build $(BUILD_ARGS) -t ${IMG_NODEMON} -f Dockerfile.nodemon .
+
+.PHONY: docker-push-nodemon
+docker-push-nodemon: ## Push docker image for zxporter-nodemon
+	$(CONTAINER_TOOL) push ${IMG_NODEMON}
+
 # PLATFORMS defines the target platforms for the manager image be built to provide support to multiple
 # architectures. (i.e. make docker-buildx IMG=myregistry/mypoperator:0.0.1). To use this option you need to:
 # - be able to use docker buildx. More info: https://docs.docker.com/build/buildx/
@@ -665,6 +676,8 @@ DAKR_MPA_PROTO_FILE ?= mpa.proto
 DAKR_MPA_PROTO ?= internal/proto/$(DAKR_MPA_PROTO_FILE)
 DAKR_CLUSTER_PROTO_FILE ?= cluster.proto
 DAKR_CLUSTER_PROTO ?= $(DAKR_DIR)/proto/api/v1/$(DAKR_CLUSTER_PROTO_FILE)
+DAKR_OPERATOR_HEALTH_PROTO_FILE ?= operator_health.proto
+DAKR_OPERATOR_HEALTH_PROTO ?= $(DAKR_DIR)/proto/api/v1/$(DAKR_OPERATOR_HEALTH_PROTO_FILE)
 
 # BUF_VERSION and BUF_BINARY_NAME are to generate a Dakr protobuf/gRPC client.
 BUF_VERSION := 1.31.0
@@ -692,7 +705,7 @@ generate-proto: install-buf ## Fetch latest Dakr protobuf
 	mkdir -p "$$PROTO_DIR/api/v1"; \
 	cp "$(DAKR_MPA_PROTO)" "$$PROTO_DIR/api/v1"; \
 	find "$$PROTO_DIR" -type f -name "*.yaml" -exec perl -pi -e 's|github.com/devzero-inc/services/dakr/gen|github.com/devzero-inc/zxporter/gen|g' {} +; \
-	buf build "$(DAKR_DIR)" --path "$(DAKR_METRICS_COLLECTOR_PROTO)" --path "$(DAKR_CLUSTER_PROTO)" -o "$$PROTO_DIR"/dakr_proto_descriptor.bin; \
+	buf build "$(DAKR_DIR)" --path "$(DAKR_METRICS_COLLECTOR_PROTO)" --path "$(DAKR_CLUSTER_PROTO)" --path "$(DAKR_OPERATOR_HEALTH_PROTO)" -o "$$PROTO_DIR"/dakr_proto_descriptor.bin; \
 	buf generate --include-imports "$$PROTO_DIR"/dakr_proto_descriptor.bin; 
 	buf generate --verbose --include-imports --timeout=5m .
 
@@ -829,3 +842,22 @@ verify-e2e-gke-lifecycle: provision-gke ## Full GKE E2E (Provision -> Verify -> 
 .PHONY: clean-metrics
 clean-metrics:
 	@rm -f verification/metrics-*.json
+
+# Load simulation replicas (override to increase pressure)
+LOAD_SIM_REPLICAS ?= 10
+
+.PHONY: load-test
+load-test: ## Apply load simulation manifests to stress-test zxporter collectors
+	@echo "[INFO] Applying load simulation manifests..."
+	@$(KUBECTL) apply -f verification/load-simulation.yaml
+	@echo "[INFO] Scaling deployments to $(LOAD_SIM_REPLICAS) replicas..."
+	@$(KUBECTL) scale deploy -n load-test load-web --replicas=$(LOAD_SIM_REPLICAS)
+	@$(KUBECTL) scale deploy -n load-test load-api --replicas=$(LOAD_SIM_REPLICAS)
+	@$(KUBECTL) scale deploy -n load-test load-worker --replicas=$(LOAD_SIM_REPLICAS)
+	@echo "[INFO] Load simulation applied. Monitor with: kubectl get all -n load-test"
+
+.PHONY: load-test-cleanup
+load-test-cleanup: ## Remove all load simulation resources
+	@echo "[INFO] Deleting load-test namespace..."
+	@$(KUBECTL) delete ns load-test --ignore-not-found
+	@echo "[INFO] Load simulation cleaned up."

@@ -77,7 +77,8 @@ func NewStatefulSetCollector(
 		excludedStatefulSets: excludedStatefulSetsMap,
 		logger:               newLogger,
 		telemetryLogger:      telemetryLogger,
-		cDHelper:             ChangeDetectionHelper{logger: newLogger}}
+		cDHelper:             ChangeDetectionHelper{logger: newLogger},
+	}
 }
 
 // Start begins the statefulset collection process
@@ -153,7 +154,10 @@ func (c *StatefulSetCollector) Start(ctx context.Context) error {
 }
 
 // handleStatefulSetEvent processes statefulset events
-func (c *StatefulSetCollector) handleStatefulSetEvent(statefulset *appsv1.StatefulSet, eventType EventType) {
+func (c *StatefulSetCollector) handleStatefulSetEvent(
+	statefulset *appsv1.StatefulSet,
+	eventType EventType,
+) {
 	if c.isExcluded(statefulset) {
 		return
 	}
@@ -169,7 +173,9 @@ func (c *StatefulSetCollector) handleStatefulSetEvent(statefulset *appsv1.Statef
 }
 
 // statefulSetChanged detects meaningful changes in a statefulset
-func (c *StatefulSetCollector) statefulSetChanged(oldStatefulSet, newStatefulSet *appsv1.StatefulSet) bool {
+func (c *StatefulSetCollector) statefulSetChanged(
+	oldStatefulSet, newStatefulSet *appsv1.StatefulSet,
+) bool {
 	changed := c.cDHelper.objectMetaChanged(
 		c.GetType(),
 		oldStatefulSet.Name,

@@ -148,6 +148,15 @@ rules:
   - list
   - watch
 - apiGroups:
+  - dakr.devzero.io
+  resources:
+  - workloadrecommendations
+  - workloadrules
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - datadoghq.com
   resources:
   - extendeddaemonsetreplicasets
@@ -268,6 +277,14 @@ rules:
   - policy
   resources:
   - poddisruptionbudgets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - postgresql.cnpg.io
+  resources:
+  - clusters
   verbs:
   - get
   - list

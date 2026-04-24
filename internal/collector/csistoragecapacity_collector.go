@@ -98,7 +98,10 @@ func (c *CSIStorageCapacityCollector) Start(ctx context.Context) error {
 	}
 
 	// Create CSIStorageCapacity informer
-	c.csiStorageCapacityInformer = c.informerFactory.Storage().V1().CSIStorageCapacities().Informer()
+	c.csiStorageCapacityInformer = c.informerFactory.Storage().
+		V1().
+		CSIStorageCapacities().
+		Informer()
 
 	// Add event handlers
 	_, err := c.csiStorageCapacityInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -153,7 +156,10 @@ func (c *CSIStorageCapacityCollector) Start(ctx context.Context) error {
 }
 
 // handleCSIStorageCapacityEvent processes CSIStorageCapacity events
-func (c *CSIStorageCapacityCollector) handleCSIStorageCapacityEvent(csc *storagev1.CSIStorageCapacity, eventType EventType) {
+func (c *CSIStorageCapacityCollector) handleCSIStorageCapacityEvent(
+	csc *storagev1.CSIStorageCapacity,
+	eventType EventType,
+) {
 	if c.isExcluded(csc) {
 		return
 	}
@@ -169,7 +175,9 @@ func (c *CSIStorageCapacityCollector) handleCSIStorageCapacityEvent(csc *storage
 }
 
 // csiStorageCapacityChanged detects meaningful changes in a CSIStorageCapacity
-func (c *CSIStorageCapacityCollector) csiStorageCapacityChanged(oldCSC, newCSC *storagev1.CSIStorageCapacity) bool {
+func (c *CSIStorageCapacityCollector) csiStorageCapacityChanged(
+	oldCSC, newCSC *storagev1.CSIStorageCapacity,
+) bool {
 	changed := c.cDHelper.objectMetaChanged(
 		c.GetType(),
 		oldCSC.Name,

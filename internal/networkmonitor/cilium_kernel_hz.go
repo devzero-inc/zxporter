@@ -47,7 +47,7 @@ func readSchedstat(f io.ReadSeeker) (ktime, error) {
 	defer func() { _, _ = f.Seek(0, 0) }()
 
 	var j uint64
-	var t = time.Now()
+	t := time.Now()
 
 	s := bufio.NewScanner(f)
 	for s.Scan() {

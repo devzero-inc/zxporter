@@ -154,7 +154,10 @@ func (c *PersistentVolumeClaimCollector) Start(ctx context.Context) error {
 }
 
 // handlePVCEvent processes PVC events
-func (c *PersistentVolumeClaimCollector) handlePVCEvent(pvc *corev1.PersistentVolumeClaim, eventType EventType) {
+func (c *PersistentVolumeClaimCollector) handlePVCEvent(
+	pvc *corev1.PersistentVolumeClaim,
+	eventType EventType,
+) {
 	if c.isExcluded(pvc) {
 		return
 	}
@@ -170,7 +173,9 @@ func (c *PersistentVolumeClaimCollector) handlePVCEvent(pvc *corev1.PersistentVo
 }
 
 // pvcChanged detects meaningful changes in a PVC
-func (c *PersistentVolumeClaimCollector) pvcChanged(oldPVC, newPVC *corev1.PersistentVolumeClaim) bool {
+func (c *PersistentVolumeClaimCollector) pvcChanged(
+	oldPVC, newPVC *corev1.PersistentVolumeClaim,
+) bool {
 	changed := c.cDHelper.objectMetaChanged(
 		c.GetType(),
 		oldPVC.Name,

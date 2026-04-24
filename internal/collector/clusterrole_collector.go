@@ -137,7 +137,10 @@ func (c *ClusterRoleCollector) Start(ctx context.Context) error {
 }
 
 // handleClusterRoleEvent processes ClusterRole events
-func (c *ClusterRoleCollector) handleClusterRoleEvent(role *rbacv1.ClusterRole, eventType EventType) {
+func (c *ClusterRoleCollector) handleClusterRoleEvent(
+	role *rbacv1.ClusterRole,
+	eventType EventType,
+) {
 	if c.isExcluded(role) {
 		return
 	}

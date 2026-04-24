@@ -71,7 +71,8 @@ func NewStorageClassCollector(
 		excludedStorageClasses: excludedStorageClassesMap,
 		logger:                 newLogger,
 		telemetryLogger:        telemetryLogger,
-		cDHelper:               ChangeDetectionHelper{logger: newLogger}}
+		cDHelper:               ChangeDetectionHelper{logger: newLogger},
+	}
 }
 
 // Start begins the StorageClass collection process
@@ -137,7 +138,10 @@ func (c *StorageClassCollector) Start(ctx context.Context) error {
 }
 
 // handleStorageClassEvent processes StorageClass events
-func (c *StorageClassCollector) handleStorageClassEvent(sc *storagev1.StorageClass, eventType EventType) {
+func (c *StorageClassCollector) handleStorageClassEvent(
+	sc *storagev1.StorageClass,
+	eventType EventType,
+) {
 	if c.isExcluded(sc) {
 		return
 	}

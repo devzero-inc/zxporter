@@ -25,6 +25,7 @@ const (
 	K8SService_GetCluster_FullMethodName                   = "/api.v1.K8SService/GetCluster"
 	K8SService_GetClusterMetadata_FullMethodName           = "/api.v1.K8SService/GetClusterMetadata"
 	K8SService_GetAllNamespaces_FullMethodName             = "/api.v1.K8SService/GetAllNamespaces"
+	K8SService_SearchNamespacesByCluster_FullMethodName    = "/api.v1.K8SService/SearchNamespacesByCluster"
 	K8SService_GetAllWorkloadNames_FullMethodName          = "/api.v1.K8SService/GetAllWorkloadNames"
 	K8SService_GetAllWorkloadLabels_FullMethodName         = "/api.v1.K8SService/GetAllWorkloadLabels"
 	K8SService_GetAllNodeGroupNames_FullMethodName         = "/api.v1.K8SService/GetAllNodeGroupNames"
@@ -55,6 +56,9 @@ const (
 	K8SService_GetRelationsForKind_FullMethodName          = "/api.v1.K8SService/GetRelationsForKind"
 	K8SService_LookupNodeInstance_FullMethodName           = "/api.v1.K8SService/LookupNodeInstance"
 	K8SService_GetWorkloadPodHistory_FullMethodName        = "/api.v1.K8SService/GetWorkloadPodHistory"
+	K8SService_AddClusterTags_FullMethodName               = "/api.v1.K8SService/AddClusterTags"
+	K8SService_RemoveClusterTags_FullMethodName            = "/api.v1.K8SService/RemoveClusterTags"
+	K8SService_ListTags_FullMethodName                     = "/api.v1.K8SService/ListTags"
 )
 
 // K8SServiceClient is the client API for K8SService service.
@@ -75,6 +79,8 @@ type K8SServiceClient interface {
 	GetClusterMetadata(ctx context.Context, in *GetClusterMetadataRequest, opts ...grpc.CallOption) (*GetClusterMetadataResponse, error)
 	// GetAllNamespaces returns a list of all namespaces for a teamID; if cluster list is empty, returns all.
 	GetAllNamespaces(ctx context.Context, in *GetAllNamespacesRequest, opts ...grpc.CallOption) (*GetAllNamespacesResponse, error)
+	// SearchNamespacesByCluster searches namespaces by name within a single cluster.
+	SearchNamespacesByCluster(ctx context.Context, in *SearchNamespacesByClusterRequest, opts ...grpc.CallOption) (*SearchNamespacesByClusterResponse, error)
 	// GetAllWorkloadNames returns a list of all workload names for a team ID; if cluster list is empty, returns all.
 	GetAllWorkloadNames(ctx context.Context, in *GetAllWorkloadNamesRequest, opts ...grpc.CallOption) (*GetAllWorkloadNamesResponse, error)
 	// GetAllWorkloadLabels returns all workload labels for a team ID; if cluster list is empty, returns all.
@@ -127,6 +133,12 @@ type K8SServiceClient interface {
 	LookupNodeInstance(ctx context.Context, in *LookupNodeInstanceRequest, opts ...grpc.CallOption) (*LookupNodeInstanceResponse, error)
 	// GetWorkloadPodHistory retrieves historical pods for a workload.
 	GetWorkloadPodHistory(ctx context.Context, in *GetWorkloadPodHistoryRequest, opts ...grpc.CallOption) (*GetWorkloadPodHistoryResponse, error)
+	// AddClusterTags adds tags to a cluster.
+	AddClusterTags(ctx context.Context, in *AddClusterTagsRequest, opts ...grpc.CallOption) (*AddClusterTagsResponse, error)
+	// RemoveClusterTags removes tags from a cluster.
+	RemoveClusterTags(ctx context.Context, in *RemoveClusterTagsRequest, opts ...grpc.CallOption) (*RemoveClusterTagsResponse, error)
+	// ListTags lists all tags for a team.
+	ListTags(ctx context.Context, in *ListTagsRequest, opts ...grpc.CallOption) (*ListTagsResponse, error)
 }
 
 type k8SServiceClient struct {
@@ -186,6 +198,15 @@ func (c *k8SServiceClient) GetClusterMetadata(ctx context.Context, in *GetCluste
 func (c *k8SServiceClient) GetAllNamespaces(ctx context.Context, in *GetAllNamespacesRequest, opts ...grpc.CallOption) (*GetAllNamespacesResponse, error) {
 	out := new(GetAllNamespacesResponse)
 	err := c.cc.Invoke(ctx, K8SService_GetAllNamespaces_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *k8SServiceClient) SearchNamespacesByCluster(ctx context.Context, in *SearchNamespacesByClusterRequest, opts ...grpc.CallOption) (*SearchNamespacesByClusterResponse, error) {
+	out := new(SearchNamespacesByClusterResponse)
+	err := c.cc.Invoke(ctx, K8SService_SearchNamespacesByCluster_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -464,6 +485,33 @@ func (c *k8SServiceClient) GetWorkloadPodHistory(ctx context.Context, in *GetWor
 	return out, nil
 }
 
+func (c *k8SServiceClient) AddClusterTags(ctx context.Context, in *AddClusterTagsRequest, opts ...grpc.CallOption) (*AddClusterTagsResponse, error) {
+	out := new(AddClusterTagsResponse)
+	err := c.cc.Invoke(ctx, K8SService_AddClusterTags_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *k8SServiceClient) RemoveClusterTags(ctx context.Context, in *RemoveClusterTagsRequest, opts ...grpc.CallOption) (*RemoveClusterTagsResponse, error) {
+	out := new(RemoveClusterTagsResponse)
+	err := c.cc.Invoke(ctx, K8SService_RemoveClusterTags_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *k8SServiceClient) ListTags(ctx context.Context, in *ListTagsRequest, opts ...grpc.CallOption) (*ListTagsResponse, error) {
+	out := new(ListTagsResponse)
+	err := c.cc.Invoke(ctx, K8SService_ListTags_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // K8SServiceServer is the server API for K8SService service.
 // All implementations must embed UnimplementedK8SServiceServer
 // for forward compatibility
@@ -482,6 +530,8 @@ type K8SServiceServer interface {
 	GetClusterMetadata(context.Context, *GetClusterMetadataRequest) (*GetClusterMetadataResponse, error)
 	// GetAllNamespaces returns a list of all namespaces for a teamID; if cluster list is empty, returns all.
 	GetAllNamespaces(context.Context, *GetAllNamespacesRequest) (*GetAllNamespacesResponse, error)
+	// SearchNamespacesByCluster searches namespaces by name within a single cluster.
+	SearchNamespacesByCluster(context.Context, *SearchNamespacesByClusterRequest) (*SearchNamespacesByClusterResponse, error)
 	// GetAllWorkloadNames returns a list of all workload names for a team ID; if cluster list is empty, returns all.
 	GetAllWorkloadNames(context.Context, *GetAllWorkloadNamesRequest) (*GetAllWorkloadNamesResponse, error)
 	// GetAllWorkloadLabels returns all workload labels for a team ID; if cluster list is empty, returns all.
@@ -534,6 +584,12 @@ type K8SServiceServer interface {
 	LookupNodeInstance(context.Context, *LookupNodeInstanceRequest) (*LookupNodeInstanceResponse, error)
 	// GetWorkloadPodHistory retrieves historical pods for a workload.
 	GetWorkloadPodHistory(context.Context, *GetWorkloadPodHistoryRequest) (*GetWorkloadPodHistoryResponse, error)
+	// AddClusterTags adds tags to a cluster.
+	AddClusterTags(context.Context, *AddClusterTagsRequest) (*AddClusterTagsResponse, error)
+	// RemoveClusterTags removes tags from a cluster.
+	RemoveClusterTags(context.Context, *RemoveClusterTagsRequest) (*RemoveClusterTagsResponse, error)
+	// ListTags lists all tags for a team.
+	ListTags(context.Context, *ListTagsRequest) (*ListTagsResponse, error)
 	mustEmbedUnimplementedK8SServiceServer()
 }
 
@@ -558,6 +614,9 @@ func (UnimplementedK8SServiceServer) GetClusterMetadata(context.Context, *GetClu
 }
 func (UnimplementedK8SServiceServer) GetAllNamespaces(context.Context, *GetAllNamespacesRequest) (*GetAllNamespacesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetAllNamespaces not implemented")
+}
+func (UnimplementedK8SServiceServer) SearchNamespacesByCluster(context.Context, *SearchNamespacesByClusterRequest) (*SearchNamespacesByClusterResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SearchNamespacesByCluster not implemented")
 }
 func (UnimplementedK8SServiceServer) GetAllWorkloadNames(context.Context, *GetAllWorkloadNamesRequest) (*GetAllWorkloadNamesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetAllWorkloadNames not implemented")
@@ -648,6 +707,15 @@ func (UnimplementedK8SServiceServer) LookupNodeInstance(context.Context, *Lookup
 }
 func (UnimplementedK8SServiceServer) GetWorkloadPodHistory(context.Context, *GetWorkloadPodHistoryRequest) (*GetWorkloadPodHistoryResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetWorkloadPodHistory not implemented")
+}
+func (UnimplementedK8SServiceServer) AddClusterTags(context.Context, *AddClusterTagsRequest) (*AddClusterTagsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AddClusterTags not implemented")
+}
+func (UnimplementedK8SServiceServer) RemoveClusterTags(context.Context, *RemoveClusterTagsRequest) (*RemoveClusterTagsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RemoveClusterTags not implemented")
+}
+func (UnimplementedK8SServiceServer) ListTags(context.Context, *ListTagsRequest) (*ListTagsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListTags not implemented")
 }
 func (UnimplementedK8SServiceServer) mustEmbedUnimplementedK8SServiceServer() {}
 
@@ -766,6 +834,24 @@ func _K8SService_GetAllNamespaces_Handler(srv interface{}, ctx context.Context, 
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(K8SServiceServer).GetAllNamespaces(ctx, req.(*GetAllNamespacesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _K8SService_SearchNamespacesByCluster_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SearchNamespacesByClusterRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(K8SServiceServer).SearchNamespacesByCluster(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: K8SService_SearchNamespacesByCluster_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(K8SServiceServer).SearchNamespacesByCluster(ctx, req.(*SearchNamespacesByClusterRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1310,6 +1396,60 @@ func _K8SService_GetWorkloadPodHistory_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _K8SService_AddClusterTags_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AddClusterTagsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(K8SServiceServer).AddClusterTags(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: K8SService_AddClusterTags_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(K8SServiceServer).AddClusterTags(ctx, req.(*AddClusterTagsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _K8SService_RemoveClusterTags_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RemoveClusterTagsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(K8SServiceServer).RemoveClusterTags(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: K8SService_RemoveClusterTags_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(K8SServiceServer).RemoveClusterTags(ctx, req.(*RemoveClusterTagsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _K8SService_ListTags_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListTagsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(K8SServiceServer).ListTags(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: K8SService_ListTags_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(K8SServiceServer).ListTags(ctx, req.(*ListTagsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // K8SService_ServiceDesc is the grpc.ServiceDesc for K8SService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1340,6 +1480,10 @@ var K8SService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetAllNamespaces",
 			Handler:    _K8SService_GetAllNamespaces_Handler,
+		},
+		{
+			MethodName: "SearchNamespacesByCluster",
+			Handler:    _K8SService_SearchNamespacesByCluster_Handler,
 		},
 		{
 			MethodName: "GetAllWorkloadNames",
@@ -1460,6 +1604,18 @@ var K8SService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetWorkloadPodHistory",
 			Handler:    _K8SService_GetWorkloadPodHistory_Handler,
+		},
+		{
+			MethodName: "AddClusterTags",
+			Handler:    _K8SService_AddClusterTags_Handler,
+		},
+		{
+			MethodName: "RemoveClusterTags",
+			Handler:    _K8SService_RemoveClusterTags_Handler,
+		},
+		{
+			MethodName: "ListTags",
+			Handler:    _K8SService_ListTags_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

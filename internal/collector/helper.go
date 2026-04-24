@@ -30,7 +30,7 @@ func isResourceTypeUnavailableError(err error) bool {
 
 // contains is a simple string contains helper
 func contains(s, substr string) bool {
-	return len(s) >= len(substr) && s[0:len(s)][0:len(substr)] == substr
+	return len(s) >= len(substr) && s[0:][0:len(substr)] == substr
 }
 
 func subtractStrings(a, b []string) []string {

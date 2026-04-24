@@ -79,7 +79,8 @@ func NewServiceAccountCollector(
 		excludedServiceAccounts: excludedServiceAccountsMap,
 		logger:                  newLogger,
 		telemetryLogger:         telemetryLogger,
-		cDHelper:                ChangeDetectionHelper{logger: newLogger}}
+		cDHelper:                ChangeDetectionHelper{logger: newLogger},
+	}
 }
 
 // Start begins the serviceaccount collection process
@@ -155,7 +156,10 @@ func (c *ServiceAccountCollector) Start(ctx context.Context) error {
 }
 
 // handleServiceAccountEvent processes serviceaccount events
-func (c *ServiceAccountCollector) handleServiceAccountEvent(sa *corev1.ServiceAccount, eventType EventType) {
+func (c *ServiceAccountCollector) handleServiceAccountEvent(
+	sa *corev1.ServiceAccount,
+	eventType EventType,
+) {
 	if c.isExcluded(sa) {
 		return
 	}

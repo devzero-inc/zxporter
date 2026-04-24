@@ -52,6 +52,23 @@ spec:
               exclusions:
                 description: Exclusions specifies resources to exclude from collection
                 properties:
+                  excludedCNPGClusters:
+                    description: CloudNativePG Exclusions
+                    items:
+                      description: ExcludedCNPGCluster identifies a CloudNativePG
+                        cluster to exclude from collection
+                      properties:
+                        name:
+                          description: Name is the CNPG cluster's name
+                          type: string
+                        namespace:
+                          description: Namespace is the CNPG cluster's namespace
+                          type: string
+                      required:
+                      - name
+                      - namespace
+                      type: object
+                    type: array
                   excludedCRDGroups:
                     items:
                       type: string

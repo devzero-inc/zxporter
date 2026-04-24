@@ -77,7 +77,8 @@ func NewRoleBindingCollector(
 		excludedRoleBindings: excludedRoleBindingsMap,
 		logger:               newLogger,
 		telemetryLogger:      telemetryLogger,
-		cDHelper:             ChangeDetectionHelper{logger: newLogger}}
+		cDHelper:             ChangeDetectionHelper{logger: newLogger},
+	}
 }
 
 // Start begins the RoleBinding collection process

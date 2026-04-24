@@ -77,7 +77,8 @@ func NewPodDisruptionBudgetCollector(
 		excludedPDBs:    excludedPDBsMap,
 		logger:          newLogger,
 		telemetryLogger: telemetryLogger,
-		cDHelper:        ChangeDetectionHelper{logger: newLogger}}
+		cDHelper:        ChangeDetectionHelper{logger: newLogger},
+	}
 }
 
 // Start begins the PDB collection process
@@ -153,7 +154,10 @@ func (c *PodDisruptionBudgetCollector) Start(ctx context.Context) error {
 }
 
 // handlePDBEvent processes PDB events
-func (c *PodDisruptionBudgetCollector) handlePDBEvent(pdb *policyv1.PodDisruptionBudget, eventType EventType) {
+func (c *PodDisruptionBudgetCollector) handlePDBEvent(
+	pdb *policyv1.PodDisruptionBudget,
+	eventType EventType,
+) {
 	if c.isExcluded(pdb) {
 		return
 	}
@@ -169,7 +173,9 @@ func (c *PodDisruptionBudgetCollector) handlePDBEvent(pdb *policyv1.PodDisruptio
 }
 
 // pdbChanged detects meaningful changes in a PDB
-func (c *PodDisruptionBudgetCollector) pdbChanged(oldPDB, newPDB *policyv1.PodDisruptionBudget) bool {
+func (c *PodDisruptionBudgetCollector) pdbChanged(
+	oldPDB, newPDB *policyv1.PodDisruptionBudget,
+) bool {
 	changed := c.cDHelper.objectMetaChanged(
 		c.GetType(),
 		oldPDB.Name,

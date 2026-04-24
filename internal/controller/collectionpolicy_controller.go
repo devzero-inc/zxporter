@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"reflect"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -42,6 +43,7 @@ import (
 	"github.com/devzero-inc/zxporter/internal/collector"
 	"github.com/devzero-inc/zxporter/internal/collector/provider"
 	"github.com/devzero-inc/zxporter/internal/collector/snap"
+	"github.com/devzero-inc/zxporter/internal/health"
 	telemetry_logger "github.com/devzero-inc/zxporter/internal/logger"
 	"github.com/devzero-inc/zxporter/internal/server"
 	"github.com/devzero-inc/zxporter/internal/transport"
@@ -75,6 +77,19 @@ type CollectionPolicyReconciler struct {
 	CurrentConfig     *PolicyConfig
 	RestartInProgress bool
 	MpaServerPort     int
+	HealthManager     *health.HealthManager
+
+	// pendingCollectors tracks collector factories that were skipped due to CRD unavailability
+	// and should be retried periodically
+	pendingCollectors []pendingCollector
+	pendingMu         sync.Mutex
+}
+
+// pendingCollector represents a collector that was unavailable at registration time
+// and should be retried when its CRD becomes available
+type pendingCollector struct {
+	name    collector.ResourceType
+	factory func() collector.ResourceCollector
 }
 
 // PolicyConfig holds the current configuration
@@ -125,6 +140,7 @@ type PolicyConfig struct {
 	ExcludedVolcanoJobs                []collector.ExcludedVolcanoJob
 	ExcludedSparkApplications          []collector.ExcludedSparkApplication
 	ExcludedScheduledSparkApplications []collector.ExcludedScheduledSparkApplication
+	ExcludedCNPGClusters               []collector.ExcludedCNPGCluster
 
 	DisabledCollectors []string
 
@@ -145,9 +161,9 @@ type PolicyConfig struct {
 // ========================================
 // COLLECTION POLICY CRD MANAGEMENT
 // ========================================
-//+kubebuilder:rbac:groups=devzero.io,resources=collectionpolicies,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=devzero.io,resources=collectionpolicies/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=devzero.io,resources=collectionpolicies/finalizers,verbs=update
+// +kubebuilder:rbac:groups=devzero.io,resources=collectionpolicies,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=devzero.io,resources=collectionpolicies/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=devzero.io,resources=collectionpolicies/finalizers,verbs=update
 
 // ========================================
 // BOOTSTRAP PERMISSIONS (entrypoint.sh)
@@ -156,81 +172,81 @@ type PolicyConfig struct {
 // via kubectl apply in entrypoint.sh when metrics-server is not detected
 
 // ServiceAccount creation for metrics-server
-//+kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;create;update;patch
+// +kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;create;update;patch
 
 // RBAC setup for metrics-server (ClusterRoles, ClusterRoleBindings, RoleBindings)
-//+kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=clusterroles,verbs=get;list;watch;create;update;patch
-//+kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=clusterrolebindings,verbs=get;list;watch;create;update;patch
-//+kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=rolebindings,verbs=get;list;watch;create;update;patch
+// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=clusterroles,verbs=get;list;watch;create;update;patch
+// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=clusterrolebindings,verbs=get;list;watch;create;update;patch
+// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=rolebindings,verbs=get;list;watch;create;update;patch
 
 // Service and Deployment creation for metrics-server
-//+kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch
-//+kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch
+// +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch
+// +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch
 
 // APIService registration for metrics-server API
-//+kubebuilder:rbac:groups=apiregistration.k8s.io,resources=apiservices,verbs=get;list;watch;create;update;patch
+// +kubebuilder:rbac:groups=apiregistration.k8s.io,resources=apiservices,verbs=get;list;watch;create;update;patch
 
 // ========================================
 // RUNTIME PERMISSIONS
 // ========================================
 // ConfigMap access for cluster token persistence (ONLY write permission in runtime)
-//+kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;update
+// +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;update
 
 // Secret access for cluster token persistence when useSecretForToken is enabled
-//+kubebuilder:rbac:groups="",resources=secrets,resourceNames=devzero-zxporter-token,verbs=get;update;patch
-//+kubebuilder:rbac:groups="",resources=secrets,verbs=create
+// +kubebuilder:rbac:groups="",resources=secrets,resourceNames=devzero-zxporter-token,verbs=get;update;patch
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=create
 
 // Metrics access
-//+kubebuilder:rbac:groups="",resources=nodes/metrics,verbs=get
+// +kubebuilder:rbac:groups="",resources=nodes/metrics,verbs=get
 
 // Core Kubernetes resources (READ-ONLY monitoring and collection)
-//+kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch
-//+kubebuilder:rbac:groups="",resources=pods/status,verbs=get
-//+kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch
-//+kubebuilder:rbac:groups="",resources=nodes/status,verbs=get
-//+kubebuilder:rbac:groups="",resources=namespaces,verbs=get;list;watch
-//+kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch
-//+kubebuilder:rbac:groups="",resources=events,verbs=get;list;watch
-//+kubebuilder:rbac:groups="",resources=limitranges,verbs=get;list;watch
-//+kubebuilder:rbac:groups="",resources=resourcequotas,verbs=get;list;watch
-//+kubebuilder:rbac:groups="",resources=replicationcontrollers,verbs=get;list;watch
-//+kubebuilder:rbac:groups="",resources=persistentvolumes,verbs=get;list;watch
-//+kubebuilder:rbac:groups="",resources=endpoints,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=pods/status,verbs=get
+// +kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=nodes/status,verbs=get
+// +kubebuilder:rbac:groups="",resources=namespaces,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=events,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=limitranges,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=resourcequotas,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=replicationcontrollers,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=persistentvolumes,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=endpoints,verbs=get;list;watch
 
 // Apps API Group resources (READ-ONLY monitoring - note: deployments also needs write for metrics-server bootstrap)
-//+kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch
-//+kubebuilder:rbac:groups=apps,resources=daemonsets,verbs=get;list;watch
-//+kubebuilder:rbac:groups=apps,resources=replicasets,verbs=get;list;watch
+// +kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch
+// +kubebuilder:rbac:groups=apps,resources=daemonsets,verbs=get;list;watch
+// +kubebuilder:rbac:groups=apps,resources=replicasets,verbs=get;list;watch
 
 // Batch API Group resources
-//+kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch
-//+kubebuilder:rbac:groups=batch,resources=cronjobs,verbs=get;list;watch
+// +kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch
+// +kubebuilder:rbac:groups=batch,resources=cronjobs,verbs=get;list;watch
 
 // Metrics API Group resources
-//+kubebuilder:rbac:groups=metrics.k8s.io,resources=pods,verbs=get;list;watch
-//+kubebuilder:rbac:groups=metrics.k8s.io,resources=nodes,verbs=get;list;watch
+// +kubebuilder:rbac:groups=metrics.k8s.io,resources=pods,verbs=get;list;watch
+// +kubebuilder:rbac:groups=metrics.k8s.io,resources=nodes,verbs=get;list;watch
 
 // Networking API Group resources
-//+kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses,verbs=get;list;watch
-//+kubebuilder:rbac:groups=networking.k8s.io,resources=networkpolicies,verbs=get;list;watch
-//+kubebuilder:rbac:groups=networking.k8s.io,resources=ingressclasses,verbs=get;list;watch
+// +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses,verbs=get;list;watch
+// +kubebuilder:rbac:groups=networking.k8s.io,resources=networkpolicies,verbs=get;list;watch
+// +kubebuilder:rbac:groups=networking.k8s.io,resources=ingressclasses,verbs=get;list;watch
 
 // RBAC resources (READ-ONLY monitoring - note: write permissions declared above for bootstrap)
-//+kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=roles,verbs=get;list;watch
+// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=roles,verbs=get;list;watch
 
 // Autoscaling API Group resources
-//+kubebuilder:rbac:groups=autoscaling,resources=horizontalpodautoscalers,verbs=get;list;watch
-//+kubebuilder:rbac:groups=autoscaling.k8s.io,resources=verticalpodautoscalers,verbs=get;list;watch
+// +kubebuilder:rbac:groups=autoscaling,resources=horizontalpodautoscalers,verbs=get;list;watch
+// +kubebuilder:rbac:groups=autoscaling.k8s.io,resources=verticalpodautoscalers,verbs=get;list;watch
 
 // Policy API Group resources
 //+kubebuilder:rbac:groups=policy,resources=poddisruptionbudgets,verbs=get;list;watch
 
 // Storage API Group resources
-//+kubebuilder:rbac:groups=storage.k8s.io,resources=storageclasses,verbs=get;list;watch
-//+kubebuilder:rbac:groups=storage.k8s.io,resources=csinodes,verbs=get;list;watch
-//+kubebuilder:rbac:groups=storage.k8s.io,resources=csidrivers,verbs=get;list;watch
-//+kubebuilder:rbac:groups=storage.k8s.io,resources=csistoragecapacities,verbs=get;list;watch
-//+kubebuilder:rbac:groups=storage.k8s.io,resources=volumeattachments,verbs=get;list;watch
+// +kubebuilder:rbac:groups=storage.k8s.io,resources=storageclasses,verbs=get;list;watch
+// +kubebuilder:rbac:groups=storage.k8s.io,resources=csinodes,verbs=get;list;watch
+// +kubebuilder:rbac:groups=storage.k8s.io,resources=csidrivers,verbs=get;list;watch
+// +kubebuilder:rbac:groups=storage.k8s.io,resources=csistoragecapacities,verbs=get;list;watch
+// +kubebuilder:rbac:groups=storage.k8s.io,resources=volumeattachments,verbs=get;list;watch
 
 // ========================================
 // OPTIONAL THIRD-PARTY RESOURCES
@@ -239,26 +255,36 @@ type PolicyConfig struct {
 // All collectors gracefully handle missing CRDs and can be disabled via DisabledCollectors config.
 
 // Karpenter node provisioning (optional - only if Karpenter operator installed)
-//+kubebuilder:rbac:groups=karpenter.sh,resources=provisioners;machines;nodepools;nodeclaims;nodeoverlays,verbs=get;list;watch
-//+kubebuilder:rbac:groups=karpenter.k8s.aws,resources=awsnodetemplates;ec2nodeclasses,verbs=get;list;watch
-//+kubebuilder:rbac:groups=karpenter.azure.com,resources=aksnodeclasses,verbs=get;list;watch
-//+kubebuilder:rbac:groups=karpenter.k8s.oracle,resources=ocinodeclasses,verbs=get;list;watch
-//+kubebuilder:rbac:groups=karpenter.k8s.gcp,resources=gcenodeclasses,verbs=get;list;watch
+// +kubebuilder:rbac:groups=karpenter.sh,resources=provisioners;machines;nodepools;nodeclaims;nodeoverlays,verbs=get;list;watch
+// +kubebuilder:rbac:groups=karpenter.k8s.aws,resources=awsnodetemplates;ec2nodeclasses,verbs=get;list;watch
+// +kubebuilder:rbac:groups=karpenter.azure.com,resources=aksnodeclasses,verbs=get;list;watch
+// +kubebuilder:rbac:groups=karpenter.k8s.oracle,resources=ocinodeclasses,verbs=get;list;watch
+// +kubebuilder:rbac:groups=karpenter.k8s.gcp,resources=gcenodeclasses,verbs=get;list;watch
 
 // API Extensions (READ-ONLY for CRD discovery)
 //+kubebuilder:rbac:groups=apiextensions.k8s.io,resources=customresourcedefinitions,verbs=get;list;watch
 
 // Optional third-party monitoring integrations
-//+kubebuilder:rbac:groups=datadoghq.com,resources=extendeddaemonsetreplicasets,verbs=get;list;watch
-//+kubebuilder:rbac:groups=argoproj.io,resources=rollouts,verbs=get;list;watch
-//+kubebuilder:rbac:groups=keda.sh,resources=scaledobjects;scaledjobs;triggerauthentications;clustertriggerauthentications,verbs=get;list;watch
-//+kubebuilder:rbac:groups=kubeflow.org,resources=notebooks,verbs=get;list;watch
-//+kubebuilder:rbac:groups=batch.volcano.sh,resources=jobs,verbs=get;list;watch
+// +kubebuilder:rbac:groups=datadoghq.com,resources=extendeddaemonsetreplicasets,verbs=get;list;watch
+// +kubebuilder:rbac:groups=argoproj.io,resources=rollouts,verbs=get;list;watch
+// +kubebuilder:rbac:groups=keda.sh,resources=scaledobjects;scaledjobs;triggerauthentications;clustertriggerauthentications,verbs=get;list;watch
+// +kubebuilder:rbac:groups=kubeflow.org,resources=notebooks,verbs=get;list;watch
+// +kubebuilder:rbac:groups=batch.volcano.sh,resources=jobs,verbs=get;list;watch
+// +kubebuilder:rbac:groups=postgresql.cnpg.io,resources=clusters,verbs=get;list;watch
 // +kubebuilder:rbac:groups=sparkoperator.k8s.io,resources=sparkapplications;scheduledsparkapplications,verbs=get;list;watch
+
+// WorkloadRecommendation CRD for syncing in-cluster recommendations back to control plane
+// +kubebuilder:rbac:groups=dakr.devzero.io,resources=workloadrecommendations,verbs=get;list;watch
+
+// WorkloadRule CRD for syncing OOM events back to control plane
+// +kubebuilder:rbac:groups=dakr.devzero.io,resources=workloadrules,verbs=get;list;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
-func (r *CollectionPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *CollectionPolicyReconciler) Reconcile(
+	ctx context.Context,
+	req ctrl.Request,
+) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
 	// Check if TelemetryLogger is nil
@@ -307,11 +333,56 @@ func (r *CollectionPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		return r.initializeCollectors(ctx, newConfig)
 	}
 
+	// Retry any collectors that were unavailable at startup (e.g., CRDs installed after zxporter)
+	r.retryPendingCollectors(ctx)
+
 	return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
 }
 
+// retryPendingCollectors checks if previously unavailable collectors (e.g., CRDs installed
+// after zxporter startup) have become available and registers/starts them.
+func (r *CollectionPolicyReconciler) retryPendingCollectors(ctx context.Context) {
+	r.pendingMu.Lock()
+	defer r.pendingMu.Unlock()
+
+	if len(r.pendingCollectors) == 0 {
+		return
+	}
+
+	logger := r.Log.WithName("retry-pending")
+	var stillPending []pendingCollector
+
+	for _, pc := range r.pendingCollectors {
+		newCollector := pc.factory()
+		if newCollector.IsAvailable(ctx) {
+			logger.Info("Previously unavailable collector is now available, registering",
+				"type", pc.name.String())
+			if err := r.CollectionManager.RegisterCollector(newCollector); err != nil {
+				logger.Error(err, "Failed to register collector", "type", pc.name.String())
+				stillPending = append(stillPending, pc)
+				continue
+			}
+			if err := r.CollectionManager.StartCollector(ctx, pc.name.String()); err != nil {
+				logger.Error(err, "Failed to start collector", "type", pc.name.String())
+				continue
+			}
+			logger.Info("Successfully started previously unavailable collector",
+				"type", pc.name.String())
+		} else {
+			stillPending = append(stillPending, pc)
+		}
+	}
+
+	r.pendingCollectors = stillPending
+}
+
 // createNewConfig creates a new config by merging policy and environment variables
-func (r *CollectionPolicyReconciler) createNewConfig(envSpec *monitoringv1.CollectionPolicySpec, logger logr.Logger) (*PolicyConfig, bool) {
+//
+//nolint:gocyclo
+func (r *CollectionPolicyReconciler) createNewConfig(
+	envSpec *monitoringv1.CollectionPolicySpec,
+	logger logr.Logger,
+) (*PolicyConfig, bool) {
 	// Convert the merged spec to the PolicyConfig format
 	newConfig := &PolicyConfig{
 		// Target and exclusion basics
@@ -332,7 +403,8 @@ func (r *CollectionPolicyReconciler) createNewConfig(envSpec *monitoringv1.Colle
 		BufferSize:              envSpec.Policies.BufferSize,
 	}
 
-	if envSpec.Policies.NumResourceProcessors != nil && *envSpec.Policies.NumResourceProcessors > 0 {
+	if envSpec.Policies.NumResourceProcessors != nil &&
+		*envSpec.Policies.NumResourceProcessors > 0 {
 		newConfig.NumResourceProcessors = *envSpec.Policies.NumResourceProcessors
 	} else {
 		newConfig.NumResourceProcessors = 16
@@ -392,26 +464,35 @@ func (r *CollectionPolicyReconciler) createNewConfig(envSpec *monitoringv1.Colle
 
 	// Deployments
 	for _, deploy := range envSpec.Exclusions.ExcludedDeployments {
-		newConfig.ExcludedDeployments = append(newConfig.ExcludedDeployments, collector.ExcludedDeployment{
-			Namespace: deploy.Namespace,
-			Name:      deploy.Name,
-		})
+		newConfig.ExcludedDeployments = append(
+			newConfig.ExcludedDeployments,
+			collector.ExcludedDeployment{
+				Namespace: deploy.Namespace,
+				Name:      deploy.Name,
+			},
+		)
 	}
 
 	// StatefulSets
 	for _, sts := range envSpec.Exclusions.ExcludedStatefulSets {
-		newConfig.ExcludedStatefulSets = append(newConfig.ExcludedStatefulSets, collector.ExcludedStatefulSet{
-			Namespace: sts.Namespace,
-			Name:      sts.Name,
-		})
+		newConfig.ExcludedStatefulSets = append(
+			newConfig.ExcludedStatefulSets,
+			collector.ExcludedStatefulSet{
+				Namespace: sts.Namespace,
+				Name:      sts.Name,
+			},
+		)
 	}
 
 	// DaemonSets
 	for _, ds := range envSpec.Exclusions.ExcludedDaemonSets {
-		newConfig.ExcludedDaemonSets = append(newConfig.ExcludedDaemonSets, collector.ExcludedDaemonSet{
-			Namespace: ds.Namespace,
-			Name:      ds.Name,
-		})
+		newConfig.ExcludedDaemonSets = append(
+			newConfig.ExcludedDaemonSets,
+			collector.ExcludedDaemonSet{
+				Namespace: ds.Namespace,
+				Name:      ds.Name,
+			},
+		)
 	}
 
 	// Services
@@ -448,10 +529,13 @@ func (r *CollectionPolicyReconciler) createNewConfig(envSpec *monitoringv1.Colle
 
 	// ReplicationControllers
 	for _, rc := range envSpec.Exclusions.ExcludedReplicationControllers {
-		newConfig.ExcludedReplicationControllers = append(newConfig.ExcludedReplicationControllers, collector.ExcludedReplicationController{
-			Namespace: rc.Namespace,
-			Name:      rc.Name,
-		})
+		newConfig.ExcludedReplicationControllers = append(
+			newConfig.ExcludedReplicationControllers,
+			collector.ExcludedReplicationController{
+				Namespace: rc.Namespace,
+				Name:      rc.Name,
+			},
+		)
 	}
 
 	// Ingresses
@@ -467,42 +551,57 @@ func (r *CollectionPolicyReconciler) createNewConfig(envSpec *monitoringv1.Colle
 
 	// NetworkPolicies
 	for _, netpol := range envSpec.Exclusions.ExcludedNetworkPolicies {
-		newConfig.ExcludedNetworkPolicies = append(newConfig.ExcludedNetworkPolicies, collector.ExcludedNetworkPolicy{
-			Namespace: netpol.Namespace,
-			Name:      netpol.Name,
-		})
+		newConfig.ExcludedNetworkPolicies = append(
+			newConfig.ExcludedNetworkPolicies,
+			collector.ExcludedNetworkPolicy{
+				Namespace: netpol.Namespace,
+				Name:      netpol.Name,
+			},
+		)
 	}
 
 	// Endpoints
 	for _, ep := range envSpec.Exclusions.ExcludedEndpoints {
-		newConfig.ExcludedEndpoints = append(newConfig.ExcludedEndpoints, collector.ExcludedEndpoint{
-			Namespace: ep.Namespace,
-			Name:      ep.Name,
-		})
+		newConfig.ExcludedEndpoints = append(
+			newConfig.ExcludedEndpoints,
+			collector.ExcludedEndpoint{
+				Namespace: ep.Namespace,
+				Name:      ep.Name,
+			},
+		)
 	}
 
 	// ServiceAccounts
 	for _, sa := range envSpec.Exclusions.ExcludedServiceAccounts {
-		newConfig.ExcludedServiceAccounts = append(newConfig.ExcludedServiceAccounts, collector.ExcludedServiceAccount{
-			Namespace: sa.Namespace,
-			Name:      sa.Name,
-		})
+		newConfig.ExcludedServiceAccounts = append(
+			newConfig.ExcludedServiceAccounts,
+			collector.ExcludedServiceAccount{
+				Namespace: sa.Namespace,
+				Name:      sa.Name,
+			},
+		)
 	}
 
 	// LimitRanges
 	for _, lr := range envSpec.Exclusions.ExcludedLimitRanges {
-		newConfig.ExcludedLimitRanges = append(newConfig.ExcludedLimitRanges, collector.ExcludedLimitRange{
-			Namespace: lr.Namespace,
-			Name:      lr.Name,
-		})
+		newConfig.ExcludedLimitRanges = append(
+			newConfig.ExcludedLimitRanges,
+			collector.ExcludedLimitRange{
+				Namespace: lr.Namespace,
+				Name:      lr.Name,
+			},
+		)
 	}
 
 	// ResourceQuotas
 	for _, rq := range envSpec.Exclusions.ExcludedResourceQuotas {
-		newConfig.ExcludedResourceQuotas = append(newConfig.ExcludedResourceQuotas, collector.ExcludedResourceQuota{
-			Namespace: rq.Namespace,
-			Name:      rq.Name,
-		})
+		newConfig.ExcludedResourceQuotas = append(
+			newConfig.ExcludedResourceQuotas,
+			collector.ExcludedResourceQuota{
+				Namespace: rq.Namespace,
+				Name:      rq.Name,
+			},
+		)
 	}
 
 	// HPAs
@@ -531,10 +630,13 @@ func (r *CollectionPolicyReconciler) createNewConfig(envSpec *monitoringv1.Colle
 
 	// RoleBindings
 	for _, rb := range envSpec.Exclusions.ExcludedRoleBindings {
-		newConfig.ExcludedRoleBindings = append(newConfig.ExcludedRoleBindings, collector.ExcludedRoleBinding{
-			Namespace: rb.Namespace,
-			Name:      rb.Name,
-		})
+		newConfig.ExcludedRoleBindings = append(
+			newConfig.ExcludedRoleBindings,
+			collector.ExcludedRoleBinding{
+				Namespace: rb.Namespace,
+				Name:      rb.Name,
+			},
+		)
 	}
 
 	// ClusterRoles
@@ -568,59 +670,88 @@ func (r *CollectionPolicyReconciler) createNewConfig(envSpec *monitoringv1.Colle
 
 	// KEDA ScaledJob
 	for _, scaledJob := range envSpec.Exclusions.ExcludedScaledJobs {
-		newConfig.ExcludedKedaScaledJobs = append(newConfig.ExcludedKedaScaledJobs, collector.ExcludedScaledJob{
-			Namespace: scaledJob.Namespace,
-			Name:      scaledJob.Name,
-		})
+		newConfig.ExcludedKedaScaledJobs = append(
+			newConfig.ExcludedKedaScaledJobs,
+			collector.ExcludedScaledJob{
+				Namespace: scaledJob.Namespace,
+				Name:      scaledJob.Name,
+			},
+		)
 	}
 
 	// KEDA ScaledObject
 	for _, scaledObject := range envSpec.Exclusions.ExcludedScaledObjects {
-		newConfig.ExcludedKedaScaledObjects = append(newConfig.ExcludedKedaScaledObjects, collector.ExcludedScaledObject{
-			Namespace: scaledObject.Namespace,
-			Name:      scaledObject.Name,
-		})
+		newConfig.ExcludedKedaScaledObjects = append(
+			newConfig.ExcludedKedaScaledObjects,
+			collector.ExcludedScaledObject{
+				Namespace: scaledObject.Namespace,
+				Name:      scaledObject.Name,
+			},
+		)
 	}
 
 	// CSI
 	newConfig.ExcludedCSIDrivers = envSpec.Exclusions.ExcludedCSIDrivers
 	for _, csc := range envSpec.Exclusions.ExcludedCSIStorageCapacities {
-		newConfig.ExcludedCSIStorageCapacities = append(newConfig.ExcludedCSIStorageCapacities, collector.ExcludedCSIStorageCapacity{
-			Namespace: csc.Namespace,
-			Name:      csc.Name,
-		})
+		newConfig.ExcludedCSIStorageCapacities = append(
+			newConfig.ExcludedCSIStorageCapacities,
+			collector.ExcludedCSIStorageCapacity{
+				Namespace: csc.Namespace,
+				Name:      csc.Name,
+			},
+		)
 	}
 	newConfig.ExcludedVolumeAttachments = envSpec.Exclusions.ExcludedVolumeAttachments
 
 	// Kubeflow Notebooks
 	for _, notebook := range envSpec.Exclusions.ExcludedKubeflowNotebooks {
-		newConfig.ExcludedKubeflowNotebooks = append(newConfig.ExcludedKubeflowNotebooks, collector.ExcludedKubeflowNotebook{
-			Namespace: notebook.Namespace,
-			Name:      notebook.Name,
-		})
+		newConfig.ExcludedKubeflowNotebooks = append(
+			newConfig.ExcludedKubeflowNotebooks,
+			collector.ExcludedKubeflowNotebook{
+				Namespace: notebook.Namespace,
+				Name:      notebook.Name,
+			},
+		)
 	}
 
 	// Volcano Jobs
 	for _, job := range envSpec.Exclusions.ExcludedVolcanoJobs {
-		newConfig.ExcludedVolcanoJobs = append(newConfig.ExcludedVolcanoJobs, collector.ExcludedVolcanoJob{
-			Namespace: job.Namespace,
-			Name:      job.Name,
-		})
+		newConfig.ExcludedVolcanoJobs = append(
+			newConfig.ExcludedVolcanoJobs,
+			collector.ExcludedVolcanoJob{
+				Namespace: job.Namespace,
+				Name:      job.Name,
+			},
+		)
 	}
 
 	// Spark Applications
 	for _, app := range envSpec.Exclusions.ExcludedSparkApplications {
-		newConfig.ExcludedSparkApplications = append(newConfig.ExcludedSparkApplications, collector.ExcludedSparkApplication{
-			Namespace: app.Namespace,
-			Name:      app.Name,
-		})
+		newConfig.ExcludedSparkApplications = append(
+			newConfig.ExcludedSparkApplications,
+			collector.ExcludedSparkApplication{
+				Namespace: app.Namespace,
+				Name:      app.Name,
+			},
+		)
 	}
 
 	// Scheduled Spark Applications
 	for _, app := range envSpec.Exclusions.ExcludedScheduledSparkApplications {
-		newConfig.ExcludedScheduledSparkApplications = append(newConfig.ExcludedScheduledSparkApplications, collector.ExcludedScheduledSparkApplication{
-			Namespace: app.Namespace,
-			Name:      app.Name,
+		newConfig.ExcludedScheduledSparkApplications = append(
+			newConfig.ExcludedScheduledSparkApplications,
+			collector.ExcludedScheduledSparkApplication{
+				Namespace: app.Namespace,
+				Name:      app.Name,
+			},
+		)
+	}
+
+	// CloudNativePG Clusters
+	for _, cluster := range envSpec.Exclusions.ExcludedCNPGClusters {
+		newConfig.ExcludedCNPGClusters = append(newConfig.ExcludedCNPGClusters, collector.ExcludedCNPGCluster{
+			Namespace: cluster.Namespace,
+			Name:      cluster.Name,
 		})
 	}
 
@@ -653,7 +784,11 @@ func (r *CollectionPolicyReconciler) createNewConfig(envSpec *monitoringv1.Colle
 }
 
 // identifyAffectedCollectors determines which collectors are affected by configuration changes
-func (r *CollectionPolicyReconciler) identifyAffectedCollectors(oldConfig, newConfig *PolicyConfig) map[string]bool {
+//
+//nolint:gocyclo
+func (r *CollectionPolicyReconciler) identifyAffectedCollectors(
+	oldConfig, newConfig *PolicyConfig,
+) map[string]bool {
 	affectedCollectors := make(map[string]bool)
 
 	// Check namespaces and general settings that affect all collectors
@@ -670,7 +805,10 @@ func (r *CollectionPolicyReconciler) identifyAffectedCollectors(oldConfig, newCo
 		affectedCollectors["container_resource"] = true
 	}
 
-	if !reflect.DeepEqual(oldConfig.ExcludedDeployments, newConfig.ExcludedDeployments) { // TODO: should depployment influence container and pod collectors?
+	if !reflect.DeepEqual(
+		oldConfig.ExcludedDeployments,
+		newConfig.ExcludedDeployments,
+	) { // TODO: should depployment influence container and pod collectors?
 		affectedCollectors["deployment"] = true
 	}
 
@@ -706,7 +844,10 @@ func (r *CollectionPolicyReconciler) identifyAffectedCollectors(oldConfig, newCo
 		affectedCollectors["cron_job"] = true
 	}
 
-	if !reflect.DeepEqual(oldConfig.ExcludedReplicationControllers, newConfig.ExcludedReplicationControllers) {
+	if !reflect.DeepEqual(
+		oldConfig.ExcludedReplicationControllers,
+		newConfig.ExcludedReplicationControllers,
+	) {
 		affectedCollectors["replication_controller"] = true
 	}
 
@@ -754,7 +895,10 @@ func (r *CollectionPolicyReconciler) identifyAffectedCollectors(oldConfig, newCo
 		affectedCollectors["cluster_role"] = true
 	}
 
-	if !reflect.DeepEqual(oldConfig.ExcludedClusterRoleBindings, newConfig.ExcludedClusterRoleBindings) {
+	if !reflect.DeepEqual(
+		oldConfig.ExcludedClusterRoleBindings,
+		newConfig.ExcludedClusterRoleBindings,
+	) {
 		affectedCollectors["cluster_role_binding"] = true
 	}
 
@@ -795,7 +939,10 @@ func (r *CollectionPolicyReconciler) identifyAffectedCollectors(oldConfig, newCo
 		affectedCollectors["keda_scaled_job"] = true
 	}
 
-	if !reflect.DeepEqual(oldConfig.ExcludedKedaScaledObjects, newConfig.ExcludedKedaScaledObjects) {
+	if !reflect.DeepEqual(
+		oldConfig.ExcludedKedaScaledObjects,
+		newConfig.ExcludedKedaScaledObjects,
+	) {
 		affectedCollectors["keda_scaled_object"] = true
 	}
 
@@ -803,15 +950,24 @@ func (r *CollectionPolicyReconciler) identifyAffectedCollectors(oldConfig, newCo
 		affectedCollectors["csi_driver"] = true
 	}
 
-	if !reflect.DeepEqual(oldConfig.ExcludedCSIStorageCapacities, newConfig.ExcludedCSIStorageCapacities) {
+	if !reflect.DeepEqual(
+		oldConfig.ExcludedCSIStorageCapacities,
+		newConfig.ExcludedCSIStorageCapacities,
+	) {
 		affectedCollectors["csi_storage_capacity"] = true
 	}
 
-	if !reflect.DeepEqual(oldConfig.ExcludedVolumeAttachments, newConfig.ExcludedVolumeAttachments) {
+	if !reflect.DeepEqual(
+		oldConfig.ExcludedVolumeAttachments,
+		newConfig.ExcludedVolumeAttachments,
+	) {
 		affectedCollectors["volume_attachment"] = true
 	}
 
-	if !reflect.DeepEqual(oldConfig.ExcludedKubeflowNotebooks, newConfig.ExcludedKubeflowNotebooks) {
+	if !reflect.DeepEqual(
+		oldConfig.ExcludedKubeflowNotebooks,
+		newConfig.ExcludedKubeflowNotebooks,
+	) {
 		affectedCollectors["kubeflow_notebook"] = true
 	}
 
@@ -819,12 +975,22 @@ func (r *CollectionPolicyReconciler) identifyAffectedCollectors(oldConfig, newCo
 		affectedCollectors["volcano_job"] = true
 	}
 
-	if !reflect.DeepEqual(oldConfig.ExcludedSparkApplications, newConfig.ExcludedSparkApplications) {
+	if !reflect.DeepEqual(
+		oldConfig.ExcludedSparkApplications,
+		newConfig.ExcludedSparkApplications,
+	) {
 		affectedCollectors["spark_application"] = true
 	}
 
-	if !reflect.DeepEqual(oldConfig.ExcludedScheduledSparkApplications, newConfig.ExcludedScheduledSparkApplications) {
+	if !reflect.DeepEqual(
+		oldConfig.ExcludedScheduledSparkApplications,
+		newConfig.ExcludedScheduledSparkApplications,
+	) {
 		affectedCollectors["scheduled_spark_application"] = true
+	}
+
+	if !reflect.DeepEqual(oldConfig.ExcludedCNPGClusters, newConfig.ExcludedCNPGClusters) {
+		affectedCollectors["cnpg_cluster"] = true
 	}
 
 	// Check if the special node collectors are affected by the update interval change
@@ -847,7 +1013,12 @@ func (r *CollectionPolicyReconciler) identifyAffectedCollectors(oldConfig, newCo
 }
 
 // restartCollectors stops existing collectors and starts new ones with updated config
-func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newConfig *PolicyConfig) (ctrl.Result, error) {
+//
+//nolint:gocyclo
+func (r *CollectionPolicyReconciler) restartCollectors(
+	ctx context.Context,
+	newConfig *PolicyConfig,
+) (ctrl.Result, error) {
 	if r.RestartInProgress {
 		// Avoid concurrent restarts
 		return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
@@ -865,7 +1036,11 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 		(r.CurrentConfig.PrometheusURL != newConfig.PrometheusURL ||
 			r.CurrentConfig.DisableNetworkIOMetrics != newConfig.DisableNetworkIOMetrics ||
 			r.CurrentConfig.DisableGPUMetrics != newConfig.DisableGPUMetrics) {
-		logger.Info("Prometheus configuration changed, checking availability", "url", newConfig.PrometheusURL)
+		logger.Info(
+			"Prometheus configuration changed, checking availability",
+			"url",
+			newConfig.PrometheusURL,
+		)
 
 		r.TelemetryLogger.Report(
 			gen.LogLevel_LOG_LEVEL_DEBUG,
@@ -880,7 +1055,9 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 
 		prometheusAvailable := r.waitForPrometheusAvailability(ctx, newConfig.PrometheusURL)
 		if !prometheusAvailable {
-			logger.Info("Prometheus is not available after waiting, will continue with restart but metrics may be limited")
+			logger.Info(
+				"Prometheus is not available after waiting, will continue with restart but metrics may be limited",
+			)
 			// We continue with restart, but log the warning
 		} else {
 			logger.Info("Prometheus is available, continuing with full metrics collection")
@@ -924,6 +1101,12 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				"zxporter_version": version.Get().String(),
 			},
 		)
+
+		// Suppress liveness during planned restart so the transient Unhealthy
+		// window between StopAll and StartAll does not trigger a pod kill.
+		if r.HealthManager != nil {
+			r.HealthManager.SuppressLiveness(5 * time.Minute)
+		}
 
 		// Stop all existing collectors
 		if r.CollectionManager != nil {
@@ -982,7 +1165,11 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 		return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
 	}
 
-	logger.Info("Performing selective restart of affected collectors", "affectedCount", len(affectedCollectors))
+	logger.Info(
+		"Performing selective restart of affected collectors",
+		"affectedCount",
+		len(affectedCollectors),
+	)
 	r.TelemetryLogger.Report(
 		gen.LogLevel_LOG_LEVEL_WARN,
 		"CollectionPolicyReconciler_restartCollectors",
@@ -1041,6 +1228,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 			r.Sender.(transport.DakrClient),
 			r.TelemetryMetrics,
 			15*time.Second, // Send metrics every 15 seconds
+			r.HealthManager,
 		)
 
 		if err := r.TelemetrySender.Start(ctx); err != nil {
@@ -1472,6 +1660,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 			replacedCollector = snap.NewClusterSnapshotter(
 				r.K8sClient,
 				r.KEDAClient,
+				r.DynamicClient,
 				newConfig.ClusterSnapshotInterval,
 				r.Sender,
 				r.CollectionManager,
@@ -1548,6 +1737,36 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 				logger,
 				r.TelemetryLogger,
 			)
+		case "workload_recommendation":
+			// WorkloadRecommendation collector for syncing in-cluster recommendations back to control plane
+			replacedCollector = collector.NewWorkloadRecommendationCollector(
+				r.DynamicClient,
+				newConfig.TargetNamespaces,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+				r.TelemetryLogger,
+			)
+		case "workload_rule":
+			// WorkloadRule collector for syncing OOM events back to control plane
+			replacedCollector = collector.NewWorkloadRuleCollector(
+				r.DynamicClient,
+				newConfig.TargetNamespaces,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+				r.TelemetryLogger,
+			)
+		case "cnpg_cluster":
+			replacedCollector = collector.NewCNPGCollector(
+				r.DynamicClient,
+				newConfig.TargetNamespaces,
+				newConfig.ExcludedCNPGClusters,
+				collector.DefaultMaxBatchSize,
+				newConfig.UpdateInterval,
+				logger,
+				r.TelemetryLogger,
+			)
 		default:
 			logger.Info("Collector type not handled in selective restart", "type", collectorType)
 			continue
@@ -1610,7 +1829,10 @@ func (r *CollectionPolicyReconciler) restartCollectors(ctx context.Context, newC
 }
 
 // initializeCollectors coordinates the setup and startup of all collectors
-func (r *CollectionPolicyReconciler) initializeCollectors(ctx context.Context, config *PolicyConfig) (ctrl.Result, error) {
+func (r *CollectionPolicyReconciler) initializeCollectors(
+	ctx context.Context,
+	config *PolicyConfig,
+) (ctrl.Result, error) {
 	logger := r.Log.WithName("initialize")
 	logger.Info("Initializing collectors", "config", fmt.Sprintf("%+v", config))
 
@@ -1619,7 +1841,9 @@ func (r *CollectionPolicyReconciler) initializeCollectors(ctx context.Context, c
 		logger.Info("Prometheus URL configured, checking availability", "url", config.PrometheusURL)
 		prometheusAvailable := r.waitForPrometheusAvailability(ctx, config.PrometheusURL)
 		if !prometheusAvailable {
-			logger.Info("Prometheus is not available after waiting, will continue initialization but metrics may be limited")
+			logger.Info(
+				"Prometheus is not available after waiting, will continue initialization but metrics may be limited",
+			)
 			r.TelemetryLogger.Report(
 				gen.LogLevel_LOG_LEVEL_DEBUG,
 				"CollectionPolicyReconciler_initializeCollectors",
@@ -1779,7 +2003,13 @@ func (r *CollectionPolicyReconciler) initializeCollectors(ctx context.Context, c
 }
 
 // setupCollectionManager initializes the collection manager and sender
-func (r *CollectionPolicyReconciler) setupCollectionManager(ctx context.Context, config *PolicyConfig, logger logr.Logger) error {
+//
+//nolint:unparam
+func (r *CollectionPolicyReconciler) setupCollectionManager(
+	ctx context.Context,
+	config *PolicyConfig,
+	logger logr.Logger,
+) error {
 	// Create collection config
 	collectionConfig := &collector.CollectionConfig{
 		Namespaces:         config.TargetNamespaces,
@@ -1795,6 +2025,7 @@ func (r *CollectionPolicyReconciler) setupCollectionManager(ctx context.Context,
 		r.TelemetryMetrics,
 		logger.WithName("collection-manager"),
 		r.TelemetryLogger,
+		r.HealthManager,
 	)
 
 	// Create and start the telemetry sender
@@ -1803,6 +2034,7 @@ func (r *CollectionPolicyReconciler) setupCollectionManager(ctx context.Context,
 		r.DakrClient, // Use the dakrClient directly
 		r.TelemetryMetrics,
 		15*time.Second, // Send metrics every 15 seconds
+		r.HealthManager,
 	)
 
 	if err := r.TelemetrySender.Start(ctx); err != nil {
@@ -1820,12 +2052,16 @@ func (r *CollectionPolicyReconciler) setupMpaServer() error {
 	if r.MpaServer != nil {
 		return nil
 	}
-	r.MpaServer = server.NewMpaServer(r.Log)
+	r.MpaServer = server.NewMpaServer(r.Log, nil, r.HealthManager)
 	return r.MpaServer.Start(r.MpaServerPort)
 }
 
 // setupClusterCollector creates and starts just the cluster collector
-func (r *CollectionPolicyReconciler) setupClusterCollector(ctx context.Context, logger logr.Logger, config *PolicyConfig) (collector.ResourceCollector, error) {
+func (r *CollectionPolicyReconciler) setupClusterCollector(
+	ctx context.Context,
+	logger logr.Logger,
+	config *PolicyConfig,
+) (collector.ResourceCollector, error) {
 	logger.Info("First registering and starting cluster collector")
 
 	// Create metrics client
@@ -1846,10 +2082,17 @@ func (r *CollectionPolicyReconciler) setupClusterCollector(ctx context.Context, 
 	}
 
 	// Create and register cluster collector with provider detection
-	providerDetector := provider.NewDetector(logger, r.K8sClient, provider.WithKubeContextName(config.KubeContextName))
+	providerDetector := provider.NewDetector(
+		logger,
+		r.K8sClient,
+		provider.WithKubeContextName(config.KubeContextName),
+	)
 	detectedProvider, err := providerDetector.DetectProvider(ctx)
 	if err != nil {
-		logger.Error(err, "Failed to detect cloud provider, collector will have limited functionality")
+		logger.Error(
+			err,
+			"Failed to detect cloud provider, collector will have limited functionality",
+		)
 	}
 
 	// Create the cluster collector
@@ -1878,7 +2121,10 @@ func (r *CollectionPolicyReconciler) setupClusterCollector(ctx context.Context, 
 }
 
 // waitForClusterRegistration waits for cluster data to be sent to Dakr
-func (r *CollectionPolicyReconciler) waitForClusterRegistration(ctx context.Context, logger logr.Logger) *ctrl.Result {
+func (r *CollectionPolicyReconciler) waitForClusterRegistration(
+	ctx context.Context,
+	logger logr.Logger,
+) *ctrl.Result {
 	clusterRegisteredCh := make(chan struct{})
 	clusterFailedCh := make(chan struct{})
 
@@ -1903,7 +2149,10 @@ func (r *CollectionPolicyReconciler) waitForClusterRegistration(ctx context.Cont
 		)
 		return nil
 	case <-clusterFailedCh:
-		logger.Error(nil, "Cluster data registration failed after maximum attempts, operator entering error state")
+		logger.Error(
+			nil,
+			"Cluster data registration failed after maximum attempts, operator entering error state",
+		)
 		return &ctrl.Result{Requeue: true, RequeueAfter: 1 * time.Minute}
 	case <-clusterTimeoutCh:
 		logger.Info("Timeout waiting for cluster data")
@@ -2062,6 +2311,11 @@ func (r *CollectionPolicyReconciler) setupAllCollectors(
 ) error {
 	logger.Info("Now registering and starting all collectors")
 
+	// Suppress liveness during reconfiguration restart
+	if r.HealthManager != nil {
+		r.HealthManager.SuppressLiveness(5 * time.Minute)
+	}
+
 	// Stop the collection manager to reconfigure with all collectors
 	if err := r.CollectionManager.StopAll(); err != nil {
 		r.TelemetryLogger.Report(
@@ -2153,9 +2407,11 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 	}
 
 	// List of collectors to register
+	// factory is non-nil for CRD-based collectors that may not be available at startup
 	collectors := []struct {
 		collector collector.ResourceCollector
 		name      collector.ResourceType
+		factory   func() collector.ResourceCollector
 	}{
 		{
 			collector: collector.NewEndpointCollector(
@@ -2569,6 +2825,15 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				r.TelemetryLogger,
 			),
 			name: collector.Karpenter,
+			factory: func() collector.ResourceCollector {
+				return collector.NewKarpenterCollector(
+					r.DynamicClient,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+					r.TelemetryLogger,
+				)
+			},
 		},
 		{
 			collector: collector.NewDatadogCollector(
@@ -2581,6 +2846,17 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				r.TelemetryLogger,
 			),
 			name: collector.Datadog,
+			factory: func() collector.ResourceCollector {
+				return collector.NewDatadogCollector(
+					r.DynamicClient,
+					config.TargetNamespaces,
+					config.ExcludedDatadogReplicaSets,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+					r.TelemetryLogger,
+				)
+			},
 		},
 		{
 			collector: collector.NewArgoRolloutsCollector(
@@ -2593,6 +2869,17 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				r.TelemetryLogger,
 			),
 			name: collector.ArgoRollouts,
+			factory: func() collector.ResourceCollector {
+				return collector.NewArgoRolloutsCollector(
+					r.DynamicClient,
+					config.TargetNamespaces,
+					config.ExcludedArgoRollouts,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+					r.TelemetryLogger,
+				)
+			},
 		},
 		{
 			collector: collector.NewCRDCollector(
@@ -2615,6 +2902,17 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				r.TelemetryLogger,
 			),
 			name: collector.KedaScaledJob,
+			factory: func() collector.ResourceCollector {
+				return collector.NewScaledJobCollector(
+					r.KEDAClient,
+					config.TargetNamespaces,
+					config.ExcludedKedaScaledJobs,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+					r.TelemetryLogger,
+				)
+			},
 		},
 		{
 			collector: collector.NewScaledObjectCollector(
@@ -2627,11 +2925,23 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				r.TelemetryLogger,
 			),
 			name: collector.KedaScaledObject,
+			factory: func() collector.ResourceCollector {
+				return collector.NewScaledObjectCollector(
+					r.KEDAClient,
+					config.TargetNamespaces,
+					config.ExcludedKedaScaledObjects,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+					r.TelemetryLogger,
+				)
+			},
 		},
 		{
 			collector: snap.NewClusterSnapshotter(
 				r.K8sClient,
 				r.KEDAClient,
+				r.DynamicClient,
 				config.ClusterSnapshotInterval,
 				r.Sender,
 				r.CollectionManager,
@@ -2687,6 +2997,17 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				r.TelemetryLogger,
 			),
 			name: collector.KubeflowNotebook,
+			factory: func() collector.ResourceCollector {
+				return collector.NewKubeflowNotebookCollector(
+					r.DynamicClient,
+					config.TargetNamespaces,
+					config.ExcludedKubeflowNotebooks,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+					r.TelemetryLogger,
+				)
+			},
 		},
 		{
 			collector: collector.NewVolcanoJobCollector(
@@ -2699,6 +3020,17 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				r.TelemetryLogger,
 			),
 			name: collector.VolcanoJob,
+			factory: func() collector.ResourceCollector {
+				return collector.NewVolcanoJobCollector(
+					r.DynamicClient,
+					config.TargetNamespaces,
+					config.ExcludedVolcanoJobs,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+					r.TelemetryLogger,
+				)
+			},
 		},
 		{
 			collector: collector.NewSparkApplicationCollector(
@@ -2711,6 +3043,17 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				r.TelemetryLogger,
 			),
 			name: collector.SparkApplication,
+			factory: func() collector.ResourceCollector {
+				return collector.NewSparkApplicationCollector(
+					r.DynamicClient,
+					config.TargetNamespaces,
+					config.ExcludedSparkApplications,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+					r.TelemetryLogger,
+				)
+			},
 		},
 		{
 			collector: collector.NewScheduledSparkApplicationCollector(
@@ -2723,6 +3066,73 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				r.TelemetryLogger,
 			),
 			name: collector.ScheduledSparkApplication,
+			factory: func() collector.ResourceCollector {
+				return collector.NewScheduledSparkApplicationCollector(
+					r.DynamicClient,
+					config.TargetNamespaces,
+					config.ExcludedScheduledSparkApplications,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+					r.TelemetryLogger,
+				)
+			},
+		},
+		// WorkloadRecommendation collector for syncing in-cluster recommendations back to control plane
+		{
+			collector: collector.NewWorkloadRecommendationCollector(
+				r.DynamicClient,
+				config.TargetNamespaces,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+				r.TelemetryLogger,
+			),
+			name: collector.WorkloadRecommendation,
+			factory: func() collector.ResourceCollector {
+				return collector.NewWorkloadRecommendationCollector(
+					r.DynamicClient,
+					config.TargetNamespaces,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+					r.TelemetryLogger,
+				)
+			},
+		},
+		// WorkloadRule collector for syncing OOM events back to control plane
+		{
+			collector: collector.NewWorkloadRuleCollector(
+				r.DynamicClient,
+				config.TargetNamespaces,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+				r.TelemetryLogger,
+			),
+			name: collector.WorkloadRule,
+			factory: func() collector.ResourceCollector {
+				return collector.NewWorkloadRuleCollector(
+					r.DynamicClient,
+					config.TargetNamespaces,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+					r.TelemetryLogger,
+				)
+			},
+		},
+		{
+			collector: collector.NewCNPGCollector(
+				r.DynamicClient,
+				config.TargetNamespaces,
+				config.ExcludedCNPGClusters,
+				collector.DefaultMaxBatchSize,
+				config.UpdateInterval,
+				logger,
+				r.TelemetryLogger,
+			),
+			name: collector.CNPGCluster,
 		},
 	}
 
@@ -2785,6 +3195,17 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				},
 			)
 			logger.Info("Collector not available, skipping registration", "type", c.name.String())
+
+			// Track CRD-based collectors for deferred retry when their CRDs become available
+			if c.factory != nil {
+				r.pendingMu.Lock()
+				r.pendingCollectors = append(r.pendingCollectors, pendingCollector{
+					name:    c.name,
+					factory: c.factory,
+				})
+				r.pendingMu.Unlock()
+				logger.Info("Added collector to pending retry list", "type", c.name.String())
+			}
 		}
 	}
 
@@ -2792,7 +3213,10 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 }
 
 // processCollectedResources reads from collection channel and forwards to sender
-func (r *CollectionPolicyReconciler) processCollectedResources(ctx context.Context, logger logr.Logger) {
+func (r *CollectionPolicyReconciler) processCollectedResources(
+	ctx context.Context,
+	logger logr.Logger,
+) {
 	logger.Info("Starting to process collected resources")
 
 	resourceChan := r.CollectionManager.GetCombinedChannel()
@@ -2835,7 +3259,8 @@ func (r *CollectionPolicyReconciler) processCollectedResources(ctx context.Conte
 			}
 
 			// Broadcast to MPA subscribers if it's container metrics
-			if r.MpaServer != nil && len(resources) > 0 && resources[0].ResourceType == collector.ContainerResource {
+			if r.MpaServer != nil && len(resources) > 0 &&
+				resources[0].ResourceType == collector.ContainerResource {
 				for _, res := range resources {
 					if metrics, ok := res.Object.(*collector.ContainerMetricsSnapshot); ok {
 						r.MpaServer.PublishMetrics(metrics, res.Timestamp)
@@ -3321,6 +3746,7 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 				replacedCollector = snap.NewClusterSnapshotter(
 					r.K8sClient,
 					r.KEDAClient,
+					r.DynamicClient,
 					newConfig.ClusterSnapshotInterval,
 					r.Sender,
 					r.CollectionManager,
@@ -3397,6 +3823,16 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					logger,
 					r.TelemetryLogger,
 				)
+			case "cnpg_cluster":
+				replacedCollector = collector.NewCNPGCollector(
+					r.DynamicClient,
+					newConfig.TargetNamespaces,
+					newConfig.ExcludedCNPGClusters,
+					collector.DefaultMaxBatchSize,
+					newConfig.UpdateInterval,
+					logger,
+					r.TelemetryLogger,
+				)
 			default:
 				logger.Info("Unknown collector type, skipping", "type", collectorType)
 				continue
@@ -3439,7 +3875,10 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 
 // waitForPrometheusAvailability checks if Prometheus is available with retry logic
 // Returns true if Prometheus is available, false if not after maxRetries
-func (r *CollectionPolicyReconciler) waitForPrometheusAvailability(ctx context.Context, prometheusURL string) bool {
+func (r *CollectionPolicyReconciler) waitForPrometheusAvailability(
+	ctx context.Context,
+	prometheusURL string,
+) bool {
 	logger := r.Log.WithName("prometheus-check")
 
 	if prometheusURL == "" {
@@ -3510,6 +3949,11 @@ func (r *CollectionPolicyReconciler) waitForPrometheusAvailability(ctx context.C
 			if resp.StatusCode == http.StatusOK {
 				logger.Info("Prometheus is available", "statusCode", resp.StatusCode)
 				resp.Body.Close()
+				r.updateHealthStatus(
+					health.HealthStatusHealthy,
+					"Prometheus available",
+					map[string]string{"url": prometheusURL},
+				)
 				return true
 			}
 
@@ -3533,7 +3977,11 @@ func (r *CollectionPolicyReconciler) waitForPrometheusAvailability(ctx context.C
 		}
 	}
 
-	logger.Info("Prometheus availability check failed after maximum retries", "maxRetries", maxRetries)
+	logger.Info(
+		"Prometheus availability check failed after maximum retries",
+		"maxRetries",
+		maxRetries,
+	)
 	r.TelemetryLogger.Report(
 		gen.LogLevel_LOG_LEVEL_ERROR,
 		"CollectionPolicyReconciler_waitForPrometheusAvailability",
@@ -3543,6 +3991,14 @@ func (r *CollectionPolicyReconciler) waitForPrometheusAvailability(ctx context.C
 			"prometheus_url":   prometheusURL,
 			"max_retries":      fmt.Sprintf("%v", maxRetries),
 			"zxporter_version": version.Get().String(),
+		},
+	)
+	r.updateHealthStatus(
+		health.HealthStatusUnhealthy,
+		"Prometheus unavailable after retries",
+		map[string]string{
+			"url":         prometheusURL,
+			"max_retries": fmt.Sprintf("%d", maxRetries),
 		},
 	)
 	return false
@@ -3574,4 +4030,15 @@ func (r *CollectionPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			GenericFunc: func(e event.GenericEvent) bool { return false },
 		}).
 		Complete(r)
+}
+
+// updateHealthStatus reports Prometheus component health if a HealthManager is configured.
+func (r *CollectionPolicyReconciler) updateHealthStatus(
+	status health.HealthStatus,
+	message string,
+	metadata map[string]string,
+) {
+	if r.HealthManager != nil {
+		r.HealthManager.UpdateStatus(health.ComponentPrometheus, status, message, metadata)
+	}
 }

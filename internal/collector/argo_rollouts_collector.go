@@ -197,7 +197,10 @@ func (c *ArgoRolloutsCollector) Start(ctx context.Context) error {
 }
 
 // handleRolloutEvent processes Argo Rollout events
-func (c *ArgoRolloutsCollector) handleRolloutEvent(obj *unstructured.Unstructured, eventType EventType) {
+func (c *ArgoRolloutsCollector) handleRolloutEvent(
+	obj *unstructured.Unstructured,
+	eventType EventType,
+) {
 	name := obj.GetName()
 	namespace := obj.GetNamespace()
 
@@ -223,7 +226,9 @@ func (c *ArgoRolloutsCollector) handleRolloutEvent(obj *unstructured.Unstructure
 }
 
 // processRollout extracts relevant fields from Argo Rollout objects
-func (c *ArgoRolloutsCollector) processRollout(obj *unstructured.Unstructured) map[string]interface{} {
+func (c *ArgoRolloutsCollector) processRollout(
+	obj *unstructured.Unstructured,
+) map[string]interface{} {
 	// Extract common metadata
 	result := map[string]interface{}{
 		"name":              obj.GetName(),
@@ -297,7 +302,11 @@ func (c *ArgoRolloutsCollector) processRollout(obj *unstructured.Unstructured) m
 		}
 
 		// Get current step
-		currentStep, foundCurrentStep, _ := unstructured.NestedInt64(obj.Object, "status", "currentStep")
+		currentStep, foundCurrentStep, _ := unstructured.NestedInt64(
+			obj.Object,
+			"status",
+			"currentStep",
+		)
 		if foundCurrentStep {
 			result["currentStep"] = currentStep
 		}
@@ -321,19 +330,31 @@ func (c *ArgoRolloutsCollector) processRollout(obj *unstructured.Unstructured) m
 		}
 
 		// Get available replicas
-		availableReplicas, foundAvailable, _ := unstructured.NestedInt64(obj.Object, "status", "availableReplicas")
+		availableReplicas, foundAvailable, _ := unstructured.NestedInt64(
+			obj.Object,
+			"status",
+			"availableReplicas",
+		)
 		if foundAvailable {
 			result["availableReplicas"] = availableReplicas
 		}
 
 		// Get updated replicas
-		updatedReplicas, foundUpdated, _ := unstructured.NestedInt64(obj.Object, "status", "updatedReplicas")
+		updatedReplicas, foundUpdated, _ := unstructured.NestedInt64(
+			obj.Object,
+			"status",
+			"updatedReplicas",
+		)
 		if foundUpdated {
 			result["updatedReplicas"] = updatedReplicas
 		}
 
 		// Get conditions
-		conditions, foundConditions, _ := unstructured.NestedSlice(obj.Object, "status", "conditions")
+		conditions, foundConditions, _ := unstructured.NestedSlice(
+			obj.Object,
+			"status",
+			"conditions",
+		)
 		if foundConditions {
 			result["conditions"] = conditions
 		}

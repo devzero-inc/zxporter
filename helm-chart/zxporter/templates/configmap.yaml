@@ -56,4 +56,4 @@ data:
 kind: ConfigMap
 metadata:
   name: {{ .Values.zxporter.tokenConfigMapName }}
-  namespace: {{ .Values.namespace }}
+  namespace: {{ .Release.Namespace }}

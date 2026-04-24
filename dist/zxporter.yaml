@@ -286,6 +286,15 @@ rules:
   - list
   - watch
 - apiGroups:
+  - dakr.devzero.io
+  resources:
+  - workloadrecommendations
+  - workloadrules
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - datadoghq.com
   resources:
   - extendeddaemonsetreplicasets
@@ -406,6 +415,14 @@ rules:
   - policy
   resources:
   - poddisruptionbudgets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - postgresql.cnpg.io
+  resources:
+  - clusters
   verbs:
   - get
   - list
@@ -647,7 +664,7 @@ metadata:
   name: devzero-zxporter-controller-manager
   namespace: devzero-zxporter
 spec:
-  replicas: 1
+  replicas: 2
   selector:
     matchLabels:
       control-plane: controller-manager

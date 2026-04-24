@@ -9,6 +9,7 @@ import (
 
 	gen "github.com/devzero-inc/zxporter/gen/api/v1"
 	"github.com/devzero-inc/zxporter/internal/collector"
+	"github.com/devzero-inc/zxporter/internal/health"
 	"github.com/go-logr/logr"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -20,13 +21,22 @@ type MpaServer struct {
 	logger              logr.Logger
 	subscriptionManager *SubscriptionManager
 	grpcServer          *grpc.Server
+	historicalCollector *collector.HistoricalMetricsCollector
+	healthManager       *health.HealthManager
 }
 
-// NewMpaServer creates a new MpaServer
-func NewMpaServer(logger logr.Logger) *MpaServer {
+// NewMpaServer creates a new MpaServer.
+// historicalCollector may be nil if Prometheus is not available.
+func NewMpaServer(
+	logger logr.Logger,
+	historicalCollector *collector.HistoricalMetricsCollector,
+	healthManager *health.HealthManager,
+) *MpaServer {
 	return &MpaServer{
 		logger:              logger.WithName("mpa-server"),
 		subscriptionManager: NewSubscriptionManager(logger),
+		historicalCollector: historicalCollector,
+		healthManager:       healthManager,
 	}
 }
 
@@ -34,6 +44,11 @@ func NewMpaServer(logger logr.Logger) *MpaServer {
 func (s *MpaServer) Start(port int) error {
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
 	if err != nil {
+		s.updateHealthStatus(
+			health.HealthStatusUnhealthy,
+			fmt.Sprintf("Failed to listen on port %d", port),
+			map[string]string{"port": fmt.Sprintf("%d", port), "error": err.Error()},
+		)
 		return fmt.Errorf("failed to listen on port %d: %w", port, err)
 	}
 
@@ -45,8 +60,18 @@ func (s *MpaServer) Start(port int) error {
 	go func() {
 		if err := s.grpcServer.Serve(lis); err != nil {
 			s.logger.Error(err, "Failed to serve gRPC")
+			s.updateHealthStatus(
+				health.HealthStatusUnhealthy,
+				"gRPC server failed",
+				map[string]string{"error": err.Error()},
+			)
 		}
 	}()
+	s.updateHealthStatus(
+		health.HealthStatusHealthy,
+		"gRPC server listening",
+		map[string]string{"port": fmt.Sprintf("%d", port)},
+	)
 	return nil
 }
 
@@ -55,12 +80,13 @@ func (s *MpaServer) Stop() {
 	if s.grpcServer != nil {
 		s.logger.Info("Stopping MPA gRPC server")
 		s.grpcServer.GracefulStop()
+		s.updateHealthStatus(health.HealthStatusUnhealthy, "gRPC server stopped", nil)
 	}
 }
 
 func (s *MpaServer) StreamWorkloadMetrics(stream gen.MpaService_StreamWorkloadMetricsServer) error {
 	// Create a channel for this client's metric updates
-	updates := make(chan *gen.ContainerMetricsBatch, 100)
+	updates := make(chan *gen.MpaStreamResponse, 100)
 	clientID := s.subscriptionManager.Register(updates)
 	defer s.subscriptionManager.Unregister(clientID)
 
@@ -68,10 +94,28 @@ func (s *MpaServer) StreamWorkloadMetrics(stream gen.MpaService_StreamWorkloadMe
 
 	// Start a goroutine to send metrics to the client
 	go func() {
-		for batch := range updates {
-			if err := stream.Send(batch); err != nil {
+		for msg := range updates {
+			if err := stream.Send(msg); err != nil {
 				s.logger.Error(err, "Failed to send metrics to client", "clientID", clientID)
 				return
+			}
+		}
+	}()
+
+	// Start periodic historical refresh
+	refreshTicker := time.NewTicker(15 * time.Minute)
+	defer refreshTicker.Stop()
+
+	go func() {
+		for {
+			select {
+			case <-stream.Context().Done():
+				return
+			case <-refreshTicker.C:
+				interests := s.subscriptionManager.GetInterests(clientID)
+				if len(interests) > 0 {
+					s.sendHistoricalForSubscriptions(stream, interests)
+				}
 			}
 		}
 	}()
@@ -89,13 +133,44 @@ func (s *MpaServer) StreamWorkloadMetrics(stream gen.MpaService_StreamWorkloadMe
 
 		// Update subscription for this client
 		s.subscriptionManager.UpdateSubscription(clientID, sub)
-		s.logger.Info("Updated subscription", "clientID", clientID, "workloads_count", len(sub.Workloads))
+		s.logger.Info(
+			"Updated subscription",
+			"clientID",
+			clientID,
+			"workloads_count",
+			len(sub.Workloads),
+		)
+
+		// Fetch historical data for newly subscribed workloads
+		interests := make([]WorkloadInterest, 0, len(sub.Workloads))
+		for _, w := range sub.Workloads {
+			interests = append(interests, WorkloadInterest{
+				Namespace: w.Namespace,
+				Name:      w.Name,
+				Kind:      w.Kind,
+			})
+		}
+		go s.sendHistoricalForSubscriptions(stream, interests)
 	}
 }
 
 // PublishMetrics is called by the collector to broadcast new metrics
-func (s *MpaServer) PublishMetrics(metrics *collector.ContainerMetricsSnapshot, timestamp time.Time) {
+func (s *MpaServer) PublishMetrics(
+	metrics *collector.ContainerMetricsSnapshot,
+	timestamp time.Time,
+) {
 	s.subscriptionManager.Broadcast(metrics, timestamp)
+}
+
+// updateHealthStatus reports MPA server component health if a HealthManager is configured.
+func (s *MpaServer) updateHealthStatus(
+	status health.HealthStatus,
+	message string,
+	metadata map[string]string,
+) {
+	if s.healthManager != nil {
+		s.healthManager.UpdateStatus(health.ComponentMpaServer, status, message, metadata)
+	}
 }
 
 // SubscriptionManager manages active streams and their interests
@@ -107,7 +182,7 @@ type SubscriptionManager struct {
 
 type ClientSubscription struct {
 	ID        string
-	Channel   chan *gen.ContainerMetricsBatch
+	Channel   chan *gen.MpaStreamResponse
 	Interests []WorkloadInterest
 }
 
@@ -125,7 +200,7 @@ func NewSubscriptionManager(logger logr.Logger) *SubscriptionManager {
 	}
 }
 
-func (sm *SubscriptionManager) Register(ch chan *gen.ContainerMetricsBatch) string {
+func (sm *SubscriptionManager) Register(ch chan *gen.MpaStreamResponse) string {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 	id := fmt.Sprintf("%d", time.Now().UnixNano())
@@ -146,7 +221,10 @@ func (sm *SubscriptionManager) Unregister(id string) {
 	}
 }
 
-func (sm *SubscriptionManager) UpdateSubscription(clientID string, sub *gen.MpaWorkloadSubscription) {
+func (sm *SubscriptionManager) UpdateSubscription(
+	clientID string,
+	sub *gen.MpaWorkloadSubscription,
+) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
@@ -158,7 +236,17 @@ func (sm *SubscriptionManager) UpdateSubscription(clientID string, sub *gen.MpaW
 	// Replace current interests
 	newInterests := make([]WorkloadInterest, 0, len(sub.Workloads))
 	for _, w := range sub.Workloads {
-		sm.logger.Info("Registering workload interest", "clientID", clientID, "namespace", w.Namespace, "name", w.Name, "kind", w.Kind)
+		sm.logger.Info(
+			"Registering workload interest",
+			"clientID",
+			clientID,
+			"namespace",
+			w.Namespace,
+			"name",
+			w.Name,
+			"kind",
+			w.Kind,
+		)
 		newInterests = append(newInterests, WorkloadInterest{
 			Namespace: w.Namespace,
 			Name:      w.Name,
@@ -169,8 +257,25 @@ func (sm *SubscriptionManager) UpdateSubscription(clientID string, sub *gen.MpaW
 	client.Interests = newInterests
 }
 
+// GetInterests returns the current interests for a client.
+func (sm *SubscriptionManager) GetInterests(clientID string) []WorkloadInterest {
+	sm.mu.RLock()
+	defer sm.mu.RUnlock()
+
+	client, ok := sm.clients[clientID]
+	if !ok {
+		return nil
+	}
+	result := make([]WorkloadInterest, len(client.Interests))
+	copy(result, client.Interests)
+	return result
+}
+
 // Broadcast filters and dispatches metrics to interested clients
-func (sm *SubscriptionManager) Broadcast(data *collector.ContainerMetricsSnapshot, timestamp time.Time) {
+func (sm *SubscriptionManager) Broadcast(
+	data *collector.ContainerMetricsSnapshot,
+	timestamp time.Time,
+) {
 	// Parse metric data
 	ns := data.Namespace
 	pod := data.PodName
@@ -230,17 +335,84 @@ func (sm *SubscriptionManager) Broadcast(data *collector.ContainerMetricsSnapsho
 				OomKillCount:          0, // Not explicitly tracked in snapshot yet
 				RestartCount:          int32(restartCount),
 				LastTerminationReason: lastReason,
+				// Resource requests and limits for utilization calculation
+				CpuRequestMillis:   data.CpuRequestMillis,
+				MemoryRequestBytes: data.MemoryRequestBytes,
+				CpuLimitMillis:     data.CpuLimitMillis,
+				MemoryLimitBytes:   data.MemoryLimitBytes,
+				// CPU throttle fraction from CFS bandwidth controller
+				CpuThrottleFraction: data.CpuThrottledFraction,
+				// Network metrics (bytes/sec from Prometheus rate queries)
+				NetworkReceiveBytesPerSec:  int64(data.NetworkReceiveBytes),
+				NetworkTransmitBytesPerSec: int64(data.NetworkTransmitBytes),
 			}
 
 			batch := &gen.ContainerMetricsBatch{
 				Items: []*gen.ContainerMetricItem{item},
 			}
+			resp := &gen.MpaStreamResponse{
+				Payload: &gen.MpaStreamResponse_RealtimeMetrics{
+					RealtimeMetrics: batch,
+				},
+			}
 
 			select {
-			case client.Channel <- batch:
+			case client.Channel <- resp:
 			default:
 				// Buffer full, drop metric
 			}
+		}
+	}
+}
+
+// sendHistoricalForSubscriptions fetches and sends historical metrics for subscribed workloads.
+func (s *MpaServer) sendHistoricalForSubscriptions(
+	stream gen.MpaService_StreamWorkloadMetricsServer,
+	interests []WorkloadInterest,
+) {
+	if s.historicalCollector == nil {
+		return
+	}
+
+	queries := make([]collector.HistoricalWorkloadQuery, 0, len(interests))
+	for _, interest := range interests {
+		podRegex := interest.Name + "-.*"
+
+		// Discover containers from Prometheus
+		containers, err := s.historicalCollector.DiscoverContainers(
+			stream.Context(), interest.Namespace, podRegex)
+		if err != nil {
+			s.logger.Error(err, "Failed to discover containers", "workload", interest.Name)
+			continue
+		}
+		if len(containers) == 0 {
+			s.logger.V(1).Info("No containers discovered for workload", "workload", interest.Name)
+			continue
+		}
+
+		queries = append(queries, collector.HistoricalWorkloadQuery{
+			Namespace:    interest.Namespace,
+			WorkloadName: interest.Name,
+			WorkloadKind: interest.Kind,
+			PodRegex:     podRegex,
+			Containers:   containers,
+		})
+	}
+
+	if len(queries) == 0 {
+		return
+	}
+
+	results := s.historicalCollector.FetchPercentilesForAll(stream.Context(), queries)
+	for _, summary := range results {
+		resp := &gen.MpaStreamResponse{
+			Payload: &gen.MpaStreamResponse_HistoricalSummary{
+				HistoricalSummary: summary,
+			},
+		}
+		if err := stream.Send(resp); err != nil {
+			s.logger.Error(err, "Failed to send historical summary")
+			return
 		}
 	}
 }

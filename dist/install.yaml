@@ -87,7 +87,7 @@ data:
       - role: node
       metric_relabel_configs:
       - action: keep
-        regex: node_network_(receive|transmit)_(bytes|packets|errs|drop)_total|node_disk_(read_bytes|written_bytes|reads_completed|writes_completed)_total
+        regex: node_network_(receive|transmit)_(bytes|packets|errs|drop)_total|node_disk_(read_bytes|written_bytes|reads_completed|writes_completed)_total|kubelet_volume_stats_(used|capacity|available)_bytes
         source_labels:
         - __name__
       relabel_configs:
@@ -109,7 +109,7 @@ data:
       - role: node
       metric_relabel_configs:
       - action: keep
-        regex: container_network_(receive|transmit)_(bytes|packets|errors|packets_dropped)_total|container_fs_(reads|writes)_(bytes_)?total
+        regex: container_network_(receive|transmit)_(bytes|packets|errors|packets_dropped)_total|container_fs_(reads|writes)_(bytes_)?total|kubelet_volume_stats_(used|capacity|available)_bytes|container_cpu_cfs_(throttled_)?periods_total
         source_labels:
         - __name__
       - action: labeldrop
@@ -201,7 +201,7 @@ data:
       - role: pod
       metric_relabel_configs:
       - action: keep
-        regex: node_network_(receive|transmit)_(bytes|packets|errs|drop)_total|node_disk_(read_bytes|written_bytes|reads_completed|writes_completed)_total
+        regex: node_network_(receive|transmit)_(bytes|packets|errs|drop)_total|node_disk_(read_bytes|written_bytes|reads_completed|writes_completed)_total|kubelet_volume_stats_(used|capacity|available)_bytes
         source_labels:
         - __name__
       relabel_configs:
@@ -1107,6 +1107,15 @@ rules:
   - list
   - watch
 - apiGroups:
+  - dakr.devzero.io
+  resources:
+  - workloadrecommendations
+  - workloadrules
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - datadoghq.com
   resources:
   - extendeddaemonsetreplicasets
@@ -1227,6 +1236,14 @@ rules:
   - policy
   resources:
   - poddisruptionbudgets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - postgresql.cnpg.io
+  resources:
+  - clusters
   verbs:
   - get
   - list
@@ -1468,7 +1485,7 @@ metadata:
   name: devzero-zxporter-controller-manager
   namespace: devzero-zxporter
 spec:
-  replicas: 1
+  replicas: 2
   selector:
     matchLabels:
       control-plane: controller-manager

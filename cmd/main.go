@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"flag"
 	"os"
@@ -31,7 +32,6 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
@@ -39,7 +39,9 @@ import (
 
 	monitoringv1 "github.com/devzero-inc/zxporter/api/v1"
 	"github.com/devzero-inc/zxporter/internal/controller"
+
 	// +kubebuilder:scaffold:imports
+	"github.com/devzero-inc/zxporter/internal/health"
 )
 
 var (
@@ -63,14 +65,28 @@ func main() {
 	var reconcileInterval time.Duration
 	var mpaServerPort int
 	var tlsOpts []func(*tls.Config)
-	flag.StringVar(&metricsAddr, "metrics-bind-address", "0", "The address the metrics endpoint binds to. "+
-		"Use :8443 for HTTPS or :8080 for HTTP, or leave as 0 to disable the metrics service.")
-	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
+	flag.StringVar(
+		&metricsAddr,
+		"metrics-bind-address",
+		"0",
+		"The address the metrics endpoint binds to. "+
+			"Use :8443 for HTTPS or :8080 for HTTP, or leave as 0 to disable the metrics service.",
+	)
+	flag.StringVar(
+		&probeAddr,
+		"health-probe-bind-address",
+		":8081",
+		"The address the probe endpoint binds to.",
+	)
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
-	flag.BoolVar(&secureMetrics, "metrics-secure", true,
-		"If set, the metrics endpoint is served securely via HTTPS. Use --metrics-secure=false to use HTTP instead.")
+	flag.BoolVar(
+		&secureMetrics,
+		"metrics-secure",
+		true,
+		"If set, the metrics endpoint is served securely via HTTPS. Use --metrics-secure=false to use HTTP instead.",
+	)
 	flag.BoolVar(&enableHTTP2, "enable-http2", false,
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
 	flag.DurationVar(&reconcileInterval, "reconcile-interval", 5*time.Second,
@@ -121,11 +137,49 @@ func main() {
 		metricsServerOptions.FilterProvider = filters.WithAuthenticationAndAuthorization
 	}
 
+	// Initialize HealthManager and register components
+	healthManager := health.NewHealthManager()
+	healthManager.Register(health.ComponentCollectorManager)
+	healthManager.Register(health.ComponentBufferQueue)
+	healthManager.Register(health.ComponentDakrTransport)
+	healthManager.Register(health.ComponentMpaServer)
+	healthManager.Register(health.ComponentPrometheus)
+
+	// Allow 2 minutes for the controller to win leader election and start
+	// reconciling before enforcing readiness checks.
+	healthManager.SuppressReadiness(2 * time.Minute)
+
+	// When leader election is enabled, mark this pod as standby until it wins
+	// the lease. Standby pods return 200 on /readyz so Kubernetes does not
+	// repeatedly mark them unhealthy while they wait. The flag is cleared
+	// (inside the goroutine below) the moment this pod is elected leader, at
+	// which point the normal 2-minute readiness grace period takes over.
+	if enableLeaderElection {
+		healthManager.SetStandby(true)
+	}
+
+	// No need to add the standard controller with kubebuilder:scaffold:builder
+	// The env-based controller doesn't rely on CRDs
+
+	// New health server from health package
+	healthServer := health.NewHealthServer(healthManager, probeAddr)
+	if err := healthServer.Start(); err != nil {
+		setupLog.Error(err, "unable to start health server")
+		os.Exit(1)
+	}
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := healthServer.Stop(ctx); err != nil {
+			setupLog.Error(err, "error stopping health server")
+		}
+	}()
+
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
 		Metrics:                metricsServerOptions,
 		WebhookServer:          webhookServer,
-		HealthProbeBindAddress: probeAddr,
+		HealthProbeBindAddress: "", // Custom health server used instead
 		LeaderElection:         enableLeaderElection,
 		LeaderElectionID:       "055ced15.devzero.io",
 		// LeaderElectionReleaseOnCancel defines if the leader should step down voluntarily
@@ -146,7 +200,7 @@ func main() {
 	}
 
 	// Setup the env-based controller instead of the standard controller
-	envController, err := controller.NewEnvBasedController(mgr, reconcileInterval, mpaServerPort)
+	envController, err := controller.NewEnvBasedController(mgr, healthManager, reconcileInterval, mpaServerPort)
 	if err != nil {
 		setupLog.Error(err, "unable to create environment-based controller")
 		os.Exit(1)
@@ -159,20 +213,22 @@ func main() {
 		os.Exit(1)
 	}
 
-	// No need to add the standard controller with kubebuilder:scaffold:builder
-	// The env-based controller doesn't rely on CRDs
+	ctx := ctrl.SetupSignalHandler()
 
-	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
-		setupLog.Error(err, "unable to set up health check")
-		os.Exit(1)
-	}
-	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
-		setupLog.Error(err, "unable to set up ready check")
-		os.Exit(1)
+	// Clear standby the moment this pod wins leader election so that normal
+	// readiness checks (with the 2-minute grace period) take over.
+	if enableLeaderElection {
+		go func() {
+			select {
+			case <-mgr.Elected():
+				healthManager.SetStandby(false)
+			case <-ctx.Done():
+			}
+		}()
 	}
 
 	setupLog.Info("starting manager")
-	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
+	if err := mgr.Start(ctx); err != nil {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}

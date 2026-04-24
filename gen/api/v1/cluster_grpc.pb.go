@@ -19,10 +19,13 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	ClusterService_GetClustersBasicInfo_FullMethodName   = "/api.v1.ClusterService/GetClustersBasicInfo"
-	ClusterService_GetClustersWithMetrics_FullMethodName = "/api.v1.ClusterService/GetClustersWithMetrics"
-	ClusterService_CreateClusterToken_FullMethodName     = "/api.v1.ClusterService/CreateClusterToken"
-	ClusterService_GetNetworkDependencies_FullMethodName = "/api.v1.ClusterService/GetNetworkDependencies"
+	ClusterService_GetClustersBasicInfo_FullMethodName        = "/api.v1.ClusterService/GetClustersBasicInfo"
+	ClusterService_GetClustersWithMetrics_FullMethodName      = "/api.v1.ClusterService/GetClustersWithMetrics"
+	ClusterService_CreateClusterToken_FullMethodName          = "/api.v1.ClusterService/CreateClusterToken"
+	ClusterService_GetClustersDeltaMetrics_FullMethodName     = "/api.v1.ClusterService/GetClustersDeltaMetrics"
+	ClusterService_GetNetworkDependencies_FullMethodName      = "/api.v1.ClusterService/GetNetworkDependencies"
+	ClusterService_GetNetworkMetricsTimeSeries_FullMethodName = "/api.v1.ClusterService/GetNetworkMetricsTimeSeries"
+	ClusterService_GetNodeTypeCounts_FullMethodName           = "/api.v1.ClusterService/GetNodeTypeCounts"
 )
 
 // ClusterServiceClient is the client API for ClusterService service.
@@ -35,8 +38,14 @@ type ClusterServiceClient interface {
 	GetClustersWithMetrics(ctx context.Context, in *GetClustersWithMetricsRequest, opts ...grpc.CallOption) (*GetClustersWithMetricsResponse, error)
 	// CreateClusterToken creates a new cluster registration with authentication token
 	CreateClusterToken(ctx context.Context, in *CreateClusterTokenRequest, opts ...grpc.CallOption) (*CreateClusterTokenResponse, error)
+	// GetClustersDeltaMetrics retrieves lightweight aggregate metrics for delta/comparison calculations
+	GetClustersDeltaMetrics(ctx context.Context, in *GetClustersDeltaMetricsRequest, opts ...grpc.CallOption) (*GetClustersDeltaMetricsResponse, error)
 	// GetNetworkDependencies returns workload-level network dependencies for visualization
 	GetNetworkDependencies(ctx context.Context, in *GetNetworkDependenciesRequest, opts ...grpc.CallOption) (*GetNetworkDependenciesResponse, error)
+	// GetNetworkMetricsTimeSeries returns time-bucketed network metrics for charts
+	GetNetworkMetricsTimeSeries(ctx context.Context, in *GetNetworkMetricsTimeSeriesRequest, opts ...grpc.CallOption) (*GetNetworkMetricsTimeSeriesResponse, error)
+	// GetNodeTypeCounts retrieves node type breakdown for given clusters and time range
+	GetNodeTypeCounts(ctx context.Context, in *GetNodeTypeCountsRequest, opts ...grpc.CallOption) (*GetNodeTypeCountsResponse, error)
 }
 
 type clusterServiceClient struct {
@@ -74,9 +83,36 @@ func (c *clusterServiceClient) CreateClusterToken(ctx context.Context, in *Creat
 	return out, nil
 }
 
+func (c *clusterServiceClient) GetClustersDeltaMetrics(ctx context.Context, in *GetClustersDeltaMetricsRequest, opts ...grpc.CallOption) (*GetClustersDeltaMetricsResponse, error) {
+	out := new(GetClustersDeltaMetricsResponse)
+	err := c.cc.Invoke(ctx, ClusterService_GetClustersDeltaMetrics_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *clusterServiceClient) GetNetworkDependencies(ctx context.Context, in *GetNetworkDependenciesRequest, opts ...grpc.CallOption) (*GetNetworkDependenciesResponse, error) {
 	out := new(GetNetworkDependenciesResponse)
 	err := c.cc.Invoke(ctx, ClusterService_GetNetworkDependencies_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *clusterServiceClient) GetNetworkMetricsTimeSeries(ctx context.Context, in *GetNetworkMetricsTimeSeriesRequest, opts ...grpc.CallOption) (*GetNetworkMetricsTimeSeriesResponse, error) {
+	out := new(GetNetworkMetricsTimeSeriesResponse)
+	err := c.cc.Invoke(ctx, ClusterService_GetNetworkMetricsTimeSeries_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *clusterServiceClient) GetNodeTypeCounts(ctx context.Context, in *GetNodeTypeCountsRequest, opts ...grpc.CallOption) (*GetNodeTypeCountsResponse, error) {
+	out := new(GetNodeTypeCountsResponse)
+	err := c.cc.Invoke(ctx, ClusterService_GetNodeTypeCounts_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -93,8 +129,14 @@ type ClusterServiceServer interface {
 	GetClustersWithMetrics(context.Context, *GetClustersWithMetricsRequest) (*GetClustersWithMetricsResponse, error)
 	// CreateClusterToken creates a new cluster registration with authentication token
 	CreateClusterToken(context.Context, *CreateClusterTokenRequest) (*CreateClusterTokenResponse, error)
+	// GetClustersDeltaMetrics retrieves lightweight aggregate metrics for delta/comparison calculations
+	GetClustersDeltaMetrics(context.Context, *GetClustersDeltaMetricsRequest) (*GetClustersDeltaMetricsResponse, error)
 	// GetNetworkDependencies returns workload-level network dependencies for visualization
 	GetNetworkDependencies(context.Context, *GetNetworkDependenciesRequest) (*GetNetworkDependenciesResponse, error)
+	// GetNetworkMetricsTimeSeries returns time-bucketed network metrics for charts
+	GetNetworkMetricsTimeSeries(context.Context, *GetNetworkMetricsTimeSeriesRequest) (*GetNetworkMetricsTimeSeriesResponse, error)
+	// GetNodeTypeCounts retrieves node type breakdown for given clusters and time range
+	GetNodeTypeCounts(context.Context, *GetNodeTypeCountsRequest) (*GetNodeTypeCountsResponse, error)
 	mustEmbedUnimplementedClusterServiceServer()
 }
 
@@ -111,8 +153,17 @@ func (UnimplementedClusterServiceServer) GetClustersWithMetrics(context.Context,
 func (UnimplementedClusterServiceServer) CreateClusterToken(context.Context, *CreateClusterTokenRequest) (*CreateClusterTokenResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateClusterToken not implemented")
 }
+func (UnimplementedClusterServiceServer) GetClustersDeltaMetrics(context.Context, *GetClustersDeltaMetricsRequest) (*GetClustersDeltaMetricsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetClustersDeltaMetrics not implemented")
+}
 func (UnimplementedClusterServiceServer) GetNetworkDependencies(context.Context, *GetNetworkDependenciesRequest) (*GetNetworkDependenciesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetNetworkDependencies not implemented")
+}
+func (UnimplementedClusterServiceServer) GetNetworkMetricsTimeSeries(context.Context, *GetNetworkMetricsTimeSeriesRequest) (*GetNetworkMetricsTimeSeriesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetNetworkMetricsTimeSeries not implemented")
+}
+func (UnimplementedClusterServiceServer) GetNodeTypeCounts(context.Context, *GetNodeTypeCountsRequest) (*GetNodeTypeCountsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetNodeTypeCounts not implemented")
 }
 func (UnimplementedClusterServiceServer) mustEmbedUnimplementedClusterServiceServer() {}
 
@@ -181,6 +232,24 @@ func _ClusterService_CreateClusterToken_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ClusterService_GetClustersDeltaMetrics_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetClustersDeltaMetricsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterServiceServer).GetClustersDeltaMetrics(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterService_GetClustersDeltaMetrics_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterServiceServer).GetClustersDeltaMetrics(ctx, req.(*GetClustersDeltaMetricsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ClusterService_GetNetworkDependencies_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetNetworkDependenciesRequest)
 	if err := dec(in); err != nil {
@@ -195,6 +264,42 @@ func _ClusterService_GetNetworkDependencies_Handler(srv interface{}, ctx context
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ClusterServiceServer).GetNetworkDependencies(ctx, req.(*GetNetworkDependenciesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ClusterService_GetNetworkMetricsTimeSeries_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetNetworkMetricsTimeSeriesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterServiceServer).GetNetworkMetricsTimeSeries(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterService_GetNetworkMetricsTimeSeries_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterServiceServer).GetNetworkMetricsTimeSeries(ctx, req.(*GetNetworkMetricsTimeSeriesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ClusterService_GetNodeTypeCounts_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetNodeTypeCountsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterServiceServer).GetNodeTypeCounts(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterService_GetNodeTypeCounts_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterServiceServer).GetNodeTypeCounts(ctx, req.(*GetNodeTypeCountsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -219,8 +324,20 @@ var ClusterService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _ClusterService_CreateClusterToken_Handler,
 		},
 		{
+			MethodName: "GetClustersDeltaMetrics",
+			Handler:    _ClusterService_GetClustersDeltaMetrics_Handler,
+		},
+		{
 			MethodName: "GetNetworkDependencies",
 			Handler:    _ClusterService_GetNetworkDependencies_Handler,
+		},
+		{
+			MethodName: "GetNetworkMetricsTimeSeries",
+			Handler:    _ClusterService_GetNetworkMetricsTimeSeries_Handler,
+		},
+		{
+			MethodName: "GetNodeTypeCounts",
+			Handler:    _ClusterService_GetNodeTypeCounts_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
