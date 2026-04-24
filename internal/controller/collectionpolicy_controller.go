@@ -260,6 +260,7 @@ type PolicyConfig struct {
 // +kubebuilder:rbac:groups=karpenter.azure.com,resources=aksnodeclasses,verbs=get;list;watch
 // +kubebuilder:rbac:groups=karpenter.k8s.oracle,resources=ocinodeclasses,verbs=get;list;watch
 // +kubebuilder:rbac:groups=karpenter.k8s.gcp,resources=gcenodeclasses,verbs=get;list;watch
+// +kubebuilder:rbac:groups=devzero.karpenter.sh,resources=karpentersettings,verbs=get;list;watch
 
 // API Extensions (READ-ONLY for CRD discovery)
 //+kubebuilder:rbac:groups=apiextensions.k8s.io,resources=customresourcedefinitions,verbs=get;list;watch
