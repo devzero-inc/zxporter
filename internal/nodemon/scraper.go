@@ -10,6 +10,7 @@ import (
 	"github.com/go-logr/logr"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
+	"github.com/prometheus/common/model"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -104,7 +105,7 @@ func (s *scraper) scrapeURL(ctx context.Context, url string) (map[string]*dto.Me
 		return nil, fmt.Errorf("request failed with status %d", resp.StatusCode)
 	}
 
-	var parser expfmt.TextParser
+	parser := expfmt.NewTextParser(model.UTF8Validation)
 	families, err := parser.TextToMetricFamilies(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("cannot parse metrics: %w", err)
