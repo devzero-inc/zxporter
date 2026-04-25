@@ -196,7 +196,6 @@ func (c *KarpenterCollector) Start(ctx context.Context) error {
 			Resource:     "ec2nodeclasses",
 			Kind:         "EC2NodeClass",
 		},
-
 	}
 
 	// Create informers for each resource type
