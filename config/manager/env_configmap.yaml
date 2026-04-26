@@ -4,12 +4,12 @@ metadata:
   name: env-config
   namespace: system
 data:
-  # If using PAT token, you can comment out CLUSTER_TOKEN and use PAT_TOKEN in the Secret
-  CLUSTER_TOKEN: "{{ .cluster_token }}"
+  # CLUSTER_TOKEN is stored in the Secret (env_secret.yaml) when USE_SECRET_FOR_TOKEN=true
+  CLUSTER_TOKEN: ""
   # PAT_TOKEN: "{{ .pat_token }}"  # Uncomment to use PAT token (recommended to use Secret instead)
   KUBE_CONTEXT_NAME: '{{ .kube_context_name }}'
   DAKR_URL: "https://dakr.devzero.io"
-  PROMETHEUS_URL: "http://prometheus-dz-prometheus-server.devzero-zxporter.svc.cluster.local:80"
+  PROMETHEUS_URL: "http://prometheus-dz-prometheus-server.devzero-system.svc.cluster.local:80"
   K8S_PROVIDER: "{{ .k8s_provider }}"
   COLLECTION_FREQUENCY: ""
   BUFFER_SIZE: ""
@@ -55,4 +55,4 @@ data:
   TOKEN_RUNTIME_SECRET_NAME: "devzero-zxporter-token"
   TOKEN_SECRET_NAME: "devzero-zxporter-token" # Deprecated, use TOKEN_RUNTIME_SECRET_NAME
   TOKEN_CONFIGMAP_NAME: "devzero-zxporter-env-config"
-  USE_SECRET_FOR_TOKEN: "false"
+  USE_SECRET_FOR_TOKEN: "true"

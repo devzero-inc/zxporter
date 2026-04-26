@@ -1368,7 +1368,7 @@ subjects:
 apiVersion: v1
 data:
   BUFFER_SIZE: ""
-  CLUSTER_TOKEN: '{{ .cluster_token }}'
+  CLUSTER_TOKEN: ""
   COLLECTION_FREQUENCY: ""
   DAKR_URL: https://dakr.devzero.io
   DISABLE_NETWORK_IO_METRICS: ""
@@ -1414,7 +1414,7 @@ data:
   TOKEN_CREDENTIALS_SECRET_NAME: devzero-zxporter-credentials
   TOKEN_RUNTIME_SECRET_NAME: devzero-zxporter-token
   TOKEN_SECRET_NAME: devzero-zxporter-token
-  USE_SECRET_FOR_TOKEN: "false"
+  USE_SECRET_FOR_TOKEN: "true"
   WATCHED_CRDS: ""
 kind: ConfigMap
 metadata:
