@@ -193,7 +193,7 @@ type PolicyConfig struct {
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;update
 
 // Secret access for cluster token persistence when useSecretForToken is enabled
-// +kubebuilder:rbac:groups="",resources=secrets,resourceNames=devzero-zxporter-token,verbs=get;update;patch
+// +kubebuilder:rbac:groups="",resources=secrets,resourceNames=token,verbs=get;update;patch
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=create
 
 // Metrics access

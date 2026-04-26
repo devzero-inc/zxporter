@@ -1006,7 +1006,7 @@ rules:
 - apiGroups:
   - ""
   resourceNames:
-  - devzero-zxporter-devzero-zxporter-token
+  - devzero-zxporter-token
   resources:
   - secrets
   verbs:
@@ -1424,7 +1424,7 @@ metadata:
 apiVersion: v1
 kind: Secret
 metadata:
-  name: devzero-zxporter-devzero-zxporter-token
+  name: devzero-zxporter-token
   namespace: devzero-system
 stringData:
   CLUSTER_TOKEN: ""
@@ -1513,7 +1513,7 @@ spec:
           valueFrom:
             secretKeyRef:
               key: CLUSTER_TOKEN
-              name: devzero-zxporter-devzero-zxporter-token
+              name: devzero-zxporter-token
               optional: true
         image: ttl.sh/zxporter:latest
         livenessProbe:
