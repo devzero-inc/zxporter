@@ -11,8 +11,8 @@ kind: Namespace
 metadata:
   labels:
     control-plane: controller-manager
-    app.kubernetes.io/name: devzero-zxporter
-  name: devzero-zxporter
+    app.kubernetes.io/name: devzero-system
+  name: devzero-system
 # ----- START PROM SERVER -----
 ---
 # Source: prometheus/charts/kube-state-metrics/templates/serviceaccount.yaml
@@ -821,7 +821,7 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/name: devzero-zxporter
     control-plane: controller-manager
-  name: devzero-zxporter
+  name: devzero-system
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -1366,7 +1366,7 @@ metadata:
   name: devzero-zxporter-devzero-zxporter-token
   namespace: devzero-system
 stringData:
-  CLUSTER_TOKEN: '{{ .cluster_token }}'
+  CLUSTER_TOKEN: ""
 type: Opaque
 ---
 apiVersion: v1
@@ -1448,6 +1448,12 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
+            - name: CLUSTER_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  key: CLUSTER_TOKEN
+                  name: devzero-zxporter-devzero-zxporter-token
+                  optional: true
           image: docker.io/devzeroinc/zxporter:latest
           livenessProbe:
             httpGet:

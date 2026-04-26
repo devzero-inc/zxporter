@@ -5,7 +5,7 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/name: devzero-zxporter
     control-plane: controller-manager
-  name: devzero-zxporter
+  name: devzero-system
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -547,7 +547,7 @@ subjects:
 apiVersion: v1
 data:
   BUFFER_SIZE: ""
-  CLUSTER_TOKEN: '{{ .cluster_token }}'
+  CLUSTER_TOKEN: ""
   COLLECTION_FREQUENCY: ""
   DAKR_URL: https://dakr.devzero.io
   DISABLE_NETWORK_IO_METRICS: ""
@@ -587,13 +587,13 @@ data:
   KUBE_CONTEXT_NAME: '{{ .kube_context_name }}'
   MASK_SECRET_DATA: ""
   NODE_METRICS_INTERVAL: ""
-  PROMETHEUS_URL: http://prometheus-dz-prometheus-server.devzero-zxporter.svc.cluster.local:80
+  PROMETHEUS_URL: http://prometheus-dz-prometheus-server.devzero-system.svc.cluster.local:80
   TARGET_NAMESPACES: ""
   TOKEN_CONFIGMAP_NAME: devzero-zxporter-env-config
   TOKEN_CREDENTIALS_SECRET_NAME: devzero-zxporter-credentials
   TOKEN_RUNTIME_SECRET_NAME: devzero-zxporter-token
   TOKEN_SECRET_NAME: devzero-zxporter-token
-  USE_SECRET_FOR_TOKEN: "false"
+  USE_SECRET_FOR_TOKEN: "true"
   WATCHED_CRDS: ""
 kind: ConfigMap
 metadata:
@@ -606,7 +606,7 @@ metadata:
   name: devzero-zxporter-devzero-zxporter-token
   namespace: devzero-system
 stringData:
-  CLUSTER_TOKEN: '{{ .cluster_token }}'
+  CLUSTER_TOKEN: ""
 type: Opaque
 ---
 apiVersion: v1
@@ -688,6 +688,12 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
+        - name: CLUSTER_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: CLUSTER_TOKEN
+              name: devzero-zxporter-devzero-zxporter-token
+              optional: true
         image: ttl.sh/zxporter:latest
         livenessProbe:
           httpGet:
