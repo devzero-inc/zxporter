@@ -1427,7 +1427,7 @@ metadata:
   name: devzero-zxporter-devzero-zxporter-token
   namespace: devzero-system
 stringData:
-  CLUSTER_TOKEN: '{{ .cluster_token }}'
+  CLUSTER_TOKEN: ""
 type: Opaque
 ---
 apiVersion: v1
@@ -1509,6 +1509,12 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
+        - name: CLUSTER_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: CLUSTER_TOKEN
+              name: devzero-zxporter-devzero-zxporter-token
+              optional: true
         image: ttl.sh/zxporter:latest
         livenessProbe:
           httpGet:
