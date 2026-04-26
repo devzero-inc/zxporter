@@ -378,10 +378,8 @@ build-installer: manifests generate kustomize yq ## Generate a consolidated YAML
 	@$(YQ) e '.data.DAKR_URL = "$(DAKR_URL)"' -i $(ENV_CONFIGMAP_FILE)
 	@$(YQ) e '.data.PROMETHEUS_URL = "$(PROMETHEUS_URL)"' -i $(ENV_CONFIGMAP_FILE)
 	@$(YQ) e '.data.TARGET_NAMESPACES = "$(TARGET_NAMESPACES)"' -i $(ENV_CONFIGMAP_FILE)
-	@if [ -n "$(CLUSTER_TOKEN)" ]; then \
-		echo "[INFO] Patching cluster token into Secret (test/override deployment)"; \
-		$(YQ) e '.stringData.CLUSTER_TOKEN = "$(CLUSTER_TOKEN)"' -i $(ENV_SECRET_FILE); \
-	fi
+	@echo "[INFO] Patching cluster token into Secret"
+	@$(YQ) e '.stringData.CLUSTER_TOKEN = "$(CLUSTER_TOKEN)"' -i $(ENV_SECRET_FILE)
 
 	@$(KUSTOMIZE) build config/default > $(DIST_ZXPORTER_BUNDLE)
 	@cat $(DIST_ZXPORTER_BUNDLE) >> $(DIST_INSTALL_BUNDLE)
