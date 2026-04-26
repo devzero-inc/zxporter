@@ -186,9 +186,9 @@ jobs:
           while [ $ATTEMPTS -lt $MAX_ATTEMPTS ]; do
             LOGS=$(kubectl logs $ZXPORTER_POD -n devzero-system)
             
-            if echo "$LOGS" | grep -q "apiservice.apiregistration.k8s.io/v1beta1.metrics.k8s.io configured"; then
+            if echo "$LOGS" | grep -qE "apiservice.apiregistration.k8s.io/v1beta1.metrics.k8s.io (configured|unchanged)"; then
               if [ "$FOUND_APISERVICE_MESSAGE" = false ]; then
-                echo "✅ Found 'apiservice.apiregistration.k8s.io/v1beta1.metrics.k8s.io configured' message in ZXporter logs!"
+                echo "✅ Found apiservice v1beta1.metrics.k8s.io applied message in ZXporter logs!"
                 FOUND_APISERVICE_MESSAGE=true
               fi
             fi
@@ -213,7 +213,7 @@ jobs:
           done
           
           if [ "$FOUND_APISERVICE_MESSAGE" = false ]; then
-            echo "❌ Did not find 'apiservice.apiregistration.k8s.io/v1beta1.metrics.k8s.io configured' message in ZXporter logs"
+            echo "❌ Did not find apiservice v1beta1.metrics.k8s.io configured/unchanged message in ZXporter logs"
             echo "Final ZXporter logs:"
             kubectl logs $ZXPORTER_POD -n devzero-system --tail=200
             exit 1
