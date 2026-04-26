@@ -320,7 +320,13 @@ final-installer:
 	@cp dist/install.yaml $(DIST_BACKEND_INSTALL_BUNDLE)
 	@$(YQ) -i '(select(.kind == "ConfigMap" and .metadata.name == "devzero-zxporter-env-config") | .data.DAKR_URL) = "{{ .api_url }}/dakr"' $(DIST_BACKEND_INSTALL_BUNDLE)
 	@$(YQ) -i '(select(.kind == "Deployment") | .spec.template.spec.containers[]? | select(.image == "ttl.sh/zxporter:latest")).image = "docker.io/devzeroinc/zxporter:latest"' $(DIST_BACKEND_INSTALL_BUNDLE)
+	@$(YQ) -i '(select(.kind == "Secret" and .metadata.name == "devzero-zxporter-devzero-zxporter-token") | .stringData.CLUSTER_TOKEN) = "{{ .cluster_token }}"' $(DIST_BACKEND_INSTALL_BUNDLE)
 	@$(MAKE) installer-without-configmap
+	@if [ -d "$(DAKR_DIR)/services/dakr_installers" ]; then \
+		cp $(DIST_BACKEND_INSTALL_BUNDLE) $(DAKR_DIR)/services/dakr_installers/install.yaml; \
+		cp $(DIST_DIR)/installer_updater.yaml $(DAKR_DIR)/services/dakr_installers/installer_updater.yaml; \
+		echo "[INFO] Synced installer files to $(DAKR_DIR)/services/dakr_installers/"; \
+	fi
 
 .PHONY: installer-without-configmap
 installer-without-configmap:
