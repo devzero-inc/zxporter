@@ -65,10 +65,8 @@ TARGET_NAMESPACES ?=
 COLLECTION_FILE ?= env_configmap.yaml
 # ENV_CONFIGMAP_FILE is used to control the zxporter-manager deployment.
 ENV_CONFIGMAP_FILE ?= config/manager/env_configmap.yaml
-# ENV_SECRET_FILE holds the cluster token secret template.
-ENV_SECRET_FILE ?= config/manager/env_secret.yaml
-# CLUSTER_TOKEN: when set, patches the token Secret during build-installer (e.g. for CI test deployments).
-# Leave empty for production builds — keeps the '{{ .cluster_token }}' template placeholder.
+# CLUSTER_TOKEN: optional token to embed in the generated dist/install.yaml.
+# When empty, the Secret keeps the '{{ .cluster_token }}' placeholder (for curl installer templating).
 CLUSTER_TOKEN ?=
 
 # Monitoring resources
@@ -378,10 +376,10 @@ build-installer: manifests generate kustomize yq ## Generate a consolidated YAML
 	@$(YQ) e '.data.DAKR_URL = "$(DAKR_URL)"' -i $(ENV_CONFIGMAP_FILE)
 	@$(YQ) e '.data.PROMETHEUS_URL = "$(PROMETHEUS_URL)"' -i $(ENV_CONFIGMAP_FILE)
 	@$(YQ) e '.data.TARGET_NAMESPACES = "$(TARGET_NAMESPACES)"' -i $(ENV_CONFIGMAP_FILE)
-	@echo "[INFO] Patching cluster token into Secret"
-	@$(YQ) e '.stringData.CLUSTER_TOKEN = "$(CLUSTER_TOKEN)"' -i $(ENV_SECRET_FILE)
 
 	@$(KUSTOMIZE) build config/default > $(DIST_ZXPORTER_BUNDLE)
+	@echo "[INFO] Patching cluster token into generated bundle"
+	@sed "s|CLUSTER_TOKEN: '{{ .cluster_token }}'|CLUSTER_TOKEN: \"$(CLUSTER_TOKEN)\"|g" $(DIST_ZXPORTER_BUNDLE) > $(DIST_ZXPORTER_BUNDLE).tmp && mv $(DIST_ZXPORTER_BUNDLE).tmp $(DIST_ZXPORTER_BUNDLE)
 	@cat $(DIST_ZXPORTER_BUNDLE) >> $(DIST_INSTALL_BUNDLE)
 
 	@echo "[INFO] Building backend installer"
