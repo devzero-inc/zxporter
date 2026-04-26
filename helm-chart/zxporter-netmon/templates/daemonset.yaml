@@ -41,6 +41,11 @@ spec:
             - configMapRef:
                 name: {{ .Values.config.mainConfigMapName }}
                 optional: true
+            {{- if .Values.config.tokenSecretName }}
+            - secretRef:
+                name: {{ .Values.config.tokenSecretName }}
+                optional: true
+            {{- end }}
           env:
             - name: NODE_NAME
               valueFrom:

@@ -209,7 +209,7 @@ jobs:
             make helm-chart-install YQ=/usr/local/bin/yq
           else
             echo "Deploying ZXporter using make deploy..."
-            make deploy IMG=${{ env.ZXPORTER_IMG }} DAKR_URL=http://testserver.devzero-system.svc.cluster.local:50051 TARGET_NAMESPACES=dztest
+            make deploy IMG=${{ env.ZXPORTER_IMG }} DAKR_URL=http://testserver.devzero-system.svc.cluster.local:50051 TARGET_NAMESPACES=dztest CLUSTER_TOKEN=test-token-for-ci
           fi
 
       - name: Wait for deployment to be ready

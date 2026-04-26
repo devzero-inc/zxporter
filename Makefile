@@ -65,6 +65,11 @@ TARGET_NAMESPACES ?=
 COLLECTION_FILE ?= env_configmap.yaml
 # ENV_CONFIGMAP_FILE is used to control the zxporter-manager deployment.
 ENV_CONFIGMAP_FILE ?= config/manager/env_configmap.yaml
+# ENV_SECRET_FILE holds the cluster token secret template.
+ENV_SECRET_FILE ?= config/manager/env_secret.yaml
+# CLUSTER_TOKEN: when set, patches the token Secret during build-installer (e.g. for CI test deployments).
+# Leave empty for production builds — keeps the '{{ .cluster_token }}' template placeholder.
+CLUSTER_TOKEN ?=
 
 # Monitoring resources
 PROMETHEUS_CHART_VERSION ?= 27.20.0
@@ -373,6 +378,10 @@ build-installer: manifests generate kustomize yq ## Generate a consolidated YAML
 	@$(YQ) e '.data.DAKR_URL = "$(DAKR_URL)"' -i $(ENV_CONFIGMAP_FILE)
 	@$(YQ) e '.data.PROMETHEUS_URL = "$(PROMETHEUS_URL)"' -i $(ENV_CONFIGMAP_FILE)
 	@$(YQ) e '.data.TARGET_NAMESPACES = "$(TARGET_NAMESPACES)"' -i $(ENV_CONFIGMAP_FILE)
+	@if [ -n "$(CLUSTER_TOKEN)" ]; then \
+		echo "[INFO] Patching cluster token into Secret (test/override deployment)"; \
+		$(YQ) e '.stringData.CLUSTER_TOKEN = "$(CLUSTER_TOKEN)"' -i $(ENV_SECRET_FILE); \
+	fi
 
 	@$(KUSTOMIZE) build config/default > $(DIST_ZXPORTER_BUNDLE)
 	@cat $(DIST_ZXPORTER_BUNDLE) >> $(DIST_INSTALL_BUNDLE)
