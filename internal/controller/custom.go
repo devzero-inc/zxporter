@@ -47,6 +47,8 @@ import (
 	"github.com/devzero-inc/zxporter/internal/version"
 )
 
+const defaultNamespace = "devzero-system"
+
 // EnvBasedController is a controller that uses environment variables instead of CRDs
 type EnvBasedController struct {
 	client.Client
@@ -495,7 +497,7 @@ func (c *EnvBasedController) persistClusterTokenToConfigMap(
 			namespace = strings.TrimSpace(string(data))
 		} else {
 			// Fall back to default if all else fails
-			namespace = "devzero-system"
+			namespace = defaultNamespace
 			c.Log.Info("Could not determine namespace, using default", "namespace", namespace)
 		}
 	}
@@ -548,7 +550,7 @@ func (c *EnvBasedController) persistClusterTokenToSecret(ctx context.Context, to
 			namespace = strings.TrimSpace(string(data))
 		} else {
 			// Fall back to default if all else fails
-			namespace = "devzero-system"
+			namespace = defaultNamespace
 			c.Log.Info("Could not determine namespace, using default", "namespace", namespace)
 		}
 	}
@@ -646,7 +648,7 @@ func (c *EnvBasedController) readClusterTokenFromSecret(ctx context.Context) str
 			namespace = strings.TrimSpace(string(data))
 		} else {
 			// Fall back to default if all else fails
-			namespace = "devzero-system"
+			namespace = defaultNamespace
 		}
 	}
 
@@ -717,7 +719,7 @@ func (c *EnvBasedController) readClusterTokenFromConfigMap(ctx context.Context) 
 			namespace = strings.TrimSpace(string(data))
 		} else {
 			// Fall back to default if all else fails
-			namespace = "devzero-system"
+			namespace = defaultNamespace
 		}
 	}
 

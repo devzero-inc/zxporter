@@ -68,7 +68,7 @@ ENV_CONFIGMAP_FILE ?= config/manager/env_configmap.yaml
 
 # Monitoring resources
 PROMETHEUS_CHART_VERSION ?= 27.20.0
-DEVZERO_MONITORING_NAMESPACE ?= devzero-zxporter
+DEVZERO_MONITORING_NAMESPACE ?= devzero-system
 NODE_EXPORTER_CHART_VERSION ?= 4.47.0
 METRICS_SERVER_CHART_VERSION ?= 3.12.2
 
@@ -213,7 +213,7 @@ docker-build: helm ## Build docker image with the manager.
 	@echo "[INFO] Generate Metrics Server manifest"
 	@$(HELM) template metrics-server metrics-server/metrics-server \
 		--version $(METRICS_SERVER_CHART_VERSION) \
-		--namespace devzero-zxporter \
+		--namespace devzero-system \
 		--set args="{--kubelet-insecure-tls}" \
 		--set nameOverride="dz-metrics-server" \
 		--set fullnameOverride="dz-metrics-server" \
@@ -425,14 +425,14 @@ helm-chart-lint: helm ## Lint the Helm chart
 helm-chart-template: helm ## Generate Kubernetes manifests from the Helm chart
 	@echo "[INFO] Generating manifests from Helm chart..."
 	@$(HELM) template zxporter $(HELM_CHART_DIR) \
-		--namespace devzero-zxporter \
+		--namespace devzero-system \
 		--output-dir $(DIST_DIR)/helm-manifests
 
 .PHONY: helm-chart-install
 helm-chart-install: helm-chart-build ## Install the Helm chart locally for testing
 	@echo "[INFO] Installing Helm chart locally..."
 	@$(HELM) upgrade --install zxporter $(HELM_CHART_DIR) \
-		--namespace devzero-zxporter \
+		--namespace devzero-system \
 		--create-namespace \
 		--wait
 
@@ -440,7 +440,7 @@ helm-chart-install: helm-chart-build ## Install the Helm chart locally for testi
 helm-chart-install-minimal: helm-chart-build ## Install only zxporter without monitoring components
 	@echo "[INFO] Installing minimal zxporter chart (no monitoring)..."
 	@$(HELM) upgrade --install zxporter $(HELM_CHART_DIR) \
-		--namespace devzero-zxporter \
+		--namespace devzero-system \
 		--create-namespace \
 		--set monitoring.enabled=false \
 		--set zxporter.prometheusUrl="$(PROMETHEUS_URL)" \
@@ -449,7 +449,7 @@ helm-chart-install-minimal: helm-chart-build ## Install only zxporter without mo
 .PHONY: helm-chart-uninstall
 helm-chart-uninstall: helm ## Uninstall the Helm chart
 	@echo "[INFO] Uninstalling Helm chart..."
-	@$(HELM) uninstall zxporter --namespace devzero-zxporter || true
+	@$(HELM) uninstall zxporter --namespace devzero-system || true
 
 .PHONY: helm-chart-push
 helm-chart-push: helm-chart-build ## Push Helm chart to OCI registry (requires HELM_REGISTRY)
@@ -730,7 +730,7 @@ verify-local: setup-lima
 	@./verification/verify_local.sh $(LIMA_INSTANCE)
 
 # for local, this will be something like: 
-#         make verify-e2e CLUSTER_CONTEXT=kind-zxporter-e2e NAMESPACE=devzero-zxporter
+#         make verify-e2e CLUSTER_CONTEXT=kind-zxporter-e2e NAMESPACE=devzero-system
 .PHONY: verify-e2e
 verify-e2e: ## Run E2E verification on a Kind or Cloud cluster
 	@echo "Running E2E verification..."
@@ -750,7 +750,7 @@ delete-kind: ## Delete Kind cluster
 
 .PHONY: verify-e2e-kind-lifecycle
 verify-e2e-kind-lifecycle: delete-kind create-kind ## Full Kind E2E (Delete -> Create -> Verify)
-	$(MAKE) verify-e2e CLUSTER_CONTEXT=kind-$(KIND_CLUSTER_NAME) NAMESPACE=devzero-zxporter
+	$(MAKE) verify-e2e CLUSTER_CONTEXT=kind-$(KIND_CLUSTER_NAME) NAMESPACE=devzero-system
 
 .PHONY: provision-eks
 provision-eks: ## Create EKS cluster
@@ -771,7 +771,7 @@ verify-e2e-eks: ## Run verification against an existing EKS cluster (reads state
 	echo "Using cached config for cluster $${CLUSTER_NAME} in $${REGION}..." && \
 	AWS_PROFILE=self-hosted aws eks update-kubeconfig --region $${REGION} --name $${CLUSTER_NAME} && \
 	CONTEXT=$$(kubectl config current-context) && \
-	$(MAKE) verify-e2e CLUSTER_CONTEXT="$${CONTEXT}" NAMESPACE=devzero-zxporter CNI_TYPE="$${CNI_TYPE}"
+	$(MAKE) verify-e2e CLUSTER_CONTEXT="$${CONTEXT}" NAMESPACE=devzero-system CNI_TYPE="$${CNI_TYPE}"
 
 .PHONY: verify-e2e-eks-lifecycle
 verify-e2e-eks-lifecycle: provision-eks ## Full EKS E2E (Provision -> Verify -> Deprovision)
@@ -801,7 +801,7 @@ verify-e2e-aks: ## Run verification against an existing AKS cluster (reads state
 	echo "Using cached config for cluster $${CLUSTER_NAME} in $${RESOURCE_GROUP}..." && \
 	az aks get-credentials --resource-group $${RESOURCE_GROUP} --name $${CLUSTER_NAME} --overwrite-existing && \
 	CONTEXT=$$(kubectl config current-context) && \
-	$(MAKE) verify-e2e CLUSTER_CONTEXT="$${CONTEXT}" NAMESPACE=devzero-zxporter CNI_TYPE="$${CNI_TYPE}"
+	$(MAKE) verify-e2e CLUSTER_CONTEXT="$${CONTEXT}" NAMESPACE=devzero-system CNI_TYPE="$${CNI_TYPE}"
 
 .PHONY: verify-e2e-aks-lifecycle
 verify-e2e-aks-lifecycle: provision-aks ## Full AKS E2E (Provision -> Verify -> Deprovision). Use CNI_TYPE=cilium|kubenet (default: cilium).
@@ -829,7 +829,7 @@ verify-e2e-gke: ## Run verification against an existing GKE cluster (reads state
 	echo "Using cached config for cluster $${CLUSTER_NAME} in $${REGION} in $${ZONE}..." && \
 	gcloud container clusters get-credentials $${CLUSTER_NAME} --zone $${ZONE} && \
 	CONTEXT=$$(kubectl config current-context) && \
-	$(MAKE) verify-e2e CLUSTER_CONTEXT="$${CONTEXT}" NAMESPACE=devzero-zxporter CNI_TYPE="$${CNI_TYPE}"
+	$(MAKE) verify-e2e CLUSTER_CONTEXT="$${CONTEXT}" NAMESPACE=devzero-system CNI_TYPE="$${CNI_TYPE}"
 
 .PHONY: verify-e2e-gke-lifecycle
 verify-e2e-gke-lifecycle: provision-gke ## Full GKE E2E (Provision -> Verify -> Deprovision)
