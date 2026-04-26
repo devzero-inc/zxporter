@@ -140,7 +140,7 @@ ZXporter can also be deployed using Helm, which provides a more flexible and cus
 #### Quick Install
 
 ```sh
-helm install zxporter ./helm-chart/zxporter --namespace devzero-zxporter --create-namespace
+helm install zxporter ./helm-chart/zxporter --namespace devzero-system --create-namespace
 
 # With Makefile
 make helm-chart-install
@@ -170,7 +170,7 @@ If you already have Prometheus and Node Exporter running in your cluster:
 helm install zxporter ./helm-chart/zxporter \
   --set monitoring.enabled=false \
   --set zxporter.prometheusUrl="http://your-prometheus.monitoring.svc.cluster.local:9090" \
-  --namespace devzero-zxporter \
+  --namespace devzero-system \
   --create-namespace
 
 # Or use the Makefile target
@@ -215,7 +215,7 @@ apiVersion: devzero.io/v1
 kind: CollectionPolicy
 metadata:
   name: advanced-policy
-  namespace: devzero-zxporter
+  namespace: devzero-system
 spec:
   targetSelector:
     namespaces: ["app1", "app2"]
@@ -249,7 +249,7 @@ spec:
    Solution: Ensure the operator has the necessary RBAC permissions:
 
    ```sh
-   kubectl create clusterrolebinding zxporter-admin --clusterrole=cluster-admin --serviceaccount=devzero-zxporter:zxporter-controller-manager
+   kubectl create clusterrolebinding zxporter-admin --clusterrole=cluster-admin --serviceaccount=devzero-system:zxporter-controller-manager
    ```
 
 2. **Collection Policy Not Applied**
@@ -261,7 +261,7 @@ spec:
    Solution: Verify the CollectionPolicy CR is properly created:
 
    ```sh
-   kubectl get collectionpolicy -n devzero-zxporter
+   kubectl get collectionpolicy -n devzero-system
    ```
 
 3. **High Resource Usage**
@@ -272,7 +272,7 @@ spec:
 View operator logs:
 
 ```sh
-kubectl logs -n devzero-zxporter deployment/zxporter-controller-manager
+kubectl logs -n devzero-system deployment/zxporter-controller-manager
 ```
 
 Enable debug logging:

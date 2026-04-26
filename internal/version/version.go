@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	versionNamespace     = "devzero-zxporter"
+	versionNamespace     = "devzero-system"
 	versionConfigMapName = "zxporter-version"
 )
 
