@@ -33,7 +33,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
+          go-version-file: "go.mod"
           cache: true
 
       - name: Build and push Docker image
@@ -57,7 +57,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
+          go-version-file: "go.mod"
           cache: true
 
       - name: Create k8s Kind Cluster
@@ -160,22 +160,22 @@ jobs:
       - name: Wait for ZXporter deployment to be ready
         run: |
           echo "Waiting for ZXporter deployment to be ready..."
-          kubectl wait --for=condition=available --timeout=300s deployment/devzero-zxporter-controller-manager -n devzero-zxporter
+          kubectl wait --for=condition=available --timeout=300s deployment/devzero-zxporter-controller-manager -n devzero-system
           
           echo "Getting ZXporter pod status..."
-          kubectl get pods -n devzero-zxporter -o wide
+          kubectl get pods -n devzero-system -o wide
           
           echo "Getting ZXporter pod name..."
-          ZXPORTER_POD=$(kubectl get pods -n devzero-zxporter -l control-plane=controller-manager -o jsonpath='{.items[0].metadata.name}')
+          ZXPORTER_POD=$(kubectl get pods -n devzero-system -l control-plane=controller-manager -o jsonpath='{.items[0].metadata.name}')
           echo "ZXporter pod: $ZXPORTER_POD"
 
       - name: Monitor ZXporter logs for metrics-server installation
         run: |
           echo "Monitoring ZXporter logs for metrics-server installation..."
-          ZXPORTER_POD=$(kubectl get pods -n devzero-zxporter -l control-plane=controller-manager -o jsonpath='{.items[0].metadata.name}')
+          ZXPORTER_POD=$(kubectl get pods -n devzero-system -l control-plane=controller-manager -o jsonpath='{.items[0].metadata.name}')
           
           echo "Getting initial ZXporter logs..."
-          kubectl logs $ZXPORTER_POD -n devzero-zxporter | head -n 100
+          kubectl logs $ZXPORTER_POD -n devzero-system | head -n 100
           
           echo "Waiting and monitoring for apiservice configuration and 'metrics-server is now ready' messages..."
           ATTEMPTS=0
@@ -184,11 +184,11 @@ jobs:
           FOUND_READY_MESSAGE=false
           
           while [ $ATTEMPTS -lt $MAX_ATTEMPTS ]; do
-            LOGS=$(kubectl logs $ZXPORTER_POD -n devzero-zxporter)
+            LOGS=$(kubectl logs $ZXPORTER_POD -n devzero-system)
             
-            if echo "$LOGS" | grep -q "apiservice.apiregistration.k8s.io/v1beta1.metrics.k8s.io configured"; then
+            if echo "$LOGS" | grep -qE "apiservice.apiregistration.k8s.io/v1beta1.metrics.k8s.io (configured|unchanged)"; then
               if [ "$FOUND_APISERVICE_MESSAGE" = false ]; then
-                echo "✅ Found 'apiservice.apiregistration.k8s.io/v1beta1.metrics.k8s.io configured' message in ZXporter logs!"
+                echo "✅ Found apiservice v1beta1.metrics.k8s.io applied message in ZXporter logs!"
                 FOUND_APISERVICE_MESSAGE=true
               fi
             fi
@@ -213,16 +213,16 @@ jobs:
           done
           
           if [ "$FOUND_APISERVICE_MESSAGE" = false ]; then
-            echo "❌ Did not find 'apiservice.apiregistration.k8s.io/v1beta1.metrics.k8s.io configured' message in ZXporter logs"
+            echo "❌ Did not find apiservice v1beta1.metrics.k8s.io configured/unchanged message in ZXporter logs"
             echo "Final ZXporter logs:"
-            kubectl logs $ZXPORTER_POD -n devzero-zxporter --tail=200
+            kubectl logs $ZXPORTER_POD -n devzero-system --tail=200
             exit 1
           fi
           
           if [ "$FOUND_READY_MESSAGE" = false ]; then
             echo "❌ Did not find 'metrics-server is now ready' message in ZXporter logs within timeout"
             echo "Final ZXporter logs:"
-            kubectl logs $ZXPORTER_POD -n devzero-zxporter --tail=200
+            kubectl logs $ZXPORTER_POD -n devzero-system --tail=200
             exit 1
           fi
 
@@ -282,8 +282,8 @@ jobs:
           echo "Running final validation..."
           
           echo "Final ZXporter logs:"
-          ZXPORTER_POD=$(kubectl get pods -n devzero-zxporter -l control-plane=controller-manager -o jsonpath='{.items[0].metadata.name}')
-          kubectl logs $ZXPORTER_POD -n devzero-zxporter --tail=100
+          ZXPORTER_POD=$(kubectl get pods -n devzero-system -l control-plane=controller-manager -o jsonpath='{.items[0].metadata.name}')
+          kubectl logs $ZXPORTER_POD -n devzero-system --tail=100
           
           echo "Final kubectl top nodes test:"
           kubectl top nodes
@@ -307,16 +307,16 @@ jobs:
           echo "All pods in kube-system:"
           kubectl get pods -n kube-system -o wide
           
-          echo "All pods in devzero-zxporter:"
-          kubectl get pods -n devzero-zxporter -o wide
+          echo "All pods in devzero-system:"
+          kubectl get pods -n devzero-system -o wide
           
           echo "ZXporter deployment status:"
-          kubectl describe deployment devzero-zxporter-controller-manager -n devzero-zxporter
+          kubectl describe deployment devzero-zxporter-controller-manager -n devzero-system
           
           echo "ZXporter pod logs:"
-          ZXPORTER_POD=$(kubectl get pods -n devzero-zxporter -l control-plane=controller-manager -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
+          ZXPORTER_POD=$(kubectl get pods -n devzero-system -l control-plane=controller-manager -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
           if [ ! -z "$ZXPORTER_POD" ]; then
-            kubectl logs $ZXPORTER_POD -n devzero-zxporter --tail=200
+            kubectl logs $ZXPORTER_POD -n devzero-system --tail=200
           else
             echo "No ZXporter pod found"
           fi
@@ -324,8 +324,8 @@ jobs:
           echo "Metrics server pods (if any):"
           kubectl get pods -n kube-system -l k8s-app=metrics-server -o wide || echo "No metrics-server pods found"
           
-          echo "Events in devzero-zxporter namespace:"
-          kubectl get events -n devzero-zxporter --sort-by='.lastTimestamp'
+          echo "Events in devzero-system namespace:"
+          kubectl get events -n devzero-system --sort-by='.lastTimestamp'
           
           echo "Events in kube-system namespace (last 20):"
           kubectl get events -n kube-system --sort-by='.lastTimestamp' | tail -20

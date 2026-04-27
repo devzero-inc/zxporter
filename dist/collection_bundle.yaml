@@ -3,7 +3,7 @@ apiVersion: devzero.io/v1
 kind: CollectionPolicy
 metadata:
   name: default-policy
-  namespace: devzero-zxporter
+  namespace: devzero-system
 spec:
   targetSelector:
     namespaces: [] # Empty means all namespaces

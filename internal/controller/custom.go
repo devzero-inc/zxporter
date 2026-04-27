@@ -51,6 +51,7 @@ import (
 // clusterIdentitySecretName is the fixed name of the Secret where the operator
 // stores the backend-assigned cluster UUID. Internal constant — never user-configured.
 const clusterIdentitySecretName = "devzero-zxporter-cluster-identity"
+const defaultNamespace = "devzero-system"
 
 // EnvBasedController is a controller that uses environment variables instead of CRDs
 type EnvBasedController struct {
@@ -539,7 +540,7 @@ func (c *EnvBasedController) persistClusterTokenToConfigMap(ctx context.Context,
 			namespace = strings.TrimSpace(string(data))
 		} else {
 			// Fall back to default if all else fails
-			namespace = "devzero-zxporter"
+			namespace = defaultNamespace
 			c.Log.Info("Could not determine namespace, using default", "namespace", namespace)
 		}
 	}
@@ -594,7 +595,7 @@ func (c *EnvBasedController) persistClusterTokenToSecret(ctx context.Context, to
 			namespace = strings.TrimSpace(string(data))
 		} else {
 			// Fall back to default if all else fails
-			namespace = "devzero-zxporter"
+			namespace = defaultNamespace
 			c.Log.Info("Could not determine namespace, using default", "namespace", namespace)
 		}
 	}
@@ -697,7 +698,7 @@ func (c *EnvBasedController) readClusterTokenFromSecret(ctx context.Context) (st
 			namespace = strings.TrimSpace(string(data))
 		} else {
 			// Fall back to default if all else fails
-			namespace = "devzero-zxporter"
+			namespace = defaultNamespace
 		}
 	}
 
@@ -760,7 +761,7 @@ func (c *EnvBasedController) readClusterTokenFromConfigMap(ctx context.Context) 
 			namespace = strings.TrimSpace(string(data))
 		} else {
 			// Fall back to default if all else fails
-			namespace = "devzero-zxporter"
+			namespace = defaultNamespace
 		}
 	}
 
