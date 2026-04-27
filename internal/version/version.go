@@ -5,10 +5,6 @@ import (
 	"runtime"
 )
 
-const (
-	versionNamespace     = "devzero-zxporter"
-	versionConfigMapName = "zxporter-version"
-)
 
 type Info struct {
 	Major        string `json:"major"`

@@ -57,13 +57,12 @@ spec:
                 fieldRef:
                   fieldPath: metadata.namespace
           {{- if .Values.zxporter.useSecretForToken }}
-            {{- if .Values.zxporter.clusterToken }}
             - name: CLUSTER_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.zxporter.tokenCredentialsSecretName }}
+                  name: {{ .Values.zxporter.tokenSecretName }}
                   key: CLUSTER_TOKEN
-            {{- end }}
+                  optional: true
             {{- if .Values.zxporter.patToken }}
             - name: PAT_TOKEN
               valueFrom:

@@ -63,3 +63,6 @@ config:
   collectorMode: "netfilter"
   dakrUrl: ""
   clusterToken: ""
+  # Name of the Secret containing CLUSTER_TOKEN (created by the zxporter installer).
+  # Takes precedence over the token in mainConfigMapName when present.
+  tokenSecretName: "devzero-zxporter-token"

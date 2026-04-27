@@ -47,6 +47,8 @@ import (
 	"github.com/devzero-inc/zxporter/internal/version"
 )
 
+const defaultNamespace = "devzero-system"
+
 // EnvBasedController is a controller that uses environment variables instead of CRDs
 type EnvBasedController struct {
 	client.Client
@@ -396,12 +398,16 @@ func (c *EnvBasedController) initializeTelemetryComponents(ctx context.Context) 
 			}
 			c.Log.Info("Successfully obtained cluster token", "clusterId", clusterId)
 			envSpec.Policies.ClusterToken = token
+		}
+	}
 
-			// Persist the token to ConfigMap or Secret based on configuration
-			// If it fails, continue anyway - the token is in memory
-			if err := c.persistClusterToken(ctx, token); err != nil {
-				c.Log.Error(err, "Failed to persist cluster token")
-			}
+	// Persist the resolved token to the runtime Secret so other operators (dakr, trezr, etc.)
+	// can read it via secretKeyRef. This covers both direct-token installs (where the token
+	// arrives via env var from devzero-zxporter-credentials and was never written to the
+	// runtime Secret) and PAT-exchange installs. Idempotent — safe on every startup.
+	if envSpec.Policies.ClusterToken != "" && c.shouldUseSecretStorage() {
+		if err := c.persistClusterToken(ctx, envSpec.Policies.ClusterToken); err != nil {
+			c.Log.Error(err, "Failed to persist cluster token to runtime Secret")
 		}
 	}
 
@@ -495,7 +501,7 @@ func (c *EnvBasedController) persistClusterTokenToConfigMap(
 			namespace = strings.TrimSpace(string(data))
 		} else {
 			// Fall back to default if all else fails
-			namespace = "devzero-zxporter"
+			namespace = defaultNamespace
 			c.Log.Info("Could not determine namespace, using default", "namespace", namespace)
 		}
 	}
@@ -548,7 +554,7 @@ func (c *EnvBasedController) persistClusterTokenToSecret(ctx context.Context, to
 			namespace = strings.TrimSpace(string(data))
 		} else {
 			// Fall back to default if all else fails
-			namespace = "devzero-zxporter"
+			namespace = defaultNamespace
 			c.Log.Info("Could not determine namespace, using default", "namespace", namespace)
 		}
 	}
@@ -646,7 +652,7 @@ func (c *EnvBasedController) readClusterTokenFromSecret(ctx context.Context) str
 			namespace = strings.TrimSpace(string(data))
 		} else {
 			// Fall back to default if all else fails
-			namespace = "devzero-zxporter"
+			namespace = defaultNamespace
 		}
 	}
 
@@ -717,7 +723,7 @@ func (c *EnvBasedController) readClusterTokenFromConfigMap(ctx context.Context) 
 			namespace = strings.TrimSpace(string(data))
 		} else {
 			// Fall back to default if all else fails
-			namespace = "devzero-zxporter"
+			namespace = defaultNamespace
 		}
 	}
 
