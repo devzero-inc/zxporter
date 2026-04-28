@@ -320,6 +320,12 @@ func (sm *SubscriptionManager) Broadcast(
 		}
 
 		if matched {
+			// Populate OomKillCount from termination reason — the proto field
+			var oomKillCount int64
+			if lastReason == collector.ReasonOOMKilled {
+				oomKillCount = 1
+			}
+
 			item := &gen.ContainerMetricItem{
 				Workload: &gen.MpaWorkloadIdentifier{
 					Namespace:   matchedWorkload.Namespace,
@@ -332,7 +338,7 @@ func (sm *SubscriptionManager) Broadcast(
 				Timestamp:             timestamppb.New(timestamp),
 				CpuUsageMillis:        cpuMillis,
 				MemoryUsageBytes:      memBytes,
-				OomKillCount:          0, // Not explicitly tracked in snapshot yet
+				OomKillCount:          oomKillCount,
 				RestartCount:          int32(restartCount),
 				LastTerminationReason: lastReason,
 				// Resource requests and limits for utilization calculation

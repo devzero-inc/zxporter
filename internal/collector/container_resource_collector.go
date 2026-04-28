@@ -585,10 +585,10 @@ func (c *ContainerResourceCollector) processContainerMetrics(
 			lastTerminationReason = containerStatus.LastTerminationState.Terminated.Reason
 			// Detect OOM during container init: Kubernetes reports as "StartError"
 			// with message containing "OOM-killed" when memory limit is too low
-			if lastTerminationReason == "StartError" {
+			if lastTerminationReason == ReasonStartError {
 				msg := containerStatus.LastTerminationState.Terminated.Message
 				if strings.Contains(strings.ToLower(msg), "oom") {
-					lastTerminationReason = "OOMKilled"
+					lastTerminationReason = ReasonOOMKilled
 				}
 			}
 		}

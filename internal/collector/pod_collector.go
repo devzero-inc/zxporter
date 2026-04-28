@@ -61,6 +61,14 @@ type PodCollector struct {
 	// Startup lifecycle tracking
 	startupTracker   map[startupLifecycleKey]*startupLifecycleEntry
 	startupTrackerMu sync.Mutex
+
+	// MPA stream publisher for direct OOM event delivery (bypasses combinedChannel).
+	// Optional — nil when MPA server is not running.
+	mpaPublisher MpaMetricsPublisher
+
+	// OOM reconciler for cross-path deduplication. When set, the PodCollector
+	// marks OOMs as seen so the periodic sweep doesn't re-publish them.
+	oomReconciler OOMReconcilerMarker
 }
 
 // NewPodCollector creates a new collector for pod resources
@@ -276,8 +284,8 @@ func (c *PodCollector) checkForContainerEvents(oldPod, newPod *corev1.Pod) {
 
 			// Check if the restart was due to OOM
 			terminated := newStatus.LastTerminationState.Terminated
-			isOOM := terminated != nil && (terminated.Reason == "OOMKilled" ||
-				(terminated.Reason == "StartError" && strings.Contains(strings.ToLower(terminated.Message), "oom")))
+			isOOM := terminated != nil && (terminated.Reason == ReasonOOMKilled ||
+				(terminated.Reason == ReasonStartError && strings.Contains(strings.ToLower(terminated.Message), "oom")))
 			if isOOM {
 				// reason = "containerOOMKilled"
 				c.logger.Info("Container OOM killed",
@@ -312,8 +320,16 @@ func (c *PodCollector) checkForContainerEvents(oldPod, newPod *corev1.Pod) {
 					)
 				}
 
-				// Emit structured OOM event for direct path
+				// Emit structured OOM event for direct path (backend)
 				c.emitContainerOOMEvent(newPod, newStatus)
+
+				// Publish OOM directly to MPA stream (operator) — bypasses lossy pipeline
+				c.logger.Info("OOM detected by informer, publishing to MPA stream (direct path)",
+					"namespace", newPod.Namespace,
+					"pod", newPod.Name,
+					"container", newStatus.Name,
+					"restartCount", newStatus.RestartCount)
+				c.publishOOMToMpaStream(newPod, newStatus)
 			}
 
 			c.sendContainerEvent(newPod, newStatus.Name, EventTypeContainerRestarted, &newStatus)
@@ -515,6 +531,79 @@ func (c *PodCollector) emitContainerOOMEvent(pod *corev1.Pod, status corev1.Cont
 	}
 }
 
+// SetMpaPublisher sets the MPA stream publisher for direct OOM event delivery.
+// Called by the controller after MPA server setup.
+func (c *PodCollector) SetMpaPublisher(publisher MpaMetricsPublisher) {
+	c.mpaPublisher = publisher
+}
+
+// SetOOMReconciler sets the OOM reconciler for cross-path deduplication.
+func (c *PodCollector) SetOOMReconciler(reconciler OOMReconcilerMarker) {
+	c.oomReconciler = reconciler
+}
+
+// publishOOMToMpaStream sends an OOM event directly to the MPA gRPC stream,
+// bypassing the combinedChannel pipeline that can silently drop events.
+// This gives the dakr operator a real-time OOM signal (~1-2s latency).
+func (c *PodCollector) publishOOMToMpaStream(pod *corev1.Pod, status corev1.ContainerStatus) {
+	if c.mpaPublisher == nil {
+		return
+	}
+
+	workloadName, workloadKind := getWorkloadInfo(pod)
+	requestBytes, limitBytes := getContainerResources(pod, status.Name)
+
+	// Build CPU request/limit from pod spec
+	var cpuRequestMillis, cpuLimitMillis int64
+	for _, cs := range pod.Spec.Containers {
+		if cs.Name == status.Name {
+			if req := cs.Resources.Requests.Cpu(); req != nil {
+				cpuRequestMillis = req.MilliValue()
+			}
+			if lim := cs.Resources.Limits.Cpu(); lim != nil {
+				cpuLimitMillis = lim.MilliValue()
+			}
+			break
+		}
+	}
+
+	snapshot := &ContainerMetricsSnapshot{
+		ContainerName:         status.Name,
+		PodName:               pod.Name,
+		Namespace:             pod.Namespace,
+		NodeName:              pod.Spec.NodeName,
+		WorkloadName:          workloadName,
+		WorkloadKind:          workloadKind,
+		CpuRequestMillis:      cpuRequestMillis,
+		CpuLimitMillis:        cpuLimitMillis,
+		MemoryUsageBytes:      limitBytes, // OOM means usage >= limit
+		MemoryRequestBytes:    requestBytes,
+		MemoryLimitBytes:      limitBytes,
+		PodLabels:             pod.Labels,
+		ContainerRunning:      status.State.Running != nil,
+		ContainerRestarts:     status.RestartCount > 0,
+		RestartCount:          int64(status.RestartCount),
+		LastTerminationReason: ReasonOOMKilled,
+	}
+
+	c.mpaPublisher.PublishMetrics(snapshot, time.Now())
+
+	// Mark as seen in the reconciler so the periodic sweep doesn't re-publish
+	if c.oomReconciler != nil {
+		c.oomReconciler.MarkSeen(pod.Namespace, pod.Name, status.Name, status.RestartCount)
+	}
+
+	c.logger.Info("OOM event published to MPA stream via direct path",
+		"namespace", pod.Namespace,
+		"pod", pod.Name,
+		"container", status.Name,
+		"restartCount", status.RestartCount,
+		"memoryLimitBytes", snapshot.MemoryLimitBytes,
+		"memoryRequestBytes", snapshot.MemoryRequestBytes,
+		"workloadName", snapshot.WorkloadName,
+		"workloadKind", snapshot.WorkloadKind)
+}
+
 // emitContainerCrashLoopEvent sends a structured CrashLoopBackOff event through the batch channel.
 func (c *PodCollector) emitContainerCrashLoopEvent(pod *corev1.Pod, status corev1.ContainerStatus) {
 	workloadName, workloadKind := getWorkloadInfo(pod)
@@ -525,7 +614,7 @@ func (c *PodCollector) emitContainerCrashLoopEvent(pod *corev1.Pod, status corev
 	if status.LastTerminationState.Terminated != nil {
 		lastTerminationReason = status.LastTerminationState.Terminated.Reason
 		exitCode = status.LastTerminationState.Terminated.ExitCode
-		isOOMRelated = lastTerminationReason == "OOMKilled"
+		isOOMRelated = lastTerminationReason == ReasonOOMKilled
 	}
 
 	c.logger.Info("Container CrashLoopBackOff detected",
