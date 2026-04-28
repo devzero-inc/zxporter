@@ -532,13 +532,19 @@ func (c *PodCollector) emitContainerOOMEvent(pod *corev1.Pod, status corev1.Cont
 }
 
 // SetMpaPublisher sets the MPA stream publisher for direct OOM event delivery.
-// Called by the controller after MPA server setup.
+// Called by the controller after MPA server setup. Guarded by mu because the
+// informer goroutine reads mpaPublisher concurrently in publishOOMToMpaStream.
 func (c *PodCollector) SetMpaPublisher(publisher MpaMetricsPublisher) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.mpaPublisher = publisher
 }
 
 // SetOOMReconciler sets the OOM reconciler for cross-path deduplication.
+// Guarded by mu for the same reason as SetMpaPublisher.
 func (c *PodCollector) SetOOMReconciler(reconciler OOMReconcilerMarker) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.oomReconciler = reconciler
 }
 
@@ -546,51 +552,24 @@ func (c *PodCollector) SetOOMReconciler(reconciler OOMReconcilerMarker) {
 // bypassing the combinedChannel pipeline that can silently drop events.
 // This gives the dakr operator a real-time OOM signal (~1-2s latency).
 func (c *PodCollector) publishOOMToMpaStream(pod *corev1.Pod, status corev1.ContainerStatus) {
-	if c.mpaPublisher == nil {
+	// Snapshot the publisher and reconciler under the read lock so the
+	// actual publish (which may block on the client channel) runs unlocked.
+	c.mu.RLock()
+	publisher := c.mpaPublisher
+	reconciler := c.oomReconciler
+	c.mu.RUnlock()
+
+	if publisher == nil {
 		return
 	}
 
-	workloadName, workloadKind := getWorkloadInfo(pod)
-	requestBytes, limitBytes := getContainerResources(pod, status.Name)
+	snapshot := BuildOOMSnapshot(pod, status)
 
-	// Build CPU request/limit from pod spec
-	var cpuRequestMillis, cpuLimitMillis int64
-	for _, cs := range pod.Spec.Containers {
-		if cs.Name == status.Name {
-			if req := cs.Resources.Requests.Cpu(); req != nil {
-				cpuRequestMillis = req.MilliValue()
-			}
-			if lim := cs.Resources.Limits.Cpu(); lim != nil {
-				cpuLimitMillis = lim.MilliValue()
-			}
-			break
-		}
-	}
-
-	snapshot := &ContainerMetricsSnapshot{
-		ContainerName:         status.Name,
-		PodName:               pod.Name,
-		Namespace:             pod.Namespace,
-		NodeName:              pod.Spec.NodeName,
-		WorkloadName:          workloadName,
-		WorkloadKind:          workloadKind,
-		CpuRequestMillis:      cpuRequestMillis,
-		CpuLimitMillis:        cpuLimitMillis,
-		MemoryUsageBytes:      limitBytes, // OOM means usage >= limit
-		MemoryRequestBytes:    requestBytes,
-		MemoryLimitBytes:      limitBytes,
-		PodLabels:             pod.Labels,
-		ContainerRunning:      status.State.Running != nil,
-		ContainerRestarts:     status.RestartCount > 0,
-		RestartCount:          int64(status.RestartCount),
-		LastTerminationReason: ReasonOOMKilled,
-	}
-
-	c.mpaPublisher.PublishMetrics(snapshot, time.Now())
+	publisher.PublishMetrics(snapshot, time.Now())
 
 	// Mark as seen in the reconciler so the periodic sweep doesn't re-publish
-	if c.oomReconciler != nil {
-		c.oomReconciler.MarkSeen(pod.Namespace, pod.Name, status.Name, status.RestartCount)
+	if reconciler != nil {
+		reconciler.MarkSeen(pod.Namespace, pod.Name, status.Name, status.RestartCount)
 	}
 
 	c.logger.Info("OOM event published to MPA stream via direct path",

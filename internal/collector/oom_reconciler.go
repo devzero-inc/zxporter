@@ -117,23 +117,34 @@ func (r *OOMReconciler) sweep(ctx context.Context) {
 }
 
 // sweepNamespace checks all pods in a single namespace for OOM termination.
+// Uses chunked listing (500 pods per page) to bound memory usage on large clusters.
 func (r *OOMReconciler) sweepNamespace(ctx context.Context, namespace string) error {
-	listOpts := metav1.ListOptions{}
-	var podList *corev1.PodList
-	var err error
+	continueToken := ""
+	for {
+		listOpts := metav1.ListOptions{
+			Limit:    500,
+			Continue: continueToken,
+		}
 
-	if namespace == "" {
-		podList, err = r.client.CoreV1().Pods("").List(ctx, listOpts)
-	} else {
-		podList, err = r.client.CoreV1().Pods(namespace).List(ctx, listOpts)
-	}
-	if err != nil {
-		return err
-	}
+		var podList *corev1.PodList
+		var err error
+		if namespace == "" {
+			podList, err = r.client.CoreV1().Pods("").List(ctx, listOpts)
+		} else {
+			podList, err = r.client.CoreV1().Pods(namespace).List(ctx, listOpts)
+		}
+		if err != nil {
+			return err
+		}
 
-	for i := range podList.Items {
-		pod := &podList.Items[i]
-		r.checkPodForOOM(pod)
+		for i := range podList.Items {
+			r.checkPodForOOM(&podList.Items[i])
+		}
+
+		continueToken = podList.Continue
+		if continueToken == "" {
+			break
+		}
 	}
 	return nil
 }
@@ -190,48 +201,18 @@ func (r *OOMReconciler) publishOOM(pod *corev1.Pod, cs corev1.ContainerStatus) {
 		return
 	}
 
-	workloadName, workloadKind := getWorkloadInfo(pod)
-	requestBytes, limitBytes := getContainerResources(pod, cs.Name)
-
-	var cpuRequestMillis, cpuLimitMillis int64
-	for _, c := range pod.Spec.Containers {
-		if c.Name == cs.Name {
-			if req := c.Resources.Requests.Cpu(); req != nil {
-				cpuRequestMillis = req.MilliValue()
-			}
-			if lim := c.Resources.Limits.Cpu(); lim != nil {
-				cpuLimitMillis = lim.MilliValue()
-			}
-			break
-		}
-	}
-
-	snapshot := &ContainerMetricsSnapshot{
-		ContainerName:         cs.Name,
-		PodName:               pod.Name,
-		Namespace:             pod.Namespace,
-		NodeName:              pod.Spec.NodeName,
-		WorkloadName:          workloadName,
-		WorkloadKind:          workloadKind,
-		CpuRequestMillis:      cpuRequestMillis,
-		CpuLimitMillis:        cpuLimitMillis,
-		MemoryUsageBytes:      limitBytes,
-		MemoryRequestBytes:    requestBytes,
-		MemoryLimitBytes:      limitBytes,
-		PodLabels:             pod.Labels,
-		ContainerRunning:      cs.State.Running != nil,
-		ContainerRestarts:     cs.RestartCount > 0,
-		RestartCount:          int64(cs.RestartCount),
-		LastTerminationReason: ReasonOOMKilled,
-	}
-
+	snapshot := BuildOOMSnapshot(pod, cs)
 	r.mpaPublisher.PublishMetrics(snapshot, time.Now())
 
 	r.logger.Info("OOM reconciler: published missed OOM event to MPA stream",
 		"namespace", pod.Namespace,
 		"pod", pod.Name,
 		"container", cs.Name,
-		"restartCount", cs.RestartCount)
+		"restartCount", cs.RestartCount,
+		"memoryLimitBytes", snapshot.MemoryLimitBytes,
+		"memoryRequestBytes", snapshot.MemoryRequestBytes,
+		"workloadName", snapshot.WorkloadName,
+		"workloadKind", snapshot.WorkloadKind)
 }
 
 // evictStaleEntries removes dedup entries older than oomDeduplicationTTL.

@@ -1,5 +1,7 @@
 package collector
 
+import corev1 "k8s.io/api/core/v1"
+
 // ContainerMetricsSnapshot represents a strongly-typed snapshot of container resource metrics
 type ContainerMetricsSnapshot struct {
 	// Container identification
@@ -74,4 +76,44 @@ type ContainerMetricsSnapshot struct {
 	GpuLimitCount            interface{} `json:"gpuLimitCount,omitempty"`
 	GpuTotalMemoryMb         interface{} `json:"gpuTotalMemoryMb,omitempty"`
 	IndividualGPUMetrics     string      `json:"individualGPUMetrics,omitempty"` // JSON string
+}
+
+// BuildOOMSnapshot constructs a ContainerMetricsSnapshot for an OOM event.
+// Used by both the PodCollector (informer fast path) and OOMReconciler (sweep path)
+// to ensure consistent snapshot construction.
+func BuildOOMSnapshot(pod *corev1.Pod, cs corev1.ContainerStatus) *ContainerMetricsSnapshot {
+	workloadName, workloadKind := getWorkloadInfo(pod)
+	requestBytes, limitBytes := getContainerResources(pod, cs.Name)
+
+	var cpuRequestMillis, cpuLimitMillis int64
+	for _, c := range pod.Spec.Containers {
+		if c.Name == cs.Name {
+			if req := c.Resources.Requests.Cpu(); req != nil {
+				cpuRequestMillis = req.MilliValue()
+			}
+			if lim := c.Resources.Limits.Cpu(); lim != nil {
+				cpuLimitMillis = lim.MilliValue()
+			}
+			break
+		}
+	}
+
+	return &ContainerMetricsSnapshot{
+		ContainerName:         cs.Name,
+		PodName:               pod.Name,
+		Namespace:             pod.Namespace,
+		NodeName:              pod.Spec.NodeName,
+		WorkloadName:          workloadName,
+		WorkloadKind:          workloadKind,
+		CpuRequestMillis:      cpuRequestMillis,
+		CpuLimitMillis:        cpuLimitMillis,
+		MemoryUsageBytes:      limitBytes, // OOM means usage >= limit
+		MemoryRequestBytes:    requestBytes,
+		MemoryLimitBytes:      limitBytes,
+		PodLabels:             pod.Labels,
+		ContainerRunning:      cs.State.Running != nil,
+		ContainerRestarts:     cs.RestartCount > 0,
+		RestartCount:          int64(cs.RestartCount),
+		LastTerminationReason: ReasonOOMKilled,
+	}
 }
