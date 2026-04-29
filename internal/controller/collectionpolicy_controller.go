@@ -154,6 +154,7 @@ type PolicyConfig struct {
 	PrometheusURL           string
 	DisableNetworkIOMetrics bool
 	DisableGPUMetrics       bool
+	EnableNodemonMetrics    bool
 	UpdateInterval          time.Duration
 	NodeMetricsInterval     time.Duration
 	ClusterSnapshotInterval time.Duration
@@ -403,6 +404,7 @@ func (r *CollectionPolicyReconciler) createNewConfig(
 		PrometheusURL:           envSpec.Policies.PrometheusURL,
 		DisableNetworkIOMetrics: envSpec.Policies.DisableNetworkIOMetrics,
 		DisableGPUMetrics:       envSpec.Policies.DisableGPUMetrics,
+		EnableNodemonMetrics:    envSpec.Policies.EnableNodemonMetrics,
 		MaskSecretData:          envSpec.Policies.MaskSecretData,
 		DisabledCollectors:      envSpec.Policies.DisabledCollectors,
 		BufferSize:              envSpec.Policies.BufferSize,
@@ -1002,7 +1004,8 @@ func (r *CollectionPolicyReconciler) identifyAffectedCollectors(
 	if oldConfig.UpdateInterval != newConfig.UpdateInterval ||
 		oldConfig.PrometheusURL != newConfig.PrometheusURL ||
 		oldConfig.DisableNetworkIOMetrics != newConfig.DisableNetworkIOMetrics ||
-		oldConfig.DisableGPUMetrics != newConfig.DisableGPUMetrics {
+		oldConfig.DisableGPUMetrics != newConfig.DisableGPUMetrics ||
+		oldConfig.EnableNodemonMetrics != newConfig.EnableNodemonMetrics {
 		affectedCollectors["node"] = true
 		affectedCollectors["container_resource"] = true
 	}
@@ -1346,6 +1349,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(
 					QueryTimeout:            10 * time.Second,
 					DisableNetworkIOMetrics: newConfig.DisableNetworkIOMetrics,
 					DisableGPUMetrics:       newConfig.DisableGPUMetrics,
+					EnableNodemonMetrics:    newConfig.EnableNodemonMetrics,
 				},
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedPods,
@@ -2762,6 +2766,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 					QueryTimeout:            10 * time.Second,
 					DisableNetworkIOMetrics: config.DisableNetworkIOMetrics,
 					DisableGPUMetrics:       config.DisableGPUMetrics,
+					EnableNodemonMetrics:    config.EnableNodemonMetrics,
 				},
 				config.TargetNamespaces,
 				config.ExcludedPods,
@@ -3525,6 +3530,7 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 						QueryTimeout:            10 * time.Second,
 						DisableNetworkIOMetrics: newConfig.DisableNetworkIOMetrics,
 						DisableGPUMetrics:       newConfig.DisableGPUMetrics,
+						EnableNodemonMetrics:    newConfig.EnableNodemonMetrics,
 					},
 					newConfig.TargetNamespaces,
 					newConfig.ExcludedPods,

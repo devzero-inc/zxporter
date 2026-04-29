@@ -50,6 +50,10 @@ type ContainerResourceCollectorConfig struct {
 	// DisableGPUMetrics determines whether to disable GPU metrics collection
 	// Default is false, so metrics are collected by default
 	DisableGPUMetrics bool
+
+	// EnableNodemonMetrics enables the nodemon code path for network, disk I/O,
+	// and CPU throttle metrics instead of Prometheus.
+	EnableNodemonMetrics bool
 }
 
 type gpuQueryState struct {
@@ -85,6 +89,10 @@ type ContainerResourceCollector struct {
 	gpuQueryErrorState map[string]*gpuQueryState // most of the case we are not deploying zxporter to GPU nodes which cause GPU query to fail infinitely, and we dont want to get that GPU query fails error every minute for every container
 	gpuQueryMu         sync.Mutex
 	throttle           throttleTracker
+	useNodemon         bool
+	// nodemonContainerMetricsCache holds pre-fetched container metrics from nodemon,
+	// indexed by "namespace/podName", refreshed once per collection cycle.
+	nodemonContainerMetricsCache map[string][]UnifiedContainerMetric
 	// Removed manual cache
 	rsLister   appslisters.ReplicaSetLister
 	rsInformer cache.SharedIndexInformer
@@ -158,6 +166,7 @@ func NewContainerResourceCollector(
 		telemetryLogger:    telemetryLogger,
 		gpuQueryErrorState: make(map[string]*gpuQueryState),
 		throttle:           throttleTracker{lastEmitted: make(map[string]time.Time)},
+		useNodemon:         config.EnableNodemonMetrics,
 	}
 }
 
@@ -352,6 +361,17 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 		}
 	}
 
+	// Pre-fetch container metrics from nodemon for network/IO/throttle (one call per cycle)
+	c.nodemonContainerMetricsCache = nil
+	if c.useNodemon && c.nodemonClient != nil {
+		allContainerMetrics, err := c.nodemonClient.FetchAllContainerMetrics(ctx)
+		if err != nil {
+			c.logger.Error(err, "Failed to fetch container metrics from nodemon, falling back to Prometheus")
+		} else {
+			c.nodemonContainerMetricsCache = indexContainerMetricsByPod(allContainerMetrics)
+		}
+	}
+
 	// Process each pod's metrics
 	for _, podMetrics := range podMetricsList.Items {
 		// Skip excluded pods
@@ -378,8 +398,12 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 
 		// Fetch network metrics
 		var networkMetrics map[string]float64
-		if !c.config.DisableNetworkIOMetrics && c.prometheusAPI != nil && queryCtx != nil {
-			networkMetrics = c.collectPodNetworkMetrics(queryCtx, pod)
+		if !c.config.DisableNetworkIOMetrics {
+			if c.useNodemon && c.nodemonContainerMetricsCache != nil {
+				networkMetrics = c.collectPodNetworkMetricsFromNodemon(ctx, pod)
+			} else if c.prometheusAPI != nil && queryCtx != nil {
+				networkMetrics = c.collectPodNetworkMetrics(queryCtx, pod)
+			}
 		}
 
 		// Process each container's metrics
@@ -388,9 +412,11 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 			var ioMetrics map[string]float64
 			var gpuMetrics map[string]interface{}
 			var throttleFraction float64
-			if c.prometheusAPI != nil && queryCtx != nil {
 
-				// Fetch CPU throttle metrics for this container
+			// Collect CPU throttle metrics
+			if c.useNodemon && c.nodemonContainerMetricsCache != nil {
+				throttleFraction = c.collectContainerCPUThrottleMetricsFromNodemon(ctx, pod, containerMetrics.Name)
+			} else if c.prometheusAPI != nil && queryCtx != nil {
 				throttleFraction, err = c.collectContainerCPUThrottleMetrics(
 					queryCtx,
 					pod,
@@ -401,17 +427,20 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 						"namespace", podMetrics.Namespace,
 						"pod", podMetrics.Name,
 						"container", containerMetrics.Name)
-					// Continue with 0 throttle fraction
 					throttleFraction = 0
 				}
+			}
 
-				// Emit CPU throttle event if fraction exceeds threshold
-				if throttleFraction > 0.1 {
-					c.emitCPUThrottleEvent(pod, containerMetrics, throttleFraction)
-				}
+			// Emit CPU throttle event if fraction exceeds threshold
+			if throttleFraction > 0.1 {
+				c.emitCPUThrottleEvent(pod, containerMetrics, throttleFraction)
+			}
 
-				// Fetch I/O metrics for this container
-				if !c.config.DisableNetworkIOMetrics {
+			// Collect I/O metrics for this container
+			if !c.config.DisableNetworkIOMetrics {
+				if c.useNodemon && c.nodemonContainerMetricsCache != nil {
+					ioMetrics = c.collectContainerIOMetricsFromNodemon(ctx, pod, containerMetrics.Name)
+				} else if c.prometheusAPI != nil && queryCtx != nil {
 					ioMetrics = c.collectContainerIOMetrics(
 						queryCtx,
 						pod,
@@ -892,6 +921,119 @@ func (c *ContainerResourceCollector) collectContainerCPUThrottleMetrics(
 		fraction = 1
 	}
 	return fraction, nil
+}
+
+// indexContainerMetricsByPod builds a lookup map keyed by "namespace/podName" from a
+// flat slice of UnifiedContainerMetric returned by nodemon.
+func indexContainerMetricsByPod(metrics []UnifiedContainerMetric) map[string][]UnifiedContainerMetric {
+	idx := make(map[string][]UnifiedContainerMetric, len(metrics))
+	for _, m := range metrics {
+		key := m.Namespace + "/" + m.Pod
+		idx[key] = append(idx[key], m)
+	}
+	return idx
+}
+
+// collectPodNetworkMetricsFromNodemon returns pod-level network metrics from the
+// pre-fetched nodemon container metrics cache, using the same map keys as the
+// Prometheus code path.
+func (c *ContainerResourceCollector) collectPodNetworkMetricsFromNodemon(
+	_ context.Context,
+	pod *corev1.Pod,
+) map[string]float64 {
+	metrics := map[string]float64{
+		"NetworkReceiveBytes":    0,
+		"NetworkTransmitBytes":   0,
+		"NetworkReceivePackets":  0,
+		"NetworkTransmitPackets": 0,
+		"NetworkReceiveErrors":   0,
+		"NetworkTransmitErrors":  0,
+		"NetworkReceiveDropped":  0,
+		"NetworkTransmitDropped": 0,
+	}
+
+	key := pod.Namespace + "/" + pod.Name
+	containerMetrics, ok := c.nodemonContainerMetricsCache[key]
+	if !ok || len(containerMetrics) == 0 {
+		return metrics
+	}
+
+	// Network metrics are pod-level (shared network namespace). The Prometheus path
+	// uses sum() across the pod, so we pick the first container's values since
+	// nodemon reports identical pod-level counters for each container.
+	m := containerMetrics[0]
+	metrics["NetworkReceiveBytes"] = float64(m.NetworkRxBytes)
+	metrics["NetworkTransmitBytes"] = float64(m.NetworkTxBytes)
+	metrics["NetworkReceivePackets"] = m.NetworkRxPacketsPerSec
+	metrics["NetworkTransmitPackets"] = m.NetworkTxPacketsPerSec
+	metrics["NetworkReceiveErrors"] = m.NetworkRxErrorsPerSec
+	metrics["NetworkTransmitErrors"] = m.NetworkTxErrorsPerSec
+	metrics["NetworkReceiveDropped"] = m.NetworkRxDropsPerSec
+	metrics["NetworkTransmitDropped"] = m.NetworkTxDropsPerSec
+
+	return metrics
+}
+
+// collectContainerIOMetricsFromNodemon returns container-level disk I/O metrics from
+// the pre-fetched nodemon cache, using the same map keys as the Prometheus code path.
+func (c *ContainerResourceCollector) collectContainerIOMetricsFromNodemon(
+	_ context.Context,
+	pod *corev1.Pod,
+	containerName string,
+) map[string]float64 {
+	metrics := map[string]float64{
+		"FSReadBytes":  0,
+		"FSWriteBytes": 0,
+		"FSReads":      0,
+		"FSWrites":     0,
+	}
+
+	key := pod.Namespace + "/" + pod.Name
+	containerMetrics, ok := c.nodemonContainerMetricsCache[key]
+	if !ok {
+		return metrics
+	}
+
+	for _, m := range containerMetrics {
+		if m.Container == containerName {
+			metrics["FSReadBytes"] = m.DiskReadBytesPerSec
+			metrics["FSWriteBytes"] = m.DiskWriteBytesPerSec
+			metrics["FSReads"] = m.DiskReadOpsPerSec
+			metrics["FSWrites"] = m.DiskWriteOpsPerSec
+			return metrics
+		}
+	}
+
+	return metrics
+}
+
+// collectContainerCPUThrottleMetricsFromNodemon returns the CPU throttle fraction from
+// the pre-fetched nodemon cache for a specific container.
+func (c *ContainerResourceCollector) collectContainerCPUThrottleMetricsFromNodemon(
+	_ context.Context,
+	pod *corev1.Pod,
+	containerName string,
+) float64 {
+	key := pod.Namespace + "/" + pod.Name
+	containerMetrics, ok := c.nodemonContainerMetricsCache[key]
+	if !ok {
+		return 0
+	}
+
+	for _, m := range containerMetrics {
+		if m.Container == containerName {
+			fraction := m.CPUThrottleFraction
+			if fraction < 0 || math.IsNaN(fraction) {
+				return 0
+			}
+			if fraction > 1 {
+				return 1
+			}
+			return fraction
+		}
+	}
+
+	return 0
 }
 
 // emitCPUThrottleEvent sends a CPU throttle event through the batch channel with 5-minute deduplication.
