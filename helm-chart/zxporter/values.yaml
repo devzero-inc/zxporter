@@ -126,6 +126,14 @@ prometheus:
   evaluationInterval: 1m
   scrapeTimeout: 10s
 
+# Nodemon metrics configuration
+# When enabled, the nodemon DaemonSet collects metrics directly from kubelet,
+# making Prometheus server, node-exporter, and kube-state-metrics unnecessary.
+nodemonMetrics:
+  enabled: false  # When true, skips Prometheus/node-exporter/kube-state-metrics deployment
+
+# DEPRECATED: When nodemonMetrics.enabled=true, Prometheus is not deployed.
+# The nodemon DaemonSet collects metrics directly from kubelet.
 # Monitoring components (set to false to use your own Prometheus/Node Exporter)
 monitoring:
   enabled: true

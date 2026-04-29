@@ -1,3 +1,4 @@
+{{- if not .Values.nodemonMetrics.enabled }}
 {{- if .Values.monitoring.enabled }}
 {{- if .Values.monitoring.prometheus.enabled }}
 # Source: prometheus/templates/cm.yaml
@@ -200,5 +201,6 @@ data:
     {}
   rules: |
     {}
+{{- end }}
 {{- end }}
 {{- end }}
