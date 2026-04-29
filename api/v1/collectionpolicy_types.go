@@ -466,6 +466,11 @@ type Policies struct {
 	// +optional
 	DisableGPUMetrics bool `json:"disableGpuMetrics,omitempty"`
 
+	// EnableNodemonMetrics enables collection of node monitor metrics
+	// Default is false, meaning node monitor metrics are not collected by default
+	// +optional
+	EnableNodemonMetrics bool `json:"enableNodemonMetrics,omitempty"`
+
 	// Frequency is how often to collect resource usage metrics
 	Frequency string `json:"frequency,omitempty"`
 

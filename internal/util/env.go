@@ -67,6 +67,10 @@ const (
 	// Default value: false
 	_ENV_DISABLE_GPU_METRICS = "DISABLE_GPU_METRICS"
 
+	// ENABLE_NODEMON_METRICS determines whether to enable node monitor metrics.
+	// Default value: false
+	_ENV_ENABLE_NODEMON_METRICS = "ENABLE_NODEMON_METRICS"
+
 	// MASK_SECRET_DATA determines whether to redact secret values.
 	// Default value: false
 	_ENV_MASK_SECRET_DATA = "MASK_SECRET_DATA"
@@ -551,6 +555,13 @@ func LoadCollectionPolicySpecFromEnv() (v1.CollectionPolicySpec, error) {
 			return newSpec, fmt.Errorf("invalid %s: %w", _ENV_DISABLE_GPU_METRICS, err)
 		} else {
 			newSpec.Policies.DisableGPUMetrics = b
+		}
+	}
+	if v := getEnv(_ENV_ENABLE_NODEMON_METRICS); v != "" {
+		if b, err := strconv.ParseBool(v); err != nil {
+			return newSpec, fmt.Errorf("invalid %s: %w", _ENV_ENABLE_NODEMON_METRICS, err)
+		} else {
+			newSpec.Policies.EnableNodemonMetrics = b
 		}
 	}
 	if v := getEnv(_ENV_MASK_SECRET_DATA); v != "" {
