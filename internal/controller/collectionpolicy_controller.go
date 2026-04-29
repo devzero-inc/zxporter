@@ -1923,7 +1923,7 @@ func (r *CollectionPolicyReconciler) initializeCollectors(
 	}
 
 	// Setup and start MPA Server
-	if err := r.setupMpaServer(); err != nil {
+	if err := r.setupMpaServer(config); err != nil {
 		logger.Error(err, "Failed to setup MPA server")
 		// Not fatal
 	}
@@ -2075,11 +2075,20 @@ func (r *CollectionPolicyReconciler) setupCollectionManager(
 }
 
 // setupMpaServer initializes and starts the gRPC server
-func (r *CollectionPolicyReconciler) setupMpaServer() error {
+func (r *CollectionPolicyReconciler) setupMpaServer(config *PolicyConfig) error {
 	if r.MpaServer != nil {
 		return nil
 	}
-	r.MpaServer = server.NewMpaServer(r.Log, nil, r.HealthManager)
+
+	var historicalProvider collector.HistoricalPercentileProvider
+	if config != nil && config.EnableNodemonMetrics {
+		// TODO: PercentileFetcher implementation from DakrClient will be wired here.
+		// For now, the cache starts empty and the MPA server operates without historical data.
+		// This will be completed when the DAKR control plane percentile API is integrated.
+		r.Log.Info("Nodemon metrics enabled, historical percentile cache will be available when DAKR fetcher is wired")
+	}
+
+	r.MpaServer = server.NewMpaServer(r.Log, historicalProvider, r.HealthManager)
 	return r.MpaServer.Start(r.MpaServerPort)
 }
 
