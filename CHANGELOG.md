@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 For releases prior to automated changelog generation, please see the
 [GitHub Releases](https://github.com/devzero-inc/zxporter/releases) page.
 
+## [v0.0.76] - 2026-04-29
+
+<!-- Release notes generated using configuration in .github/release.yml at main -->
+
+### What's Changed
+### Other Changes
+* chore: update changelog for v0.0.75 by @github-actions[bot] in https://github.com/devzero-inc/zxporter/pull/365
+* update zxporter image tag in helm charts v0.0.75 by @sandipanpanda in https://github.com/devzero-inc/zxporter/pull/366
+* chore(helm): update Chart.yaml version to 0.0.54 by @github-actions[bot] in https://github.com/devzero-inc/zxporter/pull/367
+* chore(helm): update Chart.yaml version to 0.0.18 by @github-actions[bot] in https://github.com/devzero-inc/zxporter/pull/368
+* chore(helm): update nodemon Chart.yaml version to 0.0.2 by @github-actions[bot] in https://github.com/devzero-inc/zxporter/pull/369
+* feat: collect karpenter bootstrap ConfigMap for UI defaults visibility by @Tzvonimir in https://github.com/devzero-inc/zxporter/pull/360
+
+
+**Full Changelog**: https://github.com/devzero-inc/zxporter/compare/v0.0.75...v0.0.76
+
 ## [v0.0.75] - 2026-04-27
 
 <!-- Release notes generated using configuration in .github/release.yml at main -->
