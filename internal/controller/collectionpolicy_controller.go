@@ -83,6 +83,10 @@ type CollectionPolicyReconciler struct {
 	// and should be retried periodically
 	pendingCollectors []pendingCollector
 	pendingMu         sync.Mutex
+
+	// OOM reconciler for periodic sweep of missed OOM events
+	oomReconciler       *collector.OOMReconciler
+	oomReconcilerCancel context.CancelFunc
 }
 
 // pendingCollector represents a collector that was unavailable at registration time
@@ -193,7 +197,7 @@ type PolicyConfig struct {
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;update
 
 // Secret access for cluster token persistence when useSecretForToken is enabled
-// +kubebuilder:rbac:groups="",resources=secrets,resourceNames=devzero-zxporter-token,verbs=get;update;patch
+// +kubebuilder:rbac:groups="",resources=secrets,resourceNames=token,verbs=get;update;patch
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=create
 
 // Metrics access
@@ -260,6 +264,7 @@ type PolicyConfig struct {
 // +kubebuilder:rbac:groups=karpenter.azure.com,resources=aksnodeclasses,verbs=get;list;watch
 // +kubebuilder:rbac:groups=karpenter.k8s.oracle,resources=ocinodeclasses,verbs=get;list;watch
 // +kubebuilder:rbac:groups=karpenter.k8s.gcp,resources=gcenodeclasses,verbs=get;list;watch
+// +kubebuilder:rbac:groups=devzero.karpenter.sh,resources=karpentersettings,verbs=get;list;watch
 
 // API Extensions (READ-ONLY for CRD discovery)
 //+kubebuilder:rbac:groups=apiextensions.k8s.io,resources=customresourcedefinitions,verbs=get;list;watch
@@ -1608,6 +1613,14 @@ func (r *CollectionPolicyReconciler) restartCollectors(
 				logger,
 				r.TelemetryLogger,
 			)
+		case "karpenter-settings":
+			replacedCollector = collector.NewKarpenterSettingsCollector(
+				r.DynamicClient,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+				r.TelemetryLogger,
+			)
 		case "datadog":
 			replacedCollector = collector.NewDatadogCollector(
 				r.DynamicClient,
@@ -1811,6 +1824,12 @@ func (r *CollectionPolicyReconciler) restartCollectors(
 				},
 			)
 			logger.Info("Successfully restarted collector", "type", collectorType)
+
+			// Re-wire MPA publisher and OOM reconciler into replaced PodCollector
+			if collectorType == "pod" {
+				r.wireMpaPublisherIntoPodCollector()
+				r.wireOOMReconcilerIntoPodCollector()
+			}
 		}
 	}
 
@@ -1904,6 +1923,10 @@ func (r *CollectionPolicyReconciler) initializeCollectors(
 		logger.Error(err, "Failed to setup MPA server")
 		// Not fatal
 	}
+
+	// Start OOM reconciler and wire MPA publisher into PodCollector.
+	// Both depend on MpaServer being set up first.
+	r.setupOOMDetection(config)
 
 	r.TelemetryLogger.Report(
 		gen.LogLevel_LOG_LEVEL_INFO,
@@ -2054,6 +2077,69 @@ func (r *CollectionPolicyReconciler) setupMpaServer() error {
 	}
 	r.MpaServer = server.NewMpaServer(r.Log, nil, r.HealthManager)
 	return r.MpaServer.Start(r.MpaServerPort)
+}
+
+// setupOOMDetection starts the OOM reconciler and wires the MPA publisher
+// into the PodCollector so OOM events reach the operator via both the real-time
+// informer path and the periodic sweep fallback.
+func (r *CollectionPolicyReconciler) setupOOMDetection(config *PolicyConfig) {
+	if r.MpaServer == nil {
+		return
+	}
+
+	// Wire MPA publisher into PodCollector (if it's running) so the real-time
+	// informer path can publish OOM events directly to the operator.
+	if r.CollectionManager != nil {
+		r.wireMpaPublisherIntoPodCollector()
+	}
+
+	// Start periodic OOM reconciler
+	if r.oomReconciler == nil {
+		namespaces := config.TargetNamespaces
+		r.oomReconciler = collector.NewOOMReconciler(
+			r.K8sClient,
+			namespaces,
+			r.MpaServer,
+			r.Log,
+		)
+
+		// Also wire the reconciler into PodCollector for dedup
+		r.wireOOMReconcilerIntoPodCollector()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		r.oomReconcilerCancel = cancel
+		go r.oomReconciler.Start(ctx)
+		r.Log.Info("OOM reconciler started")
+	}
+}
+
+// wireMpaPublisherIntoPodCollector sets the MPA publisher on the PodCollector
+// so real-time OOM events are published directly to the operator's gRPC stream.
+func (r *CollectionPolicyReconciler) wireMpaPublisherIntoPodCollector() {
+	rc := r.CollectionManager.GetCollector("pod")
+	if rc == nil {
+		return
+	}
+	if pc, ok := rc.(*collector.PodCollector); ok {
+		pc.SetMpaPublisher(r.MpaServer)
+		r.Log.Info("Wired MPA publisher into PodCollector for direct OOM delivery")
+	}
+}
+
+// wireOOMReconcilerIntoPodCollector sets the OOM reconciler on the PodCollector
+// for cross-path deduplication (informer path marks OOMs as seen so sweep skips them).
+func (r *CollectionPolicyReconciler) wireOOMReconcilerIntoPodCollector() {
+	if r.CollectionManager == nil || r.oomReconciler == nil {
+		return
+	}
+	rc := r.CollectionManager.GetCollector("pod")
+	if rc == nil {
+		return
+	}
+	if pc, ok := rc.(*collector.PodCollector); ok {
+		pc.SetOOMReconciler(r.oomReconciler)
+		r.Log.Info("Wired OOM reconciler into PodCollector for deduplication")
+	}
 }
 
 // setupClusterCollector creates and starts just the cluster collector
@@ -2292,6 +2378,13 @@ func (r *CollectionPolicyReconciler) cleanupOnFailure(logger logr.Logger) {
 
 	if r.MpaServer != nil {
 		r.MpaServer.Stop()
+	}
+
+	// Stop OOM reconciler
+	if r.oomReconcilerCancel != nil {
+		r.oomReconcilerCancel()
+		r.oomReconcilerCancel = nil
+		r.oomReconciler = nil
 	}
 
 	// Reset state
@@ -2827,6 +2920,25 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 			name: collector.Karpenter,
 			factory: func() collector.ResourceCollector {
 				return collector.NewKarpenterCollector(
+					r.DynamicClient,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+					r.TelemetryLogger,
+				)
+			},
+		},
+		{
+			collector: collector.NewKarpenterSettingsCollector(
+				r.DynamicClient,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+				r.TelemetryLogger,
+			),
+			name: collector.KarpenterSettings,
+			factory: func() collector.ResourceCollector {
+				return collector.NewKarpenterSettingsCollector(
 					r.DynamicClient,
 					collector.DefaultMaxBatchSize,
 					collector.DefaultMaxBatchTime,
@@ -3708,6 +3820,14 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 				)
 			case "karpenter":
 				replacedCollector = collector.NewKarpenterCollector(
+					r.DynamicClient,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+					r.TelemetryLogger,
+				)
+			case "karpenter-settings":
+				replacedCollector = collector.NewKarpenterSettingsCollector(
 					r.DynamicClient,
 					collector.DefaultMaxBatchSize,
 					collector.DefaultMaxBatchTime,

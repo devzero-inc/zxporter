@@ -179,7 +179,7 @@ func (c *ContainerResourceCollector) Start(ctx context.Context) error {
 	if !c.config.DisableGPUMetrics {
 		ns := os.Getenv("POD_NAMESPACE")
 		if ns == "" {
-			ns = "devzero-zxporter"
+			ns = "devzero-system"
 		}
 		c.nodemonClient = NewNodemonClient(c.k8sClient, ns, c.logger)
 		c.logger.Info("Initialized nodemon client (auto-discovery)", "namespace", ns)
@@ -585,10 +585,10 @@ func (c *ContainerResourceCollector) processContainerMetrics(
 			lastTerminationReason = containerStatus.LastTerminationState.Terminated.Reason
 			// Detect OOM during container init: Kubernetes reports as "StartError"
 			// with message containing "OOM-killed" when memory limit is too low
-			if lastTerminationReason == "StartError" {
+			if lastTerminationReason == ReasonStartError {
 				msg := containerStatus.LastTerminationState.Terminated.Message
 				if strings.Contains(strings.ToLower(msg), "oom") {
-					lastTerminationReason = "OOMKilled"
+					lastTerminationReason = ReasonOOMKilled
 				}
 			}
 		}

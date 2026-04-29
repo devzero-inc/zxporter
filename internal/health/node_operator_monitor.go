@@ -14,10 +14,9 @@ import (
 )
 
 const (
-	karpenterLabelName   = "app.kubernetes.io/name=karpenter"
-	defaultHealthPort    = "8081"
-	defaultProbeTimeout  = 5 * time.Second
-	karpenterServiceName = "karpenter"
+	karpenterLabelName  = "app.kubernetes.io/name=karpenter"
+	defaultHealthPort   = "8081"
+	defaultProbeTimeout = 5 * time.Second
 )
 
 // dzKarpImageIdentifiers are substrings that identify a DevZero-managed
@@ -81,18 +80,20 @@ func (m *NodeOperatorMonitor) BuildNodeOperatorReport(ctx context.Context) (map[
 	report := make(map[string]ComponentStatus, 1)
 	status := m.buildDeploymentStatus(dep)
 
-	// Override deployment status with service health probe if it indicates unhealthy
-	if !probe.healthzOK || !probe.readyzOK {
-		if status.Status == HealthStatusHealthy {
-			status.Status = HealthStatusDegraded
-		}
-		status.Message = fmt.Sprintf("%s (service healthz=%t readyz=%t)", status.Message, probe.healthzOK, probe.readyzOK)
-	}
 	if status.Metadata == nil {
 		status.Metadata = make(map[string]string)
 	}
 	status.Metadata["service_healthz"] = fmt.Sprintf("%t", probe.healthzOK)
 	status.Metadata["service_readyz"] = fmt.Sprintf("%t", probe.readyzOK)
+
+	// Annotate the message with probe results when probes fail, but do not
+	// downgrade a healthy deployment: K8s replica health is the authoritative
+	// signal. Probe failures on a ready deployment are typically transient
+	// (network policy, brief endpoint churn during rollouts, service port
+	// mismatches) and should not cause false DEGRADED alerts.
+	if !probe.healthzOK || !probe.readyzOK {
+		status.Message = fmt.Sprintf("%s (service healthz=%t readyz=%t)", status.Message, probe.healthzOK, probe.readyzOK)
+	}
 
 	report[ComponentKarpenterDeployment] = status
 
@@ -130,13 +131,18 @@ func isDevZeroImage(dep *appsv1.Deployment) bool {
 }
 
 func (m *NodeOperatorMonitor) discoverServiceEndpoint(ctx context.Context, namespace string) (string, error) {
-	svc, err := m.clientset.CoreV1().Services(namespace).Get(ctx, karpenterServiceName, metav1.GetOptions{})
+	svcs, err := m.clientset.CoreV1().Services(namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: karpenterLabelName,
+	})
 	if err != nil {
-		return "", fmt.Errorf("getting service %q in namespace %q: %w", karpenterServiceName, namespace, err)
+		return "", fmt.Errorf("listing services with selector %q in namespace %q: %w", karpenterLabelName, namespace, err)
 	}
+	if len(svcs.Items) == 0 {
+		return "", fmt.Errorf("no service with selector %q found in namespace %q", karpenterLabelName, namespace)
+	}
+	svc := svcs.Items[0]
 
 	port := m.healthPort
-	// Check if the service has a specific health port
 	for _, p := range svc.Spec.Ports {
 		if p.Name == "http" || p.Name == "health" {
 			port = fmt.Sprintf("%d", p.Port)

@@ -47,7 +47,7 @@ rules:
 - apiGroups:
   - ""
   resourceNames:
-  - devzero-zxporter-token
+  - token
   resources:
   - secrets
   verbs:
@@ -190,6 +190,14 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+  - devzero.karpenter.sh
+  resources:
+  - karpentersettings
+  verbs:
+  - get
+  - list
+  - watch
 - apiGroups:
   - karpenter.azure.com
   resources:

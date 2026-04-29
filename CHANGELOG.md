@@ -6,6 +6,45 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 For releases prior to automated changelog generation, please see the
 [GitHub Releases](https://github.com/devzero-inc/zxporter/releases) page.
 
+## [v0.0.75] - 2026-04-27
+
+<!-- Release notes generated using configuration in .github/release.yml at main -->
+
+### What's Changed
+### Other Changes
+* set zxporter helm image tags to v0.0.74 by @sandipanpanda in https://github.com/devzero-inc/zxporter/pull/357
+* chore: update changelog for v0.0.74 by @github-actions[bot] in https://github.com/devzero-inc/zxporter/pull/355
+* chore(helm): update Chart.yaml version to 0.0.52 by @github-actions[bot] in https://github.com/devzero-inc/zxporter/pull/356
+* chore(helm): update Chart.yaml version to 0.0.17 by @github-actions[bot] in https://github.com/devzero-inc/zxporter/pull/358
+* chore(helm): update Chart.yaml version to 0.0.53 by @github-actions[bot] in https://github.com/devzero-inc/zxporter/pull/359
+* PC 1061: Return error on pat exchange failure by @sandipanpanda in https://github.com/devzero-inc/zxporter/pull/361
+* Bump google.golang.org/grpc from 1.74.2 to 1.79.3 by @dependabot[bot] in https://github.com/devzero-inc/zxporter/pull/329
+* Bump github.com/cilium/cilium from 1.17.3 to 1.17.14 by @dependabot[bot] in https://github.com/devzero-inc/zxporter/pull/343
+* fix: upgrade keda to v2.18.3 to address CVE-2025-68476 by @Tzvonimir in https://github.com/devzero-inc/zxporter/pull/362
+* Bump go.opentelemetry.io/otel/sdk from 1.39.0 to 1.43.0 by @dependabot[bot] in https://github.com/devzero-inc/zxporter/pull/351
+* feat: migrate default namespace from devzero-zxporter to devzero-system by @Tzvonimir in https://github.com/devzero-inc/zxporter/pull/364
+
+
+**Full Changelog**: https://github.com/devzero-inc/zxporter/compare/v0.0.74...v0.0.75
+
+## [v0.0.74] - 2026-04-16
+
+<!-- Release notes generated using configuration in .github/release.yml at main -->
+
+### What's Changed
+### Other Changes
+* chore: update changelog for v0.0.73 by @github-actions[bot] in https://github.com/devzero-inc/zxporter/pull/348
+* Update values.yaml to v0.0.73 for zxporter by @dray92 in https://github.com/devzero-inc/zxporter/pull/349
+* chore(helm): update Chart.yaml version to 0.0.51 by @github-actions[bot] in https://github.com/devzero-inc/zxporter/pull/350
+* [HPA] broadcast network metrics also for HPA by @Parthiba-Hazra in https://github.com/devzero-inc/zxporter/pull/346
+* zxporter-gpu-exporter first iteration- run as a daemonset and now zxp… by @Parthiba-Hazra in https://github.com/devzero-inc/zxporter/pull/295
+* Fix report from karpenter by @mutantkeyboard in https://github.com/devzero-inc/zxporter/pull/353
+* Lower health report tick to 15 seconds by @mutantkeyboard in https://github.com/devzero-inc/zxporter/pull/354
+* fix: run zxporter controller-manager as 2 replicas with proper HA guards by @sandipanpanda in https://github.com/devzero-inc/zxporter/pull/352
+
+
+**Full Changelog**: https://github.com/devzero-inc/zxporter/compare/v0.0.73...v0.0.74
+
 ## [v0.0.73] - 2026-04-08
 
 <!-- Release notes generated using configuration in .github/release.yml at main -->

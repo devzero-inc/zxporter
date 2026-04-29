@@ -47,12 +47,14 @@ import (
 	"github.com/devzero-inc/zxporter/internal/version"
 )
 
+const defaultNamespace = "devzero-system"
+
 // EnvBasedController is a controller that uses environment variables instead of CRDs
 type EnvBasedController struct {
 	client.Client
 	Scheme              *runtime.Scheme
 	Log                 logr.Logger
-	K8sClient           *kubernetes.Clientset
+	K8sClient           kubernetes.Interface
 	DynamicClient       *dynamic.DynamicClient
 	DiscoveryClient     *discovery.DiscoveryClient
 	ApiExtensions       *apiextensionsclientset.Clientset
@@ -62,6 +64,7 @@ type EnvBasedController struct {
 	mpaServerPort       int
 	startTime           time.Time
 	nodeOperatorMonitor *health.NodeOperatorMonitor
+	dakrClientFactory   func(dakrBaseURL string, clusterToken string, logger logr.Logger) transport.DakrClient
 }
 
 // NewEnvBasedController creates a new environment-based controller
@@ -153,6 +156,7 @@ func NewEnvBasedController(
 		reconcileInterval:   reconcileInterval,
 		mpaServerPort:       mpaServerPort,
 		nodeOperatorMonitor: nodeOperatorMonitor,
+		dakrClientFactory:   transport.NewDakrClient,
 	}, nil
 }
 
@@ -206,7 +210,7 @@ func (c *EnvBasedController) Start(ctx context.Context) error {
 // runHealthReporting periodically logs the health status of all registered components
 // and sends a heartbeat to dakr via the ReportHealth RPC.
 func (c *EnvBasedController) runHealthReporting(ctx context.Context) {
-	ticker := time.NewTicker(60 * time.Second)
+	ticker := time.NewTicker(15 * time.Second)
 	defer ticker.Stop()
 
 	// Send initial heartbeat immediately so dakr sees the operator right away
@@ -255,7 +259,15 @@ func (c *EnvBasedController) sendHealthReport(ctx context.Context) {
 			c.startTime,
 		)
 		if err := c.Reconciler.DakrClient.ReportHealth(ctx, req); err != nil {
-			c.Log.Error(err, "Failed to send health heartbeat to dakr")
+			c.Log.Error(err, "Failed to send health heartbeat to dakr, retrying in 5s")
+			select {
+			case <-time.After(5 * time.Second):
+			case <-ctx.Done():
+				return
+			}
+			if err := c.Reconciler.DakrClient.ReportHealth(ctx, req); err != nil {
+				c.Log.Error(err, "Retry also failed for health heartbeat")
+			}
 		}
 	}
 }
@@ -292,7 +304,15 @@ func (c *EnvBasedController) sendNodeOperatorHealthReport(ctx context.Context) {
 			uptimeSince,
 		)
 		if err := c.Reconciler.DakrClient.ReportHealth(ctx, req); err != nil {
-			c.Log.Error(err, "Failed to send node operator health heartbeat to dakr")
+			c.Log.Error(err, "Failed to send node operator health heartbeat to dakr, retrying in 5s")
+			select {
+			case <-time.After(5 * time.Second):
+			case <-ctx.Done():
+				return
+			}
+			if err := c.Reconciler.DakrClient.ReportHealth(ctx, req); err != nil {
+				c.Log.Error(err, "Retry also failed for node operator health heartbeat")
+			}
 		}
 	}
 }
@@ -368,22 +388,26 @@ func (c *EnvBasedController) initializeTelemetryComponents(ctx context.Context) 
 			}
 
 			// Create a temporary client with empty cluster token for PAT exchange
-			tempClient := transport.NewDakrClient(dakrURL, "", c.Log)
+			tempClient := c.dakrClientFactory(dakrURL, "", c.Log)
 
 			// Exchange PAT for cluster token
 			token, clusterId, err := tempClient.ExchangePATForClusterToken(ctx, envSpec.Policies.PATToken, clusterName, k8sProvider)
 			if err != nil {
 				c.Log.Error(err, "Failed to exchange PAT for cluster token")
-			} else {
-				c.Log.Info("Successfully obtained cluster token", "clusterId", clusterId)
-				envSpec.Policies.ClusterToken = token
-
-				// Persist the token to ConfigMap or Secret based on configuration
-				if err := c.persistClusterToken(ctx, token); err != nil {
-					c.Log.Error(err, "Failed to persist cluster token")
-					// Continue anyway - the token is in memory
-				}
+				return fmt.Errorf("failed to exchange PAT for cluster token: %w", err)
 			}
+			c.Log.Info("Successfully obtained cluster token", "clusterId", clusterId)
+			envSpec.Policies.ClusterToken = token
+		}
+	}
+
+	// Persist the resolved token to the runtime Secret so other operators (dakr, trezr, etc.)
+	// can read it via secretKeyRef. This covers both direct-token installs (where the token
+	// arrives via env var from devzero-zxporter-credentials and was never written to the
+	// runtime Secret) and PAT-exchange installs. Idempotent — safe on every startup.
+	if envSpec.Policies.ClusterToken != "" && c.shouldUseSecretStorage() {
+		if err := c.persistClusterToken(ctx, envSpec.Policies.ClusterToken); err != nil {
+			c.Log.Error(err, "Failed to persist cluster token to runtime Secret")
 		}
 	}
 
@@ -477,7 +501,7 @@ func (c *EnvBasedController) persistClusterTokenToConfigMap(
 			namespace = strings.TrimSpace(string(data))
 		} else {
 			// Fall back to default if all else fails
-			namespace = "devzero-zxporter"
+			namespace = defaultNamespace
 			c.Log.Info("Could not determine namespace, using default", "namespace", namespace)
 		}
 	}
@@ -530,7 +554,7 @@ func (c *EnvBasedController) persistClusterTokenToSecret(ctx context.Context, to
 			namespace = strings.TrimSpace(string(data))
 		} else {
 			// Fall back to default if all else fails
-			namespace = "devzero-zxporter"
+			namespace = defaultNamespace
 			c.Log.Info("Could not determine namespace, using default", "namespace", namespace)
 		}
 	}
@@ -628,7 +652,7 @@ func (c *EnvBasedController) readClusterTokenFromSecret(ctx context.Context) str
 			namespace = strings.TrimSpace(string(data))
 		} else {
 			// Fall back to default if all else fails
-			namespace = "devzero-zxporter"
+			namespace = defaultNamespace
 		}
 	}
 
@@ -699,7 +723,7 @@ func (c *EnvBasedController) readClusterTokenFromConfigMap(ctx context.Context) 
 			namespace = strings.TrimSpace(string(data))
 		} else {
 			// Fall back to default if all else fails
-			namespace = "devzero-zxporter"
+			namespace = defaultNamespace
 		}
 	}
 

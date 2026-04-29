@@ -86,7 +86,7 @@ func (c *KarpenterCollector) Start(ctx context.Context) error {
 		Version:  "v1",
 		Resource: "deployments",
 	}
-	labelSelector := "app.kubernetes.io/name=karpenter,app.kubernetes.io/instance=karpenter"
+	labelSelector := "app.kubernetes.io/name=karpenter"
 
 	deployments, err := c.dynamicClient.Resource(gvr).List(ctx, metav1.ListOptions{
 		LabelSelector: labelSelector,
@@ -833,7 +833,7 @@ func (c *KarpenterCollector) IsAvailable(ctx context.Context) bool {
 		Resource: "deployments",
 	}
 
-	labelSelector := "app.kubernetes.io/name=karpenter,app.kubernetes.io/instance=karpenter"
+	labelSelector := "app.kubernetes.io/name=karpenter"
 
 	deployments, err := c.dynamicClient.Resource(gvr).List(ctx, metav1.ListOptions{
 		LabelSelector: labelSelector,

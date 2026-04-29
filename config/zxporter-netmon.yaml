@@ -2,7 +2,7 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: zxporter-netmon
-  namespace: devzero-zxporter
+  namespace: devzero-system
   labels:
     app: zxporter-netmon
 ---
@@ -10,7 +10,7 @@ apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: zxporter-netmon
-  namespace: devzero-zxporter
+  namespace: devzero-system
   labels:
     app: zxporter-netmon
 spec:

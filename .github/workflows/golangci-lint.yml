@@ -35,7 +35,7 @@ jobs:
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v6
         with:
-          # Install from source to match Go 1.24
+          # Install from source to match Go 1.25
           install-mode: goinstall
           version: v1.62.2
           args: --timeout=5m

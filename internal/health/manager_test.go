@@ -325,3 +325,34 @@ func TestLivenessCheck_FullRestartCycle(t *testing.T) {
 	hm.UpdateStatus(ComponentCollectorManager, HealthStatusHealthy, "restarted", nil)
 	assert.NoError(t, hm.LivenessCheck()) // passes normally
 }
+
+// TestReadinessCheck_StandbyPassesWhenComponentsUnspecified verifies that a
+// standby (non-leader) pod passes readiness even though its components are
+// unspecified — it is healthy and ready to take over leadership.
+func TestReadinessCheck_StandbyPassesWhenComponentsUnspecified(t *testing.T) {
+	hm := NewHealthManager()
+	hm.Register(ComponentCollectorManager)
+	hm.Register(ComponentDakrTransport)
+	// Components remain Unspecified (collectors never started on non-leader)
+
+	hm.SetStandby(true)
+	assert.NoError(t, hm.ReadinessCheck())
+}
+
+// TestReadinessCheck_StandbyClearedEnforcesNormalChecks verifies that after
+// winning leader election (SetStandby(false)), normal readiness rules apply.
+func TestReadinessCheck_StandbyClearedEnforcesNormalChecks(t *testing.T) {
+	hm := NewHealthManager()
+	hm.Register(ComponentCollectorManager)
+	hm.Register(ComponentDakrTransport)
+
+	hm.SetStandby(true)
+	assert.NoError(t, hm.ReadinessCheck()) // standby: passes
+
+	hm.SetStandby(false)
+	assert.Error(t, hm.ReadinessCheck()) // components still Unspecified → fails
+
+	hm.UpdateStatus(ComponentCollectorManager, HealthStatusHealthy, "ok", nil)
+	hm.UpdateStatus(ComponentDakrTransport, HealthStatusHealthy, "ok", nil)
+	assert.NoError(t, hm.ReadinessCheck()) // now passes
+}

@@ -29,6 +29,7 @@ type HealthManager struct {
 	components          map[string]*ComponentStatus
 	livenessGraceUntil  time.Time // LivenessCheck always passes before this deadline
 	readinessGraceUntil time.Time // ReadinessCheck always passes before this deadline
+	standby             bool      // standby=true when not leader; readiness passes unconditionally
 }
 
 // NewHealthManager creates a new HealthManager
@@ -118,6 +119,16 @@ func (hm *HealthManager) BuildReport() map[string]ComponentStatus {
 	return report
 }
 
+// SetStandby marks the pod as a standby (non-leader) replica. While in standby,
+// ReadinessCheck passes unconditionally — the pod is healthy and ready to take
+// over leadership, it just isn't running collectors yet. Call with false when
+// leader election is won so normal readiness checks resume.
+func (hm *HealthManager) SetStandby(standby bool) {
+	hm.mu.Lock()
+	defer hm.mu.Unlock()
+	hm.standby = standby
+}
+
 // SuppressLiveness makes LivenessCheck pass unconditionally for the given
 // duration. Use this before a planned collector restart so that the transient
 // Unhealthy window does not trigger a pod kill. The grace period is cleared
@@ -192,6 +203,9 @@ func (hm *HealthManager) ReadinessCheck() error {
 
 // readinessCheckLocked performs the readiness check while the caller holds mu.
 func (hm *HealthManager) readinessCheckLocked() error {
+	if hm.standby {
+		return nil // standby replica: healthy and ready to become leader
+	}
 	if !hm.readinessGraceUntil.IsZero() && time.Now().Before(hm.readinessGraceUntil) {
 		return nil
 	}
