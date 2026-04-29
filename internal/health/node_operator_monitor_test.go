@@ -265,6 +265,9 @@ func TestNodeOperatorMonitor_DiscoverServiceEndpoint(t *testing.T) {
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "karpenter",
 				Namespace: "kube-system",
+				Labels: map[string]string{
+					"app.kubernetes.io/name": "karpenter",
+				},
 			},
 			Spec: corev1.ServiceSpec{
 				Ports: []corev1.ServicePort{
@@ -285,6 +288,9 @@ func TestNodeOperatorMonitor_DiscoverServiceEndpoint(t *testing.T) {
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "karpenter",
 				Namespace: "kube-system",
+				Labels: map[string]string{
+					"app.kubernetes.io/name": "karpenter",
+				},
 			},
 			Spec: corev1.ServiceSpec{
 				Ports: []corev1.ServicePort{
@@ -372,6 +378,9 @@ func TestNodeOperatorMonitor_BuildReport(t *testing.T) {
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "karpenter",
 				Namespace: "kube-system",
+				Labels: map[string]string{
+					"app.kubernetes.io/name": "karpenter",
+				},
 			},
 			Spec: corev1.ServiceSpec{
 				Ports: []corev1.ServicePort{

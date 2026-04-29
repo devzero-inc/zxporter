@@ -329,6 +329,14 @@ rules:
   - patch
   - update
 - apiGroups:
+  - devzero.karpenter.sh
+  resources:
+  - karpentersettings
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - karpenter.azure.com
   resources:
   - aksnodeclasses

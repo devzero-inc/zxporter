@@ -14,10 +14,9 @@ import (
 )
 
 const (
-	karpenterLabelName   = "app.kubernetes.io/name=karpenter"
-	defaultHealthPort    = "8081"
-	defaultProbeTimeout  = 5 * time.Second
-	karpenterServiceName = "karpenter"
+	karpenterLabelName  = "app.kubernetes.io/name=karpenter"
+	defaultHealthPort   = "8081"
+	defaultProbeTimeout = 5 * time.Second
 )
 
 // dzKarpImageIdentifiers are substrings that identify a DevZero-managed
@@ -132,13 +131,18 @@ func isDevZeroImage(dep *appsv1.Deployment) bool {
 }
 
 func (m *NodeOperatorMonitor) discoverServiceEndpoint(ctx context.Context, namespace string) (string, error) {
-	svc, err := m.clientset.CoreV1().Services(namespace).Get(ctx, karpenterServiceName, metav1.GetOptions{})
+	svcs, err := m.clientset.CoreV1().Services(namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: karpenterLabelName,
+	})
 	if err != nil {
-		return "", fmt.Errorf("getting service %q in namespace %q: %w", karpenterServiceName, namespace, err)
+		return "", fmt.Errorf("listing services with selector %q in namespace %q: %w", karpenterLabelName, namespace, err)
 	}
+	if len(svcs.Items) == 0 {
+		return "", fmt.Errorf("no service with selector %q found in namespace %q", karpenterLabelName, namespace)
+	}
+	svc := svcs.Items[0]
 
 	port := m.healthPort
-	// Check if the service has a specific health port
 	for _, p := range svc.Spec.Ports {
 		if p.Name == "http" || p.Name == "health" {
 			port = fmt.Sprintf("%d", p.Port)

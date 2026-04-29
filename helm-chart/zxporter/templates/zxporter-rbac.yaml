@@ -445,6 +445,14 @@ rules:
   - get
   - list
   - watch
+- apiGroups:
+  - devzero.karpenter.sh
+  resources:
+  - karpentersettings
+  verbs:
+  - get
+  - list
+  - watch
 # Other optional third-party integrations
 - apiGroups:
   - keda.sh

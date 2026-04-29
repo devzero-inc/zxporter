@@ -260,6 +260,7 @@ type PolicyConfig struct {
 // +kubebuilder:rbac:groups=karpenter.azure.com,resources=aksnodeclasses,verbs=get;list;watch
 // +kubebuilder:rbac:groups=karpenter.k8s.oracle,resources=ocinodeclasses,verbs=get;list;watch
 // +kubebuilder:rbac:groups=karpenter.k8s.gcp,resources=gcenodeclasses,verbs=get;list;watch
+// +kubebuilder:rbac:groups=devzero.karpenter.sh,resources=karpentersettings,verbs=get;list;watch
 
 // API Extensions (READ-ONLY for CRD discovery)
 //+kubebuilder:rbac:groups=apiextensions.k8s.io,resources=customresourcedefinitions,verbs=get;list;watch
@@ -1608,6 +1609,14 @@ func (r *CollectionPolicyReconciler) restartCollectors(
 				logger,
 				r.TelemetryLogger,
 			)
+		case "karpenter-settings":
+			replacedCollector = collector.NewKarpenterSettingsCollector(
+				r.DynamicClient,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+				r.TelemetryLogger,
+			)
 		case "datadog":
 			replacedCollector = collector.NewDatadogCollector(
 				r.DynamicClient,
@@ -2836,6 +2845,25 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 			},
 		},
 		{
+			collector: collector.NewKarpenterSettingsCollector(
+				r.DynamicClient,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+				r.TelemetryLogger,
+			),
+			name: collector.KarpenterSettings,
+			factory: func() collector.ResourceCollector {
+				return collector.NewKarpenterSettingsCollector(
+					r.DynamicClient,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+					r.TelemetryLogger,
+				)
+			},
+		},
+		{
 			collector: collector.NewDatadogCollector(
 				r.DynamicClient,
 				config.TargetNamespaces,
@@ -3708,6 +3736,14 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 				)
 			case "karpenter":
 				replacedCollector = collector.NewKarpenterCollector(
+					r.DynamicClient,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+					r.TelemetryLogger,
+				)
+			case "karpenter-settings":
+				replacedCollector = collector.NewKarpenterSettingsCollector(
 					r.DynamicClient,
 					collector.DefaultMaxBatchSize,
 					collector.DefaultMaxBatchTime,
