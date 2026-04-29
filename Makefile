@@ -331,7 +331,7 @@ final-installer:
 .PHONY: installer-without-configmap
 installer-without-configmap:
 	@cp $(DIST_BACKEND_INSTALL_BUNDLE) $(DIST_DIR)/installer_updater.yaml
-	@$(YQ) -i 'select(.kind != "ConfigMap" or .metadata.name != "devzero-zxporter-env-config")' $(DIST_DIR)/installer_updater.yaml
+	@$(YQ) -i 'select((.kind != "ConfigMap" or .metadata.name != "devzero-zxporter-env-config") and (.kind != "Secret" or .metadata.name != "devzero-zxporter-token"))' $(DIST_DIR)/installer_updater.yaml
 
 .PHONY: build-installer
 build-installer: manifests generate kustomize yq ## Generate a consolidated YAML with deployment.
@@ -385,7 +385,9 @@ build-installer: manifests generate kustomize yq ## Generate a consolidated YAML
 
 	@$(KUSTOMIZE) build config/default > $(DIST_ZXPORTER_BUNDLE)
 	@echo "[INFO] Patching cluster token into generated bundle"
-	@sed "s|CLUSTER_TOKEN: '{{ .cluster_token }}'|CLUSTER_TOKEN: \"$(CLUSTER_TOKEN)\"|g" $(DIST_ZXPORTER_BUNDLE) > $(DIST_ZXPORTER_BUNDLE).tmp && mv $(DIST_ZXPORTER_BUNDLE).tmp $(DIST_ZXPORTER_BUNDLE)
+	@if [ -n "$(CLUSTER_TOKEN)" ]; then \
+		sed "s|CLUSTER_TOKEN: '{{ .cluster_token }}'|CLUSTER_TOKEN: \"$(CLUSTER_TOKEN)\"|g" $(DIST_ZXPORTER_BUNDLE) > $(DIST_ZXPORTER_BUNDLE).tmp && mv $(DIST_ZXPORTER_BUNDLE).tmp $(DIST_ZXPORTER_BUNDLE); \
+	fi
 	@cat $(DIST_ZXPORTER_BUNDLE) >> $(DIST_INSTALL_BUNDLE)
 
 	@echo "[INFO] Building backend installer"
