@@ -2083,11 +2083,12 @@ func (r *CollectionPolicyReconciler) setupMpaServer(config *PolicyConfig) error 
 	}
 
 	var historicalProvider collector.HistoricalPercentileProvider
-	if config != nil && config.EnableNodemonMetrics {
-		// TODO: PercentileFetcher implementation from DakrClient will be wired here.
-		// For now, the cache starts empty and the MPA server operates without historical data.
-		// This will be completed when the DAKR control plane percentile API is integrated.
-		r.Log.Info("Nodemon metrics enabled, historical percentile cache will be available when DAKR fetcher is wired")
+	if config != nil && config.EnableNodemonMetrics && r.DakrClient != nil {
+		fetcher := r.DakrClient.NewPercentileFetcher()
+		cache := collector.NewHistoricalPercentileCache(r.Log, fetcher, "" /* clusterID resolved from auth token */, r.HealthManager)
+		go cache.Start(context.Background())
+		historicalProvider = cache
+		r.Log.Info("Nodemon metrics enabled, historical percentile cache started with DAKR fetcher")
 	}
 
 	r.MpaServer = server.NewMpaServer(r.Log, historicalProvider, r.HealthManager)
