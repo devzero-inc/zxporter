@@ -1435,7 +1435,7 @@ metadata:
   name: devzero-zxporter-token
   namespace: devzero-system
 stringData:
-  CLUSTER_TOKEN: ""
+  CLUSTER_TOKEN: "{{ .cluster_token }}"
 type: Opaque
 ---
 apiVersion: v1
