@@ -410,3 +410,12 @@ const (
 type MpaMetricsPublisher interface {
 	PublishMetrics(metrics *ContainerMetricsSnapshot, timestamp time.Time)
 }
+
+// HistoricalPercentileProvider abstracts historical percentile data retrieval.
+// Implemented by HistoricalMetricsCollector (Prometheus-backed) and
+// HistoricalPercentileCache (DAKR-backed).
+type HistoricalPercentileProvider interface {
+	FetchPercentiles(ctx context.Context, workload HistoricalWorkloadQuery) (*gen.HistoricalMetricsSummary, error)
+	FetchPercentilesForAll(ctx context.Context, workloads []HistoricalWorkloadQuery) map[string]*gen.HistoricalMetricsSummary
+	DiscoverContainers(ctx context.Context, namespace, podRegex string) ([]string, error)
+}
