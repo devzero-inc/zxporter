@@ -44,6 +44,10 @@ type NodeCollectorConfig struct {
 
 	// Default is false, so metrics are collected by default
 	DisableGPUMetrics bool
+
+	// EnableNodemonMetrics enables the nodemon code path for network and disk I/O metrics
+	// instead of querying Prometheus directly.
+	EnableNodemonMetrics bool
 }
 
 // NodeCollector collects node events and resource metrics
@@ -52,6 +56,7 @@ type NodeCollector struct {
 	metricsClient   *metricsv1.Clientset
 	prometheusAPI   v1.API
 	nodemonClient   *NodemonClient
+	useNodemon      bool
 	informerFactory informers.SharedInformerFactory
 	nodeInformer    cache.SharedIndexInformer
 	batchChan       chan CollectedResource   // Channel for individual resources -> input to batcher
@@ -129,6 +134,7 @@ func NewNodeCollector(
 		metrics:         metrics,
 		telemetryLogger: telemetryLogger,
 		nodeToPodsMap:   make(map[string]map[string]*corev1.Pod),
+		useNodemon:      config.EnableNodemonMetrics,
 	}
 }
 
@@ -905,6 +911,36 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 	}
 }
 
+// collectNodeNetworkIOMetricsFromNodemon collects network and I/O metrics for a node
+// using the nodemon DaemonSet instead of Prometheus.
+func (c *NodeCollector) collectNodeNetworkIOMetricsFromNodemon(
+	ctx context.Context,
+	nodeName string,
+) (map[string]float64, error) {
+	m, err := c.nodemonClient.FetchNodeMetricsByNode(ctx, nodeName)
+	if err != nil {
+		return nil, fmt.Errorf("fetching node metrics from nodemon for %s: %w", nodeName, err)
+	}
+	if m == nil {
+		return nil, fmt.Errorf("no nodemon pod found on node %s", nodeName)
+	}
+
+	return map[string]float64{
+		"NetworkReceiveBytes":    m.NetworkRxBytesPerSec,
+		"NetworkTransmitBytes":   m.NetworkTxBytesPerSec,
+		"NetworkReceivePackets":  m.NetworkRxPacketsPerSec,
+		"NetworkTransmitPackets": m.NetworkTxPacketsPerSec,
+		"NetworkReceiveErrors":   m.NetworkRxErrorsPerSec,
+		"NetworkTransmitErrors":  m.NetworkTxErrorsPerSec,
+		"NetworkReceiveDropped":  m.NetworkRxDropsPerSec,
+		"NetworkTransmitDropped": m.NetworkTxDropsPerSec,
+		"FSReadBytes":            m.DiskReadBytesPerSec,
+		"FSWriteBytes":           m.DiskWriteBytesPerSec,
+		"FSReads":                m.DiskReadOpsPerSec,
+		"FSWrites":               m.DiskWriteOpsPerSec,
+	}, nil
+}
+
 // collectNodeNetworkIOMetrics collects network metrics for a node using Prometheus queries
 //
 //nolint:unparam
@@ -912,6 +948,10 @@ func (c *NodeCollector) collectNodeNetworkIOMetrics(
 	ctx context.Context,
 	nodeName string,
 ) (map[string]float64, error) {
+	if c.useNodemon && c.nodemonClient != nil {
+		return c.collectNodeNetworkIOMetricsFromNodemon(ctx, nodeName)
+	}
+
 	metrics := make(map[string]float64)
 
 	queries := map[string]string{

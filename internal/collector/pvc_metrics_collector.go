@@ -3,6 +3,7 @@ package collector
 import (
 	"context"
 	"fmt"
+	"os"
 	"sync"
 	"time"
 
@@ -32,12 +33,18 @@ type PersistentVolumeClaimMetricsCollectorConfig struct {
 
 	// QueryTimeout specifies the timeout for Prometheus queries
 	QueryTimeout time.Duration
+
+	// EnableNodemonMetrics enables the nodemon code path for PVC filesystem metrics
+	// instead of querying Prometheus directly.
+	EnableNodemonMetrics bool
 }
 
 // PersistentVolumeClaimMetricsCollector collects PVC storage usage metrics
 type PersistentVolumeClaimMetricsCollector struct {
 	k8sClient       kubernetes.Interface
 	prometheusAPI   v1.API
+	nodemonClient   *NodemonClient
+	useNodemon      bool
 	informerFactory informers.SharedInformerFactory
 	pvcInformer     cache.SharedIndexInformer
 	pvInformer      cache.SharedIndexInformer
@@ -111,6 +118,7 @@ func NewPersistentVolumeClaimMetricsCollector(
 		logger:          logger.WithName("pvc-metrics-collector"),
 		metrics:         metrics,
 		telemetryLogger: telemetryLogger,
+		useNodemon:      config.EnableNodemonMetrics,
 	}
 }
 
@@ -121,32 +129,44 @@ func (c *PersistentVolumeClaimMetricsCollector) Start(ctx context.Context) error
 		"updateInterval", c.config.UpdateInterval,
 		"prometheusURL", c.config.PrometheusURL)
 
-	c.logger.Info("Initializing Prometheus client for PVC metrics",
-		"prometheusURL", c.config.PrometheusURL)
-
-	httpClient := NewPrometheusClient(c.metrics)
-
-	client, err := api.NewClient(api.Config{
-		Address: c.config.PrometheusURL,
-		Client:  httpClient,
-	})
-	if err != nil {
-		c.telemetryLogger.Report(
-			gen.LogLevel_LOG_LEVEL_ERROR,
-			"PVCMetricsCollector",
-			"Failed to create Prometheus client",
-			err,
-			map[string]string{
-				"prometheus_url":   c.config.PrometheusURL,
-				"zxporter_version": version.Get().String(),
-			},
-		)
-
-		c.logger.Error(err, "Failed to create Prometheus client, PVC metrics will be unavailable")
-		return fmt.Errorf("failed to create Prometheus client: %w", err)
+	// Initialize nodemon client when the feature flag is set.
+	if c.useNodemon {
+		ns := os.Getenv("POD_NAMESPACE")
+		if ns == "" {
+			ns = "devzero-system"
+		}
+		c.nodemonClient = NewNodemonClient(c.k8sClient, ns, c.logger)
+		c.logger.Info("Initialized nodemon client for PVC metrics (auto-discovery)", "namespace", ns)
 	}
 
-	c.prometheusAPI = v1.NewAPI(client)
+	if !c.useNodemon {
+		c.logger.Info("Initializing Prometheus client for PVC metrics",
+			"prometheusURL", c.config.PrometheusURL)
+
+		httpClient := NewPrometheusClient(c.metrics)
+
+		client, err := api.NewClient(api.Config{
+			Address: c.config.PrometheusURL,
+			Client:  httpClient,
+		})
+		if err != nil {
+			c.telemetryLogger.Report(
+				gen.LogLevel_LOG_LEVEL_ERROR,
+				"PVCMetricsCollector",
+				"Failed to create Prometheus client",
+				err,
+				map[string]string{
+					"prometheus_url":   c.config.PrometheusURL,
+					"zxporter_version": version.Get().String(),
+				},
+			)
+
+			c.logger.Error(err, "Failed to create Prometheus client, PVC metrics will be unavailable")
+			return fmt.Errorf("failed to create Prometheus client: %w", err)
+		}
+
+		c.prometheusAPI = v1.NewAPI(client)
+	}
 
 	if len(c.namespaces) == 1 && c.namespaces[0] != "" {
 		c.informerFactory = informers.NewSharedInformerFactoryWithOptions(
@@ -497,11 +517,38 @@ type filesystemUsage struct {
 	AvailableBytes int64
 }
 
+// getFilesystemUsageFromNodemon retrieves PVC filesystem usage from the nodemon DaemonSet.
+func (c *PersistentVolumeClaimMetricsCollector) getFilesystemUsageFromNodemon(
+	ctx context.Context,
+	pvc *corev1.PersistentVolumeClaim,
+) (*filesystemUsage, error) {
+	allMetrics, err := c.nodemonClient.FetchAllPVCMetrics(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("fetching PVC metrics from nodemon: %w", err)
+	}
+
+	for _, m := range allMetrics {
+		if m.Namespace == pvc.Namespace && m.PVCName == pvc.Name {
+			return &filesystemUsage{
+				UsedBytes:      int64(m.UsedBytes),
+				CapacityBytes:  int64(m.CapacityBytes),
+				AvailableBytes: int64(m.AvailableBytes),
+			}, nil
+		}
+	}
+
+	return nil, fmt.Errorf("no nodemon metrics found for PVC %s/%s", pvc.Namespace, pvc.Name)
+}
+
 // getFilesystemUsageFromPrometheus retrieves filesystem usage from Prometheus
 func (c *PersistentVolumeClaimMetricsCollector) getFilesystemUsageFromPrometheus(
 	ctx context.Context,
 	pvc *corev1.PersistentVolumeClaim,
 ) (*filesystemUsage, error) {
+	if c.useNodemon && c.nodemonClient != nil {
+		return c.getFilesystemUsageFromNodemon(ctx, pvc)
+	}
+
 	if c.prometheusAPI == nil {
 		return nil, fmt.Errorf("prometheus API not initialized")
 	}
