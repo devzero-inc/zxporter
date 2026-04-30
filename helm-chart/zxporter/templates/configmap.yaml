@@ -6,6 +6,7 @@ data:
   PAT_TOKEN: "{{ .Values.zxporter.patToken }}"
   {{- end }}
   COLLECTION_FREQUENCY: ""
+  DISABLE_GPU_METRICS: "{{ .Values.zxporter.disableGPUMetrics }}"
   DISABLE_NETWORK_IO_METRICS: ""
   DISABLED_COLLECTORS: ""
   EXCLUDED_CLUSTERROLEBINDINGS: ""

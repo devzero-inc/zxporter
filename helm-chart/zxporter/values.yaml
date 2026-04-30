@@ -52,6 +52,9 @@ zxporter:
   # Default: error
   logLevel: "error"
 
+  # Disable GPU metrics collection (set to "true" for clusters without GPUs)
+  disableGPUMetrics: ""
+
   # Resource names for token storage (configurable for different environments)
   # Input credentials Secret: Contains initial PAT/CLUSTER tokens (user-managed)
   tokenCredentialsSecretName: "devzero-zxporter-credentials"

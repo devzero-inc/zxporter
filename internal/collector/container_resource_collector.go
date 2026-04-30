@@ -350,9 +350,10 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 		)
 	}
 
-	// Pre-fetch GPU metrics from the nodemon (one HTTP call for the entire cycle)
+	// Pre-fetch GPU metrics from the nodemon GPU-only endpoint (legacy path)
+	// Skip when useNodemon=true — GPU data comes from the unified /v2/container/metrics endpoint
 	var gpuIndex map[gpuContainerKey][]NodemonMetric
-	if c.nodemonClient != nil && !c.config.DisableGPUMetrics {
+	if !c.useNodemon && c.nodemonClient != nil && !c.config.DisableGPUMetrics {
 		allGPUMetrics, err := c.nodemonClient.FetchAllMetrics(ctx)
 		if err != nil {
 			c.logger.Error(err, "Failed to fetch GPU metrics from nodemon, falling back")
