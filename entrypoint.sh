@@ -17,7 +17,12 @@ handle_error() {
 log "Starting entrypoint script"
 
 # Skip metrics-server installation when nodemon metrics are enabled
-if [ "${ENABLE_NODEMON_METRICS}" = "true" ]; then
+# Check env var first, then fall back to ConfigMap file mount
+NODEMON_ENABLED="${ENABLE_NODEMON_METRICS}"
+if [ -z "$NODEMON_ENABLED" ] && [ -f /etc/zxporter/config/ENABLE_NODEMON_METRICS ]; then
+  NODEMON_ENABLED=$(cat /etc/zxporter/config/ENABLE_NODEMON_METRICS)
+fi
+if [ "$NODEMON_ENABLED" = "true" ]; then
   log "Nodemon metrics enabled, skipping metrics-server installation"
 else
 
