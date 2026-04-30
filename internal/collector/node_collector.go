@@ -227,8 +227,8 @@ func (c *NodeCollector) Start(ctx context.Context) error {
 	}
 
 	// Initialize Prometheus client if network/IO metrics are not disabled
-	// Always init Prometheus when nodemon is set — we need it for comparison mode
-	needPrometheus := !c.config.DisableNetworkIOMetrics || !c.config.DisableGPUMetrics
+	// Skip Prometheus entirely when nodemon metrics are enabled
+	needPrometheus := !c.useNodemon && (!c.config.DisableNetworkIOMetrics || !c.config.DisableGPUMetrics)
 	if needPrometheus {
 		if err := c.initPrometheusClient(ctx); err != nil {
 			c.logger.Error(
