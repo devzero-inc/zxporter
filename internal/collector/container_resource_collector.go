@@ -20,6 +20,7 @@ import (
 	"github.com/prometheus/common/model"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
@@ -303,18 +304,21 @@ func (c *ContainerResourceCollector) collectResourcesLoop(ctx context.Context) {
 
 // collectAllContainerResources collects resource metrics for all containers
 func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Context) {
-	// Fetch pod metrics from the metrics server
 	var podMetricsList *metricsv1beta1.PodMetricsList
 	var err error
 
-	if len(c.namespaces) == 1 && c.namespaces[0] != "" {
-		// Fetch metrics for a specific namespace
-		podMetricsList, err = c.metricsClient.MetricsV1beta1().
-			PodMetricses(c.namespaces[0]).
-			List(ctx, metav1.ListOptions{})
+	if c.useNodemon && c.nodemonClient != nil {
+		// When nodemon is enabled, build pod metrics from nodemon data instead of metrics-server
+		podMetricsList, err = c.buildPodMetricsFromNodemon(ctx)
 	} else {
-		// Fetch metrics for all namespaces
-		podMetricsList, err = c.metricsClient.MetricsV1beta1().PodMetricses("").List(ctx, metav1.ListOptions{})
+		// Fetch pod metrics from the metrics server
+		if len(c.namespaces) == 1 && c.namespaces[0] != "" {
+			podMetricsList, err = c.metricsClient.MetricsV1beta1().
+				PodMetricses(c.namespaces[0]).
+				List(ctx, metav1.ListOptions{})
+		} else {
+			podMetricsList, err = c.metricsClient.MetricsV1beta1().PodMetricses("").List(ctx, metav1.ListOptions{})
+		}
 	}
 
 	if err != nil {
@@ -322,16 +326,17 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 			c.telemetryLogger.Report(
 				gen.LogLevel_LOG_LEVEL_ERROR,
 				"ContainerResourceCollector",
-				"Failed to get pod metrics from metrics server",
+				"Failed to get pod metrics",
 				err,
 				map[string]string{
 					"namespaces":       fmt.Sprintf("%v", c.namespaces),
-					"error_type":       "metrics_server_query_failed",
+					"error_type":       "metrics_query_failed",
+					"source":           func() string { if c.useNodemon { return "nodemon" }; return "metrics-server" }(),
 					"zxporter_version": version.Get().String(),
 				},
 			)
 		}
-		c.logger.Error(err, "Failed to get pod metrics from metrics server")
+		c.logger.Error(err, "Failed to get pod metrics", "source", func() string { if c.useNodemon { return "nodemon" }; return "metrics-server" }())
 		return
 	}
 
@@ -339,12 +344,13 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 		c.telemetryLogger.Report(
 			gen.LogLevel_LOG_LEVEL_INFO,
 			"ContainerResourceCollector",
-			"Successfully fetched pod metrics from metrics server",
+			"Successfully fetched pod metrics",
 			nil,
 			map[string]string{
 				"pod_count":        fmt.Sprintf("%d", len(podMetricsList.Items)),
 				"namespaces":       fmt.Sprintf("%v", c.namespaces),
-				"event_type":       "metrics_server_query_success",
+				"source":           func() string { if c.useNodemon { return "nodemon" }; return "metrics-server" }(),
+				"event_type":       "metrics_query_success",
 				"zxporter_version": version.Get().String(),
 			},
 		)
@@ -922,6 +928,57 @@ func (c *ContainerResourceCollector) collectContainerCPUThrottleMetrics(
 		fraction = 1
 	}
 	return fraction, nil
+}
+
+// buildPodMetricsFromNodemon fetches container metrics from nodemon and converts them
+// into a PodMetricsList compatible with the metrics-server format. This allows the rest
+// of collectAllContainerResources to work unchanged — CPU/memory come from nodemon's
+// stats/summary data (usageNanoCores, workingSetBytes) instead of the metrics-server API.
+func (c *ContainerResourceCollector) buildPodMetricsFromNodemon(ctx context.Context) (*metricsv1beta1.PodMetricsList, error) {
+	allMetrics, err := c.nodemonClient.FetchAllContainerMetrics(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch container metrics from nodemon: %w", err)
+	}
+
+	// Group by pod
+	podMap := make(map[string]*metricsv1beta1.PodMetrics)
+	for _, m := range allMetrics {
+		key := m.Namespace + "/" + m.Pod
+		pm, exists := podMap[key]
+		if !exists {
+			pm = &metricsv1beta1.PodMetrics{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      m.Pod,
+					Namespace: m.Namespace,
+				},
+			}
+			podMap[key] = pm
+		}
+
+		// Convert nanocores to resource.Quantity (millicores)
+		cpuMillis := int64(m.CPUUsageNanoCores / 1_000_000)
+		cpuQuantity := *resource.NewMilliQuantity(cpuMillis, resource.DecimalSI)
+
+		// Memory in bytes
+		memQuantity := *resource.NewQuantity(int64(m.MemoryWorkingSet), resource.BinarySI)
+
+		pm.Containers = append(pm.Containers, metricsv1beta1.ContainerMetrics{
+			Name: m.Container,
+			Usage: corev1.ResourceList{
+				corev1.ResourceCPU:    cpuQuantity,
+				corev1.ResourceMemory: memQuantity,
+			},
+		})
+	}
+
+	// Build the list
+	result := &metricsv1beta1.PodMetricsList{}
+	for _, pm := range podMap {
+		result.Items = append(result.Items, *pm)
+	}
+
+	c.logger.V(1).Info("Built pod metrics from nodemon", "pods", len(result.Items), "containers", len(allMetrics))
+	return result, nil
 }
 
 // indexContainerMetricsByPod builds a lookup map keyed by "namespace/podName" from a

@@ -23,6 +23,7 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
+	metricsapisv1beta1 "k8s.io/metrics/pkg/apis/metrics/v1beta1"
 	metricsv1 "k8s.io/metrics/pkg/client/clientset/versioned"
 )
 
@@ -572,25 +573,34 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 	}
 
 	// Fetch node metrics from the metrics server
+	// When nodemon is enabled, metrics-server may not be available — treat as non-fatal
 	nodeMetricsList, err := c.metricsClient.MetricsV1beta1().
 		NodeMetricses().
 		List(ctx, metav1.ListOptions{})
 	if err != nil {
-		if c.telemetryLogger != nil {
-			c.telemetryLogger.Report(
-				gen.LogLevel_LOG_LEVEL_ERROR,
-				"NodeCollector",
-				"Failed to get node metrics from metrics server",
-				err,
-				map[string]string{
-					"excluded_nodes":   fmt.Sprintf("%v", c.excludedNodes),
-					"error_type":       "metrics_server_query_failed",
-					"zxporter_version": version.Get().String(),
-				},
-			)
+		if c.useNodemon {
+			// Metrics server unavailable but nodemon handles the extended metrics.
+			// Continue with an empty list — node CPU/memory from metrics-server will be zero
+			// but network/disk/GPU from nodemon will still be collected.
+			c.logger.V(1).Info("Metrics server unavailable (nodemon enabled), continuing with node informer data only")
+			nodeMetricsList = &metricsapisv1beta1.NodeMetricsList{}
+		} else {
+			if c.telemetryLogger != nil {
+				c.telemetryLogger.Report(
+					gen.LogLevel_LOG_LEVEL_ERROR,
+					"NodeCollector",
+					"Failed to get node metrics from metrics server",
+					err,
+					map[string]string{
+						"excluded_nodes":   fmt.Sprintf("%v", c.excludedNodes),
+						"error_type":       "metrics_server_query_failed",
+						"zxporter_version": version.Get().String(),
+					},
+				)
+			}
+			c.logger.Error(err, "Failed to get node metrics from metrics server")
+			return
 		}
-		c.logger.Error(err, "Failed to get node metrics from metrics server")
-		return
 	}
 
 	if c.telemetryLogger != nil {
