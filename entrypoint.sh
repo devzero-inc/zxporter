@@ -16,6 +16,11 @@ handle_error() {
 
 log "Starting entrypoint script"
 
+# Skip metrics-server installation when nodemon metrics are enabled
+if [ "${ENABLE_NODEMON_METRICS}" = "true" ]; then
+  log "Nodemon metrics enabled, skipping metrics-server installation"
+else
+
 # Check if metrics-server is installed
 log "Checking if metrics-server is installed..."
 if ! kubectl get apiservice v1beta1.metrics.k8s.io &>/dev/null || ! kubectl top nodes &>/dev/null || ! kubectl get --raw "/apis/metrics.k8s.io/v1beta1/nodes" &>/dev/null; then
@@ -55,6 +60,8 @@ if ! kubectl get apiservice v1beta1.metrics.k8s.io &>/dev/null || ! kubectl top 
 else
   log "metrics-server is already installed"
 fi
+
+fi  # end ENABLE_NODEMON_METRICS check
 
 # Run the main application
 log "Starting main application..."
