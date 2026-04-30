@@ -218,7 +218,8 @@ func (c *NodeCollector) Start(ctx context.Context) error {
 
 	// Initialize nodemon client for auto-discovery
 	// It discovers DaemonSet pods by well-known label — no config needed.
-	if !c.config.DisableGPUMetrics {
+	// Required when useNodemon=true (all metrics from nodemon) or GPU metrics enabled.
+	if c.useNodemon || !c.config.DisableGPUMetrics {
 		ns := os.Getenv("POD_NAMESPACE")
 		if ns == "" {
 			ns = "devzero-system"
