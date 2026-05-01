@@ -81,8 +81,15 @@ func NewPersistentVolumeClaimMetricsCollector(
 		logger,
 	)
 
+	ns := os.Getenv("POD_NAMESPACE")
+	if ns == "" {
+		ns = "devzero-system"
+	}
+	nodemonClient := NewNodemonClient(k8sClient, ns, logger)
+
 	return &PersistentVolumeClaimMetricsCollector{
 		k8sClient:       k8sClient,
+		nodemonClient:   nodemonClient,
 		batchChan:       batchChan,
 		resourceChan:    resourceChan,
 		batcher:         batcher,
@@ -101,14 +108,6 @@ func (c *PersistentVolumeClaimMetricsCollector) Start(ctx context.Context) error
 	c.logger.Info("Starting PVC metrics collector",
 		"namespaces", c.namespaces,
 		"updateInterval", c.config.UpdateInterval)
-
-	// Initialize nodemon client for auto-discovery
-	ns := os.Getenv("POD_NAMESPACE")
-	if ns == "" {
-		ns = "devzero-system"
-	}
-	c.nodemonClient = NewNodemonClient(c.k8sClient, ns, c.logger)
-	c.logger.Info("Initialized nodemon client for PVC metrics (auto-discovery)", "namespace", ns)
 
 	if len(c.namespaces) == 1 && c.namespaces[0] != "" {
 		c.informerFactory = informers.NewSharedInformerFactoryWithOptions(

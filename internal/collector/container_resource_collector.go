@@ -114,9 +114,18 @@ func NewContainerResourceCollector(
 		logger,
 	)
 
+	// Initialize nodemon client for auto-discovery in constructor
+	// so IsAvailable() can check it before Start() is called.
+	ns := os.Getenv("POD_NAMESPACE")
+	if ns == "" {
+		ns = "devzero-system"
+	}
+	nodemonClient := NewNodemonClient(k8sClient, ns, logger)
+
 	return &ContainerResourceCollector{
 		k8sClient:          k8sClient,
 		metricsClient:      metricsClient,
+		nodemonClient:      nodemonClient,
 		batchChan:          batchChan,
 		resourceChan:       resourceChan,
 		batcher:            batcher,
@@ -142,15 +151,6 @@ func (c *ContainerResourceCollector) Start(ctx context.Context) error {
 	if c.metricsClient == nil {
 		return fmt.Errorf("metrics client is not available, cannot collect container resources")
 	}
-
-	// Initialize nodemon client for auto-discovery
-	// It discovers DaemonSet pods by well-known label — no config needed.
-	ns := os.Getenv("POD_NAMESPACE")
-	if ns == "" {
-		ns = "devzero-system"
-	}
-	c.nodemonClient = NewNodemonClient(c.k8sClient, ns, c.logger)
-	c.logger.Info("Initialized nodemon client (auto-discovery)", "namespace", ns)
 
 	// Create informer factory based on namespace configuration
 	if len(c.namespaces) == 1 && c.namespaces[0] != "" {

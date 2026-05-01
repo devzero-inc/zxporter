@@ -93,9 +93,16 @@ func NewNodeCollector(
 		logger,
 	)
 
+	ns := os.Getenv("POD_NAMESPACE")
+	if ns == "" {
+		ns = "devzero-system"
+	}
+	nodemonClient := NewNodemonClient(k8sClient, ns, logger)
+
 	return &NodeCollector{
 		k8sClient:       k8sClient,
 		metricsClient:   metricsClient,
+		nodemonClient:   nodemonClient,
 		batchChan:       batchChan,
 		resourceChan:    resourceChan,
 		batcher:         batcher,
@@ -114,14 +121,6 @@ func (c *NodeCollector) Start(ctx context.Context) error {
 	c.logger.Info("Starting node collector",
 		"updateInterval", c.config.UpdateInterval,
 		"disableGPUMetrics", c.config.DisableGPUMetrics)
-
-	// Initialize nodemon client for auto-discovery
-	ns := os.Getenv("POD_NAMESPACE")
-	if ns == "" {
-		ns = "devzero-system"
-	}
-	c.nodemonClient = NewNodemonClient(c.k8sClient, ns, c.logger)
-	c.logger.Info("Initialized nodemon client (auto-discovery)", "namespace", ns)
 
 	// Create informer factory
 	c.informerFactory = informers.NewSharedInformerFactory(c.k8sClient, 0)
