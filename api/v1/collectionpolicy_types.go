@@ -449,27 +449,11 @@ type Policies struct {
 	// If ClusterToken is not provided but PATToken is, the system will exchange it for a cluster token
 	PATToken string `json:"patToken,omitempty"`
 
-	// PrometheusURL is the URL of the Prometheus server to query for metrics
-	// If not provided, defaults to in-cluster Prometheus at "http://prometheus-service.monitoring.svc.cluster.local:8080"
-	// +optional
-	PrometheusURL string `json:"prometheusURL,omitempty"`
-
-	// DisableNetworkIOMetrics disables collection of container network and I/O metrics from Prometheus
-	// These metrics include network throughput, packet rates, and disk I/O operations
-	// Default is false, meaning metrics are collected by default
-	// +optional
-	DisableNetworkIOMetrics bool `json:"disableNetworkIOMetrics,omitempty"`
-
-	// DisableGpuMetrics disables collection of GPU metrics from Prometheus
+	// DisableGpuMetrics disables collection of GPU metrics
 	// These metrics include GPU utilization, memory usage, and temperature
 	// Default is false, meaning metrics are collected by default
 	// +optional
 	DisableGPUMetrics bool `json:"disableGpuMetrics,omitempty"`
-
-	// EnableNodemonMetrics enables collection of node monitor metrics
-	// Default is false, meaning node monitor metrics are not collected by default
-	// +optional
-	EnableNodemonMetrics bool `json:"enableNodemonMetrics,omitempty"`
 
 	// Frequency is how often to collect resource usage metrics
 	Frequency string `json:"frequency,omitempty"`

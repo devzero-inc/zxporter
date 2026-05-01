@@ -11,16 +11,12 @@ import (
 	"sync"
 	"time"
 
-	gpuconst "github.com/NVIDIA/KAI-scheduler/pkg/common/constants"
 	telemetry_logger "github.com/devzero-inc/zxporter/internal/logger"
 	"github.com/devzero-inc/zxporter/internal/version"
 	"github.com/go-logr/logr"
-	"github.com/prometheus/client_golang/api"
-	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
-	"github.com/prometheus/common/model"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
@@ -37,28 +33,9 @@ type ContainerResourceCollectorConfig struct {
 	// UpdateInterval specifies how often to collect metrics
 	UpdateInterval time.Duration
 
-	// PrometheusURL specifies the URL of the Prometheus instance to query
-	// If empty, defaults to in-cluster Prometheus at http://prometheus.monitoring:9090
-	PrometheusURL string
-
-	// QueryTimeout specifies the timeout for Prometheus queries
-	QueryTimeout time.Duration
-
-	// DisableNetworkIOMetrics determines whether to disable network and I/O metrics collection
-	// Default is false, so metrics are collected by default
-	DisableNetworkIOMetrics bool
-
 	// DisableGPUMetrics determines whether to disable GPU metrics collection
 	// Default is false, so metrics are collected by default
 	DisableGPUMetrics bool
-
-	// EnableNodemonMetrics enables the nodemon code path for network, disk I/O,
-	// and CPU throttle metrics instead of Prometheus.
-	EnableNodemonMetrics bool
-}
-
-type gpuQueryState struct {
-	lastFailed bool
 }
 
 // throttleTracker tracks last emission time for CPU throttle events per container to avoid duplicates.
@@ -69,34 +46,29 @@ type throttleTracker struct {
 
 // ContainerResourceCollector collects container resource usage metrics
 type ContainerResourceCollector struct {
-	k8sClient          kubernetes.Interface
-	metricsClient      *metricsv1.Clientset
-	prometheusAPI      v1.API
-	nodemonClient      *NodemonClient
-	informerFactory    informers.SharedInformerFactory
-	podInformer        cache.SharedIndexInformer
-	batchChan          chan CollectedResource   // Channel for individual resources -> input to batcher
-	resourceChan       chan []CollectedResource // Channel for batched resources -> output from batcher
-	batcher            *ResourcesBatcher
-	stopCh             chan struct{}
-	ticker             *time.Ticker
-	config             ContainerResourceCollectorConfig
-	namespaces         []string
-	excludedPods       map[types.NamespacedName]bool
-	logger             logr.Logger
-	metrics            *TelemetryMetrics
-	telemetryLogger    telemetry_logger.Logger
-	mu                 sync.RWMutex
-	gpuQueryErrorState map[string]*gpuQueryState // most of the case we are not deploying zxporter to GPU nodes which cause GPU query to fail infinitely, and we dont want to get that GPU query fails error every minute for every container
-	gpuQueryMu         sync.Mutex
-	throttle           throttleTracker
-	useNodemon         bool
+	k8sClient       kubernetes.Interface
+	metricsClient   *metricsv1.Clientset
+	nodemonClient   *NodemonClient
+	informerFactory informers.SharedInformerFactory
+	podInformer     cache.SharedIndexInformer
+	batchChan       chan CollectedResource   // Channel for individual resources -> input to batcher
+	resourceChan    chan []CollectedResource // Channel for batched resources -> output from batcher
+	batcher         *ResourcesBatcher
+	stopCh          chan struct{}
+	ticker          *time.Ticker
+	config          ContainerResourceCollectorConfig
+	namespaces      []string
+	excludedPods    map[types.NamespacedName]bool
+	logger          logr.Logger
+	metrics         *TelemetryMetrics
+	telemetryLogger telemetry_logger.Logger
+	mu              sync.RWMutex
+	throttle        throttleTracker
 	// nodemonContainerMetricsCache holds pre-fetched container metrics from nodemon,
 	// indexed by "namespace/podName", refreshed once per collection cycle.
 	nodemonContainerMetricsCache map[string][]UnifiedContainerMetric
-	// Removed manual cache
-	rsLister   appslisters.ReplicaSetLister
-	rsInformer cache.SharedIndexInformer
+	rsLister                     appslisters.ReplicaSetLister
+	rsInformer                   cache.SharedIndexInformer
 }
 
 // NewContainerResourceCollector creates a new collector for container resource metrics
@@ -124,16 +96,6 @@ func NewContainerResourceCollector(
 	// Default update interval if not specified
 	if config.UpdateInterval <= 0 {
 		config.UpdateInterval = 10 * time.Second
-	}
-
-	// Default Prometheus URL if not specified
-	if config.PrometheusURL == "" {
-		config.PrometheusURL = "http://prometheus-service.monitoring.svc.cluster.local:8080"
-	}
-
-	// Default query timeout if not specified
-	if config.QueryTimeout <= 0 {
-		config.QueryTimeout = 10 * time.Second
 	}
 
 	// Create channels
@@ -165,9 +127,7 @@ func NewContainerResourceCollector(
 		logger:             logger.WithName("container-resource-collector"),
 		metrics:            metrics,
 		telemetryLogger:    telemetryLogger,
-		gpuQueryErrorState: make(map[string]*gpuQueryState),
-		throttle:           throttleTracker{lastEmitted: make(map[string]time.Time)},
-		useNodemon:         config.EnableNodemonMetrics,
+		throttle: throttleTracker{lastEmitted: make(map[string]time.Time)},
 	}
 }
 
@@ -176,7 +136,6 @@ func (c *ContainerResourceCollector) Start(ctx context.Context) error {
 	c.logger.Info("Starting container resource collector",
 		"namespaces", c.namespaces,
 		"updateInterval", c.config.UpdateInterval,
-		"disableNetworkIOMetrics", c.config.DisableNetworkIOMetrics,
 		"disableGPUMetrics", c.config.DisableGPUMetrics)
 
 	// Check if metrics client is available
@@ -186,52 +145,12 @@ func (c *ContainerResourceCollector) Start(ctx context.Context) error {
 
 	// Initialize nodemon client for auto-discovery
 	// It discovers DaemonSet pods by well-known label — no config needed.
-	// Required when useNodemon=true (all metrics from nodemon) or GPU metrics enabled (GPU from nodemon).
-	if c.useNodemon || !c.config.DisableGPUMetrics {
-		ns := os.Getenv("POD_NAMESPACE")
-		if ns == "" {
-			ns = "devzero-system"
-		}
-		c.nodemonClient = NewNodemonClient(c.k8sClient, ns, c.logger)
-		c.logger.Info("Initialized nodemon client (auto-discovery)", "namespace", ns)
+	ns := os.Getenv("POD_NAMESPACE")
+	if ns == "" {
+		ns = "devzero-system"
 	}
-
-	// Initialize Prometheus client if network/IO metrics are not disabled
-	// Skip Prometheus entirely when nodemon metrics are enabled
-	needPrometheus := !c.useNodemon && (!c.config.DisableNetworkIOMetrics || !c.config.DisableGPUMetrics)
-	if needPrometheus {
-		c.logger.Info("Initializing Prometheus client for network/IO or GPU metrics",
-			"prometheusURL", c.config.PrometheusURL)
-
-		// Create a custom HTTP client with metrics
-		httpClient := NewPrometheusClient(c.metrics)
-
-		client, err := api.NewClient(api.Config{
-			Address: c.config.PrometheusURL,
-			Client:  httpClient,
-		})
-		if err != nil {
-			c.telemetryLogger.Report(
-				gen.LogLevel_LOG_LEVEL_ERROR,
-				"ContainerResourceCollector",
-				"Failed to create Prometheus client",
-				err,
-				map[string]string{
-					"prometheus_url":   c.config.PrometheusURL,
-					"zxporter_version": version.Get().String(),
-				},
-			)
-
-			c.logger.Error(
-				err,
-				"Failed to create Prometheus client, network/IO and GPU metrics will be disabled",
-			)
-		} else {
-			c.prometheusAPI = v1.NewAPI(client)
-		}
-	} else if c.config.DisableNetworkIOMetrics && (c.config.DisableGPUMetrics || c.nodemonClient != nil) {
-		c.logger.Info("Network and I/O metrics collection is disabled; GPU metrics via exporter")
-	}
+	c.nodemonClient = NewNodemonClient(c.k8sClient, ns, c.logger)
+	c.logger.Info("Initialized nodemon client (auto-discovery)", "namespace", ns)
 
 	// Create informer factory based on namespace configuration
 	if len(c.namespaces) == 1 && c.namespaces[0] != "" {
@@ -305,22 +224,8 @@ func (c *ContainerResourceCollector) collectResourcesLoop(ctx context.Context) {
 
 // collectAllContainerResources collects resource metrics for all containers
 func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Context) {
-	var podMetricsList *metricsv1beta1.PodMetricsList
-	var err error
-
-	if c.useNodemon && c.nodemonClient != nil {
-		// When nodemon is enabled, build pod metrics from nodemon data instead of metrics-server
-		podMetricsList, err = c.buildPodMetricsFromNodemon(ctx)
-	} else {
-		// Fetch pod metrics from the metrics server
-		if len(c.namespaces) == 1 && c.namespaces[0] != "" {
-			podMetricsList, err = c.metricsClient.MetricsV1beta1().
-				PodMetricses(c.namespaces[0]).
-				List(ctx, metav1.ListOptions{})
-		} else {
-			podMetricsList, err = c.metricsClient.MetricsV1beta1().PodMetricses("").List(ctx, metav1.ListOptions{})
-		}
-	}
+	// Build pod metrics from nodemon data
+	podMetricsList, err := c.buildPodMetricsFromNodemon(ctx)
 
 	if err != nil {
 		if c.telemetryLogger != nil {
@@ -332,12 +237,12 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 				map[string]string{
 					"namespaces":       fmt.Sprintf("%v", c.namespaces),
 					"error_type":       "metrics_query_failed",
-					"source":           func() string { if c.useNodemon { return "nodemon" }; return "metrics-server" }(),
+					"source":           "nodemon",
 					"zxporter_version": version.Get().String(),
 				},
 			)
 		}
-		c.logger.Error(err, "Failed to get pod metrics", "source", func() string { if c.useNodemon { return "nodemon" }; return "metrics-server" }())
+		c.logger.Error(err, "Failed to get pod metrics", "source", "nodemon")
 		return
 	}
 
@@ -350,31 +255,19 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 			map[string]string{
 				"pod_count":        fmt.Sprintf("%d", len(podMetricsList.Items)),
 				"namespaces":       fmt.Sprintf("%v", c.namespaces),
-				"source":           func() string { if c.useNodemon { return "nodemon" }; return "metrics-server" }(),
+				"source":           "nodemon",
 				"event_type":       "metrics_query_success",
 				"zxporter_version": version.Get().String(),
 			},
 		)
 	}
 
-	// Pre-fetch GPU metrics from the nodemon GPU-only endpoint (legacy path)
-	// Skip when useNodemon=true — GPU data comes from the unified /v2/container/metrics endpoint
-	var gpuIndex map[gpuContainerKey][]NodemonMetric
-	if !c.useNodemon && c.nodemonClient != nil && !c.config.DisableGPUMetrics {
-		allGPUMetrics, err := c.nodemonClient.FetchAllMetrics(ctx)
-		if err != nil {
-			c.logger.Error(err, "Failed to fetch GPU metrics from nodemon, falling back")
-		} else {
-			gpuIndex = IndexByContainer(allGPUMetrics)
-		}
-	}
-
 	// Pre-fetch container metrics from nodemon for network/IO/throttle (one call per cycle)
 	c.nodemonContainerMetricsCache = nil
-	if c.useNodemon && c.nodemonClient != nil {
+	if c.nodemonClient != nil {
 		allContainerMetrics, err := c.nodemonClient.FetchAllContainerMetrics(ctx)
 		if err != nil {
-			c.logger.Error(err, "Failed to fetch container metrics from nodemon, falling back to Prometheus")
+			c.logger.Error(err, "Failed to fetch container metrics from nodemon")
 		} else {
 			c.nodemonContainerMetricsCache = indexContainerMetricsByPod(allContainerMetrics)
 		}
@@ -396,23 +289,10 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 			continue
 		}
 
-		// Create a context with timeout for Prometheus queries if needed.
-		// Only needed when not using nodemon and Prometheus is available.
-		var queryCtx context.Context
-		var cancel context.CancelFunc
-		if !c.useNodemon && c.prometheusAPI != nil {
-			queryCtx, cancel = context.WithTimeout(ctx, c.config.QueryTimeout)
-			defer cancel()
-		}
-
-		// Fetch network metrics
+		// Fetch network metrics from nodemon
 		var networkMetrics map[string]float64
-		if c.useNodemon {
-			if c.nodemonContainerMetricsCache != nil {
-				networkMetrics = c.collectPodNetworkMetricsFromNodemon(ctx, pod)
-			}
-		} else if !c.config.DisableNetworkIOMetrics && c.prometheusAPI != nil {
-			networkMetrics = c.collectPodNetworkMetrics(queryCtx, pod)
+		if c.nodemonContainerMetricsCache != nil {
+			networkMetrics = c.collectPodNetworkMetrics(ctx, pod)
 		}
 
 		// Process each container's metrics
@@ -422,24 +302,9 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 			var gpuMetrics map[string]interface{}
 			var throttleFraction float64
 
-			// Collect CPU throttle metrics
-			if c.useNodemon {
-				if c.nodemonContainerMetricsCache != nil {
-					throttleFraction = c.collectContainerCPUThrottleMetricsFromNodemon(ctx, pod, containerMetrics.Name)
-				}
-			} else if c.prometheusAPI != nil {
-				throttleFraction, err = c.collectContainerCPUThrottleMetrics(
-					queryCtx,
-					pod,
-					containerMetrics.Name,
-				)
-				if err != nil {
-					c.logger.Error(err, "Failed to collect CPU throttle metrics",
-						"namespace", podMetrics.Namespace,
-						"pod", podMetrics.Name,
-						"container", containerMetrics.Name)
-					throttleFraction = 0
-				}
+			// Collect CPU throttle metrics from nodemon
+			if c.nodemonContainerMetricsCache != nil {
+				throttleFraction = c.collectContainerCPUThrottleMetrics(ctx, pod, containerMetrics.Name)
 			}
 
 			// Emit CPU throttle event if fraction exceeds threshold
@@ -447,98 +312,14 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 				c.emitCPUThrottleEvent(pod, containerMetrics, throttleFraction)
 			}
 
-			// Collect I/O metrics for this container
-			if c.useNodemon {
-				if c.nodemonContainerMetricsCache != nil {
-					ioMetrics = c.collectContainerIOMetricsFromNodemon(ctx, pod, containerMetrics.Name)
-				}
-			} else if !c.config.DisableNetworkIOMetrics && c.prometheusAPI != nil {
-				ioMetrics = c.collectContainerIOMetrics(
-					queryCtx,
-					pod,
-					containerMetrics.Name,
-				)
+			// Collect I/O metrics for this container from nodemon
+			if c.nodemonContainerMetricsCache != nil {
+				ioMetrics = c.collectContainerIOMetrics(ctx, pod, containerMetrics.Name)
 			}
 
-			// GPU metrics collection.
-			// When useNodemon=true, GPU data comes from the unified /v2/container/metrics endpoint
-			// (handled via nodemonContainerMetricsCache); the legacy gpuIndex path is skipped.
-			if c.useNodemon {
-				// GPU metrics are embedded in the unified container metrics when available.
-				// No separate GPU collection needed — data flows through nodemonContainerMetricsCache.
-				gpuMetrics = make(map[string]interface{})
-			} else if !c.config.DisableGPUMetrics {
-				// Check if container has GPU resources
-				hasGPU := false
-				var gpuRequestCount, gpuLimitCount int64
-				for i := range pod.Spec.Containers {
-					if pod.Spec.Containers[i].Name == containerMetrics.Name {
-						requests := pod.Spec.Containers[i].Resources.Requests
-						limits := pod.Spec.Containers[i].Resources.Limits
-
-						if requests != nil {
-							if gpuReq, ok := requests[gpuconst.GpuResource]; ok &&
-								gpuReq.Value() > 0 {
-								hasGPU = true
-								gpuRequestCount = gpuReq.Value()
-							}
-						}
-
-						if limits != nil {
-							if gpuLim, ok := limits[gpuconst.GpuResource]; ok &&
-								gpuLim.Value() > 0 {
-								hasGPU = true
-								gpuLimitCount = gpuLim.Value()
-							}
-						}
-						break
-					}
-				}
-
-				if hasGPU {
-					if gpuIndex != nil {
-						// Primary: nodemon (legacy GPU-only endpoint)
-						key := gpuContainerKey{
-							Pod:       podMetrics.Name,
-							Container: containerMetrics.Name,
-							Namespace: podMetrics.Namespace,
-						}
-						if containerGPUs, ok := gpuIndex[key]; ok {
-							gpuMetrics = ContainerGPUMetricsFromNodemon(
-								containerGPUs,
-								gpuRequestCount,
-								gpuLimitCount,
-							)
-						} else if c.prometheusAPI != nil {
-							// Exporter running but no GPU data for this container — fallback to Prometheus
-							gpuMetrics, err = c.collectContainerGPUMetrics(queryCtx, pod, containerMetrics.Name)
-							if err != nil {
-								c.logger.Error(err, "Prometheus fallback failed for container GPU metrics",
-									"namespace", podMetrics.Namespace,
-									"pod", podMetrics.Name,
-									"container", containerMetrics.Name)
-								gpuMetrics = make(map[string]interface{})
-							}
-						} else {
-							gpuMetrics = make(map[string]interface{})
-						}
-					} else if c.prometheusAPI != nil {
-						// No nodemon available — use Prometheus
-						gpuMetrics, err = c.collectContainerGPUMetrics(queryCtx, pod, containerMetrics.Name)
-						if err != nil {
-							c.logger.Error(err, "Failed to collect container GPU metrics",
-								"namespace", podMetrics.Namespace,
-								"pod", podMetrics.Name,
-								"container", containerMetrics.Name)
-							gpuMetrics = make(map[string]interface{})
-						}
-					} else {
-						gpuMetrics = make(map[string]interface{})
-					}
-				} else {
-					gpuMetrics = make(map[string]interface{})
-				}
-			}
+			// GPU metrics are embedded in the unified container metrics when available.
+			// No separate GPU collection needed — data flows through nodemonContainerMetricsCache.
+			gpuMetrics = make(map[string]interface{})
 
 			// Process the container metrics with optional network/IO data
 			c.processContainerMetrics(
@@ -739,204 +520,6 @@ func (c *ContainerResourceCollector) processContainerMetrics(
 	}
 }
 
-// collectPodNetworkMetrics collects network metrics for a pod using Prometheus queries
-func (c *ContainerResourceCollector) collectPodNetworkMetrics(
-	ctx context.Context,
-	pod *corev1.Pod,
-) map[string]float64 {
-	metrics := make(map[string]float64)
-
-	// Define queries for network metrics
-	queries := map[string]string{
-		"NetworkReceiveBytes": fmt.Sprintf(
-			`sum(rate(container_network_receive_bytes_total{namespace="%s", pod="%s"}[5m]))`,
-			pod.Namespace,
-			pod.Name,
-		),
-		"NetworkTransmitBytes": fmt.Sprintf(
-			`sum(rate(container_network_transmit_bytes_total{namespace="%s", pod="%s"}[5m]))`,
-			pod.Namespace,
-			pod.Name,
-		),
-		"NetworkReceivePackets": fmt.Sprintf(
-			`sum(rate(container_network_receive_packets_total{namespace="%s", pod="%s"}[5m]))`,
-			pod.Namespace,
-			pod.Name,
-		),
-		"NetworkTransmitPackets": fmt.Sprintf(
-			`sum(rate(container_network_transmit_packets_total{namespace="%s", pod="%s"}[5m]))`,
-			pod.Namespace,
-			pod.Name,
-		),
-		"NetworkReceiveErrors": fmt.Sprintf(
-			`sum(rate(container_network_receive_errors_total{namespace="%s", pod="%s"}[5m]))`,
-			pod.Namespace,
-			pod.Name,
-		),
-		"NetworkTransmitErrors": fmt.Sprintf(
-			`sum(rate(container_network_transmit_errors_total{namespace="%s", pod="%s"}[5m]))`,
-			pod.Namespace,
-			pod.Name,
-		),
-		"NetworkReceiveDropped": fmt.Sprintf(
-			`sum(rate(container_network_receive_packets_dropped_total{namespace="%s", pod="%s"}[5m]))`,
-			pod.Namespace,
-			pod.Name,
-		),
-		"NetworkTransmitDropped": fmt.Sprintf(
-			`sum(rate(container_network_transmit_packets_dropped_total{namespace="%s", pod="%s"}[5m]))`,
-			pod.Namespace,
-			pod.Name,
-		),
-	}
-
-	// Execute each query and store the result
-	for metricName, query := range queries {
-		metrics[metricName] = 0 // Default to 0 for all metrics
-
-		result, _, err := c.prometheusAPI.Query(ctx, query, time.Now())
-		if err != nil {
-			c.logger.Error(err, "Error querying Prometheus",
-				"metric", metricName,
-				"query", query)
-			continue
-		}
-
-		// Extract value from result (if any)
-		if result.Type() == model.ValVector {
-			vector := result.(model.Vector)
-			if len(vector) > 0 {
-				metrics[metricName] = float64(vector[0].Value)
-			}
-		}
-	}
-
-	return metrics
-}
-
-// collectContainerIOMetrics collects I/O metrics for a container using Prometheus queries
-func (c *ContainerResourceCollector) collectContainerIOMetrics(
-	ctx context.Context,
-	pod *corev1.Pod,
-	containerName string,
-) map[string]float64 {
-	metrics := make(map[string]float64)
-
-	// Define queries for I/O metrics
-	queries := map[string]string{
-		"FSReadBytes": fmt.Sprintf(
-			`sum(rate(container_fs_reads_bytes_total{namespace="%s", pod="%s", container="%s"}[5m]))`,
-			pod.Namespace,
-			pod.Name,
-			containerName,
-		),
-		"FSWriteBytes": fmt.Sprintf(
-			`sum(rate(container_fs_writes_bytes_total{namespace="%s", pod="%s", container="%s"}[5m]))`,
-			pod.Namespace,
-			pod.Name,
-			containerName,
-		),
-		"FSReads": fmt.Sprintf(
-			`sum(rate(container_fs_reads_total{namespace="%s", pod="%s", container="%s"}[5m]))`,
-			pod.Namespace,
-			pod.Name,
-			containerName,
-		),
-		"FSWrites": fmt.Sprintf(
-			`sum(rate(container_fs_writes_total{namespace="%s", pod="%s", container="%s"}[5m]))`,
-			pod.Namespace,
-			pod.Name,
-			containerName,
-		),
-	}
-
-	// Execute each query and store the result
-	for metricName, query := range queries {
-		metrics[metricName] = 0 // Default to 0 for all metrics
-
-		result, _, err := c.prometheusAPI.Query(ctx, query, time.Now())
-		if err != nil {
-			c.logger.Error(err, "Error querying Prometheus",
-				"metric", metricName,
-				"query", query,
-				"container", containerName)
-			continue
-		}
-
-		// Extract value from result (if any)
-		if result.Type() == model.ValVector {
-			vector := result.(model.Vector)
-			if len(vector) > 0 {
-				metrics[metricName] = float64(vector[0].Value)
-			}
-		}
-	}
-
-	return metrics
-}
-
-// collectContainerCPUThrottleMetrics collects CFS bandwidth throttle metrics for a container.
-// Returns the throttle fraction (0.0-1.0): rate(throttled_periods) / rate(total_periods).
-func (c *ContainerResourceCollector) collectContainerCPUThrottleMetrics(
-	ctx context.Context,
-	pod *corev1.Pod,
-	containerName string,
-) (float64, error) {
-	throttledQuery := fmt.Sprintf(
-		`sum(rate(container_cpu_cfs_throttled_periods_total{namespace="%s", pod="%s", container="%s"}[5m]))`,
-		pod.Namespace,
-		pod.Name,
-		containerName,
-	)
-	totalQuery := fmt.Sprintf(
-		`sum(rate(container_cpu_cfs_periods_total{namespace="%s", pod="%s", container="%s"}[5m]))`,
-		pod.Namespace, pod.Name, containerName,
-	)
-
-	queryTime := time.Now()
-
-	// Query throttled periods rate
-	throttledResult, _, err := c.prometheusAPI.Query(ctx, throttledQuery, queryTime)
-	if err != nil {
-		return 0, fmt.Errorf("error querying throttled periods: %w", err)
-	}
-
-	// Query total periods rate
-	totalResult, _, err := c.prometheusAPI.Query(ctx, totalQuery, queryTime)
-	if err != nil {
-		return 0, fmt.Errorf("error querying total periods: %w", err)
-	}
-
-	// Extract values
-	var throttledRate, totalRate float64
-	if throttledResult.Type() == model.ValVector {
-		vector := throttledResult.(model.Vector)
-		if len(vector) > 0 {
-			throttledRate = float64(vector[0].Value)
-		}
-	}
-	if totalResult.Type() == model.ValVector {
-		vector := totalResult.(model.Vector)
-		if len(vector) > 0 {
-			totalRate = float64(vector[0].Value)
-		}
-	}
-
-	// Compute fraction; return 0 if no CFS data or NaN/Inf values from Prometheus
-	if totalRate <= 0 || math.IsNaN(totalRate) || math.IsInf(totalRate, 0) ||
-		math.IsNaN(throttledRate) || math.IsInf(throttledRate, 0) {
-		return 0, nil
-	}
-
-	fraction := throttledRate / totalRate
-	if fraction < 0 || math.IsNaN(fraction) {
-		fraction = 0
-	}
-	if fraction > 1 {
-		fraction = 1
-	}
-	return fraction, nil
-}
 
 // buildPodMetricsFromNodemon fetches container metrics from nodemon and converts them
 // into a PodMetricsList compatible with the metrics-server format. This allows the rest
@@ -1000,10 +583,9 @@ func indexContainerMetricsByPod(metrics []UnifiedContainerMetric) map[string][]U
 	return idx
 }
 
-// collectPodNetworkMetricsFromNodemon returns pod-level network metrics from the
-// pre-fetched nodemon container metrics cache, using the same map keys as the
-// Prometheus code path.
-func (c *ContainerResourceCollector) collectPodNetworkMetricsFromNodemon(
+// collectPodNetworkMetrics returns pod-level network metrics from the
+// pre-fetched nodemon container metrics cache.
+func (c *ContainerResourceCollector) collectPodNetworkMetrics(
 	_ context.Context,
 	pod *corev1.Pod,
 ) map[string]float64 {
@@ -1040,9 +622,9 @@ func (c *ContainerResourceCollector) collectPodNetworkMetricsFromNodemon(
 	return metrics
 }
 
-// collectContainerIOMetricsFromNodemon returns container-level disk I/O metrics from
-// the pre-fetched nodemon cache, using the same map keys as the Prometheus code path.
-func (c *ContainerResourceCollector) collectContainerIOMetricsFromNodemon(
+// collectContainerIOMetrics returns container-level disk I/O metrics from
+// the pre-fetched nodemon cache.
+func (c *ContainerResourceCollector) collectContainerIOMetrics(
 	_ context.Context,
 	pod *corev1.Pod,
 	containerName string,
@@ -1073,9 +655,9 @@ func (c *ContainerResourceCollector) collectContainerIOMetricsFromNodemon(
 	return metrics
 }
 
-// collectContainerCPUThrottleMetricsFromNodemon returns the CPU throttle fraction from
+// collectContainerCPUThrottleMetrics returns the CPU throttle fraction from
 // the pre-fetched nodemon cache for a specific container.
-func (c *ContainerResourceCollector) collectContainerCPUThrottleMetricsFromNodemon(
+func (c *ContainerResourceCollector) collectContainerCPUThrottleMetrics(
 	_ context.Context,
 	pod *corev1.Pod,
 	containerName string,
@@ -1168,263 +750,6 @@ func (c *ContainerResourceCollector) emitCPUThrottleEvent(
 	}
 }
 
-// collectContainerGPUMetrics collects GPU metrics for a container using Prometheus queries
-//
-//nolint:gocyclo
-func (c *ContainerResourceCollector) collectContainerGPUMetrics(
-	ctx context.Context,
-	pod *corev1.Pod,
-	containerName string,
-) (map[string]interface{}, error) {
-	metrics := make(map[string]interface{})
-
-	namespace := pod.Namespace
-	podName := pod.Name
-	baseLabels := fmt.Sprintf(
-		`namespace="%s", pod="%s", container="%s"`,
-		namespace,
-		podName,
-		containerName,
-	)
-	queryTime := time.Now()
-
-	stateKey := fmt.Sprintf("%s/%s/%s", pod.Namespace, pod.Name, containerName)
-	gpuCountQuery := fmt.Sprintf(`count(DCGM_FI_DEV_GPU_UTIL{%s})`, baseLabels)
-
-	c.gpuQueryMu.Lock()
-	state, exists := c.gpuQueryErrorState[stateKey]
-	if !exists {
-		state = &gpuQueryState{lastFailed: false}
-		c.gpuQueryErrorState[stateKey] = state
-	}
-	c.gpuQueryMu.Unlock()
-
-	result, _, err := c.prometheusAPI.Query(ctx, gpuCountQuery, queryTime)
-	if err != nil {
-		// BEGIN: latching
-		c.gpuQueryMu.Lock()
-		defer c.gpuQueryMu.Unlock()
-		if !state.lastFailed {
-			// Report/log the FIRST failure
-			c.telemetryLogger.Report(
-				gen.LogLevel_LOG_LEVEL_ERROR,
-				"ContainerResourceCollector",
-				fmt.Sprintf("Failed querying GPU metric for %s", stateKey),
-				err,
-				map[string]string{
-					"namespace":        pod.Namespace,
-					"pod":              pod.Name,
-					"container":        containerName,
-					"error_type":       "prometheus_gpu_query_failed",
-					"prometheus_url":   c.config.PrometheusURL,
-					"query":            gpuCountQuery,
-					"zxporter_version": version.Get().String(),
-				},
-			)
-			state.lastFailed = true
-		}
-		return nil, fmt.Errorf("error querying GPU availability: %w", err)
-	}
-
-	// On success, if previously had error then only log a success transition
-	c.gpuQueryMu.Lock()
-	if state.lastFailed {
-		c.telemetryLogger.Report(
-			gen.LogLevel_LOG_LEVEL_INFO,
-			"ContainerResourceCollector",
-			fmt.Sprintf("GPU metric query succeeded again for %s", stateKey),
-			nil,
-			map[string]string{
-				"namespace":        pod.Namespace,
-				"pod":              pod.Name,
-				"container":        containerName,
-				"event_type":       "prometheus_gpu_query_succeed",
-				"prometheus_url":   c.config.PrometheusURL,
-				"query":            gpuCountQuery,
-				"zxporter_version": version.Get().String(),
-			},
-		)
-		state.lastFailed = false
-	}
-	c.gpuQueryMu.Unlock()
-
-	gpuCount := 0.0
-	if result.Type() == model.ValVector {
-		vector := result.(model.Vector)
-		if len(vector) > 0 {
-			gpuCount = float64(vector[0].Value)
-		}
-	}
-
-	if gpuCount == 0 {
-		return metrics, nil
-	}
-
-	metrics["GPUMetricsCount"] = gpuCount
-
-	metricDefinitions := []struct {
-		name        string // Human-readable name for logs
-		promMetric  string // Prometheus metric name
-		resultKey   string // Field name in individual GPUs
-		aggregateOp string // Aggregation operation (sum, avg)
-		metricKey   string // Field name in aggregate metrics
-	}{
-		{
-			"GPU Utilization",
-			"DCGM_FI_DEV_GPU_UTIL",
-			"Utilization",
-			"avg",
-			"GPUUtilizationPercentage",
-		},
-		{"Memory Used", "DCGM_FI_DEV_FB_USED", "MemoryUsed", "sum", "GPUMemoryUsedMb"},
-		{"Memory Free", "DCGM_FI_DEV_FB_FREE", "MemoryFree", "sum", "GPUMemoryFreeMb"},
-		{"Power Usage", "DCGM_FI_DEV_POWER_USAGE", "PowerUsage", "sum", "GPUPowerUsageWatts"},
-		{"Temperature", "DCGM_FI_DEV_GPU_TEMP", "Temperature", "avg", "GPUTemperatureCelsius"},
-		{"SM Clock", "DCGM_FI_DEV_SM_CLOCK", "SMClock", "avg", "GPUSMClockMHz"},
-		{"Memory Clock", "DCGM_FI_DEV_MEM_CLOCK", "MemClock", "avg", "GPUMemClockMHz"},
-	}
-
-	individualGPUs := make(map[string]map[string]interface{})
-	gpuUUIDSet := make(map[string]bool)
-	gpuModels := make(map[string]int)
-
-	// Process each metric with a single query
-	for _, def := range metricDefinitions {
-		query := fmt.Sprintf(`%s{%s}`, def.promMetric, baseLabels)
-
-		result, _, err := c.prometheusAPI.Query(ctx, query, queryTime)
-		if err != nil {
-			c.telemetryLogger.Report(
-				gen.LogLevel_LOG_LEVEL_ERROR,
-				"ContainerResourceCollector",
-				"Error querying GPU metric",
-				err,
-				map[string]string{
-					"namespace":        pod.Namespace,
-					"pod":              pod.Name,
-					"container":        containerName,
-					"error_type":       "prometheus_gpu_query_failed",
-					"query":            query,
-					"prometheus_url":   c.config.PrometheusURL,
-					"zxporter_version": version.Get().String(),
-				},
-			)
-			c.logger.Error(err, "Error querying GPU metric",
-				"metric", def.name, "query", query)
-			continue
-		}
-
-		// Calculate aggregate metrics
-		var aggValue float64
-		var validSamples float64
-
-		if result.Type() == model.ValVector {
-			vector := result.(model.Vector)
-
-			for _, sample := range vector {
-				uuid := string(sample.Metric["UUID"])
-				if uuid == "" {
-					continue
-				}
-
-				gpuUUIDSet[uuid] = true
-
-				model := string(sample.Metric["modelName"])
-				if model != "" {
-					gpuModels[model]++
-				}
-
-				if _, exists := individualGPUs[uuid]; !exists {
-					individualGPUs[uuid] = map[string]interface{}{
-						"UUID":        uuid,
-						"ModelName":   model,
-						"DeviceIndex": string(sample.Metric["device"]),
-					}
-				}
-
-				value := float64(sample.Value)
-				individualGPUs[uuid][def.resultKey] = value
-
-				if def.aggregateOp == "sum" {
-					aggValue += value
-				} else { // "avg"
-					aggValue += value
-					validSamples++
-				}
-			}
-
-			if def.aggregateOp == "avg" && validSamples > 0 {
-				aggValue /= validSamples
-			}
-
-			metrics[def.metricKey] = aggValue
-		}
-	}
-
-	for _, gpu := range individualGPUs {
-		memUsed, hasUsed := gpu["MemoryUsed"].(float64)
-		memFree, hasFree := gpu["MemoryFree"].(float64)
-
-		if hasUsed && hasFree {
-			totalMem := memUsed + memFree
-			gpu["TotalMemory"] = totalMem
-			gpu["MemoryUtilizationPercentage"] = (memUsed / totalMem) * 100
-		}
-	}
-
-	gpuUUIDs := make([]string, 0, len(gpuUUIDSet))
-	for uuid := range gpuUUIDSet {
-		gpuUUIDs = append(gpuUUIDs, uuid)
-	}
-
-	modelSummary := make([]string, 0, len(gpuModels))
-	for model, count := range gpuModels {
-		modelSummary = append(modelSummary, fmt.Sprintf("%dx %s", count, model))
-	}
-
-	metrics["GPUModels"] = modelSummary
-	metrics["GPUUUIDs"] = gpuUUIDs
-
-	// Convert individual GPU map to array for JSON serialization
-	gpuArray := make([]map[string]interface{}, 0, len(individualGPUs))
-	for _, gpu := range individualGPUs {
-		gpuArray = append(gpuArray, gpu)
-	}
-	metrics["IndividualGPUs"] = gpuArray
-
-	// GPUUsage = (utilization percentage * GPU count) / 100
-	if gpuCount > 0 {
-		if gpuUtil, ok := metrics["GPUUtilizationPercentage"].(float64); ok {
-			metrics["GPUUsage"] = (gpuUtil * gpuCount) / 100.0
-		}
-	}
-
-	// Calculate total memory
-	if memUsed, ok := metrics["GPUMemoryUsedMb"].(float64); ok {
-		if memFree, ok := metrics["GPUMemoryFreeMb"].(float64); ok {
-			metrics["GPUTotalMemoryMb"] = memUsed + memFree
-		}
-	}
-
-	// Get resource requests and limits from container spec
-	for i := range pod.Spec.Containers {
-		if pod.Spec.Containers[i].Name == containerName {
-			requests := pod.Spec.Containers[i].Resources.Requests
-			limits := pod.Spec.Containers[i].Resources.Limits
-
-			if gpuReq, ok := requests[gpuconst.GpuResource]; ok {
-				metrics["GPURequestCount"] = gpuReq.Value()
-			}
-
-			if gpuLim, ok := limits[gpuconst.GpuResource]; ok {
-				metrics["GPULimitCount"] = gpuLim.Value()
-			}
-			break
-		}
-	}
-
-	return metrics, nil
-}
 
 // getPodFromCache retrieves a pod from the informer cache
 func (c *ContainerResourceCollector) getPodFromCache(namespace, name string) (*corev1.Pod, error) {
@@ -1505,92 +830,8 @@ func (c *ContainerResourceCollector) GetType() string {
 }
 
 // IsAvailable checks whether the collector can operate.
-// When nodemon is enabled, we only need the nodemon client — skip Prometheus checks.
 func (c *ContainerResourceCollector) IsAvailable(ctx context.Context) bool {
-	if c.useNodemon {
-		return c.nodemonClient != nil && c.nodemonClient.HasExporters(ctx)
-	}
-
-	if c.metricsClient == nil {
-		c.logger.Info("Metrics client is not available, cannot collect container resources")
-		c.telemetryLogger.Report(
-			gen.LogLevel_LOG_LEVEL_ERROR,
-			"ContainerResourceCollector",
-			"Metrics client is not available or set properly, cannot collect container resources",
-			fmt.Errorf("metrics server client is not available or set"),
-			map[string]string{
-				"collector_type":   c.GetType(),
-				"zxporter_version": version.Get().String(),
-			},
-		)
-		// return false
-	}
-
-	// Try to list pod metrics to check metrics API availability
-	_, err := c.metricsClient.MetricsV1beta1().PodMetricses("").List(ctx, metav1.ListOptions{
-		Limit: 1, // Only request a single item to minimize load
-	})
-	if err != nil {
-		c.logger.Info("Metrics server API not available", "error", err.Error())
-		c.telemetryLogger.Report(
-			gen.LogLevel_LOG_LEVEL_ERROR,
-			"ContainerResourceCollector",
-			"Metrics server API not available",
-			err,
-			map[string]string{
-				"collector_type":   c.GetType(),
-				"zxporter_version": version.Get().String(),
-			},
-		)
-		// return false
-	}
-
-	// If network/IO and GPU metrics are not disabled, also check Prometheus availability
-	if !c.config.DisableNetworkIOMetrics && !c.config.DisableGPUMetrics {
-		if c.prometheusAPI == nil {
-			c.logger.Info("Prometheus client is not available for network/IO or GPU metrics")
-			c.telemetryLogger.Report(
-				gen.LogLevel_LOG_LEVEL_ERROR,
-				"ContainerResourceCollector",
-				"Prometheus client is not available for network/IO or GPU metrics",
-				fmt.Errorf("prometehus client not available or set properly"),
-				map[string]string{
-					"collector_type":   c.GetType(),
-					"zxporter_version": version.Get().String(),
-				},
-			)
-			// Still return true since the main metrics are available
-			// return true
-		}
-
-		// Try a simple query to check if Prometheus is available
-		if c.prometheusAPI != nil {
-			queryCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-			defer cancel()
-
-			_, _, err = c.prometheusAPI.Query(queryCtx, "up", time.Now())
-			if err != nil {
-				c.telemetryLogger.Report(
-					gen.LogLevel_LOG_LEVEL_ERROR,
-					"ContainerResourceCollector",
-					"Prometheus API not available for network and I/O metrics",
-					err,
-					map[string]string{
-						"collector_type":   c.GetType(),
-						"zxporter_version": version.Get().String(),
-					},
-				)
-				c.logger.Info(
-					"Prometheus API not available for network and I/O metrics",
-					"error",
-					err.Error(),
-				)
-				// Still return true since the main metrics are available
-			}
-		}
-	}
-
-	return true
+	return c.nodemonClient != nil && c.nodemonClient.HasExporters(ctx)
 }
 
 // AddResource is a no-op for container resource collector - we never sync individual containers

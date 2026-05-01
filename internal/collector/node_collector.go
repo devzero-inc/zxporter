@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"reflect"
-	"strings"
 	"sync"
 	"time"
 
@@ -15,9 +14,6 @@ import (
 	telemetry_logger "github.com/devzero-inc/zxporter/internal/logger"
 	"github.com/devzero-inc/zxporter/internal/version"
 	"github.com/go-logr/logr"
-	"github.com/prometheus/client_golang/api"
-	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
-	"github.com/prometheus/common/model"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -33,32 +29,16 @@ type NodeCollectorConfig struct {
 	// UpdateInterval specifies how often to collect metrics
 	UpdateInterval time.Duration
 
-	// PrometheusURL specifies the URL of the Prometheus instance to query
-	// If empty, defaults to in-cluster Prometheus at http://prometheus.monitoring:9090
-	PrometheusURL string
-
-	// QueryTimeout specifies the timeout for Prometheus queries
-	QueryTimeout time.Duration
-
-	// DisableNetworkIOMetrics determines whether to disable network and I/O metrics collection
-	// Default is false, so metrics are collected by default
-	DisableNetworkIOMetrics bool
-
+	// DisableGPUMetrics determines whether to disable GPU metrics collection
 	// Default is false, so metrics are collected by default
 	DisableGPUMetrics bool
-
-	// EnableNodemonMetrics enables the nodemon code path for network and disk I/O metrics
-	// instead of querying Prometheus directly.
-	EnableNodemonMetrics bool
 }
 
 // NodeCollector collects node events and resource metrics
 type NodeCollector struct {
 	k8sClient       kubernetes.Interface
 	metricsClient   *metricsv1.Clientset
-	prometheusAPI   v1.API
 	nodemonClient   *NodemonClient
-	useNodemon      bool
 	informerFactory informers.SharedInformerFactory
 	nodeInformer    cache.SharedIndexInformer
 	batchChan       chan CollectedResource   // Channel for individual resources -> input to batcher
@@ -100,16 +80,6 @@ func NewNodeCollector(
 		config.UpdateInterval = 10 * time.Second
 	}
 
-	// Default Prometheus URL if not specified
-	if config.PrometheusURL == "" {
-		config.PrometheusURL = "http://prometheus.monitoring:9090"
-	}
-
-	// Default query timeout if not specified
-	if config.QueryTimeout <= 0 {
-		config.QueryTimeout = 10 * time.Second
-	}
-
 	// Create channels
 	batchChan := make(chan CollectedResource, 100)      // For metrics
 	resourceChan := make(chan []CollectedResource, 100) // For events and batched metrics
@@ -135,113 +105,23 @@ func NewNodeCollector(
 		logger:          logger.WithName("node-collector"),
 		metrics:         metrics,
 		telemetryLogger: telemetryLogger,
-		nodeToPodsMap:   make(map[string]map[string]*corev1.Pod),
-		useNodemon:      config.EnableNodemonMetrics,
+		nodeToPodsMap: make(map[string]map[string]*corev1.Pod),
 	}
-}
-
-// initPrometheusClient initializes the Prometheus client with fallback mechanisms
-func (c *NodeCollector) initPrometheusClient(ctx context.Context) error {
-	c.logger.Info("Initializing Prometheus client",
-		"prometheusURL", c.config.PrometheusURL)
-
-	// Create a custom HTTP client with metrics
-	httpClient := NewPrometheusClient(c.metrics)
-
-	client, err := api.NewClient(api.Config{
-		Address: c.config.PrometheusURL,
-		Client:  httpClient,
-	})
-	if err != nil {
-		if c.telemetryLogger != nil {
-			c.telemetryLogger.Report(
-				gen.LogLevel_LOG_LEVEL_ERROR,
-				"NodeCollector",
-				"Failed to create Prometheus client",
-				err,
-				map[string]string{
-					"prometheus_url":   c.config.PrometheusURL,
-					"zxporter_version": version.Get().String(),
-				},
-			)
-		}
-		c.logger.Error(
-			err,
-			"Failed to create Prometheus client, node network, I/O and GPU metrics will be disabled",
-		)
-		return err
-	}
-
-	// Set the API client
-	c.prometheusAPI = v1.NewAPI(client)
-
-	// Verify access with a simple query
-	queryCtx, cancel := context.WithTimeout(ctx, c.config.QueryTimeout)
-	defer cancel()
-
-	_, _, err = c.prometheusAPI.Query(queryCtx, "up", time.Now())
-	if err != nil {
-		// Check if this is a permission error
-		if strings.Contains(err.Error(), "forbidden") ||
-			strings.Contains(err.Error(), "unauthorized") {
-			c.logger.Error(
-				err,
-				"Permission denied when accessing Prometheus. Please ensure the service account has proper RBAC permissions",
-			)
-			c.logger.Info(
-				"You may need to apply the 'zxporter-prometheus-reader' ClusterRole and ClusterRoleBinding",
-			)
-
-			// Continue with basic metrics only
-			c.prometheusAPI = nil
-			return fmt.Errorf("permission error accessing Prometheus: %w", err)
-		}
-
-		// Handle other connection errors
-		c.logger.Error(
-			err,
-			"Failed to connect to Prometheus, node network, I/O and GPU metrics will be disabled",
-		)
-		c.prometheusAPI = nil
-		return err
-	}
-
-	c.logger.Info("Successfully connected to Prometheus for node network, I/O and GPU metrics")
-	return nil
 }
 
 // Start begins the node collection process
 func (c *NodeCollector) Start(ctx context.Context) error {
 	c.logger.Info("Starting node collector",
 		"updateInterval", c.config.UpdateInterval,
-		"disableNetworkIOMetrics", c.config.DisableNetworkIOMetrics,
 		"disableGPUMetrics", c.config.DisableGPUMetrics)
 
 	// Initialize nodemon client for auto-discovery
-	// It discovers DaemonSet pods by well-known label — no config needed.
-	// Required when useNodemon=true (all metrics from nodemon) or GPU metrics enabled.
-	if c.useNodemon || !c.config.DisableGPUMetrics {
-		ns := os.Getenv("POD_NAMESPACE")
-		if ns == "" {
-			ns = "devzero-system"
-		}
-		c.nodemonClient = NewNodemonClient(c.k8sClient, ns, c.logger)
-		c.logger.Info("Initialized nodemon client (auto-discovery)", "namespace", ns)
+	ns := os.Getenv("POD_NAMESPACE")
+	if ns == "" {
+		ns = "devzero-system"
 	}
-
-	// Initialize Prometheus client if network/IO metrics are not disabled
-	// Skip Prometheus entirely when nodemon metrics are enabled
-	needPrometheus := !c.useNodemon && (!c.config.DisableNetworkIOMetrics || !c.config.DisableGPUMetrics)
-	if needPrometheus {
-		if err := c.initPrometheusClient(ctx); err != nil {
-			c.logger.Error(
-				err,
-				"Failed to initialize Prometheus client, continuing with basic metrics",
-			)
-			// Log but continue - we can still collect CPU/memory metrics
-			c.logger.Info("Continuing with basic node metrics collection only")
-		}
-	}
+	c.nodemonClient = NewNodemonClient(c.k8sClient, ns, c.logger)
+	c.logger.Info("Initialized nodemon client (auto-discovery)", "namespace", ns)
 
 	// Create informer factory
 	c.informerFactory = informers.NewSharedInformerFactory(c.k8sClient, 0)
@@ -574,75 +454,61 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 		return
 	}
 
-	// Fetch node metrics from the metrics server
-	// When nodemon is enabled, build node list from informer (skip metrics-server entirely)
-	var nodeMetricsList *metricsapisv1beta1.NodeMetricsList
-	var err error
+	// Build node metrics from nodemon container data — aggregate CPU/memory per node
+	nodeMetricsList := &metricsapisv1beta1.NodeMetricsList{}
 
-	if c.useNodemon && c.nodemonClient != nil {
-		// Build node metrics from nodemon container data — aggregate CPU/memory per node
-		nodeMetricsList = &metricsapisv1beta1.NodeMetricsList{}
-
-		allContainerMetrics, fetchErr := c.nodemonClient.FetchAllContainerMetrics(ctx)
-		if fetchErr != nil {
-			c.logger.Error(fetchErr, "Failed to fetch container metrics from nodemon for node aggregation")
+	allContainerMetrics, fetchErr := c.nodemonClient.FetchAllContainerMetrics(ctx)
+	if fetchErr != nil {
+		c.logger.Error(fetchErr, "Failed to fetch container metrics from nodemon for node aggregation")
+		if c.telemetryLogger != nil {
+			c.telemetryLogger.Report(
+				gen.LogLevel_LOG_LEVEL_ERROR,
+				"NodeCollector",
+				"Failed to get node metrics from nodemon",
+				fetchErr,
+				map[string]string{
+					"excluded_nodes":   fmt.Sprintf("%v", c.excludedNodes),
+					"error_type":       "nodemon_query_failed",
+					"zxporter_version": version.Get().String(),
+				},
+			)
 		}
+		return
+	}
 
-		// Aggregate CPU/memory by node
-		type nodeAgg struct {
-			cpuNanocores uint64
-			memBytes     uint64
+	// Aggregate CPU/memory by node
+	type nodeAgg struct {
+		cpuNanocores uint64
+		memBytes     uint64
+	}
+	nodeAggs := make(map[string]*nodeAgg)
+	for _, m := range allContainerMetrics {
+		agg, ok := nodeAggs[m.NodeName]
+		if !ok {
+			agg = &nodeAgg{}
+			nodeAggs[m.NodeName] = agg
 		}
-		nodeAggs := make(map[string]*nodeAgg)
-		for _, m := range allContainerMetrics {
-			agg, ok := nodeAggs[m.NodeName]
-			if !ok {
-				agg = &nodeAgg{}
-				nodeAggs[m.NodeName] = agg
+		agg.cpuNanocores += m.CPUUsageNanoCores
+		agg.memBytes += m.MemoryWorkingSet
+	}
+
+	// Build node metrics entries with aggregated CPU/memory
+	nodes := c.nodeInformer.GetIndexer().List()
+	for _, obj := range nodes {
+		if node, ok := obj.(*corev1.Node); ok {
+			nm := metricsapisv1beta1.NodeMetrics{
+				ObjectMeta: metav1.ObjectMeta{Name: node.Name},
+				Usage:      corev1.ResourceList{},
 			}
-			agg.cpuNanocores += m.CPUUsageNanoCores
-			agg.memBytes += m.MemoryWorkingSet
-		}
-
-		// Build node metrics entries with aggregated CPU/memory
-		nodes := c.nodeInformer.GetIndexer().List()
-		for _, obj := range nodes {
-			if node, ok := obj.(*corev1.Node); ok {
-				nm := metricsapisv1beta1.NodeMetrics{
-					ObjectMeta: metav1.ObjectMeta{Name: node.Name},
-					Usage:      corev1.ResourceList{},
-				}
-				if agg, ok := nodeAggs[node.Name]; ok {
-					cpuMillis := int64(agg.cpuNanocores / 1_000_000)
-					nm.Usage[corev1.ResourceCPU] = *resource.NewMilliQuantity(cpuMillis, resource.DecimalSI)
-					nm.Usage[corev1.ResourceMemory] = *resource.NewQuantity(int64(agg.memBytes), resource.BinarySI)
-				}
-				nodeMetricsList.Items = append(nodeMetricsList.Items, nm)
+			if agg, ok := nodeAggs[node.Name]; ok {
+				cpuMillis := int64(agg.cpuNanocores / 1_000_000)
+				nm.Usage[corev1.ResourceCPU] = *resource.NewMilliQuantity(cpuMillis, resource.DecimalSI)
+				nm.Usage[corev1.ResourceMemory] = *resource.NewQuantity(int64(agg.memBytes), resource.BinarySI)
 			}
-		}
-		c.logger.V(1).Info("Built node metrics from nodemon container data", "nodes", len(nodeMetricsList.Items))
-	} else {
-		nodeMetricsList, err = c.metricsClient.MetricsV1beta1().
-			NodeMetricses().
-			List(ctx, metav1.ListOptions{})
-		if err != nil {
-			if c.telemetryLogger != nil {
-				c.telemetryLogger.Report(
-					gen.LogLevel_LOG_LEVEL_ERROR,
-					"NodeCollector",
-					"Failed to get node metrics from metrics server",
-					err,
-					map[string]string{
-						"excluded_nodes":   fmt.Sprintf("%v", c.excludedNodes),
-						"error_type":       "metrics_server_query_failed",
-						"zxporter_version": version.Get().String(),
-					},
-				)
-			}
-			c.logger.Error(err, "Failed to get node metrics from metrics server")
-			return
+			nodeMetricsList.Items = append(nodeMetricsList.Items, nm)
 		}
 	}
+	c.logger.V(1).Info("Built node metrics from nodemon container data", "nodes", len(nodeMetricsList.Items))
 
 	if c.telemetryLogger != nil {
 		c.telemetryLogger.Report(
@@ -740,129 +606,29 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 		cpuUtilizationPercent := float64(cpuUsage) / float64(cpuAllocatable) * 100
 		memoryUtilizationPercent := float64(memoryUsage) / float64(memoryAllocatable) * 100
 
+		// Fetch network and I/O metrics from nodemon
 		var networkMetrics map[string]float64
 		var gpuMetrics map[string]interface{}
 
-		// If there are no prometheus, don't even bother on checking metrics
-		if c.prometheusAPI != nil {
+		if netMetrics, netErr := c.collectNodeNetworkIOMetrics(ctx, node.Name); netErr != nil {
+			c.logger.Error(netErr, "Failed to collect node network and io metrics from nodemon",
+				"name", node.Name)
+			networkMetrics = make(map[string]float64)
+		} else {
+			networkMetrics = netMetrics
+		}
 
-			// Create a context with timeout for Prometheus only when needed
-			var queryCtx context.Context
-			var cancel context.CancelFunc
-
-			queryCtx, cancel = context.WithTimeout(ctx, c.config.QueryTimeout)
-			defer cancel()
-
-			// Fetch network metrics for the node if enabled
-			if !c.config.DisableNetworkIOMetrics {
-				networkMetrics, err = c.collectNodeNetworkIOMetrics(queryCtx, node.Name)
-				if queryCtx.Err() != nil {
-					c.logger.Error(
-						queryCtx.Err(),
-						"Query context for node network metrics failed",
-						"node",
-						node.Name,
-					)
-				}
-				if err != nil {
-					if c.telemetryLogger != nil {
-						c.telemetryLogger.Report(
-							gen.LogLevel_LOG_LEVEL_ERROR,
-							"NodeCollector",
-							"Failed to collect node network and I/O metrics from Prometheus",
-							err,
-							map[string]string{
-								"node":             node.Name,
-								"error_type":       "prometheus_network_io_query_failed",
-								"prometheus_url":   c.config.PrometheusURL,
-								"zxporter_version": version.Get().String(),
-							},
-						)
-					}
-					c.logger.Error(err, "Failed to collect node network and io metrics",
-						"name", node.Name)
-					// Continue with basic metrics
-					networkMetrics = make(map[string]float64)
-				}
+		// Fetch GPU metrics from nodemon if enabled
+		if !c.config.DisableGPUMetrics && c.nodemonClient != nil {
+			nodemonMetrics, fetchErr := c.nodemonClient.FetchMetricsByNode(ctx, node.Name)
+			if fetchErr != nil {
+				c.logger.Error(fetchErr, "Failed to fetch GPU metrics from nodemon", "node", node.Name)
+				gpuMetrics = make(map[string]interface{})
+			} else if len(nodemonMetrics) > 0 {
+				gpuMetrics = NodeGPUMetricsFromNodemon(nodemonMetrics)
+			} else {
+				gpuMetrics = make(map[string]interface{})
 			}
-
-			// Fetch GPU metrics for the node if enabled
-			if !c.config.DisableGPUMetrics {
-				if c.nodemonClient != nil {
-					// Primary: nodemon
-					nodemonMetrics, fetchErr := c.nodemonClient.FetchMetricsByNode(
-						queryCtx,
-						node.Name,
-					)
-					if fetchErr != nil {
-						c.logger.Error(
-							fetchErr,
-							"nodemon failed, falling back to Prometheus",
-							"node",
-							node.Name,
-						)
-						// Fallback to Prometheus on exporter failure
-						if c.prometheusAPI != nil {
-							gpuMetrics, err = c.collectNodeGPUMetrics(queryCtx, node.Name)
-							if err != nil {
-								c.logger.Error(
-									err,
-									"Prometheus fallback also failed for node GPU metrics",
-									"node",
-									node.Name,
-								)
-								gpuMetrics = make(map[string]interface{})
-							}
-						} else {
-							gpuMetrics = make(map[string]interface{})
-						}
-					} else if len(nodemonMetrics) > 0 {
-						// nodemon returned data
-						gpuMetrics = NodeGPUMetricsFromNodemon(nodemonMetrics)
-					} else if c.prometheusAPI != nil {
-						// nodemon returned no data (no exporter on this node) — fallback to Prometheus
-						gpuMetrics, err = c.collectNodeGPUMetrics(queryCtx, node.Name)
-						if err != nil {
-							c.logger.Info(
-								"Prometheus fallback returned no GPU metrics for node (node may not have GPUs)",
-								"node", node.Name,
-								"error", err.Error(),
-							)
-							gpuMetrics = make(map[string]interface{})
-						}
-					} else {
-						gpuMetrics = make(map[string]interface{})
-					}
-				} else if c.prometheusAPI != nil {
-					// No nodemon client initialized — use Prometheus
-					gpuMetrics, err = c.collectNodeGPUMetrics(queryCtx, node.Name)
-					if queryCtx.Err() != nil {
-						c.logger.Error(queryCtx.Err(), "Query context for node GPU metrics failed", "node", node.Name)
-					}
-					if err != nil {
-						if c.telemetryLogger != nil {
-							c.telemetryLogger.Report(
-								gen.LogLevel_LOG_LEVEL_WARN,
-								"NodeCollector",
-								"Failed to collect node GPU metrics from Prometheus",
-								err,
-								map[string]string{
-									"node":             node.Name,
-									"error_type":       "prometheus_gpu_query_failed",
-									"prometheus_url":   c.config.PrometheusURL,
-									"zxporter_version": version.Get().String(),
-								},
-							)
-						}
-						c.logger.Error(err, "Failed to collect node GPU metrics",
-							"name", node.Name)
-						gpuMetrics = make(map[string]interface{})
-					}
-				} else {
-					gpuMetrics = make(map[string]interface{})
-				}
-			}
-
 		}
 
 		// Create resource data
@@ -962,9 +728,9 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 	}
 }
 
-// collectNodeNetworkIOMetricsFromNodemon collects network and I/O metrics for a node
-// using the nodemon DaemonSet instead of Prometheus.
-func (c *NodeCollector) collectNodeNetworkIOMetricsFromNodemon(
+// collectNodeNetworkIOMetrics collects network and I/O metrics for a node
+// using the nodemon DaemonSet.
+func (c *NodeCollector) collectNodeNetworkIOMetrics(
 	ctx context.Context,
 	nodeName string,
 ) (map[string]float64, error) {
@@ -990,254 +756,6 @@ func (c *NodeCollector) collectNodeNetworkIOMetricsFromNodemon(
 		"FSReads":                m.DiskReadOpsPerSec,
 		"FSWrites":               m.DiskWriteOpsPerSec,
 	}, nil
-}
-
-// collectNodeNetworkIOMetrics collects network metrics for a node using Prometheus queries
-//
-//nolint:unparam
-func (c *NodeCollector) collectNodeNetworkIOMetrics(
-	ctx context.Context,
-	nodeName string,
-) (map[string]float64, error) {
-	if c.useNodemon && c.nodemonClient != nil {
-		return c.collectNodeNetworkIOMetricsFromNodemon(ctx, nodeName)
-	}
-
-	metrics := make(map[string]float64)
-
-	queries := map[string]string{
-		// Define queries for network metrics
-		"NetworkReceiveBytes": fmt.Sprintf(
-			`sum(rate(node_network_receive_bytes_total{node="%s"}[5m]))`,
-			nodeName,
-		),
-		"NetworkTransmitBytes": fmt.Sprintf(
-			`sum(rate(node_network_transmit_bytes_total{node="%s"}[5m]))`,
-			nodeName,
-		),
-		"NetworkReceivePackets": fmt.Sprintf(
-			`sum(rate(node_network_receive_packets_total{node="%s"}[5m]))`,
-			nodeName,
-		),
-		"NetworkTransmitPackets": fmt.Sprintf(
-			`sum(rate(node_network_transmit_packets_total{node="%s"}[5m]))`,
-			nodeName,
-		),
-		"NetworkReceiveErrors": fmt.Sprintf(
-			`sum(rate(node_network_receive_errs_total{node="%s"}[5m]))`,
-			nodeName,
-		),
-		"NetworkTransmitErrors": fmt.Sprintf(
-			`sum(rate(node_network_transmit_errs_total{node="%s"}[5m]))`,
-			nodeName,
-		),
-		"NetworkReceiveDropped": fmt.Sprintf(
-			`sum(rate(node_network_receive_drop_total{node="%s"}[5m]))`,
-			nodeName,
-		),
-		"NetworkTransmitDropped": fmt.Sprintf(
-			`sum(rate(node_network_transmit_drop_total{node="%s"}[5m]))`,
-			nodeName,
-		),
-		// Define queries for I/O metrics
-		"FSReadBytes": fmt.Sprintf(
-			`sum(rate(node_disk_read_bytes_total{node="%s"}[5m]))`,
-			nodeName,
-		),
-		"FSWriteBytes": fmt.Sprintf(
-			`sum(rate(node_disk_written_bytes_total{node="%s"}[5m]))`,
-			nodeName,
-		),
-		"FSReads": fmt.Sprintf(
-			`sum(rate(node_disk_reads_completed_total{node="%s"}[5m]))`,
-			nodeName,
-		),
-		"FSWrites": fmt.Sprintf(
-			`sum(rate(node_disk_writes_completed_total{node="%s"}[5m]))`,
-			nodeName,
-		),
-	}
-
-	// Execute each query and store the result
-	for metricName, query := range queries {
-		c.logger.V(2).Info("Querying node network and IO metric: ", "metric_name", metricName)
-		metrics[metricName] = 0 // Default to 0 for all metrics
-
-		result, _, err := c.prometheusAPI.Query(ctx, query, time.Now())
-		if err != nil {
-			c.logger.Error(err, "Error querying Prometheus",
-				"metric", metricName,
-				"query", query)
-			continue
-		}
-
-		// Extract value from result (if any)
-		if result.Type() == model.ValVector {
-			vector := result.(model.Vector)
-			if len(vector) > 0 {
-				metrics[metricName] = float64(vector[0].Value)
-			}
-		}
-	}
-
-	return metrics, nil
-}
-
-// collectNodeGPUMetrics collects GPU metrics for a node using Prometheus queries
-func (c *NodeCollector) collectNodeGPUMetrics(
-	ctx context.Context,
-	nodeName string,
-) (map[string]interface{}, error) {
-	metrics := make(map[string]interface{})
-
-	// First query to check if this node has any GPUs
-	nodeGPUQuery := fmt.Sprintf(`count(DCGM_FI_DEV_GPU_UTIL{node="%s"})`, nodeName)
-
-	result, _, err := c.prometheusAPI.Query(ctx, nodeGPUQuery, time.Now())
-	if err != nil {
-		return nil, fmt.Errorf("error querying GPU availability: %w", err)
-	}
-
-	// Check if node has GPU metrics
-	hasGPU := false
-	if result.Type() == model.ValVector {
-		vector := result.(model.Vector)
-		if len(vector) > 0 && float64(vector[0].Value) > 0 {
-			hasGPU = true
-		}
-	}
-
-	if !hasGPU {
-		// Return empty metrics if no GPU is on this node
-		return metrics, nil
-	}
-
-	// Node has GPUs, collect metrics
-	queries := map[string]string{
-		"GPUCount": fmt.Sprintf(
-			`count(DCGM_FI_DEV_GPU_UTIL{node="%s"})`,
-			nodeName,
-		),
-		"GPUUtilizationAvg":  fmt.Sprintf(`avg(DCGM_FI_DEV_GPU_UTIL{node="%s"})`, nodeName),
-		"GPUUtilizationMax":  fmt.Sprintf(`max(DCGM_FI_DEV_GPU_UTIL{node="%s"})`, nodeName),
-		"GPUMemoryUsedTotal": fmt.Sprintf(`sum(DCGM_FI_DEV_FB_USED{node="%s"})`, nodeName),
-		"GPUMemoryFreeTotal": fmt.Sprintf(`sum(DCGM_FI_DEV_FB_FREE{node="%s"})`, nodeName),
-		"GPUPowerUsageTotal": fmt.Sprintf(
-			`sum(DCGM_FI_DEV_POWER_USAGE{node="%s"})`,
-			nodeName,
-		),
-		"GPUTemperatureAvg": fmt.Sprintf(`avg(DCGM_FI_DEV_GPU_TEMP{node="%s"})`, nodeName),
-		"GPUTemperatureMax": fmt.Sprintf(`max(DCGM_FI_DEV_GPU_TEMP{node="%s"})`, nodeName),
-		"GPUMemoryTemperatureAvg": fmt.Sprintf(
-			`avg(DCGM_FI_DEV_MEMORY_TEMP{node="%s"})`,
-			nodeName,
-		),
-		"GPUMemoryTemperatureMax": fmt.Sprintf(
-			`max(DCGM_FI_DEV_MEMORY_TEMP{node="%s"})`,
-			nodeName,
-		),
-		"GPUTensorUtilizationAvg": fmt.Sprintf(
-			`avg(DCGM_FI_PROF_PIPE_TENSOR_ACTIVE{node="%s"})`,
-			nodeName,
-		),
-		"GPUDramUtilizationAvg": fmt.Sprintf(
-			`avg(DCGM_FI_PROF_DRAM_ACTIVE{node="%s"})`,
-			nodeName,
-		),
-		"GPUPCIeTxBytesTotal": fmt.Sprintf(
-			`sum(DCGM_FI_PROF_PCIE_TX_BYTES{node="%s"})`,
-			nodeName,
-		),
-		"GPUPCIeRxBytesTotal": fmt.Sprintf(
-			`sum(DCGM_FI_PROF_PCIE_RX_BYTES{node="%s"})`,
-			nodeName,
-		),
-		"GPUGraphicsUtilizationAvg": fmt.Sprintf(
-			`avg(DCGM_FI_PROF_GR_ENGINE_ACTIVE{node="%s"})`,
-			nodeName,
-		),
-	}
-
-	gpuCountValue := 0.0
-	gpuUtilValue := 0.0
-	// Execute each query and store the result
-	for metricName, query := range queries {
-		c.logger.V(2).Info("Querying node GPU metric: ", "metric_name", metricName)
-		result, _, err := c.prometheusAPI.Query(ctx, query, time.Now())
-		if err != nil {
-			c.logger.Error(err, "Error querying Prometheus for GPU metrics",
-				"metric", metricName,
-				"query", query,
-				"node", nodeName)
-			continue
-		}
-
-		// Extract value from result (if any)
-		if result.Type() == model.ValVector {
-			vector := result.(model.Vector)
-			if len(vector) > 0 {
-				metrics[metricName] = float64(vector[0].Value)
-				if metricName == "GPUCount" {
-					gpuCountValue = float64(vector[0].Value)
-				} else if metricName == "GPUUtilizationAvg" {
-					gpuUtilValue = float64(vector[0].Value)
-				}
-			}
-		}
-	}
-
-	// If we found no GPU metrics, return an empty map
-	if len(metrics) == 0 {
-		return metrics, nil
-	}
-
-	// Get GPU models on this node - this requires a specific query and parsing (not sure if parsing is working or not :))
-	modelQuery := fmt.Sprintf(`DCGM_FI_DEV_GPU_UTIL{node="%s"}`, nodeName)
-	result, _, err = c.prometheusAPI.Query(ctx, modelQuery, time.Now())
-	if err == nil && result.Type() == model.ValVector {
-		vector := result.(model.Vector)
-
-		// Store unique GPU models
-		gpuModels := make(map[string]int)
-		gpuUUIDs := make([]string, 0)
-
-		for _, sample := range vector {
-			model := string(sample.Metric["modelName"])
-			if model != "" {
-				gpuModels[model]++
-			}
-
-			// Collect UUID if available
-			uuid := string(sample.Metric["UUID"])
-			if uuid != "" {
-				gpuUUIDs = append(gpuUUIDs, uuid)
-			}
-		}
-
-		// Convert model map to a summarized string
-		modelSummary := make([]string, 0)
-		for model, count := range gpuModels {
-			modelSummary = append(modelSummary, fmt.Sprintf("%dx %s", count, model))
-		}
-
-		metrics["GPUModels"] = modelSummary
-		metrics["GPUUUIDs"] = gpuUUIDs
-	}
-
-	// Calculate total GPU memory
-	if memUsed, ok := metrics["GPUMemoryUsedTotal"].(float64); ok {
-		if memFree, ok := metrics["GPUMemoryFreeTotal"].(float64); ok {
-			metrics["GPUMemoryTotalMb"] = memUsed + memFree
-		}
-	}
-
-	// GPUUsage = GPUMetricsCount * GPUUtilizationPercentage / 100
-	if gpuCountValue > 0 {
-		gpuUsage := (gpuUtilValue * gpuCountValue) / 100.0
-		metrics["GPUUsage"] = gpuUsage
-	}
-
-	return metrics, nil
 }
 
 // isExcluded checks if a node should be excluded from collection
@@ -1301,46 +819,7 @@ func (c *NodeCollector) GetType() string {
 
 // IsAvailable checks if Node resources can be accessed in the cluster
 func (c *NodeCollector) IsAvailable(ctx context.Context) bool {
-	if c.useNodemon {
-		return c.nodemonClient != nil && c.nodemonClient.HasExporters(ctx)
-	}
-
-	// Check if the metrics client is available - this is required for basic metrics
-	if c.metricsClient == nil {
-		c.logger.Info("Metrics client is not available, cannot collect node metrics")
-		c.telemetryLogger.Report(
-			gen.LogLevel_LOG_LEVEL_WARN,
-			"NodeCollector",
-			"Metrics client is not available, cannot collect node metrics",
-			fmt.Errorf("metrics client is not available or properly set"),
-			map[string]string{
-				"collector_type":   c.GetType(),
-				"zxporter_version": version.Get().String(),
-			},
-		)
-		// return false
-	}
-
-	// Try a simple query to check if the metrics server is available
-	_, err := c.metricsClient.MetricsV1beta1().NodeMetricses().List(ctx, metav1.ListOptions{
-		Limit: 1, // Only request a single item to minimize load
-	})
-	if err != nil {
-		c.telemetryLogger.Report(
-			gen.LogLevel_LOG_LEVEL_WARN,
-			"NodeCollector",
-			"Metrics server API not available for node metrics",
-			err,
-			map[string]string{
-				"collector_type":   c.GetType(),
-				"zxporter_version": version.Get().String(),
-			},
-		)
-		c.logger.Info("Metrics server API not available for node metrics", "error", err.Error())
-		// return false
-	}
-
-	return true
+	return c.nodemonClient != nil && c.nodemonClient.HasExporters(ctx)
 }
 
 // AddResource manually adds a node resource to be processed by the collector
