@@ -19,6 +19,7 @@ import (
 	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
 	"github.com/prometheus/common/model"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
@@ -578,19 +579,48 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 	var nodeMetricsList *metricsapisv1beta1.NodeMetricsList
 	var err error
 
-	if c.useNodemon {
-		// Build node metrics entries from the node informer so the iteration loop runs
-		// CPU/memory will be zero but node resources still get sent with network/disk from nodemon
+	if c.useNodemon && c.nodemonClient != nil {
+		// Build node metrics from nodemon container data — aggregate CPU/memory per node
 		nodeMetricsList = &metricsapisv1beta1.NodeMetricsList{}
+
+		allContainerMetrics, fetchErr := c.nodemonClient.FetchAllContainerMetrics(ctx)
+		if fetchErr != nil {
+			c.logger.Error(fetchErr, "Failed to fetch container metrics from nodemon for node aggregation")
+		}
+
+		// Aggregate CPU/memory by node
+		type nodeAgg struct {
+			cpuNanocores uint64
+			memBytes     uint64
+		}
+		nodeAggs := make(map[string]*nodeAgg)
+		for _, m := range allContainerMetrics {
+			agg, ok := nodeAggs[m.NodeName]
+			if !ok {
+				agg = &nodeAgg{}
+				nodeAggs[m.NodeName] = agg
+			}
+			agg.cpuNanocores += m.CPUUsageNanoCores
+			agg.memBytes += m.MemoryWorkingSet
+		}
+
+		// Build node metrics entries with aggregated CPU/memory
 		nodes := c.nodeInformer.GetIndexer().List()
 		for _, obj := range nodes {
 			if node, ok := obj.(*corev1.Node); ok {
-				nodeMetricsList.Items = append(nodeMetricsList.Items, metricsapisv1beta1.NodeMetrics{
+				nm := metricsapisv1beta1.NodeMetrics{
 					ObjectMeta: metav1.ObjectMeta{Name: node.Name},
-				})
+					Usage:      corev1.ResourceList{},
+				}
+				if agg, ok := nodeAggs[node.Name]; ok {
+					cpuMillis := int64(agg.cpuNanocores / 1_000_000)
+					nm.Usage[corev1.ResourceCPU] = *resource.NewMilliQuantity(cpuMillis, resource.DecimalSI)
+					nm.Usage[corev1.ResourceMemory] = *resource.NewQuantity(int64(agg.memBytes), resource.BinarySI)
+				}
+				nodeMetricsList.Items = append(nodeMetricsList.Items, nm)
 			}
 		}
-		c.logger.V(1).Info("Built node metrics list from informer (nodemon mode)", "nodes", len(nodeMetricsList.Items))
+		c.logger.V(1).Info("Built node metrics from nodemon container data", "nodes", len(nodeMetricsList.Items))
 	} else {
 		nodeMetricsList, err = c.metricsClient.MetricsV1beta1().
 			NodeMetricses().
