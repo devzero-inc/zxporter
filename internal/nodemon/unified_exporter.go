@@ -17,6 +17,8 @@ type UnifiedExporter struct {
 	nodeName        string
 	log             logr.Logger
 
+	nodeNetRates      *RateCalculator // for computing node network byte rates from cumulative counters
+
 	mu                sync.RWMutex
 	containerMetrics  []ContainerMetricsResponse
 	nodeMetrics       *NodeMetricsResponse
@@ -38,6 +40,7 @@ func NewUnifiedExporter(
 		gpuExporter:     gpuExporter,
 		nodeName:        nodeName,
 		log:             log.WithName("unified-exporter"),
+		nodeNetRates:    NewRateCalculator(),
 	}
 }
 
@@ -203,10 +206,36 @@ func (u *UnifiedExporter) Collect(ctx context.Context) {
 		}
 	}
 
-	// Build node metrics (placeholder — cAdvisor node-level rates would go here)
+	// Build node metrics by aggregating cAdvisor per-container rates
 	nodeResult := &NodeMetricsResponse{
 		NodeName:  u.nodeName,
 		Timestamp: now,
+	}
+	for _, cm := range cadvisorMetrics {
+		nodeResult.NetworkRxPacketsPerSec += cm.NetworkRxPacketsPerSec
+		nodeResult.NetworkTxPacketsPerSec += cm.NetworkTxPacketsPerSec
+		nodeResult.NetworkRxErrorsPerSec += cm.NetworkRxErrorsPerSec
+		nodeResult.NetworkTxErrorsPerSec += cm.NetworkTxErrorsPerSec
+		nodeResult.NetworkRxDropsPerSec += cm.NetworkRxDropsPerSec
+		nodeResult.NetworkTxDropsPerSec += cm.NetworkTxDropsPerSec
+		nodeResult.DiskReadBytesPerSec += cm.DiskReadBytesPerSec
+		nodeResult.DiskWriteBytesPerSec += cm.DiskWriteBytesPerSec
+		nodeResult.DiskReadOpsPerSec += cm.DiskReadOpsPerSec
+		nodeResult.DiskWriteOpsPerSec += cm.DiskWriteOpsPerSec
+	}
+	// Node-level network bytes rate from stats/summary node section
+	if stats != nil {
+		var nodeRxBytes, nodeTxBytes uint64
+		for _, iface := range stats.Node.Network.Interfaces {
+			if iface.RxBytes != nil {
+				nodeRxBytes += *iface.RxBytes
+			}
+			if iface.TxBytes != nil {
+				nodeTxBytes += *iface.TxBytes
+			}
+		}
+		nodeResult.NetworkRxBytesPerSec = u.nodeNetRates.Rate(u.nodeName, "rx_bytes", float64(nodeRxBytes), now)
+		nodeResult.NetworkTxBytesPerSec = u.nodeNetRates.Rate(u.nodeName, "tx_bytes", float64(nodeTxBytes), now)
 	}
 
 	// Update cache
