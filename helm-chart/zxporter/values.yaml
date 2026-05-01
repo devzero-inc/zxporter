@@ -16,7 +16,6 @@ image:
 # ZXPorter configuration
 zxporter:
   dakrUrl: "https://dakr.devzero.io"
-  prometheusUrl: "http://prometheus-dz-prometheus-server.devzero-system.svc.cluster.local:80"
   targetNamespaces: ""
   # Cluster token for authentication with the DevZero platform
   # Required: Either clusterToken or patToken must be provided

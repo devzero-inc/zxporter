@@ -7,7 +7,6 @@ data:
   {{- end }}
   COLLECTION_FREQUENCY: ""
   DISABLE_GPU_METRICS: "{{ .Values.zxporter.disableGPUMetrics }}"
-  DISABLE_NETWORK_IO_METRICS: ""
   DISABLED_COLLECTORS: ""
   EXCLUDED_CLUSTERROLEBINDINGS: ""
   EXCLUDED_CLUSTERROLES: ""
@@ -45,9 +44,6 @@ data:
   LOG_LEVEL: "{{ .Values.zxporter.logLevel }}"
   MASK_SECRET_DATA: ""
   NODE_METRICS_INTERVAL: ""
-  {{- if not .Values.nodemonMetrics.enabled }}
-  PROMETHEUS_URL: "{{ .Values.zxporter.prometheusUrl }}"
-  {{- end }}
   ENABLE_NODEMON_METRICS: "{{ .Values.nodemonMetrics.enabled }}"
   DAKR_URL: "{{ .Values.zxporter.dakrUrl }}"
   TARGET_NAMESPACES: "{{ .Values.zxporter.targetNamespaces }}"
