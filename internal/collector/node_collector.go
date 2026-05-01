@@ -817,9 +817,10 @@ func (c *NodeCollector) GetType() string {
 	return "node"
 }
 
-// IsAvailable checks if Node resources can be accessed in the cluster
+// IsAvailable checks if Node resources can be accessed in the cluster.
+// Always returns true — nodemon pods are discovered dynamically.
 func (c *NodeCollector) IsAvailable(ctx context.Context) bool {
-	return c.nodemonClient != nil && c.nodemonClient.HasExporters(ctx)
+	return c.nodemonClient != nil
 }
 
 // AddResource manually adds a node resource to be processed by the collector

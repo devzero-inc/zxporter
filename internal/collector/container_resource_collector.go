@@ -830,8 +830,11 @@ func (c *ContainerResourceCollector) GetType() string {
 }
 
 // IsAvailable checks whether the collector can operate.
+// Always returns true — nodemon pods are discovered dynamically and may not be
+// ready at the instant IsAvailable is called during startup. The collection loop
+// gracefully handles empty nodemon responses.
 func (c *ContainerResourceCollector) IsAvailable(ctx context.Context) bool {
-	return c.nodemonClient != nil && c.nodemonClient.HasExporters(ctx)
+	return c.nodemonClient != nil
 }
 
 // AddResource is a no-op for container resource collector - we never sync individual containers

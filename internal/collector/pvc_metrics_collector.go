@@ -603,8 +603,10 @@ func (c *PersistentVolumeClaimMetricsCollector) GetType() string {
 	return "pvc_metrics"
 }
 
+// IsAvailable checks if PVC metrics can be collected.
+// Always returns true — nodemon pods are discovered dynamically.
 func (c *PersistentVolumeClaimMetricsCollector) IsAvailable(ctx context.Context) bool {
-	return c.nodemonClient != nil && c.nodemonClient.HasExporters(ctx)
+	return c.nodemonClient != nil
 }
 
 // AddResource is a no-op for PVC metrics collector
