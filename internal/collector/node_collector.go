@@ -574,18 +574,28 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 	}
 
 	// Fetch node metrics from the metrics server
-	// When nodemon is enabled, metrics-server may not be available — treat as non-fatal
-	nodeMetricsList, err := c.metricsClient.MetricsV1beta1().
-		NodeMetricses().
-		List(ctx, metav1.ListOptions{})
-	if err != nil {
-		if c.useNodemon {
-			// Metrics server unavailable but nodemon handles the extended metrics.
-			// Continue with an empty list — node CPU/memory from metrics-server will be zero
-			// but network/disk/GPU from nodemon will still be collected.
-			c.logger.V(1).Info("Metrics server unavailable (nodemon enabled), continuing with node informer data only")
-			nodeMetricsList = &metricsapisv1beta1.NodeMetricsList{}
-		} else {
+	// When nodemon is enabled, build node list from informer (skip metrics-server entirely)
+	var nodeMetricsList *metricsapisv1beta1.NodeMetricsList
+	var err error
+
+	if c.useNodemon {
+		// Build node metrics entries from the node informer so the iteration loop runs
+		// CPU/memory will be zero but node resources still get sent with network/disk from nodemon
+		nodeMetricsList = &metricsapisv1beta1.NodeMetricsList{}
+		nodes := c.nodeInformer.GetIndexer().List()
+		for _, obj := range nodes {
+			if node, ok := obj.(*corev1.Node); ok {
+				nodeMetricsList.Items = append(nodeMetricsList.Items, metricsapisv1beta1.NodeMetrics{
+					ObjectMeta: metav1.ObjectMeta{Name: node.Name},
+				})
+			}
+		}
+		c.logger.V(1).Info("Built node metrics list from informer (nodemon mode)", "nodes", len(nodeMetricsList.Items))
+	} else {
+		nodeMetricsList, err = c.metricsClient.MetricsV1beta1().
+			NodeMetricses().
+			List(ctx, metav1.ListOptions{})
+		if err != nil {
 			if c.telemetryLogger != nil {
 				c.telemetryLogger.Report(
 					gen.LogLevel_LOG_LEVEL_ERROR,
