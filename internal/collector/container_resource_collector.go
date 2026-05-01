@@ -12,6 +12,7 @@ import (
 	"time"
 
 	telemetry_logger "github.com/devzero-inc/zxporter/internal/logger"
+	"github.com/devzero-inc/zxporter/internal/nodemon"
 	"github.com/devzero-inc/zxporter/internal/version"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
@@ -67,6 +68,9 @@ type ContainerResourceCollector struct {
 	// nodemonContainerMetricsCache holds pre-fetched container metrics from nodemon,
 	// indexed by "namespace/podName", refreshed once per collection cycle.
 	nodemonContainerMetricsCache map[string][]UnifiedContainerMetric
+	// networkByteRates computes per-second rates from cumulative network byte counters
+	// returned by kubelet stats/summary (which are totals, not rates).
+	networkByteRates *nodemon.RateCalculator
 	rsLister                     appslisters.ReplicaSetLister
 	rsInformer                   cache.SharedIndexInformer
 }
@@ -136,7 +140,8 @@ func NewContainerResourceCollector(
 		logger:             logger.WithName("container-resource-collector"),
 		metrics:            metrics,
 		telemetryLogger:    telemetryLogger,
-		throttle: throttleTracker{lastEmitted: make(map[string]time.Time)},
+		throttle:           throttleTracker{lastEmitted: make(map[string]time.Time)},
+		networkByteRates:   nodemon.NewRateCalculator(),
 	}
 }
 
@@ -606,12 +611,18 @@ func (c *ContainerResourceCollector) collectPodNetworkMetrics(
 		return metrics
 	}
 
-	// Network metrics are pod-level (shared network namespace). The Prometheus path
-	// uses sum() across the pod, so we pick the first container's values since
-	// nodemon reports identical pod-level counters for each container.
+	// Network metrics are pod-level (shared network namespace). Pick the first
+	// container's values since nodemon reports identical pod-level counters for each.
+	//
+	// NetworkRxBytes/TxBytes from stats/summary are CUMULATIVE totals.
+	// The MPA proto expects bytes/sec (NetworkReceiveBytesPerSec), so we compute
+	// per-second rates from successive samples using RateCalculator.
+	// Packet/error/drop rates are already per-second from the cAdvisor scraper.
 	m := containerMetrics[0]
-	metrics["NetworkReceiveBytes"] = float64(m.NetworkRxBytes)
-	metrics["NetworkTransmitBytes"] = float64(m.NetworkTxBytes)
+	now := time.Now()
+	podKey := pod.Namespace + "/" + pod.Name
+	metrics["NetworkReceiveBytes"] = c.networkByteRates.Rate(podKey, "rx_bytes", float64(m.NetworkRxBytes), now)
+	metrics["NetworkTransmitBytes"] = c.networkByteRates.Rate(podKey, "tx_bytes", float64(m.NetworkTxBytes), now)
 	metrics["NetworkReceivePackets"] = m.NetworkRxPacketsPerSec
 	metrics["NetworkTransmitPackets"] = m.NetworkTxPacketsPerSec
 	metrics["NetworkReceiveErrors"] = m.NetworkRxErrorsPerSec
