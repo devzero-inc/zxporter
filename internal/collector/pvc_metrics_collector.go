@@ -746,6 +746,10 @@ func (c *PersistentVolumeClaimMetricsCollector) GetType() string {
 }
 
 func (c *PersistentVolumeClaimMetricsCollector) IsAvailable(ctx context.Context) bool {
+	if c.useNodemon {
+		return c.nodemonClient != nil && c.nodemonClient.HasExporters(ctx)
+	}
+
 	if c.prometheusAPI == nil {
 		c.logger.Info("Prometheus API not available for PVC metrics")
 		return true

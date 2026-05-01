@@ -1301,6 +1301,10 @@ func (c *NodeCollector) GetType() string {
 
 // IsAvailable checks if Node resources can be accessed in the cluster
 func (c *NodeCollector) IsAvailable(ctx context.Context) bool {
+	if c.useNodemon {
+		return c.nodemonClient != nil && c.nodemonClient.HasExporters(ctx)
+	}
+
 	// Check if the metrics client is available - this is required for basic metrics
 	if c.metricsClient == nil {
 		c.logger.Info("Metrics client is not available, cannot collect node metrics")

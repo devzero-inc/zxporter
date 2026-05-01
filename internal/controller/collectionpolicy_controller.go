@@ -1039,8 +1039,9 @@ func (r *CollectionPolicyReconciler) restartCollectors(
 		r.RestartInProgress = false
 	}()
 
-	// Check Prometheus availability if URL changed or metrics configuration changed
-	if newConfig.PrometheusURL != "" &&
+	// Check Prometheus availability if URL changed or metrics configuration changed.
+	// Skip entirely when nodemon is enabled — Prometheus is not used.
+	if !newConfig.EnableNodemonMetrics && newConfig.PrometheusURL != "" &&
 		(r.CurrentConfig.PrometheusURL != newConfig.PrometheusURL ||
 			r.CurrentConfig.DisableNetworkIOMetrics != newConfig.DisableNetworkIOMetrics ||
 			r.CurrentConfig.DisableGPUMetrics != newConfig.DisableGPUMetrics) {
@@ -1861,8 +1862,11 @@ func (r *CollectionPolicyReconciler) initializeCollectors(
 	logger := r.Log.WithName("initialize")
 	logger.Info("Initializing collectors", "config", fmt.Sprintf("%+v", config))
 
-	// Check if Prometheus is available if URL is configured
-	if config.PrometheusURL != "" {
+	// Check if Prometheus is available if URL is configured.
+	// Skip entirely when nodemon is enabled — Prometheus is not used.
+	if config.EnableNodemonMetrics {
+		logger.Info("Nodemon metrics enabled, skipping Prometheus availability check")
+	} else if config.PrometheusURL != "" {
 		logger.Info("Prometheus URL configured, checking availability", "url", config.PrometheusURL)
 		prometheusAvailable := r.waitForPrometheusAvailability(ctx, config.PrometheusURL)
 		if !prometheusAvailable {

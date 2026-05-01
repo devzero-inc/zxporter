@@ -396,22 +396,23 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 			continue
 		}
 
-		// Create a context with timeout for Prometheus queries if needed
+		// Create a context with timeout for Prometheus queries if needed.
+		// Only needed when not using nodemon and Prometheus is available.
 		var queryCtx context.Context
 		var cancel context.CancelFunc
-		if c.prometheusAPI != nil {
+		if !c.useNodemon && c.prometheusAPI != nil {
 			queryCtx, cancel = context.WithTimeout(ctx, c.config.QueryTimeout)
 			defer cancel()
 		}
 
 		// Fetch network metrics
 		var networkMetrics map[string]float64
-		if !c.config.DisableNetworkIOMetrics {
-			if c.useNodemon && c.nodemonContainerMetricsCache != nil {
+		if c.useNodemon {
+			if c.nodemonContainerMetricsCache != nil {
 				networkMetrics = c.collectPodNetworkMetricsFromNodemon(ctx, pod)
-			} else if c.prometheusAPI != nil && queryCtx != nil {
-				networkMetrics = c.collectPodNetworkMetrics(queryCtx, pod)
 			}
+		} else if !c.config.DisableNetworkIOMetrics && c.prometheusAPI != nil {
+			networkMetrics = c.collectPodNetworkMetrics(queryCtx, pod)
 		}
 
 		// Process each container's metrics
@@ -422,9 +423,11 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 			var throttleFraction float64
 
 			// Collect CPU throttle metrics
-			if c.useNodemon && c.nodemonContainerMetricsCache != nil {
-				throttleFraction = c.collectContainerCPUThrottleMetricsFromNodemon(ctx, pod, containerMetrics.Name)
-			} else if c.prometheusAPI != nil && queryCtx != nil {
+			if c.useNodemon {
+				if c.nodemonContainerMetricsCache != nil {
+					throttleFraction = c.collectContainerCPUThrottleMetricsFromNodemon(ctx, pod, containerMetrics.Name)
+				}
+			} else if c.prometheusAPI != nil {
 				throttleFraction, err = c.collectContainerCPUThrottleMetrics(
 					queryCtx,
 					pod,
@@ -445,20 +448,26 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 			}
 
 			// Collect I/O metrics for this container
-			if !c.config.DisableNetworkIOMetrics {
-				if c.useNodemon && c.nodemonContainerMetricsCache != nil {
+			if c.useNodemon {
+				if c.nodemonContainerMetricsCache != nil {
 					ioMetrics = c.collectContainerIOMetricsFromNodemon(ctx, pod, containerMetrics.Name)
-				} else if c.prometheusAPI != nil && queryCtx != nil {
-					ioMetrics = c.collectContainerIOMetrics(
-						queryCtx,
-						pod,
-						containerMetrics.Name,
-					)
 				}
+			} else if !c.config.DisableNetworkIOMetrics && c.prometheusAPI != nil {
+				ioMetrics = c.collectContainerIOMetrics(
+					queryCtx,
+					pod,
+					containerMetrics.Name,
+				)
 			}
 
-			// GPU metrics collection
-			if !c.config.DisableGPUMetrics {
+			// GPU metrics collection.
+			// When useNodemon=true, GPU data comes from the unified /v2/container/metrics endpoint
+			// (handled via nodemonContainerMetricsCache); the legacy gpuIndex path is skipped.
+			if c.useNodemon {
+				// GPU metrics are embedded in the unified container metrics when available.
+				// No separate GPU collection needed — data flows through nodemonContainerMetricsCache.
+				gpuMetrics = make(map[string]interface{})
+			} else if !c.config.DisableGPUMetrics {
 				// Check if container has GPU resources
 				hasGPU := false
 				var gpuRequestCount, gpuLimitCount int64
@@ -488,7 +497,7 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 
 				if hasGPU {
 					if gpuIndex != nil {
-						// Primary: nodemon
+						// Primary: nodemon (legacy GPU-only endpoint)
 						key := gpuContainerKey{
 							Pod:       podMetrics.Name,
 							Container: containerMetrics.Name,
@@ -500,22 +509,20 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 								gpuRequestCount,
 								gpuLimitCount,
 							)
-						} else {
+						} else if c.prometheusAPI != nil {
 							// Exporter running but no GPU data for this container — fallback to Prometheus
-							if c.prometheusAPI != nil && queryCtx != nil {
-								gpuMetrics, err = c.collectContainerGPUMetrics(queryCtx, pod, containerMetrics.Name)
-								if err != nil {
-									c.logger.Error(err, "Prometheus fallback failed for container GPU metrics",
-										"namespace", podMetrics.Namespace,
-										"pod", podMetrics.Name,
-										"container", containerMetrics.Name)
-									gpuMetrics = make(map[string]interface{})
-								}
-							} else {
+							gpuMetrics, err = c.collectContainerGPUMetrics(queryCtx, pod, containerMetrics.Name)
+							if err != nil {
+								c.logger.Error(err, "Prometheus fallback failed for container GPU metrics",
+									"namespace", podMetrics.Namespace,
+									"pod", podMetrics.Name,
+									"container", containerMetrics.Name)
 								gpuMetrics = make(map[string]interface{})
 							}
+						} else {
+							gpuMetrics = make(map[string]interface{})
 						}
-					} else if c.prometheusAPI != nil && queryCtx != nil {
+					} else if c.prometheusAPI != nil {
 						// No nodemon available — use Prometheus
 						gpuMetrics, err = c.collectContainerGPUMetrics(queryCtx, pod, containerMetrics.Name)
 						if err != nil {
@@ -1497,8 +1504,13 @@ func (c *ContainerResourceCollector) GetType() string {
 	return "container_resource"
 }
 
-// IsAvailable always returns true - actual availability is checked during collection
+// IsAvailable checks whether the collector can operate.
+// When nodemon is enabled, we only need the nodemon client — skip Prometheus checks.
 func (c *ContainerResourceCollector) IsAvailable(ctx context.Context) bool {
+	if c.useNodemon {
+		return c.nodemonClient != nil && c.nodemonClient.HasExporters(ctx)
+	}
+
 	if c.metricsClient == nil {
 		c.logger.Info("Metrics client is not available, cannot collect container resources")
 		c.telemetryLogger.Report(
