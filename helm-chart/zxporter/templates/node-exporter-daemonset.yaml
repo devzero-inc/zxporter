@@ -1,3 +1,4 @@
+{{- if not .Values.nodemonMetrics.enabled }}
 {{- if .Values.monitoring.enabled }}
 {{- if .Values.monitoring.nodeExporter.enabled }}
 # Source: prometheus-node-exporter/templates/daemonset.yaml
@@ -133,5 +134,6 @@ spec:
         - name: root
           hostPath:
             path: /
+{{- end }}
 {{- end }}
 {{- end }}

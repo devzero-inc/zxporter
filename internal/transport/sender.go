@@ -247,3 +247,10 @@ func (c *SimpleDakrClient) ReportHealth(ctx context.Context, req *gen.ReportHeal
 	)
 	return nil
 }
+
+// NewPercentileFetcher returns nil for the simple client since it has no
+// backing K8S service connection. Callers must nil-check before use.
+func (c *SimpleDakrClient) NewPercentileFetcher() *DakrPercentileFetcher {
+	c.logger.Info("NewPercentileFetcher called on simple client, returning nil")
+	return nil
+}

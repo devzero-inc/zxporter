@@ -21,7 +21,7 @@ type MpaServer struct {
 	logger              logr.Logger
 	subscriptionManager *SubscriptionManager
 	grpcServer          *grpc.Server
-	historicalCollector *collector.HistoricalMetricsCollector
+	historicalCollector collector.HistoricalPercentileProvider
 	healthManager       *health.HealthManager
 }
 
@@ -29,7 +29,7 @@ type MpaServer struct {
 // historicalCollector may be nil if Prometheus is not available.
 func NewMpaServer(
 	logger logr.Logger,
-	historicalCollector *collector.HistoricalMetricsCollector,
+	historicalCollector collector.HistoricalPercentileProvider,
 	healthManager *health.HealthManager,
 ) *MpaServer {
 	return &MpaServer{

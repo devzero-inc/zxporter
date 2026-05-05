@@ -410,3 +410,20 @@ const (
 type MpaMetricsPublisher interface {
 	PublishMetrics(metrics *ContainerMetricsSnapshot, timestamp time.Time)
 }
+
+// HistoricalWorkloadQuery defines what to query for a workload.
+type HistoricalWorkloadQuery struct {
+	Namespace    string
+	WorkloadName string
+	WorkloadKind string
+	PodRegex     string   // e.g., "web-app-.*"
+	Containers   []string // container names to query
+}
+
+// HistoricalPercentileProvider abstracts historical percentile data retrieval.
+// Implemented by HistoricalPercentileCache (DAKR-backed).
+type HistoricalPercentileProvider interface {
+	FetchPercentiles(ctx context.Context, workload HistoricalWorkloadQuery) (*gen.HistoricalMetricsSummary, error)
+	FetchPercentilesForAll(ctx context.Context, workloads []HistoricalWorkloadQuery) map[string]*gen.HistoricalMetricsSummary
+	DiscoverContainers(ctx context.Context, namespace, podRegex string) ([]string, error)
+}
