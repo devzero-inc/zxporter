@@ -322,6 +322,8 @@ build-installer: manifests generate kustomize yq helm ## Generate a consolidated
 	@$(HELM) template zxporter-nodemon ./helm-chart/zxporter-nodemon \
 		--namespace $(DEVZERO_MONITORING_NAMESPACE) \
 		--set provider=other \
+		--set gpuMetricsExporter.image.repository=$(word 1,$(subst :, ,$(IMG_NODEMON))) \
+		--set gpuMetricsExporter.image.tag=$(word 2,$(subst :, ,$(IMG_NODEMON))) \
 		> $(DIST_DIR)/nodemon.yaml
 	@cat $(DIST_DIR)/nodemon.yaml >> $(DIST_INSTALL_BUNDLE)
 
