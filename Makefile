@@ -286,7 +286,7 @@ final-installer:
 .PHONY: installer-without-configmap
 installer-without-configmap:
 	@cp $(DIST_BACKEND_INSTALL_BUNDLE) $(DIST_DIR)/installer_updater.yaml
-	@$(YQ) -i 'select(.kind != "ConfigMap" or .metadata.name != "devzero-zxporter-env-config")' $(DIST_DIR)/installer_updater.yaml
+	@$(YQ) -i 'select(.kind != "ConfigMap" or .metadata.name != "devzero-zxporter-env-config") | select(.kind != "Secret" or .metadata.name != "devzero-zxporter-token")' $(DIST_DIR)/installer_updater.yaml
 
 .PHONY: build-installer
 build-installer: manifests generate kustomize yq helm ## Generate a consolidated YAML with deployment.
