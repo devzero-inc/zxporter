@@ -44,6 +44,10 @@ type NodeMetricsResponse struct {
 	NodeName  string    `json:"node_name"`
 	Timestamp time.Time `json:"timestamp"`
 
+	// Node-level CPU/memory from kubelet stats/summary (includes system processes)
+	CPUUsageNanoCores    uint64 `json:"cpu_usage_nanocores"`
+	MemoryWorkingSet     uint64 `json:"memory_working_set_bytes"`
+
 	// Network rates (per second)
 	NetworkRxBytesPerSec   float64 `json:"network_rx_bytes_per_sec"`
 	NetworkTxBytesPerSec   float64 `json:"network_tx_bytes_per_sec"`

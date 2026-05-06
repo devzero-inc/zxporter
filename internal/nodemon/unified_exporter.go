@@ -223,6 +223,16 @@ func (u *UnifiedExporter) Collect(ctx context.Context) {
 		nodeResult.DiskReadOpsPerSec += cm.DiskReadOpsPerSec
 		nodeResult.DiskWriteOpsPerSec += cm.DiskWriteOpsPerSec
 	}
+	// Node-level CPU/memory from stats/summary (includes system processes, not just containers)
+	if stats != nil {
+		if stats.Node.CPU.UsageNanoCores != nil {
+			nodeResult.CPUUsageNanoCores = *stats.Node.CPU.UsageNanoCores
+		}
+		if stats.Node.Memory.WorkingSetBytes != nil {
+			nodeResult.MemoryWorkingSet = *stats.Node.Memory.WorkingSetBytes
+		}
+	}
+
 	// Node-level network bytes rate from stats/summary node section
 	if stats != nil {
 		var nodeRxBytes, nodeTxBytes uint64

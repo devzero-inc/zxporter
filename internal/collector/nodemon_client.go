@@ -53,6 +53,8 @@ type UnifiedContainerMetric struct {
 type UnifiedNodeMetric struct {
 	NodeName                  string    `json:"node_name"`
 	Timestamp                 time.Time `json:"timestamp"`
+	CPUUsageNanoCores         uint64    `json:"cpu_usage_nanocores"`
+	MemoryWorkingSet          uint64    `json:"memory_working_set_bytes"`
 	NetworkRxBytesPerSec      float64   `json:"network_rx_bytes_per_sec"`
 	NetworkTxBytesPerSec      float64   `json:"network_tx_bytes_per_sec"`
 	NetworkRxPacketsPerSec    float64   `json:"network_rx_packets_per_sec"`

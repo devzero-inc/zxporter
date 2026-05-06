@@ -71,8 +71,10 @@ type PVCRef struct {
 	Namespace string `json:"namespace"`
 }
 
-// NodeStats holds node-level metrics.
+// NodeStats holds node-level metrics from kubelet stats/summary.
 type NodeStats struct {
 	NodeName string       `json:"nodeName"`
+	CPU      CPUStats     `json:"cpu"`
+	Memory   MemStats     `json:"memory"`
 	Network  NetworkStats `json:"network"`
 }

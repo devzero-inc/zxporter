@@ -453,59 +453,30 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 		return
 	}
 
-	// Build node metrics from nodemon container data — aggregate CPU/memory per node
+	// Build node metrics from nodemon /node/metrics endpoint (uses kubelet stats/summary
+	// node-level data which includes system processes, not just container aggregation)
 	nodeMetricsList := &metricsapisv1beta1.NodeMetricsList{}
 
-	allContainerMetrics, fetchErr := c.nodemonClient.FetchAllContainerMetrics(ctx)
-	if fetchErr != nil {
-		c.logger.Error(fetchErr, "Failed to fetch container metrics from nodemon for node aggregation")
-		if c.telemetryLogger != nil {
-			c.telemetryLogger.Report(
-				gen.LogLevel_LOG_LEVEL_ERROR,
-				"NodeCollector",
-				"Failed to get node metrics from nodemon",
-				fetchErr,
-				map[string]string{
-					"excluded_nodes":   fmt.Sprintf("%v", c.excludedNodes),
-					"error_type":       "nodemon_query_failed",
-					"zxporter_version": version.Get().String(),
-				},
-			)
-		}
-		return
-	}
-
-	// Aggregate CPU/memory by node
-	type nodeAgg struct {
-		cpuNanocores uint64
-		memBytes     uint64
-	}
-	nodeAggs := make(map[string]*nodeAgg)
-	for _, m := range allContainerMetrics {
-		agg, ok := nodeAggs[m.NodeName]
-		if !ok {
-			agg = &nodeAgg{}
-			nodeAggs[m.NodeName] = agg
-		}
-		agg.cpuNanocores += m.CPUUsageNanoCores
-		agg.memBytes += m.MemoryWorkingSet
-	}
-
-	// Build node metrics entries with aggregated CPU/memory
 	nodes := c.nodeInformer.GetIndexer().List()
 	for _, obj := range nodes {
-		if node, ok := obj.(*corev1.Node); ok {
-			nm := metricsapisv1beta1.NodeMetrics{
-				ObjectMeta: metav1.ObjectMeta{Name: node.Name},
-				Usage:      corev1.ResourceList{},
-			}
-			if agg, ok := nodeAggs[node.Name]; ok {
-				cpuMillis := int64(agg.cpuNanocores / 1_000_000)
-				nm.Usage[corev1.ResourceCPU] = *resource.NewMilliQuantity(cpuMillis, resource.DecimalSI)
-				nm.Usage[corev1.ResourceMemory] = *resource.NewQuantity(int64(agg.memBytes), resource.BinarySI)
-			}
-			nodeMetricsList.Items = append(nodeMetricsList.Items, nm)
+		node, ok := obj.(*corev1.Node)
+		if !ok {
+			continue
 		}
+		nm := metricsapisv1beta1.NodeMetrics{
+			ObjectMeta: metav1.ObjectMeta{Name: node.Name},
+			Usage:      corev1.ResourceList{},
+		}
+		// Fetch node-level metrics from nodemon (includes system process CPU/memory)
+		nodeMetric, err := c.nodemonClient.FetchNodeMetricsByNode(ctx, node.Name)
+		if err != nil {
+			c.logger.V(1).Info("Failed to fetch node metrics from nodemon, skipping CPU/memory", "node", node.Name, "error", err)
+		} else if nodeMetric != nil {
+			cpuMillis := int64(nodeMetric.CPUUsageNanoCores / 1_000_000)
+			nm.Usage[corev1.ResourceCPU] = *resource.NewMilliQuantity(cpuMillis, resource.DecimalSI)
+			nm.Usage[corev1.ResourceMemory] = *resource.NewQuantity(int64(nodeMetric.MemoryWorkingSet), resource.BinarySI)
+		}
+		nodeMetricsList.Items = append(nodeMetricsList.Items, nm)
 	}
 	c.logger.V(1).Info("Built node metrics from nodemon container data", "nodes", len(nodeMetricsList.Items))
 
