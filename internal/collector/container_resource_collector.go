@@ -322,9 +322,26 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 				ioMetrics = c.collectContainerIOMetrics(ctx, pod, containerMetrics.Name)
 			}
 
-			// GPU metrics are embedded in the unified container metrics when available.
-			// No separate GPU collection needed — data flows through nodemonContainerMetricsCache.
+			// GPU metrics from nodemon unified endpoint
 			gpuMetrics = make(map[string]interface{})
+			if !c.config.DisableGPUMetrics && c.nodemonContainerMetricsCache != nil {
+				key := pod.Namespace + "/" + pod.Name
+				if containers, ok := c.nodemonContainerMetricsCache[key]; ok {
+					for _, m := range containers {
+						if m.Container == containerMetrics.Name && m.GPUUtilization > 0 {
+							gpuMetrics["GPUUsage"] = m.GPUUtilization
+							gpuMetrics["GPUUtilizationPercentage"] = m.GPUUtilization
+							gpuMetrics["GPUMemoryUsedMb"] = m.GPUMemoryUsedMiB
+							gpuMetrics["GPUMemoryFreeMb"] = m.GPUMemoryFreeMiB
+							gpuMetrics["GPUPowerUsageWatts"] = m.GPUPowerWatts
+							gpuMetrics["GPUTemperatureCelsius"] = m.GPUTemperature
+							gpuMetrics["GPUTotalMemoryMb"] = m.GPUMemoryUsedMiB + m.GPUMemoryFreeMiB
+							gpuMetrics["GPUMetricsCount"] = int64(1)
+							break
+						}
+					}
+				}
+			}
 
 			// Process the container metrics with optional network/IO data
 			c.processContainerMetrics(
