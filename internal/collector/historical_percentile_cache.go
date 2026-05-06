@@ -3,6 +3,7 @@ package collector
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -103,12 +104,12 @@ func (c *HistoricalPercentileCache) Refresh(ctx context.Context) {
 			})
 		} else {
 			// Fallback: parse key "namespace/name/kind"
-			var ns, name, kind string
-			if _, err := fmt.Sscanf(key, "%s/%s/%s", &ns, &name, &kind); err == nil {
+			parts := strings.SplitN(key, "/", 3)
+			if len(parts) == 3 {
 				workloads = append(workloads, HistoricalWorkloadQuery{
-					Namespace:    ns,
-					WorkloadName: name,
-					WorkloadKind: kind,
+					Namespace:    parts[0],
+					WorkloadName: parts[1],
+					WorkloadKind: parts[2],
 				})
 			}
 		}
