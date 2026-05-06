@@ -1022,7 +1022,7 @@ spec:
             - name: zxporter-nodemon-dcgm-metrics
               mountPath: "/etc/dcgm-exporter"
 ---
-# Dedicated ServiceAccount for the one-time Prometheus cleanup job.
+# Dedicated ServiceAccount for the one-time migration cleanup job.
 # Scoped to only delete specific named resources left by previous zxporter installs.
 apiVersion: v1
 kind: ServiceAccount
@@ -1034,7 +1034,6 @@ metadata:
     app.kubernetes.io/part-of: devzero-zxporter
 ---
 # Namespaced Role: can only delete specific named resources in the zxporter namespace.
-# Cannot touch Prometheus in other namespaces.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
@@ -1045,11 +1044,16 @@ metadata:
     app.kubernetes.io/part-of: devzero-zxporter
 rules:
 - apiGroups: ["apps"]
-  resources: ["deployments", "daemonsets"]
+  resources: ["deployments"]
   resourceNames:
   - prometheus-dz-prometheus-server
   - prometheus-kube-state-metrics
+  verbs: ["delete"]
+- apiGroups: ["apps"]
+  resources: ["daemonsets"]
+  resourceNames:
   - dz-prometheus-node-exporter
+  - zxporter-nodemon
   verbs: ["delete"]
 - apiGroups: [""]
   resources: ["services"]
@@ -1062,6 +1066,8 @@ rules:
   resources: ["configmaps"]
   resourceNames:
   - prometheus-dz-prometheus-server
+  - zxporter-nodemon-dcgm-metrics
+  - zxporter-nodemon-zxporter-nodemon
   verbs: ["delete"]
 - apiGroups: [""]
   resources: ["serviceaccounts"]
@@ -1069,6 +1075,7 @@ rules:
   - prometheus-dz-prometheus-server
   - prometheus-kube-state-metrics
   - dz-prometheus-node-exporter
+  - zxporter-nodemon
   verbs: ["delete"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -1089,7 +1096,7 @@ subjects:
   namespace: devzero-system
 ---
 # ClusterRole: can only delete the exact named ClusterRoles/ClusterRoleBindings
-# left by the old zxporter Prometheus install. Cannot affect any other cluster resources.
+# left by the old zxporter Prometheus and standalone nodemon installs.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -1103,12 +1110,14 @@ rules:
   resourceNames:
   - prometheus-dz-prometheus-server
   - prometheus-kube-state-metrics
+  - zxporter-nodemon
   verbs: ["delete"]
 - apiGroups: ["rbac.authorization.k8s.io"]
   resources: ["clusterrolebindings"]
   resourceNames:
   - prometheus-dz-prometheus-server
   - prometheus-kube-state-metrics
+  - zxporter-nodemon
   verbs: ["delete"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -1127,7 +1136,7 @@ subjects:
   name: zxporter-prometheus-cleanup
   namespace: devzero-system
 ---
-# One-time migration job: cleans up legacy Prometheus/node-exporter/kube-state-metrics
+# One-time migration job: cleans up legacy Prometheus and standalone nodemon
 # resources from previous zxporter installations.
 # - Idempotent: --ignore-not-found on every delete
 # - Safe for fresh installs: all deletes succeed with "not found" (exit 0)
@@ -1159,10 +1168,10 @@ spec:
         - -c
         - |
           NS=$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)
-          echo "Cleaning up legacy zxporter Prometheus resources in namespace: $NS"
-          echo "This only deletes resources by exact name — other Prometheus installs are unaffected."
+          echo "Cleaning up legacy zxporter Prometheus and standalone nodemon resources in namespace: $NS"
+          echo "This only deletes resources by exact name — other installs are unaffected."
 
-          # Namespaced resources (only in this namespace)
+          # === Legacy Prometheus resources ===
           kubectl delete deployment prometheus-dz-prometheus-server -n $NS --ignore-not-found
           kubectl delete deployment prometheus-kube-state-metrics -n $NS --ignore-not-found
           kubectl delete daemonset dz-prometheus-node-exporter -n $NS --ignore-not-found
@@ -1173,11 +1182,19 @@ spec:
           kubectl delete serviceaccount prometheus-dz-prometheus-server -n $NS --ignore-not-found
           kubectl delete serviceaccount prometheus-kube-state-metrics -n $NS --ignore-not-found
           kubectl delete serviceaccount dz-prometheus-node-exporter -n $NS --ignore-not-found
-
-          # Cluster-scoped resources (only the exact names from zxporter's Prometheus)
           kubectl delete clusterrole prometheus-dz-prometheus-server --ignore-not-found
           kubectl delete clusterrole prometheus-kube-state-metrics --ignore-not-found
           kubectl delete clusterrolebinding prometheus-dz-prometheus-server --ignore-not-found
           kubectl delete clusterrolebinding prometheus-kube-state-metrics --ignore-not-found
+
+          # === Legacy standalone nodemon (GPU-only, installed separately via helm) ===
+          # The new zxporter bundles nodemon as a subchart (named zxporter-zxporter-nodemon).
+          # The old standalone install used the name "zxporter-nodemon" — delete it.
+          kubectl delete daemonset zxporter-nodemon -n $NS --ignore-not-found
+          kubectl delete configmap zxporter-nodemon-dcgm-metrics -n $NS --ignore-not-found
+          kubectl delete configmap zxporter-nodemon-zxporter-nodemon -n $NS --ignore-not-found
+          kubectl delete serviceaccount zxporter-nodemon -n $NS --ignore-not-found
+          kubectl delete clusterrole zxporter-nodemon --ignore-not-found
+          kubectl delete clusterrolebinding zxporter-nodemon --ignore-not-found
 
           echo "Cleanup complete"
