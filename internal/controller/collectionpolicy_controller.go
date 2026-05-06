@@ -1825,7 +1825,7 @@ func (r *CollectionPolicyReconciler) initializeCollectors(
 	}
 
 	// Setup and start MPA Server
-	if err := r.setupMpaServer(config); err != nil {
+	if err := r.setupMpaServer(ctx, config); err != nil {
 		logger.Error(err, "Failed to setup MPA server")
 		// Not fatal
 	}
@@ -1977,7 +1977,7 @@ func (r *CollectionPolicyReconciler) setupCollectionManager(
 }
 
 // setupMpaServer initializes and starts the gRPC server
-func (r *CollectionPolicyReconciler) setupMpaServer(config *PolicyConfig) error {
+func (r *CollectionPolicyReconciler) setupMpaServer(ctx context.Context, config *PolicyConfig) error {
 	if r.MpaServer != nil {
 		return nil
 	}
@@ -1986,7 +1986,7 @@ func (r *CollectionPolicyReconciler) setupMpaServer(config *PolicyConfig) error 
 	if config != nil && r.DakrClient != nil {
 		fetcher := r.DakrClient.NewPercentileFetcher()
 		cache := collector.NewHistoricalPercentileCache(r.Log, fetcher, "" /* clusterID resolved from auth token */, r.HealthManager)
-		go cache.Start(context.Background())
+		go cache.Start(ctx)
 		historicalProvider = cache
 		r.Log.Info("Historical percentile cache started with DAKR fetcher")
 	}
