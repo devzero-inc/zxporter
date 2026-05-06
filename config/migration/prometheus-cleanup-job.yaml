@@ -1,0 +1,160 @@
+---
+# Dedicated ServiceAccount for the one-time Prometheus cleanup job.
+# Scoped to only delete specific named resources left by previous zxporter installs.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: zxporter-prometheus-cleanup
+  namespace: devzero-system
+  labels:
+    app.kubernetes.io/name: zxporter-prometheus-cleanup
+    app.kubernetes.io/part-of: devzero-zxporter
+---
+# Namespaced Role: can only delete specific named resources in the zxporter namespace.
+# Cannot touch Prometheus in other namespaces.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: zxporter-prometheus-cleanup
+  namespace: devzero-system
+  labels:
+    app.kubernetes.io/name: zxporter-prometheus-cleanup
+    app.kubernetes.io/part-of: devzero-zxporter
+rules:
+- apiGroups: ["apps"]
+  resources: ["deployments", "daemonsets"]
+  resourceNames:
+  - prometheus-dz-prometheus-server
+  - prometheus-kube-state-metrics
+  - dz-prometheus-node-exporter
+  verbs: ["delete"]
+- apiGroups: [""]
+  resources: ["services"]
+  resourceNames:
+  - prometheus-dz-prometheus-server
+  - prometheus-kube-state-metrics
+  - dz-prometheus-node-exporter
+  verbs: ["delete"]
+- apiGroups: [""]
+  resources: ["configmaps"]
+  resourceNames:
+  - prometheus-dz-prometheus-server
+  verbs: ["delete"]
+- apiGroups: [""]
+  resources: ["serviceaccounts"]
+  resourceNames:
+  - prometheus-dz-prometheus-server
+  - prometheus-kube-state-metrics
+  - dz-prometheus-node-exporter
+  verbs: ["delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: zxporter-prometheus-cleanup
+  namespace: devzero-system
+  labels:
+    app.kubernetes.io/name: zxporter-prometheus-cleanup
+    app.kubernetes.io/part-of: devzero-zxporter
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: zxporter-prometheus-cleanup
+subjects:
+- kind: ServiceAccount
+  name: zxporter-prometheus-cleanup
+  namespace: devzero-system
+---
+# ClusterRole: can only delete the exact named ClusterRoles/ClusterRoleBindings
+# left by the old zxporter Prometheus install. Cannot affect any other cluster resources.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: zxporter-prometheus-cleanup
+  labels:
+    app.kubernetes.io/name: zxporter-prometheus-cleanup
+    app.kubernetes.io/part-of: devzero-zxporter
+rules:
+- apiGroups: ["rbac.authorization.k8s.io"]
+  resources: ["clusterroles"]
+  resourceNames:
+  - prometheus-dz-prometheus-server
+  - prometheus-kube-state-metrics
+  verbs: ["delete"]
+- apiGroups: ["rbac.authorization.k8s.io"]
+  resources: ["clusterrolebindings"]
+  resourceNames:
+  - prometheus-dz-prometheus-server
+  - prometheus-kube-state-metrics
+  verbs: ["delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: zxporter-prometheus-cleanup
+  labels:
+    app.kubernetes.io/name: zxporter-prometheus-cleanup
+    app.kubernetes.io/part-of: devzero-zxporter
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: zxporter-prometheus-cleanup
+subjects:
+- kind: ServiceAccount
+  name: zxporter-prometheus-cleanup
+  namespace: devzero-system
+---
+# One-time migration job: cleans up legacy Prometheus/node-exporter/kube-state-metrics
+# resources from previous zxporter installations.
+# - Idempotent: --ignore-not-found on every delete
+# - Safe for fresh installs: all deletes succeed with "not found" (exit 0)
+# - Scoped: only deletes resources by exact name, cannot affect other namespaces
+# - Self-cleaning: Job auto-deletes after 5 minutes via ttlSecondsAfterFinished
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: zxporter-prometheus-cleanup
+  namespace: devzero-system
+  labels:
+    app.kubernetes.io/name: zxporter-prometheus-cleanup
+    app.kubernetes.io/part-of: devzero-zxporter
+spec:
+  ttlSecondsAfterFinished: 300
+  backoffLimit: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: zxporter-prometheus-cleanup
+    spec:
+      restartPolicy: Never
+      serviceAccountName: zxporter-prometheus-cleanup
+      containers:
+      - name: cleanup
+        image: bitnami/kubectl:latest
+        command:
+        - /bin/sh
+        - -c
+        - |
+          NS=$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)
+          echo "Cleaning up legacy zxporter Prometheus resources in namespace: $NS"
+          echo "This only deletes resources by exact name — other Prometheus installs are unaffected."
+
+          # Namespaced resources (only in this namespace)
+          kubectl delete deployment prometheus-dz-prometheus-server -n $NS --ignore-not-found
+          kubectl delete deployment prometheus-kube-state-metrics -n $NS --ignore-not-found
+          kubectl delete daemonset dz-prometheus-node-exporter -n $NS --ignore-not-found
+          kubectl delete service prometheus-dz-prometheus-server -n $NS --ignore-not-found
+          kubectl delete service prometheus-kube-state-metrics -n $NS --ignore-not-found
+          kubectl delete service dz-prometheus-node-exporter -n $NS --ignore-not-found
+          kubectl delete configmap prometheus-dz-prometheus-server -n $NS --ignore-not-found
+          kubectl delete serviceaccount prometheus-dz-prometheus-server -n $NS --ignore-not-found
+          kubectl delete serviceaccount prometheus-kube-state-metrics -n $NS --ignore-not-found
+          kubectl delete serviceaccount dz-prometheus-node-exporter -n $NS --ignore-not-found
+
+          # Cluster-scoped resources (only the exact names from zxporter's Prometheus)
+          kubectl delete clusterrole prometheus-dz-prometheus-server --ignore-not-found
+          kubectl delete clusterrole prometheus-kube-state-metrics --ignore-not-found
+          kubectl delete clusterrolebinding prometheus-dz-prometheus-server --ignore-not-found
+          kubectl delete clusterrolebinding prometheus-kube-state-metrics --ignore-not-found
+
+          echo "Cleanup complete"

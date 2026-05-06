@@ -333,6 +333,9 @@ build-installer: manifests generate kustomize yq helm ## Generate a consolidated
 		> $(DIST_DIR)/nodemon.yaml
 	@cat $(DIST_DIR)/nodemon.yaml >> $(DIST_INSTALL_BUNDLE)
 
+	@echo "[INFO] Append Prometheus cleanup migration job"
+	@cat config/migration/prometheus-cleanup-job.yaml >> $(DIST_INSTALL_BUNDLE)
+
 	@echo "[INFO] Building backend installer"
 	@$(MAKE) final-installer
 
