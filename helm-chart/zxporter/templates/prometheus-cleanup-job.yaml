@@ -1,0 +1,181 @@
+{{- /*
+One-time migration hook: cleans up legacy Prometheus/node-exporter/kube-state-metrics
+resources from previous zxporter installations.
+- Runs as post-install and post-upgrade hook (catches both fresh installs with leftover
+  resources from a prior kubectl-based install, and Helm upgrades)
+- Dedicated ServiceAccount with least-privilege RBAC (resourceNames scoped)
+- Idempotent: --ignore-not-found on all deletes
+- Self-cleaning: hook-delete-policy deletes resources after completion
+*/ -}}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: zxporter-prometheus-cleanup
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: zxporter-prometheus-cleanup
+    app.kubernetes.io/part-of: devzero-zxporter
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: zxporter-prometheus-cleanup
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: zxporter-prometheus-cleanup
+    app.kubernetes.io/part-of: devzero-zxporter
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+rules:
+- apiGroups: ["apps"]
+  resources: ["deployments", "daemonsets"]
+  resourceNames:
+  - prometheus-dz-prometheus-server
+  - prometheus-kube-state-metrics
+  - dz-prometheus-node-exporter
+  verbs: ["delete"]
+- apiGroups: [""]
+  resources: ["services"]
+  resourceNames:
+  - prometheus-dz-prometheus-server
+  - prometheus-kube-state-metrics
+  - dz-prometheus-node-exporter
+  verbs: ["delete"]
+- apiGroups: [""]
+  resources: ["configmaps"]
+  resourceNames:
+  - prometheus-dz-prometheus-server
+  verbs: ["delete"]
+- apiGroups: [""]
+  resources: ["serviceaccounts"]
+  resourceNames:
+  - prometheus-dz-prometheus-server
+  - prometheus-kube-state-metrics
+  - dz-prometheus-node-exporter
+  verbs: ["delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: zxporter-prometheus-cleanup
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: zxporter-prometheus-cleanup
+    app.kubernetes.io/part-of: devzero-zxporter
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: zxporter-prometheus-cleanup
+subjects:
+- kind: ServiceAccount
+  name: zxporter-prometheus-cleanup
+  namespace: {{ .Release.Namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: zxporter-prometheus-cleanup
+  labels:
+    app.kubernetes.io/name: zxporter-prometheus-cleanup
+    app.kubernetes.io/part-of: devzero-zxporter
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+rules:
+- apiGroups: ["rbac.authorization.k8s.io"]
+  resources: ["clusterroles"]
+  resourceNames:
+  - prometheus-dz-prometheus-server
+  - prometheus-kube-state-metrics
+  verbs: ["delete"]
+- apiGroups: ["rbac.authorization.k8s.io"]
+  resources: ["clusterrolebindings"]
+  resourceNames:
+  - prometheus-dz-prometheus-server
+  - prometheus-kube-state-metrics
+  verbs: ["delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: zxporter-prometheus-cleanup
+  labels:
+    app.kubernetes.io/name: zxporter-prometheus-cleanup
+    app.kubernetes.io/part-of: devzero-zxporter
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: zxporter-prometheus-cleanup
+subjects:
+- kind: ServiceAccount
+  name: zxporter-prometheus-cleanup
+  namespace: {{ .Release.Namespace }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: zxporter-prometheus-cleanup
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: zxporter-prometheus-cleanup
+    app.kubernetes.io/part-of: devzero-zxporter
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  ttlSecondsAfterFinished: 300
+  backoffLimit: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: zxporter-prometheus-cleanup
+    spec:
+      restartPolicy: Never
+      serviceAccountName: zxporter-prometheus-cleanup
+      containers:
+      - name: cleanup
+        image: bitnami/kubectl:latest
+        command:
+        - /bin/sh
+        - -c
+        - |
+          NS={{ .Release.Namespace }}
+          echo "Cleaning up legacy zxporter Prometheus resources in namespace: $NS"
+          echo "This only deletes resources by exact name — other Prometheus installs are unaffected."
+
+          # Namespaced resources
+          kubectl delete deployment prometheus-dz-prometheus-server -n $NS --ignore-not-found
+          kubectl delete deployment prometheus-kube-state-metrics -n $NS --ignore-not-found
+          kubectl delete daemonset dz-prometheus-node-exporter -n $NS --ignore-not-found
+          kubectl delete service prometheus-dz-prometheus-server -n $NS --ignore-not-found
+          kubectl delete service prometheus-kube-state-metrics -n $NS --ignore-not-found
+          kubectl delete service dz-prometheus-node-exporter -n $NS --ignore-not-found
+          kubectl delete configmap prometheus-dz-prometheus-server -n $NS --ignore-not-found
+          kubectl delete serviceaccount prometheus-dz-prometheus-server -n $NS --ignore-not-found
+          kubectl delete serviceaccount prometheus-kube-state-metrics -n $NS --ignore-not-found
+          kubectl delete serviceaccount dz-prometheus-node-exporter -n $NS --ignore-not-found
+
+          # Cluster-scoped resources (only zxporter's Prometheus RBAC)
+          kubectl delete clusterrole prometheus-dz-prometheus-server --ignore-not-found
+          kubectl delete clusterrole prometheus-kube-state-metrics --ignore-not-found
+          kubectl delete clusterrolebinding prometheus-dz-prometheus-server --ignore-not-found
+          kubectl delete clusterrolebinding prometheus-kube-state-metrics --ignore-not-found
+
+          echo "Cleanup complete"
