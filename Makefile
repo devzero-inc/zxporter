@@ -277,6 +277,12 @@ final-installer:
 	@$(YQ) -i '(select(.kind == "Deployment") | .spec.template.spec.containers[]? | select(.image == "ttl.sh/zxporter:latest")).image = "docker.io/devzeroinc/zxporter:latest"' $(DIST_BACKEND_INSTALL_BUNDLE)
 	@$(YQ) -i '(select(.kind == "Secret" and .metadata.name == "devzero-zxporter-token") | .stringData.CLUSTER_TOKEN) = "{{ .cluster_token }}"' $(DIST_BACKEND_INSTALL_BUNDLE)
 	@$(MAKE) installer-without-configmap
+	@echo "[INFO] Templating namespace in backend-install.yaml for DAKR backend"
+	@sed -i'' -e 's|namespace: $(DEVZERO_MONITORING_NAMESPACE)|namespace: {{.zxporter_namespace}}|g' $(DIST_BACKEND_INSTALL_BUNDLE)
+	@sed -i'' -e 's|name: $(DEVZERO_MONITORING_NAMESPACE)|name: {{.zxporter_namespace}}|g' $(DIST_BACKEND_INSTALL_BUNDLE)
+	@echo "[INFO] Templating namespace in installer_updater.yaml for DAKR backend"
+	@sed -i'' -e 's|namespace: $(DEVZERO_MONITORING_NAMESPACE)|namespace: {{.zxporter_namespace}}|g' $(DIST_DIR)/installer_updater.yaml
+	@sed -i'' -e 's|name: $(DEVZERO_MONITORING_NAMESPACE)|name: {{.zxporter_namespace}}|g' $(DIST_DIR)/installer_updater.yaml
 	@if [ -d "$(DAKR_DIR)/services/dakr_installers" ]; then \
 		cp $(DIST_BACKEND_INSTALL_BUNDLE) $(DAKR_DIR)/services/dakr_installers/install.yaml; \
 		cp $(DIST_DIR)/installer_updater.yaml $(DAKR_DIR)/services/dakr_installers/installer_updater.yaml; \

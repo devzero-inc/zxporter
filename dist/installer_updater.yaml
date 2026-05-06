@@ -4,8 +4,8 @@ kind: Namespace
 metadata:
   labels:
     control-plane: controller-manager
-    app.kubernetes.io/name: devzero-system
-  name: devzero-system
+    app.kubernetes.io/name: {{.zxporter_namespace}}
+  name: {{.zxporter_namespace}}
 ---
 apiVersion: v1
 kind: Namespace
@@ -14,7 +14,7 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/name: devzero-zxporter
     control-plane: controller-manager
-  name: devzero-system
+  name: {{.zxporter_namespace}}
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -23,7 +23,7 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/name: devzero-zxporter
   name: devzero-zxporter-controller-manager
-  namespace: devzero-system
+  namespace: {{.zxporter_namespace}}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -32,7 +32,7 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/name: devzero-zxporter
   name: devzero-zxporter-leader-election-role
-  namespace: devzero-system
+  namespace: {{.zxporter_namespace}}
 rules:
   - apiGroups:
       - ""
@@ -522,7 +522,7 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/name: devzero-zxporter
   name: devzero-zxporter-leader-election-rolebinding
-  namespace: devzero-system
+  namespace: {{.zxporter_namespace}}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
@@ -530,7 +530,7 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: devzero-zxporter-controller-manager
-    namespace: devzero-system
+    namespace: {{.zxporter_namespace}}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -546,7 +546,7 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: devzero-zxporter-controller-manager
-    namespace: devzero-system
+    namespace: {{.zxporter_namespace}}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -559,7 +559,7 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: devzero-zxporter-controller-manager
-    namespace: devzero-system
+    namespace: {{.zxporter_namespace}}
 ---
 apiVersion: v1
 kind: Service
@@ -569,7 +569,7 @@ metadata:
     app.kubernetes.io/name: devzero-zxporter
     control-plane: controller-manager
   name: devzero-zxporter-controller-manager-metrics-service
-  namespace: devzero-system
+  namespace: {{.zxporter_namespace}}
 spec:
   ports:
     - name: https
@@ -586,7 +586,7 @@ metadata:
     app.kubernetes.io/name: devzero-zxporter
     control-plane: controller-manager
   name: devzero-zxporter-controller-manager-mpa
-  namespace: devzero-system
+  namespace: {{.zxporter_namespace}}
 spec:
   ports:
     - name: mpa-grpc
@@ -614,7 +614,7 @@ metadata:
     app.kubernetes.io/name: devzero-zxporter
     control-plane: controller-manager
   name: devzero-zxporter-controller-manager
-  namespace: devzero-system
+  namespace: {{.zxporter_namespace}}
 spec:
   replicas: 2
   selector:
@@ -691,7 +691,7 @@ apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
   name: devzero-zxporter-devzero-zxporter-pdb
-  namespace: devzero-system
+  namespace: {{.zxporter_namespace}}
 spec:
   minAvailable: 1
   selector:
@@ -703,7 +703,7 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: zxporter-nodemon
-  namespace: devzero-system
+  namespace: {{.zxporter_namespace}}
   labels:
     helm.sh/chart: zxporter-nodemon-0.0.2
     app.kubernetes.io/name: zxporter-nodemon
@@ -716,7 +716,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: zxporter-nodemon-dcgm-metrics
-  namespace: devzero-system
+  namespace: {{.zxporter_namespace}}
 data:
   counters.csv: |
     # Temperature and power usage,,
@@ -772,7 +772,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: zxporter-nodemon-zxporter-nodemon
-  namespace: devzero-system
+  namespace: {{.zxporter_namespace}}
 data:
 ---
 # Source: zxporter-nodemon/templates/rbac.yaml
@@ -843,14 +843,14 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: zxporter-nodemon
-    namespace: devzero-system
+    namespace: {{.zxporter_namespace}}
 ---
 # Source: zxporter-nodemon/templates/daemonset.yaml
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: zxporter-nodemon
-  namespace: devzero-system
+  namespace: {{.zxporter_namespace}}
   labels:
     helm.sh/chart: zxporter-nodemon-0.0.2
     app.kubernetes.io/name: zxporter-nodemon
