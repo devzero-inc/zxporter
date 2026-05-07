@@ -405,7 +405,7 @@ func (c *EnvBasedController) initializeTelemetryComponents(ctx context.Context) 
 			if dakrURL == "" {
 				dakrURL = "https://dakr.devzero.io"
 			}
-			tempClient := transport.NewDakrClient(dakrURL, "", c.Log)
+			tempClient := c.dakrClientFactory(dakrURL, "", c.Log)
 
 			// Always use ReattachCluster.
 			// First call (no stored identifier): pass nil — backend assigns a UUID.
@@ -429,26 +429,26 @@ func (c *EnvBasedController) initializeTelemetryComponents(ctx context.Context) 
 			}
 			if err != nil {
 				c.Log.Error(err, "Failed to register/reattach cluster")
-			} else {
-				c.Log.Info("Successfully registered/reattached cluster", "clusterIdentifier", clusterIdentifier)
-				envSpec.Policies.ClusterToken = token
+				return fmt.Errorf("failed to register/reattach cluster: %w", err)
+			}
+			c.Log.Info("Successfully registered/reattached cluster", "clusterIdentifier", clusterIdentifier)
+			envSpec.Policies.ClusterToken = token
 
-				// Persist the backend-assigned identifier to the identity Secret so future
-				// restarts/reinstalls reuse the same cluster (cases 1, 2, 3).
-				// Never generate our own identifier — always use what the backend returned.
-				if clusterIdentifier != "" && clusterIdentitySecretName != "" {
-					if clusterIdentifier != envSpec.Policies.ClusterIdentifier {
-						// identifier changed (new cluster or first call) — update the identity Secret
-						envSpec.Policies.ClusterIdentifier = clusterIdentifier
-						if err := c.persistClusterIdentifierToIdentitySecret(ctx, clusterIdentitySecretName, clusterIdentifier); err != nil {
-							c.Log.Error(err, "Failed to persist cluster identifier to identity Secret")
-						}
+			// Persist the backend-assigned identifier to the identity Secret so future
+			// restarts/reinstalls reuse the same cluster (cases 1, 2, 3).
+			// Never generate our own identifier — always use what the backend returned.
+			if clusterIdentifier != "" && clusterIdentitySecretName != "" {
+				if clusterIdentifier != envSpec.Policies.ClusterIdentifier {
+					// identifier changed (new cluster or first call) — update the identity Secret
+					envSpec.Policies.ClusterIdentifier = clusterIdentifier
+					if err := c.persistClusterIdentifierToIdentitySecret(ctx, clusterIdentitySecretName, clusterIdentifier); err != nil {
+						c.Log.Error(err, "Failed to persist cluster identifier to identity Secret")
 					}
 				}
-				// Persist the cluster token to ConfigMap or Secret
-				if err := c.persistClusterToken(ctx, token, envSpec.Policies.ClusterIdentifier); err != nil {
-					c.Log.Error(err, "Failed to persist cluster token")
-				}
+			}
+			// Persist the cluster token to ConfigMap or Secret
+			if err := c.persistClusterToken(ctx, token, envSpec.Policies.ClusterIdentifier); err != nil {
+				c.Log.Error(err, "Failed to persist cluster token")
 			}
 		}
 	}
@@ -839,9 +839,11 @@ func (c *EnvBasedController) readClusterIdentifierFromSecret(ctx context.Context
 		}
 	}
 
-	// Case 5: Secret exists but CLUSTER_IDENTIFIER is missing or empty — this is a configuration error.
-	return "", fmt.Errorf("cluster identity Secret %q exists but CLUSTER_IDENTIFIER key is missing or empty; "+
-		"populate the key or delete the Secret so the operator can recreate it", secretName)
+	// Secret exists but CLUSTER_IDENTIFIER is missing or empty — warn and treat as absent
+	// so the operator re-registers and recreates the identity rather than refusing to start.
+	c.Log.Info("Cluster identity Secret exists but CLUSTER_IDENTIFIER key is missing or empty; "+
+		"treating as absent so the operator will re-register", "secret", secretName)
+	return "", nil
 }
 
 // persistClusterIdentifierToIdentitySecret writes CLUSTER_IDENTIFIER into the cluster identity Secret.

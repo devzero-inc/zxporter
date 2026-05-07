@@ -641,69 +641,35 @@ func (c *RealDakrClient) SendTelemetryLogs(
 	return resp.Msg, nil
 }
 
-// ExchangePATForClusterToken exchanges a PAT token for a cluster token
-func (c *RealDakrClient) ExchangePATForClusterToken(
-	ctx context.Context,
-	patToken, clusterName, k8sProvider string,
-) (string, string, error) {
-	// Create the request
-	req := connect.NewRequest(&gen.CreateClusterTokenRequest{
-		ClusterName: clusterName,
-		K8SProvider: k8sProvider,
-	})
-	// Add PAT token to the request header (overrides the default client headers auth)
-	req.Header().Set("Authorization", fmt.Sprintf("Bearer %s", patToken))
-
-	// Note: We use the clientHeaders but manually override the Authorization header above
+// setPATRequestHeaders sets the Authorization and operator identification headers
+// on a request using a PAT token.
+func setPATRequestHeaders(headers http.Header, patToken string) {
+	headers.Set("Authorization", fmt.Sprintf("Bearer %s", patToken))
 	versionInfo := version.Get()
 	clientHeader := DefaultOperatorType
 	if versionInfo.String() != "" {
 		clientHeader = fmt.Sprintf("%s/%s", DefaultOperatorType, versionInfo.String())
 	}
-	req.Header().Set(HeaderClient, clientHeader)
-	req.Header().Set(HeaderOperatorType, DefaultOperatorType)
+	headers.Set(HeaderClient, clientHeader)
+	headers.Set(HeaderOperatorType, DefaultOperatorType)
 	if versionInfo.String() != "" {
-		req.Header().Set(HeaderOperatorVersion, versionInfo.String())
+		headers.Set(HeaderOperatorVersion, versionInfo.String())
 	}
 	if versionInfo.GitCommit != "" {
-		req.Header().Set(HeaderOperatorGitSHA, versionInfo.GitCommit)
+		headers.Set(HeaderOperatorGitSHA, versionInfo.GitCommit)
 	}
-
-	// Call the cluster service
-	resp, err := c.clusterClient.CreateClusterToken(ctx, req)
-	if err != nil {
-		c.logger.Error(err, "Failed to exchange PAT for cluster token")
-		return "", "", fmt.Errorf("failed to exchange PAT for cluster token: %w", err)
-	}
-
-	c.logger.Info("Successfully exchanged PAT for cluster token", "clusterId", resp.Msg.ClusterId)
-	return resp.Msg.Token, resp.Msg.ClusterId, nil
 }
 
-// ReattachCluster registers or reattaches a cluster, returning (token, clusterIdentifier, error).
-// Pass clusterIdentifier=nil on the first call; the backend assigns and returns a UUID.
-// Pass clusterIdentifier=&uuid on subsequent calls to reattach the same cluster.
-func (c *RealDakrClient) ReattachCluster(ctx context.Context, patToken string, clusterIdentifier *string, clusterName, k8sProvider string) (string, string, error) {
+// ReattachCluster registers or reattaches a cluster, returning (token, clusterID, error).
+// Pass clusterID=nil on the first call; the backend assigns and returns a UUID.
+// Pass clusterID=&uuid on subsequent calls to reattach the same cluster.
+func (c *RealDakrClient) ReattachCluster(ctx context.Context, patToken string, clusterID *string, clusterName, k8sProvider string) (string, string, error) {
 	req := connect.NewRequest(&gen.ReattachClusterRequest{
-		ClusterId:   clusterIdentifier, // nil → first call; &uuid → reattach
+		ClusterId:   clusterID, // nil → first call; &uuid → reattach
 		ClusterName: clusterName,
 		K8SProvider: k8sProvider,
 	})
-	req.Header().Set("Authorization", fmt.Sprintf("Bearer %s", patToken))
-
-	versionInfo := version.Get()
-	clientHeader := DefaultOperatorType
-	if versionInfo.String() != "" {
-		clientHeader = fmt.Sprintf("%s/%s", DefaultOperatorType, versionInfo.String())
-	}
-	req.Header().Set(HeaderClient, clientHeader)
-	req.Header().Set(HeaderOperatorType, DefaultOperatorType)
-	if versionInfo.String() != "" {
-		req.Header().Set(HeaderOperatorVersion, versionInfo.String())
-	}
-	if versionInfo.GitCommit != "" {
-		req.Header().Set(HeaderOperatorGitSHA, versionInfo.GitCommit)
-	}
+	setPATRequestHeaders(req.Header(), patToken)
 
 	resp, err := c.clusterClient.ReattachCluster(ctx, req)
 	if err != nil {

@@ -449,8 +449,8 @@ type Policies struct {
 	// If ClusterToken is not provided but PATToken is, the system will exchange it for a cluster token
 	PATToken string `json:"patToken,omitempty"`
 
-	// ClusterIdentifier is an optional stable DNS-label identifier for the cluster.
-	// When set alongside PATToken, ReattachCluster is called instead of ExchangePATForClusterToken.
+	// ClusterIdentifier is the backend-assigned UUID for this cluster.
+	// Populated automatically on first startup via ReattachCluster and persisted to the cluster identity Secret.
 	// +optional
 	ClusterIdentifier string `json:"clusterIdentifier,omitempty"`
 

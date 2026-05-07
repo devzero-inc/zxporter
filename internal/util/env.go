@@ -256,8 +256,8 @@ const (
 	// Default value: "info"
 	_ENV_LOG_LEVEL = "LOG_LEVEL"
 
-	// CLUSTER_IDENTIFIER is an optional stable DNS-label identifier for the cluster.
-	// When set alongside PAT_TOKEN, ReattachCluster is called instead of ExchangePATForClusterToken.
+	// CLUSTER_IDENTIFIER is the backend-assigned UUID for this cluster.
+	// Populated automatically on first startup via ReattachCluster and persisted to the cluster identity Secret.
 	// Default value: ""
 	_ENV_CLUSTER_IDENTIFIER = "CLUSTER_IDENTIFIER"
 )
