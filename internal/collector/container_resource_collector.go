@@ -322,22 +322,42 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 				ioMetrics = c.collectContainerIOMetrics(ctx, pod, containerMetrics.Name)
 			}
 
-			// GPU metrics from nodemon unified endpoint
+			// GPU metrics: requests/limits from pod spec + usage from nodemon
 			gpuMetrics = make(map[string]interface{})
-			if !c.config.DisableGPUMetrics && c.nodemonContainerMetricsCache != nil {
-				key := pod.Namespace + "/" + pod.Name
-				if containers, ok := c.nodemonContainerMetricsCache[key]; ok {
-					for _, m := range containers {
-						if m.Container == containerMetrics.Name && m.GPUUtilization > 0 {
-							gpuMetrics["GPUUsage"] = m.GPUUtilization
-							gpuMetrics["GPUUtilizationPercentage"] = m.GPUUtilization
-							gpuMetrics["GPUMemoryUsedMb"] = m.GPUMemoryUsedMiB
-							gpuMetrics["GPUMemoryFreeMb"] = m.GPUMemoryFreeMiB
-							gpuMetrics["GPUPowerUsageWatts"] = m.GPUPowerWatts
-							gpuMetrics["GPUTemperatureCelsius"] = m.GPUTemperature
-							gpuMetrics["GPUTotalMemoryMb"] = m.GPUMemoryUsedMiB + m.GPUMemoryFreeMiB
-							gpuMetrics["GPUMetricsCount"] = int64(1)
-							break
+			if !c.config.DisableGPUMetrics {
+				// GPU requests/limits from the pod spec (nvidia.com/gpu resource)
+				for i := range pod.Spec.Containers {
+					if pod.Spec.Containers[i].Name == containerMetrics.Name {
+						if pod.Spec.Containers[i].Resources.Requests != nil {
+							if gpuReq, ok := pod.Spec.Containers[i].Resources.Requests[corev1.ResourceName("nvidia.com/gpu")]; ok {
+								gpuMetrics["GPURequestCount"] = gpuReq.Value()
+							}
+						}
+						if pod.Spec.Containers[i].Resources.Limits != nil {
+							if gpuLim, ok := pod.Spec.Containers[i].Resources.Limits[corev1.ResourceName("nvidia.com/gpu")]; ok {
+								gpuMetrics["GPULimitCount"] = gpuLim.Value()
+							}
+						}
+						break
+					}
+				}
+
+				// GPU usage metrics from nodemon unified endpoint
+				if c.nodemonContainerMetricsCache != nil {
+					key := pod.Namespace + "/" + pod.Name
+					if containers, ok := c.nodemonContainerMetricsCache[key]; ok {
+						for _, m := range containers {
+							if m.Container == containerMetrics.Name && m.GPUUtilization > 0 {
+								gpuMetrics["GPUUsage"] = m.GPUUtilization
+								gpuMetrics["GPUUtilizationPercentage"] = m.GPUUtilization
+								gpuMetrics["GPUMemoryUsedMb"] = m.GPUMemoryUsedMiB
+								gpuMetrics["GPUMemoryFreeMb"] = m.GPUMemoryFreeMiB
+								gpuMetrics["GPUPowerUsageWatts"] = m.GPUPowerWatts
+								gpuMetrics["GPUTemperatureCelsius"] = m.GPUTemperature
+								gpuMetrics["GPUTotalMemoryMb"] = m.GPUMemoryUsedMiB + m.GPUMemoryFreeMiB
+								gpuMetrics["GPUMetricsCount"] = int64(1)
+								break
+							}
 						}
 					}
 				}
