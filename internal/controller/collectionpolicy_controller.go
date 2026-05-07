@@ -4038,11 +4038,7 @@ func (r *CollectionPolicyReconciler) waitForPrometheusAvailability(
 		Transport: tr,
 	}
 
-	// Endpoint to verify prometheus is ready
-	healthEndpoint := fmt.Sprintf("%s/-/ready", prometheusURL)
-	if !strings.HasPrefix(prometheusURL, "http") {
-		healthEndpoint = fmt.Sprintf("http://%s/-/ready", prometheusURL)
-	}
+	healthEndpoint := prometheusHealthEndpoint(prometheusURL)
 
 	for i := 0; i < maxRetries; i++ {
 		select {
@@ -4209,16 +4205,23 @@ func (r *CollectionPolicyReconciler) startPeriodicPrometheusHealthCheck(url stri
 		return
 	}
 
-	endpoint := url + "/-/ready"
-	if !strings.HasPrefix(url, "http") {
-		endpoint = "http://" + url + "/-/ready"
-	}
+	endpoint := prometheusHealthEndpoint(url)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	r.prometheusProbeCancel = cancel
 	r.prometheusProbeDone = done
 
 	go r.runPrometheusProbe(ctx, done, url, endpoint)
+}
+
+// prometheusHealthEndpoint returns the full /-/ready URL, defaulting to http://
+// when the caller passed a bare host:port. Shared by waitForPrometheusAvailability
+// and the periodic probe so both build the same endpoint from the same input.
+func prometheusHealthEndpoint(url string) string {
+	if !strings.HasPrefix(url, "http") {
+		return "http://" + url + "/-/ready"
+	}
+	return url + "/-/ready"
 }
 
 // probeStillAliveLocked returns true if the existing probe goroutine is still
@@ -4246,7 +4249,11 @@ func (r *CollectionPolicyReconciler) runPrometheusProbe(ctx context.Context, don
 		}
 	}()
 
-	client := &http.Client{Timeout: 5 * time.Second}
+	// Clone DefaultTransport so the probe inherits proxy/TLS settings (matches
+	// waitForPrometheusAvailability). Re-using DefaultTransport directly would
+	// share the connection pool with every other consumer in the binary.
+	tr := http.DefaultTransport.(*http.Transport).Clone()
+	client := &http.Client{Timeout: 5 * time.Second, Transport: tr}
 	ticker := time.NewTicker(60 * time.Second)
 	defer ticker.Stop()
 
@@ -4257,7 +4264,16 @@ func (r *CollectionPolicyReconciler) runPrometheusProbe(ctx context.Context, don
 		case <-ticker.C:
 			status, msg := health.HealthStatusHealthy, "Prometheus available"
 			meta := map[string]string{"url": url}
-			resp, err := client.Get(endpoint)
+			// Build the request from ctx so a URL change or shutdown cancels
+			// any in-flight call immediately rather than waiting for the timeout.
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+			if err != nil {
+				status, msg = health.HealthStatusDegraded, "Prometheus probe request build failed"
+				meta["error"] = err.Error()
+				r.updateHealthStatus(status, msg, meta)
+				continue
+			}
+			resp, err := client.Do(req)
 			switch {
 			case err != nil:
 				status, msg = health.HealthStatusDegraded, "Prometheus probe failed"
