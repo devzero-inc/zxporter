@@ -14,6 +14,72 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
+// UnifiedContainerMetric mirrors nodemon's ContainerMetricsResponse.
+// Defined here to avoid a direct import dependency on the nodemon package.
+type UnifiedContainerMetric struct {
+	NodeName         string    `json:"node_name"`
+	Namespace        string    `json:"namespace"`
+	Pod              string    `json:"pod"`
+	Container        string    `json:"container"`
+	Timestamp        time.Time `json:"timestamp"`
+	CPUUsageNanoCores uint64   `json:"cpu_usage_nanocores"`
+	MemoryWorkingSet  uint64   `json:"memory_working_set_bytes"`
+	MemoryUsageBytes  uint64   `json:"memory_usage_bytes"`
+	MemoryRSSBytes    uint64   `json:"memory_rss_bytes"`
+	NetworkRxBytes    uint64   `json:"network_rx_bytes"`
+	NetworkTxBytes    uint64   `json:"network_tx_bytes"`
+	// cAdvisor rates
+	NetworkRxPacketsPerSec float64 `json:"network_rx_packets_per_sec"`
+	NetworkTxPacketsPerSec float64 `json:"network_tx_packets_per_sec"`
+	NetworkRxErrorsPerSec  float64 `json:"network_rx_errors_per_sec"`
+	NetworkTxErrorsPerSec  float64 `json:"network_tx_errors_per_sec"`
+	NetworkRxDropsPerSec   float64 `json:"network_rx_drops_per_sec"`
+	NetworkTxDropsPerSec   float64 `json:"network_tx_drops_per_sec"`
+	DiskReadBytesPerSec    float64 `json:"disk_read_bytes_per_sec"`
+	DiskWriteBytesPerSec   float64 `json:"disk_write_bytes_per_sec"`
+	DiskReadOpsPerSec      float64 `json:"disk_read_ops_per_sec"`
+	DiskWriteOpsPerSec     float64 `json:"disk_write_ops_per_sec"`
+	CPUThrottleFraction    float64 `json:"cpu_throttle_fraction"`
+	// GPU (optional)
+	GPUUtilization   float64 `json:"gpu_utilization,omitempty"`
+	GPUMemoryUsedMiB float64 `json:"gpu_memory_used_mib,omitempty"`
+	GPUMemoryFreeMiB float64 `json:"gpu_memory_free_mib,omitempty"`
+	GPUPowerWatts    float64 `json:"gpu_power_watts,omitempty"`
+	GPUTemperature   float64 `json:"gpu_temperature_celsius,omitempty"`
+}
+
+// UnifiedNodeMetric mirrors nodemon's NodeMetricsResponse.
+// Defined here to avoid a direct import dependency on the nodemon package.
+type UnifiedNodeMetric struct {
+	NodeName                  string    `json:"node_name"`
+	Timestamp                 time.Time `json:"timestamp"`
+	CPUUsageNanoCores         uint64    `json:"cpu_usage_nanocores"`
+	MemoryWorkingSet          uint64    `json:"memory_working_set_bytes"`
+	NetworkRxBytesPerSec      float64   `json:"network_rx_bytes_per_sec"`
+	NetworkTxBytesPerSec      float64   `json:"network_tx_bytes_per_sec"`
+	NetworkRxPacketsPerSec    float64   `json:"network_rx_packets_per_sec"`
+	NetworkTxPacketsPerSec    float64   `json:"network_tx_packets_per_sec"`
+	NetworkRxErrorsPerSec     float64   `json:"network_rx_errors_per_sec"`
+	NetworkTxErrorsPerSec     float64   `json:"network_tx_errors_per_sec"`
+	NetworkRxDropsPerSec      float64   `json:"network_rx_drops_per_sec"`
+	NetworkTxDropsPerSec      float64   `json:"network_tx_drops_per_sec"`
+	DiskReadBytesPerSec       float64   `json:"disk_read_bytes_per_sec"`
+	DiskWriteBytesPerSec      float64   `json:"disk_write_bytes_per_sec"`
+	DiskReadOpsPerSec         float64   `json:"disk_read_ops_per_sec"`
+	DiskWriteOpsPerSec        float64   `json:"disk_write_ops_per_sec"`
+}
+
+// UnifiedPVCMetric mirrors nodemon's PVCMetricsResponse.
+// Defined here to avoid a direct import dependency on the nodemon package.
+type UnifiedPVCMetric struct {
+	Namespace      string `json:"namespace"`
+	Pod            string `json:"pod"`
+	PVCName        string `json:"pvc_name"`
+	UsedBytes      uint64 `json:"used_bytes"`
+	CapacityBytes  uint64 `json:"capacity_bytes"`
+	AvailableBytes uint64 `json:"available_bytes"`
+}
+
 // NodemonMetric represents a single GPU metric entry returned by the nodemon.
 // This mirrors nodemon.GPUMetricResponse but is defined here to avoid a direct import
 // dependency on the nodemon package (which is a separate binary).
@@ -263,6 +329,170 @@ func (c *NodemonClient) fetchMetrics(
 	}
 
 	return metrics, nil
+}
+
+// fetchContainerMetrics fetches from a single nodemon pod's /v2/container/metrics endpoint.
+func (c *NodemonClient) fetchContainerMetrics(
+	ctx context.Context,
+	baseURL string,
+) ([]UnifiedContainerMetric, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/v2/container/metrics", nil)
+	if err != nil {
+		return nil, fmt.Errorf("creating request: %w", err)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("HTTP request to nodemon failed: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("nodemon returned status %d", resp.StatusCode)
+	}
+
+	var metrics []UnifiedContainerMetric
+	if err := json.NewDecoder(resp.Body).Decode(&metrics); err != nil {
+		return nil, fmt.Errorf("decoding nodemon response: %w", err)
+	}
+
+	return metrics, nil
+}
+
+// FetchAllContainerMetrics fetches container metrics from all discovered nodemon pods,
+// merging the results into a single slice.
+func (c *NodemonClient) FetchAllContainerMetrics(ctx context.Context) ([]UnifiedContainerMetric, error) {
+	nodeToIP, err := c.refreshCache(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if len(nodeToIP) == 0 {
+		return nil, nil
+	}
+
+	var allMetrics []UnifiedContainerMetric
+	for nodeName, podIP := range nodeToIP {
+		baseURL := fmt.Sprintf("http://%s:%d", podIP, c.port)
+		metrics, fetchErr := c.fetchContainerMetrics(ctx, baseURL)
+		if fetchErr != nil {
+			c.log.Error(
+				fetchErr,
+				"Failed to fetch container metrics from nodemon pod",
+				"node", nodeName,
+				"podIP", podIP,
+			)
+			continue
+		}
+		allMetrics = append(allMetrics, metrics...)
+	}
+
+	return allMetrics, nil
+}
+
+// fetchNodeMetrics fetches from a single nodemon pod's /node/metrics endpoint.
+func (c *NodemonClient) fetchNodeMetrics(
+	ctx context.Context,
+	baseURL string,
+) (*UnifiedNodeMetric, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/node/metrics", nil)
+	if err != nil {
+		return nil, fmt.Errorf("creating request: %w", err)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("HTTP request to nodemon failed: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("nodemon returned status %d", resp.StatusCode)
+	}
+
+	var metric UnifiedNodeMetric
+	if err := json.NewDecoder(resp.Body).Decode(&metric); err != nil {
+		return nil, fmt.Errorf("decoding nodemon response: %w", err)
+	}
+
+	return &metric, nil
+}
+
+// FetchNodeMetricsByNode fetches node metrics from the nodemon pod running on the given node.
+// Returns nil if no nodemon pod is running on that node.
+func (c *NodemonClient) FetchNodeMetricsByNode(
+	ctx context.Context,
+	nodeName string,
+) (*UnifiedNodeMetric, error) {
+	nodeToIP, err := c.refreshCache(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	podIP, ok := nodeToIP[nodeName]
+	if !ok {
+		return nil, nil
+	}
+
+	baseURL := fmt.Sprintf("http://%s:%d", podIP, c.port)
+	return c.fetchNodeMetrics(ctx, baseURL)
+}
+
+// fetchPVCMetrics fetches from a single nodemon pod's /pvc/metrics endpoint.
+func (c *NodemonClient) fetchPVCMetrics(
+	ctx context.Context,
+	baseURL string,
+) ([]UnifiedPVCMetric, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/pvc/metrics", nil)
+	if err != nil {
+		return nil, fmt.Errorf("creating request: %w", err)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("HTTP request to nodemon failed: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("nodemon returned status %d", resp.StatusCode)
+	}
+
+	var metrics []UnifiedPVCMetric
+	if err := json.NewDecoder(resp.Body).Decode(&metrics); err != nil {
+		return nil, fmt.Errorf("decoding nodemon response: %w", err)
+	}
+
+	return metrics, nil
+}
+
+// FetchAllPVCMetrics fetches PVC metrics from all discovered nodemon pods,
+// merging the results into a single slice.
+func (c *NodemonClient) FetchAllPVCMetrics(ctx context.Context) ([]UnifiedPVCMetric, error) {
+	nodeToIP, err := c.refreshCache(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if len(nodeToIP) == 0 {
+		return nil, nil
+	}
+
+	var allMetrics []UnifiedPVCMetric
+	for nodeName, podIP := range nodeToIP {
+		baseURL := fmt.Sprintf("http://%s:%d", podIP, c.port)
+		metrics, fetchErr := c.fetchPVCMetrics(ctx, baseURL)
+		if fetchErr != nil {
+			c.log.Error(
+				fetchErr,
+				"Failed to fetch PVC metrics from nodemon pod",
+				"node", nodeName,
+				"podIP", podIP,
+			)
+			continue
+		}
+		allMetrics = append(allMetrics, metrics...)
+	}
+
+	return allMetrics, nil
 }
 
 // IndexByContainer indexes GPU metrics by (pod, container, namespace) for O(1) lookup.

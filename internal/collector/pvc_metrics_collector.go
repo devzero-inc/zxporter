@@ -3,6 +3,7 @@ package collector
 import (
 	"context"
 	"fmt"
+	"os"
 	"sync"
 	"time"
 
@@ -10,9 +11,6 @@ import (
 	telemetry_logger "github.com/devzero-inc/zxporter/internal/logger"
 	"github.com/devzero-inc/zxporter/internal/version"
 	"github.com/go-logr/logr"
-	"github.com/prometheus/client_golang/api"
-	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
-	"github.com/prometheus/common/model"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
@@ -25,19 +23,12 @@ import (
 type PersistentVolumeClaimMetricsCollectorConfig struct {
 	// UpdateInterval specifies how often to collect PVC metrics
 	UpdateInterval time.Duration
-
-	// PrometheusURL specifies the URL of the Prometheus instance to query
-	// If empty, defaults to in-cluster Prometheus at http://prometheus.monitoring:9090
-	PrometheusURL string
-
-	// QueryTimeout specifies the timeout for Prometheus queries
-	QueryTimeout time.Duration
 }
 
 // PersistentVolumeClaimMetricsCollector collects PVC storage usage metrics
 type PersistentVolumeClaimMetricsCollector struct {
 	k8sClient       kubernetes.Interface
-	prometheusAPI   v1.API
+	nodemonClient   *NodemonClient
 	informerFactory informers.SharedInformerFactory
 	pvcInformer     cache.SharedIndexInformer
 	pvInformer      cache.SharedIndexInformer
@@ -79,15 +70,6 @@ func NewPersistentVolumeClaimMetricsCollector(
 		config.UpdateInterval = 60 * time.Second
 	}
 
-	// Default Prometheus URL if not specified
-	if config.PrometheusURL == "" {
-		config.PrometheusURL = "http://prometheus-service.monitoring.svc.cluster.local:9090"
-	}
-
-	if config.QueryTimeout <= 0 {
-		config.QueryTimeout = 10 * time.Second
-	}
-
 	batchChan := make(chan CollectedResource, 500)
 	resourceChan := make(chan []CollectedResource, 200)
 
@@ -99,8 +81,15 @@ func NewPersistentVolumeClaimMetricsCollector(
 		logger,
 	)
 
+	ns := os.Getenv("POD_NAMESPACE")
+	if ns == "" {
+		ns = "devzero-system"
+	}
+	nodemonClient := NewNodemonClient(k8sClient, ns, logger)
+
 	return &PersistentVolumeClaimMetricsCollector{
 		k8sClient:       k8sClient,
+		nodemonClient:   nodemonClient,
 		batchChan:       batchChan,
 		resourceChan:    resourceChan,
 		batcher:         batcher,
@@ -118,35 +107,7 @@ func NewPersistentVolumeClaimMetricsCollector(
 func (c *PersistentVolumeClaimMetricsCollector) Start(ctx context.Context) error {
 	c.logger.Info("Starting PVC metrics collector",
 		"namespaces", c.namespaces,
-		"updateInterval", c.config.UpdateInterval,
-		"prometheusURL", c.config.PrometheusURL)
-
-	c.logger.Info("Initializing Prometheus client for PVC metrics",
-		"prometheusURL", c.config.PrometheusURL)
-
-	httpClient := NewPrometheusClient(c.metrics)
-
-	client, err := api.NewClient(api.Config{
-		Address: c.config.PrometheusURL,
-		Client:  httpClient,
-	})
-	if err != nil {
-		c.telemetryLogger.Report(
-			gen.LogLevel_LOG_LEVEL_ERROR,
-			"PVCMetricsCollector",
-			"Failed to create Prometheus client",
-			err,
-			map[string]string{
-				"prometheus_url":   c.config.PrometheusURL,
-				"zxporter_version": version.Get().String(),
-			},
-		)
-
-		c.logger.Error(err, "Failed to create Prometheus client, PVC metrics will be unavailable")
-		return fmt.Errorf("failed to create Prometheus client: %w", err)
-	}
-
-	c.prometheusAPI = v1.NewAPI(client)
+		"updateInterval", c.config.UpdateInterval)
 
 	if len(c.namespaces) == 1 && c.namespaces[0] != "" {
 		c.informerFactory = informers.NewSharedInformerFactoryWithOptions(
@@ -386,9 +347,6 @@ func (c *PersistentVolumeClaimMetricsCollector) processPVCMetrics(
 	ctx context.Context,
 	pvc *corev1.PersistentVolumeClaim,
 ) (*PersistentVolumeClaimMetricsSnapshot, error) {
-	queryCtx, cancel := context.WithTimeout(ctx, c.config.QueryTimeout)
-	defer cancel()
-
 	c.logger.V(1).Info("Processing PVC metrics",
 		"namespace", pvc.Namespace,
 		"name", pvc.Name,
@@ -439,32 +397,31 @@ func (c *PersistentVolumeClaimMetricsCollector) processPVCMetrics(
 		return metricsSnapshot, nil
 	}
 
-	usage, err := c.getFilesystemUsageFromPrometheus(queryCtx, pvc)
+	usage, err := c.getFilesystemUsage(ctx, pvc)
 	if err != nil {
-		c.logger.V(1).Info("Failed to get filesystem usage from Prometheus",
+		c.logger.V(1).Info("Failed to get filesystem usage from nodemon",
 			"namespace", pvc.Namespace,
 			"name", pvc.Name,
 			"error", err)
-		metricsSnapshot.UnavailableReason = fmt.Sprintf("prometheus_query_failed: %v", err)
+		metricsSnapshot.UnavailableReason = fmt.Sprintf("nodemon_query_failed: %v", err)
 
 		if c.telemetryLogger != nil {
 			c.telemetryLogger.Report(
 				gen.LogLevel_LOG_LEVEL_WARN,
 				"PVCMetricsCollector",
-				"Failed to collect PVC metrics from Prometheus",
+				"Failed to collect PVC metrics from nodemon",
 				err,
 				map[string]string{
 					"namespace":        pvc.Namespace,
 					"pvc":              pvc.Name,
-					"error_type":       "prometheus_pvc_query_failed",
-					"prometheus_url":   c.config.PrometheusURL,
+					"error_type":       "nodemon_pvc_query_failed",
 					"zxporter_version": version.Get().String(),
 				},
 			)
 		}
 	} else if usage != nil {
 		metricsSnapshot.StatsAvailable = true
-		metricsSnapshot.StatsSource = "prometheus"
+		metricsSnapshot.StatsSource = "nodemon"
 		metricsSnapshot.UsedBytes = usage.UsedBytes
 		metricsSnapshot.CapacityBytes = usage.CapacityBytes
 		metricsSnapshot.AvailableBytes = usage.AvailableBytes
@@ -497,80 +454,27 @@ type filesystemUsage struct {
 	AvailableBytes int64
 }
 
-// getFilesystemUsageFromPrometheus retrieves filesystem usage from Prometheus
-func (c *PersistentVolumeClaimMetricsCollector) getFilesystemUsageFromPrometheus(
+// getFilesystemUsage retrieves PVC filesystem usage from the nodemon DaemonSet.
+func (c *PersistentVolumeClaimMetricsCollector) getFilesystemUsage(
 	ctx context.Context,
 	pvc *corev1.PersistentVolumeClaim,
 ) (*filesystemUsage, error) {
-	if c.prometheusAPI == nil {
-		return nil, fmt.Errorf("prometheus API not initialized")
-	}
-
-	// Prometheus queries for PVC volume stats
-	queries := map[string]string{
-		"used": fmt.Sprintf(
-			`kubelet_volume_stats_used_bytes{namespace="%s", persistentvolumeclaim="%s"}`,
-			pvc.Namespace,
-			pvc.Name,
-		),
-		"capacity": fmt.Sprintf(
-			`kubelet_volume_stats_capacity_bytes{namespace="%s", persistentvolumeclaim="%s"}`,
-			pvc.Namespace,
-			pvc.Name,
-		),
-		"available": fmt.Sprintf(
-			`kubelet_volume_stats_available_bytes{namespace="%s", persistentvolumeclaim="%s"}`,
-			pvc.Namespace,
-			pvc.Name,
-		),
-	}
-
-	usage := &filesystemUsage{}
-	queryTime := time.Now()
-
-	result, _, err := c.prometheusAPI.Query(ctx, queries["used"], queryTime)
+	allMetrics, err := c.nodemonClient.FetchAllPVCMetrics(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query used bytes: %w", err)
+		return nil, fmt.Errorf("fetching PVC metrics from nodemon: %w", err)
 	}
 
-	if result.Type() == model.ValVector {
-		vector := result.(model.Vector)
-		if len(vector) > 0 {
-			usage.UsedBytes = int64(vector[0].Value)
-		} else {
-			return nil, fmt.Errorf("no used bytes metric found")
+	for _, m := range allMetrics {
+		if m.Namespace == pvc.Namespace && m.PVCName == pvc.Name {
+			return &filesystemUsage{
+				UsedBytes:      int64(m.UsedBytes),
+				CapacityBytes:  int64(m.CapacityBytes),
+				AvailableBytes: int64(m.AvailableBytes),
+			}, nil
 		}
 	}
 
-	result, _, err = c.prometheusAPI.Query(ctx, queries["capacity"], queryTime)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query capacity bytes: %w", err)
-	}
-
-	if result.Type() == model.ValVector {
-		vector := result.(model.Vector)
-		if len(vector) > 0 {
-			usage.CapacityBytes = int64(vector[0].Value)
-		} else {
-			return nil, fmt.Errorf("no capacity bytes metric found")
-		}
-	}
-
-	result, _, err = c.prometheusAPI.Query(ctx, queries["available"], queryTime)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query available bytes: %w", err)
-	}
-
-	if result.Type() == model.ValVector {
-		vector := result.(model.Vector)
-		if len(vector) > 0 {
-			usage.AvailableBytes = int64(vector[0].Value)
-		} else {
-			return nil, fmt.Errorf("no available bytes metric found")
-		}
-	}
-
-	return usage, nil
+	return nil, fmt.Errorf("no nodemon metrics found for PVC %s/%s", pvc.Namespace, pvc.Name)
 }
 
 // emitSnapshot sends the metrics snapshot to the batch channel
@@ -698,22 +602,10 @@ func (c *PersistentVolumeClaimMetricsCollector) GetType() string {
 	return "pvc_metrics"
 }
 
+// IsAvailable checks if PVC metrics can be collected.
+// Always returns true — nodemon pods are discovered dynamically.
 func (c *PersistentVolumeClaimMetricsCollector) IsAvailable(ctx context.Context) bool {
-	if c.prometheusAPI == nil {
-		c.logger.Info("Prometheus API not available for PVC metrics")
-		return true
-	}
-
-	queryCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-
-	_, _, err := c.prometheusAPI.Query(queryCtx, "up", time.Now())
-	if err != nil {
-		c.logger.Info("Prometheus API not responding", "error", err.Error())
-		return true
-	}
-
-	return true
+	return c.nodemonClient != nil
 }
 
 // AddResource is a no-op for PVC metrics collector

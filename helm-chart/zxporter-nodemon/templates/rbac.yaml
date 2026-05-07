@@ -51,6 +51,14 @@ rules:
     - rollouts
   verbs:
     - get
+- apiGroups:
+    - ""
+  resources:
+    - nodes/proxy
+    - nodes/metrics
+    - nodes/stats
+  verbs:
+    - get
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: {{ if .Values.gpuMetricsExporter.rbac.clusterWide }}ClusterRoleBinding{{ else }}RoleBinding{{ end }}

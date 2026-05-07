@@ -12,6 +12,7 @@ jobs:
       image: ${{ steps.set-image.outputs.image }}
       testserver_img: ${{ steps.set-image.outputs.testserver_img }}
       stress_img: ${{ steps.set-image.outputs.stress_img }}
+      nodemon_img: ${{ steps.set-image.outputs.nodemon_img }}
     
     steps:
       - name: Set Docker image names
@@ -20,18 +21,21 @@ jobs:
           ZXPORTER_IMG="ttl.sh/$(uuidgen):2h"
           TESTSERVER_IMG="ttl.sh/$(uuidgen):2h"
           STRESS_IMG="ttl.sh/$(uuidgen):2h"
+          NODEMON_IMG="ttl.sh/$(uuidgen):2h"
           MAJOR="0"
           MINOR="0"
           PATCH="1-compatibility-test"
           echo "ZXPORTER_IMG=$ZXPORTER_IMG" >> $GITHUB_ENV
           echo "TESTSERVER_IMG=$TESTSERVER_IMG" >> $GITHUB_ENV
           echo "STRESS_IMG=$STRESS_IMG" >> $GITHUB_ENV
+          echo "NODEMON_IMG=$NODEMON_IMG" >> $GITHUB_ENV
           echo "MAJOR=$MAJOR" >> $GITHUB_ENV
           echo "MINOR=$MINOR" >> $GITHUB_ENV
           echo "PATCH=$PATCH" >> $GITHUB_ENV
           echo "image=$ZXPORTER_IMG" >> $GITHUB_OUTPUT
           echo "testserver_img=$TESTSERVER_IMG" >> $GITHUB_OUTPUT
           echo "stress_img=$STRESS_IMG" >> $GITHUB_OUTPUT
+          echo "nodemon_img=$NODEMON_IMG" >> $GITHUB_OUTPUT
 
       - name: Checkout code
         uses: actions/checkout@v4
@@ -52,6 +56,9 @@ jobs:
           
           echo "Building and pushing stress image: ${{ env.STRESS_IMG }}"
           make stress-docker-build stress-docker-push STRESS_IMG=${{ env.STRESS_IMG }}
+
+          echo "Building and pushing nodemon image: ${{ env.NODEMON_IMG }}"
+          make docker-build-nodemon docker-push-nodemon IMG_NODEMON=${{ env.NODEMON_IMG }}
 
   test:
     name: Test on K8s ${{ matrix.k8s-version }} (${{ matrix.deployment-method }})
@@ -80,6 +87,7 @@ jobs:
           echo "ZXPORTER_IMG=${{ needs.build.outputs.image }}" >> $GITHUB_ENV
           echo "TESTSERVER_IMG=${{ needs.build.outputs.testserver_img }}" >> $GITHUB_ENV
           echo "STRESS_IMG=${{ needs.build.outputs.stress_img }}" >> $GITHUB_ENV
+          echo "NODEMON_IMG=${{ needs.build.outputs.nodemon_img }}" >> $GITHUB_ENV
 
       - name: Checkout code
         uses: actions/checkout@v4
@@ -103,18 +111,6 @@ jobs:
           node_image: kindest/node:${{ matrix.k8s-version }}
           cluster_name: kind-${{ matrix.k8s-version }}
           wait: 120s
-
-      - name: Install Metrics Server
-        run: |
-          helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
-          helm repo update
-          helm upgrade --install --set args={--kubelet-insecure-tls} metrics-server metrics-server/metrics-server --namespace kube-system
-
-      - name: Install Node Exporter
-        run: |
-          helm repo add prometheus-community https://prometheus-community.github.io/helm-charts 
-          helm repo update
-          helm install node-exporter prometheus-community/prometheus-node-exporter
 
       - name: Deploy testserver to Kubernetes
         run: |
@@ -203,13 +199,18 @@ jobs:
             yq eval '.zxporter.kubeContextName = "test-kind-cluster"' -i helm-chart/zxporter/values.yaml
             yq eval '.zxporter.k8sProvider = "other"' -i helm-chart/zxporter/values.yaml
             yq eval '.zxporter.logLevel = "info"' -i helm-chart/zxporter/values.yaml
+            yq eval '.nodemonMetrics.enabled = true' -i helm-chart/zxporter/values.yaml
+            yq eval '.zxporter-nodemon.gpuMetricsExporter.image.repository = "'"${NODEMON_IMG%:*}"'"' -i helm-chart/zxporter/values.yaml
+            yq eval '.zxporter-nodemon.gpuMetricsExporter.image.tag = "'"${NODEMON_IMG##*:}"'"' -i helm-chart/zxporter/values.yaml
+            yq eval '.zxporter-nodemon.provider = "other"' -i helm-chart/zxporter/values.yaml
             echo "Updated values.yaml:"
             cat helm-chart/zxporter/values.yaml
-            
+
+            helm dependency update helm-chart/zxporter/
             make helm-chart-install YQ=/usr/local/bin/yq
           else
             echo "Deploying ZXporter using make deploy..."
-            make deploy IMG=${{ env.ZXPORTER_IMG }} DAKR_URL=http://testserver.devzero-system.svc.cluster.local:50051 TARGET_NAMESPACES=dztest CLUSTER_TOKEN=test-token-for-ci
+            make deploy IMG=${{ env.ZXPORTER_IMG }} IMG_NODEMON=${{ env.NODEMON_IMG }} DAKR_URL=http://testserver.devzero-system.svc.cluster.local:50051 TARGET_NAMESPACES=dztest CLUSTER_TOKEN=test-token-for-ci
           fi
 
       - name: Wait for deployment to be ready
@@ -256,43 +257,7 @@ jobs:
           echo "Getting pod logs (if any)..."
           POD_NAME=$(kubectl get pods -n devzero-system -l control-plane=controller-manager -o jsonpath='{.items[0].metadata.name}')
           kubectl logs $POD_NAME -n devzero-system --tail=100 || echo "No logs available"
-          kubectl logs -n devzero-system -l app.kubernetes.io/name=dz-prometheus --all-containers
 
-
-      - name: Debug Prometheus status and logs
-        run: |
-          PROM_POD=$(kubectl get pod -n devzero-system -l app.kubernetes.io/name=dz-prometheus,app.kubernetes.io/component=server -o jsonpath='{.items[0].metadata.name}')
-          echo "Prometheus Pod: $PROM_POD"
-        
-          echo "Describing Prometheus pod..."
-          kubectl describe pod $PROM_POD -n devzero-system || echo "Describe failed"
-        
-          echo "Getting logs from Prometheus containers..."
-          kubectl logs $PROM_POD -n devzero-system -c dz-prometheus-server || echo "No prometheus-server logs"
-          kubectl logs $PROM_POD -n devzero-system -c dz-prometheus-server-configmap-reload || echo "No configmap-reload logs"
-        
-          echo "Spawning debug pod to test Prometheus readiness endpoint..."
-
-          # Create a temporary curl pod
-          kubectl run curlbox \
-            -n devzero-system \
-            --image=curlimages/curl:latest \
-            --restart=Never \
-            --command -- sleep 120
-
-          # Wait for it to be ready
-          kubectl wait --for=condition=Ready pod/curlbox -n devzero-system --timeout=30s
-
-          # Run curl against the Prometheus /-/ready endpoint
-          kubectl exec -n devzero-system curlbox -- \
-            curl -v http://prometheus-dz-prometheus-server.devzero-system.svc.cluster.local:80/-/ready || echo "Prometheus not responding to /-/ready"
-
-          # Clean up
-          kubectl delete pod curlbox -n devzero-system --ignore-not-found
-
-          echo "Checking Prometheus config mounted in pod..."
-          kubectl exec -n devzero-system $PROM_POD -c dz-prometheus-server -- cat /etc/config/prometheus.yml || echo "Could not read prometheus.yml"        
-        
       - name: Check testserver stats and validate resource usage
         run: |
           echo "Checking testserver stats..."

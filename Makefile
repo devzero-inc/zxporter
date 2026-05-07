@@ -57,8 +57,6 @@ TESTSERVER_IMG ?= ttl.sh/zxporter-testserver:latest
 STRESS_IMG ?= ttl.sh/zxporter-stress:latest
 # DAKR URL to use for deployment
 DAKR_URL ?= https://dakr.devzero.io
-# PROMETHEUS URL for metrics collection
-PROMETHEUS_URL ?= http://prometheus-dz-prometheus-server.$(DEVZERO_MONITORING_NAMESPACE).svc.cluster.local:80
 # TARGET_NAMESPACES for limiting collection to specific namespaces (comma-separated)
 TARGET_NAMESPACES ?= 
 # COLLECTION_FILE is used to control the collectionpolicies.
@@ -70,19 +68,13 @@ ENV_CONFIGMAP_FILE ?= config/manager/env_configmap.yaml
 CLUSTER_TOKEN ?=
 
 # Monitoring resources
-PROMETHEUS_CHART_VERSION ?= 27.20.0
 DEVZERO_MONITORING_NAMESPACE ?= devzero-system
-NODE_EXPORTER_CHART_VERSION ?= 4.47.0
-METRICS_SERVER_CHART_VERSION ?= 3.12.2
 
 # DIST_INSTALL_BUNDLE is the final complete manifest
 DIST_DIR ?= dist
 DIST_INSTALL_BUNDLE ?= $(DIST_DIR)/install.yaml
 DIST_BACKEND_INSTALL_BUNDLE ?= $(DIST_DIR)/backend-install.yaml
 DIST_ZXPORTER_BUNDLE ?= $(DIST_DIR)/zxporter.yaml
-DIST_PROMETHEUS_BUNDLE ?= $(DIST_DIR)/prometheus.yaml
-DIST_NODE_EXPORTER_BUNDLE ?= $(DIST_DIR)/node-exporter.yaml
-METRICS_SERVER ?= $(DIST_DIR)/metrics-server.yaml
 
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.31.0
@@ -208,20 +200,6 @@ run: manifests generate fmt vet ## Run a controller from your host.
 # More info: https://docs.docker.com/develop/develop-images/build_enhancements/
 .PHONY: docker-build
 docker-build: helm ## Build docker image with the manager.
-	@echo "[INFO] Adding Metrics Server repo"
-	@$(HELM) repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/ >> /dev/null || true
-	@echo "[INFO] Fetching Metrics Server repo data"
-	@$(HELM) repo update metrics-server >> /dev/null
-
-	@echo "[INFO] Generate Metrics Server manifest"
-	@$(HELM) template metrics-server metrics-server/metrics-server \
-		--version $(METRICS_SERVER_CHART_VERSION) \
-		--namespace devzero-system \
-		--set args="{--kubelet-insecure-tls}" \
-		--set nameOverride="dz-metrics-server" \
-		--set fullnameOverride="dz-metrics-server" \
-		> $(METRICS_SERVER)
-
 	@echo "[INFO] For debug -> $(GO_VERSION), major  $(MAJOR), minor  $(MINOR), patch  $(PATCH)"
 	$(CONTAINER_TOOL) build --load \
 			--build-arg MAJOR=$(MAJOR) \
@@ -292,37 +270,19 @@ docker-buildx: ## Build and push docker image for the manager for cross-platform
 	- $(CONTAINER_TOOL) buildx rm zxporter-builder
 	rm Dockerfile.cross
 
-.PHONY: generate-monitoring-manifests
-generate-monitoring-manifests: helm ## Generate monitoring manifests for Prometheus and Node Exporter.
-	@echo "[INFO] Adding Prometheus repo"
-	@$(HELM) repo add prometheus-community https://prometheus-community.github.io/helm-charts >> /dev/null || true
-	@echo "[INFO] Fetching prometheus repo data"
-	@$(HELM) repo update prometheus-community >> /dev/null
-
-	@echo "[INFO] Generate prometheus manifest"
-	@$(HELM) template prometheus prometheus-community/prometheus \
-		--version $(PROMETHEUS_CHART_VERSION) \
-		--namespace $(DEVZERO_MONITORING_NAMESPACE) \
-		--create-namespace \
-		--values config/prometheus/hack.prometheus.values.yaml \
-		> $(DIST_PROMETHEUS_BUNDLE)
-
-	@echo "[INFO] Generate Node Exporter manifest"
-	@$(HELM) template node-exporter prometheus-community/prometheus-node-exporter \
-		--version $(NODE_EXPORTER_CHART_VERSION) \
-		--namespace $(DEVZERO_MONITORING_NAMESPACE) \
-		--create-namespace \
-		--values config/prometheus/hack.node-exporter.values.yaml \
-		> $(DIST_NODE_EXPORTER_BUNDLE)
-
 .PHONY: final-installer
 final-installer:
 	@cp dist/install.yaml $(DIST_BACKEND_INSTALL_BUNDLE)
 	@$(YQ) -i '(select(.kind == "ConfigMap" and .metadata.name == "devzero-zxporter-env-config") | .data.DAKR_URL) = "{{ .api_url }}/dakr"' $(DIST_BACKEND_INSTALL_BUNDLE)
 	@$(YQ) -i '(select(.kind == "Deployment") | .spec.template.spec.containers[]? | select(.image == "ttl.sh/zxporter:latest")).image = "docker.io/devzeroinc/zxporter:latest"' $(DIST_BACKEND_INSTALL_BUNDLE)
 	@$(YQ) -i '(select(.kind == "Secret" and .metadata.name == "devzero-zxporter-token") | .stringData.CLUSTER_TOKEN) = "{{ .cluster_token }}"' $(DIST_BACKEND_INSTALL_BUNDLE)
-	@$(YQ) -i '(select(.kind == "Namespace" and .metadata.labels."app.kubernetes.io/managed-by" == "kustomize") | .metadata.name) = "{{.zxporter_namespace}}"' $(DIST_BACKEND_INSTALL_BUNDLE)
 	@$(MAKE) installer-without-configmap
+	@echo "[INFO] Templating namespace in backend-install.yaml for DAKR backend"
+	@sed -i'' -e 's|namespace: $(DEVZERO_MONITORING_NAMESPACE)|namespace: {{.zxporter_namespace}}|g' $(DIST_BACKEND_INSTALL_BUNDLE)
+	@sed -i'' -e 's|name: $(DEVZERO_MONITORING_NAMESPACE)|name: {{.zxporter_namespace}}|g' $(DIST_BACKEND_INSTALL_BUNDLE)
+	@echo "[INFO] Templating namespace in installer_updater.yaml for DAKR backend"
+	@sed -i'' -e 's|namespace: $(DEVZERO_MONITORING_NAMESPACE)|namespace: {{.zxporter_namespace}}|g' $(DIST_DIR)/installer_updater.yaml
+	@sed -i'' -e 's|name: $(DEVZERO_MONITORING_NAMESPACE)|name: {{.zxporter_namespace}}|g' $(DIST_DIR)/installer_updater.yaml
 	@if [ -d "$(DAKR_DIR)/services/dakr_installers" ]; then \
 		cp $(DIST_BACKEND_INSTALL_BUNDLE) $(DAKR_DIR)/services/dakr_installers/install.yaml; \
 		cp $(DIST_DIR)/installer_updater.yaml $(DAKR_DIR)/services/dakr_installers/installer_updater.yaml; \
@@ -332,24 +292,14 @@ final-installer:
 .PHONY: installer-without-configmap
 installer-without-configmap:
 	@cp $(DIST_BACKEND_INSTALL_BUNDLE) $(DIST_DIR)/installer_updater.yaml
-	@$(YQ) -i 'select((.kind != "ConfigMap" or .metadata.name != "devzero-zxporter-env-config") and (.kind != "Secret" or .metadata.name != "devzero-zxporter-token"))' $(DIST_DIR)/installer_updater.yaml
+	@$(YQ) -i 'select(.kind != "ConfigMap" or .metadata.name != "devzero-zxporter-env-config") | select(.kind != "Secret" or .metadata.name != "devzero-zxporter-token")' $(DIST_DIR)/installer_updater.yaml
 
 .PHONY: build-installer
-build-installer: manifests generate kustomize yq ## Generate a consolidated YAML with deployment.
+build-installer: manifests generate kustomize yq helm ## Generate a consolidated YAML with deployment.
 	@mkdir -p $(DIST_DIR)
 
-	@echo "[INFO] Generating manifests for monitoring components..."
-	@$(MAKE) generate-monitoring-manifests
-	@echo "[INFO] Monitoring manifests generated."
-
 	@echo "[INFO] Generating installer bundle..."
-	@echo "## ATTN KUBERNETES ADMINS! Read this..." > $(DIST_INSTALL_BUNDLE)
-	@echo "#  If prometheus-server is already installed, and you want to use that version," >> $(DIST_INSTALL_BUNDLE)
-	@echo "#  comment out the section from \"START PROM SERVER\" to \"END PROM SERVER\" and update the \"prometheusURL\" variable." >> $(DIST_INSTALL_BUNDLE)
-	@echo -e "#" >> $(DIST_INSTALL_BUNDLE)
-	@echo "#  If prometheus-node-exporter is already installed, and you want to use that version," >> $(DIST_INSTALL_BUNDLE)
-	@echo "#  comment out the section from \"START PROM NODE EXPORTER\" to \"END PROM NODE EXPORTER\"" >> $(DIST_INSTALL_BUNDLE)
-	@echo -e "# \n" >> $(DIST_INSTALL_BUNDLE)
+	@echo "# ZXPorter installer bundle" > $(DIST_INSTALL_BUNDLE)
 
 	@echo "[INFO] Adding namespace to the main installer"
 	@echo "apiVersion: v1" >> $(DIST_INSTALL_BUNDLE)
@@ -360,36 +310,31 @@ build-installer: manifests generate kustomize yq ## Generate a consolidated YAML
 	@echo "    app.kubernetes.io/name: $(DEVZERO_MONITORING_NAMESPACE)" >> $(DIST_INSTALL_BUNDLE)
 	@echo "  name: $(DEVZERO_MONITORING_NAMESPACE)" >> $(DIST_INSTALL_BUNDLE)
 
-	@echo "[INFO] Append prometheus-server to the main installer"
-	@echo "# ----- START PROM SERVER -----" >> $(DIST_INSTALL_BUNDLE)
-	@cat $(DIST_PROMETHEUS_BUNDLE) >> $(DIST_INSTALL_BUNDLE)
-	@echo "# ----- END PROM SERVER -----" >> $(DIST_INSTALL_BUNDLE)
-
-	@echo "[INFO] Append prometheus-node-exporter to the main installer"
-	@echo "# ----- START PROM NODE EXPORTER -----" >> $(DIST_INSTALL_BUNDLE)
-	@cat $(DIST_NODE_EXPORTER_BUNDLE) >> $(DIST_INSTALL_BUNDLE)
-	@echo "# ----- END PROM NODE EXPORTER -----" >> $(DIST_INSTALL_BUNDLE)
-
-	# @echo "[INFO] Append Metrics Server to the main installer"
-	# @echo "# ----- START METRICS SERVER -----" >> $(DIST_INSTALL_BUNDLE)
-	# @cat $(METRICS_SERVER) >> $(DIST_INSTALL_BUNDLE)
-	# @echo "# ----- END METRICS SERVER -----" >> $(DIST_INSTALL_BUNDLE)
 	@echo "---" >> $(DIST_INSTALL_BUNDLE)
-	
+
 	@echo "[INFO] Append zxporter-manager to the installer bundle"
 	@cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
 
 	@echo "[INFO] Replacing env variables in configmap"
 	@$(YQ) e '.data.DAKR_URL = "$(DAKR_URL)"' -i $(ENV_CONFIGMAP_FILE)
-	@$(YQ) e '.data.PROMETHEUS_URL = "$(PROMETHEUS_URL)"' -i $(ENV_CONFIGMAP_FILE)
 	@$(YQ) e '.data.TARGET_NAMESPACES = "$(TARGET_NAMESPACES)"' -i $(ENV_CONFIGMAP_FILE)
 
 	@$(KUSTOMIZE) build config/default > $(DIST_ZXPORTER_BUNDLE)
 	@echo "[INFO] Patching cluster token into generated bundle"
-	@if [ -n "$(CLUSTER_TOKEN)" ]; then \
-		sed "s|CLUSTER_TOKEN: '{{ .cluster_token }}'|CLUSTER_TOKEN: \"$(CLUSTER_TOKEN)\"|g" $(DIST_ZXPORTER_BUNDLE) > $(DIST_ZXPORTER_BUNDLE).tmp && mv $(DIST_ZXPORTER_BUNDLE).tmp $(DIST_ZXPORTER_BUNDLE); \
-	fi
+	@sed "s|CLUSTER_TOKEN: '{{ .cluster_token }}'|CLUSTER_TOKEN: \"$(CLUSTER_TOKEN)\"|g" $(DIST_ZXPORTER_BUNDLE) > $(DIST_ZXPORTER_BUNDLE).tmp && mv $(DIST_ZXPORTER_BUNDLE).tmp $(DIST_ZXPORTER_BUNDLE)
 	@cat $(DIST_ZXPORTER_BUNDLE) >> $(DIST_INSTALL_BUNDLE)
+
+	@echo "[INFO] Generate and append nodemon DaemonSet to installer"
+	@$(HELM) template zxporter-nodemon ./helm-chart/zxporter-nodemon \
+		--namespace $(DEVZERO_MONITORING_NAMESPACE) \
+		--set provider=other \
+		--set gpuMetricsExporter.image.repository=$(word 1,$(subst :, ,$(IMG_NODEMON))) \
+		--set gpuMetricsExporter.image.tag=$(word 2,$(subst :, ,$(IMG_NODEMON))) \
+		> $(DIST_DIR)/nodemon.yaml
+	@cat $(DIST_DIR)/nodemon.yaml >> $(DIST_INSTALL_BUNDLE)
+
+	@echo "[INFO] Append Prometheus cleanup migration job"
+	@cat config/migration/prometheus-cleanup-job.yaml >> $(DIST_INSTALL_BUNDLE)
 
 	@echo "[INFO] Building backend installer"
 	@$(MAKE) final-installer
@@ -401,7 +346,6 @@ build-env-configmap:
 	echo "" > $(DIST_INSTALL_BUNDLE)
 	# Copy and patch environment config
 	sed "s|\$$(DAKR_URL)|$(DAKR_URL)|g" $(ENV_CONFIGMAP_FILE) > temp.yaml && mv temp.yaml $(ENV_CONFIGMAP_FILE)
-	sed "s|\$$(PROMETHEUS_URL)|$(PROMETHEUS_URL)|g" $(ENV_CONFIGMAP_FILE) > temp.yaml && mv temp.yaml $(ENV_CONFIGMAP_FILE)
 	sed "s|\$$(TARGET_NAMESPACES)|$(TARGET_NAMESPACES)|g" $(ENV_CONFIGMAP_FILE) > temp.yaml && mv temp.yaml $(ENV_CONFIGMAP_FILE)
 	$(KUSTOMIZE) build config/default | \
 	yq eval 'select(.kind == "ConfigMap" and .metadata.name == "devzero-zxporter-env-config")' - >> $(DIST_INSTALL_BUNDLE)
@@ -457,7 +401,6 @@ helm-chart-install-minimal: helm-chart-build ## Install only zxporter without mo
 		--namespace devzero-system \
 		--create-namespace \
 		--set monitoring.enabled=false \
-		--set zxporter.prometheusUrl="$(PROMETHEUS_URL)" \
 		--wait
 
 .PHONY: helm-chart-uninstall
@@ -508,13 +451,8 @@ deploy-env-configmap: DIST_INSTALL_BUNDLE=$(DIST_DIR)/env_configmap.yaml
 deploy-env-configmap: build-env-configmap
 	cat $(DIST_INSTALL_BUNDLE) | $(KUBECTL) apply -f -
 
-.PHONY: undeploy-monitoring
-undeploy-monitoring: ## Undeploy monitoring components.
-	$(KUBECTL) delete --ignore-not-found=$(ignore-not-found) -f $(DIST_NODE_EXPORTER_BUNDLE) || true
-	$(KUBECTL) delete --ignore-not-found=$(ignore-not-found) -f $(DIST_PROMETHEUS_BUNDLE) || true
-
 .PHONY: undeploy
-undeploy: kustomize undeploy-monitoring ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
+undeploy: kustomize ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
 	$(KUSTOMIZE) build config/default | $(KUBECTL) delete --ignore-not-found=$(ignore-not-found) -f -
 
 ##@ Dependencies

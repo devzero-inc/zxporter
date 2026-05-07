@@ -1,3 +1,4 @@
+{{- if not .Values.nodemonMetrics.enabled }}
 {{- if .Values.monitoring.enabled }}
 {{- if .Values.monitoring.prometheus.enabled }}
 # Source: prometheus/charts/kube-state-metrics/templates/service.yaml
@@ -79,5 +80,6 @@ spec:
   selector:
     app.kubernetes.io/name: dz-prometheus-node-exporter
     app.kubernetes.io/instance: node-exporter
+{{- end }}
 {{- end }}
 {{- end }}

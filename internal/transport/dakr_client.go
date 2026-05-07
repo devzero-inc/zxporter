@@ -123,6 +123,7 @@ type RealDakrClient struct {
 	clusterClient        genconnect.ClusterServiceClient
 	clientHeaders        *ClientHeaders
 	operatorHealthClient genconnect.OperatorHealthServiceClient
+	k8sClient            genconnect.K8SServiceClient
 }
 
 // NewDakrClient creates a new client for Dakr service
@@ -255,12 +256,19 @@ func NewDakrClient(dakrBaseURL string, clusterToken string, logger logr.Logger) 
 		clientOptions...,
 	)
 
+	k8sClient := genconnect.NewK8SServiceClient(
+		httpClient,
+		dakrBaseURL,
+		clientOptions...,
+	)
+
 	return &RealDakrClient{
 		logger:               logger.WithName("dakr-client"),
 		client:               client,
 		clusterClient:        clusterClient,
 		clientHeaders:        clientHeaders,
 		operatorHealthClient: operatorHealthClient,
+		k8sClient:            k8sClient,
 	}
 }
 
@@ -713,4 +721,11 @@ func (c *RealDakrClient) SendNetworkTrafficMetrics(
 func (c *RealDakrClient) ReportHealth(ctx context.Context, req *gen.ReportHealthRequest) error {
 	_, err := c.operatorHealthClient.ReportHealth(ctx, connect.NewRequest(req))
 	return err
+}
+
+// NewPercentileFetcher creates a DakrPercentileFetcher that uses the DAKR
+// control plane to retrieve pre-computed workload percentiles, replacing the
+// local Prometheus dependency for historical metrics.
+func (c *RealDakrClient) NewPercentileFetcher() *DakrPercentileFetcher {
+	return NewDakrPercentileFetcher(c.k8sClient, c.clientHeaders, c.logger)
 }

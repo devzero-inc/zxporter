@@ -15,3 +15,8 @@ keywords:
   - kubernetes
   - resource-optimization
   - devzero
+dependencies:
+  - name: zxporter-nodemon
+    version: "0.0.2"
+    repository: "file://../zxporter-nodemon"
+    condition: nodemonMetrics.enabled
