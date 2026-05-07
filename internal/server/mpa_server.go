@@ -178,6 +178,19 @@ type SubscriptionManager struct {
 	mu      sync.RWMutex
 	clients map[string]*ClientSubscription
 	logger  logr.Logger
+
+	// OOM state tracking so timeseries can reflect OOM kills cumulatively.
+	//
+	// We intentionally track this in the streaming layer so that even if a single
+	// OOM-bearing sample is dropped due to backpressure, subsequent utilization
+	// samples can still carry a cumulative count.
+	oomMu    sync.Mutex
+	oomByKey map[string]oomState
+}
+
+type oomState struct {
+	count       int64
+	lastRestart int64
 }
 
 type ClientSubscription struct {
@@ -195,9 +208,40 @@ type WorkloadInterest struct {
 
 func NewSubscriptionManager(logger logr.Logger) *SubscriptionManager {
 	return &SubscriptionManager{
-		clients: make(map[string]*ClientSubscription),
-		logger:  logger.WithName("sub-manager"),
+		clients:  make(map[string]*ClientSubscription),
+		logger:   logger.WithName("sub-manager"),
+		oomByKey: make(map[string]oomState),
 	}
+}
+
+func oomKey(ns, pod, container string) string {
+	return ns + "/" + pod + "/" + container
+}
+
+// getAndUpdateOomCount updates (if needed) and returns the cumulative OOM kill count.
+//
+// Increment rule: when we observe OOMKilled AND RestartCount increases beyond the
+// last processed restartCount for this key.
+func (sm *SubscriptionManager) getAndUpdateOomCount(ns, pod, container string, restartCount int64, lastReason string) int64 {
+	key := oomKey(ns, pod, container)
+
+	sm.oomMu.Lock()
+	defer sm.oomMu.Unlock()
+
+	st := sm.oomByKey[key]
+
+	if lastReason == collector.ReasonOOMKilled {
+		if restartCount > st.lastRestart {
+			st.count++
+			st.lastRestart = restartCount
+		}
+	} else if restartCount > st.lastRestart {
+		// Keep lastRestart moving forward even when not OOMKilled.
+		st.lastRestart = restartCount
+	}
+
+	sm.oomByKey[key] = st
+	return st.count
 }
 
 func (sm *SubscriptionManager) Register(ch chan *gen.MpaStreamResponse) string {
@@ -287,6 +331,9 @@ func (sm *SubscriptionManager) Broadcast(
 	restartCount := data.RestartCount
 	lastReason := data.LastTerminationReason
 
+	// Cumulative OOM counter so timeseries reflects OOMs beyond the single event.
+	oomKillCount := sm.getAndUpdateOomCount(ns, pod, container, restartCount, lastReason)
+
 	wKind := data.WorkloadKind
 	wName := data.WorkloadName
 
@@ -320,12 +367,6 @@ func (sm *SubscriptionManager) Broadcast(
 		}
 
 		if matched {
-			// Populate OomKillCount from termination reason — the proto field
-			var oomKillCount int64
-			if lastReason == collector.ReasonOOMKilled {
-				oomKillCount = 1
-			}
-
 			item := &gen.ContainerMetricItem{
 				Workload: &gen.MpaWorkloadIdentifier{
 					Namespace:   matchedWorkload.Namespace,
