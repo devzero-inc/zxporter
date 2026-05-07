@@ -447,8 +447,40 @@ func (c *EnvBasedController) initializeTelemetryComponents(ctx context.Context) 
 	c.Reconciler.Sender = sender
 	c.Reconciler.TelemetryLogger = telemetryLogger
 
+	if c.Reconciler.HealthManager != nil {
+		c.Reconciler.HealthManager.SetTransitionObserver(
+			newHealthTransitionObserver(telemetryLogger),
+		)
+	}
+
 	c.Log.Info("Successfully initialized telemetry components")
 	return nil
+}
+
+// newHealthTransitionObserver returns a TransitionObserver that emits a telemetry
+// log on every component status change so we can trace flips in Datadog rather
+// than only seeing the latest snapshot via the heartbeat.
+func newHealthTransitionObserver(tl telemetry_logger.Logger) health.TransitionObserver {
+	return func(component string, oldStatus, newStatus health.HealthStatus, message string, metadata map[string]string) {
+		level := gen.LogLevel_LOG_LEVEL_INFO
+		switch newStatus {
+		case health.HealthStatusDegraded:
+			level = gen.LogLevel_LOG_LEVEL_WARN
+		case health.HealthStatusUnhealthy:
+			level = gen.LogLevel_LOG_LEVEL_ERROR
+		}
+
+		fields := make(map[string]string, len(metadata)+4)
+		for k, v := range metadata {
+			fields[k] = v
+		}
+		fields["component"] = component
+		fields["old_status"] = oldStatus.String()
+		fields["new_status"] = newStatus.String()
+		fields["zxporter_version"] = version.Get().String()
+
+		tl.Report(level, "HealthManager_StatusTransition", message, nil, fields)
+	}
 }
 
 // doReconcile performs a single reconciliation

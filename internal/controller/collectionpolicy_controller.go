@@ -87,6 +87,14 @@ type CollectionPolicyReconciler struct {
 	// OOM reconciler for periodic sweep of missed OOM events
 	oomReconciler       *collector.OOMReconciler
 	oomReconcilerCancel context.CancelFunc
+
+	// Periodic Prometheus availability probe. Without this the prometheus
+	// component health is set once at startup (via waitForPrometheusAvailability)
+	// and never re-evaluated, so a transient outage at boot leaves the operator
+	// permanently reporting prometheus as unhealthy even after recovery.
+	prometheusProbeMu     sync.Mutex
+	prometheusProbeURL    string
+	prometheusProbeCancel context.CancelFunc
 }
 
 // pendingCollector represents a collector that was unavailable at registration time
@@ -1059,6 +1067,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(
 		)
 
 		prometheusAvailable := r.waitForPrometheusAvailability(ctx, newConfig.PrometheusURL)
+		r.startPeriodicPrometheusHealthCheck(ctx, newConfig.PrometheusURL)
 		if !prometheusAvailable {
 			logger.Info(
 				"Prometheus is not available after waiting, will continue with restart but metrics may be limited",
@@ -1887,6 +1896,10 @@ func (r *CollectionPolicyReconciler) initializeCollectors(
 			)
 			logger.Info("Prometheus is available, continuing with full metrics collection")
 		}
+
+		// Start (or refresh) the periodic probe so health recovers from transient
+		// outages rather than being frozen on the one-shot startup result.
+		r.startPeriodicPrometheusHealthCheck(ctx, config.PrometheusURL)
 	} else {
 		r.TelemetryLogger.Report(
 			gen.LogLevel_LOG_LEVEL_WARN,
@@ -1898,6 +1911,8 @@ func (r *CollectionPolicyReconciler) initializeCollectors(
 				"zxporter_version": version.Get().String(),
 			},
 		)
+		// No URL — make sure any prior probe is stopped.
+		r.startPeriodicPrometheusHealthCheck(ctx, "")
 	}
 
 	// Setup collection manager and basic services
@@ -4161,4 +4176,60 @@ func (r *CollectionPolicyReconciler) updateHealthStatus(
 	if r.HealthManager != nil {
 		r.HealthManager.UpdateStatus(health.ComponentPrometheus, status, message, metadata)
 	}
+}
+
+// startPeriodicPrometheusHealthCheck launches (or restarts) a goroutine that
+// pings Prometheus every minute and updates ComponentPrometheus health. Without
+// this, the one-shot startup check leaves the status frozen until something
+// else happens to refresh it. Pass "" to stop the probe.
+func (r *CollectionPolicyReconciler) startPeriodicPrometheusHealthCheck(parentCtx context.Context, url string) {
+	r.prometheusProbeMu.Lock()
+	defer r.prometheusProbeMu.Unlock()
+
+	if r.prometheusProbeURL == url && r.prometheusProbeCancel != nil {
+		return
+	}
+	if r.prometheusProbeCancel != nil {
+		r.prometheusProbeCancel()
+	}
+	r.prometheusProbeURL = url
+	r.prometheusProbeCancel = nil
+	if url == "" {
+		return
+	}
+
+	endpoint := url + "/-/ready"
+	if !strings.HasPrefix(url, "http") {
+		endpoint = "http://" + url + "/-/ready"
+	}
+	ctx, cancel := context.WithCancel(parentCtx)
+	r.prometheusProbeCancel = cancel
+
+	go func() {
+		client := &http.Client{Timeout: 5 * time.Second}
+		ticker := time.NewTicker(60 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				status, msg := health.HealthStatusHealthy, "Prometheus available"
+				meta := map[string]string{"url": url}
+				resp, err := client.Get(endpoint)
+				switch {
+				case err != nil:
+					status, msg = health.HealthStatusDegraded, "Prometheus probe failed"
+					meta["error"] = err.Error()
+				case resp.StatusCode != http.StatusOK:
+					status, msg = health.HealthStatusDegraded, "Prometheus probe returned non-OK status"
+					meta["status_code"] = fmt.Sprintf("%d", resp.StatusCode)
+				}
+				if resp != nil {
+					_ = resp.Body.Close()
+				}
+				r.updateHealthStatus(status, msg, meta)
+			}
+		}
+	}()
 }

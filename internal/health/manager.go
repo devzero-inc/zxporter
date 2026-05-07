@@ -24,12 +24,20 @@ type ComponentStatus struct {
 	Metadata map[string]string
 }
 
+// TransitionObserver is invoked whenever a component's status changes via UpdateStatus.
+// It is called outside the HealthManager lock so observers may safely call back into
+// the manager (e.g. to read other component statuses) without deadlocking. The observer
+// is invoked synchronously, but the typical implementation should hand off to a queue
+// so the UpdateStatus call site stays fast.
+type TransitionObserver func(component string, oldStatus, newStatus HealthStatus, message string, metadata map[string]string)
+
 type HealthManager struct {
 	mu                  sync.RWMutex
 	components          map[string]*ComponentStatus
 	livenessGraceUntil  time.Time // LivenessCheck always passes before this deadline
 	readinessGraceUntil time.Time // ReadinessCheck always passes before this deadline
 	standby             bool      // standby=true when not leader; readiness passes unconditionally
+	transitionObserver  TransitionObserver
 }
 
 // NewHealthManager creates a new HealthManager
@@ -59,16 +67,34 @@ func (hm *HealthManager) Deregister(name string) {
 	delete(hm.components, name)
 }
 
-// UpdateStatus updates the health status, message, and metadata for a component
+// SetTransitionObserver registers (or clears, if nil) a callback invoked on every
+// component status transition. Only one observer is held at a time. The observer
+// runs outside the lock so it may safely re-enter the HealthManager.
+func (hm *HealthManager) SetTransitionObserver(obs TransitionObserver) {
+	hm.mu.Lock()
+	defer hm.mu.Unlock()
+	hm.transitionObserver = obs
+}
+
+// UpdateStatus updates the health status, message, and metadata for a component.
+// If the new status differs from the previous one, the registered TransitionObserver
+// (if any) is invoked outside the lock with old and new status.
 func (hm *HealthManager) UpdateStatus(
 	name string,
 	status HealthStatus,
 	message string,
 	metadata map[string]string,
 ) {
+	var (
+		transitioned bool
+		observer     TransitionObserver
+		oldStatus    HealthStatus
+		metaCopy     map[string]string
+	)
+
 	hm.mu.Lock()
-	defer hm.mu.Unlock()
 	if comp, exists := hm.components[name]; exists {
+		oldStatus = comp.Status
 		comp.Status = status
 		comp.Message = message
 		if metadata != nil {
@@ -78,6 +104,21 @@ func (hm *HealthManager) UpdateStatus(
 			}
 			comp.Metadata = m
 		}
+		if oldStatus != status {
+			transitioned = true
+			observer = hm.transitionObserver
+			if observer != nil {
+				metaCopy = make(map[string]string, len(comp.Metadata))
+				for k, v := range comp.Metadata {
+					metaCopy[k] = v
+				}
+			}
+		}
+	}
+	hm.mu.Unlock()
+
+	if transitioned && observer != nil {
+		observer(name, oldStatus, status, message, metaCopy)
 	}
 }
 
