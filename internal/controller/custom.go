@@ -460,6 +460,12 @@ func (c *EnvBasedController) initializeTelemetryComponents(ctx context.Context) 
 // newHealthTransitionObserver returns a TransitionObserver that emits a telemetry
 // log on every component status change so we can trace flips in Datadog rather
 // than only seeing the latest snapshot via the heartbeat.
+//
+// The dispatch is offloaded to a goroutine so observer execution never blocks
+// the caller of UpdateStatus. tl.Report is currently non-blocking (it queues
+// with a select-default drop), but we should not couple the observer contract
+// to that internal detail — a future telemetry implementation that does I/O
+// would otherwise stall every health transition.
 func newHealthTransitionObserver(tl telemetry_logger.Logger) health.TransitionObserver {
 	return func(component string, oldStatus, newStatus health.HealthStatus, message string, metadata map[string]string) {
 		level := gen.LogLevel_LOG_LEVEL_INFO
@@ -479,7 +485,7 @@ func newHealthTransitionObserver(tl telemetry_logger.Logger) health.TransitionOb
 		fields["new_status"] = newStatus.String()
 		fields["zxporter_version"] = version.Get().String()
 
-		tl.Report(level, "HealthManager_StatusTransition", message, nil, fields)
+		go tl.Report(level, "HealthManager_StatusTransition", message, nil, fields)
 	}
 }
 
