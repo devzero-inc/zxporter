@@ -348,14 +348,22 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 					if containers, ok := c.nodemonContainerMetricsCache[key]; ok {
 						for _, m := range containers {
 							if m.Container == containerMetrics.Name && m.GPUUtilization > 0 {
-								gpuMetrics["GPUUsage"] = m.GPUUtilization
+								// GPUUsage is a fraction (0-1), not percentage — matches old behavior
+								gpuMetrics["GPUUsage"] = m.GPUUtilization / 100.0
 								gpuMetrics["GPUUtilizationPercentage"] = m.GPUUtilization
 								gpuMetrics["GPUMemoryUsedMb"] = m.GPUMemoryUsedMiB
 								gpuMetrics["GPUMemoryFreeMb"] = m.GPUMemoryFreeMiB
 								gpuMetrics["GPUPowerUsageWatts"] = m.GPUPowerWatts
 								gpuMetrics["GPUTemperatureCelsius"] = m.GPUTemperature
 								gpuMetrics["GPUTotalMemoryMb"] = m.GPUMemoryUsedMiB + m.GPUMemoryFreeMiB
-								gpuMetrics["GPUMetricsCount"] = int64(1)
+								// GPUMetricsCount = actual GPU device count from pod spec
+								gpuCount := int64(1)
+								if rc, ok := gpuMetrics["GPURequestCount"]; ok {
+									if v, ok := rc.(int64); ok && v > 0 {
+										gpuCount = v
+									}
+								}
+								gpuMetrics["GPUMetricsCount"] = gpuCount
 								break
 							}
 						}
