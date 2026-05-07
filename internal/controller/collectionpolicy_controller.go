@@ -87,6 +87,15 @@ type CollectionPolicyReconciler struct {
 	// OOM reconciler for periodic sweep of missed OOM events
 	oomReconciler       *collector.OOMReconciler
 	oomReconcilerCancel context.CancelFunc
+
+	// Periodic Prometheus availability probe. Without this the prometheus
+	// component health is set once at startup (via waitForPrometheusAvailability)
+	// and never re-evaluated, so a transient outage at boot leaves the operator
+	// permanently reporting prometheus as unhealthy even after recovery.
+	prometheusProbeMu     sync.Mutex
+	prometheusProbeURL    string
+	prometheusProbeCancel context.CancelFunc
+	prometheusProbeDone   chan struct{} // closed by the goroutine on exit; nil until first start
 }
 
 // pendingCollector represents a collector that was unavailable at registration time
@@ -1059,6 +1068,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(
 		)
 
 		prometheusAvailable := r.waitForPrometheusAvailability(ctx, newConfig.PrometheusURL)
+		r.startPeriodicPrometheusHealthCheck(newConfig.PrometheusURL)
 		if !prometheusAvailable {
 			logger.Info(
 				"Prometheus is not available after waiting, will continue with restart but metrics may be limited",
@@ -1887,6 +1897,10 @@ func (r *CollectionPolicyReconciler) initializeCollectors(
 			)
 			logger.Info("Prometheus is available, continuing with full metrics collection")
 		}
+
+		// Start (or refresh) the periodic probe so health recovers from transient
+		// outages rather than being frozen on the one-shot startup result.
+		r.startPeriodicPrometheusHealthCheck(config.PrometheusURL)
 	} else {
 		r.TelemetryLogger.Report(
 			gen.LogLevel_LOG_LEVEL_WARN,
@@ -1898,6 +1912,8 @@ func (r *CollectionPolicyReconciler) initializeCollectors(
 				"zxporter_version": version.Get().String(),
 			},
 		)
+		// No URL — make sure any prior probe is stopped.
+		r.startPeriodicPrometheusHealthCheck("")
 	}
 
 	// Setup collection manager and basic services
@@ -4022,11 +4038,7 @@ func (r *CollectionPolicyReconciler) waitForPrometheusAvailability(
 		Transport: tr,
 	}
 
-	// Endpoint to verify prometheus is ready
-	healthEndpoint := fmt.Sprintf("%s/-/ready", prometheusURL)
-	if !strings.HasPrefix(prometheusURL, "http") {
-		healthEndpoint = fmt.Sprintf("http://%s/-/ready", prometheusURL)
-	}
+	healthEndpoint := prometheusHealthEndpoint(prometheusURL)
 
 	for i := 0; i < maxRetries; i++ {
 		select {
@@ -4160,5 +4172,120 @@ func (r *CollectionPolicyReconciler) updateHealthStatus(
 ) {
 	if r.HealthManager != nil {
 		r.HealthManager.UpdateStatus(health.ComponentPrometheus, status, message, metadata)
+	}
+}
+
+// startPeriodicPrometheusHealthCheck launches (or restarts) a goroutine that
+// pings Prometheus every minute and updates ComponentPrometheus health. Without
+// this, the one-shot startup check leaves the status frozen until something
+// else happens to refresh it. Pass "" to stop the probe.
+//
+// The goroutine is parented on context.Background() rather than the caller's
+// reconcile context: controller-runtime cancels the reconcile ctx as soon as
+// Reconcile returns, which would kill the probe immediately. The stored cancel
+// func is the only intended way to stop it (matches the OOM reconciler pattern).
+//
+// Idempotency: if a probe for the same URL is already running we no-op. We
+// detect a dead goroutine (panic, lost cancel, etc.) via the done channel —
+// if it's already closed we treat the probe as gone and start a fresh one.
+func (r *CollectionPolicyReconciler) startPeriodicPrometheusHealthCheck(url string) {
+	r.prometheusProbeMu.Lock()
+	defer r.prometheusProbeMu.Unlock()
+
+	if r.prometheusProbeURL == url && r.probeStillAliveLocked() {
+		return
+	}
+	if r.prometheusProbeCancel != nil {
+		r.prometheusProbeCancel()
+	}
+	r.prometheusProbeURL = url
+	r.prometheusProbeCancel = nil
+	r.prometheusProbeDone = nil
+	if url == "" {
+		return
+	}
+
+	endpoint := prometheusHealthEndpoint(url)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	r.prometheusProbeCancel = cancel
+	r.prometheusProbeDone = done
+
+	go r.runPrometheusProbe(ctx, done, url, endpoint)
+}
+
+// prometheusHealthEndpoint returns the full /-/ready URL, defaulting to http://
+// when the caller passed a bare host:port. Shared by waitForPrometheusAvailability
+// and the periodic probe so both build the same endpoint from the same input.
+func prometheusHealthEndpoint(url string) string {
+	if !strings.HasPrefix(url, "http") {
+		return "http://" + url + "/-/ready"
+	}
+	return url + "/-/ready"
+}
+
+// probeStillAliveLocked returns true if the existing probe goroutine is still
+// running. Caller must hold prometheusProbeMu.
+func (r *CollectionPolicyReconciler) probeStillAliveLocked() bool {
+	if r.prometheusProbeCancel == nil || r.prometheusProbeDone == nil {
+		return false
+	}
+	select {
+	case <-r.prometheusProbeDone:
+		return false
+	default:
+		return true
+	}
+}
+
+// runPrometheusProbe is the probe goroutine body. Defers a recover so a panic
+// in the HTTP client does not silently leave the probe dead with no cleanup,
+// and always closes done so probeStillAliveLocked can detect exit.
+func (r *CollectionPolicyReconciler) runPrometheusProbe(ctx context.Context, done chan struct{}, url, endpoint string) {
+	defer close(done)
+	defer func() {
+		if rec := recover(); rec != nil {
+			r.Log.Error(fmt.Errorf("%v", rec), "Prometheus probe goroutine panicked", "url", url)
+		}
+	}()
+
+	// Clone DefaultTransport so the probe inherits proxy/TLS settings (matches
+	// waitForPrometheusAvailability). Re-using DefaultTransport directly would
+	// share the connection pool with every other consumer in the binary.
+	tr := http.DefaultTransport.(*http.Transport).Clone()
+	client := &http.Client{Timeout: 5 * time.Second, Transport: tr}
+	ticker := time.NewTicker(60 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			status, msg := health.HealthStatusHealthy, "Prometheus available"
+			meta := map[string]string{"url": url}
+			// Build the request from ctx so a URL change or shutdown cancels
+			// any in-flight call immediately rather than waiting for the timeout.
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+			if err != nil {
+				status, msg = health.HealthStatusDegraded, "Prometheus probe request build failed"
+				meta["error"] = err.Error()
+				r.updateHealthStatus(status, msg, meta)
+				continue
+			}
+			resp, err := client.Do(req)
+			switch {
+			case err != nil:
+				status, msg = health.HealthStatusDegraded, "Prometheus probe failed"
+				meta["error"] = err.Error()
+			case resp.StatusCode != http.StatusOK:
+				status, msg = health.HealthStatusDegraded, "Prometheus probe returned non-OK status"
+				meta["status_code"] = fmt.Sprintf("%d", resp.StatusCode)
+			}
+			if resp != nil {
+				_ = resp.Body.Close()
+			}
+			r.updateHealthStatus(status, msg, meta)
+		}
 	}
 }
