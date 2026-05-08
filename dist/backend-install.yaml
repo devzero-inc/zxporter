@@ -821,7 +821,7 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/name: devzero-zxporter
     control-plane: controller-manager
-  name: devzero-system
+  name: '{{.zxporter_namespace}}'
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -1145,6 +1145,14 @@ rules:
       - patch
       - update
   - apiGroups:
+      - devzero.karpenter.sh
+    resources:
+      - karpentersettings
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
       - karpenter.azure.com
     resources:
       - aksnodeclasses
@@ -1422,7 +1430,7 @@ metadata:
   name: devzero-zxporter-token
   namespace: devzero-system
 stringData:
-  CLUSTER_TOKEN: "{{ .cluster_token }}"
+  CLUSTER_TOKEN: '{{ .cluster_token }}'
 type: Opaque
 ---
 apiVersion: v1

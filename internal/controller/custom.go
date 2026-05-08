@@ -489,8 +489,46 @@ func (c *EnvBasedController) initializeTelemetryComponents(ctx context.Context) 
 	c.Reconciler.Sender = sender
 	c.Reconciler.TelemetryLogger = telemetryLogger
 
+	if c.Reconciler.HealthManager != nil {
+		c.Reconciler.HealthManager.SetTransitionObserver(
+			newHealthTransitionObserver(telemetryLogger),
+		)
+	}
+
 	c.Log.Info("Successfully initialized telemetry components")
 	return nil
+}
+
+// newHealthTransitionObserver returns a TransitionObserver that emits a telemetry
+// log on every component status change so we can trace flips in Datadog rather
+// than only seeing the latest snapshot via the heartbeat.
+//
+// The dispatch is offloaded to a goroutine so observer execution never blocks
+// the caller of UpdateStatus. tl.Report is currently non-blocking (it queues
+// with a select-default drop), but we should not couple the observer contract
+// to that internal detail — a future telemetry implementation that does I/O
+// would otherwise stall every health transition.
+func newHealthTransitionObserver(tl telemetry_logger.Logger) health.TransitionObserver {
+	return func(component string, oldStatus, newStatus health.HealthStatus, message string, metadata map[string]string) {
+		level := gen.LogLevel_LOG_LEVEL_INFO
+		switch newStatus {
+		case health.HealthStatusDegraded:
+			level = gen.LogLevel_LOG_LEVEL_WARN
+		case health.HealthStatusUnhealthy:
+			level = gen.LogLevel_LOG_LEVEL_ERROR
+		}
+
+		fields := make(map[string]string, len(metadata)+4)
+		for k, v := range metadata {
+			fields[k] = v
+		}
+		fields["component"] = component
+		fields["old_status"] = oldStatus.String()
+		fields["new_status"] = newStatus.String()
+		fields["zxporter_version"] = version.Get().String()
+
+		go tl.Report(level, "HealthManager_StatusTransition", message, nil, fields)
+	}
 }
 
 // doReconcile performs a single reconciliation
