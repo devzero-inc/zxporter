@@ -447,7 +447,7 @@ func (c *EnvBasedController) initializeTelemetryComponents(ctx context.Context) 
 				}
 			}
 			// Persist the cluster token to ConfigMap or Secret
-			if err := c.persistClusterToken(ctx, token, envSpec.Policies.ClusterIdentifier); err != nil {
+			if err := c.persistClusterToken(ctx, token); err != nil {
 				c.Log.Error(err, "Failed to persist cluster token")
 			}
 		}
@@ -560,28 +560,31 @@ func (c *EnvBasedController) shouldUseSecretStorage() bool {
 	return strings.ToLower(useSecret) == "true"
 }
 
-// persistClusterToken persists the cluster token (and optional identifier) to ConfigMap or Secret based on configuration
-func (c *EnvBasedController) persistClusterToken(ctx context.Context, token, identifier string) error {
+// persistClusterToken persists the cluster token to ConfigMap or Secret based on configuration
+func (c *EnvBasedController) persistClusterToken(ctx context.Context, token string) error {
 	if c.shouldUseSecretStorage() {
-		return c.persistClusterTokenToSecret(ctx, token, identifier)
+		return c.persistClusterTokenToSecret(ctx, token)
 	}
-	return c.persistClusterTokenToConfigMap(ctx, token, identifier)
+	return c.persistClusterTokenToConfigMap(ctx, token)
 }
 
-// persistClusterTokenToConfigMap persists the cluster token (and optional identifier) to the ConfigMap
-func (c *EnvBasedController) persistClusterTokenToConfigMap(ctx context.Context, token, identifier string) error {
-	// Get namespace from environment variable or use default
-	namespace := os.Getenv("POD_NAMESPACE")
-	if namespace == "" {
-		// Try to read from service account namespace file
-		if data, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace"); err == nil {
-			namespace = strings.TrimSpace(string(data))
-		} else {
-			// Fall back to default if all else fails
-			namespace = defaultNamespace
-			c.Log.Info("Could not determine namespace, using default", "namespace", namespace)
+// resolveNamespace returns the namespace the operator is running in.
+// Priority: POD_NAMESPACE env var → service account namespace file → defaultNamespace.
+func (c *EnvBasedController) resolveNamespace() string {
+	if ns := os.Getenv("POD_NAMESPACE"); ns != "" {
+		return ns
+	}
+	if data, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace"); err == nil {
+		if ns := strings.TrimSpace(string(data)); ns != "" {
+			return ns
 		}
 	}
+	return defaultNamespace
+}
+
+// persistClusterTokenToConfigMap persists the cluster token to the ConfigMap
+func (c *EnvBasedController) persistClusterTokenToConfigMap(ctx context.Context, token string) error {
+	namespace := c.resolveNamespace()
 	// Get ConfigMap name from environment variable with fallback to default
 	configMapName := os.Getenv("TOKEN_CONFIGMAP_NAME")
 	if configMapName == "" {
@@ -623,20 +626,9 @@ func (c *EnvBasedController) persistClusterTokenToConfigMap(ctx context.Context,
 	return nil
 }
 
-// persistClusterTokenToSecret persists the cluster token (and optional identifier) to a Kubernetes Secret
-func (c *EnvBasedController) persistClusterTokenToSecret(ctx context.Context, token, identifier string) error {
-	// Get namespace from environment variable or use default
-	namespace := os.Getenv("POD_NAMESPACE")
-	if namespace == "" {
-		// Try to read from service account namespace file
-		if data, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace"); err == nil {
-			namespace = strings.TrimSpace(string(data))
-		} else {
-			// Fall back to default if all else fails
-			namespace = defaultNamespace
-			c.Log.Info("Could not determine namespace, using default", "namespace", namespace)
-		}
-	}
+// persistClusterTokenToSecret persists the cluster token to a Kubernetes Secret
+func (c *EnvBasedController) persistClusterTokenToSecret(ctx context.Context, token string) error {
+	namespace := c.resolveNamespace()
 
 	// Get runtime Secret name from environment variable with fallback to default
 	// This is the Secret where exchanged tokens are stored (system-managed)
@@ -728,17 +720,7 @@ func (c *EnvBasedController) tryRecoverStoredClusterToken(ctx context.Context) (
 // readClusterTokenFromSecret reads cluster token and identifier from runtime secret.
 // Returns (token, identifier) — identifier may be empty if not previously persisted.
 func (c *EnvBasedController) readClusterTokenFromSecret(ctx context.Context) (string, string) {
-	// Get namespace from environment variable or use default
-	namespace := os.Getenv("POD_NAMESPACE")
-	if namespace == "" {
-		// Try to read from service account namespace file
-		if data, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace"); err == nil {
-			namespace = strings.TrimSpace(string(data))
-		} else {
-			// Fall back to default if all else fails
-			namespace = defaultNamespace
-		}
-	}
+	namespace := c.resolveNamespace()
 
 	// Get runtime Secret name from environment variable with fallback to default
 	runtimeSecretName := os.Getenv("TOKEN_RUNTIME_SECRET_NAME")
@@ -791,17 +773,7 @@ func (c *EnvBasedController) readClusterTokenFromSecret(ctx context.Context) (st
 // readClusterTokenFromConfigMap reads cluster token and identifier from configmap.
 // Returns (token, identifier) — identifier may be empty if not previously persisted.
 func (c *EnvBasedController) readClusterTokenFromConfigMap(ctx context.Context) (string, string) {
-	// Get namespace from environment variable or use default
-	namespace := os.Getenv("POD_NAMESPACE")
-	if namespace == "" {
-		// Try to read from service account namespace file
-		if data, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace"); err == nil {
-			namespace = strings.TrimSpace(string(data))
-		} else {
-			// Fall back to default if all else fails
-			namespace = defaultNamespace
-		}
-	}
+	namespace := c.resolveNamespace()
 
 	// Get ConfigMap name from environment variable with fallback to default
 	configMapName := os.Getenv("TOKEN_CONFIGMAP_NAME")
@@ -847,14 +819,7 @@ func (c *EnvBasedController) readClusterTokenFromConfigMap(ctx context.Context) 
 //   - (identifier, nil) — Secret found and key is non-empty
 //   - ("", nil)         — Secret not found, or exists with missing/empty key (operator will re-register)
 func (c *EnvBasedController) readClusterIdentifierFromSecret(ctx context.Context, secretName string) (string, error) {
-	namespace := os.Getenv("POD_NAMESPACE")
-	if namespace == "" {
-		if data, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace"); err == nil {
-			namespace = strings.TrimSpace(string(data))
-		} else {
-			namespace = "devzero-zxporter"
-		}
-	}
+	namespace := c.resolveNamespace()
 
 	secret, err := c.K8sClient.CoreV1().Secrets(namespace).Get(ctx, secretName, metav1.GetOptions{})
 	if err != nil {
@@ -886,14 +851,7 @@ func (c *EnvBasedController) readClusterIdentifierFromSecret(ctx context.Context
 // persistClusterIdentifierToIdentitySecret writes CLUSTER_IDENTIFIER into the cluster identity Secret.
 // Creates the Secret if it does not exist (case 3: both absent — operator auto-creates after token exchange).
 func (c *EnvBasedController) persistClusterIdentifierToIdentitySecret(ctx context.Context, secretName, identifier string) error {
-	namespace := os.Getenv("POD_NAMESPACE")
-	if namespace == "" {
-		if data, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace"); err == nil {
-			namespace = strings.TrimSpace(string(data))
-		} else {
-			namespace = "devzero-zxporter"
-		}
-	}
+	namespace := c.resolveNamespace()
 
 	existing, err := c.K8sClient.CoreV1().Secrets(namespace).Get(ctx, secretName, metav1.GetOptions{})
 	if err != nil {
