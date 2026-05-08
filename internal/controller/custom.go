@@ -844,9 +844,8 @@ func (c *EnvBasedController) readClusterTokenFromConfigMap(ctx context.Context) 
 
 // readClusterIdentifierFromSecret reads CLUSTER_IDENTIFIER from the cluster identity Secret.
 // Returns:
-//   - (identifier, nil)  — Secret found and key is non-empty
-//   - ("", nil)          — Secret not found; caller should fall back to values.yaml
-//   - ("", error)        — Secret exists but CLUSTER_IDENTIFIER key is missing or empty (case 5)
+//   - (identifier, nil) — Secret found and key is non-empty
+//   - ("", nil)         — Secret not found, or exists with missing/empty key (operator will re-register)
 func (c *EnvBasedController) readClusterIdentifierFromSecret(ctx context.Context, secretName string) (string, error) {
 	namespace := os.Getenv("POD_NAMESPACE")
 	if namespace == "" {
