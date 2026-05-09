@@ -1001,6 +1001,7 @@ rules:
   - apiGroups:
       - ""
     resourceNames:
+      - devzero-zxporter-cluster-identity
       - devzero-zxporter-token
     resources:
       - secrets

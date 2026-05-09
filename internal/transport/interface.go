@@ -32,11 +32,11 @@ type DakrClient interface {
 	) (string, *gen.ClusterSnapshot, error)
 	// telemetry_logger.TelemetryLogSender sends a batch of log entries to Dakr
 	telemetry_logger.TelemetryLogSender
-	// ExchangePATForClusterToken exchanges a PAT token for a cluster token
-	ExchangePATForClusterToken(
-		ctx context.Context,
-		patToken, clusterName, k8sProvider string,
-	) (string, string, error)
+	// ReattachCluster registers or reattaches a cluster, returning (token, clusterID, error).
+	// Pass clusterID=nil on the first call (no stored state); the backend assigns a UUID.
+	// Pass clusterID=&uuid on subsequent calls to reattach the same cluster.
+	// If the backend returns CodeNotFound the cluster was deleted — caller should retry with nil.
+	ReattachCluster(ctx context.Context, patToken string, clusterID *string, clusterName, k8sProvider string) (string, string, error)
 
 	// SendNetworkTrafficMetrics pushes network traffic metrics from a node
 	SendNetworkTrafficMetrics(

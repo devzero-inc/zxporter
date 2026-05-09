@@ -1,8 +1,12 @@
 apiVersion: v1
 data:
   BUFFER_SIZE: ""
+  # CLUSTER_IDENTIFIER and CLUSTER_IDENTITY_SECRET_NAME are intentionally omitted.
+  # The secret name is hardcoded in the operator and the identifier is managed at runtime.
   {{- if not .Values.zxporter.useSecretForToken }}
+  {{- if .Values.zxporter.clusterToken }}
   CLUSTER_TOKEN: "{{ .Values.zxporter.clusterToken }}"
+  {{- end }}
   PAT_TOKEN: "{{ .Values.zxporter.patToken }}"
   {{- end }}
   COLLECTION_FREQUENCY: ""

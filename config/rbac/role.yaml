@@ -47,6 +47,7 @@ rules:
 - apiGroups:
   - ""
   resourceNames:
+  - devzero-zxporter-cluster-identity
   - token
   resources:
   - secrets

@@ -645,6 +645,11 @@ spec:
                   bufferSize:
                     description: BufferSize is the size of the sender buffer
                     type: integer
+                  clusterIdentifier:
+                    description: |-
+                      ClusterIdentifier is the backend-assigned UUID for this cluster.
+                      Populated automatically on first startup via ReattachCluster and persisted to the cluster identity Secret.
+                    type: string
                   clusterSnapshotInterval:
                     description: ClusterSnapshotInterval is how often to take cluster
                       snapshots (defaults to 3h)

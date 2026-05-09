@@ -29,6 +29,11 @@ zxporter:
   # Example: "dzu-aKAAyJgsrblR0dFmgnoB_sQjiVNs-I3Y4gI7jJnePgs="
   patToken: ""
 
+  # NOTE: cluster identity is managed automatically.
+  # The operator stores the backend-assigned cluster UUID in a fixed Secret named
+  # "devzero-zxporter-cluster-identity". No user configuration required.
+  # To re-register a cluster, delete that Secret and restart the operator.
+
   # Kubernetes context name to identify this cluster
   # Required: Must be set to a unique identifier for your cluster
   # Examples:

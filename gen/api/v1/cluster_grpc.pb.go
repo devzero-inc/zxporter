@@ -20,6 +20,7 @@ const _ = grpc.SupportPackageIsVersion7
 
 const (
 	ClusterService_GetClustersBasicInfo_FullMethodName        = "/api.v1.ClusterService/GetClustersBasicInfo"
+	ClusterService_GetClusterBasicInfo_FullMethodName         = "/api.v1.ClusterService/GetClusterBasicInfo"
 	ClusterService_GetClustersWithMetrics_FullMethodName      = "/api.v1.ClusterService/GetClustersWithMetrics"
 	ClusterService_CreateClusterToken_FullMethodName          = "/api.v1.ClusterService/CreateClusterToken"
 	ClusterService_GetClustersDeltaMetrics_FullMethodName     = "/api.v1.ClusterService/GetClustersDeltaMetrics"
@@ -28,6 +29,7 @@ const (
 	ClusterService_GetNodeTypeCounts_FullMethodName           = "/api.v1.ClusterService/GetNodeTypeCounts"
 	ClusterService_GetClusterIDByName_FullMethodName          = "/api.v1.ClusterService/GetClusterIDByName"
 	ClusterService_GetClusterInfoByName_FullMethodName        = "/api.v1.ClusterService/GetClusterInfoByName"
+	ClusterService_ReattachCluster_FullMethodName             = "/api.v1.ClusterService/ReattachCluster"
 )
 
 // ClusterServiceClient is the client API for ClusterService service.
@@ -36,6 +38,8 @@ const (
 type ClusterServiceClient interface {
 	// GetClustersBasicInfo retrieves basic information for all clusters in a team
 	GetClustersBasicInfo(ctx context.Context, in *GetClustersBasicInfoRequest, opts ...grpc.CallOption) (*GetClustersBasicInfoResponse, error)
+	// GetClusterBasicInfo retrieves basic information for a single cluster (singular form of GetClustersBasicInfo)
+	GetClusterBasicInfo(ctx context.Context, in *GetClusterBasicInfoRequest, opts ...grpc.CallOption) (*GetClusterBasicInfoResponse, error)
 	// GetClustersWithMetrics retrieves clusters with full metrics using optimized batch queries
 	GetClustersWithMetrics(ctx context.Context, in *GetClustersWithMetricsRequest, opts ...grpc.CallOption) (*GetClustersWithMetricsResponse, error)
 	// CreateClusterToken creates a new cluster registration with authentication token
@@ -52,6 +56,8 @@ type ClusterServiceClient interface {
 	GetClusterIDByName(ctx context.Context, in *GetClusterIDByNameRequest, opts ...grpc.CallOption) (*GetClusterIDByNameResponse, error)
 	// GetClusterInfoByName retrieves full info of the first active cluster matching the given team and name
 	GetClusterInfoByName(ctx context.Context, in *GetClusterInfoByNameRequest, opts ...grpc.CallOption) (*GetClusterInfoByNameResponse, error)
+	// ReattachCluster finds an existing cluster by identifier or creates a new one, returning a fresh token
+	ReattachCluster(ctx context.Context, in *ReattachClusterRequest, opts ...grpc.CallOption) (*ReattachClusterResponse, error)
 }
 
 type clusterServiceClient struct {
@@ -65,6 +71,15 @@ func NewClusterServiceClient(cc grpc.ClientConnInterface) ClusterServiceClient {
 func (c *clusterServiceClient) GetClustersBasicInfo(ctx context.Context, in *GetClustersBasicInfoRequest, opts ...grpc.CallOption) (*GetClustersBasicInfoResponse, error) {
 	out := new(GetClustersBasicInfoResponse)
 	err := c.cc.Invoke(ctx, ClusterService_GetClustersBasicInfo_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *clusterServiceClient) GetClusterBasicInfo(ctx context.Context, in *GetClusterBasicInfoRequest, opts ...grpc.CallOption) (*GetClusterBasicInfoResponse, error) {
+	out := new(GetClusterBasicInfoResponse)
+	err := c.cc.Invoke(ctx, ClusterService_GetClusterBasicInfo_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -143,12 +158,23 @@ func (c *clusterServiceClient) GetClusterInfoByName(ctx context.Context, in *Get
 	return out, nil
 }
 
+func (c *clusterServiceClient) ReattachCluster(ctx context.Context, in *ReattachClusterRequest, opts ...grpc.CallOption) (*ReattachClusterResponse, error) {
+	out := new(ReattachClusterResponse)
+	err := c.cc.Invoke(ctx, ClusterService_ReattachCluster_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ClusterServiceServer is the server API for ClusterService service.
 // All implementations must embed UnimplementedClusterServiceServer
 // for forward compatibility
 type ClusterServiceServer interface {
 	// GetClustersBasicInfo retrieves basic information for all clusters in a team
 	GetClustersBasicInfo(context.Context, *GetClustersBasicInfoRequest) (*GetClustersBasicInfoResponse, error)
+	// GetClusterBasicInfo retrieves basic information for a single cluster (singular form of GetClustersBasicInfo)
+	GetClusterBasicInfo(context.Context, *GetClusterBasicInfoRequest) (*GetClusterBasicInfoResponse, error)
 	// GetClustersWithMetrics retrieves clusters with full metrics using optimized batch queries
 	GetClustersWithMetrics(context.Context, *GetClustersWithMetricsRequest) (*GetClustersWithMetricsResponse, error)
 	// CreateClusterToken creates a new cluster registration with authentication token
@@ -165,6 +191,8 @@ type ClusterServiceServer interface {
 	GetClusterIDByName(context.Context, *GetClusterIDByNameRequest) (*GetClusterIDByNameResponse, error)
 	// GetClusterInfoByName retrieves full info of the first active cluster matching the given team and name
 	GetClusterInfoByName(context.Context, *GetClusterInfoByNameRequest) (*GetClusterInfoByNameResponse, error)
+	// ReattachCluster finds an existing cluster by identifier or creates a new one, returning a fresh token
+	ReattachCluster(context.Context, *ReattachClusterRequest) (*ReattachClusterResponse, error)
 	mustEmbedUnimplementedClusterServiceServer()
 }
 
@@ -174,6 +202,9 @@ type UnimplementedClusterServiceServer struct {
 
 func (UnimplementedClusterServiceServer) GetClustersBasicInfo(context.Context, *GetClustersBasicInfoRequest) (*GetClustersBasicInfoResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetClustersBasicInfo not implemented")
+}
+func (UnimplementedClusterServiceServer) GetClusterBasicInfo(context.Context, *GetClusterBasicInfoRequest) (*GetClusterBasicInfoResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetClusterBasicInfo not implemented")
 }
 func (UnimplementedClusterServiceServer) GetClustersWithMetrics(context.Context, *GetClustersWithMetricsRequest) (*GetClustersWithMetricsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetClustersWithMetrics not implemented")
@@ -198,6 +229,9 @@ func (UnimplementedClusterServiceServer) GetClusterIDByName(context.Context, *Ge
 }
 func (UnimplementedClusterServiceServer) GetClusterInfoByName(context.Context, *GetClusterInfoByNameRequest) (*GetClusterInfoByNameResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetClusterInfoByName not implemented")
+}
+func (UnimplementedClusterServiceServer) ReattachCluster(context.Context, *ReattachClusterRequest) (*ReattachClusterResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ReattachCluster not implemented")
 }
 func (UnimplementedClusterServiceServer) mustEmbedUnimplementedClusterServiceServer() {}
 
@@ -226,6 +260,24 @@ func _ClusterService_GetClustersBasicInfo_Handler(srv interface{}, ctx context.C
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ClusterServiceServer).GetClustersBasicInfo(ctx, req.(*GetClustersBasicInfoRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ClusterService_GetClusterBasicInfo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetClusterBasicInfoRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterServiceServer).GetClusterBasicInfo(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterService_GetClusterBasicInfo_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterServiceServer).GetClusterBasicInfo(ctx, req.(*GetClusterBasicInfoRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -374,6 +426,24 @@ func _ClusterService_GetClusterInfoByName_Handler(srv interface{}, ctx context.C
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ClusterService_ReattachCluster_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReattachClusterRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterServiceServer).ReattachCluster(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterService_ReattachCluster_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterServiceServer).ReattachCluster(ctx, req.(*ReattachClusterRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ClusterService_ServiceDesc is the grpc.ServiceDesc for ClusterService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -384,6 +454,10 @@ var ClusterService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetClustersBasicInfo",
 			Handler:    _ClusterService_GetClustersBasicInfo_Handler,
+		},
+		{
+			MethodName: "GetClusterBasicInfo",
+			Handler:    _ClusterService_GetClusterBasicInfo_Handler,
 		},
 		{
 			MethodName: "GetClustersWithMetrics",
@@ -416,6 +490,10 @@ var ClusterService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetClusterInfoByName",
 			Handler:    _ClusterService_GetClusterInfoByName_Handler,
+		},
+		{
+			MethodName: "ReattachCluster",
+			Handler:    _ClusterService_ReattachCluster_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

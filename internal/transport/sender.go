@@ -212,16 +212,17 @@ func (c *SimpleDakrClient) SendTelemetryLogs(
 	return nil, nil
 }
 
-// ExchangePATForClusterToken implements SimpleDakrClient.
-func (c *SimpleDakrClient) ExchangePATForClusterToken(
-	ctx context.Context,
-	patToken, clusterName, k8sProvider string,
-) (string, string, error) {
-	c.logger.Info("Would exchange PAT token for cluster token",
+// ReattachCluster implements DakrClient.
+func (c *SimpleDakrClient) ReattachCluster(ctx context.Context, patToken string, clusterIdentifier *string, clusterName, k8sProvider string) (string, string, error) {
+	id := "<nil>"
+	if clusterIdentifier != nil {
+		id = *clusterIdentifier
+	}
+	c.logger.Info("Would reattach cluster",
+		"clusterIdentifier", id,
 		"clusterName", clusterName,
 		"k8sProvider", k8sProvider)
-	// Return empty values for simple client
-	return "", "", fmt.Errorf("PAT token exchange not supported in simple client")
+	return "", "", fmt.Errorf("ReattachCluster not supported in simple client")
 }
 
 // SendNetworkTrafficMetrics implements SimpleDakrClient.

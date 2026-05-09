@@ -449,6 +449,11 @@ type Policies struct {
 	// If ClusterToken is not provided but PATToken is, the system will exchange it for a cluster token
 	PATToken string `json:"patToken,omitempty"`
 
+	// ClusterIdentifier is the backend-assigned UUID for this cluster.
+	// Populated automatically on first startup via ReattachCluster and persisted to the cluster identity Secret.
+	// +optional
+	ClusterIdentifier string `json:"clusterIdentifier,omitempty"`
+
 	// PrometheusURL is the URL of the Prometheus server to query for metrics
 	// If not provided, defaults to in-cluster Prometheus at "http://prometheus-service.monitoring.svc.cluster.local:8080"
 	// +optional

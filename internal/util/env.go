@@ -255,6 +255,11 @@ const (
 	// Valid values: debug, info, warn, error
 	// Default value: "info"
 	_ENV_LOG_LEVEL = "LOG_LEVEL"
+
+	// CLUSTER_IDENTIFIER is the backend-assigned UUID for this cluster.
+	// Populated automatically on first startup via ReattachCluster and persisted to the cluster identity Secret.
+	// Default value: ""
+	_ENV_CLUSTER_IDENTIFIER = "CLUSTER_IDENTIFIER"
 )
 
 const configVolumeMountPath = "/etc/zxporter/config"
@@ -522,6 +527,9 @@ func LoadCollectionPolicySpecFromEnv() (v1.CollectionPolicySpec, error) {
 	}
 	if v := getEnv(_ENV_PAT_TOKEN); v != "" {
 		newSpec.Policies.PATToken = v
+	}
+	if v := getEnv(_ENV_CLUSTER_IDENTIFIER); v != "" {
+		newSpec.Policies.ClusterIdentifier = v
 	}
 	if v := getEnv(_ENV_DAKR_URL); v != "" {
 		newSpec.Policies.DakrURL = v
