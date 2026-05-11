@@ -5,6 +5,8 @@ It provides a comprehensive solution for gathering metrics and data from differe
 
 ## Overview
 
+*This repository is being managed as a subrepo of our monorepo!*
+
 ZXporter is designed to help you monitor and observe your Kubernetes cluster by collecting data from various resources and making it available for analysis. It's particularly useful for:
 
 - Monitoring cluster health and performance
