@@ -41,7 +41,11 @@ func NewJVMCollector(nodeName string, dynClient dynamic.Interface, log logr.Logg
 
 // QueryJVMMetrics returns JVM metrics for all discovered Java containers on this node.
 func (c *JVMCollector) QueryJVMMetrics(ctx context.Context) ([]JVMMetric, error) {
-	containerMap, err := c.buildContainerMap(ctx)
+	// Pod listing can be slow on some clusters/APIServer conditions. Bound it so
+	// JVM metrics scraping doesn't wedge the HTTP server.
+	ctxPods, cancelPods := context.WithTimeout(ctx, 500*time.Millisecond)
+	defer cancelPods()
+	containerMap, err := c.buildContainerMap(ctxPods)
 	if err != nil {
 		// Non-fatal: continue with empty map; pod/namespace/container fields will be blank.
 		c.log.Error(err, "Failed to build container map; pod metadata will be missing")

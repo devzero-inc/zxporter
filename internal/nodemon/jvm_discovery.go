@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -51,14 +52,15 @@ func discoverJavaProcesses(procRoot string) ([]JavaProcess, error) {
 
 		pidDir := filepath.Join(procRoot, e.Name())
 
-		// Read null-separated cmdline and convert to space-separated for matching.
-		rawCmdline := readProcFile(filepath.Join(pidDir, "cmdline"))
-		cmdline := string(bytes.ReplaceAll([]byte(rawCmdline), []byte{0}, []byte{' '}))
 		comm := strings.TrimSpace(readProcFile(filepath.Join(pidDir, "comm")))
-
-		if !isJavaProcess(comm, cmdline) {
+		// Fast path: most JVMs have comm == "java". Avoid reading cmdline for every PID.
+		if comm != "java" {
 			continue
 		}
+
+		// Read null-separated cmdline and convert to space-separated for parsing flags.
+		rawCmdline := readProcFile(filepath.Join(pidDir, "cmdline"))
+		cmdline := string(bytes.ReplaceAll([]byte(rawCmdline), []byte{0}, []byte{' '}))
 
 		cgroupContent := readProcFile(filepath.Join(pidDir, "cgroup"))
 		containerID, ok := parseCgroupContainerID(cgroupContent)
@@ -151,10 +153,18 @@ func findHsperfdata(pidDir string, nsPid int) string {
 	return matches[0]
 }
 
-// readProcFile reads a /proc pseudo-file, returning "" on any error.
+// readProcFile reads a /proc pseudo-file with a hard cap, returning "" on any error.
 // Errors are expected and normal (process may disappear between readdir and read).
 func readProcFile(path string) string {
-	b, err := os.ReadFile(path)
+	const maxProcBytes = 64 << 10 // 64KiB safety cap
+
+	f, err := os.Open(path)
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+
+	b, err := io.ReadAll(io.LimitReader(f, maxProcBytes))
 	if err != nil {
 		return ""
 	}

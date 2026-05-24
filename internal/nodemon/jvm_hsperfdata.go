@@ -3,6 +3,7 @@ package nodemon
 import (
 	"encoding/binary"
 	"fmt"
+	"io"
 	"os"
 )
 
@@ -11,7 +12,15 @@ const perfMagic uint32 = 0xcafec0c0
 // readHsperfdata reads a JVM hsperfdata binary file and returns counters as a
 // map of name → value (int64 for numeric, string for byte-array counters).
 func readHsperfdata(path string) (map[string]any, error) {
-	data, err := os.ReadFile(path)
+	const maxHsperfBytes = 4 << 20 // 4MiB safety cap
+
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	data, err := io.ReadAll(io.LimitReader(f, maxHsperfBytes))
 	if err != nil {
 		return nil, err
 	}

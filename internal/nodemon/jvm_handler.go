@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/go-logr/logr"
 )
@@ -63,8 +64,19 @@ func (h *jvmMetricsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Node:      r.URL.Query().Get("node"),
 	}
 
-	metrics, err := h.querier.QueryJVMMetrics(r.Context())
+	// Hard cap to avoid stalling the HTTP server / probes. We'll make this smarter
+	// (cached snapshots) once we identify the slow path.
+	ctx, cancel := context.WithTimeout(r.Context(), 2500*time.Millisecond)
+	defer cancel()
+
+	metrics, err := h.querier.QueryJVMMetrics(ctx)
 	if err != nil {
+		if ctx.Err() != nil {
+			h.log.Error(ctx.Err(), "Timed out querying JVM metrics")
+			http.Error(w, "jvm metrics query timed out", http.StatusGatewayTimeout)
+			return
+		}
+
 		h.log.Error(err, "Failed to query JVM metrics")
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
