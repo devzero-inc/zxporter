@@ -25,6 +25,9 @@ spec:
       labels:
         {{- include "zxporter-nodemon.selectorLabels" . | nindent 8 }}
     spec:
+      {{- if .Values.jvmMetrics.enabled }}
+      hostPID: true
+      {{- end }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
@@ -69,7 +72,13 @@ spec:
       containers:
         - name: zxporter-nodemon
           securityContext:
+          {{- if .Values.jvmMetrics.enabled }}
+            runAsNonRoot: false
+            runAsUser: 0
+            readOnlyRootFilesystem: true
+          {{- else }}
           {{- toYaml .Values.gpuMetricsExporter.securityContext | nindent 12 }}
+          {{- end }}
           image: "{{ .Values.gpuMetricsExporter.image.repository }}:{{ .Values.gpuMetricsExporter.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.gpuMetricsExporter.image.pullPolicy }}
           ports:

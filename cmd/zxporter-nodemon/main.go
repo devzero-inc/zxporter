@@ -79,9 +79,13 @@ func main() {
 	// Create exporter
 	exporter := nodemon.NewExporter(cfg, dynClient, scraper, mapper, logger)
 
-	// Create HTTP handler and server
+	// Create JVM collector
+	jvmCollector := nodemon.NewJVMCollector(cfg.NodeName, dynClient, logger)
+
+	// Create HTTP handlers and server
 	containerMetricsHandler := nodemon.NewContainerMetricsHandler(exporter, logger)
-	mux := nodemon.NewServerMux(containerMetricsHandler)
+	jvmMetricsHandler := nodemon.NewJVMMetricsHandler(jvmCollector, logger)
+	mux := nodemon.NewServerMux(containerMetricsHandler, jvmMetricsHandler)
 
 	server := &http.Server{
 		Addr:    fmt.Sprintf(":%d", cfg.HTTPListenPort),
