@@ -53,14 +53,14 @@ func (c *JVMCollector) QueryJVMMetrics(ctx context.Context) ([]JVMMetric, error)
 		c.log.Error(err, "Failed to build container map; pod metadata will be missing")
 		containerMap = map[string]containerInfo{}
 	}
-	c.log.V(1).Info("Built container map", "count", len(containerMap), "took", time.Since(start).String())
+	c.log.Info("Built container map", "count", len(containerMap), "took", time.Since(start).String())
 
 	start = time.Now()
 	procs, err := discoverJavaProcesses(c.procRoot)
 	if err != nil {
 		return nil, fmt.Errorf("discovering java processes: %w", err)
 	}
-	c.log.V(1).Info("Discovered java processes", "count", len(procs), "took", time.Since(start).String())
+	c.log.Info("Discovered java processes", "count", len(procs), "took", time.Since(start).String())
 
 	start = time.Now()
 	metrics := make([]JVMMetric, 0, len(procs))
@@ -72,12 +72,12 @@ func (c *JVMCollector) QueryJVMMetrics(ctx context.Context) ([]JVMMetric, error)
 			c.log.Error(err, "Failed to read hsperfdata", "pid", proc.PidHost, "path", proc.HsperfDataPath)
 			continue
 		}
-		c.log.V(1).Info("Read hsperfdata", "pid", proc.PidHost, "counters", len(counters), "took", time.Since(readStart).String())
+		c.log.Info("Read hsperfdata", "pid", proc.PidHost, "counters", len(counters), "took", time.Since(readStart).String())
 
 		info := containerMap[proc.ContainerID]
 		metrics = append(metrics, buildJVMMetric(counters, proc, info, c.nodeName))
 	}
-	c.log.V(1).Info("Built JVM metrics", "count", len(metrics), "took", time.Since(start).String())
+	c.log.Info("Built JVM metrics", "count", len(metrics), "took", time.Since(start).String())
 
 	return metrics, nil
 }

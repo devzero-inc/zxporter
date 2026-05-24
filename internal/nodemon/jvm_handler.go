@@ -52,10 +52,16 @@ func NewJVMMetricsHandler(querier JVMMetricsQuerier, log logr.Logger) http.Handl
 }
 
 func (h *jvmMetricsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	// Non-verbose log so we can see where requests stall.
+	h.log.Info("JVMMetrics request start", "path", r.URL.Path, "rawQuery", r.URL.RawQuery)
+	defer func() {
+		h.log.Info("JVMMetrics request end", "took", time.Since(start).String())
+	}()
 
 	filter := jvmMetricsFilter{
 		Container: r.URL.Query().Get("container"),
