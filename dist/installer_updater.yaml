@@ -12,7 +12,7 @@ metadata:
   labels:
     control-plane: controller-manager
     app.kubernetes.io/name: devzero-system
-  name: devzero-system
+  name: '{{.zxporter_namespace}}'
 # ----- START PROM SERVER -----
 ---
 # Source: prometheus/charts/kube-state-metrics/templates/serviceaccount.yaml
@@ -29,7 +29,7 @@ metadata:
     app.kubernetes.io/instance: prometheus
     app.kubernetes.io/version: "2.15.0"
   name: prometheus-kube-state-metrics
-  namespace: devzero-system
+  namespace: '{{.zxporter_namespace}}'
 ---
 # Source: prometheus/templates/serviceaccount.yaml
 apiVersion: v1
@@ -43,7 +43,7 @@ metadata:
     helm.sh/chart: prometheus-27.20.0
     app.kubernetes.io/part-of: dz-prometheus
   name: prometheus-dz-prometheus-server
-  namespace: devzero-system
+  namespace: '{{.zxporter_namespace}}'
   annotations: {}
 ---
 # Source: prometheus/templates/cm.yaml
@@ -58,7 +58,7 @@ metadata:
     helm.sh/chart: prometheus-27.20.0
     app.kubernetes.io/part-of: dz-prometheus
   name: prometheus-dz-prometheus-server
-  namespace: devzero-system
+  namespace: '{{.zxporter_namespace}}'
 data:
   allow-snippet-annotations: "false"
   alerting_rules.yml: |
@@ -336,7 +336,7 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: prometheus-kube-state-metrics
-    namespace: devzero-system
+    namespace: '{{.zxporter_namespace}}'
 ---
 # Source: prometheus/templates/clusterrolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -353,7 +353,7 @@ metadata:
 subjects:
   - kind: ServiceAccount
     name: prometheus-dz-prometheus-server
-    namespace: devzero-system
+    namespace: '{{.zxporter_namespace}}'
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
@@ -364,7 +364,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: prometheus-kube-state-metrics
-  namespace: devzero-system
+  namespace: '{{.zxporter_namespace}}'
   labels:
     helm.sh/chart: kube-state-metrics-5.33.2
     app.kubernetes.io/managed-by: Helm
@@ -398,7 +398,7 @@ metadata:
     helm.sh/chart: prometheus-27.20.0
     app.kubernetes.io/part-of: dz-prometheus
   name: prometheus-dz-prometheus-server
-  namespace: devzero-system
+  namespace: '{{.zxporter_namespace}}'
 spec:
   ports:
     - name: http
@@ -417,7 +417,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: prometheus-kube-state-metrics
-  namespace: devzero-system
+  namespace: '{{.zxporter_namespace}}'
   labels:
     helm.sh/chart: kube-state-metrics-5.33.2
     app.kubernetes.io/managed-by: Helm
@@ -514,7 +514,7 @@ metadata:
     helm.sh/chart: prometheus-27.20.0
     app.kubernetes.io/part-of: dz-prometheus
   name: prometheus-dz-prometheus-server
-  namespace: devzero-system
+  namespace: '{{.zxporter_namespace}}'
 spec:
   selector:
     matchLabels:
@@ -637,7 +637,7 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: dz-prometheus-node-exporter
-  namespace: devzero-system
+  namespace: '{{.zxporter_namespace}}'
   labels:
     helm.sh/chart: prometheus-node-exporter-4.47.0
     app.kubernetes.io/managed-by: Helm
@@ -653,7 +653,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: dz-prometheus-node-exporter
-  namespace: devzero-system
+  namespace: '{{.zxporter_namespace}}'
   labels:
     helm.sh/chart: prometheus-node-exporter-4.47.0
     app.kubernetes.io/managed-by: Helm
@@ -680,7 +680,7 @@ apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: dz-prometheus-node-exporter
-  namespace: devzero-system
+  namespace: '{{.zxporter_namespace}}'
   labels:
     helm.sh/chart: prometheus-node-exporter-4.47.0
     app.kubernetes.io/managed-by: Helm
@@ -830,7 +830,7 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/name: devzero-zxporter
   name: devzero-zxporter-controller-manager
-  namespace: devzero-system
+  namespace: '{{.zxporter_namespace}}'
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -839,7 +839,7 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/name: devzero-zxporter
   name: devzero-zxporter-leader-election-role
-  namespace: devzero-system
+  namespace: '{{.zxporter_namespace}}'
 rules:
   - apiGroups:
       - ""
@@ -1329,7 +1329,7 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/name: devzero-zxporter
   name: devzero-zxporter-leader-election-rolebinding
-  namespace: devzero-system
+  namespace: '{{.zxporter_namespace}}'
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
@@ -1337,7 +1337,7 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: devzero-zxporter-controller-manager
-    namespace: devzero-system
+    namespace: '{{.zxporter_namespace}}'
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -1353,7 +1353,7 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: devzero-zxporter-controller-manager
-    namespace: devzero-system
+    namespace: '{{.zxporter_namespace}}'
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -1366,7 +1366,7 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: devzero-zxporter-controller-manager
-    namespace: devzero-system
+    namespace: '{{.zxporter_namespace}}'
 ---
 apiVersion: v1
 kind: Service
@@ -1376,7 +1376,7 @@ metadata:
     app.kubernetes.io/name: devzero-zxporter
     control-plane: controller-manager
   name: devzero-zxporter-controller-manager-metrics-service
-  namespace: devzero-system
+  namespace: '{{.zxporter_namespace}}'
 spec:
   ports:
     - name: https
@@ -1393,7 +1393,7 @@ metadata:
     app.kubernetes.io/name: devzero-zxporter
     control-plane: controller-manager
   name: devzero-zxporter-controller-manager-mpa
-  namespace: devzero-system
+  namespace: '{{.zxporter_namespace}}'
 spec:
   ports:
     - name: mpa-grpc
@@ -1421,7 +1421,7 @@ metadata:
     app.kubernetes.io/name: devzero-zxporter
     control-plane: controller-manager
   name: devzero-zxporter-controller-manager
-  namespace: devzero-system
+  namespace: '{{.zxporter_namespace}}'
 spec:
   replicas: 2
   selector:
@@ -1498,7 +1498,7 @@ apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
   name: devzero-zxporter-devzero-zxporter-pdb
-  namespace: devzero-system
+  namespace: '{{.zxporter_namespace}}'
 spec:
   minAvailable: 1
   selector:
