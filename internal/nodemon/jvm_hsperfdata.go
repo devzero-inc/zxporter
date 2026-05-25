@@ -68,12 +68,8 @@ func parseHsperfdata(data []byte) (map[string]any, error) {
 		return nil, fmt.Errorf("hsperfdata: invalid magic bytes")
 	}
 
-	// Note: hsperfdata stores its header fields in *Java byte order* (big-endian),
-	// even though the magic can be used to infer the platform endianness.
-	// In practice (and per coroot's implementation), entry_offset/num_entries are
-	// read as big-endian.
-	entryOffset := int(binary.BigEndian.Uint32(data[24:28]))
-	numEntries := int(binary.BigEndian.Uint32(data[28:32]))
+	entryOffset := int(order.Uint32(data[24:28]))
+	numEntries := int(order.Uint32(data[28:32]))
 	if entryOffset < 32 || entryOffset >= len(data) {
 		return nil, fmt.Errorf("hsperfdata: invalid entry_offset=%d len=%d", entryOffset, len(data))
 	}
