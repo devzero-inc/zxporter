@@ -3,6 +3,7 @@ package nodemon
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -65,7 +66,13 @@ func (c *JVMCollector) QueryJVMMetrics(ctx context.Context) ([]JVMMetric, error)
 	start = time.Now()
 	metrics := make([]JVMMetric, 0, len(procs))
 	for _, proc := range procs {
-		// Bound each read so a single bad proc file cant wedge the request.
+		// Bound each read so a single bad proc file can’t wedge the request.
+		c.log.Info("Reading hsperfdata", "pid", proc.PidHost, "path", proc.HsperfDataPath)
+		if st, err := os.Stat(proc.HsperfDataPath); err == nil {
+			c.log.Info("hsperfdata stat", "pid", proc.PidHost, "sizeBytes", st.Size())
+		} else {
+			c.log.Error(err, "hsperfdata stat failed", "pid", proc.PidHost, "path", proc.HsperfDataPath)
+		}
 		readStart := time.Now()
 		counters, err := readHsperfdata(proc.HsperfDataPath)
 		if err != nil {
