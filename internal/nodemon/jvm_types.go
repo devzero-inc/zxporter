@@ -23,10 +23,10 @@ type JVMMetric struct {
 	SafepointTimeSecondsTotal     float64            `json:"safepoint_time_seconds_total"`
 	SafepointSyncTimeSecondsTotal float64            `json:"safepoint_sync_time_seconds_total"`
 
-	FlagsExtracted JVMFlagsExtracted  `json:"flags_extracted"`
-	FlagSources    JVMFlagSources     `json:"flag_sources,omitempty"`
-	RawCmdline     string             `json:"raw_cmdline,omitempty"`
-	Timestamp      time.Time          `json:"timestamp"`
+	FlagsExtracted JVMFlagsExtracted `json:"flags_extracted"`
+	FlagSources    JVMFlagSources    `json:"flag_sources,omitempty"`
+	RawCmdline     string            `json:"raw_cmdline,omitempty"`
+	Timestamp      time.Time         `json:"timestamp"`
 }
 
 // JVMFlagSources describes where each extracted JVM flag value came from.

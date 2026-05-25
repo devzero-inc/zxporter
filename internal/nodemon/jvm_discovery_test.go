@@ -17,7 +17,7 @@ func TestSplitJavaOpts(t *testing.T) {
 func TestReadJVMFlagsFromProcEnviron(t *testing.T) {
 	f, err := os.CreateTemp(t.TempDir(), "environ")
 	require.NoError(t, err)
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	// NUL-separated key=value pairs.
 	_, err = f.WriteString("PATH=/usr/bin\x00JAVA_TOOL_OPTIONS=-Xms48m -Xmx160m -XX:MaxRAMPercentage=65 -Dfrom=tooloptions\x00OTHER=x\x00")
@@ -101,7 +101,7 @@ func TestParseNSpid(t *testing.T) {
 		wantOK  bool
 	}{
 		{
-			name: "nested namespace - takes last value",
+			name:    "nested namespace - takes last value",
 			content: "Name:\tjava\nPid:\t12345\nNSpid:\t12345\t67\nTgid:\t12345\n",
 			wantPid: 67,
 			wantOK:  true,

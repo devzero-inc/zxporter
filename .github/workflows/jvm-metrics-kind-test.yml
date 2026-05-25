@@ -50,7 +50,6 @@ jobs:
             --set provider=eks \
             --set dcgmExporter.enabled=false \
             --set jvmMetrics.enabled=true \
-            --set jvmMetrics.buildMarker="ci-${GITHUB_RUN_ID}" \
             --set gpuMetricsExporter.image.repository=zxporter-nodemon \
             --set gpuMetricsExporter.image.tag=jvm-ci \
             --set gpuMetricsExporter.image.pullPolicy=IfNotPresent

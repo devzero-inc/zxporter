@@ -18,7 +18,7 @@ func readHsperfdata(path string) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	data, err := io.ReadAll(io.LimitReader(f, maxHsperfBytes))
 	if err != nil {

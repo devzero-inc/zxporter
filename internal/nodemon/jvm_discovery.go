@@ -12,13 +12,18 @@ import (
 	"strings"
 )
 
-
 var (
-	// containerIDRe matches 64-char container IDs in cgroup paths for containerd, docker, and bare containerd.
+	// containerIDRe matches 64-char container IDs in cgroup paths for containerd and docker.
 	containerIDRe = regexp.MustCompile(`(?:cri-containerd|docker|containerd)-([a-f0-9]{64})\.scope`)
 	// crioRe matches CRI-O container IDs.
 	crioRe = regexp.MustCompile(`crio-([a-f0-9]{64})\.scope`)
+	// bareCgroupIDRe matches cgroupv2 paths where the last segment is a bare 64-char container ID.
+	// Example: .../kubepods-burstable-pod<uid>.slice/<container-id>
+	bareCgroupIDRe = regexp.MustCompile(`/([a-f0-9]{64})$`)
 )
+
+const javaComm = "java"
+const javaBinName = "java"
 
 // JavaProcess holds info about a discovered Java process running inside a Kubernetes container.
 type JavaProcess struct {
@@ -46,7 +51,7 @@ func discoverJavaProcesses(procRoot string) ([]JavaProcess, error) {
 		return nil, fmt.Errorf("reading %s: %w", procRoot, err)
 	}
 
-	var procs []JavaProcess
+	procs := make([]JavaProcess, 0, len(entries))
 	for _, e := range entries {
 		if !e.IsDir() {
 			continue
@@ -59,14 +64,14 @@ func discoverJavaProcesses(procRoot string) ([]JavaProcess, error) {
 		pidDir := filepath.Join(procRoot, e.Name())
 
 		comm := strings.TrimSpace(readProcFile(filepath.Join(pidDir, "comm")))
-		// Fast path: most JVMs have comm == "java". Avoid reading cmdline for every PID.
-		if comm != "java" {
-			continue
-		}
 
 		// Read null-separated cmdline and convert to space-separated for display / parsing.
 		rawCmdline := readProcFile(filepath.Join(pidDir, "cmdline"))
 		cmdline := string(bytes.ReplaceAll([]byte(rawCmdline), []byte{0}, []byte{' '}))
+		// Fast path: most JVMs have comm == "java"; but on some systems comm may differ.
+		if !isJavaProcess(comm, cmdline) {
+			continue
+		}
 
 		// Also capture env-injected JVM options (common in k8s via JAVA_TOOL_OPTIONS,
 		// JDK_JAVA_OPTIONS, JAVA_OPTS). These do NOT appear in /proc/<pid>/cmdline.
@@ -105,14 +110,14 @@ func discoverJavaProcesses(procRoot string) ([]JavaProcess, error) {
 // isJavaProcess returns true if the process comm is "java" or its first cmdline
 // argument is a binary named "java".
 func isJavaProcess(comm, cmdline string) bool {
-	if comm == "java" {
+	if comm == javaComm {
 		return true
 	}
 	parts := strings.Fields(cmdline)
 	if len(parts) == 0 {
 		return false
 	}
-	return filepath.Base(parts[0]) == "java"
+	return filepath.Base(parts[0]) == javaBinName
 }
 
 // parseCgroupContainerID extracts a 64-char hex container ID from cgroup file content.
@@ -124,6 +129,9 @@ func parseCgroupContainerID(content string) (string, bool) {
 			return m[1], true
 		}
 		if m := crioRe.FindStringSubmatch(line); len(m) == 2 {
+			return m[1], true
+		}
+		if m := bareCgroupIDRe.FindStringSubmatch(line); len(m) == 2 {
 			return m[1], true
 		}
 	}
@@ -173,7 +181,10 @@ func readProcFile(path string) string {
 	if err != nil {
 		return ""
 	}
-	defer f.Close()
+	defer func() {
+		// procfs close errors are not actionable.
+		_ = f.Close()
+	}()
 
 	b, err := io.ReadAll(io.LimitReader(f, maxProcBytes))
 	if err != nil {
@@ -220,7 +231,7 @@ func ParseJVMFlags(cmdline string) JVMFlagsExtracted {
 // don’t appear in /proc/<pid>/cmdline), so this is best-effort:
 //   - cmdline is treated as highest precedence
 //   - env vars are applied in the following precedence order:
-//       JAVA_TOOL_OPTIONS, JDK_JAVA_OPTIONS, JAVA_OPTS
+//     JAVA_TOOL_OPTIONS, JDK_JAVA_OPTIONS, JAVA_OPTS
 //
 // The returned effectiveCmdline is the cmdline plus the env options appended as
 // tokens for observability.

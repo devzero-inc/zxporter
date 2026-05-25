@@ -145,7 +145,7 @@ func buildJVMMetric(counters map[string]any, proc JavaProcess, info containerInf
 		PidNS:       proc.PidNS,
 		RawCmdline:  proc.CmdLine,
 		// FlagsExtracted / FlagSources are filled after hsperf parsing.
-		Timestamp:   time.Now().UTC(),
+		Timestamp: time.Now().UTC(),
 	}
 
 	m.JavaCommand, _ = hsStr(counters, "sun.rt.javaCommand")
@@ -194,8 +194,10 @@ func buildJVMMetric(counters map[string]any, proc JavaProcess, info containerInf
 
 	safeTicks, _ := hsInt(counters, "sun.rt.safepointTime")
 	syncTicks, _ := hsInt(counters, "sun.rt.safepointSyncTime")
-	m.SafepointTimeSecondsTotal = float64(safeTicks) / float64(freq)
-	m.SafepointSyncTimeSecondsTotal = float64(syncTicks) / float64(freq)
+	// HotSpot stores safepoint counters in milliseconds (not HRT ticks like GC collector time).
+	// See: sun.rt.safepointTime, sun.rt.safepointSyncTime
+	m.SafepointTimeSecondsTotal = float64(safeTicks) / 1000.0
+	m.SafepointSyncTimeSecondsTotal = float64(syncTicks) / 1000.0
 
 	flags, sources, effectiveCmd := ParseJVMFlagsWithSources(proc.CmdLine, proc.EnvJavaOpts)
 	m.FlagsExtracted = flags

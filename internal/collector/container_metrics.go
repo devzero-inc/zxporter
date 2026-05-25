@@ -88,7 +88,6 @@ type ContainerMetricsSnapshot struct {
 	JvmFlagSourcesJSON    string `json:"jvmFlagSourcesJson,omitempty"`
 }
 
-
 // BuildOOMSnapshot constructs a ContainerMetricsSnapshot for an OOM event.
 // Used by both the PodCollector (informer fast path) and OOMReconciler (sweep path)
 // to ensure consistent snapshot construction.
