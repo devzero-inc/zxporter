@@ -70,8 +70,15 @@ func parseHsperfdata(data []byte) (map[string]any, error) {
 
 	entryOffset := int(order.Uint32(data[24:28]))
 	numEntries := int(order.Uint32(data[28:32]))
+	if entryOffset < 32 || entryOffset >= len(data) {
+		return nil, fmt.Errorf("hsperfdata: invalid entry_offset=%d len=%d", entryOffset, len(data))
+	}
+	// Guard against corrupted headers.
+	if numEntries < 0 || numEntries > 100_000 {
+		return nil, fmt.Errorf("hsperfdata: unreasonable num_entries=%d", numEntries)
+	}
 
-	result := make(map[string]any, numEntries)
+	result := make(map[string]any, minInt(numEntries, 2048))
 
 	offset := entryOffset
 	for i := 0; i < numEntries; i++ {
@@ -80,8 +87,12 @@ func parseHsperfdata(data []byte) (map[string]any, error) {
 		}
 		entryStart := offset
 		entryLength := int(order.Uint32(data[offset : offset+4]))
-		if entryLength <= 0 || entryStart+entryLength > len(data) {
-			break
+		if entryLength <= 0 {
+			return nil, fmt.Errorf("hsperfdata: invalid entry_length=%d at entry=%d", entryLength, i)
+		}
+		entryEnd := entryStart + entryLength
+		if entryEnd > len(data) {
+			return nil, fmt.Errorf("hsperfdata: entry beyond eof entry=%d end=%d len=%d", i, entryEnd, len(data))
 		}
 
 		nameOffset := int(order.Uint32(data[offset+4 : offset+8]))
@@ -89,49 +100,72 @@ func parseHsperfdata(data []byte) (map[string]any, error) {
 		dataType := data[offset+12]
 		dataOffset := int(order.Uint32(data[offset+16 : offset+20]))
 
-		// Read null-terminated name.
+		// Validate offsets are within the entry.
+		if nameOffset < 0 || nameOffset >= entryLength {
+			offset = entryEnd
+			continue
+		}
+		if dataOffset < 0 || dataOffset >= entryLength {
+			offset = entryEnd
+			continue
+		}
+
+		// Read null-terminated name (bounded to this entry).
 		nameStart := entryStart + nameOffset
 		nameEnd := nameStart
-		for nameEnd < len(data) && data[nameEnd] != 0 {
+		for nameEnd < entryEnd && data[nameEnd] != 0 {
 			nameEnd++
 		}
 		if nameEnd <= nameStart {
-			offset = entryStart + entryLength
+			offset = entryEnd
 			continue
 		}
 		name := string(data[nameStart:nameEnd])
+
 		dataStart := entryStart + dataOffset
 
 		switch dataType {
 		case 'J': // long (int64)
-			if dataStart+8 <= len(data) {
+			if dataStart+8 <= entryEnd {
 				result[name] = int64(order.Uint64(data[dataStart : dataStart+8]))
+			}
+		case 'I': // int (int32)
+			if dataStart+4 <= entryEnd {
+				result[name] = int64(int32(order.Uint32(data[dataStart : dataStart+4])))
 			}
 		case 'B': // byte scalar or byte-array string
 			if vectorLength > 0 {
-				// String stored as a null-terminated byte array.
+				// Cap vector length to avoid pathological allocations on corrupt data.
+				if vectorLength > 256<<10 {
+					vectorLength = 256 << 10
+				}
 				maxEnd := dataStart + vectorLength
-				if maxEnd > len(data) {
-					maxEnd = len(data)
+				if maxEnd > entryEnd {
+					maxEnd = entryEnd
 				}
 				end := dataStart
 				for end < maxEnd && data[end] != 0 {
 					end++
 				}
 				result[name] = string(data[dataStart:end])
-			} else if dataStart < len(data) {
+			} else if dataStart < entryEnd {
 				result[name] = int64(data[dataStart])
 			}
-		case 'I': // int (int32)
-			if dataStart+4 <= len(data) {
-				result[name] = int64(int32(order.Uint32(data[dataStart : dataStart+4])))
-			}
+		default:
+			// Unknown type: skip.
 		}
 
-		offset = entryStart + entryLength
+		offset = entryEnd
 	}
 
 	return result, nil
+}
+
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 // hsInt looks up an int64 counter.
