@@ -12,6 +12,7 @@ import (
 	"strings"
 )
 
+
 var (
 	// containerIDRe matches 64-char container IDs in cgroup paths for containerd, docker, and bare containerd.
 	containerIDRe = regexp.MustCompile(`(?:cri-containerd|docker|containerd)-([a-f0-9]{64})\.scope`)
@@ -21,10 +22,15 @@ var (
 
 // JavaProcess holds info about a discovered Java process running inside a Kubernetes container.
 type JavaProcess struct {
-	PidHost        int
-	PidNS          int
-	ContainerID    string
-	CmdLine        string
+	PidHost     int
+	PidNS       int
+	ContainerID string
+
+	CmdLine string
+	// EnvJavaOpts includes any env-injected Java options found in /proc/<pid>/environ.
+	// Keys are env var names (JAVA_TOOL_OPTIONS, JDK_JAVA_OPTIONS, JAVA_OPTS).
+	EnvJavaOpts map[string]string
+
 	HsperfDataPath string
 }
 
@@ -58,9 +64,13 @@ func discoverJavaProcesses(procRoot string) ([]JavaProcess, error) {
 			continue
 		}
 
-		// Read null-separated cmdline and convert to space-separated for parsing flags.
+		// Read null-separated cmdline and convert to space-separated for display / parsing.
 		rawCmdline := readProcFile(filepath.Join(pidDir, "cmdline"))
 		cmdline := string(bytes.ReplaceAll([]byte(rawCmdline), []byte{0}, []byte{' '}))
+
+		// Also capture env-injected JVM options (common in k8s via JAVA_TOOL_OPTIONS,
+		// JDK_JAVA_OPTIONS, JAVA_OPTS). These do NOT appear in /proc/<pid>/cmdline.
+		envJavaOpts := readJavaOptsFromProcEnviron(filepath.Join(pidDir, "environ"))
 
 		cgroupContent := readProcFile(filepath.Join(pidDir, "cgroup"))
 		containerID, ok := parseCgroupContainerID(cgroupContent)
@@ -84,6 +94,7 @@ func discoverJavaProcesses(procRoot string) ([]JavaProcess, error) {
 			PidNS:          nsPid,
 			ContainerID:    containerID,
 			CmdLine:        strings.TrimSpace(cmdline),
+			EnvJavaOpts:    envJavaOpts,
 			HsperfDataPath: hsperfPath,
 		})
 	}
@@ -172,6 +183,8 @@ func readProcFile(path string) string {
 }
 
 // ParseJVMFlags parses JVM memory and container-awareness flags from a process cmdline string.
+//
+// NOTE: This is *best-effort* parsing for the few flags we care about for sizing.
 func ParseJVMFlags(cmdline string) JVMFlagsExtracted {
 	var flags JVMFlagsExtracted
 	for _, token := range strings.Fields(cmdline) {
@@ -198,6 +211,161 @@ func ParseJVMFlags(cmdline string) JVMFlagsExtracted {
 		}
 	}
 	return flags
+}
+
+// ParseJVMFlagsWithSources extracts sizing-related JVM flags and also returns
+// where each value came from.
+//
+// We cannot observe the final JVM argument list directly (env-injected options
+// don’t appear in /proc/<pid>/cmdline), so this is best-effort:
+//   - cmdline is treated as highest precedence
+//   - env vars are applied in the following precedence order:
+//       JAVA_TOOL_OPTIONS, JDK_JAVA_OPTIONS, JAVA_OPTS
+//
+// The returned effectiveCmdline is the cmdline plus the env options appended as
+// tokens for observability.
+func ParseJVMFlagsWithSources(cmdline string, envJavaOpts map[string]string) (JVMFlagsExtracted, JVMFlagSources, string) {
+	flags := JVMFlagsExtracted{}
+	src := JVMFlagSources{}
+
+	applyTokens := func(tokens []string, source string) {
+		for _, token := range tokens {
+			switch {
+			case strings.HasPrefix(token, "-Xms"):
+				if flags.XmsBytes == nil {
+					if v, err := parseMemSize(token[4:]); err == nil {
+						flags.XmsBytes = &v
+						src.XmsBytes = source
+					}
+				}
+			case strings.HasPrefix(token, "-Xmx"):
+				if flags.XmxBytes == nil {
+					if v, err := parseMemSize(token[4:]); err == nil {
+						flags.XmxBytes = &v
+						src.XmxBytes = source
+					}
+				}
+			case strings.HasPrefix(token, "-XX:MaxRAMPercentage="):
+				if flags.MaxRamPercentage == nil {
+					s := token[len("-XX:MaxRAMPercentage="):]
+					if v, err := strconv.ParseFloat(s, 64); err == nil {
+						flags.MaxRamPercentage = &v
+						src.MaxRamPercentage = source
+					}
+				}
+			case token == "-XX:+UseContainerSupport":
+				if flags.UseContainerSupport == nil {
+					t := true
+					flags.UseContainerSupport = &t
+					src.UseContainerSupport = source
+				}
+			case token == "-XX:-UseContainerSupport":
+				if flags.UseContainerSupport == nil {
+					f := false
+					flags.UseContainerSupport = &f
+					src.UseContainerSupport = source
+				}
+			}
+		}
+	}
+
+	applyTokens(strings.Fields(cmdline), "cmdline")
+
+	effective := strings.TrimSpace(cmdline)
+	for _, k := range []string{"JAVA_TOOL_OPTIONS", "JDK_JAVA_OPTIONS", "JAVA_OPTS"} {
+		v := ""
+		if envJavaOpts != nil {
+			v = envJavaOpts[k]
+		}
+		if strings.TrimSpace(v) == "" {
+			continue
+		}
+		toks := splitJavaOpts(v)
+		if len(toks) > 0 {
+			effective = strings.TrimSpace(effective + "  " + strings.Join(toks, " "))
+		}
+		applyTokens(toks, k)
+	}
+
+	return flags, src, effective
+}
+
+func readJavaOptsFromProcEnviron(environPath string) map[string]string {
+	raw := readProcFile(environPath)
+	if raw == "" {
+		return nil
+	}
+
+	// /proc/<pid>/environ is NUL-separated key=value pairs.
+	parts := strings.Split(raw, "\x00")
+	out := map[string]string{}
+	for _, kv := range parts {
+		if kv == "" {
+			continue
+		}
+		k, v, ok := strings.Cut(kv, "=")
+		if !ok {
+			continue
+		}
+		switch k {
+		case "JAVA_TOOL_OPTIONS", "JDK_JAVA_OPTIONS", "JAVA_OPTS":
+			if strings.TrimSpace(v) != "" {
+				out[k] = v
+			}
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func splitJavaOpts(s string) []string {
+	var out []string
+	var cur strings.Builder
+	inSingle := false
+	inDouble := false
+	escape := false
+
+	flush := func() {
+		if cur.Len() > 0 {
+			out = append(out, cur.String())
+			cur.Reset()
+		}
+	}
+
+	for _, r := range s {
+		if escape {
+			cur.WriteRune(r)
+			escape = false
+			continue
+		}
+		if r == '\\' && !inSingle {
+			escape = true
+			continue
+		}
+		switch r {
+		case '\'':
+			if !inDouble {
+				inSingle = !inSingle
+				continue
+			}
+		case '"':
+			if !inSingle {
+				inDouble = !inDouble
+				continue
+			}
+		}
+		if !inSingle && !inDouble {
+			if r == ' ' || r == '\t' || r == '\n' || r == '\r' {
+				flush()
+				continue
+			}
+		}
+		cur.WriteRune(r)
+	}
+	flush()
+	return out
 }
 
 // parseMemSize parses JVM memory size strings: "256m", "4g", "512k", or bare bytes.

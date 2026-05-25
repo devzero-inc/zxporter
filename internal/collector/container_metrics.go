@@ -76,7 +76,18 @@ type ContainerMetricsSnapshot struct {
 	GpuLimitCount            interface{} `json:"gpuLimitCount,omitempty"`
 	GpuTotalMemoryMb         interface{} `json:"gpuTotalMemoryMb,omitempty"`
 	IndividualGPUMetrics     string      `json:"individualGPUMetrics,omitempty"` // JSON string
+
+	// JVM metrics (from zxporter-nodemon /container/jvm-metrics)
+	JvmJavaCommand        string `json:"jvmJavaCommand,omitempty"`
+	JvmJavaVersion        string `json:"jvmJavaVersion,omitempty"`
+	JvmHeapSizeBytes      int64  `json:"jvmHeapSizeBytes,omitempty"`
+	JvmHeapUsedBytes      int64  `json:"jvmHeapUsedBytes,omitempty"`
+	JvmHeapMaxSizeBytes   int64  `json:"jvmHeapMaxSizeBytes,omitempty"`
+	JvmRawCmdline         string `json:"jvmRawCmdline,omitempty"`
+	JvmFlagsExtractedJSON string `json:"jvmFlagsExtractedJson,omitempty"`
+	JvmFlagSourcesJSON    string `json:"jvmFlagSourcesJson,omitempty"`
 }
+
 
 // BuildOOMSnapshot constructs a ContainerMetricsSnapshot for an OOM event.
 // Used by both the PodCollector (informer fast path) and OOMReconciler (sweep path)

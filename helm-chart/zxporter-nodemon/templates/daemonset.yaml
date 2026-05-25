@@ -76,6 +76,9 @@ spec:
             runAsNonRoot: false
             runAsUser: 0
             readOnlyRootFilesystem: true
+            capabilities:
+              add:
+                - SYS_PTRACE
           {{- else }}
           {{- toYaml .Values.gpuMetricsExporter.securityContext | nindent 12 }}
           {{- end }}
@@ -101,6 +104,10 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+            {{- if .Values.jvmMetrics.buildMarker }}
+            - name: "JVM_METRICS_BUILD_MARKER"
+              value: {{ .Values.jvmMetrics.buildMarker | quote }}
+            {{- end }}
           {{- if .Values.dcgmExporter.enabled }}
             - name: "DCGM_HOST"
               value: "localhost"

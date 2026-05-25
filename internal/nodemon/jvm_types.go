@@ -23,12 +23,22 @@ type JVMMetric struct {
 	SafepointTimeSecondsTotal     float64            `json:"safepoint_time_seconds_total"`
 	SafepointSyncTimeSecondsTotal float64            `json:"safepoint_sync_time_seconds_total"`
 
-	FlagsExtracted JVMFlagsExtracted `json:"flags_extracted"`
-	RawCmdline     string            `json:"raw_cmdline,omitempty"`
-	Timestamp      time.Time         `json:"timestamp"`
+	FlagsExtracted JVMFlagsExtracted  `json:"flags_extracted"`
+	FlagSources    JVMFlagSources     `json:"flag_sources,omitempty"`
+	RawCmdline     string             `json:"raw_cmdline,omitempty"`
+	Timestamp      time.Time          `json:"timestamp"`
 }
 
-// JVMFlagsExtracted holds JVM flags parsed from the process cmdline.
+// JVMFlagSources describes where each extracted JVM flag value came from.
+// This is best-effort; precedence rules are implemented in ParseJVMFlagsWithSources.
+type JVMFlagSources struct {
+	XmsBytes            string `json:"xms_bytes,omitempty"`
+	XmxBytes            string `json:"xmx_bytes,omitempty"`
+	MaxRamPercentage    string `json:"max_ram_percentage,omitempty"`
+	UseContainerSupport string `json:"use_container_support,omitempty"`
+}
+
+// JVMFlagsExtracted holds JVM flags parsed from the process cmdline and/or env.
 type JVMFlagsExtracted struct {
 	XmsBytes            *int64   `json:"xms_bytes,omitempty"`
 	XmxBytes            *int64   `json:"xmx_bytes,omitempty"`

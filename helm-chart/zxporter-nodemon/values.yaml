@@ -46,6 +46,9 @@ gpuMetricsExporter:
 # NOTE: requires hostPID + running nodemon as UID 0 to read /proc/<pid>/root/tmp/hsperfdata_*/<nsPid>
 jvmMetrics:
   enabled: false
+  # Optional: forces a recognizable marker into the nodemon env + startup logs to
+  # prove which image/chart revision is running.
+  buildMarker: ""
 
 dcgmExporter:
   enabled: true

@@ -144,6 +144,7 @@ func buildJVMMetric(counters map[string]any, proc JavaProcess, info containerInf
 		PidHost:     proc.PidHost,
 		PidNS:       proc.PidNS,
 		RawCmdline:  proc.CmdLine,
+		// FlagsExtracted / FlagSources are filled after hsperf parsing.
 		Timestamp:   time.Now().UTC(),
 	}
 
@@ -196,7 +197,10 @@ func buildJVMMetric(counters map[string]any, proc JavaProcess, info containerInf
 	m.SafepointTimeSecondsTotal = float64(safeTicks) / float64(freq)
 	m.SafepointSyncTimeSecondsTotal = float64(syncTicks) / float64(freq)
 
-	m.FlagsExtracted = ParseJVMFlags(proc.CmdLine)
+	flags, sources, effectiveCmd := ParseJVMFlagsWithSources(proc.CmdLine, proc.EnvJavaOpts)
+	m.FlagsExtracted = flags
+	m.FlagSources = sources
+	m.RawCmdline = effectiveCmd
 
 	return m
 }

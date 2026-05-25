@@ -29,9 +29,11 @@ func main() {
 	logger := zapr.NewLogger(zapLog)
 
 	versionInfo := version.Get()
+	marker := os.Getenv("JVM_METRICS_BUILD_MARKER")
 	logger.Info("Starting zxporter-nodemon",
 		"version", versionInfo.String(),
-		"commit", versionInfo.GitCommit)
+		"commit", versionInfo.GitCommit,
+		"jvmMetricsBuildMarker", marker)
 
 	cfg := nodemon.ExporterConfig{
 		HTTPListenPort:      envInt("HTTP_LISTEN_PORT", 6061),

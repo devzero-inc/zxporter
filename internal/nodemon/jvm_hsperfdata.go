@@ -58,24 +58,19 @@ func parseHsperfdata(data []byte) (map[string]any, error) {
 		return nil, fmt.Errorf("hsperfdata: file too short (%d bytes)", len(data))
 	}
 
-	// Detect byte order from magic.
-	var order binary.ByteOrder
-	if binary.BigEndian.Uint32(data[0:4]) == perfMagic {
-		order = binary.BigEndian
-	} else if binary.LittleEndian.Uint32(data[0:4]) == perfMagic {
-		order = binary.LittleEndian
-	} else {
+	// Detect byte order.
+	//
+	// In practice, we’ve observed hsperfdata files where the raw magic bytes match
+	// 0xca fe c0 c0 but the numeric header fields (entry_offset/num_entries/etc.)
+	// must be interpreted little-endian to be sane. So: validate both orders and
+	// pick the one that yields a consistent header.
+	if binary.BigEndian.Uint32(data[0:4]) != perfMagic && binary.LittleEndian.Uint32(data[0:4]) != perfMagic {
 		return nil, fmt.Errorf("hsperfdata: invalid magic bytes")
 	}
 
-	entryOffset := int(order.Uint32(data[24:28]))
-	numEntries := int(order.Uint32(data[28:32]))
-	if entryOffset < 32 || entryOffset >= len(data) {
-		return nil, fmt.Errorf("hsperfdata: invalid entry_offset=%d len=%d", entryOffset, len(data))
-	}
-	// Guard against corrupted headers.
-	if numEntries < 0 || numEntries > 100_000 {
-		return nil, fmt.Errorf("hsperfdata: unreasonable num_entries=%d", numEntries)
+	order, entryOffset, numEntries, err := pickHsperfByteOrder(data)
+	if err != nil {
+		return nil, err
 	}
 
 	result := make(map[string]any, minInt(numEntries, 2048))
@@ -159,6 +154,47 @@ func parseHsperfdata(data []byte) (map[string]any, error) {
 	}
 
 	return result, nil
+}
+
+func pickHsperfByteOrder(data []byte) (binary.ByteOrder, int, int, error) {
+	// Try both endian interpretations and pick the one that produces a sane header.
+	try := func(order binary.ByteOrder) (entryOffset int, numEntries int, ok bool) {
+		if len(data) < 32 {
+			return 0, 0, false
+		}
+		entryOffset = int(order.Uint32(data[24:28]))
+		numEntries = int(order.Uint32(data[28:32]))
+		if entryOffset < 32 || entryOffset+20 > len(data) {
+			return 0, 0, false
+		}
+		if numEntries < 0 || numEntries > 100_000 {
+			return 0, 0, false
+		}
+		// Validate first entry has a plausible length.
+		firstLen := int(order.Uint32(data[entryOffset : entryOffset+4]))
+		if firstLen <= 0 || entryOffset+firstLen > len(data) {
+			return 0, 0, false
+		}
+		return entryOffset, numEntries, true
+	}
+
+	beOff, beN, beOK := try(binary.BigEndian)
+	leOff, leN, leOK := try(binary.LittleEndian)
+
+	switch {
+	case beOK && !leOK:
+		return binary.BigEndian, beOff, beN, nil
+	case leOK && !beOK:
+		return binary.LittleEndian, leOff, leN, nil
+	case beOK && leOK:
+		// Tie-breaker: prefer the order matching the magic interpretation if possible.
+		if binary.BigEndian.Uint32(data[0:4]) == perfMagic {
+			return binary.BigEndian, beOff, beN, nil
+		}
+		return binary.LittleEndian, leOff, leN, nil
+	default:
+		return nil, 0, 0, fmt.Errorf("hsperfdata: could not determine byte order (len=%d)", len(data))
+	}
 }
 
 func minInt(a, b int) int {

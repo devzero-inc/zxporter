@@ -1,11 +1,39 @@
 package nodemon
 
 import (
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestSplitJavaOpts(t *testing.T) {
+	assert.Equal(t, []string{"-Xms48m", "-Xmx160m", "-XX:MaxRAMPercentage=65", "-Dfrom=tooloptions"}, splitJavaOpts("-Xms48m -Xmx160m -XX:MaxRAMPercentage=65 -Dfrom=tooloptions"))
+	assert.Equal(t, []string{"-Dfoo=bar baz", "-Xmx256m"}, splitJavaOpts("-Dfoo='bar baz' -Xmx256m"))
+	assert.Equal(t, []string{"-Dfoo=bar baz", "-Xmx256m"}, splitJavaOpts("-Dfoo=\"bar baz\" -Xmx256m"))
+}
+
+func TestReadJVMFlagsFromProcEnviron(t *testing.T) {
+	f, err := os.CreateTemp(t.TempDir(), "environ")
+	require.NoError(t, err)
+	defer f.Close()
+
+	// NUL-separated key=value pairs.
+	_, err = f.WriteString("PATH=/usr/bin\x00JAVA_TOOL_OPTIONS=-Xms48m -Xmx160m -XX:MaxRAMPercentage=65 -Dfrom=tooloptions\x00OTHER=x\x00")
+	require.NoError(t, err)
+	require.NoError(t, f.Sync())
+
+	env := readJavaOptsFromProcEnviron(f.Name())
+	flags, _, _ := ParseJVMFlagsWithSources("java", env)
+	parsed := flags
+	require.NotNil(t, parsed.XmsBytes)
+	require.NotNil(t, parsed.XmxBytes)
+	require.NotNil(t, parsed.MaxRamPercentage)
+	assert.Equal(t, int64(48*1024*1024), *parsed.XmsBytes)
+	assert.Equal(t, int64(160*1024*1024), *parsed.XmxBytes)
+	assert.Equal(t, 65.0, *parsed.MaxRamPercentage)
+}
 
 func TestParseCgroupContainerID(t *testing.T) {
 	const id64 = "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
