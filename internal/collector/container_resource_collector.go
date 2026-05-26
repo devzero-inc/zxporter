@@ -415,7 +415,6 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 		var cancel context.CancelFunc
 		if c.prometheusAPI != nil {
 			queryCtx, cancel = context.WithTimeout(ctx, c.config.QueryTimeout)
-			defer cancel()
 		}
 
 		// Fetch network metrics
@@ -561,6 +560,10 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 				jvmMetrics,
 				throttleFraction,
 			)
+		}
+
+		if cancel != nil {
+			cancel()
 		}
 	}
 }

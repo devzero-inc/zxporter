@@ -51,7 +51,7 @@ func discoverJavaProcesses(procRoot string) ([]JavaProcess, error) {
 		return nil, fmt.Errorf("reading %s: %w", procRoot, err)
 	}
 
-	procs := make([]JavaProcess, 0, len(entries))
+	procs := make([]JavaProcess, 0, 64)
 	for _, e := range entries {
 		if !e.IsDir() {
 			continue

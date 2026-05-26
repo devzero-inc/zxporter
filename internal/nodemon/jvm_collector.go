@@ -171,6 +171,13 @@ func (c *JVMCollector) QueryJVMMetrics(ctx context.Context) ([]JVMMetric, error)
 	start = time.Now()
 	metrics := make([]JVMMetric, 0, len(procs))
 	for _, proc := range procs {
+		select {
+		case <-ctx.Done():
+			c.log.Info("JVM metrics query cancelled", "collected", len(metrics), "remaining", len(procs)-len(metrics))
+			return metrics, ctx.Err()
+		default:
+		}
+
 		c.log.Info("Reading hsperfdata", "pid", proc.PidHost, "path", proc.HsperfDataPath)
 		if st, err := os.Stat(proc.HsperfDataPath); err == nil {
 			c.log.Info("hsperfdata stat", "pid", proc.PidHost, "sizeBytes", st.Size())
