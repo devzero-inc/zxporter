@@ -200,6 +200,22 @@ func (c *JVMCollector) QueryJVMMetrics(ctx context.Context) ([]JVMMetric, error)
 	return metrics, nil
 }
 
+// sumSpaceCounters sums sun.gc.generation.*.space.*.{metric} across all generations
+// and spaces. This handles JVMs where the aggregate sun.gc.heap.{metric} counter
+// doesn't exist (Serial GC, some G1 configurations).
+func sumSpaceCounters(counters map[string]any, metric string) int64 {
+	var total int64
+	for gen := 0; gen < 4; gen++ {
+		for space := 0; space < 4; space++ {
+			key := fmt.Sprintf("sun.gc.generation.%d.space.%d.%s", gen, space, metric)
+			if v, ok := hsInt(counters, key); ok {
+				total += v
+			}
+		}
+	}
+	return total
+}
+
 // stripContainerIDScheme strips the URL scheme (e.g., "containerd://") from a container ID.
 func stripContainerIDScheme(raw string) string {
 	if i := strings.LastIndex(raw, "://"); i >= 0 {
@@ -226,21 +242,19 @@ func buildJVMMetric(counters map[string]any, proc JavaProcess, info containerInf
 	m.JavaCommand, _ = hsStr(counters, "sun.rt.javaCommand")
 	m.JavaVersion, _ = hsStr(counters, "java.property.java.version")
 
-	// Heap capacity: try aggregate heap counters first, then sum generation counters.
+	// Heap capacity: try aggregate heap counter first, then sum per-space counters.
 	if cap, ok := hsInt(counters, "sun.gc.heap.capacity"); ok {
 		m.HeapSizeBytes = cap
 	} else {
-		gen0, _ := hsInt(counters, "sun.gc.generation.0.capacity")
-		gen1, _ := hsInt(counters, "sun.gc.generation.1.capacity")
-		m.HeapSizeBytes = gen0 + gen1
+		m.HeapSizeBytes = sumSpaceCounters(counters, "capacity")
 	}
 
 	if used, ok := hsInt(counters, "sun.gc.heap.used"); ok {
 		m.HeapUsedBytes = used
 	} else {
-		gen0, _ := hsInt(counters, "sun.gc.generation.0.used")
-		gen1, _ := hsInt(counters, "sun.gc.generation.1.used")
-		m.HeapUsedBytes = gen0 + gen1
+		// Aggregate heap counter missing (common with Serial/G1 GC).
+		// Sum all generation.*.space.*.used counters instead.
+		m.HeapUsedBytes = sumSpaceCounters(counters, "used")
 	}
 
 	if maxCap, ok := hsInt(counters, "sun.gc.heap.maxCapacity"); ok {
