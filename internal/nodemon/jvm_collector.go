@@ -5,13 +5,15 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/informers"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/cache"
 )
 
 type containerInfo struct {
@@ -24,39 +26,142 @@ type containerInfo struct {
 // Requires the pod to run with hostPID: true and as UID 0 to read
 // /proc/<pid>/root/tmp/hsperfdata_*/<nsPid> for other containers.
 type JVMCollector struct {
-	nodeName  string
-	dynClient dynamic.Interface
-	procRoot  string
-	log       logr.Logger
+	nodeName        string
+	k8sClient       kubernetes.Interface
+	informerFactory informers.SharedInformerFactory
+	procRoot        string
+	log             logr.Logger
+
+	mu           sync.RWMutex
+	containerMap map[string]containerInfo // containerID (hex) -> pod metadata
+	stopCh       chan struct{}
 }
 
 // NewJVMCollector creates a JVMCollector. procRoot defaults to "/proc".
-func NewJVMCollector(nodeName string, dynClient dynamic.Interface, log logr.Logger) *JVMCollector {
+func NewJVMCollector(nodeName string, k8sClient kubernetes.Interface, log logr.Logger) *JVMCollector {
 	return &JVMCollector{
-		nodeName:  nodeName,
-		dynClient: dynClient,
-		procRoot:  "/proc",
-		log:       log.WithName("jvm-collector"),
+		nodeName:     nodeName,
+		k8sClient:    k8sClient,
+		procRoot:     "/proc",
+		log:          log.WithName("jvm-collector"),
+		containerMap: make(map[string]containerInfo),
+		stopCh:       make(chan struct{}),
+	}
+}
+
+// Start creates a node-scoped pod informer and waits for the cache to sync.
+// Must be called exactly once before serving HTTP requests.
+func (c *JVMCollector) Start() error {
+	if c.informerFactory != nil {
+		return fmt.Errorf("JVMCollector already started")
+	}
+
+	c.informerFactory = informers.NewSharedInformerFactoryWithOptions(
+		c.k8sClient,
+		0,
+		informers.WithTweakListOptions(func(opts *metav1.ListOptions) {
+			if c.nodeName != "" {
+				opts.FieldSelector = "spec.nodeName=" + c.nodeName
+			}
+		}),
+	)
+
+	podInformer := c.informerFactory.Core().V1().Pods().Informer()
+
+	_, err := podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			pod, ok := obj.(*corev1.Pod)
+			if !ok {
+				return
+			}
+			c.updateContainerMap(pod)
+		},
+		UpdateFunc: func(_, newObj interface{}) {
+			pod, ok := newObj.(*corev1.Pod)
+			if !ok {
+				return
+			}
+			c.updateContainerMap(pod)
+		},
+		DeleteFunc: func(obj interface{}) {
+			pod, ok := obj.(*corev1.Pod)
+			if !ok {
+				tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
+				if !ok {
+					return
+				}
+				pod, ok = tombstone.Obj.(*corev1.Pod)
+				if !ok {
+					return
+				}
+			}
+			c.removeFromContainerMap(pod)
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("adding pod event handler: %w", err)
+	}
+
+	c.informerFactory.Start(c.stopCh)
+
+	c.log.Info("Waiting for pod informer cache to sync")
+	if !cache.WaitForCacheSync(c.stopCh, podInformer.HasSynced) {
+		return fmt.Errorf("timed out waiting for pod informer cache to sync")
+	}
+	c.log.Info("Pod informer cache synced")
+
+	return nil
+}
+
+// Stop shuts down the informer factory. Safe to call multiple times.
+func (c *JVMCollector) Stop() {
+	select {
+	case <-c.stopCh:
+		// already closed
+	default:
+		close(c.stopCh)
+	}
+}
+
+func (c *JVMCollector) updateContainerMap(pod *corev1.Pod) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for _, cs := range pod.Status.ContainerStatuses {
+		id := stripContainerIDScheme(cs.ContainerID)
+		if id == "" {
+			continue
+		}
+		c.containerMap[id] = containerInfo{
+			Pod:       pod.Name,
+			Namespace: pod.Namespace,
+			Container: cs.Name,
+		}
+	}
+}
+
+func (c *JVMCollector) removeFromContainerMap(pod *corev1.Pod) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for _, cs := range pod.Status.ContainerStatuses {
+		id := stripContainerIDScheme(cs.ContainerID)
+		if id == "" {
+			continue
+		}
+		delete(c.containerMap, id)
 	}
 }
 
 // QueryJVMMetrics returns JVM metrics for all discovered Java containers on this node.
 func (c *JVMCollector) QueryJVMMetrics(ctx context.Context) ([]JVMMetric, error) {
-	// Pod listing can be slow on some clusters/APIServer conditions. Bound it so
-	// JVM metrics scraping doesn't wedge the HTTP server.
-	ctxPods, cancelPods := context.WithTimeout(ctx, 500*time.Millisecond)
-	defer cancelPods()
-	start := time.Now()
-
-	containerMap, err := c.buildContainerMap(ctxPods)
-	if err != nil {
-		// Non-fatal: continue with empty map; pod/namespace/container fields will be blank.
-		c.log.Error(err, "Failed to build container map; pod metadata will be missing")
-		containerMap = map[string]containerInfo{}
+	c.mu.RLock()
+	containerMap := make(map[string]containerInfo, len(c.containerMap))
+	for k, v := range c.containerMap {
+		containerMap[k] = v
 	}
-	c.log.Info("Built container map", "count", len(containerMap), "took", time.Since(start).String())
+	c.mu.RUnlock()
+	c.log.Info("Container map snapshot", "count", len(containerMap))
 
-	start = time.Now()
+	start := time.Now()
 	procs, err := discoverJavaProcesses(c.procRoot)
 	if err != nil {
 		return nil, fmt.Errorf("discovering java processes: %w", err)
@@ -66,7 +171,6 @@ func (c *JVMCollector) QueryJVMMetrics(ctx context.Context) ([]JVMMetric, error)
 	start = time.Now()
 	metrics := make([]JVMMetric, 0, len(procs))
 	for _, proc := range procs {
-		// Bound each read so a single bad proc file can’t wedge the request.
 		c.log.Info("Reading hsperfdata", "pid", proc.PidHost, "path", proc.HsperfDataPath)
 		if st, err := os.Stat(proc.HsperfDataPath); err == nil {
 			c.log.Info("hsperfdata stat", "pid", proc.PidHost, "sizeBytes", st.Size())
@@ -87,42 +191,6 @@ func (c *JVMCollector) QueryJVMMetrics(ctx context.Context) ([]JVMMetric, error)
 	c.log.Info("Built JVM metrics", "count", len(metrics), "took", time.Since(start).String())
 
 	return metrics, nil
-}
-
-// buildContainerMap lists running pods on this node and returns a map of
-// containerID (hex, no scheme prefix) → containerInfo.
-func (c *JVMCollector) buildContainerMap(ctx context.Context) (map[string]containerInfo, error) {
-	fieldSelector := "status.phase=Running"
-	if c.nodeName != "" {
-		fieldSelector = fmt.Sprintf("%s,spec.nodeName=%s", fieldSelector, c.nodeName)
-	}
-
-	podList, err := c.dynClient.Resource(podGVR).
-		Namespace("").
-		List(ctx, metav1.ListOptions{FieldSelector: fieldSelector})
-	if err != nil {
-		return nil, fmt.Errorf("listing pods: %w", err)
-	}
-
-	result := make(map[string]containerInfo, len(podList.Items))
-	for _, item := range podList.Items {
-		var pod corev1.Pod
-		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(item.Object, &pod); err != nil {
-			continue
-		}
-		for _, cs := range pod.Status.ContainerStatuses {
-			id := stripContainerIDScheme(cs.ContainerID)
-			if id == "" {
-				continue
-			}
-			result[id] = containerInfo{
-				Pod:       pod.Name,
-				Namespace: pod.Namespace,
-				Container: cs.Name,
-			}
-		}
-	}
-	return result, nil
 }
 
 // stripContainerIDScheme strips the URL scheme (e.g., "containerd://") from a container ID.
