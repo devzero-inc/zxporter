@@ -11,7 +11,7 @@ kind: Namespace
 metadata:
   labels:
     control-plane: controller-manager
-    app.kubernetes.io/name: devzero-system
+    app.kubernetes.io/name: '{{.zxporter_namespace}}'
   name: '{{.zxporter_namespace}}'
 # ----- START PROM SERVER -----
 ---

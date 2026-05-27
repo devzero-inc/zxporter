@@ -334,6 +334,7 @@ installer-without-configmap:
 	@$(YQ) -i 'select((.kind != "ConfigMap" or .metadata.name != "devzero-zxporter-env-config") and (.kind != "Secret" or .metadata.name != "devzero-zxporter-token"))' $(DIST_DIR)/installer_updater.yaml
 	@sed \
 		-e "s|^  name: $(DEVZERO_MONITORING_NAMESPACE)$$|  name: '{{.zxporter_namespace}}'|g" \
+		-e "s|^    app.kubernetes.io/name: $(DEVZERO_MONITORING_NAMESPACE)$$|    app.kubernetes.io/name: '{{.zxporter_namespace}}'|g" \
 		-e "s|^  namespace: $(DEVZERO_MONITORING_NAMESPACE)$$|  namespace: '{{.zxporter_namespace}}'|g" \
 		-e "s|^    namespace: $(DEVZERO_MONITORING_NAMESPACE)$$|    namespace: '{{.zxporter_namespace}}'|g" \
 		$(DIST_DIR)/installer_updater.yaml > $(DIST_DIR)/installer_updater.yaml.tmp && mv $(DIST_DIR)/installer_updater.yaml.tmp $(DIST_DIR)/installer_updater.yaml
