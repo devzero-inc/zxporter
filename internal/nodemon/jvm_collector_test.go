@@ -45,8 +45,8 @@ func TestRemoveFromContainerMap(t *testing.T) {
 	c := &JVMCollector{
 		containerMap: map[string]containerInfo{
 			"abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789": {Pod: "my-app", Namespace: "default", Container: "app"},
-			"1111111111111111111111111111111111111111111111111111111111111111":   {Pod: "my-app", Namespace: "default", Container: "sidecar"},
-			"2222222222222222222222222222222222222222222222222222222222222222":   {Pod: "other-pod", Namespace: "kube-system", Container: "dns"},
+			"1111111111111111111111111111111111111111111111111111111111111111": {Pod: "my-app", Namespace: "default", Container: "sidecar"},
+			"2222222222222222222222222222222222222222222222222222222222222222": {Pod: "other-pod", Namespace: "kube-system", Container: "dns"},
 		},
 	}
 

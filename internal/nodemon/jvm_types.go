@@ -28,8 +28,8 @@ type JVMMetric struct {
 	// RawCmdline is the effective command line including env-injected options
 	// (JAVA_TOOL_OPTIONS, JDK_JAVA_OPTIONS, JAVA_OPTS). Note: this may contain
 	// sensitive values if secrets are passed via JVM system properties or env vars.
-	RawCmdline string `json:"raw_cmdline,omitempty"`
-	Timestamp      time.Time         `json:"timestamp"`
+	RawCmdline string    `json:"raw_cmdline,omitempty"`
+	Timestamp  time.Time `json:"timestamp"`
 }
 
 // JVMFlagSources describes where each extracted JVM flag value came from.
