@@ -64,6 +64,7 @@ jobs:
           kubectl -n jvm-spike rollout status deploy/java8-xmx-only --timeout=300s
           kubectl -n jvm-spike rollout status deploy/java11-tool-options --timeout=300s
           kubectl -n jvm-spike rollout status deploy/java17-maxram-only --timeout=300s
+          kubectl -n jvm-spike rollout status deploy/java21-jdk-options --timeout=300s
           kubectl -n jvm-spike rollout status deploy/not-java --timeout=300s
 
       - name: Validate nodemon JVM metrics output
@@ -121,13 +122,40 @@ jobs:
           if flags.get('max_ram_percentage') != 40:
               raise SystemExit(f'java17-maxram-only expected max_ram_percentage=40 got {flags.get("max_ram_percentage")}')
 
-          # Spot-check that hsperfdata-derived heap metrics exist (non-zero) for the JVM pods
+          def assert_close(name, got, expected, rel=0.10, abs_bytes=16*1024*1024):
+              if got is None or expected is None:
+                  raise SystemExit(f'{name} missing values for close-check (got={got} expected={expected})')
+              lo = expected - max(abs_bytes, int(expected * rel))
+              hi = expected + max(abs_bytes, int(expected * rel))
+              if not (lo <= got <= hi):
+                  raise SystemExit(f'{name} expected ~{expected} (±max({abs_bytes}, {int(expected*rel)})) got {got}; range=[{lo},{hi}]')
+
+          # Spot-check that hsperfdata-derived heap metrics exist (non-zero) for JVM pods.
+          # And when Xmx is known, ensure heap.max_bytes is roughly consistent (buffered to avoid flakiness).
           for name, m in [('java8-xmx-only', m8), ('java11-tool-options', m11), ('java17-maxram-only', m17)]:
               heap = m.get('heap', {})
               if (heap.get('max_bytes') or 0) <= 0:
                   raise SystemExit(f'{name} expected heap.max_bytes > 0; got heap={heap}')
               if (heap.get('used_bytes') or 0) < 0:
                   raise SystemExit(f'{name} expected heap.used_bytes >= 0; got heap={heap}')
+
+              flags = m.get('flags_extracted', {})
+              xmx = flags.get('xmx_bytes')
+              if xmx:
+                  assert_close(f'{name} heap.max_bytes vs xmx_bytes', heap.get('max_bytes'), xmx)
+
+          # java21: verify JDK_JAVA_OPTIONS parsing + source attribution
+          m21 = req_prefix('java21-jdk-options')
+          flags = m21.get('flags_extracted', {})
+          if flags.get('xmx_bytes') != 134217728 or flags.get('xms_bytes') != 33554432:
+              raise SystemExit(f'java21-jdk-options flags mismatch: {flags}')
+          src = m21.get('flag_sources', {})
+          if str(src.get('xmx_bytes', '')) != 'JDK_JAVA_OPTIONS' or str(src.get('xms_bytes', '')) != 'JDK_JAVA_OPTIONS':
+              raise SystemExit(f'java21-jdk-options expected xmx/xms sources JDK_JAVA_OPTIONS; got {src}')
+          heap = m21.get('heap', {})
+          if (heap.get('max_bytes') or 0) <= 0:
+              raise SystemExit(f'java21-jdk-options expected heap.max_bytes > 0; got heap={heap}')
+          assert_close('java21-jdk-options heap.max_bytes vs xmx_bytes', heap.get('max_bytes'), flags.get('xmx_bytes'))
 
           print('OK')
           PY
