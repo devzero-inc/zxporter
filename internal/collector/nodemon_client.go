@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math"
 	"net/http"
 	"sync"
@@ -323,8 +324,9 @@ func (c *NodemonClient) fetchMetrics(
 		return nil, fmt.Errorf("nodemon returned status %d", resp.StatusCode)
 	}
 
+	const maxResponseBytes = 16 << 20 // 16MiB safety cap
 	var metrics []NodemonMetric
-	if err := json.NewDecoder(resp.Body).Decode(&metrics); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, maxResponseBytes)).Decode(&metrics); err != nil {
 		return nil, fmt.Errorf("decoding nodemon response: %w", err)
 	}
 

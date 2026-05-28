@@ -7,7 +7,52 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+// observedTransition records a single TransitionObserver invocation.
+type observedTransition struct {
+	component string
+	oldStatus HealthStatus
+	newStatus HealthStatus
+	message   string
+	metadata  map[string]string
+}
+
+// observerFixture wraps a HealthManager pre-wired with a transition observer
+// that records every call. Use snapshot() to read calls under the lock.
+type observerFixture struct {
+	hm    *HealthManager
+	mu    sync.Mutex
+	calls []observedTransition
+}
+
+// newObserverFixture builds a HealthManager with the given components registered
+// and a recording observer attached. t.Helper() is set so any failures inside
+// this constructor surface at the calling test line, not inside the helper.
+func newObserverFixture(t *testing.T, components ...string) *observerFixture {
+	t.Helper()
+	f := &observerFixture{hm: NewHealthManager()}
+	for _, c := range components {
+		f.hm.Register(c)
+	}
+	f.hm.SetTransitionObserver(func(component string, oldStatus, newStatus HealthStatus, message string, metadata map[string]string) {
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		f.calls = append(f.calls, observedTransition{component, oldStatus, newStatus, message, metadata})
+	})
+	return f
+}
+
+// snapshot returns a copy of the recorded transitions taken under the lock so
+// the caller can assert on it without racing the observer.
+func (f *observerFixture) snapshot() []observedTransition {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := make([]observedTransition, len(f.calls))
+	copy(out, f.calls)
+	return out
+}
 
 const testCollectorManager = "collector_manager"
 
@@ -355,4 +400,108 @@ func TestReadinessCheck_StandbyClearedEnforcesNormalChecks(t *testing.T) {
 	hm.UpdateStatus(ComponentCollectorManager, HealthStatusHealthy, "ok", nil)
 	hm.UpdateStatus(ComponentDakrTransport, HealthStatusHealthy, "ok", nil)
 	assert.NoError(t, hm.ReadinessCheck()) // now passes
+}
+
+// TestTransitionObserver_FiresOnlyOnChange asserts the observer is called for
+// the initial Unspecified→Healthy flip and the subsequent Healthy→Degraded
+// flip, but NOT for an idempotent Healthy→Healthy update. This is the contract
+// the telemetry pipeline relies on — without it, every periodic probe success
+// would emit a duplicate log.
+func TestTransitionObserver_FiresOnlyOnChange(t *testing.T) {
+	f := newObserverFixture(t, ComponentPrometheus)
+
+	f.hm.UpdateStatus(ComponentPrometheus, HealthStatusHealthy, "available", map[string]string{"url": "http://prom"})
+	f.hm.UpdateStatus(ComponentPrometheus, HealthStatusHealthy, "still available", map[string]string{"url": "http://prom"})
+	f.hm.UpdateStatus(ComponentPrometheus, HealthStatusDegraded, "probe failed", map[string]string{"url": "http://prom", "error": "connection refused"})
+
+	calls := f.snapshot()
+	require.Len(t, calls, 2, "observer should only fire on actual transitions, not idempotent updates")
+
+	assert.Equal(t, ComponentPrometheus, calls[0].component)
+	assert.Equal(t, HealthStatusUnspecified, calls[0].oldStatus)
+	assert.Equal(t, HealthStatusHealthy, calls[0].newStatus)
+	assert.Equal(t, "available", calls[0].message)
+	assert.Equal(t, "http://prom", calls[0].metadata["url"])
+
+	assert.Equal(t, HealthStatusHealthy, calls[1].oldStatus)
+	assert.Equal(t, HealthStatusDegraded, calls[1].newStatus)
+	assert.Equal(t, "probe failed", calls[1].message)
+	assert.Equal(t, "connection refused", calls[1].metadata["error"])
+}
+
+// TestTransitionObserver_RunsOutsideLock verifies that the observer can call
+// back into HealthManager (e.g. to read sibling component status) without
+// deadlocking. UpdateStatus must release the write lock before invoking the
+// observer — otherwise this test would hang on hm.GetStatus.
+func TestTransitionObserver_RunsOutsideLock(t *testing.T) {
+	hm := NewHealthManager()
+	hm.Register(ComponentPrometheus)
+	hm.Register(ComponentCollectorManager)
+	hm.UpdateStatus(ComponentCollectorManager, HealthStatusHealthy, "ok", nil)
+
+	observed := make(chan ComponentStatus, 1)
+	hm.SetTransitionObserver(func(_ string, _, _ HealthStatus, _ string, _ map[string]string) {
+		// If UpdateStatus held the write lock here, this read would deadlock.
+		s, _ := hm.GetStatus(ComponentCollectorManager)
+		observed <- s
+	})
+
+	done := make(chan struct{})
+	go func() {
+		hm.UpdateStatus(ComponentPrometheus, HealthStatusHealthy, "available", nil)
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		// Good — UpdateStatus returned without deadlocking.
+	case <-time.After(2 * time.Second):
+		t.Fatal("UpdateStatus deadlocked while invoking observer")
+	}
+
+	select {
+	case s := <-observed:
+		assert.Equal(t, HealthStatusHealthy, s.Status, "observer should have read sibling status")
+	case <-time.After(time.Second):
+		t.Fatal("observer was never invoked")
+	}
+}
+
+// TestTransitionObserver_NotInvokedForUnregisteredComponent ensures we don't
+// emit telemetry for components that were never registered (UpdateStatus is a
+// no-op in that case, so there's no transition to report).
+func TestTransitionObserver_NotInvokedForUnregisteredComponent(t *testing.T) {
+	// Intentionally pass no components — ComponentPrometheus stays unregistered.
+	f := newObserverFixture(t)
+
+	f.hm.UpdateStatus(ComponentPrometheus, HealthStatusHealthy, "available", nil)
+
+	assert.Empty(t, f.snapshot(), "observer should not fire for unregistered components")
+}
+
+// TestTransitionObserver_ReplaceAndClear verifies that SetTransitionObserver
+// replaces an existing observer and that passing nil clears it.
+func TestTransitionObserver_ReplaceAndClear(t *testing.T) {
+	// Don't use the fixture here — we deliberately swap observers mid-test.
+	hm := NewHealthManager()
+	hm.Register(ComponentPrometheus)
+
+	firstCalls := 0
+	secondCalls := 0
+	hm.SetTransitionObserver(func(string, HealthStatus, HealthStatus, string, map[string]string) {
+		firstCalls++
+	})
+	hm.UpdateStatus(ComponentPrometheus, HealthStatusHealthy, "ok", nil)
+	require.Equal(t, 1, firstCalls)
+
+	hm.SetTransitionObserver(func(string, HealthStatus, HealthStatus, string, map[string]string) {
+		secondCalls++
+	})
+	hm.UpdateStatus(ComponentPrometheus, HealthStatusDegraded, "uh", nil)
+	assert.Equal(t, 1, firstCalls, "first observer should not fire after replacement")
+	assert.Equal(t, 1, secondCalls)
+
+	hm.SetTransitionObserver(nil)
+	hm.UpdateStatus(ComponentPrometheus, HealthStatusUnhealthy, "down", nil)
+	assert.Equal(t, 1, secondCalls, "second observer should not fire after being cleared")
 }

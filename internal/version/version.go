@@ -5,7 +5,6 @@ import (
 	"runtime"
 )
 
-
 type Info struct {
 	Major        string `json:"major"`
 	Minor        string `json:"minor"`

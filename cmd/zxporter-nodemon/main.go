@@ -17,6 +17,7 @@ import (
 	"go.uber.org/zap"
 
 	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 )
@@ -63,6 +64,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	k8sClient, err := kubernetes.NewForConfig(kubeConfig)
+	if err != nil {
+		logger.Error(err, "Failed to create kubernetes client")
+		os.Exit(1)
+	}
+
 	// Create components
 	httpClient := &http.Client{Timeout: 15 * time.Second}
 	scraper := nodemon.NewScraper(httpClient, logger)
@@ -100,9 +107,19 @@ func main() {
 	defer collectionCancel()
 	go unifiedExporter.StartCollectionLoop(collectionCtx, 30*time.Second)
 
+	// Create JVM collector
+	jvmCollector := nodemon.NewJVMCollector(cfg.NodeName, k8sClient, logger)
+
+	// Start JVM collector's pod informer
+	if err := jvmCollector.Start(); err != nil {
+		logger.Error(err, "Failed to start JVM collector")
+		os.Exit(1)
+	}
+
 	// Create HTTP handlers
 	containerMetricsHandler := nodemon.NewContainerMetricsHandler(exporter, logger) // GPU-only (backward compat)
-	mux := nodemon.NewServerMux(containerMetricsHandler)
+	jvmMetricsHandler := nodemon.NewJVMMetricsHandler(jvmCollector, logger)
+	mux := nodemon.NewServerMux(containerMetricsHandler, jvmMetricsHandler)
 
 	// Register unified endpoints
 	mux.Handle("/v2/container/metrics", nodemon.NewUnifiedContainerHandler(unifiedExporter, logger))
@@ -133,6 +150,7 @@ func main() {
 	<-sigChan
 
 	logger.Info("Shutting down...")
+	jvmCollector.Stop()
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer shutdownCancel()
 	if err := server.Shutdown(shutdownCtx); err != nil {
