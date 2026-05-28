@@ -76,7 +76,7 @@ jobs:
           kubectl -n devzero-system run py-assert --image=python:3.12-slim --restart=Never --command -- sleep 3600
           kubectl -n devzero-system wait --for=condition=Ready --timeout=120s pod/py-assert
 
-          kubectl -n devzero-system exec py-assert -- python - <<'PY'
+          kubectl -n devzero-system exec py-assert -- python - <<PY
           import json
           import urllib.request
 
