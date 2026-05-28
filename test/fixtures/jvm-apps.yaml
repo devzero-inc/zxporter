@@ -20,7 +20,7 @@ spec:
     spec:
       containers:
         - name: app
-          image: eclipse-temurin:8-jre
+          image: eclipse-temurin:8-jdk
           command: ["sh","-lc"]
           args:
             - |
@@ -47,7 +47,7 @@ spec:
     spec:
       containers:
         - name: app
-          image: eclipse-temurin:11-jre
+          image: eclipse-temurin:11-jdk
           env:
             - name: JAVA_TOOL_OPTIONS
               value: "-Xms48m -Xmx160m -XX:MaxRAMPercentage=65 -Dfrom=tooloptions"
@@ -77,7 +77,7 @@ spec:
     spec:
       containers:
         - name: app
-          image: eclipse-temurin:17-jre
+          image: eclipse-temurin:17-jdk
           command: ["sh","-lc"]
           args:
             - |
