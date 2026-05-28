@@ -9,9 +9,9 @@ on:
 
 jobs:
   jvm-metrics-kind:
-    # NOTE: ubuntu-xl is not a standard GitHub-hosted runner label; when it's not available,
-    # GitHub fails the workflow immediately with no jobs created.
-    runs-on: ubuntu-24.04
+    # Use our namespace runner profile (same pattern as image-push workflows).
+    # This avoids relying on GitHub-hosted runner labels.
+    runs-on: namespace-profile-dz-generic
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
