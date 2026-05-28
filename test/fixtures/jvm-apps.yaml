@@ -186,6 +186,39 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  name: java21-per-flag-sources
+  namespace: jvm-spike
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: java21-per-flag-sources
+  template:
+    metadata:
+      labels:
+        app: java21-per-flag-sources
+    spec:
+      containers:
+        - name: app
+          image: eclipse-temurin:21-jdk
+          env:
+            # Per-flag sourcing test: Xmx from JAVA_TOOL_OPTIONS, Xms from JDK_JAVA_OPTIONS
+            - name: JAVA_TOOL_OPTIONS
+              value: "-Xmx112m -Dfrom=toolopts"
+            - name: JDK_JAVA_OPTIONS
+              value: "-Xms28m -Dfrom=jdkopts"
+          command: ["sh","-lc"]
+          args:
+            - |
+              cat >/tmp/DummyMain.java <<'EOF'
+              public class DummyMain { public static void main(String[] args) throws Exception { for(;;) Thread.sleep(60000); } }
+              EOF
+              javac /tmp/DummyMain.java
+              exec java -cp /tmp DummyMain
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
   name: not-java
   namespace: jvm-spike
 spec:

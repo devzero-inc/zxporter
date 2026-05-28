@@ -67,6 +67,7 @@ jobs:
           kubectl -n jvm-spike rollout status deploy/java21-jdk-options --timeout=300s
           kubectl -n jvm-spike rollout status deploy/java21-precedence-env --timeout=300s
           kubectl -n jvm-spike rollout status deploy/java21-precedence-cmdline --timeout=300s
+          kubectl -n jvm-spike rollout status deploy/java21-per-flag-sources --timeout=300s
           kubectl -n jvm-spike rollout status deploy/not-java --timeout=300s
 
       - name: Validate nodemon JVM metrics output
@@ -184,6 +185,19 @@ jobs:
           if (heap.get('max_bytes') or 0) <= 0:
               raise SystemExit(f'java21-precedence-cmdline expected heap.max_bytes > 0; got heap={heap}')
           assert_close('java21-precedence-cmdline heap.max_bytes vs xmx_bytes', heap.get('max_bytes'), flags.get('xmx_bytes'))
+
+          # Per-flag sourcing: Xmx from JAVA_TOOL_OPTIONS; Xms from JDK_JAVA_OPTIONS
+          mpf = req_prefix('java21-per-flag-sources')
+          flags = mpf.get('flags_extracted', {})
+          if flags.get('xmx_bytes') != 117440512 or flags.get('xms_bytes') != 29360128:
+              raise SystemExit(f'java21-per-flag-sources expected xmx=112m xms=28m got flags={flags}')
+          src = mpf.get('flag_sources', {})
+          if str(src.get('xmx_bytes', '')) != 'JAVA_TOOL_OPTIONS' or str(src.get('xms_bytes', '')) != 'JDK_JAVA_OPTIONS':
+              raise SystemExit(f'java21-per-flag-sources expected xmx source JAVA_TOOL_OPTIONS and xms source JDK_JAVA_OPTIONS; got {src}')
+          heap = mpf.get('heap', {})
+          if (heap.get('max_bytes') or 0) <= 0:
+              raise SystemExit(f'java21-per-flag-sources expected heap.max_bytes > 0; got heap={heap}')
+          assert_close('java21-per-flag-sources heap.max_bytes vs xmx_bytes', heap.get('max_bytes'), flags.get('xmx_bytes'))
 
           print('OK')
           PY
