@@ -8,7 +8,9 @@ on:
 
 jobs:
   jvm-metrics-kind:
-    runs-on: ubuntu-xl
+    # NOTE: ubuntu-xl is not a standard GitHub-hosted runner label; when it's not available,
+    # GitHub fails the workflow immediately with no jobs created.
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
