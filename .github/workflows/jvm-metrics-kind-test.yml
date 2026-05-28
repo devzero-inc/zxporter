@@ -70,7 +70,7 @@ jobs:
           kubectl -n jvm-spike rollout status deploy/java21-per-flag-sources --timeout=300s
           kubectl -n jvm-spike rollout status deploy/not-java --timeout=300s
 
-      - name: Validate nodemon JVM metrics output
+      - name: Validate nodemon JVM metrics output (baseline)
         run: |
           POD_IP=$(kubectl -n devzero-system get pod -l app.kubernetes.io/name=zxporter-nodemon -o jsonpath='{.items[0].status.podIP}')
           echo "nodemon podIP=$POD_IP"
@@ -203,3 +203,86 @@ jobs:
           PY
 
           kubectl -n devzero-system delete pod/py-assert --ignore-not-found=true
+
+      - name: Mutate workloads (simulate MPA changes)
+        run: |
+          # Simulate post-recommendation changes:
+          # - resources req/limit tightened (closer to heap)
+          # - JVM heap flags changed (env/cmdline)
+          kubectl -n jvm-spike set resources deploy/java11-tool-options -c app --requests=cpu=10m,memory=256Mi --limits=cpu=100m,memory=256Mi
+          kubectl -n jvm-spike set env deploy/java11-tool-options JAVA_TOOL_OPTIONS="-Xms64m -Xmx200m -XX:MaxRAMPercentage=65 -Dfrom=tooloptions-mutated"
+
+          # cmdline mutation: update the command to use different Xms/Xmx
+          kubectl -n jvm-spike patch deploy/java21-precedence-cmdline --type='json' -p='[
+            {"op":"replace","path":"/spec/template/spec/containers/0/args/0","value":"cat >/tmp/DummyMain.java <<\x27EOF\x27\npublic class DummyMain { public static void main(String[] args) throws Exception { for(;;) Thread.sleep(60000); } }\nEOF\njavac /tmp/DummyMain.java\n# cmdline should win over env\nexec java -Xms24m -Xmx104m -cp /tmp DummyMain\n"},
+            {"op":"add","path":"/spec/template/metadata/annotations/zxporter.dev/mutation","value":"1"}
+          ]'
+          kubectl -n jvm-spike set resources deploy/java21-precedence-cmdline -c app --requests=cpu=10m,memory=256Mi --limits=cpu=100m,memory=256Mi
+
+          # Wait for rollouts
+          kubectl -n jvm-spike rollout status deploy/java11-tool-options --timeout=300s
+          kubectl -n jvm-spike rollout status deploy/java21-precedence-cmdline --timeout=300s
+
+      - name: Validate nodemon JVM metrics output (after mutation)
+        run: |
+          POD_IP=$(kubectl -n devzero-system get pod -l app.kubernetes.io/name=zxporter-nodemon -o jsonpath='{.items[0].status.podIP}')
+          echo "nodemon podIP=$POD_IP"
+
+          kubectl -n devzero-system run py-assert2 --image=python:3.12-slim --restart=Never --command -- sleep 3600
+          kubectl -n devzero-system wait --for=condition=Ready --timeout=120s pod/py-assert2
+
+          kubectl -n devzero-system exec py-assert2 -- python - <<PY
+          import json
+          import urllib.request
+
+          pod_ip = '${POD_IP}'
+          url = f'http://{pod_ip}:6061/container/jvm-metrics?namespace=jvm-spike'
+          with urllib.request.urlopen(url, timeout=30) as r:
+              data = json.loads(r.read().decode('utf-8'))
+
+          by_pod = {m.get('pod'): m for m in data}
+
+          def req_prefix(prefix):
+              for k, v in by_pod.items():
+                  if k and k.startswith(prefix):
+                      return v
+              raise SystemExit(f'missing pod prefix={prefix}; got pods={list(by_pod.keys())}')
+
+          def assert_close(name, got, expected, rel=0.10, abs_bytes=16*1024*1024):
+              if got is None or expected is None:
+                  raise SystemExit(f'{name} missing values for close-check (got={got} expected={expected})')
+              lo = expected - max(abs_bytes, int(expected * rel))
+              hi = expected + max(abs_bytes, int(expected * rel))
+              if not (lo <= got <= hi):
+                  raise SystemExit(f'{name} expected ~{expected} (±max({abs_bytes}, {int(expected*rel)})) got {got}; range=[{lo},{hi}]')
+
+          # java11 mutated: JAVA_TOOL_OPTIONS now sets Xms64m/Xmx200m
+          m11 = req_prefix('java11-tool-options')
+          flags = m11.get('flags_extracted', {})
+          if flags.get('xmx_bytes') != 209715200 or flags.get('xms_bytes') != 67108864 or flags.get('max_ram_percentage') != 65:
+              raise SystemExit(f'java11-tool-options mutated flags mismatch: {flags}')
+          src = m11.get('flag_sources', {})
+          if str(src.get('xmx_bytes', '')) != 'JAVA_TOOL_OPTIONS' or str(src.get('xms_bytes', '')) != 'JAVA_TOOL_OPTIONS':
+              raise SystemExit(f'java11-tool-options mutated expected sources JAVA_TOOL_OPTIONS; got {src}')
+          heap = m11.get('heap', {})
+          if (heap.get('max_bytes') or 0) <= 0:
+              raise SystemExit(f'java11-tool-options mutated expected heap.max_bytes > 0; got heap={heap}')
+          assert_close('java11-tool-options mutated heap.max_bytes vs xmx_bytes', heap.get('max_bytes'), flags.get('xmx_bytes'))
+
+          # java21 precedence-cmdline mutated: cmdline Xms24m/Xmx104m should win
+          mcmd = req_prefix('java21-precedence-cmdline')
+          flags = mcmd.get('flags_extracted', {})
+          if flags.get('xmx_bytes') != 109051904 or flags.get('xms_bytes') != 25165824:
+              raise SystemExit(f'java21-precedence-cmdline mutated flags mismatch: {flags}')
+          src = mcmd.get('flag_sources', {})
+          if str(src.get('xmx_bytes', '')) != 'cmdline' or str(src.get('xms_bytes', '')) != 'cmdline':
+              raise SystemExit(f'java21-precedence-cmdline mutated expected sources cmdline; got {src}')
+          heap = mcmd.get('heap', {})
+          if (heap.get('max_bytes') or 0) <= 0:
+              raise SystemExit(f'java21-precedence-cmdline mutated expected heap.max_bytes > 0; got heap={heap}')
+          assert_close('java21-precedence-cmdline mutated heap.max_bytes vs xmx_bytes', heap.get('max_bytes'), flags.get('xmx_bytes'))
+
+          print('OK')
+          PY
+
+          kubectl -n devzero-system delete pod/py-assert2 --ignore-not-found=true
