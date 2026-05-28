@@ -102,22 +102,32 @@ jobs:
           flags = m8.get('flags_extracted', {})
           if flags.get('xmx_bytes') != 201326592:
               raise SystemExit(f'java8-xmx-only expected xmx_bytes=201326592 got {flags.get("xmx_bytes")}')
+          src = m8.get('flag_sources', {})
+          if str(src.get('xmx_bytes', '')) != 'cmdline':
+              raise SystemExit(f'java8-xmx-only expected xmx source cmdline; got {src}')
 
-          # java11: env JAVA_TOOL_OPTIONS provides xmx/xms/maxram; sources should mention JAVA_TOOL_OPTIONS
+          # java11: env JAVA_TOOL_OPTIONS provides xmx/xms/maxram; sources should be JAVA_TOOL_OPTIONS
           m11 = req_prefix('java11-tool-options')
           flags = m11.get('flags_extracted', {})
           if flags.get('xmx_bytes') != 167772160 or flags.get('xms_bytes') != 50331648 or flags.get('max_ram_percentage') != 65:
               raise SystemExit(f'java11-tool-options flags mismatch: {flags}')
           src = m11.get('flag_sources', {})
-          xmx_src = str(src.get('xmx_bytes', ''))
-          if 'TOOL_OPTIONS' not in xmx_src:
-              raise SystemExit(f'java11-tool-options expected xmx source to mention JAVA_TOOL_OPTIONS; got {src}')
+          if str(src.get('xmx_bytes', '')) != 'JAVA_TOOL_OPTIONS' or str(src.get('xms_bytes', '')) != 'JAVA_TOOL_OPTIONS':
+              raise SystemExit(f'java11-tool-options expected xmx/xms sources JAVA_TOOL_OPTIONS; got {src}')
 
           # java17: maxram only should be 40
           m17 = req_prefix('java17-maxram-only')
           flags = m17.get('flags_extracted', {})
           if flags.get('max_ram_percentage') != 40:
               raise SystemExit(f'java17-maxram-only expected max_ram_percentage=40 got {flags.get("max_ram_percentage")}')
+
+          # Spot-check that hsperfdata-derived heap metrics exist (non-zero) for the JVM pods
+          for name, m in [('java8-xmx-only', m8), ('java11-tool-options', m11), ('java17-maxram-only', m17)]:
+              heap = m.get('heap', {})
+              if (heap.get('max_bytes') or 0) <= 0:
+                  raise SystemExit(f'{name} expected heap.max_bytes > 0; got heap={heap}')
+              if (heap.get('used_bytes') or 0) < 0:
+                  raise SystemExit(f'{name} expected heap.used_bytes >= 0; got heap={heap}')
 
           print('OK')
           PY
