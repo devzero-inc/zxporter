@@ -1,6 +1,7 @@
+name: jvm-metrics-kind
+
 permissions:
   contents: read
-name: JVM Metrics (nodemon) Kind Test
 
 on:
   pull_request:
@@ -70,48 +71,55 @@ jobs:
           POD_IP=$(kubectl -n devzero-system get pod -l app.kubernetes.io/name=zxporter-nodemon -o jsonpath='{.items[0].status.podIP}')
           echo "nodemon podIP=$POD_IP"
 
-          # Assertions (python; no jq dependency). Fetch JSON inside the python container.
-          kubectl -n devzero-system run py-assert --image=python:3.12-slim -i --rm --restart=Never --command -- \
-            sh -lc "python - <<'PY'
-import json,sys,urllib.request
-pod_ip = '${POD_IP}'
-url = f'http://{pod_ip}:6061/container/jvm-metrics?namespace=jvm-spike'
-with urllib.request.urlopen(url, timeout=30) as r:
-    data = json.loads(r.read().decode('utf-8'))
+          # Assertions (python; no jq dependency).
+          # Avoid `kubectl run -i --rm` + heredoc (flaky/non-interactive on Actions).
+          kubectl -n devzero-system run py-assert --image=python:3.12-slim --restart=Never --command -- sleep 3600
+          kubectl -n devzero-system wait --for=condition=Ready --timeout=120s pod/py-assert
 
-by_pod={m.get('pod'):m for m in data}
+          kubectl -n devzero-system exec py-assert -- python - <<'PY'
+          import json
+          import urllib.request
 
-def req_prefix(prefix):
-    for k,v in by_pod.items():
-        if k and k.startswith(prefix):
-            return v
-    raise SystemExit(f'missing pod prefix={prefix}; got pods={list(by_pod.keys())}')
+          pod_ip = '${POD_IP}'
+          url = f'http://{pod_ip}:6061/container/jvm-metrics?namespace=jvm-spike'
+          with urllib.request.urlopen(url, timeout=30) as r:
+              data = json.loads(r.read().decode('utf-8'))
 
-# Ensure not-java absent
-if any((m.get('pod','') or '').startswith('not-java') for m in data):
-    raise SystemExit('not-java unexpectedly present in JVM metrics')
+          by_pod = {m.get('pod'): m for m in data}
 
-# java8: cmdline -Xmx192m => 201326592
-m8=req_prefix('java8-xmx-only')
-flags=m8.get('flags_extracted',{})
-if flags.get('xmx_bytes')!=201326592:
-    raise SystemExit(f'java8-xmx-only expected xmx_bytes=201326592 got {flags.get("xmx_bytes")}')
+          def req_prefix(prefix):
+              for k, v in by_pod.items():
+                  if k and k.startswith(prefix):
+                      return v
+              raise SystemExit(f'missing pod prefix={prefix}; got pods={list(by_pod.keys())}')
 
-# java11: env JAVA_TOOL_OPTIONS provides xmx/xms/maxram; sources should mention JAVA_TOOL_OPTIONS
-m11=req_prefix('java11-tool-options')
-flags=m11.get('flags_extracted',{})
-if flags.get('xmx_bytes')!=167772160 or flags.get('xms_bytes')!=50331648 or flags.get('max_ram_percentage')!=65:
-    raise SystemExit(f'java11-tool-options flags mismatch: {flags}')
-src=m11.get('flag_sources',{})
-xmx_src=str(src.get('xmx_bytes',''))
-if 'TOOL_OPTIONS' not in xmx_src:
-    raise SystemExit(f'java11-tool-options expected xmx source to mention JAVA_TOOL_OPTIONS; got {src}')
+          # Ensure not-java absent
+          if any((m.get('pod', '') or '').startswith('not-java') for m in data):
+              raise SystemExit('not-java unexpectedly present in JVM metrics')
 
-# java17: maxram only should be 40
-m17=req_prefix('java17-maxram-only')
-flags=m17.get('flags_extracted',{})
-if flags.get('max_ram_percentage')!=40:
-    raise SystemExit(f'java17-maxram-only expected max_ram_percentage=40 got {flags.get("max_ram_percentage")}')
+          # java8: cmdline -Xmx192m => 201326592
+          m8 = req_prefix('java8-xmx-only')
+          flags = m8.get('flags_extracted', {})
+          if flags.get('xmx_bytes') != 201326592:
+              raise SystemExit(f'java8-xmx-only expected xmx_bytes=201326592 got {flags.get("xmx_bytes")}')
 
-print('OK')
-PY"
+          # java11: env JAVA_TOOL_OPTIONS provides xmx/xms/maxram; sources should mention JAVA_TOOL_OPTIONS
+          m11 = req_prefix('java11-tool-options')
+          flags = m11.get('flags_extracted', {})
+          if flags.get('xmx_bytes') != 167772160 or flags.get('xms_bytes') != 50331648 or flags.get('max_ram_percentage') != 65:
+              raise SystemExit(f'java11-tool-options flags mismatch: {flags}')
+          src = m11.get('flag_sources', {})
+          xmx_src = str(src.get('xmx_bytes', ''))
+          if 'TOOL_OPTIONS' not in xmx_src:
+              raise SystemExit(f'java11-tool-options expected xmx source to mention JAVA_TOOL_OPTIONS; got {src}')
+
+          # java17: maxram only should be 40
+          m17 = req_prefix('java17-maxram-only')
+          flags = m17.get('flags_extracted', {})
+          if flags.get('max_ram_percentage') != 40:
+              raise SystemExit(f'java17-maxram-only expected max_ram_percentage=40 got {flags.get("max_ram_percentage")}')
+
+          print('OK')
+          PY
+
+          kubectl -n devzero-system delete pod/py-assert --ignore-not-found=true
