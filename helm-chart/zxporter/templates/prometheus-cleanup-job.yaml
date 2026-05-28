@@ -1,10 +1,7 @@
 {{- /*
 One-time migration hook: cleans up legacy Prometheus/node-exporter/kube-state-metrics
 and standalone nodemon resources from previous zxporter installations.
-- Runs as post-install and post-upgrade hook
-- Dedicated ServiceAccount with least-privilege RBAC (resourceNames scoped)
-- Idempotent: --ignore-not-found on all deletes
-- Self-cleaning: hook-delete-policy deletes resources after completion
+- Disable with: helm upgrade --no-hooks
 */ -}}
 ---
 apiVersion: v1
