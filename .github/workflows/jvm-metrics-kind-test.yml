@@ -1,0 +1,115 @@
+permissions:
+  contents: read
+name: JVM Metrics (nodemon) Kind Test
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  jvm-metrics-kind:
+    runs-on: ubuntu-xl
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
+          cache: true
+
+      - name: Create kind cluster
+        uses: helm/kind-action@v1
+        with:
+          version: v0.27.0
+          node_image: kindest/node:v1.32.3
+          cluster_name: kind-jvm-metrics
+          wait: 120s
+
+      - name: Install metrics-server
+        run: |
+          helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
+          helm repo update
+          helm upgrade --install --set args={--kubelet-insecure-tls} metrics-server metrics-server/metrics-server --namespace kube-system
+          kubectl wait --for=condition=available --timeout=300s deployment/metrics-server -n kube-system
+
+      - name: Build nodemon image
+        run: |
+          docker build -f Dockerfile.nodemon -t zxporter-nodemon:jvm-ci .
+
+      - name: Load nodemon image into kind
+        run: |
+          kind load docker-image zxporter-nodemon:jvm-ci --name kind-jvm-metrics
+
+      - name: Deploy zxporter-nodemon (JVM metrics enabled)
+        run: |
+          kubectl create ns devzero-system || true
+          helm upgrade --install zxporter-nodemon ./helm-chart/zxporter-nodemon \
+            -n devzero-system \
+            --set provider=eks \
+            --set dcgmExporter.enabled=false \
+            --set jvmMetrics.enabled=true \
+            --set gpuMetricsExporter.image.repository=zxporter-nodemon \
+            --set gpuMetricsExporter.image.tag=jvm-ci \
+            --set gpuMetricsExporter.image.pullPolicy=IfNotPresent
+          kubectl -n devzero-system rollout status ds/zxporter-nodemon --timeout=180s
+
+      - name: Deploy JVM test workloads
+        run: |
+          kubectl apply -f test/fixtures/jvm-apps.yaml
+          kubectl -n jvm-spike rollout status deploy/java8-xmx-only --timeout=300s
+          kubectl -n jvm-spike rollout status deploy/java11-tool-options --timeout=300s
+          kubectl -n jvm-spike rollout status deploy/java17-maxram-only --timeout=300s
+          kubectl -n jvm-spike rollout status deploy/not-java --timeout=300s
+
+      - name: Validate nodemon JVM metrics output
+        run: |
+          POD_IP=$(kubectl -n devzero-system get pod -l app.kubernetes.io/name=zxporter-nodemon -o jsonpath='{.items[0].status.podIP}')
+          echo "nodemon podIP=$POD_IP"
+
+          # Assertions (python; no jq dependency). Fetch JSON inside the python container.
+          kubectl -n devzero-system run py-assert --image=python:3.12-slim -i --rm --restart=Never --command -- \
+            sh -lc "python - <<'PY'
+import json,sys,urllib.request
+pod_ip = '${POD_IP}'
+url = f'http://{pod_ip}:6061/container/jvm-metrics?namespace=jvm-spike'
+with urllib.request.urlopen(url, timeout=30) as r:
+    data = json.loads(r.read().decode('utf-8'))
+
+by_pod={m.get('pod'):m for m in data}
+
+def req_prefix(prefix):
+    for k,v in by_pod.items():
+        if k and k.startswith(prefix):
+            return v
+    raise SystemExit(f'missing pod prefix={prefix}; got pods={list(by_pod.keys())}')
+
+# Ensure not-java absent
+if any((m.get('pod','') or '').startswith('not-java') for m in data):
+    raise SystemExit('not-java unexpectedly present in JVM metrics')
+
+# java8: cmdline -Xmx192m => 201326592
+m8=req_prefix('java8-xmx-only')
+flags=m8.get('flags_extracted',{})
+if flags.get('xmx_bytes')!=201326592:
+    raise SystemExit(f'java8-xmx-only expected xmx_bytes=201326592 got {flags.get("xmx_bytes")}')
+
+# java11: env JAVA_TOOL_OPTIONS provides xmx/xms/maxram; sources should mention JAVA_TOOL_OPTIONS
+m11=req_prefix('java11-tool-options')
+flags=m11.get('flags_extracted',{})
+if flags.get('xmx_bytes')!=167772160 or flags.get('xms_bytes')!=50331648 or flags.get('max_ram_percentage')!=65:
+    raise SystemExit(f'java11-tool-options flags mismatch: {flags}')
+src=m11.get('flag_sources',{})
+xmx_src=str(src.get('xmx_bytes',''))
+if 'TOOL_OPTIONS' not in xmx_src:
+    raise SystemExit(f'java11-tool-options expected xmx source to mention JAVA_TOOL_OPTIONS; got {src}')
+
+# java17: maxram only should be 40
+m17=req_prefix('java17-maxram-only')
+flags=m17.get('flags_extracted',{})
+if flags.get('max_ram_percentage')!=40:
+    raise SystemExit(f'java17-maxram-only expected max_ram_percentage=40 got {flags.get("max_ram_percentage")}')
+
+print('OK')
+PY"

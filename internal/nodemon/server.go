@@ -50,7 +50,7 @@ func NewExporter(
 	}
 }
 
-var dcgmPodGVR = schema.GroupVersionResource{Group: "", Version: "v1", Resource: "pods"}
+var podGVR = schema.GroupVersionResource{Group: "", Version: "v1", Resource: "pods"}
 
 // QueryMetrics scrapes DCGM exporters on demand and returns mapped GPU metrics.
 func (e *Exporter) QueryMetrics(ctx context.Context) ([]GPUMetric, error) {
@@ -92,7 +92,7 @@ func (e *Exporter) getDCGMUrls(ctx context.Context) ([]string, error) {
 		fieldSelector = fmt.Sprintf("%s,spec.nodeName=%s", fieldSelector, e.cfg.NodeName)
 	}
 
-	dcgmExporterList, err := e.dynamic.Resource(dcgmPodGVR).
+	dcgmExporterList, err := e.dynamic.Resource(podGVR).
 		Namespace("").
 		List(ctx, metav1.ListOptions{
 			LabelSelector: e.cfg.DCGMLabels,
@@ -120,7 +120,7 @@ func (e *Exporter) getDCGMUrls(ctx context.Context) ([]string, error) {
 }
 
 // NewServerMux creates the HTTP mux for the nodemon.
-func NewServerMux(containerMetricsHandler http.Handler) *http.ServeMux {
+func NewServerMux(containerMetricsHandler http.Handler, jvmMetricsHandler http.Handler) *http.ServeMux {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/debug/pprof/", pprof.Index)
@@ -136,6 +136,10 @@ func NewServerMux(containerMetricsHandler http.Handler) *http.ServeMux {
 
 	if containerMetricsHandler != nil {
 		mux.Handle("/container/metrics", containerMetricsHandler)
+	}
+
+	if jvmMetricsHandler != nil {
+		mux.Handle("/container/jvm-metrics", jvmMetricsHandler)
 	}
 
 	return mux
