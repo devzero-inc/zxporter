@@ -47,29 +47,6 @@ to store tokens in Kubernetes Secrets instead.
 
 {{- end }}
 
-{{- if not .Values.monitoring.enabled }}
-
-WARNING: Monitoring components are disabled.
-ZXPorter requires Prometheus to collect metrics. Ensure you have:
-1. A running Prometheus instance accessible at the configured URL
-2. Node Exporter running on cluster nodes
-3. Proper network connectivity between ZXPorter and monitoring components
-
-{{- else }}
-{{- if not .Values.monitoring.prometheus.enabled }}
-
-NOTE: Built-in Prometheus is disabled.
-Ensure your external Prometheus instance is accessible at: {{ .Values.zxporter.prometheusUrl }}
-
-{{- end }}
-{{- if not .Values.monitoring.nodeExporter.enabled }}
-
-NOTE: Built-in Node Exporter is disabled.
-Ensure Node Exporter is running on all nodes for complete metrics collection.
-
-{{- end }}
-{{- end }}
-
 NOTE: GPU metrics collection requirements.
 
 If your cluster contains GPU-enabled nodes, ensure the following for GPU metrics to appear in the DevZero dashboard:

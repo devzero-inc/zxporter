@@ -44,7 +44,6 @@ data:
   LOG_LEVEL: "{{ .Values.zxporter.logLevel }}"
   MASK_SECRET_DATA: ""
   NODE_METRICS_INTERVAL: ""
-  ENABLE_NODEMON_METRICS: "{{ .Values.nodemonMetrics.enabled }}"
   DAKR_URL: "{{ .Values.zxporter.dakrUrl }}"
   TARGET_NAMESPACES: "{{ .Values.zxporter.targetNamespaces }}"
   TOKEN_CONFIGMAP_NAME: "{{ .Values.zxporter.tokenConfigMapName }}"

@@ -199,7 +199,6 @@ jobs:
             yq eval '.zxporter.kubeContextName = "test-kind-cluster"' -i helm-chart/zxporter/values.yaml
             yq eval '.zxporter.k8sProvider = "other"' -i helm-chart/zxporter/values.yaml
             yq eval '.zxporter.logLevel = "info"' -i helm-chart/zxporter/values.yaml
-            yq eval '.nodemonMetrics.enabled = true' -i helm-chart/zxporter/values.yaml
             yq eval '.zxporter-nodemon.gpuMetricsExporter.image.repository = "'"${NODEMON_IMG%:*}"'"' -i helm-chart/zxporter/values.yaml
             yq eval '.zxporter-nodemon.gpuMetricsExporter.image.tag = "'"${NODEMON_IMG##*:}"'"' -i helm-chart/zxporter/values.yaml
             yq eval '.zxporter-nodemon.provider = "other"' -i helm-chart/zxporter/values.yaml
