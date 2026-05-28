@@ -214,8 +214,9 @@ jobs:
 
           # cmdline mutation: update the command to use different Xms/Xmx
           kubectl -n jvm-spike patch deploy/java21-precedence-cmdline --type='json' -p='[
-            {"op":"replace","path":"/spec/template/spec/containers/0/args/0","value":"cat >/tmp/DummyMain.java <<\x27EOF\x27\npublic class DummyMain { public static void main(String[] args) throws Exception { for(;;) Thread.sleep(60000); } }\nEOF\njavac /tmp/DummyMain.java\n# cmdline should win over env\nexec java -Xms24m -Xmx104m -cp /tmp DummyMain\n"},
-            {"op":"add","path":"/spec/template/metadata/annotations/zxporter.dev/mutation","value":"1"}
+            {"op":"add","path":"/spec/template/metadata/annotations","value":{}},
+            {"op":"replace","path":"/spec/template/spec/containers/0/args/0","value":"cat >/tmp/DummyMain.java <<EOF\\npublic class DummyMain { public static void main(String[] args) throws Exception { for(;;) Thread.sleep(60000); } }\\nEOF\\njavac /tmp/DummyMain.java\\n# cmdline should win over env\\nexec java -Xms24m -Xmx104m -cp /tmp DummyMain\\n"},
+            {"op":"add","path":"/spec/template/metadata/annotations/zxporter.dev~1mutation","value":"1"}
           ]'
           kubectl -n jvm-spike set resources deploy/java21-precedence-cmdline -c app --requests=cpu=10m,memory=256Mi --limits=cpu=100m,memory=256Mi
 
