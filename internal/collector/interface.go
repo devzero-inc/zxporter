@@ -150,6 +150,7 @@ const (
 	ContainerCrashLoopEvent
 	ContainerStartupLifecycle
 	ContainerCPUThrottleEvent
+	KarpenterSettings
 )
 
 // String returns the string representation of the ResourceType
@@ -214,6 +215,7 @@ func (r ResourceType) String() string {
 		ContainerCrashLoopEvent:      "container_crashloop_event",
 		ContainerStartupLifecycle:    "container_startup_lifecycle",
 		ContainerCPUThrottleEvent:    "container_cpu_throttle_event",
+		KarpenterSettings:            "karpenter-settings",
 	}
 
 	if name, ok := names[r]; ok {
@@ -343,6 +345,8 @@ func (r ResourceType) ProtoType() gen.ResourceType {
 		return gen.ResourceType_RESOURCE_TYPE_CONTAINER_STARTUP_LIFECYCLE
 	case ContainerCPUThrottleEvent:
 		return gen.ResourceType_RESOURCE_TYPE_CONTAINER_CPU_THROTTLE_EVENT
+	case KarpenterSettings:
+		return gen.ResourceType_RESOURCE_TYPE_KARPENTER_SETTINGS
 	default:
 		return gen.ResourceType_RESOURCE_TYPE_UNSPECIFIED
 	}
@@ -386,4 +390,23 @@ type ResourceCollector interface {
 
 	// AddResource manually adds a resource to be processed by the collector
 	AddResource(resource interface{}) error
+}
+
+// Kubernetes container termination reason constants. Using constants instead of
+// raw strings prevents typo-induced silent failures across the OOM detection paths.
+const (
+	// ReasonOOMKilled is the termination reason kubelet sets when the OOM killer
+	// terminates a container that exceeded its memory limit.
+	ReasonOOMKilled = "OOMKilled"
+
+	// ReasonStartError is the termination reason for containers that fail during
+	// init. When the message contains "oom", it indicates an OOM during startup.
+	ReasonStartError = "StartError"
+)
+
+// MpaMetricsPublisher is the interface the collector package uses to publish
+// metrics directly to the MPA gRPC stream (bypassing the combinedChannel pipeline).
+// Implemented by server.MpaServer.
+type MpaMetricsPublisher interface {
+	PublishMetrics(metrics *ContainerMetricsSnapshot, timestamp time.Time)
 }

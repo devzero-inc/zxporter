@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: testserver
-  namespace: devzero-zxporter
+  namespace: devzero-system
   labels:
     app: testserver
 spec:
@@ -31,7 +31,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: testserver
-  namespace: devzero-zxporter
+  namespace: devzero-system
 spec:
   selector:
     app: testserver

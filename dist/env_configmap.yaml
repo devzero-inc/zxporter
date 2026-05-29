@@ -48,4 +48,4 @@ data:
 kind: ConfigMap
 metadata:
   name: devzero-zxporter-env-config
-  namespace: devzero-zxporter
+  namespace: devzero-system

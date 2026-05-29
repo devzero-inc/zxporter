@@ -83,6 +83,19 @@ type CollectionPolicyReconciler struct {
 	// and should be retried periodically
 	pendingCollectors []pendingCollector
 	pendingMu         sync.Mutex
+
+	// OOM reconciler for periodic sweep of missed OOM events
+	oomReconciler       *collector.OOMReconciler
+	oomReconcilerCancel context.CancelFunc
+
+	// Periodic Prometheus availability probe. Without this the prometheus
+	// component health is set once at startup (via waitForPrometheusAvailability)
+	// and never re-evaluated, so a transient outage at boot leaves the operator
+	// permanently reporting prometheus as unhealthy even after recovery.
+	prometheusProbeMu     sync.Mutex
+	prometheusProbeURL    string
+	prometheusProbeCancel context.CancelFunc
+	prometheusProbeDone   chan struct{} // closed by the goroutine on exit; nil until first start
 }
 
 // pendingCollector represents a collector that was unavailable at registration time
@@ -193,7 +206,7 @@ type PolicyConfig struct {
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;update
 
 // Secret access for cluster token persistence when useSecretForToken is enabled
-// +kubebuilder:rbac:groups="",resources=secrets,resourceNames=devzero-zxporter-token,verbs=get;update;patch
+// +kubebuilder:rbac:groups="",resources=secrets,resourceNames=token,verbs=get;update;patch
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=create
 
 // Metrics access
@@ -260,6 +273,7 @@ type PolicyConfig struct {
 // +kubebuilder:rbac:groups=karpenter.azure.com,resources=aksnodeclasses,verbs=get;list;watch
 // +kubebuilder:rbac:groups=karpenter.k8s.oracle,resources=ocinodeclasses,verbs=get;list;watch
 // +kubebuilder:rbac:groups=karpenter.k8s.gcp,resources=gcenodeclasses,verbs=get;list;watch
+// +kubebuilder:rbac:groups=devzero.karpenter.sh,resources=karpentersettings,verbs=get;list;watch
 
 // API Extensions (READ-ONLY for CRD discovery)
 //+kubebuilder:rbac:groups=apiextensions.k8s.io,resources=customresourcedefinitions,verbs=get;list;watch
@@ -1054,6 +1068,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(
 		)
 
 		prometheusAvailable := r.waitForPrometheusAvailability(ctx, newConfig.PrometheusURL)
+		r.startPeriodicPrometheusHealthCheck(newConfig.PrometheusURL)
 		if !prometheusAvailable {
 			logger.Info(
 				"Prometheus is not available after waiting, will continue with restart but metrics may be limited",
@@ -1608,6 +1623,14 @@ func (r *CollectionPolicyReconciler) restartCollectors(
 				logger,
 				r.TelemetryLogger,
 			)
+		case "karpenter-settings":
+			replacedCollector = collector.NewKarpenterSettingsCollector(
+				r.DynamicClient,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+				r.TelemetryLogger,
+			)
 		case "datadog":
 			replacedCollector = collector.NewDatadogCollector(
 				r.DynamicClient,
@@ -1811,6 +1834,12 @@ func (r *CollectionPolicyReconciler) restartCollectors(
 				},
 			)
 			logger.Info("Successfully restarted collector", "type", collectorType)
+
+			// Re-wire MPA publisher and OOM reconciler into replaced PodCollector
+			if collectorType == "pod" {
+				r.wireMpaPublisherIntoPodCollector()
+				r.wireOOMReconcilerIntoPodCollector()
+			}
 		}
 	}
 
@@ -1868,6 +1897,10 @@ func (r *CollectionPolicyReconciler) initializeCollectors(
 			)
 			logger.Info("Prometheus is available, continuing with full metrics collection")
 		}
+
+		// Start (or refresh) the periodic probe so health recovers from transient
+		// outages rather than being frozen on the one-shot startup result.
+		r.startPeriodicPrometheusHealthCheck(config.PrometheusURL)
 	} else {
 		r.TelemetryLogger.Report(
 			gen.LogLevel_LOG_LEVEL_WARN,
@@ -1879,6 +1912,8 @@ func (r *CollectionPolicyReconciler) initializeCollectors(
 				"zxporter_version": version.Get().String(),
 			},
 		)
+		// No URL — make sure any prior probe is stopped.
+		r.startPeriodicPrometheusHealthCheck("")
 	}
 
 	// Setup collection manager and basic services
@@ -1904,6 +1939,10 @@ func (r *CollectionPolicyReconciler) initializeCollectors(
 		logger.Error(err, "Failed to setup MPA server")
 		// Not fatal
 	}
+
+	// Start OOM reconciler and wire MPA publisher into PodCollector.
+	// Both depend on MpaServer being set up first.
+	r.setupOOMDetection(config)
 
 	r.TelemetryLogger.Report(
 		gen.LogLevel_LOG_LEVEL_INFO,
@@ -2054,6 +2093,69 @@ func (r *CollectionPolicyReconciler) setupMpaServer() error {
 	}
 	r.MpaServer = server.NewMpaServer(r.Log, nil, r.HealthManager)
 	return r.MpaServer.Start(r.MpaServerPort)
+}
+
+// setupOOMDetection starts the OOM reconciler and wires the MPA publisher
+// into the PodCollector so OOM events reach the operator via both the real-time
+// informer path and the periodic sweep fallback.
+func (r *CollectionPolicyReconciler) setupOOMDetection(config *PolicyConfig) {
+	if r.MpaServer == nil {
+		return
+	}
+
+	// Wire MPA publisher into PodCollector (if it's running) so the real-time
+	// informer path can publish OOM events directly to the operator.
+	if r.CollectionManager != nil {
+		r.wireMpaPublisherIntoPodCollector()
+	}
+
+	// Start periodic OOM reconciler
+	if r.oomReconciler == nil {
+		namespaces := config.TargetNamespaces
+		r.oomReconciler = collector.NewOOMReconciler(
+			r.K8sClient,
+			namespaces,
+			r.MpaServer,
+			r.Log,
+		)
+
+		// Also wire the reconciler into PodCollector for dedup
+		r.wireOOMReconcilerIntoPodCollector()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		r.oomReconcilerCancel = cancel
+		go r.oomReconciler.Start(ctx)
+		r.Log.Info("OOM reconciler started")
+	}
+}
+
+// wireMpaPublisherIntoPodCollector sets the MPA publisher on the PodCollector
+// so real-time OOM events are published directly to the operator's gRPC stream.
+func (r *CollectionPolicyReconciler) wireMpaPublisherIntoPodCollector() {
+	rc := r.CollectionManager.GetCollector("pod")
+	if rc == nil {
+		return
+	}
+	if pc, ok := rc.(*collector.PodCollector); ok {
+		pc.SetMpaPublisher(r.MpaServer)
+		r.Log.Info("Wired MPA publisher into PodCollector for direct OOM delivery")
+	}
+}
+
+// wireOOMReconcilerIntoPodCollector sets the OOM reconciler on the PodCollector
+// for cross-path deduplication (informer path marks OOMs as seen so sweep skips them).
+func (r *CollectionPolicyReconciler) wireOOMReconcilerIntoPodCollector() {
+	if r.CollectionManager == nil || r.oomReconciler == nil {
+		return
+	}
+	rc := r.CollectionManager.GetCollector("pod")
+	if rc == nil {
+		return
+	}
+	if pc, ok := rc.(*collector.PodCollector); ok {
+		pc.SetOOMReconciler(r.oomReconciler)
+		r.Log.Info("Wired OOM reconciler into PodCollector for deduplication")
+	}
 }
 
 // setupClusterCollector creates and starts just the cluster collector
@@ -2292,6 +2394,13 @@ func (r *CollectionPolicyReconciler) cleanupOnFailure(logger logr.Logger) {
 
 	if r.MpaServer != nil {
 		r.MpaServer.Stop()
+	}
+
+	// Stop OOM reconciler
+	if r.oomReconcilerCancel != nil {
+		r.oomReconcilerCancel()
+		r.oomReconcilerCancel = nil
+		r.oomReconciler = nil
 	}
 
 	// Reset state
@@ -2827,6 +2936,25 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 			name: collector.Karpenter,
 			factory: func() collector.ResourceCollector {
 				return collector.NewKarpenterCollector(
+					r.DynamicClient,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+					r.TelemetryLogger,
+				)
+			},
+		},
+		{
+			collector: collector.NewKarpenterSettingsCollector(
+				r.DynamicClient,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+				r.TelemetryLogger,
+			),
+			name: collector.KarpenterSettings,
+			factory: func() collector.ResourceCollector {
+				return collector.NewKarpenterSettingsCollector(
 					r.DynamicClient,
 					collector.DefaultMaxBatchSize,
 					collector.DefaultMaxBatchTime,
@@ -3714,6 +3842,14 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					logger,
 					r.TelemetryLogger,
 				)
+			case "karpenter-settings":
+				replacedCollector = collector.NewKarpenterSettingsCollector(
+					r.DynamicClient,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+					r.TelemetryLogger,
+				)
 			case "custom_resource_definition":
 				replacedCollector = collector.NewCRDCollector(
 					r.ApiExtensions,
@@ -3902,11 +4038,7 @@ func (r *CollectionPolicyReconciler) waitForPrometheusAvailability(
 		Transport: tr,
 	}
 
-	// Endpoint to verify prometheus is ready
-	healthEndpoint := fmt.Sprintf("%s/-/ready", prometheusURL)
-	if !strings.HasPrefix(prometheusURL, "http") {
-		healthEndpoint = fmt.Sprintf("http://%s/-/ready", prometheusURL)
-	}
+	healthEndpoint := prometheusHealthEndpoint(prometheusURL)
 
 	for i := 0; i < maxRetries; i++ {
 		select {
@@ -4040,5 +4172,120 @@ func (r *CollectionPolicyReconciler) updateHealthStatus(
 ) {
 	if r.HealthManager != nil {
 		r.HealthManager.UpdateStatus(health.ComponentPrometheus, status, message, metadata)
+	}
+}
+
+// startPeriodicPrometheusHealthCheck launches (or restarts) a goroutine that
+// pings Prometheus every minute and updates ComponentPrometheus health. Without
+// this, the one-shot startup check leaves the status frozen until something
+// else happens to refresh it. Pass "" to stop the probe.
+//
+// The goroutine is parented on context.Background() rather than the caller's
+// reconcile context: controller-runtime cancels the reconcile ctx as soon as
+// Reconcile returns, which would kill the probe immediately. The stored cancel
+// func is the only intended way to stop it (matches the OOM reconciler pattern).
+//
+// Idempotency: if a probe for the same URL is already running we no-op. We
+// detect a dead goroutine (panic, lost cancel, etc.) via the done channel —
+// if it's already closed we treat the probe as gone and start a fresh one.
+func (r *CollectionPolicyReconciler) startPeriodicPrometheusHealthCheck(url string) {
+	r.prometheusProbeMu.Lock()
+	defer r.prometheusProbeMu.Unlock()
+
+	if r.prometheusProbeURL == url && r.probeStillAliveLocked() {
+		return
+	}
+	if r.prometheusProbeCancel != nil {
+		r.prometheusProbeCancel()
+	}
+	r.prometheusProbeURL = url
+	r.prometheusProbeCancel = nil
+	r.prometheusProbeDone = nil
+	if url == "" {
+		return
+	}
+
+	endpoint := prometheusHealthEndpoint(url)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	r.prometheusProbeCancel = cancel
+	r.prometheusProbeDone = done
+
+	go r.runPrometheusProbe(ctx, done, url, endpoint)
+}
+
+// prometheusHealthEndpoint returns the full /-/ready URL, defaulting to http://
+// when the caller passed a bare host:port. Shared by waitForPrometheusAvailability
+// and the periodic probe so both build the same endpoint from the same input.
+func prometheusHealthEndpoint(url string) string {
+	if !strings.HasPrefix(url, "http") {
+		return "http://" + url + "/-/ready"
+	}
+	return url + "/-/ready"
+}
+
+// probeStillAliveLocked returns true if the existing probe goroutine is still
+// running. Caller must hold prometheusProbeMu.
+func (r *CollectionPolicyReconciler) probeStillAliveLocked() bool {
+	if r.prometheusProbeCancel == nil || r.prometheusProbeDone == nil {
+		return false
+	}
+	select {
+	case <-r.prometheusProbeDone:
+		return false
+	default:
+		return true
+	}
+}
+
+// runPrometheusProbe is the probe goroutine body. Defers a recover so a panic
+// in the HTTP client does not silently leave the probe dead with no cleanup,
+// and always closes done so probeStillAliveLocked can detect exit.
+func (r *CollectionPolicyReconciler) runPrometheusProbe(ctx context.Context, done chan struct{}, url, endpoint string) {
+	defer close(done)
+	defer func() {
+		if rec := recover(); rec != nil {
+			r.Log.Error(fmt.Errorf("%v", rec), "Prometheus probe goroutine panicked", "url", url)
+		}
+	}()
+
+	// Clone DefaultTransport so the probe inherits proxy/TLS settings (matches
+	// waitForPrometheusAvailability). Re-using DefaultTransport directly would
+	// share the connection pool with every other consumer in the binary.
+	tr := http.DefaultTransport.(*http.Transport).Clone()
+	client := &http.Client{Timeout: 5 * time.Second, Transport: tr}
+	ticker := time.NewTicker(60 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			status, msg := health.HealthStatusHealthy, "Prometheus available"
+			meta := map[string]string{"url": url}
+			// Build the request from ctx so a URL change or shutdown cancels
+			// any in-flight call immediately rather than waiting for the timeout.
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+			if err != nil {
+				status, msg = health.HealthStatusDegraded, "Prometheus probe request build failed"
+				meta["error"] = err.Error()
+				r.updateHealthStatus(status, msg, meta)
+				continue
+			}
+			resp, err := client.Do(req)
+			switch {
+			case err != nil:
+				status, msg = health.HealthStatusDegraded, "Prometheus probe failed"
+				meta["error"] = err.Error()
+			case resp.StatusCode != http.StatusOK:
+				status, msg = health.HealthStatusDegraded, "Prometheus probe returned non-OK status"
+				meta["status_code"] = fmt.Sprintf("%d", resp.StatusCode)
+			}
+			if resp != nil {
+				_ = resp.Body.Close()
+			}
+			r.updateHealthStatus(status, msg, meta)
+		}
 	}
 }

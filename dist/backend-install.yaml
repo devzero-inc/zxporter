@@ -11,8 +11,8 @@ kind: Namespace
 metadata:
   labels:
     control-plane: controller-manager
-    app.kubernetes.io/name: devzero-zxporter
-  name: devzero-zxporter
+    app.kubernetes.io/name: devzero-system
+  name: devzero-system
 # ----- START PROM SERVER -----
 ---
 # Source: prometheus/charts/kube-state-metrics/templates/serviceaccount.yaml
@@ -29,7 +29,7 @@ metadata:
     app.kubernetes.io/instance: prometheus
     app.kubernetes.io/version: "2.15.0"
   name: prometheus-kube-state-metrics
-  namespace: devzero-zxporter
+  namespace: devzero-system
 ---
 # Source: prometheus/templates/serviceaccount.yaml
 apiVersion: v1
@@ -43,7 +43,7 @@ metadata:
     helm.sh/chart: prometheus-27.20.0
     app.kubernetes.io/part-of: dz-prometheus
   name: prometheus-dz-prometheus-server
-  namespace: devzero-zxporter
+  namespace: devzero-system
   annotations: {}
 ---
 # Source: prometheus/templates/cm.yaml
@@ -58,7 +58,7 @@ metadata:
     helm.sh/chart: prometheus-27.20.0
     app.kubernetes.io/part-of: dz-prometheus
   name: prometheus-dz-prometheus-server
-  namespace: devzero-zxporter
+  namespace: devzero-system
 data:
   allow-snippet-annotations: "false"
   alerting_rules.yml: |
@@ -336,7 +336,7 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: prometheus-kube-state-metrics
-    namespace: devzero-zxporter
+    namespace: devzero-system
 ---
 # Source: prometheus/templates/clusterrolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -353,7 +353,7 @@ metadata:
 subjects:
   - kind: ServiceAccount
     name: prometheus-dz-prometheus-server
-    namespace: devzero-zxporter
+    namespace: devzero-system
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
@@ -364,7 +364,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: prometheus-kube-state-metrics
-  namespace: devzero-zxporter
+  namespace: devzero-system
   labels:
     helm.sh/chart: kube-state-metrics-5.33.2
     app.kubernetes.io/managed-by: Helm
@@ -398,7 +398,7 @@ metadata:
     helm.sh/chart: prometheus-27.20.0
     app.kubernetes.io/part-of: dz-prometheus
   name: prometheus-dz-prometheus-server
-  namespace: devzero-zxporter
+  namespace: devzero-system
 spec:
   ports:
     - name: http
@@ -417,7 +417,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: prometheus-kube-state-metrics
-  namespace: devzero-zxporter
+  namespace: devzero-system
   labels:
     helm.sh/chart: kube-state-metrics-5.33.2
     app.kubernetes.io/managed-by: Helm
@@ -514,7 +514,7 @@ metadata:
     helm.sh/chart: prometheus-27.20.0
     app.kubernetes.io/part-of: dz-prometheus
   name: prometheus-dz-prometheus-server
-  namespace: devzero-zxporter
+  namespace: devzero-system
 spec:
   selector:
     matchLabels:
@@ -637,7 +637,7 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: dz-prometheus-node-exporter
-  namespace: devzero-zxporter
+  namespace: devzero-system
   labels:
     helm.sh/chart: prometheus-node-exporter-4.47.0
     app.kubernetes.io/managed-by: Helm
@@ -653,7 +653,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: dz-prometheus-node-exporter
-  namespace: devzero-zxporter
+  namespace: devzero-system
   labels:
     helm.sh/chart: prometheus-node-exporter-4.47.0
     app.kubernetes.io/managed-by: Helm
@@ -680,7 +680,7 @@ apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: dz-prometheus-node-exporter
-  namespace: devzero-zxporter
+  namespace: devzero-system
   labels:
     helm.sh/chart: prometheus-node-exporter-4.47.0
     app.kubernetes.io/managed-by: Helm
@@ -821,7 +821,7 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/name: devzero-zxporter
     control-plane: controller-manager
-  name: devzero-zxporter
+  name: devzero-system
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -830,7 +830,7 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/name: devzero-zxporter
   name: devzero-zxporter-controller-manager
-  namespace: devzero-zxporter
+  namespace: devzero-system
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -839,7 +839,7 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/name: devzero-zxporter
   name: devzero-zxporter-leader-election-role
-  namespace: devzero-zxporter
+  namespace: devzero-system
 rules:
   - apiGroups:
       - ""
@@ -1001,7 +1001,7 @@ rules:
   - apiGroups:
       - ""
     resourceNames:
-      - devzero-zxporter-devzero-zxporter-token
+      - devzero-zxporter-token
     resources:
       - secrets
     verbs:
@@ -1144,6 +1144,14 @@ rules:
       - get
       - patch
       - update
+  - apiGroups:
+      - devzero.karpenter.sh
+    resources:
+      - karpentersettings
+    verbs:
+      - get
+      - list
+      - watch
   - apiGroups:
       - karpenter.azure.com
     resources:
@@ -1321,7 +1329,7 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/name: devzero-zxporter
   name: devzero-zxporter-leader-election-rolebinding
-  namespace: devzero-zxporter
+  namespace: devzero-system
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
@@ -1329,7 +1337,7 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: devzero-zxporter-controller-manager
-    namespace: devzero-zxporter
+    namespace: devzero-system
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -1345,7 +1353,7 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: devzero-zxporter-controller-manager
-    namespace: devzero-zxporter
+    namespace: devzero-system
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -1358,12 +1366,12 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: devzero-zxporter-controller-manager
-    namespace: devzero-zxporter
+    namespace: devzero-system
 ---
 apiVersion: v1
 data:
   BUFFER_SIZE: ""
-  CLUSTER_TOKEN: '{{ .cluster_token }}'
+  CLUSTER_TOKEN: ""
   COLLECTION_FREQUENCY: ""
   DAKR_URL: '{{ .api_url }}/dakr'
   DISABLE_NETWORK_IO_METRICS: ""
@@ -1403,24 +1411,24 @@ data:
   KUBE_CONTEXT_NAME: '{{ .kube_context_name }}'
   MASK_SECRET_DATA: ""
   NODE_METRICS_INTERVAL: ""
-  PROMETHEUS_URL: http://prometheus-dz-prometheus-server.devzero-zxporter.svc.cluster.local:80
+  PROMETHEUS_URL: http://prometheus-dz-prometheus-server.devzero-system.svc.cluster.local:80
   TARGET_NAMESPACES: ""
   TOKEN_CONFIGMAP_NAME: devzero-zxporter-env-config
   TOKEN_CREDENTIALS_SECRET_NAME: devzero-zxporter-credentials
   TOKEN_RUNTIME_SECRET_NAME: devzero-zxporter-token
   TOKEN_SECRET_NAME: devzero-zxporter-token
-  USE_SECRET_FOR_TOKEN: "false"
+  USE_SECRET_FOR_TOKEN: "true"
   WATCHED_CRDS: ""
 kind: ConfigMap
 metadata:
   name: devzero-zxporter-env-config
-  namespace: devzero-zxporter
+  namespace: devzero-system
 ---
 apiVersion: v1
 kind: Secret
 metadata:
-  name: devzero-zxporter-devzero-zxporter-token
-  namespace: devzero-zxporter
+  name: devzero-zxporter-token
+  namespace: devzero-system
 stringData:
   CLUSTER_TOKEN: '{{ .cluster_token }}'
 type: Opaque
@@ -1433,7 +1441,7 @@ metadata:
     app.kubernetes.io/name: devzero-zxporter
     control-plane: controller-manager
   name: devzero-zxporter-controller-manager-metrics-service
-  namespace: devzero-zxporter
+  namespace: devzero-system
 spec:
   ports:
     - name: https
@@ -1450,7 +1458,7 @@ metadata:
     app.kubernetes.io/name: devzero-zxporter
     control-plane: controller-manager
   name: devzero-zxporter-controller-manager-mpa
-  namespace: devzero-zxporter
+  namespace: devzero-system
 spec:
   ports:
     - name: mpa-grpc
@@ -1478,7 +1486,7 @@ metadata:
     app.kubernetes.io/name: devzero-zxporter
     control-plane: controller-manager
   name: devzero-zxporter-controller-manager
-  namespace: devzero-zxporter
+  namespace: devzero-system
 spec:
   replicas: 2
   selector:
@@ -1504,6 +1512,12 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
+            - name: CLUSTER_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  key: CLUSTER_TOKEN
+                  name: devzero-zxporter-token
+                  optional: true
           image: docker.io/devzeroinc/zxporter:latest
           livenessProbe:
             httpGet:
@@ -1549,7 +1563,7 @@ apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
   name: devzero-zxporter-devzero-zxporter-pdb
-  namespace: devzero-zxporter
+  namespace: devzero-system
 spec:
   minAvailable: 1
   selector:

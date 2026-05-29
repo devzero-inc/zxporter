@@ -19,7 +19,7 @@ The Nodemon scrapes metrics from NVIDIA DCGM (Data Center GPU Manager) exporters
 
 ```bash
 helm install zxporter-nodemon helm-chart/zxporter-nodemon \
-  --namespace devzero-zxporter --create-namespace \
+  --namespace devzero-system --create-namespace \
   --set provider=gcp \
   --set dcgmExporter.enabled=true
 ```
@@ -28,7 +28,7 @@ helm install zxporter-nodemon helm-chart/zxporter-nodemon \
 
 ```bash
 helm install zxporter-nodemon helm-chart/zxporter-nodemon \
-  --namespace devzero-zxporter --create-namespace \
+  --namespace devzero-system --create-namespace \
   --set provider=gcp \
   --set dcgmExporter.enabled=false \
   --set gpuMetricsExporter.config.DCGM_LABELS="app.kubernetes.io/name=dcgm-exporter"
@@ -214,7 +214,7 @@ curl http://<pod-ip>:6061/healthz
 
 ```bash
 # Check DCGM exporter logs
-kubectl logs -n devzero-zxporter <pod-name> -c dcgm-exporter
+kubectl logs -n devzero-system <pod-name> -c dcgm-exporter
 
 # Common issues:
 # - "Could not load NVML library" → NVIDIA drivers not installed
@@ -225,18 +225,18 @@ kubectl logs -n devzero-zxporter <pod-name> -c dcgm-exporter
 
 ```bash
 # Verify DCGM exporter is accessible
-kubectl exec -n devzero-zxporter <nodemon-pod> -- \
+kubectl exec -n devzero-system <nodemon-pod> -- \
   curl http://localhost:9400/metrics
 
 # Check nodemon logs
-kubectl logs -n devzero-zxporter <pod-name> -c zxporter-nodemon
+kubectl logs -n devzero-system <pod-name> -c zxporter-nodemon
 ```
 
 ### Pod Discovery Issues
 
 ```bash
 # Verify RBAC permissions
-kubectl auth can-i list pods --as=system:serviceaccount:devzero-zxporter:zxporter-nodemon
+kubectl auth can-i list pods --as=system:serviceaccount:devzero-system:zxporter-nodemon
 
 # Check configured labels match DCGM exporter
 kubectl get pods -A -l <your-dcgm-labels>

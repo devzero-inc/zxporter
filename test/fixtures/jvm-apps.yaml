@@ -1,0 +1,238 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: jvm-spike
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: java8-xmx-only
+  namespace: jvm-spike
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: java8-xmx-only
+  template:
+    metadata:
+      labels:
+        app: java8-xmx-only
+    spec:
+      containers:
+        - name: app
+          image: eclipse-temurin:8-jdk
+          command: ["sh","-lc"]
+          args:
+            - |
+              cat >/tmp/DummyMain.java <<'EOF'
+              public class DummyMain { public static void main(String[] args) throws Exception { for(;;) Thread.sleep(60000); } }
+              EOF
+              javac /tmp/DummyMain.java
+              exec java -Xmx192m -cp /tmp DummyMain
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: java11-tool-options
+  namespace: jvm-spike
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: java11-tool-options
+  template:
+    metadata:
+      labels:
+        app: java11-tool-options
+    spec:
+      containers:
+        - name: app
+          image: eclipse-temurin:11-jdk
+          env:
+            - name: JAVA_TOOL_OPTIONS
+              value: "-Xms48m -Xmx160m -XX:MaxRAMPercentage=65 -Dfrom=tooloptions"
+          command: ["sh","-lc"]
+          args:
+            - |
+              cat >/tmp/DummyMain.java <<'EOF'
+              public class DummyMain { public static void main(String[] args) throws Exception { for(;;) Thread.sleep(60000); } }
+              EOF
+              javac /tmp/DummyMain.java
+              exec java -cp /tmp DummyMain
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: java17-maxram-only
+  namespace: jvm-spike
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: java17-maxram-only
+  template:
+    metadata:
+      labels:
+        app: java17-maxram-only
+    spec:
+      containers:
+        - name: app
+          image: eclipse-temurin:17-jdk
+          command: ["sh","-lc"]
+          args:
+            - |
+              cat >/tmp/DummyMain.java <<'EOF'
+              public class DummyMain { public static void main(String[] args) throws Exception { for(;;) Thread.sleep(60000); } }
+              EOF
+              javac /tmp/DummyMain.java
+              exec java -XX:MaxRAMPercentage=40 -cp /tmp DummyMain
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: java21-jdk-options
+  namespace: jvm-spike
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: java21-jdk-options
+  template:
+    metadata:
+      labels:
+        app: java21-jdk-options
+    spec:
+      containers:
+        - name: app
+          image: eclipse-temurin:21-jdk
+          env:
+            - name: JDK_JAVA_OPTIONS
+              value: "-Xms32m -Xmx128m -Dfrom=jdkopts"
+          command: ["sh","-lc"]
+          args:
+            - |
+              cat >/tmp/DummyMain.java <<'EOF'
+              public class DummyMain { public static void main(String[] args) throws Exception { for(;;) Thread.sleep(60000); } }
+              EOF
+              javac /tmp/DummyMain.java
+              exec java -cp /tmp DummyMain
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: java21-precedence-env
+  namespace: jvm-spike
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: java21-precedence-env
+  template:
+    metadata:
+      labels:
+        app: java21-precedence-env
+    spec:
+      containers:
+        - name: app
+          image: eclipse-temurin:21-jdk
+          env:
+            # Precedence model: JAVA_TOOL_OPTIONS > JDK_JAVA_OPTIONS > JAVA_OPTS
+            - name: JAVA_TOOL_OPTIONS
+              value: "-Xms24m -Xmx96m -Dfrom=toolopts"
+            - name: JDK_JAVA_OPTIONS
+              value: "-Xms32m -Xmx128m -Dfrom=jdkopts"
+            - name: JAVA_OPTS
+              value: "-Xms40m -Xmx160m -Dfrom=javaopts"
+          command: ["sh","-lc"]
+          args:
+            - |
+              cat >/tmp/DummyMain.java <<'EOF'
+              public class DummyMain { public static void main(String[] args) throws Exception { for(;;) Thread.sleep(60000); } }
+              EOF
+              javac /tmp/DummyMain.java
+              exec java -cp /tmp DummyMain
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: java21-precedence-cmdline
+  namespace: jvm-spike
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: java21-precedence-cmdline
+  template:
+    metadata:
+      labels:
+        app: java21-precedence-cmdline
+    spec:
+      containers:
+        - name: app
+          image: eclipse-temurin:21-jdk
+          env:
+            - name: JAVA_TOOL_OPTIONS
+              value: "-Xms32m -Xmx128m -Dfrom=toolopts"
+          command: ["sh","-lc"]
+          args:
+            - |
+              cat >/tmp/DummyMain.java <<'EOF'
+              public class DummyMain { public static void main(String[] args) throws Exception { for(;;) Thread.sleep(60000); } }
+              EOF
+              javac /tmp/DummyMain.java
+              # cmdline should win over env
+              exec java -Xms16m -Xmx80m -cp /tmp DummyMain
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: java21-per-flag-sources
+  namespace: jvm-spike
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: java21-per-flag-sources
+  template:
+    metadata:
+      labels:
+        app: java21-per-flag-sources
+    spec:
+      containers:
+        - name: app
+          image: eclipse-temurin:21-jdk
+          env:
+            # Per-flag sourcing test: Xmx from JAVA_TOOL_OPTIONS, Xms from JDK_JAVA_OPTIONS
+            - name: JAVA_TOOL_OPTIONS
+              value: "-Xmx112m -Dfrom=toolopts"
+            - name: JDK_JAVA_OPTIONS
+              value: "-Xms28m -Dfrom=jdkopts"
+          command: ["sh","-lc"]
+          args:
+            - |
+              cat >/tmp/DummyMain.java <<'EOF'
+              public class DummyMain { public static void main(String[] args) throws Exception { for(;;) Thread.sleep(60000); } }
+              EOF
+              javac /tmp/DummyMain.java
+              exec java -cp /tmp DummyMain
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: not-java
+  namespace: jvm-spike
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: not-java
+  template:
+    metadata:
+      labels:
+        app: not-java
+    spec:
+      containers:
+        - name: app
+          image: busybox:1.36
+          command: ["sh","-lc"]
+          args: ["sleep 3600"]

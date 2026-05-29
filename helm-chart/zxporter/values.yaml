@@ -11,12 +11,12 @@
 image:
   repository: docker.io/devzeroinc/zxporter
   pullPolicy: IfNotPresent
-  tag: "v0.0.74"
+  tag: "v0.0.77"
 
 # ZXPorter configuration
 zxporter:
   dakrUrl: "https://dakr.devzero.io"
-  prometheusUrl: "http://prometheus-dz-prometheus-server.devzero-zxporter.svc.cluster.local:80"
+  prometheusUrl: "http://prometheus-dz-prometheus-server.devzero-system.svc.cluster.local:80"
   targetNamespaces: ""
   # Cluster token for authentication with the DevZero platform
   # Required: Either clusterToken or patToken must be provided
@@ -45,7 +45,7 @@ zxporter:
   k8sProvider: ""
   # Set to true to store CLUSTER_TOKEN and PAT_TOKEN in Kubernetes Secrets instead of ConfigMap
   # Default is false for backward compatibility
-  useSecretForToken: false
+  useSecretForToken: true
 
   # Log level for the zxporter application
   # Valid values: debug, info, error

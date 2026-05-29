@@ -214,7 +214,7 @@ func (c *NodeCollector) Start(ctx context.Context) error {
 	if !c.config.DisableGPUMetrics {
 		ns := os.Getenv("POD_NAMESPACE")
 		if ns == "" {
-			ns = "devzero-zxporter"
+			ns = "devzero-system"
 		}
 		c.nodemonClient = NewNodemonClient(c.k8sClient, ns, c.logger)
 		c.logger.Info("Initialized nodemon client (auto-discovery)", "namespace", ns)

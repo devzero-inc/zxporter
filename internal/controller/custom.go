@@ -47,6 +47,8 @@ import (
 	"github.com/devzero-inc/zxporter/internal/version"
 )
 
+const defaultNamespace = "devzero-system"
+
 // EnvBasedController is a controller that uses environment variables instead of CRDs
 type EnvBasedController struct {
 	client.Client
@@ -396,12 +398,16 @@ func (c *EnvBasedController) initializeTelemetryComponents(ctx context.Context) 
 			}
 			c.Log.Info("Successfully obtained cluster token", "clusterId", clusterId)
 			envSpec.Policies.ClusterToken = token
+		}
+	}
 
-			// Persist the token to ConfigMap or Secret based on configuration
-			// If it fails, continue anyway - the token is in memory
-			if err := c.persistClusterToken(ctx, token); err != nil {
-				c.Log.Error(err, "Failed to persist cluster token")
-			}
+	// Persist the resolved token to the runtime Secret so other operators (dakr, trezr, etc.)
+	// can read it via secretKeyRef. This covers both direct-token installs (where the token
+	// arrives via env var from devzero-zxporter-credentials and was never written to the
+	// runtime Secret) and PAT-exchange installs. Idempotent — safe on every startup.
+	if envSpec.Policies.ClusterToken != "" && c.shouldUseSecretStorage() {
+		if err := c.persistClusterToken(ctx, envSpec.Policies.ClusterToken); err != nil {
+			c.Log.Error(err, "Failed to persist cluster token to runtime Secret")
 		}
 	}
 
@@ -441,8 +447,46 @@ func (c *EnvBasedController) initializeTelemetryComponents(ctx context.Context) 
 	c.Reconciler.Sender = sender
 	c.Reconciler.TelemetryLogger = telemetryLogger
 
+	if c.Reconciler.HealthManager != nil {
+		c.Reconciler.HealthManager.SetTransitionObserver(
+			newHealthTransitionObserver(telemetryLogger),
+		)
+	}
+
 	c.Log.Info("Successfully initialized telemetry components")
 	return nil
+}
+
+// newHealthTransitionObserver returns a TransitionObserver that emits a telemetry
+// log on every component status change so we can trace flips in Datadog rather
+// than only seeing the latest snapshot via the heartbeat.
+//
+// The dispatch is offloaded to a goroutine so observer execution never blocks
+// the caller of UpdateStatus. tl.Report is currently non-blocking (it queues
+// with a select-default drop), but we should not couple the observer contract
+// to that internal detail — a future telemetry implementation that does I/O
+// would otherwise stall every health transition.
+func newHealthTransitionObserver(tl telemetry_logger.Logger) health.TransitionObserver {
+	return func(component string, oldStatus, newStatus health.HealthStatus, message string, metadata map[string]string) {
+		level := gen.LogLevel_LOG_LEVEL_INFO
+		switch newStatus {
+		case health.HealthStatusDegraded:
+			level = gen.LogLevel_LOG_LEVEL_WARN
+		case health.HealthStatusUnhealthy:
+			level = gen.LogLevel_LOG_LEVEL_ERROR
+		}
+
+		fields := make(map[string]string, len(metadata)+4)
+		for k, v := range metadata {
+			fields[k] = v
+		}
+		fields["component"] = component
+		fields["old_status"] = oldStatus.String()
+		fields["new_status"] = newStatus.String()
+		fields["zxporter_version"] = version.Get().String()
+
+		go tl.Report(level, "HealthManager_StatusTransition", message, nil, fields)
+	}
 }
 
 // doReconcile performs a single reconciliation
@@ -495,7 +539,7 @@ func (c *EnvBasedController) persistClusterTokenToConfigMap(
 			namespace = strings.TrimSpace(string(data))
 		} else {
 			// Fall back to default if all else fails
-			namespace = "devzero-zxporter"
+			namespace = defaultNamespace
 			c.Log.Info("Could not determine namespace, using default", "namespace", namespace)
 		}
 	}
@@ -548,7 +592,7 @@ func (c *EnvBasedController) persistClusterTokenToSecret(ctx context.Context, to
 			namespace = strings.TrimSpace(string(data))
 		} else {
 			// Fall back to default if all else fails
-			namespace = "devzero-zxporter"
+			namespace = defaultNamespace
 			c.Log.Info("Could not determine namespace, using default", "namespace", namespace)
 		}
 	}
@@ -646,7 +690,7 @@ func (c *EnvBasedController) readClusterTokenFromSecret(ctx context.Context) str
 			namespace = strings.TrimSpace(string(data))
 		} else {
 			// Fall back to default if all else fails
-			namespace = "devzero-zxporter"
+			namespace = defaultNamespace
 		}
 	}
 
@@ -717,7 +761,7 @@ func (c *EnvBasedController) readClusterTokenFromConfigMap(ctx context.Context) 
 			namespace = strings.TrimSpace(string(data))
 		} else {
 			// Fall back to default if all else fails
-			namespace = "devzero-zxporter"
+			namespace = defaultNamespace
 		}
 	}
 

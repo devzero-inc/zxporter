@@ -184,7 +184,7 @@ func (t *Tracer) Run(ctx context.Context) error {
 		// Parse the full raw packet captured from eBPF
 		event, err := parseEvent(record.RawSample)
 		if err != nil {
-			t.log.Error(err, "parsing event")
+			t.log.V(1).Info("skipping non-DNS event", "err", err)
 			continue
 		}
 
