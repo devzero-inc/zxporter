@@ -480,11 +480,11 @@ func (s *MetricsServer) extractPodResourceInfo(key string, data *structpb.Struct
 	// Initialize pod resource usage if not exists
 	if _, exists := s.stats.UsageReportPods[key]; !exists {
 		s.stats.UsageReportPods[key] = stats.PodResourceUsage{
-			Requests:   make(map[string]string),
-			Limits:     make(map[string]string),
-			Containers: make(map[string]map[string]string),
+		Requests:   make(map[string]string),
+		Limits:     make(map[string]string),
+		Containers: make(map[string]map[string]stats.MetricExpectation),
 		}
-	}
+		}
 
 	// Extract pod spec information
 	podData := data.GetFields()
@@ -512,10 +512,10 @@ func (s *MetricsServer) extractPodResourceInfo(key string, data *structpb.Struct
 				// Initialize container usage if not exists
 				podUsage := s.stats.UsageReportPods[key]
 				if podUsage.Containers == nil {
-					podUsage.Containers = make(map[string]map[string]string)
+					podUsage.Containers = make(map[string]map[string]stats.MetricExpectation)
 				}
 				if _, exists := podUsage.Containers[containerName]; !exists {
-					podUsage.Containers[containerName] = make(map[string]string)
+					podUsage.Containers[containerName] = make(map[string]stats.MetricExpectation)
 				}
 				s.stats.UsageReportPods[key] = podUsage
 
@@ -581,39 +581,39 @@ func (s *MetricsServer) extractContainerResourceInfo(data *structpb.Struct) {
 		s.stats.UsageReportPods[podKey] = stats.PodResourceUsage{
 			Requests:   make(map[string]string),
 			Limits:     make(map[string]string),
-			Containers: make(map[string]map[string]string),
+			Containers: make(map[string]map[string]stats.MetricExpectation),
 		}
 	}
 
 	// Initialize container usage if not exists
 	podUsage := s.stats.UsageReportPods[podKey]
 	if podUsage.Containers == nil {
-		podUsage.Containers = make(map[string]map[string]string)
+		podUsage.Containers = make(map[string]map[string]stats.MetricExpectation)
 	}
 	if _, exists := podUsage.Containers[containerName]; !exists {
-		podUsage.Containers[containerName] = make(map[string]string)
+		podUsage.Containers[containerName] = make(map[string]stats.MetricExpectation)
 	}
 
 	// Extract CPU and memory usage
 	if cpuUsage, ok := containerData["cpuUsageMillis"]; ok {
-		podUsage.Containers[containerName]["used_cpu"] = fmt.Sprintf(
+		podUsage.Containers[containerName]["used_cpu"] = stats.MetricExpectation{Exact: fmt.Sprintf(
 			"%dm",
 			int64(cpuUsage.GetNumberValue()),
-		)
+		)}
 	}
 
 	if memoryUsage, ok := containerData["memoryUsageBytes"]; ok {
-		podUsage.Containers[containerName]["used_memory"] = fmt.Sprintf(
+		podUsage.Containers[containerName]["used_memory"] = stats.MetricExpectation{Exact: fmt.Sprintf(
 			"%d",
 			int64(memoryUsage.GetNumberValue()),
-		)
+		)}
 	}
 
 	if memoryRSS, ok := containerData["memoryRssBytes"]; ok {
-		podUsage.Containers[containerName]["used_memory_rss"] = fmt.Sprintf(
+		podUsage.Containers[containerName]["used_memory_rss"] = stats.MetricExpectation{Exact: fmt.Sprintf(
 			"%d",
 			int64(memoryRSS.GetNumberValue()),
-		)
+		)}
 	}
 
 	// Update the pod usage

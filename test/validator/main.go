@@ -160,7 +160,7 @@ func validatePods(
 			}
 		}
 
-		// Validate containers (with tolerance)
+		// Validate containers
 		for containerName, expectedContainer := range expectedPod.Containers {
 			actualContainer, exists := actualPod.Containers[containerName]
 			if !exists {
@@ -172,8 +172,8 @@ func validatePods(
 				continue
 			}
 
-			for metricName, expectedValue := range expectedContainer {
-				actualValue, exists := actualContainer[metricName]
+			for metricName, expectedMetric := range expectedContainer {
+				actualMetric, exists := actualContainer[metricName]
 				if !exists {
 					valid = false
 					errors = append(
@@ -188,27 +188,133 @@ func validatePods(
 					continue
 				}
 
-				match, errMsg, diffPercentage := compareResourceValues(
-					actualValue,
-					expectedValue,
-					tolerance,
-					false,
-				)
-				if !match {
+				// Exact expectation => existing tolerance-based compare
+				if expectedMetric.Exact != "" {
+					match, errMsg, diffPercentage := compareResourceValues(
+						actualMetric.Exact,
+						expectedMetric.Exact,
+						tolerance,
+						false,
+					)
+					if !match {
+						valid = false
+						errors = append(
+							errors,
+							fmt.Sprintf(
+								"Pod %s: container %s: metric %s %s",
+								podName,
+								containerName,
+								metricName,
+								errMsg,
+							),
+						)
+					} else {
+						fmt.Printf(
+							"✅ Pod %s: container %s: metric %s within tolerance (diff: %.2f%%)\n",
+							podName,
+							containerName,
+							metricName,
+							diffPercentage,
+						)
+					}
+					continue
+				}
+
+				// Range expectation => parse actual + bounds and assert within [min,max]
+				actualValue, err := parseResourceValue(actualMetric.Exact)
+				if err != nil {
 					valid = false
 					errors = append(
 						errors,
 						fmt.Sprintf(
-							"Pod %s: container %s: metric %s %s",
+							"Pod %s: container %s: metric %s failed to parse actual value %q: %v",
 							podName,
 							containerName,
 							metricName,
-							errMsg,
+							actualMetric.Exact,
+							err,
 						),
 					)
-				} else {
-					fmt.Printf("✅ Pod %s: container %s: metric %s within tolerance (diff: %.2f%%)\n", podName, containerName, metricName, diffPercentage)
+					continue
 				}
+
+				if expectedMetric.Min != "" {
+					minValue, err := parseResourceValue(expectedMetric.Min)
+					if err != nil {
+						valid = false
+						errors = append(
+							errors,
+							fmt.Sprintf(
+								"Pod %s: container %s: metric %s failed to parse min %q: %v",
+								podName,
+								containerName,
+								metricName,
+								expectedMetric.Min,
+								err,
+							),
+						)
+						continue
+					}
+					if actualValue < minValue {
+						valid = false
+						errors = append(
+							errors,
+							fmt.Sprintf(
+								"Pod %s: container %s: metric %s expected >= %s, got %s",
+								podName,
+								containerName,
+								metricName,
+								expectedMetric.Min,
+								actualMetric.Exact,
+							),
+						)
+						continue
+					}
+				}
+
+				if expectedMetric.Max != "" {
+					maxValue, err := parseResourceValue(expectedMetric.Max)
+					if err != nil {
+						valid = false
+						errors = append(
+							errors,
+							fmt.Sprintf(
+								"Pod %s: container %s: metric %s failed to parse max %q: %v",
+								podName,
+								containerName,
+								metricName,
+								expectedMetric.Max,
+								err,
+							),
+						)
+						continue
+					}
+					if actualValue > maxValue {
+						valid = false
+						errors = append(
+							errors,
+							fmt.Sprintf(
+								"Pod %s: container %s: metric %s expected <= %s, got %s",
+								podName,
+								containerName,
+								metricName,
+								expectedMetric.Max,
+								actualMetric.Exact,
+							),
+						)
+						continue
+					}
+				}
+
+				fmt.Printf(
+					"✅ Pod %s: container %s: metric %s within range (min=%s max=%s actual=%s)\n",
+					podName,
+					containerName,
+					metricName,
+					expectedMetric.Min,
+					expectedMetric.Max,
+					actualMetric.Exact,
+				)
 			}
 		}
 	}

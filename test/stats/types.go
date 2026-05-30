@@ -1,6 +1,7 @@
 package stats
 
 import (
+	"encoding/json"
 	"time"
 )
 
@@ -8,7 +9,45 @@ import (
 type PodResourceUsage struct {
 	Requests   map[string]string            `json:"requests,omitempty"`
 	Limits     map[string]string            `json:"limits,omitempty"`
-	Containers map[string]map[string]string `json:"containers,omitempty"`
+	Containers map[string]map[string]MetricExpectation `json:"containers,omitempty"`
+}
+
+// MetricExpectation represents an expected metric value.
+//
+// Backward compatible JSON:
+//   - "used_cpu": "1000m"                         (exact)
+//   - "used_cpu": {"min": "100m", "max": "2"}    (range)
+//   - "used_cpu": {"exact": "1000m"}              (exact)
+//
+// When unmarshalling from a JSON string, it is treated as an exact expectation.
+// When unmarshalling from an object, min/max/exact may be provided.
+type MetricExpectation struct {
+	Exact string `json:"exact,omitempty"`
+	Min   string `json:"min,omitempty"`
+	Max   string `json:"max,omitempty"`
+}
+
+func (m *MetricExpectation) UnmarshalJSON(b []byte) error {
+	// String form => exact
+	if len(b) > 0 && b[0] == '"' {
+		var s string
+		if err := json.Unmarshal(b, &s); err != nil {
+			return err
+		}
+		m.Exact = s
+		m.Min = ""
+		m.Max = ""
+		return nil
+	}
+
+	// Object form
+	type alias MetricExpectation
+	var a alias
+	if err := json.Unmarshal(b, &a); err != nil {
+		return err
+	}
+	*m = MetricExpectation(a)
+	return nil
 }
 
 // NodeResourceUsage represents resource usage for a node
