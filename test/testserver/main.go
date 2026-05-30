@@ -480,11 +480,11 @@ func (s *MetricsServer) extractPodResourceInfo(key string, data *structpb.Struct
 	// Initialize pod resource usage if not exists
 	if _, exists := s.stats.UsageReportPods[key]; !exists {
 		s.stats.UsageReportPods[key] = stats.PodResourceUsage{
-		Requests:   make(map[string]string),
-		Limits:     make(map[string]string),
-		Containers: make(map[string]map[string]stats.MetricExpectation),
+			Requests:   make(map[string]string),
+			Limits:     make(map[string]string),
+			Containers: make(map[string]map[string]stats.MetricExpectation),
 		}
-		}
+	}
 
 	// Extract pod spec information
 	podData := data.GetFields()

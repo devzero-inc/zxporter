@@ -7,8 +7,8 @@ import (
 
 // PodResourceUsage represents resource usage for a pod
 type PodResourceUsage struct {
-	Requests   map[string]string            `json:"requests,omitempty"`
-	Limits     map[string]string            `json:"limits,omitempty"`
+	Requests   map[string]string                       `json:"requests,omitempty"`
+	Limits     map[string]string                       `json:"limits,omitempty"`
 	Containers map[string]map[string]MetricExpectation `json:"containers,omitempty"`
 }
 
