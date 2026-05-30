@@ -390,9 +390,9 @@ jobs:
                 },
                 "containers": {
                   "stress": {
-                    "used_cpu": {"min": "100m", "max": "2000m"},
-                    "used_memory": {"min": "1", "max": "300000000"},
-                    "used_memory_rss": {"min": "1", "max": "300000000"}
+                    "used_cpu": "1000m",
+                    "used_memory": "190000000",
+                    "used_memory_rss": {"min": "1000000", "max": "268435456"}
                   }
                 }
               }
