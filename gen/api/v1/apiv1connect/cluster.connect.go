@@ -36,6 +36,9 @@ const (
 	// ClusterServiceGetClustersBasicInfoProcedure is the fully-qualified name of the ClusterService's
 	// GetClustersBasicInfo RPC.
 	ClusterServiceGetClustersBasicInfoProcedure = "/api.v1.ClusterService/GetClustersBasicInfo"
+	// ClusterServiceGetClusterBasicInfoProcedure is the fully-qualified name of the ClusterService's
+	// GetClusterBasicInfo RPC.
+	ClusterServiceGetClusterBasicInfoProcedure = "/api.v1.ClusterService/GetClusterBasicInfo"
 	// ClusterServiceGetClustersWithMetricsProcedure is the fully-qualified name of the ClusterService's
 	// GetClustersWithMetrics RPC.
 	ClusterServiceGetClustersWithMetricsProcedure = "/api.v1.ClusterService/GetClustersWithMetrics"
@@ -66,6 +69,8 @@ const (
 type ClusterServiceClient interface {
 	// GetClustersBasicInfo retrieves basic information for all clusters in a team
 	GetClustersBasicInfo(context.Context, *connect.Request[v1.GetClustersBasicInfoRequest]) (*connect.Response[v1.GetClustersBasicInfoResponse], error)
+	// GetClusterBasicInfo retrieves basic information for a single cluster (singular form of GetClustersBasicInfo)
+	GetClusterBasicInfo(context.Context, *connect.Request[v1.GetClusterBasicInfoRequest]) (*connect.Response[v1.GetClusterBasicInfoResponse], error)
 	// GetClustersWithMetrics retrieves clusters with full metrics using optimized batch queries
 	GetClustersWithMetrics(context.Context, *connect.Request[v1.GetClustersWithMetricsRequest]) (*connect.Response[v1.GetClustersWithMetricsResponse], error)
 	// CreateClusterToken creates a new cluster registration with authentication token
@@ -97,6 +102,11 @@ func NewClusterServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 		getClustersBasicInfo: connect.NewClient[v1.GetClustersBasicInfoRequest, v1.GetClustersBasicInfoResponse](
 			httpClient,
 			baseURL+ClusterServiceGetClustersBasicInfoProcedure,
+			opts...,
+		),
+		getClusterBasicInfo: connect.NewClient[v1.GetClusterBasicInfoRequest, v1.GetClusterBasicInfoResponse](
+			httpClient,
+			baseURL+ClusterServiceGetClusterBasicInfoProcedure,
 			opts...,
 		),
 		getClustersWithMetrics: connect.NewClient[v1.GetClustersWithMetricsRequest, v1.GetClustersWithMetricsResponse](
@@ -145,6 +155,7 @@ func NewClusterServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 // clusterServiceClient implements ClusterServiceClient.
 type clusterServiceClient struct {
 	getClustersBasicInfo        *connect.Client[v1.GetClustersBasicInfoRequest, v1.GetClustersBasicInfoResponse]
+	getClusterBasicInfo         *connect.Client[v1.GetClusterBasicInfoRequest, v1.GetClusterBasicInfoResponse]
 	getClustersWithMetrics      *connect.Client[v1.GetClustersWithMetricsRequest, v1.GetClustersWithMetricsResponse]
 	createClusterToken          *connect.Client[v1.CreateClusterTokenRequest, v1.CreateClusterTokenResponse]
 	getClustersDeltaMetrics     *connect.Client[v1.GetClustersDeltaMetricsRequest, v1.GetClustersDeltaMetricsResponse]
@@ -158,6 +169,11 @@ type clusterServiceClient struct {
 // GetClustersBasicInfo calls api.v1.ClusterService.GetClustersBasicInfo.
 func (c *clusterServiceClient) GetClustersBasicInfo(ctx context.Context, req *connect.Request[v1.GetClustersBasicInfoRequest]) (*connect.Response[v1.GetClustersBasicInfoResponse], error) {
 	return c.getClustersBasicInfo.CallUnary(ctx, req)
+}
+
+// GetClusterBasicInfo calls api.v1.ClusterService.GetClusterBasicInfo.
+func (c *clusterServiceClient) GetClusterBasicInfo(ctx context.Context, req *connect.Request[v1.GetClusterBasicInfoRequest]) (*connect.Response[v1.GetClusterBasicInfoResponse], error) {
+	return c.getClusterBasicInfo.CallUnary(ctx, req)
 }
 
 // GetClustersWithMetrics calls api.v1.ClusterService.GetClustersWithMetrics.
@@ -204,6 +220,8 @@ func (c *clusterServiceClient) GetClusterInfoByName(ctx context.Context, req *co
 type ClusterServiceHandler interface {
 	// GetClustersBasicInfo retrieves basic information for all clusters in a team
 	GetClustersBasicInfo(context.Context, *connect.Request[v1.GetClustersBasicInfoRequest]) (*connect.Response[v1.GetClustersBasicInfoResponse], error)
+	// GetClusterBasicInfo retrieves basic information for a single cluster (singular form of GetClustersBasicInfo)
+	GetClusterBasicInfo(context.Context, *connect.Request[v1.GetClusterBasicInfoRequest]) (*connect.Response[v1.GetClusterBasicInfoResponse], error)
 	// GetClustersWithMetrics retrieves clusters with full metrics using optimized batch queries
 	GetClustersWithMetrics(context.Context, *connect.Request[v1.GetClustersWithMetricsRequest]) (*connect.Response[v1.GetClustersWithMetricsResponse], error)
 	// CreateClusterToken creates a new cluster registration with authentication token
@@ -231,6 +249,11 @@ func NewClusterServiceHandler(svc ClusterServiceHandler, opts ...connect.Handler
 	clusterServiceGetClustersBasicInfoHandler := connect.NewUnaryHandler(
 		ClusterServiceGetClustersBasicInfoProcedure,
 		svc.GetClustersBasicInfo,
+		opts...,
+	)
+	clusterServiceGetClusterBasicInfoHandler := connect.NewUnaryHandler(
+		ClusterServiceGetClusterBasicInfoProcedure,
+		svc.GetClusterBasicInfo,
 		opts...,
 	)
 	clusterServiceGetClustersWithMetricsHandler := connect.NewUnaryHandler(
@@ -277,6 +300,8 @@ func NewClusterServiceHandler(svc ClusterServiceHandler, opts ...connect.Handler
 		switch r.URL.Path {
 		case ClusterServiceGetClustersBasicInfoProcedure:
 			clusterServiceGetClustersBasicInfoHandler.ServeHTTP(w, r)
+		case ClusterServiceGetClusterBasicInfoProcedure:
+			clusterServiceGetClusterBasicInfoHandler.ServeHTTP(w, r)
 		case ClusterServiceGetClustersWithMetricsProcedure:
 			clusterServiceGetClustersWithMetricsHandler.ServeHTTP(w, r)
 		case ClusterServiceCreateClusterTokenProcedure:
@@ -304,6 +329,10 @@ type UnimplementedClusterServiceHandler struct{}
 
 func (UnimplementedClusterServiceHandler) GetClustersBasicInfo(context.Context, *connect.Request[v1.GetClustersBasicInfoRequest]) (*connect.Response[v1.GetClustersBasicInfoResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.ClusterService.GetClustersBasicInfo is not implemented"))
+}
+
+func (UnimplementedClusterServiceHandler) GetClusterBasicInfo(context.Context, *connect.Request[v1.GetClusterBasicInfoRequest]) (*connect.Response[v1.GetClusterBasicInfoResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.ClusterService.GetClusterBasicInfo is not implemented"))
 }
 
 func (UnimplementedClusterServiceHandler) GetClustersWithMetrics(context.Context, *connect.Request[v1.GetClustersWithMetricsRequest]) (*connect.Response[v1.GetClustersWithMetricsResponse], error) {

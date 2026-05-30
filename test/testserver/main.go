@@ -609,6 +609,13 @@ func (s *MetricsServer) extractContainerResourceInfo(data *structpb.Struct) {
 		)
 	}
 
+	if memoryRSS, ok := containerData["memoryRssBytes"]; ok {
+		podUsage.Containers[containerName]["used_memory_rss"] = fmt.Sprintf(
+			"%d",
+			int64(memoryRSS.GetNumberValue()),
+		)
+	}
+
 	// Update the pod usage
 	s.stats.UsageReportPods[podKey] = podUsage
 }

@@ -438,6 +438,23 @@ jobs:
             exit 1
           fi
           
+          # Validate RSS is present in stats (best-effort; value may be 0 depending on Prometheus/cAdvisor availability)
+          echo "Validating that container RSS field is present in stats..."
+          RSS_VAL=$(python3 - <<'PY'
+          import json
+          with open('stats.json') as f:
+              s = json.load(f)
+          pods = s.get('usage_report_pods', {})
+          pod = pods.get('dztest/stress-test', {})
+          containers = pod.get('containers', {})
+          stress = containers.get('stress', {})
+          if 'used_memory_rss' not in stress:
+              raise SystemExit('missing used_memory_rss in stress container stats')
+          print(stress.get('used_memory_rss', ''))
+          PY
+          )
+          echo "used_memory_rss=$RSS_VAL"
+
           # Run the validator to validate the resource usage
           echo "Running validator to validate resource usage..."
           go run ./test/validator/main.go --stats=stats.json --expected=expected.json --tolerance=20

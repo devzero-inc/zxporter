@@ -429,6 +429,7 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 			var ioMetrics map[string]float64
 			var gpuMetrics map[string]interface{}
 			var throttleFraction float64
+			var rssBytes int64
 			if c.prometheusAPI != nil && queryCtx != nil {
 
 				// Fetch CPU throttle metrics for this container
@@ -459,6 +460,13 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 						containerMetrics.Name,
 					)
 				}
+
+				// Fetch RSS (if cAdvisor metrics are available in Prometheus)
+				rssBytes = c.collectContainerMemoryRSSBytes(
+					queryCtx,
+					pod,
+					containerMetrics.Name,
+				)
 			}
 
 			// GPU metrics collection
@@ -558,6 +566,7 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 				ioMetrics,
 				gpuMetrics,
 				jvmMetrics,
+				rssBytes,
 				throttleFraction,
 			)
 		}
@@ -576,6 +585,7 @@ func (c *ContainerResourceCollector) processContainerMetrics(
 	ioMetrics map[string]float64,
 	gpuMetrics map[string]interface{},
 	jvmMetrics map[string]interface{},
+	rssBytes int64,
 	throttleFraction float64,
 ) {
 	// Find the container spec in the pod
@@ -677,6 +687,7 @@ func (c *ContainerResourceCollector) processContainerMetrics(
 		// CPU/Memory resource usage
 		CpuUsageMillis:   cpuUsage,
 		MemoryUsageBytes: effectiveMemoryUsage,
+		MemoryRssBytes:   rssBytes,
 
 		// Resource requests and limits
 		CpuRequestMillis:   cpuRequestMillis,
@@ -910,6 +921,59 @@ func (c *ContainerResourceCollector) collectContainerIOMetrics(
 	}
 
 	return metrics
+}
+
+// collectContainerMemoryRSSBytes returns the current container RSS (resident set size) in bytes,
+// as reported by cAdvisor metrics in Prometheus (if present). Returns 0 when unavailable.
+func (c *ContainerResourceCollector) collectContainerMemoryRSSBytes(
+	ctx context.Context,
+	pod *corev1.Pod,
+	containerName string,
+) int64 {
+	if c.prometheusAPI == nil {
+		return 0
+	}
+
+	queryTime := time.Now()
+
+	queryValue := func(query string) (float64, bool) {
+		result, _, err := c.prometheusAPI.Query(ctx, query, queryTime)
+		if err != nil {
+			return 0, false
+		}
+		if result.Type() != model.ValVector {
+			return 0, false
+		}
+		vector := result.(model.Vector)
+		if len(vector) == 0 {
+			return 0, false
+		}
+		return float64(vector[0].Value), true
+	}
+
+	// Prefer the *_bytes metric name when available.
+	qBytes := fmt.Sprintf(
+		`sum(container_memory_rss_bytes{namespace="%s", pod="%s", container="%s"})`,
+		pod.Namespace,
+		pod.Name,
+		containerName,
+	)
+	if v, ok := queryValue(qBytes); ok {
+		return int64(v)
+	}
+
+	// Fallback: some setups expose container_memory_rss without the _bytes suffix.
+	q := fmt.Sprintf(
+		`sum(container_memory_rss{namespace="%s", pod="%s", container="%s"})`,
+		pod.Namespace,
+		pod.Name,
+		containerName,
+	)
+	if v, ok := queryValue(q); ok {
+		return int64(v)
+	}
+
+	return 0
 }
 
 // collectContainerCPUThrottleMetrics collects CFS bandwidth throttle metrics for a container.

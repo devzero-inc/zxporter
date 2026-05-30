@@ -62,6 +62,9 @@ message ContainerMetricItem {
   // CPU throttle fraction from CFS bandwidth controller (0.0-1.0)
   // Derived from rate(container_cpu_cfs_throttled_periods_total) / rate(container_cpu_cfs_periods_total)
   double cpu_throttle_fraction = 18;
+
+  // Memory RSS in bytes (if available from Prometheus / cAdvisor). Optional.
+  int64 memory_rss_bytes = 19;
 }
 
 // HistoricalMetricsSummary contains pre-aggregated percentile data from Prometheus
