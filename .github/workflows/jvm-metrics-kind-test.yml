@@ -213,11 +213,26 @@ jobs:
           kubectl -n jvm-spike set env deploy/java11-tool-options JAVA_TOOL_OPTIONS="-Xms64m -Xmx200m -XX:MaxRAMPercentage=65 -Dfrom=tooloptions-mutated"
 
           # cmdline mutation: update the command to use different Xms/Xmx
-          kubectl -n jvm-spike patch deploy/java21-precedence-cmdline --type='json' -p='[
-            {"op":"add","path":"/spec/template/metadata/annotations","value":{}},
-            {"op":"replace","path":"/spec/template/spec/containers/0/args/0","value":"cat >/tmp/DummyMain.java <<EOF\\npublic class DummyMain { public static void main(String[] args) throws Exception { for(;;) Thread.sleep(60000); } }\\nEOF\\njavac /tmp/DummyMain.java\\n# cmdline should win over env\\nexec java -Xms24m -Xmx104m -cp /tmp DummyMain\\n"},
-            {"op":"add","path":"/spec/template/metadata/annotations/zxporter.dev~1mutation","value":"1"}
-          ]'
+          # Use a strategic merge patch (less brittle than JSONPatch quoting/escaping in Actions).
+          kubectl -n jvm-spike patch deploy/java21-precedence-cmdline --type strategic -p "$(cat <<'PATCH'
+          spec:
+            template:
+              metadata:
+                annotations:
+                  zxporter.dev/mutation: "1"
+              spec:
+                containers:
+                  - name: app
+                    args:
+                      - |
+                        cat >/tmp/DummyMain.java <<'EOF'
+                        public class DummyMain { public static void main(String[] args) throws Exception { for(;;) Thread.sleep(60000); } }
+                        EOF
+                        javac /tmp/DummyMain.java
+                        # cmdline should win over env
+                        exec java -Xms24m -Xmx104m -cp /tmp DummyMain
+          PATCH
+          )"
           kubectl -n jvm-spike set resources deploy/java21-precedence-cmdline -c app --requests=cpu=10m,memory=256Mi --limits=cpu=100m,memory=256Mi
 
           # Wait for rollouts
