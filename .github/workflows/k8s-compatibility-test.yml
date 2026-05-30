@@ -438,22 +438,49 @@ jobs:
             exit 1
           fi
           
-          # Validate RSS is present in stats (best-effort; value may be 0 depending on Prometheus/cAdvisor availability)
-          echo "Validating that container RSS field is present in stats..."
-          RSS_VAL=$(python3 - <<'PY'
+          # Validate RSS is present *and sane* (not just existence)
+          # - must be parseable as an int
+          # - must be > 0 (we're stressing memory)
+          # - must be <= used_memory (RSS is a subset of total memory)
+          echo "Validating that container RSS field is present and within expected bounds..."
+          python3 - <<'PY'
           import json
+          
           with open('stats.json') as f:
               s = json.load(f)
-          pods = s.get('usage_report_pods', {})
-          pod = pods.get('dztest/stress-test', {})
-          containers = pod.get('containers', {})
-          stress = containers.get('stress', {})
+          
+          stress = (
+              s.get('usage_report_pods', {})
+               .get('dztest/stress-test', {})
+               .get('containers', {})
+               .get('stress', {})
+          )
+          
           if 'used_memory_rss' not in stress:
               raise SystemExit('missing used_memory_rss in stress container stats')
-          print(stress.get('used_memory_rss', ''))
+          if 'used_memory' not in stress:
+              raise SystemExit('missing used_memory in stress container stats')
+          
+          try:
+              rss = int(str(stress['used_memory_rss']))
+          except Exception as e:
+              raise SystemExit(f"used_memory_rss not an int: {stress.get('used_memory_rss')!r}: {e}")
+          
+          try:
+              mem = int(str(stress['used_memory']))
+          except Exception as e:
+              raise SystemExit(f"used_memory not an int: {stress.get('used_memory')!r}: {e}")
+          
+          if mem <= 0:
+              raise SystemExit(f"used_memory must be > 0 for stress container, got {mem}")
+          if rss <= 0:
+              raise SystemExit(f"used_memory_rss must be > 0 for stress container, got {rss}")
+          if rss > mem:
+              raise SystemExit(f"used_memory_rss must be <= used_memory, got rss={rss} mem={mem}")
+          
+          print(f"used_memory={mem}")
+          print(f"used_memory_rss={rss}")
           PY
-          )
-          echo "used_memory_rss=$RSS_VAL"
 
           # Run the validator to validate the resource usage
           echo "Running validator to validate resource usage..."
