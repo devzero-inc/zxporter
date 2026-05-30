@@ -249,14 +249,33 @@ jobs:
 
           kubectl -n devzero-system exec py-assert2 -- python - <<PY
           import json
+          import time
           import urllib.request
 
           pod_ip = '${POD_IP}'
           url = f'http://{pod_ip}:6061/container/jvm-metrics?namespace=jvm-spike'
-          with urllib.request.urlopen(url, timeout=30) as r:
-              data = json.loads(r.read().decode('utf-8'))
 
-          by_pod = {m.get('pod'): m for m in data}
+          # After a rollout completes, nodemon may need some time to discover the new JVM
+          # processes and refresh metrics. Poll before asserting to avoid flakiness.
+          last_pods = []
+          by_pod = {}
+          for attempt in range(12):  # ~60s total @ 5s sleep
+              with urllib.request.urlopen(url, timeout=30) as r:
+                  data = json.loads(r.read().decode('utf-8'))
+              by_pod = {m.get('pod'): m for m in data}
+              last_pods = [p for p in by_pod.keys() if p]
+
+              m11 = next((m for p, m in by_pod.items() if p and p.startswith('java11-tool-options')), None)
+              mcmd = next((m for p, m in by_pod.items() if p and p.startswith('java21-precedence-cmdline')), None)
+
+              ok11 = (m11 or {}).get('flags_extracted', {}).get('xmx_bytes') == 209715200
+              okcmd = (mcmd or {}).get('flags_extracted', {}).get('xmx_bytes') == 109051904
+
+              if ok11 and okcmd:
+                  break
+              time.sleep(5)
+          else:
+              raise SystemExit(f'timed out waiting for mutated metrics to appear; last pods={last_pods}')
 
           def req_prefix(prefix):
               for k, v in by_pod.items():
