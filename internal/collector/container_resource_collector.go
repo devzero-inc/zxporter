@@ -951,18 +951,7 @@ func (c *ContainerResourceCollector) collectContainerMemoryRSSBytes(
 		return float64(vector[0].Value), true
 	}
 
-	// Prefer the *_bytes metric name when available.
-	qBytes := fmt.Sprintf(
-		`sum(container_memory_rss_bytes{namespace="%s", pod="%s", container="%s"})`,
-		pod.Namespace,
-		pod.Name,
-		containerName,
-	)
-	if v, ok := queryValue(qBytes); ok {
-		return int64(v)
-	}
-
-	// Fallback: some setups expose container_memory_rss without the _bytes suffix.
+	// Try the standard cAdvisor metric name first (most common).
 	q := fmt.Sprintf(
 		`sum(container_memory_rss{namespace="%s", pod="%s", container="%s"})`,
 		pod.Namespace,
@@ -970,6 +959,17 @@ func (c *ContainerResourceCollector) collectContainerMemoryRSSBytes(
 		containerName,
 	)
 	if v, ok := queryValue(q); ok {
+		return int64(v)
+	}
+
+	// Fallback: some setups expose container_memory_rss_bytes.
+	qBytes := fmt.Sprintf(
+		`sum(container_memory_rss_bytes{namespace="%s", pod="%s", container="%s"})`,
+		pod.Namespace,
+		pod.Name,
+		containerName,
+	)
+	if v, ok := queryValue(qBytes); ok {
 		return int64(v)
 	}
 
