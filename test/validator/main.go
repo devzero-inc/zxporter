@@ -306,6 +306,43 @@ func validatePods(
 					}
 				}
 
+				// Additional invariant for RSS: RSS must not exceed total memory if both are present
+				if metricName == "used_memory_rss" {
+					if memMetric, ok := actualContainer["used_memory"]; ok {
+						memValue, err := parseResourceValue(memMetric.Exact)
+						if err != nil {
+							valid = false
+							errors = append(
+								errors,
+								fmt.Sprintf(
+									"Pod %s: container %s: metric %s failed to parse used_memory %q: %v",
+									podName,
+									containerName,
+									metricName,
+									memMetric.Exact,
+									err,
+								),
+							)
+							continue
+						}
+						if actualValue > memValue {
+							valid = false
+							errors = append(
+								errors,
+								fmt.Sprintf(
+									"Pod %s: container %s: metric %s expected <= used_memory (%s), got %s",
+									podName,
+									containerName,
+									metricName,
+									memMetric.Exact,
+									actualMetric.Exact,
+								),
+							)
+							continue
+						}
+					}
+				}
+
 				fmt.Printf(
 					"✅ Pod %s: container %s: metric %s within range (min=%s max=%s actual=%s)\n",
 					podName,
