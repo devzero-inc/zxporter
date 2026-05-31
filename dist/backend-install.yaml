@@ -108,7 +108,7 @@ data:
       - role: node
       metric_relabel_configs:
       - action: keep
-        regex: container_network_(receive|transmit)_(bytes|packets|errors|packets_dropped)_total|container_fs_(reads|writes)_(bytes_)?total|kubelet_volume_stats_(used|capacity|available)_bytes|container_cpu_cfs_(throttled_)?periods_total
+        regex: container_network_(receive|transmit)_(bytes|packets|errors|packets_dropped)_total|container_fs_(reads|writes)_(bytes_)?total|kubelet_volume_stats_(used|capacity|available)_bytes|container_cpu_cfs_(throttled_)?periods_total|container_memory_rss(_bytes)?|container_memory_working_set_bytes
         source_labels:
         - __name__
       - action: labeldrop
