@@ -6,6 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 For releases prior to automated changelog generation, please see the
 [GitHub Releases](https://github.com/devzero-inc/zxporter/releases) page.
 
+## [v0.0.78] - 2026-06-01
+
+<!-- Release notes generated using configuration in .github/release.yml at main -->
+
+### What's Changed
+### Other Changes
+* chore: update changelog for v0.0.77 by @github-actions[bot] in https://github.com/devzero-inc/zxporter/pull/379
+* bump zxp image v0.0.77 by @sandipanpanda in https://github.com/devzero-inc/zxporter/pull/380
+* chore(helm): update Chart.yaml version to 0.0.55 by @github-actions[bot] in https://github.com/devzero-inc/zxporter/pull/381
+* feat: JVM metrics via hsperfdata (no hooking) by @debot-macmini1 in https://github.com/devzero-inc/zxporter/pull/384
+* scope namespace placeholder to installer_updater.yaml by @sandipanpanda in https://github.com/devzero-inc/zxporter/pull/385
+* ci: stabilize jvm-metrics-kind workflow (namespace runner + robust validations) by @debot-macmini1 in https://github.com/devzero-inc/zxporter/pull/386
+* Bump github.com/cilium/cilium from 1.17.14 to 1.17.15 by @dependabot[bot] in https://github.com/devzero-inc/zxporter/pull/363
+* ci: revalidate jvm metrics after workload mutation by @debot-macmini1 in https://github.com/devzero-inc/zxporter/pull/387
+
+### New Contributors
+* @debot-macmini1 made their first contribution in https://github.com/devzero-inc/zxporter/pull/384
+
+**Full Changelog**: https://github.com/devzero-inc/zxporter/compare/v0.0.77...v0.0.78
+
 ## [v0.0.77] - 2026-05-08
 
 <!-- Release notes generated using configuration in .github/release.yml at main -->
