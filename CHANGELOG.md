@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 For releases prior to automated changelog generation, please see the
 [GitHub Releases](https://github.com/devzero-inc/zxporter/releases) page.
 
+## [v0.0.79] - 2026-06-02
+
+<!-- Release notes generated using configuration in .github/release.yml at main -->
+
+### What's Changed
+### Other Changes
+* bump zxp image v0.0.78 by @sandipanpanda in https://github.com/devzero-inc/zxporter/pull/390
+* chore: update changelog for v0.0.78 by @github-actions[bot] in https://github.com/devzero-inc/zxporter/pull/389
+* chore(helm): update Chart.yaml version to 0.0.56 by @github-actions[bot] in https://github.com/devzero-inc/zxporter/pull/391
+* chore(helm): update nodemon Chart.yaml version to 0.0.3 by @github-actions[bot] in https://github.com/devzero-inc/zxporter/pull/393
+* chore(helm): update Chart.yaml version to 0.0.21 by @github-actions[bot] in https://github.com/devzero-inc/zxporter/pull/392
+* fixes for mpa v2 recommendation by @Parthiba-Hazra in https://github.com/devzero-inc/zxporter/pull/394
+
+
+**Full Changelog**: https://github.com/devzero-inc/zxporter/compare/v0.0.78...v0.0.79
+
 ## [v0.0.78] - 2026-06-01
 
 <!-- Release notes generated using configuration in .github/release.yml at main -->
