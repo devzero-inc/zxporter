@@ -183,15 +183,21 @@ func (c *WorkloadRecommendationCollector) handleWorkloadRecommendationEvent(
 		"name", name,
 	)
 
-	// Skip recommendations older than 24 hours — they are no longer relevant
-	creationTime := wr.GetCreationTimestamp().Time
-	if !creationTime.IsZero() && time.Since(creationTime) > 24*time.Hour {
-		c.logger.Info("Skipping WorkloadRecommendation older than 24 hours",
-			"namespace", namespace,
-			"name", name,
-			"age", time.Since(creationTime).Round(time.Minute),
-		)
-		return
+	// MPA V2 recs (managed by dakr-rule-evaluator) reuse the same CRD with
+	// deterministic names — always send them regardless of age. The 24h
+	// staleness check only applies to legacy recs which have unique CRDs.
+	labels := wr.GetLabels()
+	isMPAV2 := labels["app.kubernetes.io/managed-by"] == "dakr-rule-evaluator"
+	if !isMPAV2 {
+		creationTime := wr.GetCreationTimestamp().Time
+		if !creationTime.IsZero() && time.Since(creationTime) > 24*time.Hour {
+			c.logger.Info("Skipping WorkloadRecommendation older than 24 hours",
+				"namespace", namespace,
+				"name", name,
+				"age", time.Since(creationTime).Round(time.Minute),
+			)
+			return
+		}
 	}
 
 	// Only send recommendations that have reached a terminal state
