@@ -14,7 +14,7 @@ gpuMetricsExporter:
   image:
     repository: docker.io/devzeroinc/zxporter-nodemon
     pullPolicy: IfNotPresent
-    tag: "v0.0.75"
+    tag: "v0.0.79"
   config: { }
   # config:
   #   # address of the DCGM exporter instance
@@ -41,6 +41,11 @@ gpuMetricsExporter:
       operator: "Exists"
   rbac:
     clusterWide: true
+
+# jvmMetrics -- Enable JVM metrics collection via hsperfdata.
+# NOTE: requires hostPID + running nodemon as UID 0 to read /proc/<pid>/root/tmp/hsperfdata_*/<nsPid>
+jvmMetrics:
+  enabled: false
 
 dcgmExporter:
   enabled: true

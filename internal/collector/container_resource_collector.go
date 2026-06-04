@@ -50,10 +50,40 @@ type ContainerResourceCollectorConfig struct {
 	// DisableGPUMetrics determines whether to disable GPU metrics collection
 	// Default is false, so metrics are collected by default
 	DisableGPUMetrics bool
+
+	// DisableJVMMetrics determines whether to disable JVM metrics collection (via zxporter-nodemon).
+	// Default is false.
+	DisableJVMMetrics bool
 }
 
 type gpuQueryState struct {
 	lastFailed bool
+}
+
+func strFromMap(m map[string]interface{}, key string) string {
+	v, ok := m[key]
+	if !ok || v == nil {
+		return ""
+	}
+	s, _ := v.(string)
+	return s
+}
+
+func i64FromMap(m map[string]interface{}, key string) int64 {
+	v, ok := m[key]
+	if !ok || v == nil {
+		return 0
+	}
+	switch x := v.(type) {
+	case int64:
+		return x
+	case int:
+		return int64(x)
+	case float64:
+		return int64(x)
+	default:
+		return 0
+	}
 }
 
 // throttleTracker tracks last emission time for CPU throttle events per container to avoid duplicates.
@@ -167,7 +197,8 @@ func (c *ContainerResourceCollector) Start(ctx context.Context) error {
 		"namespaces", c.namespaces,
 		"updateInterval", c.config.UpdateInterval,
 		"disableNetworkIOMetrics", c.config.DisableNetworkIOMetrics,
-		"disableGPUMetrics", c.config.DisableGPUMetrics)
+		"disableGPUMetrics", c.config.DisableGPUMetrics,
+		"disableJVMMetrics", c.config.DisableJVMMetrics)
 
 	// Check if metrics client is available
 	if c.metricsClient == nil {
@@ -176,7 +207,7 @@ func (c *ContainerResourceCollector) Start(ctx context.Context) error {
 
 	// Initialize nodemon client for auto-discovery
 	// It discovers DaemonSet pods by well-known label — no config needed.
-	if !c.config.DisableGPUMetrics {
+	if !c.config.DisableGPUMetrics || !c.config.DisableJVMMetrics {
 		ns := os.Getenv("POD_NAMESPACE")
 		if ns == "" {
 			ns = "devzero-system"
@@ -352,6 +383,17 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 		}
 	}
 
+	// Pre-fetch JVM metrics from the nodemon (one HTTP call for the entire cycle)
+	var jvmIndex map[gpuContainerKey]NodemonJVMMetrics
+	if c.nodemonClient != nil && !c.config.DisableJVMMetrics {
+		allJVMMetrics, err := c.nodemonClient.FetchAllJVMMetrics(ctx)
+		if err != nil {
+			c.logger.Error(err, "Failed to fetch JVM metrics from nodemon")
+		} else {
+			jvmIndex = IndexJVMMetricsByContainer(allJVMMetrics)
+		}
+	}
+
 	// Process each pod's metrics
 	for _, podMetrics := range podMetricsList.Items {
 		// Skip excluded pods
@@ -373,7 +415,6 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 		var cancel context.CancelFunc
 		if c.prometheusAPI != nil {
 			queryCtx, cancel = context.WithTimeout(ctx, c.config.QueryTimeout)
-			defer cancel()
 		}
 
 		// Fetch network metrics
@@ -496,6 +537,19 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 				}
 			}
 
+			// JVM metrics lookup (optional)
+			jvmMetrics := make(map[string]interface{})
+			if jvmIndex != nil {
+				key := gpuContainerKey{
+					Pod:       podMetrics.Name,
+					Container: containerMetrics.Name,
+					Namespace: podMetrics.Namespace,
+				}
+				if jm, ok := jvmIndex[key]; ok {
+					jvmMetrics = JVMMetricsFromNodemon(jm)
+				}
+			}
+
 			// Process the container metrics with optional network/IO data
 			c.processContainerMetrics(
 				pod,
@@ -503,8 +557,13 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 				networkMetrics,
 				ioMetrics,
 				gpuMetrics,
+				jvmMetrics,
 				throttleFraction,
 			)
+		}
+
+		if cancel != nil {
+			cancel()
 		}
 	}
 }
@@ -516,6 +575,7 @@ func (c *ContainerResourceCollector) processContainerMetrics(
 	networkMetrics map[string]float64,
 	ioMetrics map[string]float64,
 	gpuMetrics map[string]interface{},
+	jvmMetrics map[string]interface{},
 	throttleFraction float64,
 ) {
 	// Find the container spec in the pod
@@ -683,6 +743,17 @@ func (c *ContainerResourceCollector) processContainerMetrics(
 				metricsSnapshot.IndividualGPUMetrics = string(individualJSON)
 			}
 		}
+	}
+
+	if len(jvmMetrics) > 0 {
+		metricsSnapshot.JvmJavaCommand = strFromMap(jvmMetrics, "JavaCommand")
+		metricsSnapshot.JvmJavaVersion = strFromMap(jvmMetrics, "JavaVersion")
+		metricsSnapshot.JvmHeapSizeBytes = i64FromMap(jvmMetrics, "HeapSizeBytes")
+		metricsSnapshot.JvmHeapUsedBytes = i64FromMap(jvmMetrics, "HeapUsedBytes")
+		metricsSnapshot.JvmHeapMaxSizeBytes = i64FromMap(jvmMetrics, "HeapMaxSizeBytes")
+		metricsSnapshot.JvmRawCmdline = strFromMap(jvmMetrics, "RawCmdline")
+		metricsSnapshot.JvmFlagsExtractedJSON = strFromMap(jvmMetrics, "FlagsExtractedJSON")
+		metricsSnapshot.JvmFlagSourcesJSON = strFromMap(jvmMetrics, "FlagSourcesJSON")
 	}
 
 	// Send the resource usage data to the batch channel
