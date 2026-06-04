@@ -115,7 +115,7 @@ func (c *WorkloadRecommendationCollector) Start(ctx context.Context) error {
 			// Re-send terminal-state recommendations on resync to catch any previously missed updates.
 			if oldWR.GetResourceVersion() == newWR.GetResourceVersion() {
 				phase, _, _ := unstructured.NestedString(newWR.Object, "status", "phase")
-				if phase == "Applied" || phase == "Failed" || phase == "Skipped" {
+				if isTerminalRecommendationPhase(phase) {
 					c.handleWorkloadRecommendationEvent(newWR, EventTypeUpdate)
 				}
 				return
@@ -163,6 +163,18 @@ func (c *WorkloadRecommendationCollector) Start(ctx context.Context) error {
 	return nil
 }
 
+// isTerminalRecommendationPhase returns true when the phase string matches one of
+// the terminal states defined by RecommendationPhase.IsTerminal() in the dakr operator.
+// Keep this in sync with dakr/apis/v1alpha1/types.go.
+func isTerminalRecommendationPhase(phase string) bool {
+	switch phase {
+	case "Applied", "AppliedWithRestartFallback", "PartialFailure", "Failed", "Skipped", "Rejected":
+		return true
+	default:
+		return false
+	}
+}
+
 // handleWorkloadRecommendationEvent processes WorkloadRecommendation events
 func (c *WorkloadRecommendationCollector) handleWorkloadRecommendationEvent(
 	wr *unstructured.Unstructured,
@@ -183,22 +195,28 @@ func (c *WorkloadRecommendationCollector) handleWorkloadRecommendationEvent(
 		"name", name,
 	)
 
-	// Skip recommendations older than 24 hours — they are no longer relevant
-	creationTime := wr.GetCreationTimestamp().Time
-	if !creationTime.IsZero() && time.Since(creationTime) > 24*time.Hour {
-		c.logger.Info("Skipping WorkloadRecommendation older than 24 hours",
-			"namespace", namespace,
-			"name", name,
-			"age", time.Since(creationTime).Round(time.Minute),
-		)
-		return
+	// MPA V2 recs (managed by dakr-rule-evaluator) reuse the same CRD with
+	// deterministic names — always send them regardless of age. The 24h
+	// staleness check only applies to legacy recs which have unique CRDs.
+	labels := wr.GetLabels()
+	isMPAV2 := labels["app.kubernetes.io/managed-by"] == "dakr-rule-evaluator"
+	if !isMPAV2 {
+		creationTime := wr.GetCreationTimestamp().Time
+		if !creationTime.IsZero() && time.Since(creationTime) > 24*time.Hour {
+			c.logger.Info("Skipping WorkloadRecommendation older than 24 hours",
+				"namespace", namespace,
+				"name", name,
+				"age", time.Since(creationTime).Round(time.Minute),
+			)
+			return
+		}
 	}
 
-	// Only send recommendations that have reached a terminal state
-	// Delete events are always sent so the control plane knows about removals
+	// Only send recommendations that have reached a terminal state.
+	// Delete events are always sent so the control plane knows about removals.
 	if eventType != EventTypeDelete {
 		phase, _, _ := unstructured.NestedString(wr.Object, "status", "phase")
-		if phase != "Applied" && phase != "Failed" && phase != "Skipped" {
+		if !isTerminalRecommendationPhase(phase) {
 			c.logger.Info("Skipping WorkloadRecommendation with non-terminal phase",
 				"namespace", namespace,
 				"name", name,

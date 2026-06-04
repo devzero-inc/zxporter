@@ -321,7 +321,6 @@ final-installer:
 	@$(YQ) -i '(select(.kind == "ConfigMap" and .metadata.name == "devzero-zxporter-env-config") | .data.DAKR_URL) = "{{ .api_url }}/dakr"' $(DIST_BACKEND_INSTALL_BUNDLE)
 	@$(YQ) -i '(select(.kind == "Deployment") | .spec.template.spec.containers[]? | select(.image == "ttl.sh/zxporter:latest")).image = "docker.io/devzeroinc/zxporter:latest"' $(DIST_BACKEND_INSTALL_BUNDLE)
 	@$(YQ) -i '(select(.kind == "Secret" and .metadata.name == "devzero-zxporter-token") | .stringData.CLUSTER_TOKEN) = "{{ .cluster_token }}"' $(DIST_BACKEND_INSTALL_BUNDLE)
-	@$(YQ) -i '(select(.kind == "Namespace" and .metadata.labels."app.kubernetes.io/managed-by" == "kustomize") | .metadata.name) = "{{.zxporter_namespace}}"' $(DIST_BACKEND_INSTALL_BUNDLE)
 	@$(MAKE) installer-without-configmap
 	@if [ -d "$(DAKR_DIR)/services/dakr_installers" ]; then \
 		cp $(DIST_BACKEND_INSTALL_BUNDLE) $(DAKR_DIR)/services/dakr_installers/install.yaml; \
@@ -333,6 +332,12 @@ final-installer:
 installer-without-configmap:
 	@cp $(DIST_BACKEND_INSTALL_BUNDLE) $(DIST_DIR)/installer_updater.yaml
 	@$(YQ) -i 'select((.kind != "ConfigMap" or .metadata.name != "devzero-zxporter-env-config") and (.kind != "Secret" or .metadata.name != "devzero-zxporter-token"))' $(DIST_DIR)/installer_updater.yaml
+	@sed \
+		-e "s|^  name: $(DEVZERO_MONITORING_NAMESPACE)$$|  name: '{{.zxporter_namespace}}'|g" \
+		-e "s|^    app.kubernetes.io/name: $(DEVZERO_MONITORING_NAMESPACE)$$|    app.kubernetes.io/name: '{{.zxporter_namespace}}'|g" \
+		-e "s|^  namespace: $(DEVZERO_MONITORING_NAMESPACE)$$|  namespace: '{{.zxporter_namespace}}'|g" \
+		-e "s|^    namespace: $(DEVZERO_MONITORING_NAMESPACE)$$|    namespace: '{{.zxporter_namespace}}'|g" \
+		$(DIST_DIR)/installer_updater.yaml > $(DIST_DIR)/installer_updater.yaml.tmp && mv $(DIST_DIR)/installer_updater.yaml.tmp $(DIST_DIR)/installer_updater.yaml
 
 .PHONY: build-installer
 build-installer: manifests generate kustomize yq ## Generate a consolidated YAML with deployment.
