@@ -821,7 +821,7 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/name: devzero-zxporter
     control-plane: controller-manager
-  name: '{{.zxporter_namespace}}'
+  name: devzero-system
 ---
 apiVersion: v1
 kind: ServiceAccount
