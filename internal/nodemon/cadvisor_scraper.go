@@ -199,13 +199,6 @@ func (s *CAdvisorScraper) groupCounters(families map[string]*dto.MetricFamily) m
 // It merges per-container CPU/disk entries with their corresponding pod-level
 // network entries so that the final result has one record per real container.
 func (s *CAdvisorScraper) computeRates(groups map[containerKey]*rawCounters, now time.Time) []CAdvisorContainerMetrics {
-	// Compute rates for every key (including network sentinels).
-	type rateRecord struct {
-		m        CAdvisorContainerMetrics
-		nonZero  bool
-		isNetKey bool
-	}
-
 	// First pass — process all non-network keys (real containers).
 	// Second pass — attach network rates from sentinel keys.
 
@@ -237,7 +230,7 @@ func (s *CAdvisorScraper) computeRates(groups map[containerKey]*rawCounters, now
 	}
 
 	// Second pass — real container entries.
-	var results []CAdvisorContainerMetrics
+	results := make([]CAdvisorContainerMetrics, 0, len(groups))
 
 	for k, rc := range groups {
 		if k.container == podNetworkSentinel {

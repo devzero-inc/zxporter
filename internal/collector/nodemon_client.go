@@ -139,6 +139,8 @@ type gpuContainerKey struct {
 }
 
 const (
+	// defaultNamespace is the fallback namespace when POD_NAMESPACE is not set.
+	defaultNamespace = "devzero-system"
 	// Well-known label used by the zxporter-nodemon DaemonSet helm chart.
 	nodemonLabelSelector = "app.kubernetes.io/name=zxporter-nodemon"
 	// Default HTTP port for the nodemon.

@@ -101,8 +101,8 @@ type ContainerResourceCollector struct {
 	// networkByteRates computes per-second rates from cumulative network byte counters
 	// returned by kubelet stats/summary (which are totals, not rates).
 	networkByteRates *nodemon.RateCalculator
-	rsLister                     appslisters.ReplicaSetLister
-	rsInformer                   cache.SharedIndexInformer
+	rsLister         appslisters.ReplicaSetLister
+	rsInformer       cache.SharedIndexInformer
 }
 
 // NewContainerResourceCollector creates a new collector for container resource metrics
@@ -152,26 +152,26 @@ func NewContainerResourceCollector(
 	// so IsAvailable() can check it before Start() is called.
 	ns := os.Getenv("POD_NAMESPACE")
 	if ns == "" {
-		ns = "devzero-system"
+		ns = defaultNamespace
 	}
 	nodemonClient := NewNodemonClient(k8sClient, ns, logger)
 
 	return &ContainerResourceCollector{
-		k8sClient:          k8sClient,
-		metricsClient:      metricsClient,
-		nodemonClient:      nodemonClient,
-		batchChan:          batchChan,
-		resourceChan:       resourceChan,
-		batcher:            batcher,
-		stopCh:             make(chan struct{}),
-		config:             config,
-		namespaces:         namespaces,
-		excludedPods:       excludedPodsMap,
-		logger:             logger.WithName("container-resource-collector"),
-		metrics:            metrics,
-		telemetryLogger:    telemetryLogger,
-		throttle:           throttleTracker{lastEmitted: make(map[string]time.Time)},
-		networkByteRates:   nodemon.NewRateCalculator(),
+		k8sClient:        k8sClient,
+		metricsClient:    metricsClient,
+		nodemonClient:    nodemonClient,
+		batchChan:        batchChan,
+		resourceChan:     resourceChan,
+		batcher:          batcher,
+		stopCh:           make(chan struct{}),
+		config:           config,
+		namespaces:       namespaces,
+		excludedPods:     excludedPodsMap,
+		logger:           logger.WithName("container-resource-collector"),
+		metrics:          metrics,
+		telemetryLogger:  telemetryLogger,
+		throttle:         throttleTracker{lastEmitted: make(map[string]time.Time)},
+		networkByteRates: nodemon.NewRateCalculator(),
 	}
 }
 
@@ -640,7 +640,6 @@ func (c *ContainerResourceCollector) processContainerMetrics(
 	}
 }
 
-
 // buildPodMetricsFromNodemon fetches container metrics from nodemon and converts them
 // into a PodMetricsList compatible with the metrics-server format. This allows the rest
 // of collectAllContainerResources to work unchanged — CPU/memory come from nodemon's
@@ -875,7 +874,6 @@ func (c *ContainerResourceCollector) emitCPUThrottleEvent(
 		Key:       fmt.Sprintf("cpu-throttle/%s/%s/%s", pod.Namespace, pod.Name, containerMetrics.Name),
 	}
 }
-
 
 // getPodFromCache retrieves a pod from the informer cache
 func (c *ContainerResourceCollector) getPodFromCache(namespace, name string) (*corev1.Pod, error) {

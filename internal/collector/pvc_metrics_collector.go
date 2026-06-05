@@ -83,7 +83,7 @@ func NewPersistentVolumeClaimMetricsCollector(
 
 	ns := os.Getenv("POD_NAMESPACE")
 	if ns == "" {
-		ns = "devzero-system"
+		ns = defaultNamespace
 	}
 	nodemonClient := NewNodemonClient(k8sClient, ns, logger)
 
