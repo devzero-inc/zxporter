@@ -254,7 +254,7 @@ func (u *UnifiedExporter) buildSingleContainerMetric(
 
 // extractPVCMetrics converts volume stats from a pod into PVC response types.
 func extractPVCMetrics(pod PodStats) []PVCMetricsResponse {
-	var results []PVCMetricsResponse
+	results := make([]PVCMetricsResponse, 0, len(pod.VolumeStats))
 	for _, vol := range pod.VolumeStats {
 		if vol.PVCRef == nil {
 			continue

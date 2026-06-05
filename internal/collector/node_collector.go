@@ -112,7 +112,7 @@ func NewNodeCollector(
 		logger:          logger.WithName("node-collector"),
 		metrics:         metrics,
 		telemetryLogger: telemetryLogger,
-		nodeToPodsMap: make(map[string]map[string]*corev1.Pod),
+		nodeToPodsMap:   make(map[string]map[string]*corev1.Pod),
 	}
 }
 
