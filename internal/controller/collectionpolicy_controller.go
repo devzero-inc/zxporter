@@ -146,11 +146,11 @@ type PolicyConfig struct {
 
 	DisabledCollectors []string
 
-	KubeContextName  string
-	DakrURL          string
-	ClusterToken     string
-	DisableGPUMetrics bool
-	UpdateInterval   time.Duration
+	KubeContextName         string
+	DakrURL                 string
+	ClusterToken            string
+	DisableGPUMetrics       bool
+	UpdateInterval          time.Duration
 	NodeMetricsInterval     time.Duration
 	ClusterSnapshotInterval time.Duration
 	BufferSize              int
@@ -393,13 +393,13 @@ func (r *CollectionPolicyReconciler) createNewConfig(
 		ExcludedCSINodes:   envSpec.Exclusions.ExcludedNodes, // Same as nodes
 
 		// Policies
-		KubeContextName: envSpec.Policies.KubeContextName,
-		DakrURL:         envSpec.Policies.DakrURL,
-		ClusterToken:    envSpec.Policies.ClusterToken,
-		DisableGPUMetrics: envSpec.Policies.DisableGPUMetrics,
-		MaskSecretData:  envSpec.Policies.MaskSecretData,
-		DisabledCollectors:      envSpec.Policies.DisabledCollectors,
-		BufferSize:              envSpec.Policies.BufferSize,
+		KubeContextName:    envSpec.Policies.KubeContextName,
+		DakrURL:            envSpec.Policies.DakrURL,
+		ClusterToken:       envSpec.Policies.ClusterToken,
+		DisableGPUMetrics:  envSpec.Policies.DisableGPUMetrics,
+		MaskSecretData:     envSpec.Policies.MaskSecretData,
+		DisabledCollectors: envSpec.Policies.DisabledCollectors,
+		BufferSize:         envSpec.Policies.BufferSize,
 	}
 
 	if envSpec.Policies.NumResourceProcessors != nil &&
@@ -1300,7 +1300,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(
 				r.K8sClient,
 				metricsClient,
 				collector.ContainerResourceCollectorConfig{
-					UpdateInterval:  newConfig.UpdateInterval,
+					UpdateInterval:    newConfig.UpdateInterval,
 					DisableGPUMetrics: newConfig.DisableGPUMetrics,
 				},
 				newConfig.TargetNamespaces,
@@ -1316,7 +1316,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(
 				r.K8sClient,
 				metricsClient,
 				collector.NodeCollectorConfig{
-					UpdateInterval:  newConfig.UpdateInterval,
+					UpdateInterval:    newConfig.UpdateInterval,
 					DisableGPUMetrics: newConfig.DisableGPUMetrics,
 				},
 				newConfig.ExcludedNodes,
@@ -2671,7 +2671,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				r.K8sClient,
 				metricsClient,
 				collector.ContainerResourceCollectorConfig{
-					UpdateInterval:  config.UpdateInterval,
+					UpdateInterval:    config.UpdateInterval,
 					DisableGPUMetrics: config.DisableGPUMetrics,
 				},
 				config.TargetNamespaces,
@@ -2689,7 +2689,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				r.K8sClient,
 				metricsClient,
 				collector.NodeCollectorConfig{
-					UpdateInterval:  config.UpdateInterval,
+					UpdateInterval:    config.UpdateInterval,
 					DisableGPUMetrics: config.DisableGPUMetrics,
 				},
 				config.ExcludedNodes,
@@ -3427,7 +3427,7 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					r.K8sClient,
 					metricsClient,
 					collector.ContainerResourceCollectorConfig{
-						UpdateInterval:  newConfig.UpdateInterval,
+						UpdateInterval:    newConfig.UpdateInterval,
 						DisableGPUMetrics: newConfig.DisableGPUMetrics,
 					},
 					newConfig.TargetNamespaces,
@@ -3642,7 +3642,7 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					r.K8sClient,
 					metricsClient,
 					collector.NodeCollectorConfig{
-						UpdateInterval:  newConfig.UpdateInterval,
+						UpdateInterval:    newConfig.UpdateInterval,
 						DisableGPUMetrics: newConfig.DisableGPUMetrics,
 					},
 					newConfig.ExcludedNodes,
@@ -3889,7 +3889,6 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 
 	return nil
 }
-
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *CollectionPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {

@@ -355,6 +355,15 @@ func (sm *SubscriptionManager) Broadcast(
 				NetworkTransmitBytesPerSec: int64(data.NetworkTransmitBytes),
 			}
 
+			sm.logger.Info("Broadcasting container metrics to MPA stream",
+				"workload", matchedWorkload.Name,
+				"container", container,
+				"cpuMillis", cpuMillis,
+				"memBytes", memBytes,
+				"rssBytes", rssBytes,
+				"throttle", data.CpuThrottledFraction,
+			)
+
 			batch := &gen.ContainerMetricsBatch{
 				Items: []*gen.ContainerMetricItem{item},
 			}
