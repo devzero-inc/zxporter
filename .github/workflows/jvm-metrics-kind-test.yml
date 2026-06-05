@@ -1,6 +1,7 @@
+name: jvm-metrics-kind
+
 permissions:
   contents: read
-name: JVM Metrics (nodemon) Kind Test
 
 on:
   pull_request:
@@ -8,7 +9,9 @@ on:
 
 jobs:
   jvm-metrics-kind:
-    runs-on: ubuntu-xl
+    # Use our namespace runner profile (same pattern as image-push workflows).
+    # This avoids relying on GitHub-hosted runner labels.
+    runs-on: namespace-profile-dz-generic
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -61,55 +64,260 @@ jobs:
           kubectl -n jvm-spike rollout status deploy/java8-xmx-only --timeout=300s
           kubectl -n jvm-spike rollout status deploy/java11-tool-options --timeout=300s
           kubectl -n jvm-spike rollout status deploy/java17-maxram-only --timeout=300s
+          kubectl -n jvm-spike rollout status deploy/java21-jdk-options --timeout=300s
+          kubectl -n jvm-spike rollout status deploy/java21-precedence-env --timeout=300s
+          kubectl -n jvm-spike rollout status deploy/java21-precedence-cmdline --timeout=300s
+          kubectl -n jvm-spike rollout status deploy/java21-per-flag-sources --timeout=300s
           kubectl -n jvm-spike rollout status deploy/not-java --timeout=300s
 
-      - name: Validate nodemon JVM metrics output
+      - name: Validate nodemon JVM metrics output (baseline)
         run: |
           POD_IP=$(kubectl -n devzero-system get pod -l app.kubernetes.io/name=zxporter-nodemon -o jsonpath='{.items[0].status.podIP}')
           echo "nodemon podIP=$POD_IP"
 
-          # Assertions (python; no jq dependency). Fetch JSON inside the python container.
-          kubectl -n devzero-system run py-assert --image=python:3.12-slim -i --rm --restart=Never --command -- \
-            sh -lc "python - <<'PY'
-import json,sys,urllib.request
-pod_ip = '${POD_IP}'
-url = f'http://{pod_ip}:6061/container/jvm-metrics?namespace=jvm-spike'
-with urllib.request.urlopen(url, timeout=30) as r:
-    data = json.loads(r.read().decode('utf-8'))
+          # Assertions (python; no jq dependency).
+          # Avoid `kubectl run -i --rm` + heredoc (flaky/non-interactive on Actions).
+          kubectl -n devzero-system run py-assert --image=python:3.12-slim --restart=Never --command -- sleep 3600
+          kubectl -n devzero-system wait --for=condition=Ready --timeout=120s pod/py-assert
 
-by_pod={m.get('pod'):m for m in data}
+          kubectl -n devzero-system exec py-assert -- python - <<PY
+          import json
+          import urllib.request
 
-def req_prefix(prefix):
-    for k,v in by_pod.items():
-        if k and k.startswith(prefix):
-            return v
-    raise SystemExit(f'missing pod prefix={prefix}; got pods={list(by_pod.keys())}')
+          pod_ip = '${POD_IP}'
+          url = f'http://{pod_ip}:6061/container/jvm-metrics?namespace=jvm-spike'
+          with urllib.request.urlopen(url, timeout=30) as r:
+              data = json.loads(r.read().decode('utf-8'))
 
-# Ensure not-java absent
-if any((m.get('pod','') or '').startswith('not-java') for m in data):
-    raise SystemExit('not-java unexpectedly present in JVM metrics')
+          by_pod = {m.get('pod'): m for m in data}
 
-# java8: cmdline -Xmx192m => 201326592
-m8=req_prefix('java8-xmx-only')
-flags=m8.get('flags_extracted',{})
-if flags.get('xmx_bytes')!=201326592:
-    raise SystemExit(f'java8-xmx-only expected xmx_bytes=201326592 got {flags.get("xmx_bytes")}')
+          def req_prefix(prefix):
+              for k, v in by_pod.items():
+                  if k and k.startswith(prefix):
+                      return v
+              raise SystemExit(f'missing pod prefix={prefix}; got pods={list(by_pod.keys())}')
 
-# java11: env JAVA_TOOL_OPTIONS provides xmx/xms/maxram; sources should mention JAVA_TOOL_OPTIONS
-m11=req_prefix('java11-tool-options')
-flags=m11.get('flags_extracted',{})
-if flags.get('xmx_bytes')!=167772160 or flags.get('xms_bytes')!=50331648 or flags.get('max_ram_percentage')!=65:
-    raise SystemExit(f'java11-tool-options flags mismatch: {flags}')
-src=m11.get('flag_sources',{})
-xmx_src=str(src.get('xmx_bytes',''))
-if 'TOOL_OPTIONS' not in xmx_src:
-    raise SystemExit(f'java11-tool-options expected xmx source to mention JAVA_TOOL_OPTIONS; got {src}')
+          # Ensure not-java absent
+          if any((m.get('pod', '') or '').startswith('not-java') for m in data):
+              raise SystemExit('not-java unexpectedly present in JVM metrics')
 
-# java17: maxram only should be 40
-m17=req_prefix('java17-maxram-only')
-flags=m17.get('flags_extracted',{})
-if flags.get('max_ram_percentage')!=40:
-    raise SystemExit(f'java17-maxram-only expected max_ram_percentage=40 got {flags.get("max_ram_percentage")}')
+          # java8: cmdline -Xmx192m => 201326592
+          m8 = req_prefix('java8-xmx-only')
+          flags = m8.get('flags_extracted', {})
+          if flags.get('xmx_bytes') != 201326592:
+              raise SystemExit(f'java8-xmx-only expected xmx_bytes=201326592 got {flags.get("xmx_bytes")}')
+          src = m8.get('flag_sources', {})
+          if str(src.get('xmx_bytes', '')) != 'cmdline':
+              raise SystemExit(f'java8-xmx-only expected xmx source cmdline; got {src}')
 
-print('OK')
-PY"
+          # java11: env JAVA_TOOL_OPTIONS provides xmx/xms/maxram; sources should be JAVA_TOOL_OPTIONS
+          m11 = req_prefix('java11-tool-options')
+          flags = m11.get('flags_extracted', {})
+          if flags.get('xmx_bytes') != 167772160 or flags.get('xms_bytes') != 50331648 or flags.get('max_ram_percentage') != 65:
+              raise SystemExit(f'java11-tool-options flags mismatch: {flags}')
+          src = m11.get('flag_sources', {})
+          if str(src.get('xmx_bytes', '')) != 'JAVA_TOOL_OPTIONS' or str(src.get('xms_bytes', '')) != 'JAVA_TOOL_OPTIONS':
+              raise SystemExit(f'java11-tool-options expected xmx/xms sources JAVA_TOOL_OPTIONS; got {src}')
+
+          # java17: maxram only should be 40
+          m17 = req_prefix('java17-maxram-only')
+          flags = m17.get('flags_extracted', {})
+          if flags.get('max_ram_percentage') != 40:
+              raise SystemExit(f'java17-maxram-only expected max_ram_percentage=40 got {flags.get("max_ram_percentage")}')
+
+          def assert_close(name, got, expected, rel=0.10, abs_bytes=16*1024*1024):
+              if got is None or expected is None:
+                  raise SystemExit(f'{name} missing values for close-check (got={got} expected={expected})')
+              lo = expected - max(abs_bytes, int(expected * rel))
+              hi = expected + max(abs_bytes, int(expected * rel))
+              if not (lo <= got <= hi):
+                  raise SystemExit(f'{name} expected ~{expected} (±max({abs_bytes}, {int(expected*rel)})) got {got}; range=[{lo},{hi}]')
+
+          # Spot-check that hsperfdata-derived heap metrics exist (non-zero) for JVM pods.
+          # And when Xmx is known, ensure heap.max_bytes is roughly consistent (buffered to avoid flakiness).
+          for name, m in [('java8-xmx-only', m8), ('java11-tool-options', m11), ('java17-maxram-only', m17)]:
+              heap = m.get('heap', {})
+              if (heap.get('max_bytes') or 0) <= 0:
+                  raise SystemExit(f'{name} expected heap.max_bytes > 0; got heap={heap}')
+              if (heap.get('used_bytes') or 0) < 0:
+                  raise SystemExit(f'{name} expected heap.used_bytes >= 0; got heap={heap}')
+
+              flags = m.get('flags_extracted', {})
+              xmx = flags.get('xmx_bytes')
+              if xmx:
+                  assert_close(f'{name} heap.max_bytes vs xmx_bytes', heap.get('max_bytes'), xmx)
+
+          # java21: verify JDK_JAVA_OPTIONS parsing + source attribution
+          m21 = req_prefix('java21-jdk-options')
+          flags = m21.get('flags_extracted', {})
+          if flags.get('xmx_bytes') != 134217728 or flags.get('xms_bytes') != 33554432:
+              raise SystemExit(f'java21-jdk-options flags mismatch: {flags}')
+          src = m21.get('flag_sources', {})
+          if str(src.get('xmx_bytes', '')) != 'JDK_JAVA_OPTIONS' or str(src.get('xms_bytes', '')) != 'JDK_JAVA_OPTIONS':
+              raise SystemExit(f'java21-jdk-options expected xmx/xms sources JDK_JAVA_OPTIONS; got {src}')
+          heap = m21.get('heap', {})
+          if (heap.get('max_bytes') or 0) <= 0:
+              raise SystemExit(f'java21-jdk-options expected heap.max_bytes > 0; got heap={heap}')
+          assert_close('java21-jdk-options heap.max_bytes vs xmx_bytes', heap.get('max_bytes'), flags.get('xmx_bytes'))
+
+          # Precedence: JAVA_TOOL_OPTIONS > JDK_JAVA_OPTIONS > JAVA_OPTS
+          menv = req_prefix('java21-precedence-env')
+          flags = menv.get('flags_extracted', {})
+          if flags.get('xmx_bytes') != 100663296 or flags.get('xms_bytes') != 25165824:
+              raise SystemExit(f'java21-precedence-env expected xmx=96m xms=24m got flags={flags}')
+          src = menv.get('flag_sources', {})
+          if str(src.get('xmx_bytes', '')) != 'JAVA_TOOL_OPTIONS' or str(src.get('xms_bytes', '')) != 'JAVA_TOOL_OPTIONS':
+              raise SystemExit(f'java21-precedence-env expected sources JAVA_TOOL_OPTIONS; got {src}')
+          heap = menv.get('heap', {})
+          if (heap.get('max_bytes') or 0) <= 0:
+              raise SystemExit(f'java21-precedence-env expected heap.max_bytes > 0; got heap={heap}')
+          assert_close('java21-precedence-env heap.max_bytes vs xmx_bytes', heap.get('max_bytes'), flags.get('xmx_bytes'))
+
+          # Precedence: cmdline beats env
+          mcmd = req_prefix('java21-precedence-cmdline')
+          flags = mcmd.get('flags_extracted', {})
+          if flags.get('xmx_bytes') != 83886080 or flags.get('xms_bytes') != 16777216:
+              raise SystemExit(f'java21-precedence-cmdline expected xmx=80m xms=16m got flags={flags}')
+          src = mcmd.get('flag_sources', {})
+          if str(src.get('xmx_bytes', '')) != 'cmdline' or str(src.get('xms_bytes', '')) != 'cmdline':
+              raise SystemExit(f'java21-precedence-cmdline expected sources cmdline; got {src}')
+          heap = mcmd.get('heap', {})
+          if (heap.get('max_bytes') or 0) <= 0:
+              raise SystemExit(f'java21-precedence-cmdline expected heap.max_bytes > 0; got heap={heap}')
+          assert_close('java21-precedence-cmdline heap.max_bytes vs xmx_bytes', heap.get('max_bytes'), flags.get('xmx_bytes'))
+
+          # Per-flag sourcing: Xmx from JAVA_TOOL_OPTIONS; Xms from JDK_JAVA_OPTIONS
+          mpf = req_prefix('java21-per-flag-sources')
+          flags = mpf.get('flags_extracted', {})
+          if flags.get('xmx_bytes') != 117440512 or flags.get('xms_bytes') != 29360128:
+              raise SystemExit(f'java21-per-flag-sources expected xmx=112m xms=28m got flags={flags}')
+          src = mpf.get('flag_sources', {})
+          if str(src.get('xmx_bytes', '')) != 'JAVA_TOOL_OPTIONS' or str(src.get('xms_bytes', '')) != 'JDK_JAVA_OPTIONS':
+              raise SystemExit(f'java21-per-flag-sources expected xmx source JAVA_TOOL_OPTIONS and xms source JDK_JAVA_OPTIONS; got {src}')
+          heap = mpf.get('heap', {})
+          if (heap.get('max_bytes') or 0) <= 0:
+              raise SystemExit(f'java21-per-flag-sources expected heap.max_bytes > 0; got heap={heap}')
+          assert_close('java21-per-flag-sources heap.max_bytes vs xmx_bytes', heap.get('max_bytes'), flags.get('xmx_bytes'))
+
+          print('OK')
+          PY
+
+          kubectl -n devzero-system delete pod/py-assert --ignore-not-found=true
+
+      - name: Mutate workloads (simulate MPA changes)
+        run: |
+          # Simulate post-recommendation changes:
+          # - resources req/limit tightened (closer to heap)
+          # - JVM heap flags changed (env/cmdline)
+          kubectl -n jvm-spike set resources deploy/java11-tool-options -c app --requests=cpu=10m,memory=256Mi --limits=cpu=100m,memory=256Mi
+          kubectl -n jvm-spike set env deploy/java11-tool-options JAVA_TOOL_OPTIONS="-Xms64m -Xmx200m -XX:MaxRAMPercentage=65 -Dfrom=tooloptions-mutated"
+
+          # cmdline mutation: update the command to use different Xms/Xmx
+          # Use a strategic merge patch (less brittle than JSONPatch quoting/escaping in Actions).
+          kubectl -n jvm-spike patch deploy/java21-precedence-cmdline --type strategic -p "$(cat <<'PATCH'
+          spec:
+            template:
+              metadata:
+                annotations:
+                  zxporter.dev/mutation: "1"
+              spec:
+                containers:
+                  - name: app
+                    args:
+                      - |
+                        cat >/tmp/DummyMain.java <<'EOF'
+                        public class DummyMain { public static void main(String[] args) throws Exception { for(;;) Thread.sleep(60000); } }
+                        EOF
+                        javac /tmp/DummyMain.java
+                        # cmdline should win over env
+                        exec java -Xms24m -Xmx104m -cp /tmp DummyMain
+          PATCH
+          )"
+          kubectl -n jvm-spike set resources deploy/java21-precedence-cmdline -c app --requests=cpu=10m,memory=256Mi --limits=cpu=100m,memory=256Mi
+
+          # Wait for rollouts
+          kubectl -n jvm-spike rollout status deploy/java11-tool-options --timeout=300s
+          kubectl -n jvm-spike rollout status deploy/java21-precedence-cmdline --timeout=300s
+
+      - name: Validate nodemon JVM metrics output (after mutation)
+        run: |
+          POD_IP=$(kubectl -n devzero-system get pod -l app.kubernetes.io/name=zxporter-nodemon -o jsonpath='{.items[0].status.podIP}')
+          echo "nodemon podIP=$POD_IP"
+
+          kubectl -n devzero-system run py-assert2 --image=python:3.12-slim --restart=Never --command -- sleep 3600
+          kubectl -n devzero-system wait --for=condition=Ready --timeout=120s pod/py-assert2
+
+          kubectl -n devzero-system exec py-assert2 -- python - <<PY
+          import json
+          import time
+          import urllib.request
+
+          pod_ip = '${POD_IP}'
+          url = f'http://{pod_ip}:6061/container/jvm-metrics?namespace=jvm-spike'
+
+          # After a rollout completes, nodemon may need some time to discover the new JVM
+          # processes and refresh metrics. Poll before asserting to avoid flakiness.
+          last_pods = []
+          by_pod = {}
+          for attempt in range(12):  # ~60s total @ 5s sleep
+              with urllib.request.urlopen(url, timeout=30) as r:
+                  data = json.loads(r.read().decode('utf-8'))
+              by_pod = {m.get('pod'): m for m in data}
+              last_pods = [p for p in by_pod.keys() if p]
+
+              m11 = next((m for p, m in by_pod.items() if p and p.startswith('java11-tool-options')), None)
+              mcmd = next((m for p, m in by_pod.items() if p and p.startswith('java21-precedence-cmdline')), None)
+
+              ok11 = (m11 or {}).get('flags_extracted', {}).get('xmx_bytes') == 209715200
+              okcmd = (mcmd or {}).get('flags_extracted', {}).get('xmx_bytes') == 109051904
+
+              if ok11 and okcmd:
+                  break
+              time.sleep(5)
+          else:
+              raise SystemExit(f'timed out waiting for mutated metrics to appear; last pods={last_pods}')
+
+          def req_prefix(prefix):
+              for k, v in by_pod.items():
+                  if k and k.startswith(prefix):
+                      return v
+              raise SystemExit(f'missing pod prefix={prefix}; got pods={list(by_pod.keys())}')
+
+          def assert_close(name, got, expected, rel=0.10, abs_bytes=16*1024*1024):
+              if got is None or expected is None:
+                  raise SystemExit(f'{name} missing values for close-check (got={got} expected={expected})')
+              lo = expected - max(abs_bytes, int(expected * rel))
+              hi = expected + max(abs_bytes, int(expected * rel))
+              if not (lo <= got <= hi):
+                  raise SystemExit(f'{name} expected ~{expected} (±max({abs_bytes}, {int(expected*rel)})) got {got}; range=[{lo},{hi}]')
+
+          # java11 mutated: JAVA_TOOL_OPTIONS now sets Xms64m/Xmx200m
+          m11 = req_prefix('java11-tool-options')
+          flags = m11.get('flags_extracted', {})
+          if flags.get('xmx_bytes') != 209715200 or flags.get('xms_bytes') != 67108864 or flags.get('max_ram_percentage') != 65:
+              raise SystemExit(f'java11-tool-options mutated flags mismatch: {flags}')
+          src = m11.get('flag_sources', {})
+          if str(src.get('xmx_bytes', '')) != 'JAVA_TOOL_OPTIONS' or str(src.get('xms_bytes', '')) != 'JAVA_TOOL_OPTIONS':
+              raise SystemExit(f'java11-tool-options mutated expected sources JAVA_TOOL_OPTIONS; got {src}')
+          heap = m11.get('heap', {})
+          if (heap.get('max_bytes') or 0) <= 0:
+              raise SystemExit(f'java11-tool-options mutated expected heap.max_bytes > 0; got heap={heap}')
+          assert_close('java11-tool-options mutated heap.max_bytes vs xmx_bytes', heap.get('max_bytes'), flags.get('xmx_bytes'))
+
+          # java21 precedence-cmdline mutated: cmdline Xms24m/Xmx104m should win
+          mcmd = req_prefix('java21-precedence-cmdline')
+          flags = mcmd.get('flags_extracted', {})
+          if flags.get('xmx_bytes') != 109051904 or flags.get('xms_bytes') != 25165824:
+              raise SystemExit(f'java21-precedence-cmdline mutated flags mismatch: {flags}')
+          src = mcmd.get('flag_sources', {})
+          if str(src.get('xmx_bytes', '')) != 'cmdline' or str(src.get('xms_bytes', '')) != 'cmdline':
+              raise SystemExit(f'java21-precedence-cmdline mutated expected sources cmdline; got {src}')
+          heap = mcmd.get('heap', {})
+          if (heap.get('max_bytes') or 0) <= 0:
+              raise SystemExit(f'java21-precedence-cmdline mutated expected heap.max_bytes > 0; got heap={heap}')
+          assert_close('java21-precedence-cmdline mutated heap.max_bytes vs xmx_bytes', heap.get('max_bytes'), flags.get('xmx_bytes'))
+
+          print('OK')
+          PY
+
+          kubectl -n devzero-system delete pod/py-assert2 --ignore-not-found=true

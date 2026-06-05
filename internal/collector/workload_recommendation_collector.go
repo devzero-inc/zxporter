@@ -115,7 +115,7 @@ func (c *WorkloadRecommendationCollector) Start(ctx context.Context) error {
 			// Re-send terminal-state recommendations on resync to catch any previously missed updates.
 			if oldWR.GetResourceVersion() == newWR.GetResourceVersion() {
 				phase, _, _ := unstructured.NestedString(newWR.Object, "status", "phase")
-				if phase == "Applied" || phase == "Failed" || phase == "Skipped" {
+				if isTerminalRecommendationPhase(phase) {
 					c.handleWorkloadRecommendationEvent(newWR, EventTypeUpdate)
 				}
 				return
@@ -123,6 +123,26 @@ func (c *WorkloadRecommendationCollector) Start(ctx context.Context) error {
 
 			// Only handle meaningful updates
 			if c.workloadRecommendationChanged(oldWR, newWR) {
+				// Guard against the spec-before-status race: the rule evaluator
+				// updates spec first (new recommendation values) then resets
+				// status to Pending in a separate API call. Between these two
+				// calls, the CRD has new spec + old Applied status with the old
+				// appliedAt. If we send this intermediate state, the control
+				// plane derives the DB ID from the old appliedAt and overwrites
+				// the previous recommendation (data loss).
+				//
+				// Detect this by checking: spec changed but status didn't, and
+				// the CRD is managed by dakr-rule-evaluator (MPA v2). In that
+				// case, skip — the status reset will arrive as a separate event,
+				// and the recommendation will be sent after re-apply with a
+				// fresh appliedAt.
+				if c.isSpecOnlyUpdateOnMPAV2(oldWR, newWR) {
+					c.logger.Info("Skipping spec-only update on MPA v2 rec — waiting for status reset",
+						"namespace", newWR.GetNamespace(),
+						"name", newWR.GetName(),
+					)
+					return
+				}
 				c.handleWorkloadRecommendationEvent(newWR, EventTypeUpdate)
 			}
 		},
@@ -163,6 +183,18 @@ func (c *WorkloadRecommendationCollector) Start(ctx context.Context) error {
 	return nil
 }
 
+// isTerminalRecommendationPhase returns true when the phase string matches one of
+// the terminal states defined by RecommendationPhase.IsTerminal() in the dakr operator.
+// Keep this in sync with dakr/apis/v1alpha1/types.go.
+func isTerminalRecommendationPhase(phase string) bool {
+	switch phase {
+	case "Applied", "AppliedWithRestartFallback", "PartialFailure", "Failed", "Skipped", "Rejected":
+		return true
+	default:
+		return false
+	}
+}
+
 // handleWorkloadRecommendationEvent processes WorkloadRecommendation events
 func (c *WorkloadRecommendationCollector) handleWorkloadRecommendationEvent(
 	wr *unstructured.Unstructured,
@@ -183,22 +215,30 @@ func (c *WorkloadRecommendationCollector) handleWorkloadRecommendationEvent(
 		"name", name,
 	)
 
-	// Skip recommendations older than 24 hours — they are no longer relevant
-	creationTime := wr.GetCreationTimestamp().Time
-	if !creationTime.IsZero() && time.Since(creationTime) > 24*time.Hour {
-		c.logger.Info("Skipping WorkloadRecommendation older than 24 hours",
-			"namespace", namespace,
-			"name", name,
-			"age", time.Since(creationTime).Round(time.Minute),
-		)
-		return
+	// MPA V2 recs (managed by dakr-rule-evaluator) reuse the same CRD with
+	// deterministic names — always send them regardless of age. The 24h
+	// staleness check only applies to legacy recs which have unique CRDs.
+	labels := wr.GetLabels()
+	isMPAV2 := labels["app.kubernetes.io/managed-by"] == "dakr-rule-evaluator"
+	if !isMPAV2 {
+		creationTime := wr.GetCreationTimestamp().Time
+		if !creationTime.IsZero() && time.Since(creationTime) > 24*time.Hour {
+			c.logger.Info("Skipping WorkloadRecommendation older than 24 hours",
+				"namespace", namespace,
+				"name", name,
+				"age", time.Since(creationTime).Round(time.Minute),
+			)
+			return
+		}
 	}
 
-	// Only send recommendations that have reached a terminal state
-	// Delete events are always sent so the control plane knows about removals
+	// Only send recommendations that have reached a terminal state.
+	// Delete events are always sent so the control plane knows about removals.
+	// Terminal phases must match the CRD's IsTerminal() definition in
+	// dakr/apis/v1alpha1/types.go to avoid silently dropping applied recs.
 	if eventType != EventTypeDelete {
 		phase, _, _ := unstructured.NestedString(wr.Object, "status", "phase")
-		if phase != "Applied" && phase != "Failed" && phase != "Skipped" {
+		if !isTerminalRecommendationPhase(phase) {
 			c.logger.Info("Skipping WorkloadRecommendation with non-terminal phase",
 				"namespace", namespace,
 				"name", name,
@@ -223,6 +263,36 @@ func (c *WorkloadRecommendationCollector) handleWorkloadRecommendationEvent(
 		EventType:    eventType,
 		Key:          fmt.Sprintf("%s/%s", namespace, name),
 	}
+}
+
+// isSpecOnlyUpdateOnMPAV2 returns true when the spec changed but the status
+// did not, and the CRD is managed by the rule evaluator (MPA v2). This
+// indicates the intermediate state between the operator's spec update and the
+// subsequent status reset — sending this state would overwrite the previous
+// recommendation in the control plane DB.
+func (c *WorkloadRecommendationCollector) isSpecOnlyUpdateOnMPAV2(
+	oldWR, newWR *unstructured.Unstructured,
+) bool {
+	// Only applies to MPA v2 recs managed by the rule evaluator.
+	labels := newWR.GetLabels()
+	if labels["app.kubernetes.io/managed-by"] != "dakr-rule-evaluator" {
+		return false
+	}
+
+	// Check if spec changed.
+	oldSpec, _, _ := unstructured.NestedMap(oldWR.Object, "spec")
+	newSpec, _, _ := unstructured.NestedMap(newWR.Object, "spec")
+	specChanged := !reflect.DeepEqual(oldSpec, newSpec)
+	if !specChanged {
+		return false
+	}
+
+	// Check if status is unchanged (still terminal from previous cycle).
+	oldStatus, _, _ := unstructured.NestedMap(oldWR.Object, "status")
+	newStatus, _, _ := unstructured.NestedMap(newWR.Object, "status")
+	statusUnchanged := reflect.DeepEqual(oldStatus, newStatus)
+
+	return statusUnchanged
 }
 
 // workloadRecommendationChanged detects meaningful changes in a WorkloadRecommendation

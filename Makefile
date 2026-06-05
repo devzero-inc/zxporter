@@ -280,9 +280,6 @@ final-installer:
 	@echo "[INFO] Templating namespace in backend-install.yaml for DAKR backend"
 	@sed -i'' -e 's|namespace: $(DEVZERO_MONITORING_NAMESPACE)|namespace: {{.zxporter_namespace}}|g' $(DIST_BACKEND_INSTALL_BUNDLE)
 	@sed -i'' -e 's|name: $(DEVZERO_MONITORING_NAMESPACE)|name: {{.zxporter_namespace}}|g' $(DIST_BACKEND_INSTALL_BUNDLE)
-	@echo "[INFO] Templating namespace in installer_updater.yaml for DAKR backend"
-	@sed -i'' -e 's|namespace: $(DEVZERO_MONITORING_NAMESPACE)|namespace: {{.zxporter_namespace}}|g' $(DIST_DIR)/installer_updater.yaml
-	@sed -i'' -e 's|name: $(DEVZERO_MONITORING_NAMESPACE)|name: {{.zxporter_namespace}}|g' $(DIST_DIR)/installer_updater.yaml
 	@if [ -d "$(DAKR_DIR)/services/dakr_installers" ]; then \
 		cp $(DIST_BACKEND_INSTALL_BUNDLE) $(DAKR_DIR)/services/dakr_installers/install.yaml; \
 		cp $(DIST_DIR)/installer_updater.yaml $(DAKR_DIR)/services/dakr_installers/installer_updater.yaml; \
@@ -292,7 +289,13 @@ final-installer:
 .PHONY: installer-without-configmap
 installer-without-configmap:
 	@cp $(DIST_BACKEND_INSTALL_BUNDLE) $(DIST_DIR)/installer_updater.yaml
-	@$(YQ) -i 'select(.kind != "ConfigMap" or .metadata.name != "devzero-zxporter-env-config") | select(.kind != "Secret" or .metadata.name != "devzero-zxporter-token")' $(DIST_DIR)/installer_updater.yaml
+	@$(YQ) -i 'select((.kind != "ConfigMap" or .metadata.name != "devzero-zxporter-env-config") and (.kind != "Secret" or .metadata.name != "devzero-zxporter-token"))' $(DIST_DIR)/installer_updater.yaml
+	@sed \
+		-e "s|^  name: $(DEVZERO_MONITORING_NAMESPACE)$$|  name: '{{.zxporter_namespace}}'|g" \
+		-e "s|^    app.kubernetes.io/name: $(DEVZERO_MONITORING_NAMESPACE)$$|    app.kubernetes.io/name: '{{.zxporter_namespace}}'|g" \
+		-e "s|^  namespace: $(DEVZERO_MONITORING_NAMESPACE)$$|  namespace: '{{.zxporter_namespace}}'|g" \
+		-e "s|^    namespace: $(DEVZERO_MONITORING_NAMESPACE)$$|    namespace: '{{.zxporter_namespace}}'|g" \
+		$(DIST_DIR)/installer_updater.yaml > $(DIST_DIR)/installer_updater.yaml.tmp && mv $(DIST_DIR)/installer_updater.yaml.tmp $(DIST_DIR)/installer_updater.yaml
 
 .PHONY: build-installer
 build-installer: manifests generate kustomize yq helm ## Generate a consolidated YAML with deployment.
