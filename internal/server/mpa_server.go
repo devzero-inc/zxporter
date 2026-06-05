@@ -283,6 +283,7 @@ func (sm *SubscriptionManager) Broadcast(
 
 	cpuMillis := data.CpuUsageMillis
 	memBytes := data.MemoryUsageBytes
+	rssBytes := data.MemoryRssBytes
 
 	restartCount := data.RestartCount
 	lastReason := data.LastTerminationReason
@@ -338,6 +339,7 @@ func (sm *SubscriptionManager) Broadcast(
 				Timestamp:             timestamppb.New(timestamp),
 				CpuUsageMillis:        cpuMillis,
 				MemoryUsageBytes:      memBytes,
+				MemoryRssBytes:        rssBytes,
 				OomKillCount:          oomKillCount,
 				RestartCount:          int32(restartCount),
 				LastTerminationReason: lastReason,

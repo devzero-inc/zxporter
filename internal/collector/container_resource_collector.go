@@ -540,6 +540,7 @@ func (c *ContainerResourceCollector) processContainerMetrics(
 		// CPU/Memory resource usage
 		CpuUsageMillis:   cpuUsage,
 		MemoryUsageBytes: memoryUsage,
+		MemoryRssBytes:   c.getContainerRSSBytes(pod.Namespace, pod.Name, containerMetrics.Name),
 
 		// Resource requests and limits
 		CpuRequestMillis:   cpuRequestMillis,
@@ -966,6 +967,25 @@ func (c *ContainerResourceCollector) IsAvailable(ctx context.Context) bool {
 func (c *ContainerResourceCollector) AddResource(resource interface{}) error {
 	// Container resources are collected automatically via metrics scraping, not via individual resource refresh
 	return nil
+}
+
+// getContainerRSSBytes returns the RSS (Resident Set Size) in bytes for a container
+// from the pre-fetched nodemon cache. Returns 0 if not available.
+func (c *ContainerResourceCollector) getContainerRSSBytes(namespace, podName, containerName string) int64 {
+	if c.nodemonContainerMetricsCache == nil {
+		return 0
+	}
+	key := namespace + "/" + podName
+	containers, ok := c.nodemonContainerMetricsCache[key]
+	if !ok {
+		return 0
+	}
+	for _, m := range containers {
+		if m.Container == containerName {
+			return int64(m.MemoryRSSBytes)
+		}
+	}
+	return 0
 }
 
 func (c *ContainerResourceCollector) resolveWorkload(pod *corev1.Pod) (string, string) {

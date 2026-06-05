@@ -17,6 +17,7 @@ type ContainerMetricsSnapshot struct {
 	// CPU/Memory resource usage
 	CpuUsageMillis   int64 `json:"cpuUsageMillis"`
 	MemoryUsageBytes int64 `json:"memoryUsageBytes"`
+	MemoryRssBytes   int64 `json:"memoryRssBytes"`
 
 	// Resource requests and limits
 	CpuRequestMillis   int64 `json:"cpuRequestMillis"`
