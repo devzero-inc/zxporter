@@ -115,7 +115,7 @@ func (c *WorkloadRecommendationCollector) Start(ctx context.Context) error {
 			// Re-send terminal-state recommendations on resync to catch any previously missed updates.
 			if oldWR.GetResourceVersion() == newWR.GetResourceVersion() {
 				phase, _, _ := unstructured.NestedString(newWR.Object, "status", "phase")
-				if phase == "Applied" || phase == "Failed" || phase == "Skipped" {
+				if isTerminalPhase(phase) {
 					c.handleWorkloadRecommendationEvent(newWR, EventTypeUpdate)
 				}
 				return
@@ -220,11 +220,13 @@ func (c *WorkloadRecommendationCollector) handleWorkloadRecommendationEvent(
 		}
 	}
 
-	// Only send recommendations that have reached a terminal state
-	// Delete events are always sent so the control plane knows about removals
+	// Only send recommendations that have reached a terminal state.
+	// Delete events are always sent so the control plane knows about removals.
+	// Terminal phases must match the CRD's IsTerminal() definition in
+	// dakr/apis/v1alpha1/types.go to avoid silently dropping applied recs.
 	if eventType != EventTypeDelete {
 		phase, _, _ := unstructured.NestedString(wr.Object, "status", "phase")
-		if phase != "Applied" && phase != "Failed" && phase != "Skipped" {
+		if !isTerminalPhase(phase) {
 			c.logger.Info("Skipping WorkloadRecommendation with non-terminal phase",
 				"namespace", namespace,
 				"name", name,
@@ -343,6 +345,19 @@ func (c *WorkloadRecommendationCollector) workloadRecommendationChanged(
 }
 
 // Stop gracefully shuts down the WorkloadRecommendation collector
+// isTerminalPhase returns true if the phase represents a terminal state where
+// the recommendation has been fully processed and should be reported to the
+// control plane. Must match the CRD's IsTerminal() in dakr/apis/v1alpha1/types.go.
+func isTerminalPhase(phase string) bool {
+	switch phase {
+	case "Applied", "AppliedWithRestartFallback", "PartialFailure",
+		"Failed", "Skipped", "Rejected":
+		return true
+	default:
+		return false
+	}
+}
+
 func (c *WorkloadRecommendationCollector) Stop() error {
 	c.logger.Info("Stopping WorkloadRecommendation collector")
 
