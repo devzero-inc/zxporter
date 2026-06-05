@@ -42,7 +42,7 @@ jobs:
           make docker-build docker-push IMG=${{ env.ZXPORTER_IMG }}
 
   test:
-    name: Test Metrics Server Lifecycle on K8s v1.32.3
+    name: Test Metrics Server Lifecycle on K8s v1.35.1
     needs: build
     runs-on: ubuntu-xl
     
@@ -63,8 +63,8 @@ jobs:
       - name: Create k8s Kind Cluster
         uses: helm/kind-action@v1
         with:
-          version: v0.27.0
-          node_image: kindest/node:v1.32.3
+          version: v0.31.0
+          node_image: kindest/node:v1.35.1
           cluster_name: kind-metrics-test
           wait: 120s
 

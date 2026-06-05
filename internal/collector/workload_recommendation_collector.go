@@ -115,7 +115,7 @@ func (c *WorkloadRecommendationCollector) Start(ctx context.Context) error {
 			// Re-send terminal-state recommendations on resync to catch any previously missed updates.
 			if oldWR.GetResourceVersion() == newWR.GetResourceVersion() {
 				phase, _, _ := unstructured.NestedString(newWR.Object, "status", "phase")
-				if isTerminalPhase(phase) {
+				if isTerminalRecommendationPhase(phase) {
 					c.handleWorkloadRecommendationEvent(newWR, EventTypeUpdate)
 				}
 				return
@@ -183,6 +183,18 @@ func (c *WorkloadRecommendationCollector) Start(ctx context.Context) error {
 	return nil
 }
 
+// isTerminalRecommendationPhase returns true when the phase string matches one of
+// the terminal states defined by RecommendationPhase.IsTerminal() in the dakr operator.
+// Keep this in sync with dakr/apis/v1alpha1/types.go.
+func isTerminalRecommendationPhase(phase string) bool {
+	switch phase {
+	case "Applied", "AppliedWithRestartFallback", "PartialFailure", "Failed", "Skipped", "Rejected":
+		return true
+	default:
+		return false
+	}
+}
+
 // handleWorkloadRecommendationEvent processes WorkloadRecommendation events
 func (c *WorkloadRecommendationCollector) handleWorkloadRecommendationEvent(
 	wr *unstructured.Unstructured,
@@ -226,7 +238,7 @@ func (c *WorkloadRecommendationCollector) handleWorkloadRecommendationEvent(
 	// dakr/apis/v1alpha1/types.go to avoid silently dropping applied recs.
 	if eventType != EventTypeDelete {
 		phase, _, _ := unstructured.NestedString(wr.Object, "status", "phase")
-		if !isTerminalPhase(phase) {
+		if !isTerminalRecommendationPhase(phase) {
 			c.logger.Info("Skipping WorkloadRecommendation with non-terminal phase",
 				"namespace", namespace,
 				"name", name,
@@ -345,19 +357,6 @@ func (c *WorkloadRecommendationCollector) workloadRecommendationChanged(
 }
 
 // Stop gracefully shuts down the WorkloadRecommendation collector
-// isTerminalPhase returns true if the phase represents a terminal state where
-// the recommendation has been fully processed and should be reported to the
-// control plane. Must match the CRD's IsTerminal() in dakr/apis/v1alpha1/types.go.
-func isTerminalPhase(phase string) bool {
-	switch phase {
-	case "Applied", "AppliedWithRestartFallback", "PartialFailure",
-		"Failed", "Skipped", "Rejected":
-		return true
-	default:
-		return false
-	}
-}
-
 func (c *WorkloadRecommendationCollector) Stop() error {
 	c.logger.Info("Stopping WorkloadRecommendation collector")
 
