@@ -5,6 +5,11 @@ name: Metrics Server Lifecycle Test
 on:
   workflow_dispatch:
   pull_request:
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'LICENSE'
+      - 'helm-chart/**'
 
 jobs:
   build:

@@ -2,6 +2,11 @@ name: Build Installer Check
 
 on:
   pull_request:
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'LICENSE'
+      - 'helm-chart/**'
   workflow_dispatch:
 
 jobs:
