@@ -1,6 +1,7 @@
 name: Run Tests
 permissions:
   contents: read
+  pull-requests: read
 
 on:
   pull_request:
@@ -9,10 +10,34 @@ on:
   workflow_dispatch:
 
 jobs:
+  # "Run make test" is a required status check, so we cannot use trigger-level
+  # paths-ignore (a non-running required check blocks merges forever). Instead we
+  # gate the job on a changes filter: when only docs/helm-chart change the job is
+  # skipped, and a skipped required check is treated as satisfied.
+  changes:
+    name: Detect relevant changes
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.filter.outputs.run }}
+    steps:
+      - name: Filter changed paths
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            run:
+              - '**'
+              - '!**/*.md'
+              - '!docs/**'
+              - '!LICENSE'
+              - '!helm-chart/**'
+
   test:
     name: Run make test
+    needs: changes
+    if: ${{ github.event_name == 'workflow_dispatch' || needs.changes.outputs.run == 'true' }}
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

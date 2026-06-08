@@ -4,9 +4,42 @@ on:
   workflow_dispatch:
   pull_request:
 
+permissions:
+  contents: read
+  pull-requests: read
+
 jobs:
+  # The "Test on K8s ... (manifest)" jobs are required status checks, so we
+  # cannot use trigger-level paths-ignore (a non-running required check blocks
+  # merges forever). Instead we gate the build job on a changes filter; the test
+  # matrix `needs: build`, so it is skipped automatically when build is skipped,
+  # and skipped required checks are treated as satisfied.
+  #
+  # helm-chart/** is intentionally NOT ignored: helm-mode deploys render the
+  # chart templates, so chart changes must still be tested. Image-tag bumps in
+  # values.yaml are overwritten at test time, but path filters cannot tell those
+  # apart from template changes, so we keep running on any helm-chart change.
+  changes:
+    name: Detect relevant changes
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.filter.outputs.run }}
+    steps:
+      - name: Filter changed paths
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            run:
+              - '**'
+              - '!**/*.md'
+              - '!docs/**'
+              - '!LICENSE'
+
   build:
     name: Build Docker Image
+    needs: changes
+    if: ${{ github.event_name == 'workflow_dispatch' || needs.changes.outputs.run == 'true' }}
     runs-on: ubuntu-latest
     outputs:
       image: ${{ steps.set-image.outputs.image }}
