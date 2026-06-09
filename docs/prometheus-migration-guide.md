@@ -231,6 +231,53 @@ grep "namespace:" /tmp/new-zxporter.yaml | sort -u
 
 > **What is happening:** We're making sure the manifest is 100% correct before applying. No surprises.
 
+**3c: Adjust zxporter resource requests based on cluster size:**
+
+The default resource requests (`cpu: 200m`, `memory: 128Mi`) are for small clusters. For larger clusters, zxporter processes more pods/nodes per cycle and needs more resources. Check your cluster size and adjust:
+
+```bash
+echo "Cluster size:"
+echo "  Nodes: $(kubectl get nodes --no-headers | wc -l)"
+echo "  Pods:  $(kubectl get pods -A --no-headers | wc -l)"
+```
+
+Use this table to pick the right resources:
+
+| Cluster Size | Nodes | Pods | CPU Request | Memory Request | CPU Limit | Memory Limit |
+|---|---|---|---|---|---|---|
+| **Small** | 1-10 | < 100 | 200m | 128Mi | 500m | 256Mi |
+| **Medium** | 10-50 | 100-500 | 500m | 256Mi | 1000m | 512Mi |
+| **Large** | 50-200 | 500-2000 | 1000m | 512Mi | 2000m | 1Gi |
+| **XL** | 200+ | 2000+ | 2000m | 1Gi | 4000m | 2Gi |
+
+> **Why it matters:** Each collection cycle, zxporter queries nodemon for every node, iterates every pod, and builds snapshots. With 2000 pods, a single cycle processes 2000+ container metrics. Undersized zxporter will be slow (data arrives late) or OOM-killed.
+
+> **Nodemon is fine** — it only collects metrics from its own node, so resource usage is constant regardless of cluster size. The defaults (100m CPU, 128Mi memory) work for all sizes.
+
+**To patch the resources in the manifest:**
+```bash
+# Check current resource settings
+grep -A4 "resources:" /tmp/new-zxporter.yaml | head -8
+
+# For a Medium cluster (10-50 nodes), patch to 500m/256Mi:
+# Find the zxporter container's resources block and update it.
+# The easiest way is to edit the file directly:
+# vim /tmp/new-zxporter.yaml
+# OR use yq:
+# yq eval '(select(.kind == "Deployment") | .spec.template.spec.containers[0].resources.requests.cpu) = "500m"' -i /tmp/new-zxporter.yaml
+# yq eval '(select(.kind == "Deployment") | .spec.template.spec.containers[0].resources.requests.memory) = "256Mi"' -i /tmp/new-zxporter.yaml
+```
+
+**For Helm installs** (Step 5a), pass resources directly:
+```bash
+--set resources.requests.cpu=500m \
+--set resources.requests.memory=256Mi \
+--set resources.limits.cpu=1000m \
+--set resources.limits.memory=512Mi
+```
+
+> **If you're unsure,** start with Medium and monitor. You can always adjust later with `kubectl edit deployment devzero-zxporter-controller-manager -n devzero-system` or a Helm upgrade.
+
 ---
 
 ### Step 4: Delete the old zxporter entirely
