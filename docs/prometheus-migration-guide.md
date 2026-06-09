@@ -336,14 +336,64 @@ kubectl delete priorityclass devzero-zxporter-devzero-zxporter-critical --ignore
 echo "Cluster resources deleted"
 ```
 
-**4d: Delete the old namespace:**
+**4d: Export ConfigMap and Secret before deleting the namespace:**
+
+> **CRITICAL:** The `installer_updater.yaml` (used for existing clusters) does NOT include the ConfigMap or Secret — it's designed to preserve them. If the old namespace gets deleted, they're gone. We must export them now.
+
+```bash
+export NEW_NS=devzero-system  # the namespace where new zxporter will live
+
+echo "=== Exporting ConfigMap and Secret from $OLD_NS ==="
+
+# Export ConfigMap (strip metadata that would cause conflicts)
+kubectl get configmap devzero-zxporter-env-config -n $OLD_NS -o yaml \
+  | grep -v "resourceVersion\|uid\|creationTimestamp\|selfLink\|namespace:" \
+  | sed "s|^  name:|  namespace: $NEW_NS\n  name:|" \
+  > /tmp/zxporter-configmap.yaml
+echo "ConfigMap saved to /tmp/zxporter-configmap.yaml"
+
+# Export Secret (cluster token)
+kubectl get secret devzero-zxporter-token -n $OLD_NS -o yaml \
+  | grep -v "resourceVersion\|uid\|creationTimestamp\|selfLink\|namespace:" \
+  | sed "s|^  name:|  namespace: $NEW_NS\n  name:|" \
+  > /tmp/zxporter-secret.yaml
+echo "Secret saved to /tmp/zxporter-secret.yaml"
+
+# Also try to export credentials secret (PAT token) if it exists
+kubectl get secret devzero-zxporter-credentials -n $OLD_NS -o yaml 2>/dev/null \
+  | grep -v "resourceVersion\|uid\|creationTimestamp\|selfLink\|namespace:" \
+  | sed "s|^  name:|  namespace: $NEW_NS\n  name:|" \
+  > /tmp/zxporter-credentials.yaml 2>/dev/null
+if [ -s /tmp/zxporter-credentials.yaml ]; then
+  echo "Credentials Secret saved to /tmp/zxporter-credentials.yaml"
+else
+  echo "No credentials Secret found (using cluster token directly — this is fine)"
+  rm -f /tmp/zxporter-credentials.yaml
+fi
+```
+
+**Verify the exports look correct:**
+```bash
+echo "=== ConfigMap values ==="
+grep -E "DAKR_URL|CLUSTER_TOKEN|KUBE_CONTEXT|K8S_PROVIDER|LOG_LEVEL" /tmp/zxporter-configmap.yaml
+echo ""
+echo "=== Secret values ==="
+grep "CLUSTER_TOKEN" /tmp/zxporter-secret.yaml
+echo ""
+echo "=== Target namespace ==="
+grep "namespace:" /tmp/zxporter-configmap.yaml /tmp/zxporter-secret.yaml
+```
+
+> **STOP if the exports are empty or broken.** You saved the values in Step 2 — worst case you can recreate them manually later.
+
+**4e: Delete the old namespace:**
 ```bash
 kubectl delete namespace $OLD_NS 2>/dev/null
 echo "Waiting for namespace to be deleted..."
 sleep 5
 ```
 
-**4e: If the namespace is stuck in `Terminating`:**
+**4f: If the namespace is stuck in `Terminating`:**
 ```bash
 # Check
 kubectl get namespace $OLD_NS 2>&1
@@ -364,7 +414,7 @@ kubectl delete apiservice v1beta1.metrics.k8s.io 2>/dev/null
 
 > **What is happening:** We completely removed the old installation. The cluster is clean.
 
-**4f: Verify clean:**
+**4g: Verify clean:**
 ```bash
 echo "=== Verification ==="
 echo "Namespaces (should be empty):"
@@ -378,15 +428,69 @@ echo "Ready to install new zxporter!"
 
 ---
 
-### Step 5: Apply the new manifest
+### Step 5: Create namespace, restore config, and apply
 
-This creates the new `devzero-system` namespace and installs everything.
+**5a: Create the new namespace:**
+```bash
+kubectl create namespace $NEW_NS 2>/dev/null || true
+echo "Namespace $NEW_NS ready"
+```
 
+**5b: Restore ConfigMap and Secret into the new namespace:**
+
+This is critical — the `installer_updater.yaml` does NOT include these, so zxporter needs them to exist before it starts.
+
+```bash
+echo "Restoring ConfigMap..."
+kubectl apply -f /tmp/zxporter-configmap.yaml
+echo ""
+
+echo "Restoring Secret..."
+kubectl apply -f /tmp/zxporter-secret.yaml
+echo ""
+
+# Restore credentials secret if it was exported
+if [ -f /tmp/zxporter-credentials.yaml ]; then
+  echo "Restoring Credentials Secret..."
+  kubectl apply -f /tmp/zxporter-credentials.yaml
+fi
+```
+
+**Verify they're in the right namespace:**
+```bash
+echo "ConfigMap:"
+kubectl get configmap devzero-zxporter-env-config -n $NEW_NS
+echo ""
+echo "Secret:"
+kubectl get secret devzero-zxporter-token -n $NEW_NS
+echo ""
+echo "Token value (should not be empty):"
+kubectl get secret devzero-zxporter-token -n $NEW_NS -o jsonpath='{.data.CLUSTER_TOKEN}' | base64 -d
+```
+
+> **If ConfigMap or Secret is missing:** Recreate them manually from the values you saved in Step 2:
+> ```bash
+> kubectl create configmap devzero-zxporter-env-config -n $NEW_NS \
+>   --from-literal=DAKR_URL="$DAKR_URL" \
+>   --from-literal=KUBE_CONTEXT_NAME="$CLUSTER_NAME" \
+>   --from-literal=K8S_PROVIDER="$K8S_PROVIDER" \
+>   --from-literal=LOG_LEVEL="${LOG_LEVEL:-error}" \
+>   --from-literal=USE_SECRET_FOR_TOKEN="true" \
+>   --from-literal=TOKEN_CONFIGMAP_NAME="devzero-zxporter-env-config" \
+>   --from-literal=TOKEN_SECRET_NAME="devzero-zxporter-token" \
+>   --from-literal=TOKEN_CREDENTIALS_SECRET_NAME="devzero-zxporter-credentials" \
+>   --from-literal=TOKEN_RUNTIME_SECRET_NAME="devzero-zxporter-token"
+>
+> kubectl create secret generic devzero-zxporter-token -n $NEW_NS \
+>   --from-literal=CLUSTER_TOKEN="$CLUSTER_TOKEN"
+> ```
+
+**5c: Apply the new manifest:**
 ```bash
 kubectl apply -f /tmp/new-zxporter.yaml
 ```
 
-> **What is happening:** This creates the namespace, RBAC, ConfigMap, Secret, zxporter Deployment (2 replicas), nodemon DaemonSet (1 pod per node), and a one-time Prometheus cleanup Job (harmless — finds nothing since we already cleaned up).
+> **What is happening:** The manifest creates RBAC, zxporter Deployment (2 replicas), nodemon DaemonSet (1 pod per node), and a Prometheus cleanup Job (harmless). The ConfigMap and Secret we just restored provide the token and config that zxporter reads on startup.
 
 ---
 
@@ -551,7 +655,7 @@ helm upgrade dakr <chart> --namespace dakr-operator --reuse-values \
 ### Step 10: Clean up the temp file
 
 ```bash
-rm -f /tmp/new-zxporter.yaml
+rm -f /tmp/new-zxporter.yaml /tmp/zxporter-configmap.yaml /tmp/zxporter-secret.yaml /tmp/zxporter-credentials.yaml
 echo "Migration complete!"
 ```
 
