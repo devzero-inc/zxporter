@@ -157,81 +157,51 @@ echo "If anything critical is missing, DO NOT continue. Get it from the DevZero 
 
 ### Step 3: Validate the new manifest
 
-Check that the downloaded manifest has the right values. The DAKR backend should have templated most of them, but verify.
+The `installer_updater.yaml` does NOT contain the ConfigMap or Secret (those are managed separately — see Step 4d and 5b). It only contains the Deployment, RBAC, nodemon DaemonSet, and cleanup Job. Verify the things that ARE in it:
 
 ```bash
-echo "=== Checking manifest values ==="
+echo "=== Checking manifest ==="
 echo ""
-echo "Token in manifest:"
-grep "CLUSTER_TOKEN:" /tmp/new-zxporter.yaml | head -2
-echo ""
-echo "DAKR URL in manifest:"
-grep "DAKR_URL:" /tmp/new-zxporter.yaml
-echo ""
-echo "Cluster name in manifest:"
-grep "KUBE_CONTEXT_NAME:" /tmp/new-zxporter.yaml
-echo ""
-echo "Provider in manifest:"
-grep "K8S_PROVIDER:" /tmp/new-zxporter.yaml
-echo ""
-echo "Namespace in manifest:"
+echo "Namespace used:"
 grep "namespace:" /tmp/new-zxporter.yaml | sort -u
 echo ""
-echo "Images in manifest:"
+echo "Images:"
 grep "image:" /tmp/new-zxporter.yaml
+echo ""
+echo "Resource kinds:"
+grep "^kind:" /tmp/new-zxporter.yaml | sort | uniq -c
 ```
 
 **Check these things:**
 
 | Field | What to look for | Problem if wrong |
 |-------|-----------------|------------------|
-| CLUSTER_TOKEN | Should be your actual `dakr-xxx...` token | Auth will fail |
-| DAKR_URL | Should match your environment (`dakr.devzero.io` or `dakr.devzero.dev`) | Won't connect |
-| KUBE_CONTEXT_NAME | Should be your cluster name | Dashboard shows wrong cluster |
-| K8S_PROVIDER | `aws`, `gcp`, `azure`, `oci`, or `other` | Minor — affects provider-specific features |
-| namespace | Should be `devzero-system` (we'll standardize on this) | See Step 3b |
-| image | Should be the new zxporter version, NOT `ttl.sh` | Won't run |
+| namespace | Should be `devzero-system` (we'll standardize). If it says `devzero-zxporter`, fix in 3a. | Resources go to wrong namespace |
+| image | Should be the new zxporter/nodemon version, NOT `ttl.sh` | Pods won't start |
+| kinds | Should include Deployment, DaemonSet, ServiceAccount, ClusterRole, etc. | Manifest is incomplete |
 
-**3a: If any values need fixing, patch them:**
-```bash
-# Example: fix DAKR URL
-sed -i '' "s|DAKR_URL:.*|DAKR_URL: $DAKR_URL|g" /tmp/new-zxporter.yaml
+> **Note:** You will NOT see `CLUSTER_TOKEN`, `DAKR_URL`, `K8S_PROVIDER`, or `KUBE_CONTEXT_NAME` in this file. Those live in the ConfigMap and Secret which we export in Step 4d and restore in Step 5b.
 
-# Example: fix cluster name
-sed -i '' "s|KUBE_CONTEXT_NAME:.*|KUBE_CONTEXT_NAME: $CLUSTER_NAME|g" /tmp/new-zxporter.yaml
+**3a: Fix the namespace (if needed):**
 
-# Example: fix provider
-sed -i '' "s|K8S_PROVIDER:.*|K8S_PROVIDER: $K8S_PROVIDER|g" /tmp/new-zxporter.yaml
-
-# Example: fix log level
-sed -i '' "s|LOG_LEVEL:.*|LOG_LEVEL: ${LOG_LEVEL:-error}|g" /tmp/new-zxporter.yaml
-```
-
-**3b: Ensure all resources target `devzero-system` namespace:**
-
-The new zxporter installs into `devzero-system` by default. If the manifest has a different namespace, or you want to standardize:
+If the manifest says `devzero-zxporter` but you want `devzero-system`:
 
 ```bash
-# Check what namespace the manifest uses
+# Change namespace: field on all resources
+sed -i '' "s|namespace: devzero-zxporter|namespace: devzero-system|g" /tmp/new-zxporter.yaml
+
+# Change the Namespace resource's own name (the $ ensures we don't match
+# resource names like devzero-zxporter-controller-manager)
+sed -i '' "s|name: devzero-zxporter$|name: devzero-system|g" /tmp/new-zxporter.yaml
+
+# Verify
 grep "namespace:" /tmp/new-zxporter.yaml | sort -u
-
-# If it already says devzero-system everywhere, you're good — skip to Step 4.
-#
-# If it says a different namespace (e.g., devzero-zxporter), run these TWO seds:
-#
-# 1. Change the namespace: field on all resources (where they get deployed):
-# sed -i '' "s|namespace: devzero-zxporter|namespace: devzero-system|g" /tmp/new-zxporter.yaml
-#
-# 2. Change the Namespace resource's own name (so it creates devzero-system, not devzero-zxporter):
-#    This ONLY matches "  name: devzero-zxporter" lines (the Namespace kind's metadata.name).
-#    It will NOT match resource names like "devzero-zxporter-controller-manager" because
-#    those have a suffix after "devzero-zxporter".
-# sed -i '' "s|name: devzero-zxporter$|name: devzero-system|g" /tmp/new-zxporter.yaml
+# Should all say devzero-system now
 ```
 
-> **What is happening:** We're making sure the manifest is 100% correct before applying. No surprises.
+> **What is happening:** We're making sure the manifest targets the right namespace and has the right images before applying. ConfigMap/Secret values are handled separately in Steps 4d and 5b.
 
-**3c: Adjust zxporter resource requests based on cluster size:**
+**3b: Adjust zxporter resource requests based on cluster size:**
 
 The default resource requests (`cpu: 200m`, `memory: 128Mi`) are for small clusters. For larger clusters, zxporter processes more pods/nodes per cycle and needs more resources. Check your cluster size and adjust:
 
