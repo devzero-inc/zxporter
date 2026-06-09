@@ -250,68 +250,18 @@ awk '/kind: Deployment/,/^---/' /tmp/new-zxporter.yaml | grep -A4 "resources:"
 
 ---
 
-### Step 4: Delete the old zxporter entirely
+### Step 4: Export config and clean up old zxporter
 
-Now we nuke everything. The old namespace, all resources, all RBAC.
+> **WARNING: Read this before doing anything.**
+> - If old zxporter is in `devzero-zxporter` (or any **dedicated** namespace) → we delete the ENTIRE namespace (safe)
+> - If old zxporter is in `devzero-system` → we delete ONLY zxporter resources by name (**DO NOT** `delete all --all` — DAKR operator and other components live here too)
 
-**4a: Uninstall Helm releases (if installed via Helm):**
-```bash
-helm uninstall zxporter -n $OLD_NS 2>/dev/null || true
-helm uninstall zxporter-nodemon -n $OLD_NS 2>/dev/null || true
-echo "Helm releases uninstalled (if they existed)"
-```
+**4a: Export ConfigMap and Secret FIRST (before deleting anything):**
 
-**4b: Delete all resources in the old namespace:**
-```bash
-echo "Deleting all resources in $OLD_NS..."
-kubectl delete all --all -n $OLD_NS 2>/dev/null
-kubectl delete configmap --all -n $OLD_NS 2>/dev/null
-kubectl delete secret --all -n $OLD_NS 2>/dev/null
-kubectl delete pdb --all -n $OLD_NS 2>/dev/null
-kubectl delete role,rolebinding --all -n $OLD_NS 2>/dev/null
-echo "Namespace resources deleted"
-```
-
-**4c: Delete cluster-scoped resources:**
-```bash
-echo "Deleting cluster-scoped resources..."
-
-# ZXporter RBAC
-for r in devzero-zxporter-collectionpolicy-editor-role devzero-zxporter-collectionpolicy-viewer-role \
-  devzero-zxporter-manager-role devzero-zxporter-metrics-auth-role devzero-zxporter-metrics-reader; do
-  kubectl delete clusterrole "$r" --ignore-not-found
-done
-for r in devzero-zxporter-manager-rolebinding devzero-zxporter-metrics-auth-rolebinding; do
-  kubectl delete clusterrolebinding "$r" --ignore-not-found
-done
-
-# Prometheus RBAC
-for r in prometheus-dz-prometheus-server prometheus-kube-state-metrics; do
-  kubectl delete clusterrole "$r" --ignore-not-found
-  kubectl delete clusterrolebinding "$r" --ignore-not-found
-done
-
-# Nodemon RBAC
-kubectl delete clusterrole zxporter-nodemon --ignore-not-found
-kubectl delete clusterrolebinding zxporter-nodemon --ignore-not-found
-
-# Metrics-server RBAC
-kubectl delete clusterrole system:dz-metrics-server-aggregated-reader system:dz-metrics-server --ignore-not-found
-kubectl delete clusterrolebinding dz-metrics-server:system:auth-delegator system:dz-metrics-server --ignore-not-found
-kubectl delete rolebinding dz-metrics-server-auth-reader -n kube-system --ignore-not-found
-
-# Priority class
-kubectl delete priorityclass devzero-zxporter-devzero-zxporter-critical --ignore-not-found
-
-echo "Cluster resources deleted"
-```
-
-**4d: Export ConfigMap and Secret before deleting the namespace:**
-
-> **CRITICAL:** The `installer_updater.yaml` (used for existing clusters) does NOT include the ConfigMap or Secret — it's designed to preserve them. If the old namespace gets deleted, they're gone. We must export them now.
+> **CRITICAL:** The `installer_updater.yaml` does NOT include the ConfigMap or Secret. If we delete them, zxporter can't authenticate. Export them now.
 
 ```bash
-export NEW_NS=devzero-system  # the namespace where new zxporter will live
+export NEW_NS=devzero-system
 
 echo "=== Exporting ConfigMap and Secret from $OLD_NS ==="
 
@@ -347,56 +297,175 @@ else
 fi
 ```
 
-**Verify the exports look correct:**
+**Verify the exports:**
 ```bash
 echo "=== ConfigMap values ==="
 grep -E "DAKR_URL|CLUSTER_TOKEN|KUBE_CONTEXT|K8S_PROVIDER|LOG_LEVEL" /tmp/zxporter-configmap.yaml
 echo ""
-echo "=== Secret values ==="
-grep "CLUSTER_TOKEN" /tmp/zxporter-secret.yaml
-echo ""
-echo "=== Target namespace ==="
-grep "namespace:" /tmp/zxporter-configmap.yaml /tmp/zxporter-secret.yaml
+echo "=== Secret ==="
+if [ -f /tmp/zxporter-secret.yaml ]; then
+  grep "CLUSTER_TOKEN" /tmp/zxporter-secret.yaml
+else
+  echo "No Secret file (token is in ConfigMap)"
+fi
 ```
 
-> **STOP if the exports are empty or broken.** You saved the values in Step 2 — worst case you can recreate them manually later.
+> **STOP if the exports are empty or broken.** You saved the values in Step 2 as fallback.
 
-**4e: Delete the old namespace:**
+**4b: Uninstall Helm releases (if installed via Helm):**
 ```bash
+helm uninstall zxporter -n $OLD_NS 2>/dev/null || true
+helm uninstall zxporter-nodemon -n $OLD_NS 2>/dev/null || true
+echo "Helm releases uninstalled (if they existed)"
+```
+
+**4c: Delete cluster-scoped resources (same for both paths):**
+```bash
+echo "Deleting cluster-scoped resources..."
+
+# ZXporter RBAC
+for r in devzero-zxporter-collectionpolicy-editor-role devzero-zxporter-collectionpolicy-viewer-role \
+  devzero-zxporter-manager-role devzero-zxporter-metrics-auth-role devzero-zxporter-metrics-reader; do
+  kubectl delete clusterrole "$r" --ignore-not-found
+done
+for r in devzero-zxporter-manager-rolebinding devzero-zxporter-metrics-auth-rolebinding; do
+  kubectl delete clusterrolebinding "$r" --ignore-not-found
+done
+
+# Prometheus RBAC
+for r in prometheus-dz-prometheus-server prometheus-kube-state-metrics; do
+  kubectl delete clusterrole "$r" --ignore-not-found
+  kubectl delete clusterrolebinding "$r" --ignore-not-found
+done
+
+# Nodemon RBAC
+kubectl delete clusterrole zxporter-nodemon --ignore-not-found
+kubectl delete clusterrolebinding zxporter-nodemon --ignore-not-found
+
+# Metrics-server RBAC
+kubectl delete clusterrole system:dz-metrics-server-aggregated-reader system:dz-metrics-server --ignore-not-found
+kubectl delete clusterrolebinding dz-metrics-server:system:auth-delegator system:dz-metrics-server --ignore-not-found
+kubectl delete rolebinding dz-metrics-server-auth-reader -n kube-system --ignore-not-found
+
+# Priority class
+kubectl delete priorityclass devzero-zxporter-devzero-zxporter-critical --ignore-not-found
+
+echo "Cluster resources deleted"
+```
+
+Now pick **ONE** of the two paths below:
+
+---
+
+#### 4d PATH A — Old namespace is `devzero-zxporter` (or any dedicated zxporter-only namespace)
+
+Safe to delete the entire namespace. Nothing else lives there.
+
+```bash
+echo "Deleting everything in $OLD_NS (dedicated zxporter namespace)..."
+kubectl delete all --all -n $OLD_NS 2>/dev/null
+kubectl delete configmap --all -n $OLD_NS 2>/dev/null
+kubectl delete secret --all -n $OLD_NS 2>/dev/null
+kubectl delete pdb --all -n $OLD_NS 2>/dev/null
+kubectl delete role,rolebinding --all -n $OLD_NS 2>/dev/null
 kubectl delete namespace $OLD_NS 2>/dev/null
-echo "Waiting for namespace to be deleted..."
+echo "Waiting for namespace deletion..."
 sleep 5
 ```
 
-**4f: If the namespace is stuck in `Terminating`:**
+If the namespace is stuck in `Terminating`:
 ```bash
-# Check
 kubectl get namespace $OLD_NS 2>&1
-
-# If it says "Terminating", force-remove the finalizer:
+# If it says "Terminating" for more than 1 minute, force-remove the finalizer:
 kubectl get namespace $OLD_NS -o json \
   | jq '.spec.finalizers = []' \
   | kubectl replace --raw "/api/v1/namespaces/$OLD_NS/finalize" -f -
 
-# If STILL stuck, the stale metrics APIService is blocking it:
+# If STILL stuck, a stale metrics APIService is blocking it:
 kubectl get apiservice v1beta1.metrics.k8s.io -o jsonpath='{.spec.service}' 2>/dev/null
-# If it shows "dz-metrics-server", fix it:
+# If it points to dz-metrics-server (deleted), fix it:
 kubectl patch apiservice v1beta1.metrics.k8s.io --type merge \
   -p '{"spec":{"service":{"name":"metrics-server","namespace":"kube-system","port":443}}}'
 # Or if no metrics-server exists at all:
 kubectl delete apiservice v1beta1.metrics.k8s.io 2>/dev/null
 ```
 
-> **What is happening:** We completely removed the old installation. The cluster is clean.
+---
 
-**4g: Verify clean:**
+#### 4d PATH B — Old namespace is `devzero-system` (shared namespace)
+
+> **DO NOT run `kubectl delete all --all -n devzero-system` — this will destroy the DAKR operator and every other component in the namespace.**
+
+Delete ONLY zxporter-specific resources by name:
+
+```bash
+echo "Deleting ONLY zxporter resources from $OLD_NS (keeping DAKR operator and other components)..."
+
+# ZXporter controller manager
+kubectl delete deployment devzero-zxporter-controller-manager -n $OLD_NS --ignore-not-found
+kubectl delete service devzero-zxporter-controller-manager-metrics-service -n $OLD_NS --ignore-not-found
+kubectl delete service devzero-zxporter-controller-manager-mpa -n $OLD_NS --ignore-not-found
+kubectl delete serviceaccount devzero-zxporter-controller-manager -n $OLD_NS --ignore-not-found
+kubectl delete pdb devzero-zxporter-controller-manager -n $OLD_NS --ignore-not-found
+
+# ZXporter ConfigMap and Secrets (already exported in 4a)
+kubectl delete configmap devzero-zxporter-env-config -n $OLD_NS --ignore-not-found
+kubectl delete secret devzero-zxporter-token -n $OLD_NS --ignore-not-found
+kubectl delete secret devzero-zxporter-credentials -n $OLD_NS --ignore-not-found
+
+# Roles and RoleBindings
+kubectl delete role devzero-zxporter-leader-election-role -n $OLD_NS --ignore-not-found
+kubectl delete role devzero-zxporter-metrics-auth-role -n $OLD_NS --ignore-not-found
+kubectl delete rolebinding devzero-zxporter-leader-election-rolebinding -n $OLD_NS --ignore-not-found
+kubectl delete rolebinding devzero-zxporter-metrics-auth-rolebinding -n $OLD_NS --ignore-not-found
+
+# Nodemon
+kubectl delete daemonset -l app.kubernetes.io/name=zxporter-nodemon -n $OLD_NS --ignore-not-found
+kubectl delete serviceaccount zxporter-nodemon -n $OLD_NS --ignore-not-found
+kubectl delete configmap -l app.kubernetes.io/name=zxporter-nodemon -n $OLD_NS --ignore-not-found
+
+# Prometheus server
+kubectl delete deployment prometheus-dz-prometheus-server -n $OLD_NS --ignore-not-found
+kubectl delete service prometheus-dz-prometheus-server -n $OLD_NS --ignore-not-found
+kubectl delete serviceaccount prometheus-dz-prometheus-server -n $OLD_NS --ignore-not-found
+kubectl delete configmap prometheus-dz-prometheus-server -n $OLD_NS --ignore-not-found
+
+# Kube-state-metrics
+kubectl delete deployment prometheus-kube-state-metrics -n $OLD_NS --ignore-not-found
+kubectl delete service prometheus-kube-state-metrics -n $OLD_NS --ignore-not-found
+kubectl delete serviceaccount prometheus-kube-state-metrics -n $OLD_NS --ignore-not-found
+
+# Node-exporter
+kubectl delete daemonset dz-prometheus-node-exporter -n $OLD_NS --ignore-not-found
+kubectl delete service dz-prometheus-node-exporter -n $OLD_NS --ignore-not-found
+kubectl delete serviceaccount dz-prometheus-node-exporter -n $OLD_NS --ignore-not-found
+
+# Metrics-server
+kubectl delete deployment dz-metrics-server -n $OLD_NS --ignore-not-found
+kubectl delete service dz-metrics-server -n $OLD_NS --ignore-not-found
+kubectl delete serviceaccount dz-metrics-server -n $OLD_NS --ignore-not-found
+
+echo "ZXporter resources deleted. Other components in $OLD_NS are untouched."
+```
+
+> **What is happening (PATH B):** We surgically removed only zxporter and its Prometheus components. The DAKR operator, any other deployments, and the namespace itself are left intact.
+
+---
+
+**4e: Verify cleanup:**
 ```bash
 echo "=== Verification ==="
-echo "Namespaces (should be empty):"
-kubectl get ns | grep -iE "devzero|zxporter" || echo "  (none — good)"
 echo ""
-echo "Cluster resources (should be empty):"
+echo "ZXporter resources remaining (should be empty):"
+kubectl get all -n ${OLD_NS} 2>/dev/null | grep -iE "zxporter|prometheus-dz|prometheus-kube|dz-metrics|node-exporter" || echo "  (none — good)"
+echo ""
+echo "Cluster-scoped resources (should be empty):"
 kubectl get clusterrole,clusterrolebinding | grep -iE "zxporter|prometheus-dz|prometheus-kube" || echo "  (none — good)"
+echo ""
+if [ "$OLD_NS" != "$NEW_NS" ]; then
+  echo "Old namespace (should be gone if PATH A):"
+  kubectl get ns $OLD_NS 2>&1 | grep -v "^NAME" || true
+fi
 echo ""
 echo "Ready to install new zxporter!"
 ```
