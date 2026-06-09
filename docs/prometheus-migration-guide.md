@@ -217,14 +217,16 @@ grep "namespace:" /tmp/new-zxporter.yaml | sort -u
 
 # If it already says devzero-system everywhere, you're good — skip to Step 4.
 #
-# If it says a different namespace (e.g., devzero-zxporter), and you want
-# to standardize to devzero-system, change ONLY the namespace: fields:
+# If it says a different namespace (e.g., devzero-zxporter), run these TWO seds:
+#
+# 1. Change the namespace: field on all resources (where they get deployed):
 # sed -i '' "s|namespace: devzero-zxporter|namespace: devzero-system|g" /tmp/new-zxporter.yaml
 #
-# WARNING: Do NOT blindly sed "name:" fields — those are resource names
-# (like devzero-zxporter-controller-manager), not namespaces. Only change
-# the Namespace resource's own name if needed:
-# sed -i '' 's|^  name: devzero-zxporter$|  name: devzero-system|g' /tmp/new-zxporter.yaml
+# 2. Change the Namespace resource's own name (so it creates devzero-system, not devzero-zxporter):
+#    This ONLY matches "  name: devzero-zxporter" lines (the Namespace kind's metadata.name).
+#    It will NOT match resource names like "devzero-zxporter-controller-manager" because
+#    those have a suffix after "devzero-zxporter".
+# sed -i '' "s|name: devzero-zxporter$|name: devzero-system|g" /tmp/new-zxporter.yaml
 ```
 
 > **What is happening:** We're making sure the manifest is 100% correct before applying. No surprises.
