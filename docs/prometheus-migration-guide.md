@@ -215,10 +215,16 @@ The new zxporter installs into `devzero-system` by default. If the manifest has 
 # Check what namespace the manifest uses
 grep "namespace:" /tmp/new-zxporter.yaml | sort -u
 
-# If it already says devzero-system everywhere, you're good.
-# If it says something else, standardize to devzero-system:
+# If it already says devzero-system everywhere, you're good — skip to Step 4.
+#
+# If it says a different namespace (e.g., devzero-zxporter), and you want
+# to standardize to devzero-system, change ONLY the namespace: fields:
 # sed -i '' "s|namespace: devzero-zxporter|namespace: devzero-system|g" /tmp/new-zxporter.yaml
-# sed -i '' "s|name: devzero-zxporter|name: devzero-system|g" /tmp/new-zxporter.yaml
+#
+# WARNING: Do NOT blindly sed "name:" fields — those are resource names
+# (like devzero-zxporter-controller-manager), not namespaces. Only change
+# the Namespace resource's own name if needed:
+# sed -i '' 's|^  name: devzero-zxporter$|  name: devzero-system|g' /tmp/new-zxporter.yaml
 ```
 
 > **What is happening:** We're making sure the manifest is 100% correct before applying. No surprises.
