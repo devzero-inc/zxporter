@@ -227,8 +227,8 @@ Use this table to pick the right resources:
 **To patch the resources in the manifest:**
 ```bash
 # Check the controller-manager Deployment's container resources
-# (grep "resources:" alone will match RBAC rules — use this instead)
-grep -A5 "name: manager" /tmp/new-zxporter.yaml | grep -A4 "resources:"
+# (grep "resources:" alone matches RBAC rules — isolate the Deployment block first)
+awk '/kind: Deployment/,/^---/' /tmp/new-zxporter.yaml | grep -A4 "resources:"
 
 # For a Medium cluster (10-50 nodes), patch to 200m/256Mi:
 # The easiest way is to edit the file directly:
