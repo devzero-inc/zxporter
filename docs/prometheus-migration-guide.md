@@ -226,13 +226,13 @@ Use this table to pick the right resources:
 
 **To patch the resources in the manifest:**
 ```bash
-# Check current resource settings
-grep -A4 "resources:" /tmp/new-zxporter.yaml | head -8
+# Check the controller-manager Deployment's container resources
+# (grep "resources:" alone will match RBAC rules — use this instead)
+grep -A5 "name: manager" /tmp/new-zxporter.yaml | grep -A4 "resources:"
 
 # For a Medium cluster (10-50 nodes), patch to 200m/256Mi:
-# Find the zxporter container's resources block and update it.
 # The easiest way is to edit the file directly:
-# vim /tmp/new-zxporter.yaml
+# vim /tmp/new-zxporter.yaml    (search for "name: manager", then find "resources:" below it)
 # OR use yq:
 # yq eval '(select(.kind == "Deployment") | .spec.template.spec.containers[0].resources.requests.cpu) = "200m"' -i /tmp/new-zxporter.yaml
 # yq eval '(select(.kind == "Deployment") | .spec.template.spec.containers[0].resources.requests.memory) = "256Mi"' -i /tmp/new-zxporter.yaml
