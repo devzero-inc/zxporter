@@ -7,78 +7,13 @@ The new zxporter collects all metrics via the **nodemon DaemonSet** (polling kub
 **What gets added:** nodemon DaemonSet (bundled with zxporter)
 **What gets removed:** Prometheus server, kube-state-metrics, node-exporter, dz-metrics-server
 
-**What does NOT change:** your namespace, your cluster token, your ConfigMap settings.
-
----
-
-## Resources to Delete
-
-These are the exact resources deployed by the old zxporter that are no longer needed:
-
-### Prometheus Server
-
-| Kind | Name |
-|------|------|
-| Deployment | `prometheus-dz-prometheus-server` |
-| Service | `prometheus-dz-prometheus-server` |
-| ServiceAccount | `prometheus-dz-prometheus-server` |
-| ConfigMap | `prometheus-dz-prometheus-server` |
-| ClusterRole | `prometheus-dz-prometheus-server` |
-| ClusterRoleBinding | `prometheus-dz-prometheus-server` |
-
-### Kube-State-Metrics
-
-| Kind | Name |
-|------|------|
-| Deployment | `prometheus-kube-state-metrics` |
-| Service | `prometheus-kube-state-metrics` |
-| ServiceAccount | `prometheus-kube-state-metrics` |
-| ClusterRole | `prometheus-kube-state-metrics` |
-| ClusterRoleBinding | `prometheus-kube-state-metrics` |
-
-### Node-Exporter
-
-| Kind | Name |
-|------|------|
-| DaemonSet | `dz-prometheus-node-exporter` |
-| Service | `dz-prometheus-node-exporter` |
-| ServiceAccount | `dz-prometheus-node-exporter` |
-
-### Metrics-Server (auto-installed by old zxporter entrypoint)
-
-| Kind | Name |
-|------|------|
-| Deployment | `dz-metrics-server` |
-| Service | `dz-metrics-server` |
-| ServiceAccount | `dz-metrics-server` |
-| ClusterRole | `system:dz-metrics-server-aggregated-reader` |
-| ClusterRole | `system:dz-metrics-server` |
-| ClusterRoleBinding | `dz-metrics-server:system:auth-delegator` |
-| ClusterRoleBinding | `system:dz-metrics-server` |
-| RoleBinding | `dz-metrics-server-auth-reader` (in `kube-system`) |
-
-> **Note about `v1beta1.metrics.k8s.io` APIService:** If the old zxporter's `dz-metrics-server` was serving this API, deleting it will break `kubectl top`. Most EKS/GKE/AKS clusters have their own metrics-server in `kube-system` that takes over automatically. Check with: `kubectl get apiservice v1beta1.metrics.k8s.io -o jsonpath='{.spec.service}'`
-
-### Standalone Nodemon (only if previously installed separately via Helm)
-
-| Kind | Name |
-|------|------|
-| DaemonSet | `zxporter-nodemon` |
-| ServiceAccount | `zxporter-nodemon` |
-| ConfigMap | `zxporter-nodemon-dcgm-metrics` |
-| ConfigMap | `zxporter-nodemon-zxporter-nodemon` |
-| ClusterRole | `zxporter-nodemon` |
-| ClusterRoleBinding | `zxporter-nodemon` |
+**What does NOT change:** your cluster token, your cluster identity on the dashboard.
 
 ---
 
 ## How to Upgrade
 
-### Option 1: kubectl (curl from DAKR backend)
-
-This is the standard production upgrade path. The DAKR control plane automatically detects which namespace your zxporter is in and templates the manifest accordingly.
-
-**Step 1: Upgrade zxporter**
+### Option 1: Automated (DAKR backend updater)
 
 ```bash
 curl -XPOST -H 'Authorization: Bearer <YOUR_PAT>' \
@@ -86,37 +21,14 @@ curl -XPOST -H 'Authorization: Bearer <YOUR_PAT>' \
   | kubectl apply -f -
 ```
 
-That's it. The updater:
-- Targets the correct namespace automatically (DAKR detects it from the cluster record)
-- Does NOT touch the ConfigMap (your settings are preserved)
-- Does NOT touch the Secret (your cluster token is preserved)
-- Deploys the new zxporter binary + nodemon DaemonSet
-- Includes a one-time cleanup Job that deletes the Prometheus resources listed above
+The updater auto-detects namespace, preserves ConfigMap/Secret, deploys nodemon, and runs cleanup.
 
-**Step 2: Verify**
+### Option 2: Helm upgrade
 
 ```bash
-# Find your namespace
-NS=$(kubectl get deployment -A -l control-plane=controller-manager -o jsonpath='{.items[0].metadata.namespace}')
-echo "ZXporter namespace: $NS"
-
-# Check pods
-kubectl get pods -n $NS
-
-# Expected: zxporter pods + nodemon pods running. No Prometheus pods.
-```
-
-### Option 2: Helm
-
-```bash
-# Find your namespace
 NS=$(helm list -A | grep zxporter | awk '{print $2}')
-
-# Upgrade in place
 helm upgrade zxporter <chart-source> --namespace $NS --reuse-values
 ```
-
-The Helm chart includes a post-upgrade hook that runs the same cleanup Job.
 
 ### Option 3: Fresh install (new cluster)
 
@@ -127,118 +39,234 @@ curl -XPOST -H 'Authorization: Bearer <YOUR_PAT>' \
   | kubectl apply -f -
 ```
 
-This creates a new cluster record. No cleanup needed since there's nothing old to remove.
-
 ---
 
 ## Option 4: Full Manual Migration (Step-by-Step)
 
-Use this when the automated paths above don't work, or you want full control over every step. Follow in order — do NOT skip steps.
+This is for when you want full control, or the automated paths don't work. Every step explains **what is happening** and **why**. Follow in order.
 
-### Step 1: Find where zxporter is running
+> **Time required:** 10-15 minutes
+> **Data gap:** ~2-5 minutes (between deleting old and new pods sending data)
+> **Risk:** Zero if you save the token correctly in Step 2
 
-```bash
-kubectl get deployment -A | grep zxporter-controller-manager
-```
+---
 
-You will see something like:
-```
-devzero-zxporter   devzero-zxporter-controller-manager   2/2   2   2   90d
-```
+### Step 1: Download the new zxporter manifest
 
-Set the namespace:
-```bash
-export NS=devzero-zxporter
-```
-> Replace with your actual namespace (`devzero-system`, `devzero-zxporter`, or whatever you see).
-
-### Step 2: Save your cluster token
-
-This is the **most important step**. If you lose the token, you will need to generate a new one from the DevZero dashboard.
-
-**Try the Secret first** (most common for recent installs):
-```bash
-kubectl get secret devzero-zxporter-token -n $NS -o jsonpath='{.data.CLUSTER_TOKEN}' | base64 -d
-```
-
-**If that returns empty, try the ConfigMap:**
-```bash
-kubectl get configmap devzero-zxporter-env-config -n $NS -o jsonpath='{.data.CLUSTER_TOKEN}'
-```
-
-**If BOTH are empty, check if a PAT token was used:**
-```bash
-kubectl get secret devzero-zxporter-credentials -n $NS -o jsonpath='{.data.PAT_TOKEN}' | base64 -d
-```
-
-**Save whatever you find:**
-```bash
-export CLUSTER_TOKEN="dakr-xxxxx..."   # paste your cluster token here
-# OR
-export PAT_TOKEN="dzu-xxxxx..."        # paste your PAT token here (if no cluster token)
-```
-
-> **STOP HERE if you have neither a cluster token nor a PAT token.** Go to the DevZero dashboard, find your cluster, and generate a new token before continuing.
-
-### Step 3: Save your current config
+Get the install command from the DevZero UI. It looks like this:
 
 ```bash
-export DAKR_URL=$(kubectl get configmap devzero-zxporter-env-config -n $NS -o jsonpath='{.data.DAKR_URL}')
-export CLUSTER_NAME=$(kubectl get configmap devzero-zxporter-env-config -n $NS -o jsonpath='{.data.KUBE_CONTEXT_NAME}')
-export K8S_PROVIDER=$(kubectl get configmap devzero-zxporter-env-config -n $NS -o jsonpath='{.data.K8S_PROVIDER}')
-export LOG_LEVEL=$(kubectl get configmap devzero-zxporter-env-config -n $NS -o jsonpath='{.data.LOG_LEVEL}')
+curl -XPOST \
+  -H "Authorization: Bearer <YOUR_PAT_OR_BEARER_TOKEN>" \
+  -H "X-Kube-Context-Name: <CLUSTER_NAME>" \
+  "<DAKR_URL>/dakr/installer-manifest?cluster-provider=<PROVIDER>" \
+  | kubectl apply -f -
 ```
 
-**Verify you have everything:**
+**Do NOT run this yet.** Instead, save the manifest to a file for inspection:
+
 ```bash
-echo "Namespace:    $NS"
-echo "Token:        ${CLUSTER_TOKEN:-(not set)}"
-echo "PAT:          ${PAT_TOKEN:-(not set)}"
-echo "DAKR URL:     $DAKR_URL"
-echo "Cluster name: $CLUSTER_NAME"
-echo "Provider:     $K8S_PROVIDER"
-echo "Log level:    $LOG_LEVEL"
+curl -XPOST \
+  -H "Authorization: Bearer <YOUR_PAT_OR_BEARER_TOKEN>" \
+  -H "X-Kube-Context-Name: <CLUSTER_NAME>" \
+  "<DAKR_URL>/dakr/installer-manifest?cluster-provider=<PROVIDER>" \
+  > /tmp/new-zxporter.yaml
 ```
 
-> **Check:** At minimum you need NS, a token (cluster or PAT), DAKR_URL, and CLUSTER_NAME. If any are missing, get them from your DevZero dashboard before continuing.
+> **What is happening:** We're downloading the new manifest but NOT applying it yet. We'll inspect and patch it first.
+
+**Verify the file is valid:**
+```bash
+wc -l /tmp/new-zxporter.yaml
+# Should be 500+ lines. If it's 0 or just an error message, the curl failed.
+# Check: cat /tmp/new-zxporter.yaml | head -20
+```
+
+---
+
+### Step 2: Backup your current cluster config
+
+Find where the old zxporter is running and save ALL the config we need.
+
+**2a: Find the namespace:**
+```bash
+export OLD_NS=$(kubectl get deployment -A -l control-plane=controller-manager \
+  -o jsonpath='{.items[0].metadata.namespace}' 2>/dev/null)
+echo "Old zxporter namespace: $OLD_NS"
+```
+
+> If this returns empty, try: `kubectl get deployment -A | grep zxporter`
+
+**2b: Save the cluster token** (MOST IMPORTANT — do not lose this):
+```bash
+# Try Secret first (most common)
+export CLUSTER_TOKEN=$(kubectl get secret devzero-zxporter-token -n $OLD_NS \
+  -o jsonpath='{.data.CLUSTER_TOKEN}' 2>/dev/null | base64 -d)
+
+# If empty, try ConfigMap
+if [ -z "$CLUSTER_TOKEN" ]; then
+  export CLUSTER_TOKEN=$(kubectl get configmap devzero-zxporter-env-config -n $OLD_NS \
+    -o jsonpath='{.data.CLUSTER_TOKEN}' 2>/dev/null)
+fi
+
+# If still empty, try PAT token
+if [ -z "$CLUSTER_TOKEN" ]; then
+  export PAT_TOKEN=$(kubectl get secret devzero-zxporter-credentials -n $OLD_NS \
+    -o jsonpath='{.data.PAT_TOKEN}' 2>/dev/null | base64 -d)
+fi
+
+echo "Cluster token: ${CLUSTER_TOKEN:-(not found)}"
+echo "PAT token:     ${PAT_TOKEN:-(not found)}"
+```
+
+> **STOP if both are empty.** Go to the DevZero dashboard → Clusters → your cluster → copy the token.
+
+**2c: Save other config values:**
+```bash
+export DAKR_URL=$(kubectl get configmap devzero-zxporter-env-config -n $OLD_NS \
+  -o jsonpath='{.data.DAKR_URL}')
+export CLUSTER_NAME=$(kubectl get configmap devzero-zxporter-env-config -n $OLD_NS \
+  -o jsonpath='{.data.KUBE_CONTEXT_NAME}')
+export K8S_PROVIDER=$(kubectl get configmap devzero-zxporter-env-config -n $OLD_NS \
+  -o jsonpath='{.data.K8S_PROVIDER}')
+export LOG_LEVEL=$(kubectl get configmap devzero-zxporter-env-config -n $OLD_NS \
+  -o jsonpath='{.data.LOG_LEVEL}')
+```
+
+**2d: Print everything and verify:**
+```bash
+echo "========================================="
+echo " BACKUP COMPLETE — VERIFY BEFORE CONTINUING"
+echo "========================================="
+echo "Old namespace:  $OLD_NS"
+echo "Cluster token:  ${CLUSTER_TOKEN:-(NOT SET)}"
+echo "PAT token:      ${PAT_TOKEN:-(NOT SET)}"
+echo "DAKR URL:       $DAKR_URL"
+echo "Cluster name:   $CLUSTER_NAME"
+echo "Provider:       $K8S_PROVIDER"
+echo "Log level:      ${LOG_LEVEL:-(default)}"
+echo "========================================="
+echo ""
+echo "CHECK: Do you have at least a token (cluster or PAT), DAKR URL, and cluster name?"
+echo "If anything critical is missing, DO NOT continue. Get it from the DevZero dashboard."
+```
+
+> **What is happening:** We're saving everything we need to configure the new install. If we mess up later, we can start over with these values.
+
+---
+
+### Step 3: Validate the new manifest
+
+Check that the downloaded manifest has the right values. The DAKR backend should have templated most of them, but verify.
+
+```bash
+echo "=== Checking manifest values ==="
+echo ""
+echo "Token in manifest:"
+grep "CLUSTER_TOKEN:" /tmp/new-zxporter.yaml | head -2
+echo ""
+echo "DAKR URL in manifest:"
+grep "DAKR_URL:" /tmp/new-zxporter.yaml
+echo ""
+echo "Cluster name in manifest:"
+grep "KUBE_CONTEXT_NAME:" /tmp/new-zxporter.yaml
+echo ""
+echo "Provider in manifest:"
+grep "K8S_PROVIDER:" /tmp/new-zxporter.yaml
+echo ""
+echo "Namespace in manifest:"
+grep "namespace:" /tmp/new-zxporter.yaml | sort -u
+echo ""
+echo "Images in manifest:"
+grep "image:" /tmp/new-zxporter.yaml
+```
+
+**Check these things:**
+
+| Field | What to look for | Problem if wrong |
+|-------|-----------------|------------------|
+| CLUSTER_TOKEN | Should be your actual `dakr-xxx...` token | Auth will fail |
+| DAKR_URL | Should match your environment (`dakr.devzero.io` or `dakr.devzero.dev`) | Won't connect |
+| KUBE_CONTEXT_NAME | Should be your cluster name | Dashboard shows wrong cluster |
+| K8S_PROVIDER | `aws`, `gcp`, `azure`, `oci`, or `other` | Minor — affects provider-specific features |
+| namespace | Should be `devzero-system` (we'll standardize on this) | See Step 3b |
+| image | Should be the new zxporter version, NOT `ttl.sh` | Won't run |
+
+**3a: If any values need fixing, patch them:**
+```bash
+# Example: fix DAKR URL
+sed -i '' "s|DAKR_URL:.*|DAKR_URL: $DAKR_URL|g" /tmp/new-zxporter.yaml
+
+# Example: fix cluster name
+sed -i '' "s|KUBE_CONTEXT_NAME:.*|KUBE_CONTEXT_NAME: $CLUSTER_NAME|g" /tmp/new-zxporter.yaml
+
+# Example: fix provider
+sed -i '' "s|K8S_PROVIDER:.*|K8S_PROVIDER: $K8S_PROVIDER|g" /tmp/new-zxporter.yaml
+
+# Example: fix log level
+sed -i '' "s|LOG_LEVEL:.*|LOG_LEVEL: ${LOG_LEVEL:-error}|g" /tmp/new-zxporter.yaml
+```
+
+**3b: Ensure all resources target `devzero-system` namespace:**
+
+The new zxporter installs into `devzero-system` by default. If the manifest has a different namespace, or you want to standardize:
+
+```bash
+# Check what namespace the manifest uses
+grep "namespace:" /tmp/new-zxporter.yaml | sort -u
+
+# If it already says devzero-system everywhere, you're good.
+# If it says something else, standardize to devzero-system:
+# sed -i '' "s|namespace: devzero-zxporter|namespace: devzero-system|g" /tmp/new-zxporter.yaml
+# sed -i '' "s|name: devzero-zxporter|name: devzero-system|g" /tmp/new-zxporter.yaml
+```
+
+> **What is happening:** We're making sure the manifest is 100% correct before applying. No surprises.
+
+---
 
 ### Step 4: Delete the old zxporter entirely
 
-We're going to delete everything — the deployment, Prometheus, nodemon, Helm releases, and the namespace itself. This is a clean-slate approach.
+Now we nuke everything. The old namespace, all resources, all RBAC.
 
 **4a: Uninstall Helm releases (if installed via Helm):**
 ```bash
-helm uninstall zxporter -n $NS 2>/dev/null || true
-helm uninstall zxporter-nodemon -n $NS 2>/dev/null || true
+helm uninstall zxporter -n $OLD_NS 2>/dev/null || true
+helm uninstall zxporter-nodemon -n $OLD_NS 2>/dev/null || true
+echo "Helm releases uninstalled (if they existed)"
 ```
 
-**4b: Delete all resources in the namespace:**
+**4b: Delete all resources in the old namespace:**
 ```bash
-kubectl delete all --all -n $NS
-kubectl delete configmap --all -n $NS
-kubectl delete secret --all -n $NS
-kubectl delete pdb --all -n $NS
-kubectl delete role,rolebinding --all -n $NS
+echo "Deleting all resources in $OLD_NS..."
+kubectl delete all --all -n $OLD_NS 2>/dev/null
+kubectl delete configmap --all -n $OLD_NS 2>/dev/null
+kubectl delete secret --all -n $OLD_NS 2>/dev/null
+kubectl delete pdb --all -n $OLD_NS 2>/dev/null
+kubectl delete role,rolebinding --all -n $OLD_NS 2>/dev/null
+echo "Namespace resources deleted"
 ```
 
-**4c: Delete cluster-scoped resources left by old zxporter:**
+**4c: Delete cluster-scoped resources:**
 ```bash
+echo "Deleting cluster-scoped resources..."
+
 # ZXporter RBAC
-kubectl delete clusterrole devzero-zxporter-collectionpolicy-editor-role --ignore-not-found
-kubectl delete clusterrole devzero-zxporter-collectionpolicy-viewer-role --ignore-not-found
-kubectl delete clusterrole devzero-zxporter-manager-role --ignore-not-found
-kubectl delete clusterrole devzero-zxporter-metrics-auth-role --ignore-not-found
-kubectl delete clusterrole devzero-zxporter-metrics-reader --ignore-not-found
-kubectl delete clusterrolebinding devzero-zxporter-manager-rolebinding --ignore-not-found
-kubectl delete clusterrolebinding devzero-zxporter-metrics-auth-rolebinding --ignore-not-found
+for r in devzero-zxporter-collectionpolicy-editor-role devzero-zxporter-collectionpolicy-viewer-role \
+  devzero-zxporter-manager-role devzero-zxporter-metrics-auth-role devzero-zxporter-metrics-reader; do
+  kubectl delete clusterrole "$r" --ignore-not-found
+done
+for r in devzero-zxporter-manager-rolebinding devzero-zxporter-metrics-auth-rolebinding; do
+  kubectl delete clusterrolebinding "$r" --ignore-not-found
+done
 
 # Prometheus RBAC
-kubectl delete clusterrole prometheus-dz-prometheus-server --ignore-not-found
-kubectl delete clusterrole prometheus-kube-state-metrics --ignore-not-found
-kubectl delete clusterrolebinding prometheus-dz-prometheus-server --ignore-not-found
-kubectl delete clusterrolebinding prometheus-kube-state-metrics --ignore-not-found
+for r in prometheus-dz-prometheus-server prometheus-kube-state-metrics; do
+  kubectl delete clusterrole "$r" --ignore-not-found
+  kubectl delete clusterrolebinding "$r" --ignore-not-found
+done
 
-# Standalone nodemon RBAC
+# Nodemon RBAC
 kubectl delete clusterrole zxporter-nodemon --ignore-not-found
 kubectl delete clusterrolebinding zxporter-nodemon --ignore-not-found
 
@@ -249,368 +277,287 @@ kubectl delete rolebinding dz-metrics-server-auth-reader -n kube-system --ignore
 
 # Priority class
 kubectl delete priorityclass devzero-zxporter-devzero-zxporter-critical --ignore-not-found
+
+echo "Cluster resources deleted"
 ```
 
-**4d: Delete the namespace:**
+**4d: Delete the old namespace:**
 ```bash
-kubectl delete namespace $NS
+kubectl delete namespace $OLD_NS 2>/dev/null
+echo "Waiting for namespace to be deleted..."
+sleep 5
 ```
 
-**4e: If the namespace is stuck in `Terminating` state:**
-
-This happens when a stale APIService (like `v1beta1.metrics.k8s.io` pointing to the deleted `dz-metrics-server`) blocks namespace finalization.
-
-Check if it's stuck:
+**4e: If the namespace is stuck in `Terminating`:**
 ```bash
-kubectl get namespace $NS
-# If it shows "Terminating" for more than 1 minute, it's stuck
-```
+# Check
+kubectl get namespace $OLD_NS 2>&1
 
-Force-remove the finalizer:
-```bash
-kubectl get namespace $NS -o json \
+# If it says "Terminating", force-remove the finalizer:
+kubectl get namespace $OLD_NS -o json \
   | jq '.spec.finalizers = []' \
-  | kubectl replace --raw "/api/v1/namespaces/$NS/finalize" -f -
+  | kubectl replace --raw "/api/v1/namespaces/$OLD_NS/finalize" -f -
+
+# If STILL stuck, the stale metrics APIService is blocking it:
+kubectl get apiservice v1beta1.metrics.k8s.io -o jsonpath='{.spec.service}' 2>/dev/null
+# If it shows "dz-metrics-server", fix it:
+kubectl patch apiservice v1beta1.metrics.k8s.io --type merge \
+  -p '{"spec":{"service":{"name":"metrics-server","namespace":"kube-system","port":443}}}'
+# Or if no metrics-server exists at all:
+kubectl delete apiservice v1beta1.metrics.k8s.io 2>/dev/null
 ```
 
-Wait and verify it's gone:
+> **What is happening:** We completely removed the old installation. The cluster is clean.
+
+**4f: Verify clean:**
 ```bash
-kubectl get namespace $NS 2>&1
-# Should say: "Error from server (NotFound): namespaces "xxx" not found"
+echo "=== Verification ==="
+echo "Namespaces (should be empty):"
+kubectl get ns | grep -iE "devzero|zxporter" || echo "  (none — good)"
+echo ""
+echo "Cluster resources (should be empty):"
+kubectl get clusterrole,clusterrolebinding | grep -iE "zxporter|prometheus-dz|prometheus-kube" || echo "  (none — good)"
+echo ""
+echo "Ready to install new zxporter!"
 ```
 
-> **If it's STILL stuck:** The stale `v1beta1.metrics.k8s.io` APIService is the cause. Fix it first, then the namespace will finalize:
-> ```bash
-> # Check what it points to
-> kubectl get apiservice v1beta1.metrics.k8s.io -o jsonpath='{.spec.service}'
->
-> # If it points to dz-metrics-server (deleted), fix it:
-> kubectl patch apiservice v1beta1.metrics.k8s.io --type merge \
->   -p '{"spec":{"service":{"name":"metrics-server","namespace":"kube-system","port":443}}}'
->
-> # If your cluster has no metrics-server at all, delete the stale APIService:
-> kubectl delete apiservice v1beta1.metrics.k8s.io
-> ```
-> After fixing the APIService, the stuck namespace should finalize within 30 seconds.
+---
 
-**4f: Verify the cluster is clean:**
+### Step 5: Apply the new manifest
+
+This creates the new `devzero-system` namespace and installs everything.
+
 ```bash
-# No zxporter namespaces
-kubectl get ns | grep -iE "devzero|zxporter"
-# Should return nothing
-
-# No zxporter cluster resources
-kubectl get clusterrole,clusterrolebinding | grep -iE "zxporter|prometheus-dz|prometheus-kube"
-# Should return nothing
+kubectl apply -f /tmp/new-zxporter.yaml
 ```
 
-### Step 5: Install the new zxporter
+> **What is happening:** This creates the namespace, RBAC, ConfigMap, Secret, zxporter Deployment (2 replicas), nodemon DaemonSet (1 pod per node), and a one-time Prometheus cleanup Job (harmless — finds nothing since we already cleaned up).
 
-Choose ONE of these sub-options:
+---
 
-#### 5a: Using Helm (recommended)
-
-```bash
-# If old Helm release exists, uninstall it first
-helm uninstall zxporter -n $NS 2>/dev/null || true
-
-# Update subchart dependency
-helm dependency update ./helm-chart/zxporter/
-
-# Install
-helm install zxporter ./helm-chart/zxporter \
-  --namespace $NS --create-namespace \
-  --set zxporter.clusterToken="$CLUSTER_TOKEN" \
-  --set zxporter.kubeContextName="$CLUSTER_NAME" \
-  --set zxporter.k8sProvider="$K8S_PROVIDER" \
-  --set zxporter.dakrUrl="$DAKR_URL" \
-  --set zxporter.logLevel="${LOG_LEVEL:-error}" \
-  --set zxporter-nodemon.provider="$K8S_PROVIDER"
-```
-
-> If using PAT token instead of cluster token, replace `--set zxporter.clusterToken=...` with `--set zxporter.patToken="$PAT_TOKEN"`.
-
-> For clusters without GPUs, add: `--set zxporter.disableGPUMetrics=true`
-
-#### 5b: Using kubectl apply (dist/install.yaml)
-
-The `dist/install.yaml` defaults to `devzero-system` namespace. If your old install was in a **different namespace** (e.g., `devzero-zxporter`), you need to sed the namespace too.
-
-**If installing into `devzero-system` (default):**
-```bash
-cat dist/install.yaml | sed \
-  "s|CLUSTER_TOKEN: \"\"|CLUSTER_TOKEN: \"$CLUSTER_TOKEN\"|g" | sed \
-  "s|DAKR_URL: https://dakr.devzero.io|DAKR_URL: $DAKR_URL|g" | sed \
-  "s|KUBE_CONTEXT_NAME: '{{ .kube_context_name }}'|KUBE_CONTEXT_NAME: $CLUSTER_NAME|g" | sed \
-  "s|K8S_PROVIDER: '{{ .k8s_provider }}'|K8S_PROVIDER: $K8S_PROVIDER|g" \
-  | kubectl apply -f -
-```
-
-**If installing into a different namespace** (e.g., `devzero-zxporter`):
-```bash
-cat dist/install.yaml | sed \
-  "s|CLUSTER_TOKEN: \"\"|CLUSTER_TOKEN: \"$CLUSTER_TOKEN\"|g" | sed \
-  "s|DAKR_URL: https://dakr.devzero.io|DAKR_URL: $DAKR_URL|g" | sed \
-  "s|KUBE_CONTEXT_NAME: '{{ .kube_context_name }}'|KUBE_CONTEXT_NAME: $CLUSTER_NAME|g" | sed \
-  "s|K8S_PROVIDER: '{{ .k8s_provider }}'|K8S_PROVIDER: $K8S_PROVIDER|g" | sed \
-  "s|namespace: devzero-system|namespace: $NS|g" | sed \
-  "s|name: devzero-system|name: $NS|g" \
-  | kubectl apply -f -
-```
-
-> **Note:** The install.yaml includes a Prometheus cleanup Job. Since you already deleted everything in Step 4, the Job will run, find nothing, exit cleanly, and self-delete after 5 minutes. This is harmless.
-
-#### 5c: Using DAKR backend curl
+### Step 6: Wait for everything to come up
 
 ```bash
-curl -XPOST \
-  -H "Authorization: Bearer $PAT_TOKEN" \
-  -H "X-Kube-Context-Name: $CLUSTER_NAME" \
-  "$DAKR_URL/dakr/installer-manifest?cluster-provider=$K8S_PROVIDER" \
-  | kubectl apply -f -
-```
+export NS=devzero-system  # the new namespace
 
-### Step 6: Wait for pods to be ready
-
-```bash
-echo "Waiting for zxporter deployment..."
+echo "Waiting for zxporter..."
 kubectl rollout status deployment/devzero-zxporter-controller-manager -n $NS --timeout=180s
 
-echo "Waiting for nodemon daemonset..."
-kubectl rollout status daemonset -l app.kubernetes.io/name=zxporter-nodemon -n $NS --timeout=180s 2>/dev/null \
-  || kubectl rollout status daemonset -l app.kubernetes.io/name=zxporter-nodemon -n $NS --timeout=180s 2>/dev/null
+echo "Waiting for nodemon..."
+kubectl rollout status daemonset -l app.kubernetes.io/name=zxporter-nodemon -n $NS --timeout=180s 2>/dev/null || true
 
-echo "All pods:"
-kubectl get pods -n $NS
+echo ""
+echo "=== All pods ==="
+kubectl get pods -n $NS -o wide
 ```
 
-Expected output:
+**What you should see:**
 ```
 devzero-zxporter-controller-manager-xxx   1/1   Running   0   30s
 devzero-zxporter-controller-manager-yyy   1/1   Running   0   30s
-zxporter-zxporter-nodemon-aaa             2/2   Running   0   30s   (one per node)
-zxporter-zxporter-nodemon-bbb             2/2   Running   0   30s
-...
+zxporter-nodemon-aaa                      2/2   Running   0   30s   (one per node)
+zxporter-nodemon-bbb                      2/2   Running   0   30s
+zxporter-nodemon-ccc                      2/2   Running   0   30s
 ```
 
-> **If nodemon shows 0/2 or CrashLoopBackOff:** Check `kubectl describe pod <nodemon-pod> -n $NS` — the most common issue is missing ConfigMaps. Reapply the manifest.
+**Troubleshooting:**
 
-> **If zxporter shows 0/1:** Check `kubectl logs deployment/devzero-zxporter-controller-manager -n $NS --tail=20` — look for auth errors (bad token) or connection errors (wrong DAKR URL).
+| Problem | Command | Fix |
+|---------|---------|-----|
+| zxporter stuck at `0/1` | `kubectl logs deployment/devzero-zxporter-controller-manager -n $NS --tail=20` | Check for `invalid token` (bad token) or `connection refused` (wrong DAKR URL) |
+| nodemon stuck at `0/2` | `kubectl describe pod -n $NS -l app.kubernetes.io/name=zxporter-nodemon \| tail -20` | Usually missing ConfigMaps — reapply manifest |
+| nodemon `ImagePullBackOff` | `kubectl describe pod -n $NS -l app.kubernetes.io/name=zxporter-nodemon \| grep Image` | Wrong image tag — check the manifest |
+| nodemon `CrashLoopBackOff` | `kubectl logs -n $NS -l app.kubernetes.io/name=zxporter-nodemon -c zxporter-nodemon --tail=20` | Check startup errors |
+
+---
 
 ### Step 7: Verify data is flowing
 
-**Check zxporter logs for successful sends:**
+**7a: Check zxporter is sending data:**
 ```bash
 kubectl logs deployment/devzero-zxporter-controller-manager -n $NS --tail=30 \
   | grep -E "Successfully sent|container_resource|node_resource|error" \
   | tail -10
 ```
 
-You should see lines like:
+**You should see:**
 ```
-Successfully sent batch  batchSize: 80
 Splitting resources into batches  resourceType: container_resource
+Successfully sent batch  batchSize: 80
 Splitting resources into batches  resourceType: node_resource
+Successfully sent batch  batchSize: 4
 ```
 
-> **If you see `"error"` lines**, read them carefully:
-> - `"invalid token"` → your cluster token is wrong. Get a new one from the dashboard.
-> - `"connection refused"` → wrong DAKR URL. Check `$DAKR_URL`.
-> - `"Failed to fetch container metrics from nodemon"` → nodemon pods aren't ready yet. Wait 30 seconds and check again.
-> - `"nodemon returned status 404"` → nodemon image is old. Make sure you're using the new nodemon image that has `/v2/container/metrics`.
-
-**Check no Prometheus errors:**
-```bash
-kubectl logs deployment/devzero-zxporter-controller-manager -n $NS --tail=50 \
-  | grep -i "prometheus"
+**You should NOT see:**
 ```
-> This should return nothing. If it shows Prometheus connection errors, the new binary isn't installed correctly.
+"invalid token"              → wrong cluster token
+"connection refused"         → wrong DAKR URL
+"nodemon returned status 404" → old nodemon image (needs /v2/container/metrics)
+"prometheus"                 → old binary still running
+```
 
-**Check the nodemon is serving data:**
+**7b: Check nodemon is serving metrics:**
 ```bash
 NODEMON_IP=$(kubectl get pods -n $NS -l app.kubernetes.io/name=zxporter-nodemon \
   -o jsonpath='{.items[0].status.podIP}')
 
-kubectl run migration-verify --rm -i --restart=Never --image=curlimages/curl -n $NS \
-  -- curl -s "http://$NODEMON_IP:6061/v2/container/metrics" | head -c 300
+kubectl run verify --rm -i --restart=Never --image=curlimages/curl -n $NS \
+  -- curl -s "http://$NODEMON_IP:6061/v2/container/metrics" | head -c 500
 ```
 
-You should see JSON with `cpu_usage_nanocores`, `memory_working_set_bytes`, etc.
+**You should see:** JSON with `cpu_usage_nanocores`, `memory_working_set_bytes`, `network_rx_bytes`, etc.
 
-### Step 8: Verify on the dashboard
-
-Open the DevZero dashboard and check your cluster:
-
-1. **Cluster overview** — CPU and Memory utilization graphs should show data within 2 minutes
-2. **Workloads** — CPU/Memory usage columns should have non-zero values
-3. **Nodes** — Node metrics should show network and disk I/O
-
-> **If the dashboard shows no data:** Wait 5 minutes (data needs to be ingested and processed). If still nothing after 5 minutes, go back to Step 7 and check the logs.
-
-### Step 9: Update DAKR operator zxporter-addr (if namespace changed)
-
-If your new zxporter is in a **different namespace** than the old one (e.g., old was in `devzero-zxporter`, new is in `devzero-system`), the DAKR operator's MPA connector still points to the old namespace and won't be able to connect to zxporter's MPA gRPC service.
-
-**Check the current setting:**
+**7c: Check no Prometheus errors:**
 ```bash
-kubectl get deployment -n dakr-operator -o jsonpath='{.items[0].spec.template.spec.containers[0].args}' \
-  -l app.kubernetes.io/name=dakr-operator | tr ',' '\n' | grep zxporter-addr
+kubectl logs deployment/devzero-zxporter-controller-manager -n $NS --tail=50 | grep -i "prometheus"
+```
+Should return nothing.
+
+---
+
+### Step 8: Verify on the DevZero dashboard
+
+1. Open your DevZero dashboard
+2. Find your cluster (same name as before)
+3. Check:
+   - **Cluster overview** — CPU/Memory utilization graphs show data (wait 2-3 minutes)
+   - **Workloads** — CPU/Memory usage columns are non-zero
+   - **Nodes** — Network and disk I/O visible
+
+> **No data after 5 minutes?** Go back to Step 7 and check the logs.
+
+---
+
+### Step 9: Update DAKR operator (if namespace changed)
+
+**Skip this step if:** your old zxporter was already in `devzero-system`.
+
+**Do this step if:** your old zxporter was in `devzero-zxporter` (or any other namespace) and the new one is in `devzero-system`.
+
+The DAKR operator connects to zxporter's MPA gRPC service using a URL that includes the namespace. If the namespace changed, the operator can't find zxporter.
+
+**9a: Check the current DAKR operator setting:**
+```bash
+kubectl get deployment -n dakr-operator -l app.kubernetes.io/name=dakr-operator \
+  -o jsonpath='{.items[0].spec.template.spec.containers[0].args}' 2>/dev/null \
+  | tr ',' '\n' | grep zxporter-addr
 ```
 
 Example output:
 ```
 "--zxporter-addr=devzero-zxporter-controller-manager-mpa.devzero-zxporter.svc.cluster.local:50051"
+                                                         ^^^^^^^^^^^^^^^^
+                                                         THIS IS THE OLD NAMESPACE
 ```
 
-**If the namespace in the URL doesn't match where you just installed zxporter**, update it.
-
-The correct format is:
-```
-devzero-zxporter-controller-manager-mpa.<YOUR_ZXPORTER_NAMESPACE>.svc.cluster.local:50051
-```
-
-**Verify which namespace has the MPA service:**
+**9b: Verify where the MPA service actually is now:**
 ```bash
 kubectl get service -A | grep mpa
 ```
 
-**Update via Helm** (replace `<NEW_NS>` with your zxporter namespace):
+Should show:
+```
+devzero-system   devzero-zxporter-controller-manager-mpa   ClusterIP   ...   50051/TCP
+```
+
+**9c: If the namespaces don't match, update the operator:**
 ```bash
-helm upgrade dakr <your-dakr-chart> \
+helm upgrade dakr <your-dakr-operator-chart> \
   --namespace dakr-operator \
   --reuse-values \
-  --set operator.zxporterAddr="devzero-zxporter-controller-manager-mpa.<NEW_NS>.svc.cluster.local:50051"
+  --set operator.zxporterAddr="devzero-zxporter-controller-manager-mpa.devzero-system.svc.cluster.local:50051"
 ```
 
-**Verify the operator connects to zxporter MPA:**
+**9d: Verify the operator connected:**
 ```bash
-# Wait for rollout
 kubectl rollout status deployment -n dakr-operator -l app.kubernetes.io/name=dakr-operator --timeout=120s
 
-# Check logs for MPA activity
-kubectl logs deployment/$(kubectl get deployment -n dakr-operator -l app.kubernetes.io/name=dakr-operator -o name | head -1 | cut -d/ -f2) \
-  -n dakr-operator --tail=20 | grep -iE "mpa|rule.*eval|metrics.*batch"
+# Check for MPA activity
+kubectl logs deployment/$(kubectl get deployment -n dakr-operator -l app.kubernetes.io/name=dakr-operator \
+  -o jsonpath='{.items[0].metadata.name}') -n dakr-operator --tail=20 \
+  | grep -iE "mpa|rule.*eval|metrics.*batch"
 ```
 
-You should see lines like:
+**You should see:**
 ```
 Initializing Rule Evaluator Controller (unified MPA)
 Received metrics batch  item_count: 5
-HPA engine decision  workload: my-app  desired_replicas: 2
 ```
 
-> **If you see `Rule Evaluator Controller is disabled`**, add `--set mpaController.enabled=true` to the Helm upgrade command.
-
-> **If the namespace didn't change** (e.g., old and new are both in `devzero-system`), skip this step — the address is already correct.
+**If you see `Rule Evaluator Controller is disabled`:**
+```bash
+helm upgrade dakr <chart> --namespace dakr-operator --reuse-values \
+  --set mpaController.enabled=true \
+  --set operator.zxporterAddr="devzero-zxporter-controller-manager-mpa.devzero-system.svc.cluster.local:50051"
+```
 
 ---
 
-## Skipping the Cleanup Job
+### Step 10: Clean up the temp file
 
-If you don't want the cleanup Job to run (e.g., the cluster never had Prometheus, or you want to clean up manually):
-
-**Helm:**
 ```bash
-helm upgrade zxporter <chart> --namespace $NS --reuse-values --no-hooks
+rm -f /tmp/new-zxporter.yaml
+echo "Migration complete!"
 ```
-
-**kubectl/manifest (build-time):**
-```bash
-make build-installer SKIP_PROMETHEUS_CLEANUP=1
-```
-
-The cleanup Job is idempotent and uses `--ignore-not-found` — it's safe to run even on clusters that never had Prometheus. All deletes succeed silently.
 
 ---
 
-## What the Cleanup Job Does
+## Quick Reference: Resources Deleted by This Migration
 
-The Job runs in the **same namespace** as zxporter. It:
+### Prometheus Server
+| Deployment | Service | ServiceAccount | ConfigMap | ClusterRole | ClusterRoleBinding |
+|---|---|---|---|---|---|
+| `prometheus-dz-prometheus-server` | `prometheus-dz-prometheus-server` | `prometheus-dz-prometheus-server` | `prometheus-dz-prometheus-server` | `prometheus-dz-prometheus-server` | `prometheus-dz-prometheus-server` |
 
-1. Creates a dedicated ServiceAccount (`zxporter-prometheus-cleanup`) with least-privilege RBAC
-2. Deletes the Prometheus resources **by exact name** (see list above)
-3. Self-deletes after 5 minutes (`ttlSecondsAfterFinished: 300`)
+### Kube-State-Metrics
+| Deployment | Service | ServiceAccount | ClusterRole | ClusterRoleBinding |
+|---|---|---|---|---|
+| `prometheus-kube-state-metrics` | `prometheus-kube-state-metrics` | `prometheus-kube-state-metrics` | `prometheus-kube-state-metrics` | `prometheus-kube-state-metrics` |
 
-**Safety guarantees:**
-- Uses `resourceNames` on every RBAC rule — can ONLY delete the specific named resources, nothing else
-- Namespaced Role — cannot touch Prometheus in other namespaces
-- Only deletes resources with names matching zxporter's Prometheus install (`prometheus-dz-*`, `dz-prometheus-*`, `prometheus-kube-state-*`)
-- Customer's own Prometheus (in `monitoring` or any other namespace) is never affected
-- `--ignore-not-found` on every delete — clean exit on fresh clusters
+### Node-Exporter
+| DaemonSet | Service | ServiceAccount |
+|---|---|---|
+| `dz-prometheus-node-exporter` | `dz-prometheus-node-exporter` | `dz-prometheus-node-exporter` |
 
----
-
-## What Stays the Same After Upgrade
-
-| Item | Change? | Detail |
-|------|---------|--------|
-| Namespace | **No change** | Stays in `devzero-zxporter` or `devzero-system` — wherever it was |
-| Cluster token | **No change** | Not touched, whether in Secret or ConfigMap |
-| ConfigMap | **No change** | All settings preserved (excluded namespaces, log level, etc.) |
-| Secret | **No change** | Token Secret preserved |
-| Cluster identity on dashboard | **No change** | Same cluster, same history, same recommendations |
-| DAKR operator | **No change** | Unaffected by zxporter upgrade |
-
----
-
-## Rollback
-
-If something goes wrong and you need to go back to the old version:
-
-**Helm:**
-```bash
-helm rollback zxporter -n $NS
-```
-
-**kubectl:**
-```bash
-# Scale down new zxporter
-kubectl scale deployment devzero-zxporter-controller-manager -n $NS --replicas=0
-
-# Re-apply the old installer from the DAKR backend
-curl -XPOST -H 'Authorization: Bearer <YOUR_PAT>' \
-  "https://dakr.devzero.io/dakr/installer-updater" \
-  | kubectl apply -f -
-```
-
-> The old Prometheus components won't come back automatically. If you need them, re-apply the old `dist/install.yaml` from a previous release.
+### Metrics-Server
+| Deployment | Service | ServiceAccount | ClusterRoles | ClusterRoleBindings |
+|---|---|---|---|---|
+| `dz-metrics-server` | `dz-metrics-server` | `dz-metrics-server` | `system:dz-metrics-server`, `system:dz-metrics-server-aggregated-reader` | `dz-metrics-server:system:auth-delegator`, `system:dz-metrics-server` |
 
 ---
 
 ## FAQ
 
 **Q: Will this affect my other Prometheus installation?**
-No. The cleanup only deletes resources by exact name (`prometheus-dz-prometheus-server`, etc.) in the zxporter namespace. Your Prometheus in `monitoring` or any other namespace is untouched.
+No. Only deletes resources by exact name in the zxporter namespace.
 
-**Q: My zxporter is in `devzero-zxporter`, will this work?**
-Yes. The DAKR backend auto-detects the namespace. The cleanup Job runs in whatever namespace zxporter is installed in.
+**Q: How long is the data gap?**
+2-5 minutes between Step 4 (delete) and Step 6 (new pods start sending).
 
 **Q: Do I need to change my cluster token?**
-No. The token is not touched during upgrade.
+No. Same token works. The token is tied to your cluster record, not the namespace.
 
-**Q: What if the cleanup Job fails?**
-The new zxporter works fine regardless — Prometheus resources just sit there unused. Clean up manually when convenient using the commands in Step 4 above.
+**Q: What if I lost the token?**
+Go to DevZero dashboard → Clusters → your cluster → generate a new token.
 
-**Q: Can I still use `kubectl top` after the upgrade?**
-If your cluster has a managed metrics-server (EKS, GKE, AKS all do), yes. If `kubectl top` breaks, see Step 4e above.
+**Q: Can I still use `kubectl top` after migration?**
+Yes, if your cluster has a managed metrics-server (EKS/GKE/AKS all do). If it breaks, the old zxporter's `dz-metrics-server` was serving the API — fix it:
+```bash
+kubectl patch apiservice v1beta1.metrics.k8s.io --type merge \
+  -p '{"spec":{"service":{"name":"metrics-server","namespace":"kube-system","port":443}}}'
+```
 
-**Q: What about the `PROMETHEUS_URL` in my old ConfigMap?**
-Ignored. The new zxporter binary doesn't read it. You don't need to remove it — it's harmless.
+**Q: The cleanup Job creates extra resources (ServiceAccount, Role, etc). Is that a problem?**
+No. The Job and its RBAC auto-delete after 5 minutes via `ttlSecondsAfterFinished`. In the manual migration path, the Job finds nothing to clean (you already did it in Step 4) and exits immediately.
 
-**Q: What about `ENABLE_NODEMON_METRICS` in the ConfigMap?**
-Ignored. The new zxporter always uses nodemon. Old ConfigMap values are harmless.
+**Q: What about `PROMETHEUS_URL` or `ENABLE_NODEMON_METRICS` in the old ConfigMap?**
+Ignored. The new binary doesn't read them.
 
-**Q: How long is the data gap during manual migration?**
-From when you delete everything in Step 4 to when new pods start sending in Step 6 — typically 2-5 minutes. The dashboard will show a brief gap. Historical data is not affected.
-
-**Q: What if I have both a cluster token and a PAT token?**
-Use the cluster token. PAT tokens are exchanged for cluster tokens on startup — if you already have a cluster token, use it directly.
-
-**Q: I accidentally deleted the ConfigMap/Secret. What do I do?**
-The new install in Step 5 creates them fresh. You just need the cluster token (or PAT) to put in the new install command. If you lost both, generate a new token from the DevZero dashboard.
-
-**Q: The nodemon pods show `ImagePullBackOff`.**
-The nodemon image isn't accessible. Check `kubectl describe pod <pod> -n $NS | grep Image` — make sure the image repository and tag are correct and accessible from your cluster.
+**Q: The namespace is stuck in Terminating forever. Help!**
+See Step 4e — force-remove the finalizer, and fix the stale `v1beta1.metrics.k8s.io` APIService if present.
 
 **Q: I see `Collector not available, skipping registration` for `container_resource` in the logs.**
-The nodemon client couldn't discover nodemon pods. Make sure nodemon pods are running in the **same namespace** as zxporter: `kubectl get pods -n $NS -l app.kubernetes.io/name=zxporter-nodemon`
+Nodemon pods aren't discovered yet. Make sure nodemon is running in the **same namespace** as zxporter:
+```bash
+kubectl get pods -n $NS -l app.kubernetes.io/name=zxporter-nodemon
+```
