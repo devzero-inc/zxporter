@@ -352,12 +352,17 @@ kubectl get configmap devzero-zxporter-env-config -n $OLD_NS -o yaml \
   > /tmp/zxporter-configmap.yaml
 echo "ConfigMap saved to /tmp/zxporter-configmap.yaml"
 
-# Export Secret (cluster token)
-kubectl get secret devzero-zxporter-token -n $OLD_NS -o yaml \
+# Export Secret (cluster token) — may not exist on older installs where token is in ConfigMap
+kubectl get secret devzero-zxporter-token -n $OLD_NS -o yaml 2>/dev/null \
   | grep -v "resourceVersion\|uid\|creationTimestamp\|selfLink\|namespace:" \
   | sed "s|^  name:|  namespace: $NEW_NS\n  name:|" \
-  > /tmp/zxporter-secret.yaml
-echo "Secret saved to /tmp/zxporter-secret.yaml"
+  > /tmp/zxporter-secret.yaml 2>/dev/null
+if [ -s /tmp/zxporter-secret.yaml ]; then
+  echo "Secret saved to /tmp/zxporter-secret.yaml"
+else
+  echo "No token Secret found (token is likely in ConfigMap — this is fine for older installs)"
+  rm -f /tmp/zxporter-secret.yaml
+fi
 
 # Also try to export credentials secret (PAT token) if it exists
 kubectl get secret devzero-zxporter-credentials -n $OLD_NS -o yaml 2>/dev/null \
@@ -445,8 +450,25 @@ echo "Restoring ConfigMap..."
 kubectl apply -f /tmp/zxporter-configmap.yaml
 echo ""
 
-echo "Restoring Secret..."
-kubectl apply -f /tmp/zxporter-secret.yaml
+# Restore Secret (if it was exported — older installs may not have one)
+if [ -f /tmp/zxporter-secret.yaml ]; then
+  echo "Restoring Secret..."
+  kubectl apply -f /tmp/zxporter-secret.yaml
+else
+  echo "No token Secret to restore (token is in ConfigMap)"
+  # The new zxporter reads CLUSTER_TOKEN from ConfigMap as fallback.
+  # But if you want the new Secret-based approach, create it:
+  echo "Creating token Secret from ConfigMap value..."
+  BACKUP_TOKEN=$(grep "CLUSTER_TOKEN:" /tmp/zxporter-configmap.yaml | head -1 | awk '{print $2}' | tr -d '"')
+  if [ -n "$BACKUP_TOKEN" ]; then
+    kubectl create secret generic devzero-zxporter-token -n $NEW_NS \
+      --from-literal=CLUSTER_TOKEN="$BACKUP_TOKEN"
+    echo "Token Secret created from ConfigMap value"
+  else
+    echo "WARNING: No token found in ConfigMap either. Use the value from Step 2:"
+    echo "  kubectl create secret generic devzero-zxporter-token -n $NEW_NS --from-literal=CLUSTER_TOKEN=\"\$CLUSTER_TOKEN\""
+  fi
+fi
 echo ""
 
 # Restore credentials secret if it was exported
