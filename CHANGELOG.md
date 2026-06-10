@@ -6,6 +6,38 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 For releases prior to automated changelog generation, please see the
 [GitHub Releases](https://github.com/devzero-inc/zxporter/releases) page.
 
+## [v0.0.81] - 2026-06-10
+
+<!-- Release notes generated using configuration in .github/release.yml at main -->
+
+### What's Changed
+### Other Changes
+* chore: update changelog for v0.0.80 by @github-actions[bot] in https://github.com/devzero-inc/zxporter/pull/400
+* bump zxp image v0.0.80 by @sandipanpanda in https://github.com/devzero-inc/zxporter/pull/401
+* ci: skip irrelevant workflows for docs- and helm-chart-only PRs by @sandipanpanda in https://github.com/devzero-inc/zxporter/pull/402
+* chore(helm): update Chart.yaml version to 0.0.58 by @github-actions[bot] in https://github.com/devzero-inc/zxporter/pull/403
+* ci: checkout before paths-filter in gate jobs by @sandipanpanda in https://github.com/devzero-inc/zxporter/pull/404
+* effective mem usage should be higher than limit for be safe by @Parthiba-Hazra in https://github.com/devzero-inc/zxporter/pull/405
+
+
+**Full Changelog**: https://github.com/devzero-inc/zxporter/compare/v0.0.80...v0.0.81
+
+## [v0.0.80] - 2026-06-08
+
+<!-- Release notes generated using configuration in .github/release.yml at main -->
+
+### What's Changed
+### Other Changes
+* chore: update changelog for v0.0.79 by @github-actions[bot] in https://github.com/devzero-inc/zxporter/pull/395
+* bump zxp v0.0.79 by @sandipanpanda in https://github.com/devzero-inc/zxporter/pull/396
+* chore(helm): update Chart.yaml version to 0.0.57 by @github-actions[bot] in https://github.com/devzero-inc/zxporter/pull/397
+* update recommendations forwarding by @f-leu in https://github.com/devzero-inc/zxporter/pull/398
+* ci: update K8s test matrix to cover v1.27–v1.35 by @dray92 in https://github.com/devzero-inc/zxporter/pull/336
+* race fixes by @Parthiba-Hazra in https://github.com/devzero-inc/zxporter/pull/399
+
+
+**Full Changelog**: https://github.com/devzero-inc/zxporter/compare/v0.0.79...v0.0.80
+
 ## [v0.0.79] - 2026-06-02
 
 <!-- Release notes generated using configuration in .github/release.yml at main -->

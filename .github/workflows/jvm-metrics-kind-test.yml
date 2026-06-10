@@ -5,6 +5,12 @@ permissions:
 
 on:
   pull_request:
+    # Nodemon helm chart templates are exercised here, so do not ignore
+    # helm-chart/** — only skip documentation-only changes.
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'LICENSE'
   workflow_dispatch:
 
 jobs:

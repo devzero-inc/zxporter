@@ -527,6 +527,16 @@ func (c *ContainerResourceCollector) processContainerMetrics(
 		}
 	}
 
+	// For OOM-killed containers, the post-restart memory usage from metrics-server
+	// reflects the NEW container (e.g. 12MB), not the pre-OOM usage (~limit).
+	// This would cause the operator's fast-path to multiply the wrong base value,
+	// potentially recommending LESS memory than before. Use the memory limit as the
+	// usage proxy for OOM events, consistent with BuildOOMSnapshot.
+	effectiveMemoryUsage := memoryUsage
+	if lastTerminationReason == ReasonOOMKilled && memoryLimitBytes > 0 && memoryUsage < memoryLimitBytes {
+		effectiveMemoryUsage = memoryLimitBytes
+	}
+
 	// Create resource data with both metrics and pod info
 	containerKey := fmt.Sprintf("%s/%s/%s", pod.Namespace, pod.Name, containerMetrics.Name)
 
@@ -539,7 +549,7 @@ func (c *ContainerResourceCollector) processContainerMetrics(
 
 		// CPU/Memory resource usage
 		CpuUsageMillis:   cpuUsage,
-		MemoryUsageBytes: memoryUsage,
+		MemoryUsageBytes: effectiveMemoryUsage,
 		MemoryRssBytes:   c.getContainerRSSBytes(pod.Namespace, pod.Name, containerMetrics.Name),
 
 		// Resource requests and limits
