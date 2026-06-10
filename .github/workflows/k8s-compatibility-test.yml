@@ -204,7 +204,7 @@ jobs:
               - "--vm"
               - "1"
               - "--vm-bytes"
-              - "128M"
+              - "180M"
               - "--vm-hang"
               - "0"
               resources:
