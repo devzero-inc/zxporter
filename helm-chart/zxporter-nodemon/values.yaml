@@ -14,7 +14,7 @@ gpuMetricsExporter:
   image:
     repository: docker.io/devzeroinc/zxporter-nodemon
     pullPolicy: IfNotPresent
-    tag: "v0.0.80"
+    tag: "v0.0.81"
   config: { }
   # config:
   #   # address of the DCGM exporter instance
