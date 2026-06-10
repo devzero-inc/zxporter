@@ -119,8 +119,6 @@ echo "Cluster token: ${CLUSTER_TOKEN:-(not found)}"
 echo "PAT token:     ${PAT_TOKEN:-(not found)}"
 ```
 
-> **STOP if both are empty.** Go to the DevZero dashboard → Clusters → your cluster → copy the token.
-
 **2c: Save other config values:**
 ```bash
 export DAKR_URL=$(kubectl get configmap devzero-zxporter-env-config -n $OLD_NS \

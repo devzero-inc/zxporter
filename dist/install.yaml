@@ -1167,7 +1167,7 @@ spec:
         - -c
         - |
           NS=$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)
-          echo "Cleaning up legacy zxporter Prometheus resources in namespace: $NS"
+          echo "Cleaning up legacy zxporter Prometheus resources in namespace - $NS"
           echo "This only deletes Prometheus resources by exact name — other installs are unaffected."
 
           # Deployments
