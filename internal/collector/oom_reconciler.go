@@ -201,7 +201,7 @@ func (r *OOMReconciler) publishOOM(pod *corev1.Pod, cs corev1.ContainerStatus) {
 		return
 	}
 
-	snapshot := BuildOOMSnapshot(pod, cs)
+	snapshot := BuildOOMSnapshot(pod, cs, 0) // RSS not available on the OOM reconciler path
 	r.mpaPublisher.PublishMetrics(snapshot, time.Now())
 
 	r.logger.Info("OOM reconciler: published missed OOM event to MPA stream",

@@ -563,7 +563,7 @@ func (c *PodCollector) publishOOMToMpaStream(pod *corev1.Pod, status corev1.Cont
 		return
 	}
 
-	snapshot := BuildOOMSnapshot(pod, status)
+	snapshot := BuildOOMSnapshot(pod, status, 0) // RSS not available on the informer fast path
 
 	publisher.PublishMetrics(snapshot, time.Now())
 

@@ -115,6 +115,8 @@ type ContainerResourceCollector struct {
 	gpuQueryErrorState map[string]*gpuQueryState // most of the case we are not deploying zxporter to GPU nodes which cause GPU query to fail infinitely, and we dont want to get that GPU query fails error every minute for every container
 	gpuQueryMu         sync.Mutex
 	throttle           throttleTracker
+	rssMetricName      string     // cached Prometheus metric name for RSS ("container_memory_rss" or "container_memory_rss_bytes")
+	rssMetricMu        sync.Mutex // guards rssMetricName
 	// Removed manual cache
 	rsLister   appslisters.ReplicaSetLister
 	rsInformer cache.SharedIndexInformer
@@ -413,8 +415,10 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 		// Create a context with timeout for Prometheus queries if needed
 		var queryCtx context.Context
 		var cancel context.CancelFunc
+		var queryTime time.Time
 		if c.prometheusAPI != nil {
 			queryCtx, cancel = context.WithTimeout(ctx, c.config.QueryTimeout)
+			queryTime = time.Now() // snapshot once per pod so all container queries share the same time
 		}
 
 		// Fetch network metrics
@@ -466,6 +470,7 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 					queryCtx,
 					pod,
 					containerMetrics.Name,
+					queryTime,
 				)
 			}
 
@@ -925,19 +930,25 @@ func (c *ContainerResourceCollector) collectContainerIOMetrics(
 
 // collectContainerMemoryRSSBytes returns the current container RSS (resident set size) in bytes,
 // as reported by cAdvisor metrics in Prometheus (if present). Returns 0 when unavailable.
+//
+// The winning Prometheus metric name (container_memory_rss vs container_memory_rss_bytes) is
+// cached on first success so that subsequent calls skip the failed variant.
 func (c *ContainerResourceCollector) collectContainerMemoryRSSBytes(
 	ctx context.Context,
 	pod *corev1.Pod,
 	containerName string,
+	queryTime time.Time,
 ) int64 {
 	if c.prometheusAPI == nil {
 		return 0
 	}
 
-	queryTime := time.Now()
-
-	queryValue := func(query string) (float64, bool) {
-		result, _, err := c.prometheusAPI.Query(ctx, query, queryTime)
+	queryValue := func(metricName string) (float64, bool) {
+		q := fmt.Sprintf(
+			`sum(%s{namespace="%s", pod="%s", container="%s"})`,
+			metricName, pod.Namespace, pod.Name, containerName,
+		)
+		result, _, err := c.prometheusAPI.Query(ctx, q, queryTime)
 		if err != nil {
 			return 0, false
 		}
@@ -951,26 +962,26 @@ func (c *ContainerResourceCollector) collectContainerMemoryRSSBytes(
 		return float64(vector[0].Value), true
 	}
 
-	// Try the standard cAdvisor metric name first (most common).
-	q := fmt.Sprintf(
-		`sum(container_memory_rss{namespace="%s", pod="%s", container="%s"})`,
-		pod.Namespace,
-		pod.Name,
-		containerName,
-	)
-	if v, ok := queryValue(q); ok {
-		return int64(v)
+	c.rssMetricMu.Lock()
+	cached := c.rssMetricName
+	c.rssMetricMu.Unlock()
+
+	// Fast path: use the already-discovered metric name.
+	if cached != "" {
+		if v, ok := queryValue(cached); ok {
+			return int64(v)
+		}
+		return 0 // transient error; don't re-probe fallback
 	}
 
-	// Fallback: some setups expose container_memory_rss_bytes.
-	qBytes := fmt.Sprintf(
-		`sum(container_memory_rss_bytes{namespace="%s", pod="%s", container="%s"})`,
-		pod.Namespace,
-		pod.Name,
-		containerName,
-	)
-	if v, ok := queryValue(qBytes); ok {
-		return int64(v)
+	// First probe: try the standard cAdvisor name, fall back to the _bytes variant.
+	for _, name := range []string{"container_memory_rss", "container_memory_rss_bytes"} {
+		if v, ok := queryValue(name); ok {
+			c.rssMetricMu.Lock()
+			c.rssMetricName = name
+			c.rssMetricMu.Unlock()
+			return int64(v)
+		}
 	}
 
 	return 0

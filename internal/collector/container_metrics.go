@@ -92,7 +92,8 @@ type ContainerMetricsSnapshot struct {
 // BuildOOMSnapshot constructs a ContainerMetricsSnapshot for an OOM event.
 // Used by both the PodCollector (informer fast path) and OOMReconciler (sweep path)
 // to ensure consistent snapshot construction.
-func BuildOOMSnapshot(pod *corev1.Pod, cs corev1.ContainerStatus) *ContainerMetricsSnapshot {
+// rssBytes is the last-known RSS from Prometheus; pass 0 when unavailable.
+func BuildOOMSnapshot(pod *corev1.Pod, cs corev1.ContainerStatus, rssBytes int64) *ContainerMetricsSnapshot {
 	workloadName, workloadKind := getWorkloadInfo(pod)
 	requestBytes, limitBytes := getContainerResources(pod, cs.Name)
 
@@ -119,6 +120,7 @@ func BuildOOMSnapshot(pod *corev1.Pod, cs corev1.ContainerStatus) *ContainerMetr
 		CpuRequestMillis:      cpuRequestMillis,
 		CpuLimitMillis:        cpuLimitMillis,
 		MemoryUsageBytes:      limitBytes, // OOM means usage >= limit
+		MemoryRssBytes:        rssBytes,
 		MemoryRequestBytes:    requestBytes,
 		MemoryLimitBytes:      limitBytes,
 		PodLabels:             pod.Labels,

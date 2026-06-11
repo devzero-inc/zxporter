@@ -610,10 +610,9 @@ func (s *MetricsServer) extractContainerResourceInfo(data *structpb.Struct) {
 	}
 
 	if memoryRSS, ok := containerData["memoryRssBytes"]; ok {
-		podUsage.Containers[containerName]["used_memory_rss"] = stats.MetricExpectation{Exact: fmt.Sprintf(
-			"%d",
-			int64(memoryRSS.GetNumberValue()),
-		)}
+		if rss := int64(memoryRSS.GetNumberValue()); rss > 0 {
+			podUsage.Containers[containerName]["used_memory_rss"] = stats.MetricExpectation{Exact: fmt.Sprintf("%d", rss)}
+		}
 	}
 
 	// Update the pod usage
