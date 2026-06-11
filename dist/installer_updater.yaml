@@ -918,6 +918,8 @@ spec:
             - name: "DCGM_HOST"
               value: "localhost"
           resources:
+            limits:
+              memory: 128Mi
             requests:
               cpu: 50m
               memory: 128Mi

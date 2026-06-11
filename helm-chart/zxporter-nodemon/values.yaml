@@ -23,6 +23,8 @@ nodemon:
   #   # comma-separated list of labels that the DCGM instances have
   #   DCGM_LABELS: ""
   resources:
+    limits:
+      memory: 128Mi
     requests:
       cpu: 50m
       memory: 128Mi
