@@ -470,17 +470,23 @@ echo "Ready to install new zxporter!"
 
 ---
 
-### Step 5: Create namespace, restore config, and apply
+### Step 5: Install new zxporter
 
-**5a: Create the new namespace:**
+Choose **ONE** of these two install methods:
+
+---
+
+#### 5-A: kubectl apply (recommended for this migration)
+
+**5a-1: Create the new namespace:**
 ```bash
 kubectl create namespace $NEW_NS 2>/dev/null || true
 echo "Namespace $NEW_NS ready"
 ```
 
-**5b: Restore ConfigMap and Secret into the new namespace:**
+**5a-2: Restore ConfigMap and Secret into the new namespace:**
 
-This is critical — the `installer_updater.yaml` does NOT include these, so zxporter needs them to exist before it starts.
+The `installer_updater.yaml` does NOT include ConfigMap or Secret — zxporter needs them to exist before it starts.
 
 ```bash
 echo "Restoring ConfigMap..."
@@ -493,8 +499,7 @@ if [ -f /tmp/zxporter-secret.yaml ]; then
   kubectl apply -f /tmp/zxporter-secret.yaml
 else
   echo "No token Secret to restore (token is in ConfigMap)"
-  # The new zxporter reads CLUSTER_TOKEN from ConfigMap as fallback.
-  # But if you want the new Secret-based approach, create it:
+  # Create a Secret from the ConfigMap's token value for the new Secret-based approach:
   echo "Creating token Secret from ConfigMap value..."
   BACKUP_TOKEN=$(grep "CLUSTER_TOKEN:" /tmp/zxporter-configmap.yaml | head -1 | awk '{print $2}' | tr -d '"')
   if [ -n "$BACKUP_TOKEN" ]; then
@@ -544,12 +549,43 @@ kubectl get secret devzero-zxporter-token -n $NEW_NS -o jsonpath='{.data.CLUSTER
 >   --from-literal=CLUSTER_TOKEN="$CLUSTER_TOKEN"
 > ```
 
-**5c: Apply the new manifest:**
+**5a-3: Apply the manifest:**
 ```bash
 kubectl apply -f /tmp/new-zxporter.yaml
 ```
 
-> **What is happening:** The manifest creates RBAC, zxporter Deployment (2 replicas), nodemon DaemonSet (1 pod per node), and a Prometheus cleanup Job (harmless). The ConfigMap and Secret we just restored provide the token and config that zxporter reads on startup.
+> **What is happening:** The manifest creates RBAC, zxporter Deployment (2 replicas), nodemon DaemonSet (1 pod per node), and a Prometheus cleanup Job (harmless). The ConfigMap and Secret we restored in 5a-2 provide the token and config that zxporter reads on startup.
+
+---
+
+#### 5-B: Helm install
+
+> **IMPORTANT: Do NOT restore ConfigMap/Secret before Helm install.**
+> The Helm chart creates its own ConfigMap and Secret from the values you pass via `--set`.
+> If you restore them first with `kubectl apply`, Helm will either:
+> - **Fail** with "resource already exists" (the resources aren't Helm-managed), or
+> - **Overwrite** them with empty defaults (losing your token)
+>
+> Instead, pass all values directly via `--set`:
+
+```bash
+helm dependency update ./helm-chart/zxporter/
+
+helm install zxporter ./helm-chart/zxporter \
+  --namespace $NEW_NS --create-namespace \
+  --set zxporter.clusterToken="$CLUSTER_TOKEN" \
+  --set zxporter.kubeContextName="$CLUSTER_NAME" \
+  --set zxporter.k8sProvider="$K8S_PROVIDER" \
+  --set zxporter.dakrUrl="$DAKR_URL" \
+  --set zxporter.logLevel="${LOG_LEVEL:-error}" \
+  --set zxporter-nodemon.provider="$K8S_PROVIDER"
+```
+
+> This creates everything in one shot: namespace, ConfigMap, Secret, Deployment, nodemon DaemonSet. Helm manages all resources.
+
+> **If using PAT token instead of cluster token:** replace `--set zxporter.clusterToken=...` with `--set zxporter.patToken="$PAT_TOKEN"`
+
+> **For clusters without GPUs:** add `--set zxporter.disableGPUMetrics=true`
 
 ---
 
