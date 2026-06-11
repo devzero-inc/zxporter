@@ -219,11 +219,8 @@ spec:
             - name: "DCGM_HOST"
               value: "localhost"
           resources:
-            limits:
-              cpu: 100m
-              memory: 128Mi
             requests:
-              cpu: 100m
+              cpu: 50m
               memory: 128Mi
         - name: dcgm-exporter
           securityContext:
