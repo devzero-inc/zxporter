@@ -4,7 +4,7 @@ metadata:
   name: {{- include "zxporter-nodemon.config-map" . | indent 1}}
   namespace: {{ .Release.Namespace }}
 data:
-{{- $config := .Values.gpuMetricsExporter.config | default dict }}
+{{- $config := .Values.nodemon.config | default dict }}
 {{- if $config }}
   {{- toYaml $config | nindent 2 }}
 {{- end }}

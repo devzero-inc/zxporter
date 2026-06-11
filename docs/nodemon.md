@@ -31,7 +31,7 @@ helm install zxporter-nodemon helm-chart/zxporter-nodemon \
   --namespace devzero-system --create-namespace \
   --set provider=gcp \
   --set dcgmExporter.enabled=false \
-  --set gpuMetricsExporter.config.DCGM_LABELS="app.kubernetes.io/name=dcgm-exporter"
+  --set nodemon.config.DCGM_LABELS="app.kubernetes.io/name=dcgm-exporter"
 ```
 
 ## Configuration Scenarios
@@ -57,7 +57,7 @@ If you already have DCGM exporter deployed separately, disable the embedded one 
 provider: gcp
 dcgmExporter:
   enabled: false
-gpuMetricsExporter:
+nodemon:
   config:
     DCGM_LABELS: "app.kubernetes.io/name=dcgm-exporter"
 ```
@@ -83,7 +83,7 @@ Point directly to a specific DCGM exporter instance.
 provider: eks
 dcgmExporter:
   enabled: false
-gpuMetricsExporter:
+nodemon:
   config:
     DCGM_HOST: "dcgm-exporter.monitoring.svc.cluster.local"
 ```
@@ -139,11 +139,11 @@ kubectl describe nodes | grep -A5 "Allocatable:" | grep nvidia
 | `dcgmExporter.enabled` | Deploy DCGM exporter sidecar | `true` |
 | `dcgmExporter.useExternalHostEngine` | Connect to host-level DCGM engine | `false` |
 | `dcgmExporter.image.tag` | DCGM exporter image tag | `3.3.7-3.5.0-ubuntu22.04` |
-| `gpuMetricsExporter.config.DCGM_HOST` | Direct DCGM host (single host mode) | `""` |
-| `gpuMetricsExporter.config.DCGM_LABELS` | Labels to discover DCGM pods | `""` |
-| `gpuMetricsExporter.port` | HTTP API port | `6061` |
-| `gpuMetricsExporter.affinity` | Custom node affinity | Provider-specific |
-| `gpuMetricsExporter.rbac.clusterWide` | Use ClusterRole for cross-namespace discovery | `true` |
+| `nodemon.config.DCGM_HOST` | Direct DCGM host (single host mode) | `""` |
+| `nodemon.config.DCGM_LABELS` | Labels to discover DCGM pods | `""` |
+| `nodemon.port` | HTTP API port | `6061` |
+| `nodemon.affinity` | Custom node affinity | Provider-specific |
+| `nodemon.rbac.clusterWide` | Use ClusterRole for cross-namespace discovery | `true` |
 
 ## API Reference
 

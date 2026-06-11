@@ -6,15 +6,16 @@ serviceAccount:
   automount: true
   annotations: { }
 
-gpuMetricsExporter:
-  # the affinity field is the preffered way of adding affinity annotations
+image:
+  repository: docker.io/devzeroinc/zxporter-nodemon
+  pullPolicy: IfNotPresent
+  tag: "v0.0.81"
+
+nodemon:
+  # the affinity field is the preferred way of adding affinity annotations
   # for gcp provider the gcp.affinity will be used if this isn't defined but in the future custom affinity annotations
-  # should be defined in the gpuMetricsExporter.affinity field
+  # should be defined in the nodemon.affinity field
   affinity:
-  image:
-    repository: docker.io/devzeroinc/zxporter-nodemon
-    pullPolicy: IfNotPresent
-    tag: "v0.0.81"
   config: { }
   # config:
   #   # address of the DCGM exporter instance

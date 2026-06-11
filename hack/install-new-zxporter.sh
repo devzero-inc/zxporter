@@ -48,8 +48,8 @@ echo "=== Installing nodemon DaemonSet ==="
 
 helm install zxporter-nodemon ./helm-chart/zxporter-nodemon \
   --namespace "$NAMESPACE" \
-  --set gpuMetricsExporter.image.repository=docker.io/parthiba007/nodemon \
-  --set gpuMetricsExporter.image.tag=prom \
+  --set image.repository=docker.io/parthiba007/nodemon \
+  --set image.tag=prom \
   --set provider="$K8S_PROVIDER"
 
 echo ""

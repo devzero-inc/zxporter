@@ -13,12 +13,12 @@ metadata:
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: {{ if .Values.gpuMetricsExporter.rbac.clusterWide }}ClusterRole{{ else }}Role{{ end }}
+kind: {{ if .Values.nodemon.rbac.clusterWide }}ClusterRole{{ else }}Role{{ end }}
 metadata:
   name: {{ include "zxporter-nodemon.fullname" . }}
   labels:
     {{- include "zxporter-nodemon.labels" . | nindent 4 }}
-  {{- if not .Values.gpuMetricsExporter.rbac.clusterWide }}
+  {{- if not .Values.nodemon.rbac.clusterWide }}
   namespace: {{.Release.Namespace}}
   {{- end }}
 rules:
@@ -61,17 +61,17 @@ rules:
     - get
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: {{ if .Values.gpuMetricsExporter.rbac.clusterWide }}ClusterRoleBinding{{ else }}RoleBinding{{ end }}
+kind: {{ if .Values.nodemon.rbac.clusterWide }}ClusterRoleBinding{{ else }}RoleBinding{{ end }}
 metadata:
   name: {{ include "zxporter-nodemon.fullname" . }}
   labels:
     {{- include "zxporter-nodemon.labels" . | nindent 4 }}
-  {{- if not .Values.gpuMetricsExporter.rbac.clusterWide }}
+  {{- if not .Values.nodemon.rbac.clusterWide }}
   namespace: {{.Release.Namespace}}
   {{- end }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
-  kind: {{ if .Values.gpuMetricsExporter.rbac.clusterWide }}ClusterRole{{ else }}Role{{ end }}
+  kind: {{ if .Values.nodemon.rbac.clusterWide }}ClusterRole{{ else }}Role{{ end }}
   name: {{ include "zxporter-nodemon.fullname" . }}
 subjects:
 - kind: ServiceAccount
