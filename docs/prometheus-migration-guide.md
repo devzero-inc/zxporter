@@ -746,6 +746,107 @@ helm upgrade dakr <chart> --namespace dakr-operator --reuse-values \
   --set operator.zxporterAddr="devzero-zxporter-controller-manager-mpa.devzero-system.svc.cluster.local:50051"
 ```
 
+**9e: If you are also moving the DAKR operator into a new namespace** (e.g. from `dakr-operator` to `devzero-system`):
+
+A fresh `helm upgrade --install dakr ... --namespace devzero-system` can fail like this:
+
+```
+Error: unable to continue with install: CustomResourceDefinition
+"workloadrecommendations.dakr.devzero.io" in namespace "" exists and cannot be imported into
+the current release: invalid ownership metadata; annotation validation error: key
+"meta.helm.sh/release-namespace" must equal "devzero-system": current value is "dakr-operator"
+```
+
+**Why:** The DAKR operator's CRDs are **cluster-scoped**, so they outlive the namespaced release that created them. A previous install stamped Helm ownership annotations onto the CRD pointing at the old namespace:
+
+```bash
+kubectl get crd workloadrecommendations.dakr.devzero.io -o yaml | grep -A2 meta.helm.sh
+#   meta.helm.sh/release-name: dakr
+#   meta.helm.sh/release-namespace: dakr-operator   <-- old namespace, blocks the new install
+```
+
+Even after `helm uninstall` (or if `helm list -n dakr-operator` is now empty because the release record is gone), the orphaned CRD remains and Helm refuses to adopt it into a release in a different namespace.
+
+**Fix — re-stamp the ownership annotation to the new namespace, then re-run the install:**
+
+```bash
+# Point the CRD's Helm ownership at the namespace you are installing into
+kubectl annotate crd workloadrecommendations.dakr.devzero.io \
+  meta.helm.sh/release-namespace=devzero-system --overwrite
+
+# If the release NAME also differs from the existing annotation, fix that too:
+#   kubectl annotate crd workloadrecommendations.dakr.devzero.io \
+#     meta.helm.sh/release-name=dakr --overwrite
+
+# Re-run the same helm upgrade --install — it now adopts the CRD cleanly
+```
+
+> **What is happening:** We are correcting the stale `meta.helm.sh/*` annotations so the existing cluster-scoped CRD matches the new release identity. This is non-destructive — it does not touch any `workloadrecommendations` objects, which keep their data. If the operator ships **multiple** CRDs, repeat the `kubectl annotate` for each one the error names (it surfaces them one at a time).
+
+> **Alternative (clean slate):** If you have no live recommendations to preserve, you can instead delete the CRD and let the install recreate it: `kubectl delete crd workloadrecommendations.dakr.devzero.io`. This deletes all `workloadrecommendations` objects, so prefer the re-annotate fix above when in doubt.
+
+**9f: If recommendations stop being created after the move (`create not allowed while custom resource definition is terminating`):**
+
+When the operator's old namespace is torn down during the move, two things can break the `workloadrecommendations` CRD:
+
+1. **Orphaned instances stuck on a finalizer.** `WorkloadRecommendation` objects that lived in the deleted namespace get a `deletionTimestamp` but keep the `dakr.devzero.io/workload-recommendation-cleanup` finalizer. The operator can't complete cleanup (the namespace is gone, or the workload's owner is an unsupported kind such as `OpenTelemetryCollector`), so it loops forever logging:
+   ```
+   Failed to remove cleanup finalizer ... namespaces "<old-ns>" not found
+   walking ownerReferences: getting object: unsupported object type: OpenTelemetryCollector
+   ```
+2. **The CRD itself caught mid-delete.** If a `kubectl delete crd` (or a `helm uninstall`) raced with the move, the cluster-scoped CRD can freeze in `Terminating`, blocked by those finalized instances. While a CRD is terminating, the API **rejects all new instances**, so the rule-evaluator fails on every workload:
+   ```
+   rule-evaluator-controller  Failed to apply evaluation result
+     error: create not allowed while custom resource definition is terminating
+   ```
+
+**Diagnose:**
+```bash
+# Is the CRD terminating? (look for a deletionTimestamp and Terminating=True)
+kubectl get crd workloadrecommendations.dakr.devzero.io \
+  -o jsonpath='del={.metadata.deletionTimestamp}{"\n"}{range .status.conditions[*]}{.type}={.status}{"\n"}{end}'
+
+# Which instances are stuck terminating (have a deletionTimestamp + finalizer)?
+kubectl get workloadrecommendations.dakr.devzero.io -A \
+  -o jsonpath='{range .items[*]}{.metadata.namespace}/{.metadata.name} del={.metadata.deletionTimestamp} fin={.metadata.finalizers}{"\n"}{end}' \
+  | grep 'del=2'
+```
+
+> A `deletionTimestamp` **cannot be removed** — there is no "un-delete." If the CRD is terminating, the only recovery is to let it finish, then recreate it. The CRD's deletion has already been garbage-collecting instances, so most recommendations are likely gone already; the operator regenerates them from live metrics within a cycle or two.
+
+**Fix:**
+```bash
+# 1. Back up what's left (recommendations are derived data, but keep a copy)
+kubectl get workloadrecommendations.dakr.devzero.io -A -o yaml > /tmp/wr-backup.yaml
+
+# 2. Save a clean copy of the CRD so you can recreate it (strips runtime/deletion fields)
+kubectl get crd workloadrecommendations.dakr.devzero.io -o json \
+  | jq 'del(.metadata.uid,.metadata.resourceVersion,.metadata.creationTimestamp,.metadata.deletionTimestamp,.metadata.deletionGracePeriodSeconds,.metadata.generation,.metadata.managedFields,.status,.metadata.finalizers)' \
+  > /tmp/wr-crd-clean.json
+
+# 3. Clear the finalizer on every stuck instance so the CRD can finish deleting.
+#    If the instance's namespace was deleted, recreate it briefly so the API accepts the patch:
+#      kubectl create namespace <old-ns>
+for nsname in $(kubectl get workloadrecommendations.dakr.devzero.io -A \
+  -o jsonpath='{range .items[*]}{.metadata.namespace}/{.metadata.name}{"\n"}{end}'); do
+  ns=${nsname%/*}; name=${nsname#*/}
+  kubectl patch workloadrecommendations.dakr.devzero.io "$name" -n "$ns" \
+    --type=merge -p '{"metadata":{"finalizers":[]}}' 2>/dev/null || true
+done
+
+# 4. Let the CRD finish deleting, then recreate it
+kubectl wait --for=delete crd/workloadrecommendations.dakr.devzero.io --timeout=90s || true
+kubectl create -f /tmp/wr-crd-clean.json
+
+# 5. Confirm it is healthy (Established=True, no deletionTimestamp) and recommendations return
+kubectl get crd workloadrecommendations.dakr.devzero.io \
+  -o jsonpath='del={.metadata.deletionTimestamp}{"\n"}{range .status.conditions[*]}{.type}={.status}{"\n"}{end}'
+sleep 30
+kubectl get workloadrecommendations.dakr.devzero.io -A --no-headers | wc -l   # should climb from 0
+```
+
+> **Note:** If you recreated any namespace in step 3 only to clear finalizers, delete it again once the instances are gone: `kubectl delete namespace <old-ns> --wait=false`.
+
 ---
 
 ### Step 10: Clean up the temp file
@@ -816,3 +917,17 @@ Nodemon pods aren't discovered yet. Make sure nodemon is running in the **same n
 ```bash
 kubectl get pods -n $NS -l app.kubernetes.io/name=zxporter-nodemon
 ```
+
+**Q: Installing the DAKR operator fails with `invalid ownership metadata ... meta.helm.sh/release-namespace must equal ...`.**
+You are installing into a different namespace than a previous DAKR operator install. The operator's CRDs are cluster-scoped and keep Helm ownership annotations from the old namespace, so Helm refuses to adopt them — even if `helm list` shows no release (the release record was deleted but the orphaned CRD remains). Re-stamp the annotation to your target namespace and re-run the install:
+```bash
+kubectl annotate crd workloadrecommendations.dakr.devzero.io \
+  meta.helm.sh/release-namespace=<new-namespace> --overwrite
+```
+See **Step 9e** for the full explanation, the release-name variant, and the clean-slate alternative.
+
+**Q: After moving the operator, no new recommendations appear and the operator logs `create not allowed while custom resource definition is terminating`.**
+The `workloadrecommendations` CRD is frozen in `Terminating` (caught mid-delete during the namespace move) and can't finish because some `WorkloadRecommendation` instances are stuck on a cleanup finalizer — often the ones whose owner is an unsupported kind like `OpenTelemetryCollector`, or whose namespace was deleted. While the CRD terminates, the API rejects all new instances, so the rule-evaluator fails on every workload. A `deletionTimestamp` can't be removed, so the fix is to clear the stuck finalizers, let the CRD finish deleting, and recreate it — the operator regenerates recommendations from live metrics. Full steps in **Step 9f**.
+
+**Q: The operator logs are flooded with `namespaces "<old-ns>" not found` after the move.**
+Orphaned `WorkloadRecommendation` objects from the deleted old namespace are stuck on the `dakr.devzero.io/workload-recommendation-cleanup` finalizer, and the operator retries cleanup forever. Clear their finalizers (recreate the namespace briefly if the API rejects the patch with "namespace not found"). See **Step 9f**, step 3.
