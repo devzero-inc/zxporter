@@ -572,7 +572,8 @@ kubectl apply -f /tmp/new-zxporter.yaml
 helm dependency update ./helm-chart/zxporter/
 
 helm install zxporter ./helm-chart/zxporter \
-  --namespace $NEW_NS --create-namespace \
+  --namespace devzero-system --create-namespace \
+  --set zxporter.useSecretForToken=true \
   --set zxporter.clusterToken="$CLUSTER_TOKEN" \
   --set zxporter.kubeContextName="$CLUSTER_NAME" \
   --set zxporter.k8sProvider="$K8S_PROVIDER" \
