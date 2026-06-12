@@ -526,9 +526,6 @@ func LoadCollectionPolicySpecFromEnv() (v1.CollectionPolicySpec, error) {
 	if v := getEnv(_ENV_DAKR_URL); v != "" {
 		newSpec.Policies.DakrURL = v
 	}
-	if v := getEnv(_ENV_PROMETHEUS_URL); v != "" {
-		newSpec.Policies.PrometheusURL = v
-	}
 	if v := getEnv(_ENV_COLLECTION_FREQUENCY); v != "" {
 		newSpec.Policies.Frequency = v
 	}
@@ -537,13 +534,6 @@ func LoadCollectionPolicySpecFromEnv() (v1.CollectionPolicySpec, error) {
 			return newSpec, fmt.Errorf("invalid %s: %w", _ENV_BUFFER_SIZE, err)
 		} else {
 			newSpec.Policies.BufferSize = i
-		}
-	}
-	if v := getEnv(_ENV_DISABLE_NETWORK_IO_METRICS); v != "" {
-		if b, err := strconv.ParseBool(v); err != nil {
-			return newSpec, fmt.Errorf("invalid %s: %w", _ENV_DISABLE_NETWORK_IO_METRICS, err)
-		} else {
-			newSpec.Policies.DisableNetworkIOMetrics = b
 		}
 	}
 	if v := getEnv(_ENV_DISABLE_GPU_METRICS); v != "" {

@@ -83,8 +83,29 @@ func main() {
 	)
 	mapper := nodemon.NewMapper(cfg.NodeName, workloadResolver, logger)
 
-	// Create exporter
+	// Create GPU exporter
 	exporter := nodemon.NewExporter(cfg, dynClient, scraper, mapper, logger)
+
+	// Create a K8s-authenticated HTTP client for kubelet API proxy access
+	k8sTransport, err := rest.TransportFor(kubeConfig)
+	if err != nil {
+		logger.Error(err, "Failed to create K8s transport")
+		os.Exit(1)
+	}
+	k8sHTTPClient := &http.Client{Transport: k8sTransport, Timeout: 15 * time.Second}
+
+	// Use the K8s API server proxy for kubelet access (same as Cortex pattern)
+	apiProxyBase := kubeConfig.Host + "/api/v1/nodes/" + cfg.NodeName + "/proxy"
+	statsPoller := nodemon.NewStatsPoller(apiProxyBase, k8sHTTPClient, logger)
+	cadvisorScraper := nodemon.NewCAdvisorScraper(apiProxyBase, k8sHTTPClient, logger)
+
+	// Create unified exporter that combines all data sources
+	unifiedExporter := nodemon.NewUnifiedExporter(statsPoller, cadvisorScraper, exporter, cfg.NodeName, logger)
+
+	// Start unified collection loop (every 30 seconds)
+	collectionCtx, collectionCancel := context.WithCancel(context.Background())
+	defer collectionCancel()
+	go unifiedExporter.StartCollectionLoop(collectionCtx, 30*time.Second)
 
 	// Create JVM collector
 	jvmCollector := nodemon.NewJVMCollector(cfg.NodeName, k8sClient, logger)
@@ -95,10 +116,15 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Create HTTP handlers and server
-	containerMetricsHandler := nodemon.NewContainerMetricsHandler(exporter, logger)
+	// Create HTTP handlers
+	containerMetricsHandler := nodemon.NewContainerMetricsHandler(exporter, logger) // GPU-only (backward compat)
 	jvmMetricsHandler := nodemon.NewJVMMetricsHandler(jvmCollector, logger)
 	mux := nodemon.NewServerMux(containerMetricsHandler, jvmMetricsHandler)
+
+	// Register unified endpoints
+	mux.Handle("/v2/container/metrics", nodemon.NewUnifiedContainerHandler(unifiedExporter, logger))
+	mux.Handle("/node/metrics", nodemon.NewNodeMetricsHandler(unifiedExporter, logger))
+	mux.Handle("/pvc/metrics", nodemon.NewPVCMetricsHandler(unifiedExporter, logger))
 
 	server := &http.Server{
 		Addr:    fmt.Sprintf(":%d", cfg.HTTPListenPort),

@@ -46,6 +46,10 @@ type DakrClient interface {
 
 	// ReportHealth
 	ReportHealth(ctx context.Context, req *gen.ReportHealthRequest) error
+
+	// NewPercentileFetcher creates a PercentileFetcher that retrieves
+	// pre-computed workload percentiles from the DAKR control plane.
+	NewPercentileFetcher() *DakrPercentileFetcher
 }
 
 // Sender defines methods for sending data to external systems

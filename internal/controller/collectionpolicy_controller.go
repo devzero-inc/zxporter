@@ -19,9 +19,7 @@ package controller
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"reflect"
-	"strings"
 	"sync"
 	"time"
 
@@ -87,15 +85,6 @@ type CollectionPolicyReconciler struct {
 	// OOM reconciler for periodic sweep of missed OOM events
 	oomReconciler       *collector.OOMReconciler
 	oomReconcilerCancel context.CancelFunc
-
-	// Periodic Prometheus availability probe. Without this the prometheus
-	// component health is set once at startup (via waitForPrometheusAvailability)
-	// and never re-evaluated, so a transient outage at boot leaves the operator
-	// permanently reporting prometheus as unhealthy even after recovery.
-	prometheusProbeMu     sync.Mutex
-	prometheusProbeURL    string
-	prometheusProbeCancel context.CancelFunc
-	prometheusProbeDone   chan struct{} // closed by the goroutine on exit; nil until first start
 }
 
 // pendingCollector represents a collector that was unavailable at registration time
@@ -160,8 +149,6 @@ type PolicyConfig struct {
 	KubeContextName         string
 	DakrURL                 string
 	ClusterToken            string
-	PrometheusURL           string
-	DisableNetworkIOMetrics bool
 	DisableGPUMetrics       bool
 	UpdateInterval          time.Duration
 	NodeMetricsInterval     time.Duration
@@ -406,15 +393,13 @@ func (r *CollectionPolicyReconciler) createNewConfig(
 		ExcludedCSINodes:   envSpec.Exclusions.ExcludedNodes, // Same as nodes
 
 		// Policies
-		KubeContextName:         envSpec.Policies.KubeContextName,
-		DakrURL:                 envSpec.Policies.DakrURL,
-		ClusterToken:            envSpec.Policies.ClusterToken,
-		PrometheusURL:           envSpec.Policies.PrometheusURL,
-		DisableNetworkIOMetrics: envSpec.Policies.DisableNetworkIOMetrics,
-		DisableGPUMetrics:       envSpec.Policies.DisableGPUMetrics,
-		MaskSecretData:          envSpec.Policies.MaskSecretData,
-		DisabledCollectors:      envSpec.Policies.DisabledCollectors,
-		BufferSize:              envSpec.Policies.BufferSize,
+		KubeContextName:    envSpec.Policies.KubeContextName,
+		DakrURL:            envSpec.Policies.DakrURL,
+		ClusterToken:       envSpec.Policies.ClusterToken,
+		DisableGPUMetrics:  envSpec.Policies.DisableGPUMetrics,
+		MaskSecretData:     envSpec.Policies.MaskSecretData,
+		DisabledCollectors: envSpec.Policies.DisabledCollectors,
+		BufferSize:         envSpec.Policies.BufferSize,
 	}
 
 	if envSpec.Policies.NumResourceProcessors != nil &&
@@ -1009,8 +994,6 @@ func (r *CollectionPolicyReconciler) identifyAffectedCollectors(
 
 	// Check if the special node collectors are affected by the update interval change
 	if oldConfig.UpdateInterval != newConfig.UpdateInterval ||
-		oldConfig.PrometheusURL != newConfig.PrometheusURL ||
-		oldConfig.DisableNetworkIOMetrics != newConfig.DisableNetworkIOMetrics ||
 		oldConfig.DisableGPUMetrics != newConfig.DisableGPUMetrics {
 		affectedCollectors["node"] = true
 		affectedCollectors["container_resource"] = true
@@ -1044,40 +1027,6 @@ func (r *CollectionPolicyReconciler) restartCollectors(
 	defer func() {
 		r.RestartInProgress = false
 	}()
-
-	// Check Prometheus availability if URL changed or metrics configuration changed
-	if newConfig.PrometheusURL != "" &&
-		(r.CurrentConfig.PrometheusURL != newConfig.PrometheusURL ||
-			r.CurrentConfig.DisableNetworkIOMetrics != newConfig.DisableNetworkIOMetrics ||
-			r.CurrentConfig.DisableGPUMetrics != newConfig.DisableGPUMetrics) {
-		logger.Info(
-			"Prometheus configuration changed, checking availability",
-			"url",
-			newConfig.PrometheusURL,
-		)
-
-		r.TelemetryLogger.Report(
-			gen.LogLevel_LOG_LEVEL_DEBUG,
-			"CollectionPolicyReconciler_restartCollectors",
-			"Prometheus or metrics configuration changed",
-			nil,
-			map[string]string{
-				"prometheus_url":   fmt.Sprintf("%v", newConfig.PrometheusURL),
-				"zxporter_version": version.Get().String(),
-			},
-		)
-
-		prometheusAvailable := r.waitForPrometheusAvailability(ctx, newConfig.PrometheusURL)
-		r.startPeriodicPrometheusHealthCheck(newConfig.PrometheusURL)
-		if !prometheusAvailable {
-			logger.Info(
-				"Prometheus is not available after waiting, will continue with restart but metrics may be limited",
-			)
-			// We continue with restart, but log the warning
-		} else {
-			logger.Info("Prometheus is available, continuing with full metrics collection")
-		}
-	}
 
 	// Check if the DisabledCollectors list has changed
 	if !reflect.DeepEqual(r.CurrentConfig.DisabledCollectors, newConfig.DisabledCollectors) {
@@ -1351,11 +1300,8 @@ func (r *CollectionPolicyReconciler) restartCollectors(
 				r.K8sClient,
 				metricsClient,
 				collector.ContainerResourceCollectorConfig{
-					PrometheusURL:           newConfig.PrometheusURL,
-					UpdateInterval:          newConfig.UpdateInterval,
-					QueryTimeout:            10 * time.Second,
-					DisableNetworkIOMetrics: newConfig.DisableNetworkIOMetrics,
-					DisableGPUMetrics:       newConfig.DisableGPUMetrics,
+					UpdateInterval:    newConfig.UpdateInterval,
+					DisableGPUMetrics: newConfig.DisableGPUMetrics,
 				},
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedPods,
@@ -1370,11 +1316,8 @@ func (r *CollectionPolicyReconciler) restartCollectors(
 				r.K8sClient,
 				metricsClient,
 				collector.NodeCollectorConfig{
-					PrometheusURL:           newConfig.PrometheusURL,
-					UpdateInterval:          newConfig.UpdateInterval,
-					QueryTimeout:            10 * time.Second,
-					DisableNetworkIOMetrics: newConfig.DisableNetworkIOMetrics,
-					DisableGPUMetrics:       newConfig.DisableGPUMetrics,
+					UpdateInterval:    newConfig.UpdateInterval,
+					DisableGPUMetrics: newConfig.DisableGPUMetrics,
 				},
 				newConfig.ExcludedNodes,
 				collector.DefaultMaxBatchSize,
@@ -1406,9 +1349,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(
 			replacedCollector = collector.NewPersistentVolumeClaimMetricsCollector(
 				r.K8sClient,
 				collector.PersistentVolumeClaimMetricsCollectorConfig{
-					PrometheusURL:  newConfig.PrometheusURL,
 					UpdateInterval: newConfig.UpdateInterval,
-					QueryTimeout:   10 * time.Second,
 				},
 				newConfig.TargetNamespaces,
 				newConfig.ExcludedPVCs,
@@ -1865,57 +1806,6 @@ func (r *CollectionPolicyReconciler) initializeCollectors(
 	logger := r.Log.WithName("initialize")
 	logger.Info("Initializing collectors", "config", fmt.Sprintf("%+v", config))
 
-	// Check if Prometheus is available if URL is configured
-	if config.PrometheusURL != "" {
-		logger.Info("Prometheus URL configured, checking availability", "url", config.PrometheusURL)
-		prometheusAvailable := r.waitForPrometheusAvailability(ctx, config.PrometheusURL)
-		if !prometheusAvailable {
-			logger.Info(
-				"Prometheus is not available after waiting, will continue initialization but metrics may be limited",
-			)
-			r.TelemetryLogger.Report(
-				gen.LogLevel_LOG_LEVEL_DEBUG,
-				"CollectionPolicyReconciler_initializeCollectors",
-				"Prometheus is not available after waiting, will continue initialization but metrics may be limited",
-				nil,
-				map[string]string{
-					"prometheus_url":   fmt.Sprintf("%v", config.PrometheusURL),
-					"zxporter_version": version.Get().String(),
-				},
-			)
-			// We continue initialization, but log the warning
-		} else {
-			r.TelemetryLogger.Report(
-				gen.LogLevel_LOG_LEVEL_INFO,
-				"CollectionPolicyReconciler_initializeCollectors",
-				"Prometheus is available, continuing with full metrics collection",
-				nil,
-				map[string]string{
-					"prometheus_url":   fmt.Sprintf("%v", config.PrometheusURL),
-					"zxporter_version": version.Get().String(),
-				},
-			)
-			logger.Info("Prometheus is available, continuing with full metrics collection")
-		}
-
-		// Start (or refresh) the periodic probe so health recovers from transient
-		// outages rather than being frozen on the one-shot startup result.
-		r.startPeriodicPrometheusHealthCheck(config.PrometheusURL)
-	} else {
-		r.TelemetryLogger.Report(
-			gen.LogLevel_LOG_LEVEL_WARN,
-			"CollectionPolicyReconciler_initializeCollectors",
-			"Prometheus URL is empty in config, metrics will be limited",
-			nil,
-			map[string]string{
-				"prometheus_url":   fmt.Sprintf("%v", config.PrometheusURL),
-				"zxporter_version": version.Get().String(),
-			},
-		)
-		// No URL — make sure any prior probe is stopped.
-		r.startPeriodicPrometheusHealthCheck("")
-	}
-
 	// Setup collection manager and basic services
 	if err := r.setupCollectionManager(ctx, config, logger); err != nil {
 		if r.TelemetryLogger != nil {
@@ -1935,7 +1825,7 @@ func (r *CollectionPolicyReconciler) initializeCollectors(
 	}
 
 	// Setup and start MPA Server
-	if err := r.setupMpaServer(); err != nil {
+	if err := r.setupMpaServer(ctx, config); err != nil {
 		logger.Error(err, "Failed to setup MPA server")
 		// Not fatal
 	}
@@ -2087,11 +1977,21 @@ func (r *CollectionPolicyReconciler) setupCollectionManager(
 }
 
 // setupMpaServer initializes and starts the gRPC server
-func (r *CollectionPolicyReconciler) setupMpaServer() error {
+func (r *CollectionPolicyReconciler) setupMpaServer(ctx context.Context, config *PolicyConfig) error {
 	if r.MpaServer != nil {
 		return nil
 	}
-	r.MpaServer = server.NewMpaServer(r.Log, nil, r.HealthManager)
+
+	var historicalProvider collector.HistoricalPercentileProvider
+	if config != nil && r.DakrClient != nil {
+		fetcher := r.DakrClient.NewPercentileFetcher()
+		cache := collector.NewHistoricalPercentileCache(r.Log, fetcher, "" /* clusterID resolved from auth token */, r.HealthManager)
+		go cache.Start(ctx)
+		historicalProvider = cache
+		r.Log.Info("Historical percentile cache started with DAKR fetcher")
+	}
+
+	r.MpaServer = server.NewMpaServer(r.Log, historicalProvider, r.HealthManager)
 	return r.MpaServer.Start(r.MpaServerPort)
 }
 
@@ -2691,9 +2591,7 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 			collector: collector.NewPersistentVolumeClaimMetricsCollector(
 				r.K8sClient,
 				collector.PersistentVolumeClaimMetricsCollectorConfig{
-					PrometheusURL:  config.PrometheusURL,
 					UpdateInterval: config.UpdateInterval,
-					QueryTimeout:   10 * time.Second,
 				},
 				config.TargetNamespaces,
 				config.ExcludedPVCs,
@@ -2773,11 +2671,8 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				r.K8sClient,
 				metricsClient,
 				collector.ContainerResourceCollectorConfig{
-					PrometheusURL:           config.PrometheusURL,
-					UpdateInterval:          config.UpdateInterval,
-					QueryTimeout:            10 * time.Second,
-					DisableNetworkIOMetrics: config.DisableNetworkIOMetrics,
-					DisableGPUMetrics:       config.DisableGPUMetrics,
+					UpdateInterval:    config.UpdateInterval,
+					DisableGPUMetrics: config.DisableGPUMetrics,
 				},
 				config.TargetNamespaces,
 				config.ExcludedPods,
@@ -2794,11 +2689,8 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				r.K8sClient,
 				metricsClient,
 				collector.NodeCollectorConfig{
-					PrometheusURL:           config.PrometheusURL,
-					UpdateInterval:          config.UpdateInterval,
-					QueryTimeout:            10 * time.Second,
-					DisableNetworkIOMetrics: config.DisableNetworkIOMetrics,
-					DisableGPUMetrics:       config.DisableGPUMetrics,
+					UpdateInterval:    config.UpdateInterval,
+					DisableGPUMetrics: config.DisableGPUMetrics,
 				},
 				config.ExcludedNodes,
 				collector.DefaultMaxBatchSize,
@@ -3531,16 +3423,12 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					r.TelemetryLogger,
 				)
 			case "container_resource":
-				// Use the reconciler's shared Prometheus metrics instance
 				replacedCollector = collector.NewContainerResourceCollector(
 					r.K8sClient,
 					metricsClient,
 					collector.ContainerResourceCollectorConfig{
-						PrometheusURL:           newConfig.PrometheusURL,
-						UpdateInterval:          newConfig.UpdateInterval,
-						QueryTimeout:            10 * time.Second,
-						DisableNetworkIOMetrics: newConfig.DisableNetworkIOMetrics,
-						DisableGPUMetrics:       newConfig.DisableGPUMetrics,
+						UpdateInterval:    newConfig.UpdateInterval,
+						DisableGPUMetrics: newConfig.DisableGPUMetrics,
 					},
 					newConfig.TargetNamespaces,
 					newConfig.ExcludedPods,
@@ -3564,9 +3452,7 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 				replacedCollector = collector.NewPersistentVolumeClaimMetricsCollector(
 					r.K8sClient,
 					collector.PersistentVolumeClaimMetricsCollectorConfig{
-						PrometheusURL:  newConfig.PrometheusURL,
 						UpdateInterval: newConfig.UpdateInterval,
-						QueryTimeout:   10 * time.Second,
 					},
 					newConfig.TargetNamespaces,
 					newConfig.ExcludedPVCs,
@@ -3752,17 +3638,12 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 			/// Cluster wide resources
 			//////////////////////////////////////////////////////////////////////////////////
 			case "node":
-				// Use the reconciler's shared Prometheus metrics instance
-
 				replacedCollector = collector.NewNodeCollector(
 					r.K8sClient,
 					metricsClient,
 					collector.NodeCollectorConfig{
-						PrometheusURL:           newConfig.PrometheusURL,
-						UpdateInterval:          newConfig.UpdateInterval,
-						QueryTimeout:            10 * time.Second,
-						DisableNetworkIOMetrics: newConfig.DisableNetworkIOMetrics,
-						DisableGPUMetrics:       newConfig.DisableGPUMetrics,
+						UpdateInterval:    newConfig.UpdateInterval,
+						DisableGPUMetrics: newConfig.DisableGPUMetrics,
 					},
 					newConfig.ExcludedNodes,
 					collector.DefaultMaxBatchSize,
@@ -4009,133 +3890,6 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 	return nil
 }
 
-// waitForPrometheusAvailability checks if Prometheus is available with retry logic
-// Returns true if Prometheus is available, false if not after maxRetries
-func (r *CollectionPolicyReconciler) waitForPrometheusAvailability(
-	ctx context.Context,
-	prometheusURL string,
-) bool {
-	logger := r.Log.WithName("prometheus-check")
-
-	if prometheusURL == "" {
-		logger.Info("No Prometheus URL configured, skipping availability check")
-		return true
-	}
-
-	logger.Info("Checking Prometheus availability", "url", prometheusURL)
-
-	// Configuration for retry mechanism
-	initialBackoff := 5 * time.Second
-	maxBackoff := 2 * time.Minute
-	backoff := initialBackoff
-	maxRetries := 12 // About 25 minutes total with exponential backoff
-
-	// Clone DefaultTransport to preserve proxy settings, TLS config, and connection pooling
-	tr := http.DefaultTransport.(*http.Transport).Clone()
-	tr.DisableCompression = false // Ensure gzip compression is enabled for responses
-	client := &http.Client{
-		Timeout:   5 * time.Second,
-		Transport: tr,
-	}
-
-	healthEndpoint := prometheusHealthEndpoint(prometheusURL)
-
-	for i := 0; i < maxRetries; i++ {
-		select {
-		case <-ctx.Done():
-			logger.Info("Context cancelled while checking Prometheus availability")
-			return false
-		default:
-			// Try to contact Prometheus
-			req, err := http.NewRequestWithContext(ctx, http.MethodGet, healthEndpoint, nil)
-			if err != nil {
-				logger.Error(err, "Failed to create request for Prometheus health check")
-				r.TelemetryLogger.Report(
-					gen.LogLevel_LOG_LEVEL_ERROR,
-					"CollectionPolicyReconciler_waitForPrometheusAvailability",
-					"Failed to start collector",
-					err,
-					map[string]string{
-						"prometheus_url":   prometheusURL,
-						"zxporter_version": version.Get().String(),
-					},
-				)
-				time.Sleep(backoff)
-				backoff = min(backoff*2, maxBackoff)
-				continue
-			}
-
-			resp, err := client.Do(req)
-			if err != nil {
-				logger.Info("Prometheus not yet available",
-					"attempt", i+1,
-					"maxRetries", maxRetries,
-					"backoff", backoff.String(),
-					"error", err.Error())
-				time.Sleep(backoff)
-				backoff = min(backoff*2, maxBackoff)
-				continue
-			}
-
-			// Check response status
-			if resp.StatusCode == http.StatusOK {
-				logger.Info("Prometheus is available", "statusCode", resp.StatusCode)
-				resp.Body.Close()
-				r.updateHealthStatus(
-					health.HealthStatusHealthy,
-					"Prometheus available",
-					map[string]string{"url": prometheusURL},
-				)
-				return true
-			}
-
-			logger.Info("Prometheus returned non-OK status",
-				"statusCode", resp.StatusCode,
-				"attempt", i+1,
-				"maxRetries", maxRetries)
-			r.TelemetryLogger.Report(
-				gen.LogLevel_LOG_LEVEL_ERROR,
-				"CollectionPolicyReconciler_waitForPrometheusAvailability",
-				"Prometheus returned non-OK status",
-				err,
-				map[string]string{
-					"prometheus_url":   prometheusURL,
-					"zxporter_version": version.Get().String(),
-				},
-			)
-			resp.Body.Close()
-			time.Sleep(backoff)
-			backoff = min(backoff*2, maxBackoff)
-		}
-	}
-
-	logger.Info(
-		"Prometheus availability check failed after maximum retries",
-		"maxRetries",
-		maxRetries,
-	)
-	r.TelemetryLogger.Report(
-		gen.LogLevel_LOG_LEVEL_ERROR,
-		"CollectionPolicyReconciler_waitForPrometheusAvailability",
-		"Prometheus availability check failed after maximum retries",
-		fmt.Errorf("prometheus not available"),
-		map[string]string{
-			"prometheus_url":   prometheusURL,
-			"max_retries":      fmt.Sprintf("%v", maxRetries),
-			"zxporter_version": version.Get().String(),
-		},
-	)
-	r.updateHealthStatus(
-		health.HealthStatusUnhealthy,
-		"Prometheus unavailable after retries",
-		map[string]string{
-			"url":         prometheusURL,
-			"max_retries": fmt.Sprintf("%d", maxRetries),
-		},
-	)
-	return false
-}
-
 // SetupWithManager sets up the controller with the Manager.
 func (r *CollectionPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// Set up basic components
@@ -4172,120 +3926,5 @@ func (r *CollectionPolicyReconciler) updateHealthStatus(
 ) {
 	if r.HealthManager != nil {
 		r.HealthManager.UpdateStatus(health.ComponentPrometheus, status, message, metadata)
-	}
-}
-
-// startPeriodicPrometheusHealthCheck launches (or restarts) a goroutine that
-// pings Prometheus every minute and updates ComponentPrometheus health. Without
-// this, the one-shot startup check leaves the status frozen until something
-// else happens to refresh it. Pass "" to stop the probe.
-//
-// The goroutine is parented on context.Background() rather than the caller's
-// reconcile context: controller-runtime cancels the reconcile ctx as soon as
-// Reconcile returns, which would kill the probe immediately. The stored cancel
-// func is the only intended way to stop it (matches the OOM reconciler pattern).
-//
-// Idempotency: if a probe for the same URL is already running we no-op. We
-// detect a dead goroutine (panic, lost cancel, etc.) via the done channel —
-// if it's already closed we treat the probe as gone and start a fresh one.
-func (r *CollectionPolicyReconciler) startPeriodicPrometheusHealthCheck(url string) {
-	r.prometheusProbeMu.Lock()
-	defer r.prometheusProbeMu.Unlock()
-
-	if r.prometheusProbeURL == url && r.probeStillAliveLocked() {
-		return
-	}
-	if r.prometheusProbeCancel != nil {
-		r.prometheusProbeCancel()
-	}
-	r.prometheusProbeURL = url
-	r.prometheusProbeCancel = nil
-	r.prometheusProbeDone = nil
-	if url == "" {
-		return
-	}
-
-	endpoint := prometheusHealthEndpoint(url)
-	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan struct{})
-	r.prometheusProbeCancel = cancel
-	r.prometheusProbeDone = done
-
-	go r.runPrometheusProbe(ctx, done, url, endpoint)
-}
-
-// prometheusHealthEndpoint returns the full /-/ready URL, defaulting to http://
-// when the caller passed a bare host:port. Shared by waitForPrometheusAvailability
-// and the periodic probe so both build the same endpoint from the same input.
-func prometheusHealthEndpoint(url string) string {
-	if !strings.HasPrefix(url, "http") {
-		return "http://" + url + "/-/ready"
-	}
-	return url + "/-/ready"
-}
-
-// probeStillAliveLocked returns true if the existing probe goroutine is still
-// running. Caller must hold prometheusProbeMu.
-func (r *CollectionPolicyReconciler) probeStillAliveLocked() bool {
-	if r.prometheusProbeCancel == nil || r.prometheusProbeDone == nil {
-		return false
-	}
-	select {
-	case <-r.prometheusProbeDone:
-		return false
-	default:
-		return true
-	}
-}
-
-// runPrometheusProbe is the probe goroutine body. Defers a recover so a panic
-// in the HTTP client does not silently leave the probe dead with no cleanup,
-// and always closes done so probeStillAliveLocked can detect exit.
-func (r *CollectionPolicyReconciler) runPrometheusProbe(ctx context.Context, done chan struct{}, url, endpoint string) {
-	defer close(done)
-	defer func() {
-		if rec := recover(); rec != nil {
-			r.Log.Error(fmt.Errorf("%v", rec), "Prometheus probe goroutine panicked", "url", url)
-		}
-	}()
-
-	// Clone DefaultTransport so the probe inherits proxy/TLS settings (matches
-	// waitForPrometheusAvailability). Re-using DefaultTransport directly would
-	// share the connection pool with every other consumer in the binary.
-	tr := http.DefaultTransport.(*http.Transport).Clone()
-	client := &http.Client{Timeout: 5 * time.Second, Transport: tr}
-	ticker := time.NewTicker(60 * time.Second)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			status, msg := health.HealthStatusHealthy, "Prometheus available"
-			meta := map[string]string{"url": url}
-			// Build the request from ctx so a URL change or shutdown cancels
-			// any in-flight call immediately rather than waiting for the timeout.
-			req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
-			if err != nil {
-				status, msg = health.HealthStatusDegraded, "Prometheus probe request build failed"
-				meta["error"] = err.Error()
-				r.updateHealthStatus(status, msg, meta)
-				continue
-			}
-			resp, err := client.Do(req)
-			switch {
-			case err != nil:
-				status, msg = health.HealthStatusDegraded, "Prometheus probe failed"
-				meta["error"] = err.Error()
-			case resp.StatusCode != http.StatusOK:
-				status, msg = health.HealthStatusDegraded, "Prometheus probe returned non-OK status"
-				meta["status_code"] = fmt.Sprintf("%d", resp.StatusCode)
-			}
-			if resp != nil {
-				_ = resp.Body.Close()
-			}
-			r.updateHealthStatus(status, msg, meta)
-		}
 	}
 }

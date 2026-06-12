@@ -15,3 +15,7 @@ keywords:
   - kubernetes
   - resource-optimization
   - devzero
+dependencies:
+  - name: zxporter-nodemon
+    version: "0.0.3"
+    repository: "file://../zxporter-nodemon"

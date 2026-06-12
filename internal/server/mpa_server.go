@@ -21,7 +21,7 @@ type MpaServer struct {
 	logger              logr.Logger
 	subscriptionManager *SubscriptionManager
 	grpcServer          *grpc.Server
-	historicalCollector *collector.HistoricalMetricsCollector
+	historicalCollector collector.HistoricalPercentileProvider
 	healthManager       *health.HealthManager
 }
 
@@ -29,7 +29,7 @@ type MpaServer struct {
 // historicalCollector may be nil if Prometheus is not available.
 func NewMpaServer(
 	logger logr.Logger,
-	historicalCollector *collector.HistoricalMetricsCollector,
+	historicalCollector collector.HistoricalPercentileProvider,
 	healthManager *health.HealthManager,
 ) *MpaServer {
 	return &MpaServer{
@@ -283,6 +283,7 @@ func (sm *SubscriptionManager) Broadcast(
 
 	cpuMillis := data.CpuUsageMillis
 	memBytes := data.MemoryUsageBytes
+	rssBytes := data.MemoryRssBytes
 
 	restartCount := data.RestartCount
 	lastReason := data.LastTerminationReason
@@ -338,6 +339,7 @@ func (sm *SubscriptionManager) Broadcast(
 				Timestamp:             timestamppb.New(timestamp),
 				CpuUsageMillis:        cpuMillis,
 				MemoryUsageBytes:      memBytes,
+				MemoryRssBytes:        rssBytes,
 				OomKillCount:          oomKillCount,
 				RestartCount:          int32(restartCount),
 				LastTerminationReason: lastReason,
@@ -352,6 +354,15 @@ func (sm *SubscriptionManager) Broadcast(
 				NetworkReceiveBytesPerSec:  int64(data.NetworkReceiveBytes),
 				NetworkTransmitBytesPerSec: int64(data.NetworkTransmitBytes),
 			}
+
+			sm.logger.Info("Broadcasting container metrics to MPA stream",
+				"workload", matchedWorkload.Name,
+				"container", container,
+				"cpuMillis", cpuMillis,
+				"memBytes", memBytes,
+				"rssBytes", rssBytes,
+				"throttle", data.CpuThrottledFraction,
+			)
 
 			batch := &gen.ContainerMetricsBatch{
 				Items: []*gen.ContainerMetricItem{item},

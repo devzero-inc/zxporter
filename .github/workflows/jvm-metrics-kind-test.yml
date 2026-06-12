@@ -59,9 +59,9 @@ jobs:
             --set provider=eks \
             --set dcgmExporter.enabled=false \
             --set jvmMetrics.enabled=true \
-            --set gpuMetricsExporter.image.repository=zxporter-nodemon \
-            --set gpuMetricsExporter.image.tag=jvm-ci \
-            --set gpuMetricsExporter.image.pullPolicy=IfNotPresent
+            --set image.repository=zxporter-nodemon \
+            --set image.tag=jvm-ci \
+            --set image.pullPolicy=IfNotPresent
           kubectl -n devzero-system rollout status ds/zxporter-nodemon --timeout=180s
 
       - name: Deploy JVM test workloads
