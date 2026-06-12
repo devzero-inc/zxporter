@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 For releases prior to automated changelog generation, please see the
 [GitHub Releases](https://github.com/devzero-inc/zxporter/releases) page.
 
+## [v0.0.82] - 2026-06-12
+
+<!-- Release notes generated using configuration in .github/release.yml at main -->
+
+### What's Changed
+### Other Changes
+* chore: update changelog for v0.0.81 by @github-actions[bot] in https://github.com/devzero-inc/zxporter/pull/406
+* bump zxp image v0.0.81 by @sandipanpanda in https://github.com/devzero-inc/zxporter/pull/407
+* chore(helm): update Chart.yaml version to 0.0.59 by @github-actions[bot] in https://github.com/devzero-inc/zxporter/pull/408
+* [biday prometheus] feat: remove Prometheus dependency, collect all metrics via nodemon. by @Parthiba-Hazra in https://github.com/devzero-inc/zxporter/pull/376
+
+
+**Full Changelog**: https://github.com/devzero-inc/zxporter/compare/v0.0.81...v0.0.82
+
 ## [v0.0.81] - 2026-06-10
 
 <!-- Release notes generated using configuration in .github/release.yml at main -->
