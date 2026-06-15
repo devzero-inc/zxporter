@@ -326,7 +326,12 @@ build-installer: manifests generate kustomize yq helm ## Generate a consolidated
 
 	@$(KUSTOMIZE) build config/default > $(DIST_ZXPORTER_BUNDLE)
 	@echo "[INFO] Patching cluster token into generated bundle"
-	@sed "s|CLUSTER_TOKEN: '{{ .cluster_token }}'|CLUSTER_TOKEN: \"$(CLUSTER_TOKEN)\"|g" $(DIST_ZXPORTER_BUNDLE) > $(DIST_ZXPORTER_BUNDLE).tmp && mv $(DIST_ZXPORTER_BUNDLE).tmp $(DIST_ZXPORTER_BUNDLE)
+# Only substitute when CLUSTER_TOKEN is set; an empty value must KEEP the
+# '{{ .cluster_token }}' placeholder so the curl installer can template it.
+# Do not remove this guard -- see #372; its loss in #376 produced CLUSTER_TOKEN: "".
+	@if [ -n "$(CLUSTER_TOKEN)" ]; then \
+		sed "s|CLUSTER_TOKEN: '{{ .cluster_token }}'|CLUSTER_TOKEN: \"$(CLUSTER_TOKEN)\"|g" $(DIST_ZXPORTER_BUNDLE) > $(DIST_ZXPORTER_BUNDLE).tmp && mv $(DIST_ZXPORTER_BUNDLE).tmp $(DIST_ZXPORTER_BUNDLE); \
+	fi
 	@cat $(DIST_ZXPORTER_BUNDLE) >> $(DIST_INSTALL_BUNDLE)
 
 	@echo "[INFO] Generate and append nodemon DaemonSet to installer"
