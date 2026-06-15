@@ -17,5 +17,5 @@ keywords:
   - devzero
 dependencies:
   - name: zxporter-nodemon
-    version: "0.0.3"
+    version: "0.0.4"
     repository: "file://../zxporter-nodemon"
