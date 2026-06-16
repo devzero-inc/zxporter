@@ -99,8 +99,9 @@ func TestNodeOperatorMonitor_DiscoverDeployment(t *testing.T) {
 				Name:      "karpenter",
 				Namespace: "kube-system",
 				Labels: map[string]string{
-					"app.kubernetes.io/name":    "karpenter",
-					"app.kubernetes.io/version": "1.7.8",
+					"app.kubernetes.io/name":     "karpenter",
+					"app.kubernetes.io/instance": "karpenter",
+					"app.kubernetes.io/version":  "1.7.8",
 				},
 			},
 			Spec: appsv1.DeploymentSpec{
@@ -137,13 +138,64 @@ func TestNodeOperatorMonitor_DiscoverDeployment(t *testing.T) {
 		assert.Equal(t, "kube-system", found.Namespace)
 	})
 
+	// Regression: dzKarp Helm charts name the deployment "<release>-<chart>"
+	// (e.g. "karpenter-dzkarp-aws-karpenter") and set
+	// app.kubernetes.io/name to the chart name, NOT "karpenter". The old
+	// name=karpenter selector missed these entirely, so the node operator
+	// showed as "not installed". Discovery must key on the instance label.
+	t.Run("finds dzKarp deployment whose name label is the chart name", func(t *testing.T) {
+		dep := &appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "karpenter-dzkarp-aws-karpenter",
+				Namespace: "devzero-system",
+				Labels: map[string]string{
+					"app.kubernetes.io/name":     "dzkarp-aws-karpenter",
+					"app.kubernetes.io/instance": "karpenter",
+					"app.kubernetes.io/version":  "1.7.16",
+				},
+			},
+			Spec: appsv1.DeploymentSpec{
+				Replicas: int32Ptr(1),
+				Selector: &metav1.LabelSelector{
+					MatchLabels: map[string]string{
+						"app.kubernetes.io/instance": "karpenter",
+					},
+				},
+				Template: corev1.PodTemplateSpec{
+					Spec: corev1.PodSpec{
+						Containers: []corev1.Container{
+							{
+								Name:  "controller",
+								Image: "docker.io/devzeroinc/dzkarp-aws-controller:1.7.16",
+							},
+						},
+					},
+				},
+			},
+			Status: appsv1.DeploymentStatus{
+				Replicas:          1,
+				ReadyReplicas:     1,
+				AvailableReplicas: 1,
+			},
+		}
+		clientset := fake.NewSimpleClientset(dep)
+		mon := NewNodeOperatorMonitor(logr.Discard(), clientset, &http.Client{})
+
+		found, err := mon.discoverDeployment(context.Background())
+		require.NoError(t, err)
+		require.NotNil(t, found)
+		assert.Equal(t, "karpenter-dzkarp-aws-karpenter", found.Name)
+		assert.Equal(t, "devzero-system", found.Namespace)
+	})
+
 	t.Run("ignores upstream karpenter without devzero image", func(t *testing.T) {
 		dep := &appsv1.Deployment{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "karpenter",
 				Namespace: "karpenter",
 				Labels: map[string]string{
-					"app.kubernetes.io/name": "karpenter",
+					"app.kubernetes.io/name":     "karpenter",
+					"app.kubernetes.io/instance": "karpenter",
 				},
 			},
 			Spec: appsv1.DeploymentSpec{
@@ -266,7 +318,8 @@ func TestNodeOperatorMonitor_DiscoverServiceEndpoint(t *testing.T) {
 				Name:      "karpenter",
 				Namespace: "kube-system",
 				Labels: map[string]string{
-					"app.kubernetes.io/name": "karpenter",
+					"app.kubernetes.io/name":     "karpenter",
+					"app.kubernetes.io/instance": "karpenter",
 				},
 			},
 			Spec: corev1.ServiceSpec{
@@ -289,7 +342,8 @@ func TestNodeOperatorMonitor_DiscoverServiceEndpoint(t *testing.T) {
 				Name:      "karpenter",
 				Namespace: "kube-system",
 				Labels: map[string]string{
-					"app.kubernetes.io/name": "karpenter",
+					"app.kubernetes.io/name":     "karpenter",
+					"app.kubernetes.io/instance": "karpenter",
 				},
 			},
 			Spec: corev1.ServiceSpec{
@@ -348,8 +402,9 @@ func TestNodeOperatorMonitor_BuildReport(t *testing.T) {
 				Name:      "karpenter",
 				Namespace: "kube-system",
 				Labels: map[string]string{
-					"app.kubernetes.io/name":    "karpenter",
-					"app.kubernetes.io/version": "1.7.8",
+					"app.kubernetes.io/name":     "karpenter",
+					"app.kubernetes.io/instance": "karpenter",
+					"app.kubernetes.io/version":  "1.7.8",
 				},
 				CreationTimestamp: metav1.Now(),
 			},
@@ -379,7 +434,8 @@ func TestNodeOperatorMonitor_BuildReport(t *testing.T) {
 				Name:      "karpenter",
 				Namespace: "kube-system",
 				Labels: map[string]string{
-					"app.kubernetes.io/name": "karpenter",
+					"app.kubernetes.io/name":     "karpenter",
+					"app.kubernetes.io/instance": "karpenter",
 				},
 			},
 			Spec: corev1.ServiceSpec{
@@ -435,8 +491,9 @@ func TestNodeOperatorMonitor_BuildReport(t *testing.T) {
 				Name:      "karpenter",
 				Namespace: "kube-system",
 				Labels: map[string]string{
-					"app.kubernetes.io/name":    "karpenter",
-					"app.kubernetes.io/version": "1.7.8",
+					"app.kubernetes.io/name":     "karpenter",
+					"app.kubernetes.io/instance": "karpenter",
+					"app.kubernetes.io/version":  "1.7.8",
 				},
 				CreationTimestamp: metav1.Now(),
 			},
