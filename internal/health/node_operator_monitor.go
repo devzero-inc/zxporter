@@ -14,7 +14,15 @@ import (
 )
 
 const (
-	karpenterLabelName  = "app.kubernetes.io/name=karpenter"
+	// karpenterLabelName selects the Karpenter controller deployment/service.
+	// DevZero's dzkarp charts (dzkarp-aws-karpenter, dzkarp-azure-karpenter,
+	// dzkarp-gcp-karpenter, ...) set app.kubernetes.io/name to the chart name —
+	// e.g. "dzkarp-aws-karpenter" — NOT "karpenter", so selecting on the name
+	// label misses every DevZero-managed install. The Helm release is
+	// consistently "karpenter" across providers (and for upstream Karpenter),
+	// so app.kubernetes.io/instance is the stable selector; isDevZeroImage()
+	// then confirms the deployment is DevZero-managed.
+	karpenterLabelName  = "app.kubernetes.io/instance=karpenter"
 	defaultHealthPort   = "8081"
 	defaultProbeTimeout = 5 * time.Second
 )

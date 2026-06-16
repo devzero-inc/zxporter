@@ -18,6 +18,16 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
+// karpenterControllerLabelSelector selects the Karpenter controller
+// deployment. DevZero's dzkarp charts set app.kubernetes.io/name to the chart
+// name (e.g. "dzkarp-aws-karpenter"), not "karpenter", so selecting on the
+// name label misses every DevZero-managed install. The Helm release is
+// consistently "karpenter" across providers (and for upstream Karpenter), so
+// the instance label is the stable selector. Note: this collector matches any
+// Karpenter controller (upstream or DevZero-managed); it does not filter by
+// image like the health monitor's discoverDeployment does.
+const karpenterControllerLabelSelector = "app.kubernetes.io/instance=karpenter"
+
 // KarpenterResource defines a Karpenter resource to be watched
 type KarpenterResource struct {
 	GroupVersion schema.GroupVersion
@@ -86,7 +96,7 @@ func (c *KarpenterCollector) Start(ctx context.Context) error {
 		Version:  "v1",
 		Resource: "deployments",
 	}
-	labelSelector := "app.kubernetes.io/name=karpenter"
+	labelSelector := karpenterControllerLabelSelector
 
 	deployments, err := c.dynamicClient.Resource(gvr).List(ctx, metav1.ListOptions{
 		LabelSelector: labelSelector,
@@ -833,7 +843,7 @@ func (c *KarpenterCollector) IsAvailable(ctx context.Context) bool {
 		Resource: "deployments",
 	}
 
-	labelSelector := "app.kubernetes.io/name=karpenter"
+	labelSelector := karpenterControllerLabelSelector
 
 	deployments, err := c.dynamicClient.Resource(gvr).List(ctx, metav1.ListOptions{
 		LabelSelector: labelSelector,
