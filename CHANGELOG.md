@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 For releases prior to automated changelog generation, please see the
 [GitHub Releases](https://github.com/devzero-inc/zxporter/releases) page.
 
+## [v0.0.83] - 2026-06-17
+
+<!-- Release notes generated using configuration in .github/release.yml at main -->
+
+### What's Changed
+### Other Changes
+* bump zxp to v0.0.82 by @sandipanpanda in https://github.com/devzero-inc/zxporter/pull/410
+* chore: update changelog for v0.0.82 by @github-actions[bot] in https://github.com/devzero-inc/zxporter/pull/409
+* chore(helm): update Chart.yaml version to 0.0.60 by @github-actions[bot] in https://github.com/devzero-inc/zxporter/pull/411
+* chore(helm): update nodemon Chart.yaml version to 0.0.4 by @github-actions[bot] in https://github.com/devzero-inc/zxporter/pull/412
+* chore(helm): update Chart.yaml version to 0.0.22 by @github-actions[bot] in https://github.com/devzero-inc/zxporter/pull/413
+* add installer updater yaml script for linking in migration docs by @sandipanpanda in https://github.com/devzero-inc/zxporter/pull/414
+* fix(installer): preserve CLUSTER_TOKEN placeholder when token is empty by @sandipanpanda in https://github.com/devzero-inc/zxporter/pull/415
+* Recognize dzkarp node operator by Helm instance label by @Tzvonimir in https://github.com/devzero-inc/zxporter/pull/416
+* build arm for nodemon by @sandipanpanda in https://github.com/devzero-inc/zxporter/pull/417
+
+
+**Full Changelog**: https://github.com/devzero-inc/zxporter/compare/v0.0.82...v0.0.83
+
 ## [v0.0.82] - 2026-06-12
 
 <!-- Release notes generated using configuration in .github/release.yml at main -->
