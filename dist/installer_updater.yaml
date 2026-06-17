@@ -181,6 +181,7 @@ rules:
       - ""
     resources:
       - nodes/metrics
+      - nodes/proxy
       - nodes/status
       - pods/status
     verbs:
@@ -873,6 +874,9 @@ spec:
         app.kubernetes.io/name: zxporter-nodemon
         app.kubernetes.io/instance: zxporter-nodemon
     spec:
+      # nodemon is the sole source of node/container metrics, so it must run on every node and
+      # survive scheduling pressure on all providers (not just EKS).
+      priorityClassName: system-node-critical
       serviceAccountName: zxporter-nodemon
       volumes:
         - name: "pod-gpu-resources"
@@ -936,6 +940,9 @@ spec:
           imagePullPolicy: IfNotPresent
           command: ["/bin/bash", "-c"]
           args:
+            # nodemon now schedules on every node (incl. non-GPU), so the DCGM sidecar must idle
+            # gracefully instead of crashlooping where there is no GPU. Use the resilient retry loop
+            # for all providers, including GCP.
             - hostname $NODE_NAME; for ((;;)) { r=$(dcgm-exporter -f /etc/dcgm-exporter/counters.csv); echo "dcgm-exporter could not run"; sleep 60 ; }
           ports:
             - name: "metrics"

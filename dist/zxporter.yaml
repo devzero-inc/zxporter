@@ -172,6 +172,7 @@ rules:
   - ""
   resources:
   - nodes/metrics
+  - nodes/proxy
   - nodes/status
   - pods/status
   verbs:
