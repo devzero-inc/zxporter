@@ -32,9 +32,10 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if eq (required ".Values.provider is required (gcp|eks|azure)" .Values.provider) "eks" }}
+      {{- $provider := required ".Values.provider is required (gcp|eks|azure)" .Values.provider }}
+      # nodemon is the sole source of node/container metrics, so it must run on every node and
+      # survive scheduling pressure on all providers (not just EKS).
       priorityClassName: system-node-critical
-      {{- end }}
       serviceAccountName: {{ include "zxporter-nodemon.serviceAccountName" . }}
       {{- if .Values.dcgmExporter.enabled }}
       volumes:
@@ -54,16 +55,9 @@ spec:
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if .Values.nodemon.affinity }}
       {{- with .Values.nodemon.affinity }}
       affinity:
         {{- toYaml . | nindent 8 }}
-      {{- end }}
-      {{- else if (eq .Values.provider "gcp")}}
-      {{- with .Values.gcp.affinity }}
-      affinity:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
       {{- end }}
       {{- with .Values.nodemon.tolerations }}
       tolerations:
@@ -128,18 +122,13 @@ spec:
           imagePullPolicy: {{ .Values.dcgmExporter.image.pullPolicy }}
           command: [ "/bin/bash", "-c" ]
           args:
-          {{- if eq .Values.provider "gcp"}}
-            {{- if .Values.dcgmExporter.useExternalHostEngine }}
-            - hostname $NODE_NAME; dcgm-exporter --remote-hostengine-info ${NODE_IP} -f /etc/dcgm-exporter/counters.csv
-            {{- else }}
-            - hostname $NODE_NAME; dcgm-exporter -f /etc/dcgm-exporter/counters.csv
-            {{- end }}
-          {{- else }}
-            {{- if .Values.dcgmExporter.useExternalHostEngine }}
+          # nodemon now schedules on every node (incl. non-GPU), so the DCGM sidecar must idle
+          # gracefully instead of crashlooping where there is no GPU. Use the resilient retry loop
+          # for all providers, including GCP.
+          {{- if .Values.dcgmExporter.useExternalHostEngine }}
             - hostname $NODE_NAME; for ((;;)) { r=$(dcgm-exporter --remote-hostengine-info ${NODE_IP} -f /etc/dcgm-exporter/counters.csv); echo "dcgm-exporter could not run"; sleep 60 ; }
-            {{- else }}
+          {{- else }}
             - hostname $NODE_NAME; for ((;;)) { r=$(dcgm-exporter -f /etc/dcgm-exporter/counters.csv); echo "dcgm-exporter could not run"; sleep 60 ; }
-            {{- end }}
           {{- end }}
           ports:
             - name: "metrics"

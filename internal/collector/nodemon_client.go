@@ -246,6 +246,21 @@ func (c *NodemonClient) refreshCache(ctx context.Context) (map[string]string, er
 	return nodeToIP, nil
 }
 
+// CoveredNodes returns the set of node names that currently have a running
+// nodemon pod. Used to determine which nodes need the kubelet Summary-API
+// fallback for metrics coverage.
+func (c *NodemonClient) CoveredNodes(ctx context.Context) (map[string]bool, error) {
+	nodeToIP, err := c.refreshCache(ctx)
+	if err != nil {
+		return nil, err
+	}
+	covered := make(map[string]bool, len(nodeToIP))
+	for node := range nodeToIP {
+		covered[node] = true
+	}
+	return covered, nil
+}
+
 // HasExporters returns true if any nodemon pods were discovered.
 func (c *NodemonClient) HasExporters(ctx context.Context) bool {
 	m, err := c.refreshCache(ctx)
