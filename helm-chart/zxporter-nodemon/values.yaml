@@ -9,7 +9,7 @@ serviceAccount:
 image:
   repository: docker.io/devzeroinc/zxporter-nodemon
   pullPolicy: IfNotPresent
-  tag: "v0.0.82"
+  tag: "v0.0.83"
 
 nodemon:
   # the affinity field is the preferred way of adding affinity annotations
