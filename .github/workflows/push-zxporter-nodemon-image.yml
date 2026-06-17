@@ -199,7 +199,7 @@ jobs:
           echo "Building and pushing tag: $tag to both Docker Hub and ECR"
 
           docker buildx build \
-            --platform linux/amd64 \
+            --platform linux/amd64,linux/arm64 \
             --push \
             -t docker.io/devzeroinc/zxporter-nodemon:$tag \
             -t public.ecr.aws/devzeroinc/zxporter-nodemon:$tag \
