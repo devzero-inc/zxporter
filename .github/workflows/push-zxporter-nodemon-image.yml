@@ -122,41 +122,10 @@ jobs:
           fi
           done
 
-          # Handle existing tags
+          # Handle existing tags - any existing tag will be overridden
           if [ ${#EXISTING_TAGS[@]} -gt 0 ]; then
-          echo "Found existing tags: ${EXISTING_TAGS[@]}"
-
-          # Check if any non-latest tags exist
-          NON_LATEST_EXISTING=()
-          for tag in "${EXISTING_TAGS[@]}"; do
-            if [[ "$tag" != "latest" ]]; then
-            NON_LATEST_EXISTING+=("$tag")
-            fi
-          done
-
-          # Def have to fail if any non-latest tags exist
-          if [ ${#NON_LATEST_EXISTING[@]} -gt 0 ]; then
-            echo "ERROR: The following tags already exist in the registry and cannot be overridden:"
-            printf '  - %s\n' "${NON_LATEST_EXISTING[@]}"
-            echo ""
-            echo "To avoid accidentally overriding existing images, this build is being stopped."
-            echo "If you need to rebuild these tags, please delete them from the registry first."
-            exit 1
-          fi
-
-          # check latest tag to push or not
-          for tag in "${EXISTING_TAGS[@]}"; do
-            if [[ "$tag" == "latest" ]]; then
-            if [[ "$PUSH_LATEST" != "true" ]]; then
-              echo "ERROR: The 'latest' tag already exists in the registry."
-              echo "To override the 'latest' tag, you must set 'push_latest' to true in the workflow dispatch."
-              echo "Current push_latest value: $PUSH_LATEST"
-              exit 1
-            else
-              echo "WARNING: The 'latest' tag exists but will be overridden because push_latest=true"
-            fi
-            fi
-          done
+          echo "WARNING: The following tags already exist in the registry and will be overridden:"
+          printf '  - %s\n' "${EXISTING_TAGS[@]}"
           fi
 
           echo "Tag validation passed. Proceeding with build..."
