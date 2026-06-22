@@ -304,7 +304,7 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 	// Pre-fetch container metrics from nodemon for network/IO/throttle (one call per cycle)
 	c.nodemonContainerMetricsCache = nil
 	if c.nodemonClient != nil {
-		allContainerMetrics, err := c.nodemonClient.FetchAllContainerMetrics(ctx)
+		allContainerMetrics, _, err := c.nodemonClient.FetchAllContainerMetrics(ctx)
 		if err != nil {
 			c.logger.Error(err, "Failed to fetch container metrics from nodemon")
 		} else {
@@ -658,14 +658,15 @@ func (c *ContainerResourceCollector) processContainerMetrics(
 // of collectAllContainerResources to work unchanged — CPU/memory come from nodemon's
 // stats/summary data (usageNanoCores, workingSetBytes) instead of the metrics-server API.
 func (c *ContainerResourceCollector) buildPodMetricsFromNodemon(ctx context.Context) (*metricsv1beta1.PodMetricsList, error) {
-	allMetrics, err := c.nodemonClient.FetchAllContainerMetrics(ctx)
+	allMetrics, failedNodes, err := c.nodemonClient.FetchAllContainerMetrics(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch container metrics from nodemon: %w", err)
 	}
 
-	// Kubelet fallback: for any node that has pods but no nodemon pod, scrape the
-	// kubelet Summary API directly so those containers still get CPU/memory metrics.
-	allMetrics = append(allMetrics, c.fallbackContainerMetrics(ctx)...)
+	// Kubelet fallback: for any node that has pods but no nodemon pod — OR where
+	// the nodemon pod is Running but failed to serve metrics — scrape the kubelet
+	// Summary API directly so those containers still get CPU/memory metrics.
+	allMetrics = append(allMetrics, c.fallbackContainerMetrics(ctx, failedNodes)...)
 
 	// Group by pod
 	podMap := make(map[string]*metricsv1beta1.PodMetrics)
@@ -708,10 +709,14 @@ func (c *ContainerResourceCollector) buildPodMetricsFromNodemon(ctx context.Cont
 	return result, nil
 }
 
-// fallbackContainerMetrics scrapes the kubelet Summary API for any node that has
-// pods but no running nodemon pod, returning per-container CPU/memory metrics so
-// those nodes are not metrics blind spots. Errors are logged per-node and skipped.
-func (c *ContainerResourceCollector) fallbackContainerMetrics(ctx context.Context) []UnifiedContainerMetric {
+// fallbackContainerMetrics scrapes the kubelet Summary API for any node that
+// needs it, returning per-container CPU/memory metrics so those nodes are not
+// metrics blind spots. A node needs fallback if:
+//   - it has no running nodemon pod at all (not in CoveredNodes), OR
+//   - it has a Running nodemon pod that failed to serve metrics (in nodemonFailedNodes)
+//
+// Errors are logged per-node and skipped.
+func (c *ContainerResourceCollector) fallbackContainerMetrics(ctx context.Context, nodemonFailedNodes map[string]struct{}) []UnifiedContainerMetric {
 	if c.podInformer == nil {
 		return nil
 	}
@@ -722,7 +727,13 @@ func (c *ContainerResourceCollector) fallbackContainerMetrics(ctx context.Contex
 		return nil
 	}
 
-	// Collect distinct node names that host pods but lack a nodemon pod.
+	// Remove nodes where nodemon was "covered" (Running) but actually failed to serve.
+	// These need the kubelet fallback just like nodes with no nodemon pod.
+	for node := range nodemonFailedNodes {
+		delete(covered, node)
+	}
+
+	// Collect distinct node names that host pods but lack working nodemon coverage.
 	uncovered := make(map[string]struct{})
 	for _, obj := range c.podInformer.GetIndexer().List() {
 		pod, ok := obj.(*corev1.Pod)
