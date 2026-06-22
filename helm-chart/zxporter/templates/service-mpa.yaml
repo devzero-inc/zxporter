@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "zxporter.fullname" . }}-mpa
+  name: devzero-zxporter-controller-manager-mpa
   labels:
     {{- include "zxporter.labels" . | nindent 4 }}
 spec:
