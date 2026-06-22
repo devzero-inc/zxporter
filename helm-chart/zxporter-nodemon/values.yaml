@@ -12,9 +12,10 @@ image:
   tag: "v0.0.83"
 
 nodemon:
-  # the affinity field is the preferred way of adding affinity annotations
-  # for gcp provider the gcp.affinity will be used if this isn't defined but in the future custom affinity annotations
-  # should be defined in the nodemon.affinity field
+  # nodemon.affinity -- optional pod affinity/anti-affinity. Leave empty so nodemon schedules on
+  # EVERY node (it is the sole source of node/container metrics). Only set this if you intentionally
+  # want to restrict where nodemon runs. NOTE: this is no longer GPU-gated on GCP — DCGM/GPU metrics
+  # are handled by the dcgm-exporter sidecar, which idles gracefully on non-GPU nodes.
   affinity:
   config: { }
   # config:
@@ -54,15 +55,6 @@ dcgmExporter:
     pullPolicy: IfNotPresent
     tag: 3.3.7-3.5.0-ubuntu22.04
   useExternalHostEngine: false
-
-gcp:
-  affinity:
-    nodeAffinity:
-      requiredDuringSchedulingIgnoredDuringExecution:
-        nodeSelectorTerms:
-          - matchExpressions:
-              - key: cloud.google.com/gke-accelerator
-                operator: Exists
 
 migrate:
   image:

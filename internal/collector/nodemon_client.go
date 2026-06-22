@@ -246,6 +246,21 @@ func (c *NodemonClient) refreshCache(ctx context.Context) (map[string]string, er
 	return nodeToIP, nil
 }
 
+// CoveredNodes returns the set of node names that currently have a running
+// nodemon pod. Used to determine which nodes need the kubelet Summary-API
+// fallback for metrics coverage.
+func (c *NodemonClient) CoveredNodes(ctx context.Context) (map[string]bool, error) {
+	nodeToIP, err := c.refreshCache(ctx)
+	if err != nil {
+		return nil, err
+	}
+	covered := make(map[string]bool, len(nodeToIP))
+	for node := range nodeToIP {
+		covered[node] = true
+	}
+	return covered, nil
+}
+
 // HasExporters returns true if any nodemon pods were discovered.
 func (c *NodemonClient) HasExporters(ctx context.Context) bool {
 	m, err := c.refreshCache(ctx)
@@ -365,16 +380,22 @@ func (c *NodemonClient) fetchContainerMetrics(
 
 // FetchAllContainerMetrics fetches container metrics from all discovered nodemon pods,
 // merging the results into a single slice.
-func (c *NodemonClient) FetchAllContainerMetrics(ctx context.Context) ([]UnifiedContainerMetric, error) {
+// FetchAllContainerMetrics fetches container metrics from all running nodemon pods.
+// It returns the collected metrics and a set of node names where the nodemon pod was
+// Running but the HTTP fetch failed (e.g. readiness probe failing, internal crash).
+// These "failed nodes" should be fed into the kubelet fallback so they don't become
+// metrics blind spots.
+func (c *NodemonClient) FetchAllContainerMetrics(ctx context.Context) ([]UnifiedContainerMetric, map[string]struct{}, error) {
 	nodeToIP, err := c.refreshCache(ctx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if len(nodeToIP) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	var allMetrics []UnifiedContainerMetric
+	failedNodes := make(map[string]struct{})
 	for nodeName, podIP := range nodeToIP {
 		baseURL := fmt.Sprintf("http://%s:%d", podIP, c.port)
 		metrics, fetchErr := c.fetchContainerMetrics(ctx, baseURL)
@@ -385,12 +406,13 @@ func (c *NodemonClient) FetchAllContainerMetrics(ctx context.Context) ([]Unified
 				"node", nodeName,
 				"podIP", podIP,
 			)
+			failedNodes[nodeName] = struct{}{}
 			continue
 		}
 		allMetrics = append(allMetrics, metrics...)
 	}
 
-	return allMetrics, nil
+	return allMetrics, failedNodes, nil
 }
 
 // fetchNodeMetrics fetches from a single nodemon pod's /node/metrics endpoint.

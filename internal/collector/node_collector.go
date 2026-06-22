@@ -39,6 +39,7 @@ type NodeCollector struct {
 	k8sClient       kubernetes.Interface
 	metricsClient   *metricsv1.Clientset
 	nodemonClient   *NodemonClient
+	kubeletClient   *KubeletSummaryClient
 	informerFactory informers.SharedInformerFactory
 	nodeInformer    cache.SharedIndexInformer
 	batchChan       chan CollectedResource   // Channel for individual resources -> input to batcher
@@ -98,11 +99,13 @@ func NewNodeCollector(
 		ns = defaultNamespace
 	}
 	nodemonClient := NewNodemonClient(k8sClient, ns, logger)
+	kubeletClient := NewKubeletSummaryClient(k8sClient, logger)
 
 	return &NodeCollector{
 		k8sClient:       k8sClient,
 		metricsClient:   metricsClient,
 		nodemonClient:   nodemonClient,
+		kubeletClient:   kubeletClient,
 		batchChan:       batchChan,
 		resourceChan:    resourceChan,
 		batcher:         batcher,
@@ -457,6 +460,11 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 	// node-level data which includes system processes, not just container aggregation)
 	nodeMetricsList := &metricsapisv1beta1.NodeMetricsList{}
 
+	// Coverage accounting: nodemon is the primary source; nodes without a nodemon
+	// pod fall back to the kubelet Summary API. Nodes where both fail are true gaps.
+	var nodemonCovered, kubeletFallback int
+	var uncoveredNodes []string
+
 	nodes := c.nodeInformer.GetIndexer().List()
 	for _, obj := range nodes {
 		node, ok := obj.(*corev1.Node)
@@ -470,29 +478,70 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 		// Fetch node-level metrics from nodemon (includes system process CPU/memory)
 		nodeMetric, err := c.nodemonClient.FetchNodeMetricsByNode(ctx, node.Name)
 		if err != nil {
-			c.logger.V(1).Info("Failed to fetch node metrics from nodemon, skipping CPU/memory", "node", node.Name, "error", err)
-		} else if nodeMetric != nil {
+			c.logger.V(1).Info("Failed to fetch node metrics from nodemon", "node", node.Name, "error", err)
+			nodeMetric = nil
+		}
+		if nodeMetric == nil {
+			// No nodemon pod on this node — fall back to the kubelet Summary API.
+			if km, kerr := c.kubeletClient.FetchNodeMetricsByNode(ctx, node.Name); kerr != nil {
+				c.logger.V(1).Info("Kubelet node-metrics fallback failed", "node", node.Name, "error", kerr)
+				uncoveredNodes = append(uncoveredNodes, node.Name)
+			} else if km != nil {
+				nodeMetric = km
+				kubeletFallback++
+			}
+		} else {
+			nodemonCovered++
+		}
+		if nodeMetric != nil {
 			cpuMillis := int64(nodeMetric.CPUUsageNanoCores / 1_000_000)
 			nm.Usage[corev1.ResourceCPU] = *resource.NewMilliQuantity(cpuMillis, resource.DecimalSI)
 			nm.Usage[corev1.ResourceMemory] = *resource.NewQuantity(int64(nodeMetric.MemoryWorkingSet), resource.BinarySI)
 		}
 		nodeMetricsList.Items = append(nodeMetricsList.Items, nm)
 	}
-	c.logger.V(1).Info("Built node metrics from nodemon container data", "nodes", len(nodeMetricsList.Items))
+	c.logger.V(1).Info("Built node metrics",
+		"nodes", len(nodeMetricsList.Items),
+		"nodemonCovered", nodemonCovered,
+		"kubeletFallback", kubeletFallback,
+		"uncovered", len(uncoveredNodes))
 
 	if c.telemetryLogger != nil {
 		c.telemetryLogger.Report(
 			gen.LogLevel_LOG_LEVEL_INFO,
 			"NodeCollector",
-			"Successfully fetched node metrics from metrics server",
+			"Fetched node metrics",
 			nil,
 			map[string]string{
 				"node_count":       fmt.Sprintf("%d", len(nodeMetricsList.Items)),
+				"nodemon_covered":  fmt.Sprintf("%d", nodemonCovered),
+				"kubelet_fallback": fmt.Sprintf("%d", kubeletFallback),
 				"excluded_nodes":   fmt.Sprintf("%v", c.excludedNodes),
-				"event_type":       "metrics_server_query_success",
+				"event_type":       "node_metrics_query_success",
 				"zxporter_version": version.Get().String(),
 			},
 		)
+	}
+
+	// Surface coverage gaps: nodes where neither nodemon nor the kubelet fallback
+	// produced metrics. This converts previously-silent blind spots into a signal.
+	if len(uncoveredNodes) > 0 {
+		c.logger.Info("Nodes without any metrics coverage (no nodemon pod and kubelet fallback failed)",
+			"count", len(uncoveredNodes), "nodes", uncoveredNodes)
+		if c.telemetryLogger != nil {
+			c.telemetryLogger.Report(
+				gen.LogLevel_LOG_LEVEL_WARN,
+				"NodeCollector",
+				"Nodes without metrics coverage",
+				nil,
+				map[string]string{
+					"uncovered_count":  fmt.Sprintf("%d", len(uncoveredNodes)),
+					"uncovered_nodes":  fmt.Sprintf("%v", uncoveredNodes),
+					"event_type":       "node_metrics_coverage_gap",
+					"zxporter_version": version.Get().String(),
+				},
+			)
+		}
 	}
 
 	// Process each node's metrics
