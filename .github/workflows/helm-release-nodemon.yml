@@ -30,6 +30,12 @@ jobs:
             - name: Checkout code
               uses: actions/checkout@v4
 
+            - name: Set up Go
+              uses: actions/setup-go@v5
+              with:
+                  go-version-file: "go.mod"
+                  cache: true
+
             - name: Set up Helm
               uses: azure/setup-helm@v4
               with:
@@ -133,6 +139,14 @@ jobs:
                   rm -f helm-chart/zxporter/charts/${{ env.CHART_NAME }}-*.tgz
                   helm dependency update helm-chart/zxporter
 
+            - name: Regenerate installer bundles with new nodemon version
+              # build-installer re-renders the nodemon DaemonSet via `helm template`, so the
+              # `helm.sh/chart: zxporter-nodemon-<version>` labels in dist/ track the bumped
+              # chart version automatically. Uses default IMG/IMG_NODEMON/DAKR_URL and an empty
+              # CLUSTER_TOKEN (keeping the '{{ .cluster_token }}' placeholder), so only the
+              # nodemon version label changes.
+              run: make build-installer
+
             - name: Create PR to update Chart.yaml version and appVersion
               uses: peter-evans/create-pull-request@v6
               with:
@@ -142,9 +156,14 @@ jobs:
                       This PR:
                       - Updates the `version` and `appVersion` fields in `helm-chart/${{ env.CHART_NAME }}/Chart.yaml` to `${{ steps.bump_version.outputs.new_version }}`.
                       - Bumps the `${{ env.CHART_NAME }}` dependency pin in `helm-chart/zxporter/Chart.yaml` to `${{ steps.bump_version.outputs.new_version }}` and regenerates `helm-chart/zxporter/Chart.lock` and the bundled dependency chart.
+                      - Regenerates the `dist/` installer bundles so the rendered `zxporter-nodemon` chart labels track `${{ steps.bump_version.outputs.new_version }}`.
                   branch: "update/chart-version-nodemon-${{ steps.bump_version.outputs.new_version }}"
                   add-paths: |
                       helm-chart/${{ env.CHART_NAME }}/Chart.yaml
                       helm-chart/zxporter/Chart.yaml
                       helm-chart/zxporter/Chart.lock
                       helm-chart/zxporter/charts/**
+                      dist/install.yaml
+                      dist/backend-install.yaml
+                      dist/installer_updater.yaml
+                      dist/nodemon.yaml
