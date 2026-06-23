@@ -124,13 +124,27 @@ jobs:
                   yq e -i '.version = "${{ steps.bump_version.outputs.new_version }}"' helm-chart/${{ env.CHART_NAME }}/Chart.yaml
                   yq e -i '.appVersion = "${{ steps.bump_version.outputs.new_version }}"' helm-chart/${{ env.CHART_NAME }}/Chart.yaml
 
+            - name: Bump zxporter dependency pin to new nodemon version
+              run: |
+                  yq e -i '(.dependencies[] | select(.name == "${{ env.CHART_NAME }}")).version = "${{ steps.bump_version.outputs.new_version }}"' helm-chart/zxporter/Chart.yaml
+
+            - name: Regenerate zxporter chart dependencies (Chart.lock + bundled chart)
+              run: |
+                  rm -f helm-chart/zxporter/charts/${{ env.CHART_NAME }}-*.tgz
+                  helm dependency update helm-chart/zxporter
+
             - name: Create PR to update Chart.yaml version and appVersion
               uses: peter-evans/create-pull-request@v6
               with:
-                  commit-message: "chore(helm): update nodemon Chart.yaml version to ${{ steps.bump_version.outputs.new_version }}"
-                  title: "chore(helm): update nodemon Chart.yaml version to ${{ steps.bump_version.outputs.new_version }}"
+                  commit-message: "chore(helm): bump nodemon chart to ${{ steps.bump_version.outputs.new_version }} and sync zxporter dependency"
+                  title: "chore(helm): bump nodemon chart to ${{ steps.bump_version.outputs.new_version }} and sync zxporter dependency"
                   body: |
-                      This PR updates the `version` and `appVersion` fields in `helm-chart/${{ env.CHART_NAME }}/Chart.yaml` to `${{ steps.bump_version.outputs.new_version }}`.
+                      This PR:
+                      - Updates the `version` and `appVersion` fields in `helm-chart/${{ env.CHART_NAME }}/Chart.yaml` to `${{ steps.bump_version.outputs.new_version }}`.
+                      - Bumps the `${{ env.CHART_NAME }}` dependency pin in `helm-chart/zxporter/Chart.yaml` to `${{ steps.bump_version.outputs.new_version }}` and regenerates `helm-chart/zxporter/Chart.lock` and the bundled dependency chart.
                   branch: "update/chart-version-nodemon-${{ steps.bump_version.outputs.new_version }}"
                   add-paths: |
                       helm-chart/${{ env.CHART_NAME }}/Chart.yaml
+                      helm-chart/zxporter/Chart.yaml
+                      helm-chart/zxporter/Chart.lock
+                      helm-chart/zxporter/charts/**
