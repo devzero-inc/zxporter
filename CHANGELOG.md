@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 For releases prior to automated changelog generation, please see the
 [GitHub Releases](https://github.com/devzero-inc/zxporter/releases) page.
 
+## [v0.0.84] - 2026-06-22
+
+<!-- Release notes generated using configuration in .github/release.yml at main -->
+
+### What's Changed
+### Other Changes
+* bump zxp to 83 by @sandipanpanda in https://github.com/devzero-inc/zxporter/pull/419
+* chore: update changelog for v0.0.83 by @github-actions[bot] in https://github.com/devzero-inc/zxporter/pull/418
+* Guarantee node/container metrics coverage with kubelet fallback by @Tzvonimir in https://github.com/devzero-inc/zxporter/pull/420
+
+
+**Full Changelog**: https://github.com/devzero-inc/zxporter/compare/v0.0.83...v0.0.84
+
 ## [v0.0.83] - 2026-06-17
 
 <!-- Release notes generated using configuration in .github/release.yml at main -->
