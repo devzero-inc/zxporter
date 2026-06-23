@@ -141,10 +141,12 @@ jobs:
 
             - name: Regenerate installer bundles with new nodemon version
               # build-installer re-renders the nodemon DaemonSet via `helm template`, so the
-              # `helm.sh/chart: zxporter-nodemon-<version>` labels in dist/ track the bumped
-              # chart version automatically. Uses default IMG/IMG_NODEMON/DAKR_URL and an empty
-              # CLUSTER_TOKEN (keeping the '{{ .cluster_token }}' placeholder), so only the
-              # nodemon version label changes.
+              # `helm.sh/chart` / `app.kubernetes.io/version` labels in dist/ track the bumped
+              # chart version automatically. Run with Makefile defaults (matching what
+              # build-installer-check.yml verifies on every PR) and the CLUSTER_TOKEN
+              # placeholder preserved. The dev bundles (install.yaml, nodemon.yaml) keep the
+              # ttl.sh nodemon image, while final-installer rewrites it to the docker.io
+              # production registry in the user-facing backend-install.yaml / installer_updater.yaml.
               run: make build-installer
 
             - name: Create PR to update Chart.yaml version and appVersion

@@ -960,7 +960,7 @@ spec:
           securityContext:
             readOnlyRootFilesystem: true
             runAsNonRoot: true
-          image: "ttl.sh/zxporter-nodemon:latest"
+          image: "docker.io/devzeroinc/zxporter-nodemon:latest"
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
