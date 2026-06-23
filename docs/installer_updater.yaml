@@ -647,7 +647,7 @@ spec:
                   key: CLUSTER_TOKEN
                   name: devzero-zxporter-token
                   optional: true
-          image: docker.io/devzeroinc/zxporter:v0.0.84
+          image: docker.io/devzeroinc/zxporter:v0.0.85
           livenessProbe:
             httpGet:
               path: /healthz
@@ -897,7 +897,7 @@ spec:
           securityContext:
             readOnlyRootFilesystem: true
             runAsNonRoot: true
-          image: "devzeroinc/zxporter-nodemon:v0.0.84"
+          image: "devzeroinc/zxporter-nodemon:v0.0.85"
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
