@@ -275,6 +275,9 @@ final-installer:
 	@cp dist/install.yaml $(DIST_BACKEND_INSTALL_BUNDLE)
 	@$(YQ) -i '(select(.kind == "ConfigMap" and .metadata.name == "devzero-zxporter-env-config") | .data.DAKR_URL) = "{{ .api_url }}/dakr"' $(DIST_BACKEND_INSTALL_BUNDLE)
 	@$(YQ) -i '(select(.kind == "Deployment") | .spec.template.spec.containers[]? | select(.image == "ttl.sh/zxporter:latest")).image = "docker.io/devzeroinc/zxporter:latest"' $(DIST_BACKEND_INSTALL_BUNDLE)
+# nodemon's DaemonSet image must also come off the ephemeral ttl.sh registry and
+# point at the permanent production registry, consistent with the manager image above.
+	@$(YQ) -i '(select(.kind == "DaemonSet") | .spec.template.spec.containers[]? | select(.image == "ttl.sh/zxporter-nodemon:latest")).image = "docker.io/devzeroinc/zxporter-nodemon:latest"' $(DIST_BACKEND_INSTALL_BUNDLE)
 	@$(YQ) -i '(select(.kind == "Secret" and .metadata.name == "devzero-zxporter-token") | .stringData.CLUSTER_TOKEN) = "{{ .cluster_token }}"' $(DIST_BACKEND_INSTALL_BUNDLE)
 	@$(MAKE) installer-without-configmap
 	@echo "[INFO] Templating namespace in backend-install.yaml for DAKR backend"
