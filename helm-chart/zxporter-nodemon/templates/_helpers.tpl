@@ -69,6 +69,17 @@ Create the name of the dcgm-exporter config map
 {{- end }}
 
 {{/*
+Effective cloud provider for nodemon.
+Derived from the shared global.k8sProvider (set by the parent zxporter chart),
+falling back to the chart-local .Values.provider for standalone installs.
+Only "gcp" changes behavior (GPU/DCGM wiring); any other value is treated as non-GCP.
+*/}}
+{{- define "zxporter-nodemon.provider" -}}
+{{- $global := .Values.global | default dict -}}
+{{- $global.k8sProvider | default .Values.provider | default "" -}}
+{{- end }}
+
+{{/*
 Create the name of the zxporter-nodemon config map
 */}}
 {{- define "zxporter-nodemon.config-map" -}}

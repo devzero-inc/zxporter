@@ -4,9 +4,16 @@
 # The following fields MUST be configured before deployment:
 # 1. zxporter.clusterToken OR zxporter.patToken (at least one required)
 # 2. zxporter.kubeContextName - unique identifier for your cluster
-# 3. zxporter.k8sProvider - one of: aws, gcp, azure, oci, other
+# 3. global.k8sProvider - one of: aws, gcp, azure, oci, other
 #
 # For production deployments, we recommend using patToken for automatic token exchange.
+
+# Global values are shared with subcharts (e.g. zxporter-nodemon).
+global:
+  # Kubernetes provider type. Single source of truth, shared with the
+  # zxporter-nodemon subchart (which derives its GPU/DCGM wiring from it).
+  # Required: Must be one of: "aws", "gcp", "azure", "oci", "other".
+  k8sProvider: ""
 
 image:
   repository: docker.io/devzeroinc/zxporter
@@ -38,9 +45,9 @@ zxporter:
   #   - Other: "production-cluster" or "staging-cluster"
   kubeContextName: ""
 
-  # Kubernetes provider type
-  # Required: Must be one of: "aws", "gcp", "azure", "oci", "other"
-  # This helps optimize collection for specific cloud providers
+  # DEPRECATED: use global.k8sProvider instead (it is shared with the
+  # zxporter-nodemon subchart). This legacy key is still honored as a fallback
+  # when global.k8sProvider is unset, for backward compatibility.
   k8sProvider: ""
   # Set to true to store CLUSTER_TOKEN and PAT_TOKEN in Kubernetes Secrets instead of ConfigMap
   # Default is false for backward compatibility

@@ -39,7 +39,7 @@ data:
   EXCLUDED_STATEFULSETS: ""
   EXCLUDED_STORAGECLASSES: ""
   EXCLUDED_VPAS: ""
-  K8S_PROVIDER: "{{ .Values.zxporter.k8sProvider }}"
+  K8S_PROVIDER: "{{ include "zxporter.k8sProvider" . }}"
   KUBE_CONTEXT_NAME: "{{ .Values.zxporter.kubeContextName }}"
   LOG_LEVEL: "{{ .Values.zxporter.logLevel }}"
   MASK_SECRET_DATA: ""

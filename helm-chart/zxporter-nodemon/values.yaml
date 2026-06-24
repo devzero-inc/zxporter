@@ -1,4 +1,15 @@
-provider: "" # gcp | eks | azure | 
+# Global values are injected by the parent zxporter chart. When installed as a
+# subchart, the provider is taken from global.k8sProvider (see parent values.yaml),
+# so there is no need to set it here. Defined with an empty default so standalone
+# `helm template`/`helm install` of this chart still renders.
+global:
+  k8sProvider: ""
+
+# provider -- DEPRECATED for subchart use. The cloud provider is now derived from
+# the parent chart's global.k8sProvider. Only set this for a standalone install of
+# zxporter-nodemon (without the parent zxporter chart). One of: gcp | eks | azure.
+# Only "gcp" changes behavior (GPU/DCGM wiring); any other value is treated as non-GCP.
+provider: ""
 imagePullSecrets: [ ]
 
 serviceAccount:

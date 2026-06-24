@@ -32,7 +32,7 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- $provider := required ".Values.provider is required (gcp|eks|azure)" .Values.provider }}
+      {{- $provider := include "zxporter-nodemon.provider" . }}
       # nodemon is the sole source of node/container metrics, so it must run on every node and
       # survive scheduling pressure on all providers (not just EKS).
       priorityClassName: system-node-critical
@@ -45,7 +45,7 @@ spec:
         - name: {{- include "dcgm-exporter.config-map" . | indent 1 }}
           configMap:
             name: {{- include "dcgm-exporter.config-map" . | indent 1 }}
-        {{- if eq .Values.provider "gcp" }}
+        {{- if eq $provider "gcp" }}
         - name: "nvidia-install-dir-host"
           hostPath:
             path: /home/kubernetes/bin/nvidia
@@ -117,7 +117,7 @@ spec:
                 - NET_RAW
             runAsNonRoot: false
             runAsUser: 0
-            {{- if eq .Values.provider "gcp"}}
+            {{- if eq $provider "gcp"}}
             privileged: true
             {{- end }}
           image: "{{ .Values.dcgmExporter.image.repository }}:{{ .Values.dcgmExporter.image.tag }}"
@@ -152,7 +152,7 @@ spec:
                 fieldRef:
                   fieldPath: status.hostIP
             {{- end }}
-            {{- if eq .Values.provider "gcp" }}
+            {{- if eq $provider "gcp" }}
             - name: "LD_LIBRARY_PATH"
               value: "/usr/local/nvidia/lib64"
             - name: "DCGM_EXPORTER_KUBERNETES_GPU_ID_TYPE"
@@ -162,7 +162,7 @@ spec:
             - name: "pod-gpu-resources"
               readOnly: true
               mountPath: "/var/lib/kubelet/pod-resources"
-            {{- if eq .Values.provider "gcp" }}
+            {{- if eq $provider "gcp" }}
             - name: "nvidia-install-dir-host"
               mountPath: /usr/local/nvidia
             {{- end }}
