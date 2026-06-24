@@ -2,7 +2,10 @@
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: {{ include "zxporter.fullname" . }}
+  {{- /* Hardcoded to match the kustomize-generated dist/ bundles, which double-apply the
+         "devzero-zxporter-" namePrefix. Keep identical to config/manager/poddisruptionbudget.yaml's
+         rendered name so `helm install` and dist/installer_updater.yaml target the SAME PDB. */}}
+  name: devzero-zxporter-devzero-zxporter-pdb
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "zxporter.labels" . | nindent 4 }}

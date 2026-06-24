@@ -2,7 +2,12 @@
 apiVersion: scheduling.k8s.io/v1
 kind: PriorityClass
 metadata:
-  name: {{ include "zxporter.fullname" . }}-critical
+  {{- /* Hardcoded (not release-derived) to match the kustomize-generated dist/ bundles, which
+         double-apply the "devzero-zxporter-" namePrefix (config/manager/priorityclass.yaml is
+         already named devzero-zxporter-critical, then namePrefix adds it again). Keeping the exact
+         same string ensures `helm install` and dist/installer_updater.yaml target the SAME
+         PriorityClass. If you de-double this, change config/manager + dist/* in lockstep. */}}
+  name: devzero-zxporter-devzero-zxporter-critical
   labels:
     {{- include "zxporter.labels" . | nindent 4 }}
 value: {{ .Values.priorityClass.value }}

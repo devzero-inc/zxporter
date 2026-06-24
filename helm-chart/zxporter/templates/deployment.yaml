@@ -22,7 +22,9 @@ spec:
         {{- include "zxporter.selectorLabels" . | nindent 8 }}
     spec:
       {{- if .Values.priorityClass.enabled }}
-      priorityClassName: {{ include "zxporter.fullname" . }}-critical
+      {{- /* Must equal the PriorityClass name in templates/priorityclass.yaml, which is hardcoded
+             to the (double-prefixed) dist/ bundle name so helm + installer_updater stay in sync. */}}
+      priorityClassName: devzero-zxporter-devzero-zxporter-critical
       {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:

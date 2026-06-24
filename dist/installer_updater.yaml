@@ -668,7 +668,7 @@ spec:
           resources:
             requests:
               cpu: 200m
-              memory: 128Mi
+              memory: 2Gi
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -931,10 +931,10 @@ spec:
               value: "localhost"
           resources:
             limits:
-              memory: 128Mi
+              memory: 256Mi
             requests:
-              cpu: 50m
-              memory: 128Mi
+              cpu: 60m
+              memory: 256Mi
         - name: dcgm-exporter
           securityContext:
             capabilities:

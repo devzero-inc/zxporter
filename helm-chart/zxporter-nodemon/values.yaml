@@ -1,4 +1,14 @@
-provider: "" # gcp | eks | azure | 
+provider: "" # gcp | eks | azure |
+
+# fullnameOverride pins all nodemon resource names to a stable value, independent of the Helm
+# release name. It MUST stay "zxporter-nodemon" so that:
+#   1. the zxporter controller can discover nodemon pods via the fixed label selector
+#      app.kubernetes.io/name=zxporter-nodemon (see internal/collector/nodemon_client.go), and
+#   2. names + selectors match the generated dist/ bundles, so running dist/installer_updater.yaml
+#      after a Helm install updates the existing resources instead of creating duplicates.
+nameOverride: ""
+fullnameOverride: "zxporter-nodemon"
+
 imagePullSecrets: [ ]
 
 serviceAccount:
@@ -25,10 +35,10 @@ nodemon:
   #   DCGM_LABELS: ""
   resources:
     limits:
-      memory: 128Mi
+      memory: 256Mi
     requests:
-      cpu: 50m
-      memory: 128Mi
+      cpu: 60m
+      memory: 256Mi
   securityContext:
     readOnlyRootFilesystem: true
     runAsNonRoot: true

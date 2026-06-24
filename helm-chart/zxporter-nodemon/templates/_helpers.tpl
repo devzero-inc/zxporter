@@ -24,29 +24,31 @@ Create the name of the service account to use
 {{- end }}
 
 {{/*
-Create a default fully qualified app name.
-We truncate at 63 chars because some Kubernetes name fields are limited to this (by the DNS naming spec).
-If release name contains chart name it will be used as a full name.
+Create a default fully qualified app name (truncated to 63 chars for the DNS naming spec).
+NOTE: unlike the stock Helm helper, this intentionally does NOT incorporate .Release.Name. This chart
+is a cluster singleton — the zxporter controller discovers it via the fixed label
+app.kubernetes.io/name=zxporter-nodemon, and the generated dist/ bundles hardcode the name
+"zxporter-nodemon". A release-name-derived name would break that parity and the immutable DaemonSet
+selector, so the name defaults to the chart name and only changes via fullnameOverride/nameOverride.
 */}}
 {{- define "zxporter-nodemon.fullname" -}}
 {{- if .Values.fullnameOverride }}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
 {{- else }}
-{{- $name := default .Chart.Name .Values.nameOverride }}
-{{- if contains $name .Release.Name }}
-{{- .Release.Name | trunc 63 | trimSuffix "-" }}
-{{- else }}
-{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" }}
-{{- end }}
+{{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 {{- end }}
 
 {{/*
-Selector labels
+Selector labels.
+NOTE: app.kubernetes.io/instance is pinned to the stable fullname (not .Release.Name) because it is
+part of the IMMUTABLE DaemonSet selector. This keeps `helm install <any-release>` byte-identical to
+the generated dist/ bundles, so dist/installer_updater.yaml patches the existing DaemonSet instead
+of failing on an immutable-selector change.
 */}}
 {{- define "zxporter-nodemon.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "zxporter-nodemon.name" . }}
-app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/instance: {{ include "zxporter-nodemon.fullname" . }}
 {{- end }}
 
 {{/*
@@ -65,12 +67,12 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 Create the name of the dcgm-exporter config map
 */}}
 {{- define "dcgm-exporter.config-map" -}}
-{{- printf "%s-%s" .Release.Name "dcgm-metrics" | replace "+" "_" | trunc 63 | trimSuffix "-" }}
+{{- printf "%s-%s" (include "zxporter-nodemon.fullname" .) "dcgm-metrics" | replace "+" "_" | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
 Create the name of the zxporter-nodemon config map
 */}}
 {{- define "zxporter-nodemon.config-map" -}}
-{{- printf "%s-%s" .Release.Name "zxporter-nodemon" | replace "+" "_" | trunc 63 | trimSuffix "-" }}
+{{- printf "%s-%s" (include "zxporter-nodemon.fullname" .) "zxporter-nodemon" | replace "+" "_" | trunc 63 | trimSuffix "-" }}
 {{- end }}
