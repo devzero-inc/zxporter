@@ -118,12 +118,12 @@ func main() {
 	if jvmEnabled {
 		jvmCollector := nodemon.NewJVMCollector(cfg.NodeName, k8sClient, logger)
 		if err := jvmCollector.Start(); err != nil {
-			logger.Error(err, "Failed to start JVM collector")
-			os.Exit(1)
+			logger.Error(err, "Failed to start JVM collector — JVM metrics will be unavailable but nodemon will continue running")
+		} else {
+			defer jvmCollector.Stop()
+			jvmMetricsHandler = nodemon.NewJVMMetricsHandler(jvmCollector, logger)
+			logger.Info("JVM metrics collection enabled")
 		}
-		defer jvmCollector.Stop()
-		jvmMetricsHandler = nodemon.NewJVMMetricsHandler(jvmCollector, logger)
-		logger.Info("JVM metrics collection enabled")
 	} else {
 		logger.Info("JVM metrics collection disabled (set jvmMetrics.enabled=true in Helm values to enable)")
 	}
