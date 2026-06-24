@@ -33,9 +33,7 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       {{- $provider := required ".Values.provider is required (gcp|eks|azure)" .Values.provider }}
-      # nodemon is the sole source of node/container metrics, so it must run on every node and
-      # survive scheduling pressure on all providers (not just EKS).
-      priorityClassName: system-node-critical
+
       serviceAccountName: {{ include "zxporter-nodemon.serviceAccountName" . }}
       {{- if .Values.dcgmExporter.enabled }}
       volumes:
