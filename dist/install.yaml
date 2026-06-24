@@ -982,6 +982,8 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+            - name: "JVM_METRICS_ENABLED"
+              value: "false"
             - name: "DCGM_HOST"
               value: "localhost"
           resources:
