@@ -25,10 +25,10 @@ Please set zxporter.kubeContextName to a unique identifier for your cluster.
 
 {{- end }}
 
-{{- if not .Values.zxporter.k8sProvider }}
+{{- if not (include "zxporter.k8sProvider" .) }}
 
 NOTE: No Kubernetes provider configured.
-Please set zxporter.k8sProvider to one of: aws, gcp, azure, oci, other
+Please set global.k8sProvider to one of: aws, gcp, azure, oci, other
 
 {{- end }}
 
