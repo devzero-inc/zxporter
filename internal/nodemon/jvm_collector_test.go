@@ -1,9 +1,14 @@
 package nodemon
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 
+	"github.com/go-logr/logr/testr"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -81,6 +86,54 @@ func TestUpdateContainerMap_SkipsEmptyID(t *testing.T) {
 
 	c.updateContainerMap(pod)
 	assert.Empty(t, c.containerMap)
+}
+
+func TestCheckHostPIDVisibility_FewPIDs(t *testing.T) {
+	// Simulate a procRoot with only a few PID dirs (no hostPID).
+	tmpDir := t.TempDir()
+	for i := 1; i <= 5; i++ {
+		require.NoError(t, os.Mkdir(filepath.Join(tmpDir, fmt.Sprintf("%d", i)), 0o755))
+	}
+
+	c := &JVMCollector{
+		procRoot:     tmpDir,
+		log:          testr.New(t).WithName("jvm-collector"),
+		containerMap: make(map[string]containerInfo),
+	}
+
+	// Should not panic; will log a warning about low PID count.
+	c.checkHostPIDVisibility()
+}
+
+func TestCheckHostPIDVisibility_ManyPIDs(t *testing.T) {
+	// Simulate a procRoot with many PID dirs (hostPID enabled).
+	tmpDir := t.TempDir()
+	for i := 1; i <= 50; i++ {
+		require.NoError(t, os.Mkdir(filepath.Join(tmpDir, fmt.Sprintf("%d", i)), 0o755))
+	}
+	// Add some non-PID entries like real /proc has.
+	require.NoError(t, os.Mkdir(filepath.Join(tmpDir, "self"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "meminfo"), []byte("fake"), 0o644))
+
+	c := &JVMCollector{
+		procRoot:     tmpDir,
+		log:          testr.New(t).WithName("jvm-collector"),
+		containerMap: make(map[string]containerInfo),
+	}
+
+	// Should log confirmation of host PID visibility.
+	c.checkHostPIDVisibility()
+}
+
+func TestCheckHostPIDVisibility_InvalidProcRoot(t *testing.T) {
+	c := &JVMCollector{
+		procRoot:     "/nonexistent/proc",
+		log:          testr.New(t).WithName("jvm-collector"),
+		containerMap: make(map[string]containerInfo),
+	}
+
+	// Should not panic; will log an error about unreadable procRoot.
+	c.checkHostPIDVisibility()
 }
 
 func TestUpdateContainerMap_OverwritesOnUpdate(t *testing.T) {

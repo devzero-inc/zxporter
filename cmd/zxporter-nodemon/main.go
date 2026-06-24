@@ -107,18 +107,29 @@ func main() {
 	defer collectionCancel()
 	go unifiedExporter.StartCollectionLoop(collectionCtx, 30*time.Second)
 
-	// Create JVM collector
-	jvmCollector := nodemon.NewJVMCollector(cfg.NodeName, k8sClient, logger)
-
-	// Start JVM collector's pod informer
-	if err := jvmCollector.Start(); err != nil {
-		logger.Error(err, "Failed to start JVM collector")
-		os.Exit(1)
-	}
-
 	// Create HTTP handlers
 	containerMetricsHandler := nodemon.NewContainerMetricsHandler(exporter, logger) // GPU-only (backward compat)
-	jvmMetricsHandler := nodemon.NewJVMMetricsHandler(jvmCollector, logger)
+
+	// Only start JVM collector when explicitly enabled via Helm values (jvmMetrics.enabled).
+	// The collector requires hostPID: true and SYS_PTRACE capability, which are only
+	// granted in the pod spec when jvmMetrics.enabled is true.
+	var jvmMetricsHandler http.Handler
+	var jvmCollector *nodemon.JVMCollector
+	jvmEnabled := os.Getenv("JVM_METRICS_ENABLED") == "true"
+	if jvmEnabled {
+		jvmCollector = nodemon.NewJVMCollector(cfg.NodeName, k8sClient, logger)
+		if err := jvmCollector.Start(); err != nil {
+			logger.Error(err,
+				"Failed to start JVM collector — JVM metrics unavailable, nodemon will continue")
+			jvmCollector = nil
+		} else {
+			jvmMetricsHandler = nodemon.NewJVMMetricsHandler(jvmCollector, logger)
+			logger.Info("JVM metrics collection enabled")
+		}
+	} else {
+		logger.Info("JVM metrics collection disabled (set jvmMetrics.enabled=true in Helm values to enable)")
+	}
+
 	mux := nodemon.NewServerMux(containerMetricsHandler, jvmMetricsHandler)
 
 	// Register unified endpoints
@@ -150,7 +161,9 @@ func main() {
 	<-sigChan
 
 	logger.Info("Shutting down...")
-	jvmCollector.Stop()
+	if jvmCollector != nil {
+		jvmCollector.Stop()
+	}
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer shutdownCancel()
 	if err := server.Shutdown(shutdownCtx); err != nil {

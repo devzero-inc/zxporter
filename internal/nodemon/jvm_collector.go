@@ -49,13 +49,43 @@ func NewJVMCollector(nodeName string, k8sClient kubernetes.Interface, log logr.L
 	}
 }
 
-// Start creates a node-scoped pod informer and waits for the cache to sync.
-// Must be called exactly once before serving HTTP requests.
-func (c *JVMCollector) Start() error {
-	if c.informerFactory != nil {
-		return fmt.Errorf("JVMCollector already started")
+// checkHostPIDVisibility logs a warning if the collector cannot see PIDs outside
+// its own PID namespace (i.e. hostPID is not enabled or procRoot is wrong).
+// This turns the silent count:0 failure into a clear diagnostic signal.
+func (c *JVMCollector) checkHostPIDVisibility() {
+	entries, err := os.ReadDir(c.procRoot)
+	if err != nil {
+		c.log.Error(err, "Cannot read procRoot — JVM discovery will not work", "procRoot", c.procRoot)
+		return
 	}
 
+	// With hostPID, we see hundreds/thousands of PIDs from all namespaces.
+	// Without it, we only see our own PID namespace (typically < 10 entries).
+	// A threshold of 20 dir entries is a conservative heuristic.
+	pidCount := 0
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		if _, err := fmt.Sscanf(e.Name(), "%d", new(int)); err == nil {
+			pidCount++
+		}
+	}
+
+	if pidCount < 20 {
+		c.log.Info("WARNING: JVM collector can only see a small number of PIDs — hostPID may not be enabled. "+
+			"JVM discovery will likely find 0 Java processes. "+
+			"Ensure jvmMetrics.enabled=true in Helm values so the pod runs with hostPID: true.",
+			"procRoot", c.procRoot, "visiblePIDs", pidCount)
+	} else {
+		c.log.Info("Host PID namespace visibility confirmed", "procRoot", c.procRoot, "visiblePIDs", pidCount)
+	}
+}
+
+// startInformer creates the informer, starts it, and waits for cache sync
+// with a 30-second timeout. Returns an error on failure and cleans up
+// informer goroutines so the caller can retry.
+func (c *JVMCollector) startInformer() error {
 	c.informerFactory = informers.NewSharedInformerFactoryWithOptions(
 		c.k8sClient,
 		0,
@@ -99,18 +129,85 @@ func (c *JVMCollector) Start() error {
 		},
 	})
 	if err != nil {
+		c.informerFactory = nil
 		return fmt.Errorf("adding pod event handler: %w", err)
 	}
 
 	c.informerFactory.Start(c.stopCh)
 
-	c.log.Info("Waiting for pod informer cache to sync")
-	if !cache.WaitForCacheSync(c.stopCh, podInformer.HasSynced) {
-		return fmt.Errorf("timed out waiting for pod informer cache to sync")
+	syncCtx, syncCancel := context.WithTimeout(
+		context.Background(), 30*time.Second,
+	)
+	defer syncCancel()
+
+	syncDone := make(chan bool, 1)
+	go func() {
+		syncDone <- cache.WaitForCacheSync(
+			c.stopCh, podInformer.HasSynced,
+		)
+	}()
+
+	select {
+	case synced := <-syncDone:
+		if !synced {
+			c.cleanupInformer()
+			return fmt.Errorf("pod informer cache failed to sync")
+		}
+	case <-syncCtx.Done():
+		c.cleanupInformer()
+		return fmt.Errorf(
+			"pod informer cache sync timed out after 30s",
+		)
 	}
-	c.log.Info("Pod informer cache synced")
 
 	return nil
+}
+
+// cleanupInformer stops the informer factory and resets state so
+// startInformer can be called again on retry.
+func (c *JVMCollector) cleanupInformer() {
+	c.Stop()
+	// Reset so we can retry — Stop() closes stopCh, so make a new one.
+	c.stopCh = make(chan struct{})
+	c.informerFactory = nil
+}
+
+// Start creates a node-scoped pod informer and waits for the cache to
+// sync. Retries up to 3 times with exponential backoff (5s, 10s, 20s)
+// on transient failures.
+func (c *JVMCollector) Start() error {
+	if c.informerFactory != nil {
+		return fmt.Errorf("JVMCollector already started")
+	}
+
+	const maxRetries = 3
+	backoff := 5 * time.Second
+
+	var lastErr error
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		c.log.Info("Starting pod informer",
+			"attempt", attempt, "maxRetries", maxRetries)
+
+		if err := c.startInformer(); err != nil {
+			lastErr = err
+			c.log.Error(err, "Pod informer failed to start",
+				"attempt", attempt, "retryIn", backoff.String())
+			if attempt < maxRetries {
+				time.Sleep(backoff)
+				backoff *= 2
+			}
+			continue
+		}
+
+		c.log.Info("Pod informer cache synced")
+		c.checkHostPIDVisibility()
+		return nil
+	}
+
+	return fmt.Errorf(
+		"JVM collector failed after %d attempts: %w",
+		maxRetries, lastErr,
+	)
 }
 
 // Stop shuts down the informer factory. Safe to call multiple times.

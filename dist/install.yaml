@@ -858,6 +858,7 @@ rules:
   verbs:
   - get
   - list
+  - watch
 - apiGroups:
     - apps
   resources:
@@ -937,6 +938,7 @@ spec:
         app.kubernetes.io/name: zxporter-nodemon
         app.kubernetes.io/instance: zxporter-nodemon
     spec:
+      hostPID: true
       # nodemon is the sole source of node/container metrics, so it must run on every node and
       # survive scheduling pressure on all providers (not just EKS).
       priorityClassName: system-node-critical
@@ -958,8 +960,12 @@ spec:
       containers:
         - name: zxporter-nodemon
           securityContext:
+            runAsNonRoot: false
+            runAsUser: 0
             readOnlyRootFilesystem: true
-            runAsNonRoot: true
+            capabilities:
+              add:
+                - SYS_PTRACE
           image: "ttl.sh/zxporter-nodemon:latest"
           imagePullPolicy: IfNotPresent
           ports:
@@ -982,6 +988,8 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+            - name: "JVM_METRICS_ENABLED"
+              value: "true"
             - name: "DCGM_HOST"
               value: "localhost"
           resources:

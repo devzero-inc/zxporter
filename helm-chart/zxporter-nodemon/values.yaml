@@ -46,7 +46,7 @@ nodemon:
 # jvmMetrics -- Enable JVM metrics collection via hsperfdata.
 # NOTE: requires hostPID + running nodemon as UID 0 to read /proc/<pid>/root/tmp/hsperfdata_*/<nsPid>
 jvmMetrics:
-  enabled: false
+  enabled: true
 
 dcgmExporter:
   enabled: true
