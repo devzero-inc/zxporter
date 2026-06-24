@@ -20,7 +20,7 @@ permissions:
 jobs:
   package-and-push:
     name: Package & Push Docker image
-    runs-on: ubuntu-latest
+    runs-on: namespace-profile-dz-generic
     outputs:
       is_release: ${{ steps.version.outputs.is_release }}
 
@@ -220,7 +220,7 @@ jobs:
 
   update-helm-values-image-tag-pr:
     name: Update Helm values image.tag and create PR
-    runs-on: ubuntu-latest
+    runs-on: namespace-profile-dz-generic
     needs: [package-and-push] # only do this if all previous steps pass
     if: ${{ needs.package-and-push.outputs.is_release == 'true' }}
     steps:
