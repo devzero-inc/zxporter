@@ -82,13 +82,10 @@ func (c *JVMCollector) checkHostPIDVisibility() {
 	}
 }
 
-// Start creates a node-scoped pod informer and waits for the cache to sync.
-// Must be called exactly once before serving HTTP requests.
-func (c *JVMCollector) Start() error {
-	if c.informerFactory != nil {
-		return fmt.Errorf("JVMCollector already started")
-	}
-
+// startInformer creates the informer, starts it, and waits for cache sync
+// with a 30-second timeout. Returns an error on failure and cleans up
+// informer goroutines so the caller can retry.
+func (c *JVMCollector) startInformer() error {
 	c.informerFactory = informers.NewSharedInformerFactoryWithOptions(
 		c.k8sClient,
 		0,
@@ -132,22 +129,85 @@ func (c *JVMCollector) Start() error {
 		},
 	})
 	if err != nil {
+		c.informerFactory = nil
 		return fmt.Errorf("adding pod event handler: %w", err)
 	}
 
 	c.informerFactory.Start(c.stopCh)
 
-	c.log.Info("Waiting for pod informer cache to sync")
-	if !cache.WaitForCacheSync(c.stopCh, podInformer.HasSynced) {
-		return fmt.Errorf("timed out waiting for pod informer cache to sync")
-	}
-	c.log.Info("Pod informer cache synced")
+	syncCtx, syncCancel := context.WithTimeout(
+		context.Background(), 30*time.Second,
+	)
+	defer syncCancel()
 
-	// Check whether we can actually see host PIDs — emit a clear diagnostic
-	// rather than silently returning count:0 from discovery.
-	c.checkHostPIDVisibility()
+	syncDone := make(chan bool, 1)
+	go func() {
+		syncDone <- cache.WaitForCacheSync(
+			c.stopCh, podInformer.HasSynced,
+		)
+	}()
+
+	select {
+	case synced := <-syncDone:
+		if !synced {
+			c.cleanupInformer()
+			return fmt.Errorf("pod informer cache failed to sync")
+		}
+	case <-syncCtx.Done():
+		c.cleanupInformer()
+		return fmt.Errorf(
+			"pod informer cache sync timed out after 30s",
+		)
+	}
 
 	return nil
+}
+
+// cleanupInformer stops the informer factory and resets state so
+// startInformer can be called again on retry.
+func (c *JVMCollector) cleanupInformer() {
+	c.Stop()
+	// Reset so we can retry — Stop() closes stopCh, so make a new one.
+	c.stopCh = make(chan struct{})
+	c.informerFactory = nil
+}
+
+// Start creates a node-scoped pod informer and waits for the cache to
+// sync. Retries up to 3 times with exponential backoff (5s, 10s, 20s)
+// on transient failures.
+func (c *JVMCollector) Start() error {
+	if c.informerFactory != nil {
+		return fmt.Errorf("JVMCollector already started")
+	}
+
+	const maxRetries = 3
+	backoff := 5 * time.Second
+
+	var lastErr error
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		c.log.Info("Starting pod informer",
+			"attempt", attempt, "maxRetries", maxRetries)
+
+		if err := c.startInformer(); err != nil {
+			lastErr = err
+			c.log.Error(err, "Pod informer failed to start",
+				"attempt", attempt, "retryIn", backoff.String())
+			if attempt < maxRetries {
+				time.Sleep(backoff)
+				backoff *= 2
+			}
+			continue
+		}
+
+		c.log.Info("Pod informer cache synced")
+		c.checkHostPIDVisibility()
+		return nil
+	}
+
+	return fmt.Errorf(
+		"JVM collector failed after %d attempts: %w",
+		maxRetries, lastErr,
+	)
 }
 
 // Stop shuts down the informer factory. Safe to call multiple times.
