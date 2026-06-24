@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-logr/logr/testr"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -91,7 +92,7 @@ func TestCheckHostPIDVisibility_FewPIDs(t *testing.T) {
 	// Simulate a procRoot with only a few PID dirs (no hostPID).
 	tmpDir := t.TempDir()
 	for i := 1; i <= 5; i++ {
-		os.Mkdir(filepath.Join(tmpDir, fmt.Sprintf("%d", i)), 0o755)
+		require.NoError(t, os.Mkdir(filepath.Join(tmpDir, fmt.Sprintf("%d", i)), 0o755))
 	}
 
 	c := &JVMCollector{
@@ -108,11 +109,11 @@ func TestCheckHostPIDVisibility_ManyPIDs(t *testing.T) {
 	// Simulate a procRoot with many PID dirs (hostPID enabled).
 	tmpDir := t.TempDir()
 	for i := 1; i <= 50; i++ {
-		os.Mkdir(filepath.Join(tmpDir, fmt.Sprintf("%d", i)), 0o755)
+		require.NoError(t, os.Mkdir(filepath.Join(tmpDir, fmt.Sprintf("%d", i)), 0o755))
 	}
 	// Add some non-PID entries like real /proc has.
-	os.Mkdir(filepath.Join(tmpDir, "self"), 0o755)
-	os.WriteFile(filepath.Join(tmpDir, "meminfo"), []byte("fake"), 0o644)
+	require.NoError(t, os.Mkdir(filepath.Join(tmpDir, "self"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "meminfo"), []byte("fake"), 0o644))
 
 	c := &JVMCollector{
 		procRoot:     tmpDir,
