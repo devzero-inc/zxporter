@@ -98,6 +98,8 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+            - name: "JVM_METRICS_ENABLED"
+              value: {{ .Values.jvmMetrics.enabled | quote }}
 
           {{- if .Values.dcgmExporter.enabled }}
             - name: "DCGM_HOST"

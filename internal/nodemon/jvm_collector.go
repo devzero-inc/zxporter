@@ -49,6 +49,39 @@ func NewJVMCollector(nodeName string, k8sClient kubernetes.Interface, log logr.L
 	}
 }
 
+// checkHostPIDVisibility logs a warning if the collector cannot see PIDs outside
+// its own PID namespace (i.e. hostPID is not enabled or procRoot is wrong).
+// This turns the silent count:0 failure into a clear diagnostic signal.
+func (c *JVMCollector) checkHostPIDVisibility() {
+	entries, err := os.ReadDir(c.procRoot)
+	if err != nil {
+		c.log.Error(err, "Cannot read procRoot — JVM discovery will not work", "procRoot", c.procRoot)
+		return
+	}
+
+	// With hostPID, we see hundreds/thousands of PIDs from all namespaces.
+	// Without it, we only see our own PID namespace (typically < 10 entries).
+	// A threshold of 20 dir entries is a conservative heuristic.
+	pidCount := 0
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		if _, err := fmt.Sscanf(e.Name(), "%d", new(int)); err == nil {
+			pidCount++
+		}
+	}
+
+	if pidCount < 20 {
+		c.log.Info("WARNING: JVM collector can only see a small number of PIDs — hostPID may not be enabled. "+
+			"JVM discovery will likely find 0 Java processes. "+
+			"Ensure jvmMetrics.enabled=true in Helm values so the pod runs with hostPID: true.",
+			"procRoot", c.procRoot, "visiblePIDs", pidCount)
+	} else {
+		c.log.Info("Host PID namespace visibility confirmed", "procRoot", c.procRoot, "visiblePIDs", pidCount)
+	}
+}
+
 // Start creates a node-scoped pod informer and waits for the cache to sync.
 // Must be called exactly once before serving HTTP requests.
 func (c *JVMCollector) Start() error {
@@ -109,6 +142,10 @@ func (c *JVMCollector) Start() error {
 		return fmt.Errorf("timed out waiting for pod informer cache to sync")
 	}
 	c.log.Info("Pod informer cache synced")
+
+	// Check whether we can actually see host PIDs — emit a clear diagnostic
+	// rather than silently returning count:0 from discovery.
+	c.checkHostPIDVisibility()
 
 	return nil
 }
