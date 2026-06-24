@@ -19,7 +19,7 @@ serviceAccount:
 image:
   repository: docker.io/devzeroinc/zxporter-nodemon
   pullPolicy: IfNotPresent
-  tag: "v0.0.85"
+  tag: "v0.0.86"
 
 nodemon:
   # nodemon.affinity -- optional pod affinity/anti-affinity. Leave empty so nodemon schedules on
