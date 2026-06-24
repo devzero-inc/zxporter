@@ -114,13 +114,15 @@ func main() {
 	// The collector requires hostPID: true and SYS_PTRACE capability, which are only
 	// granted in the pod spec when jvmMetrics.enabled is true.
 	var jvmMetricsHandler http.Handler
+	var jvmCollector *nodemon.JVMCollector
 	jvmEnabled := os.Getenv("JVM_METRICS_ENABLED") == "true"
 	if jvmEnabled {
-		jvmCollector := nodemon.NewJVMCollector(cfg.NodeName, k8sClient, logger)
+		jvmCollector = nodemon.NewJVMCollector(cfg.NodeName, k8sClient, logger)
 		if err := jvmCollector.Start(); err != nil {
-			logger.Error(err, "Failed to start JVM collector — JVM metrics will be unavailable but nodemon will continue running")
+			logger.Error(err,
+				"Failed to start JVM collector — JVM metrics unavailable, nodemon will continue")
+			jvmCollector = nil
 		} else {
-			defer jvmCollector.Stop()
 			jvmMetricsHandler = nodemon.NewJVMMetricsHandler(jvmCollector, logger)
 			logger.Info("JVM metrics collection enabled")
 		}
@@ -159,6 +161,9 @@ func main() {
 	<-sigChan
 
 	logger.Info("Shutting down...")
+	if jvmCollector != nil {
+		jvmCollector.Stop()
+	}
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer shutdownCancel()
 	if err := server.Shutdown(shutdownCtx); err != nil {
