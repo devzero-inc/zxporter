@@ -176,9 +176,7 @@ spec:
         app.kubernetes.io/instance: zxporter-nodemon
     spec:
       hostPID: true
-      # nodemon is the sole source of node/container metrics, so it must run on every node and
-      # survive scheduling pressure on all providers (not just EKS).
-      priorityClassName: system-node-critical
+
       serviceAccountName: zxporter-nodemon
       volumes:
         - name: "pod-gpu-resources"
