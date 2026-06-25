@@ -60,6 +60,30 @@ jvmMetrics:
 
 dcgmExporter:
   enabled: true
+  # RuntimeClass for the GPU DaemonSet only.
+  # "auto" uses the "nvidia" RuntimeClass if the cluster has one.
+  # Set "" to render the original single DaemonSet without a RuntimeClass.
+  runtimeClassName: "auto"
+  # Node selector terms used to scope the RuntimeClass DaemonSet to GPU nodes.
+  # Terms are ORed; expressions within a term are ANDed.
+  gpuNodeSelectorTerms:
+    - matchExpressions:
+        - key: nvidia.com/gpu.present
+          operator: In
+          values:
+            - "true"
+    - matchExpressions:
+        - key: cloud.google.com/gke-accelerator
+          operator: Exists
+    - matchExpressions:
+        - key: cloud.google.com/gcp-accelerator
+          operator: Exists
+    - matchExpressions:
+        - key: kubernetes.azure.com/accelerator
+          operator: Exists
+  # Legacy selector override. Prefer gpuNodeSelectorTerms for new installs.
+  gpuNodeSelectorKey: ""
+  gpuNodeSelectorValues: []
   image:
     repository: nvcr.io/nvidia/k8s/dcgm-exporter
     pullPolicy: IfNotPresent
