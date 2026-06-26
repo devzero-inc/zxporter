@@ -58,6 +58,12 @@ nodemon:
 jvmMetrics:
   enabled: true
 
+# Assigns the node agent the parent chart's custom PriorityClass so it can
+# schedule on memory-packed nodes. Keep in sync with the parent's
+# priorityClass.enabled (the parent creates the PriorityClass object).
+priorityClass:
+  enabled: true
+
 dcgmExporter:
   enabled: true
   # RuntimeClass for the GPU DaemonSet only.

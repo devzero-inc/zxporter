@@ -22,6 +22,12 @@ spec:
       labels:
         app: zxporter-netmon
     spec:
+      # Ensures the node agent can schedule on memory-packed nodes (it would
+      # otherwise lose the scheduling race and leave that node without
+      # telemetry). Custom class — NOT the reserved system-node-critical,
+      # which GKE blocks in non-kube-system namespaces (see #445). Kustomize's
+      # nameReference rewrites this to the prefixed PriorityClass name.
+      priorityClassName: devzero-zxporter-critical
       serviceAccountName: zxporter-netmon
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet

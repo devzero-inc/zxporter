@@ -66,6 +66,13 @@ spec:
         app.kubernetes.io/name: {{ include "zxporter-nodemon.name" $ }}
         app.kubernetes.io/instance: {{ $v.instance }}
     spec:
+      {{- if $.Values.priorityClass.enabled }}
+      {{- /* Lets the node agent schedule on memory-packed nodes instead of losing the
+             scheduling race and leaving that node without telemetry. Custom class — NOT the
+             reserved system-node-critical, which GKE blocks in non-kube-system namespaces (#445).
+             Must equal the PriorityClass name created by the parent chart's templates/priorityclass.yaml. */}}
+      priorityClassName: devzero-zxporter-devzero-zxporter-critical
+      {{- end }}
       {{- if $.Values.jvmMetrics.enabled }}
       hostPID: true
       {{- end }}
