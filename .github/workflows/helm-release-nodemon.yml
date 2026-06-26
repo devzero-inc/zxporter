@@ -157,15 +157,18 @@ jobs:
                   body: |
                       This PR:
                       - Updates the `version` and `appVersion` fields in `helm-chart/${{ env.CHART_NAME }}/Chart.yaml` to `${{ steps.bump_version.outputs.new_version }}`.
-                      - Bumps the `${{ env.CHART_NAME }}` dependency pin in `helm-chart/zxporter/Chart.yaml` to `${{ steps.bump_version.outputs.new_version }}` and regenerates `helm-chart/zxporter/Chart.lock` and the bundled dependency chart.
+                      - Bumps the `${{ env.CHART_NAME }}` dependency pin in `helm-chart/zxporter/Chart.yaml` to `${{ steps.bump_version.outputs.new_version }}` and regenerates `helm-chart/zxporter/Chart.lock`. (The bundled dependency `.tgz` under `helm-chart/zxporter/charts/` is a build artifact and is gitignored, so it is not committed.)
                       - Regenerates the `dist/` installer bundles so the rendered `zxporter-nodemon` chart labels track `${{ steps.bump_version.outputs.new_version }}`.
                   branch: "update/chart-version-nodemon-${{ steps.bump_version.outputs.new_version }}"
                   add-paths: |
                       helm-chart/${{ env.CHART_NAME }}/Chart.yaml
                       helm-chart/zxporter/Chart.yaml
                       helm-chart/zxporter/Chart.lock
-                      helm-chart/zxporter/charts/**
                       dist/install.yaml
+                      dist/install-nvidia-runtime.yaml
                       dist/backend-install.yaml
+                      dist/backend-install-nvidia-runtime.yaml
                       dist/installer_updater.yaml
+                      dist/installer_updater-nvidia-runtime.yaml
                       dist/nodemon.yaml
+                      dist/nodemon-nvidia-runtime.yaml
