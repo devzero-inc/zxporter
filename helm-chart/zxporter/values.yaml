@@ -149,3 +149,10 @@ priorityClass:
   value: 1000000000
   description: "This priority class is for critical zxporter infrastructure components."
   preemptionPolicy: PreemptLowerPriority
+
+# Subchart overrides. The parent chart owns the PriorityClass object (above),
+# so the bundled nodemon subchart must NOT create it again (would be a duplicate
+# resource). The nodemon DaemonSet still references it via priorityClass.enabled.
+zxporter-nodemon:
+  priorityClass:
+    create: false

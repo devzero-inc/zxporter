@@ -58,11 +58,18 @@ nodemon:
 jvmMetrics:
   enabled: true
 
-# Assigns the node agent the parent chart's custom PriorityClass so it can
-# schedule on memory-packed nodes. Keep in sync with the parent's
-# priorityClass.enabled (the parent creates the PriorityClass object).
+# Assigns the node agent a custom PriorityClass so it can schedule on
+# memory-packed nodes. When installed standalone (CI, helm-release-nodemon)
+# the subchart creates the PriorityClass itself (create: true). When installed
+# via the parent zxporter chart, the parent already owns the object and sets
+# create: false to avoid duplicate ownership. Values must match the parent's
+# so the class is identical whichever chart creates it.
 priorityClass:
   enabled: true
+  create: true
+  value: 1000000000
+  description: "This priority class is for critical zxporter infrastructure components."
+  preemptionPolicy: PreemptLowerPriority
 
 dcgmExporter:
   enabled: true
