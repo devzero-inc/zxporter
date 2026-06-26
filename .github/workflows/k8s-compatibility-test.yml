@@ -111,15 +111,12 @@ jobs:
         # Test against K8s versions from the last ~2 years
         # See https://kubernetes.io/releases/ for release/EOL dates
         k8s-version:
-          - v1.27.16
-          - v1.28.15
-          - v1.29.14
-          - v1.30.13
           - v1.31.14
           - v1.32.11
           - v1.33.7
           - v1.34.3
           - v1.35.1
+          - v1.36.1
         deployment-method:
           - helm
           - manifest
@@ -150,7 +147,7 @@ jobs:
       - name: Create k8s Kind Cluster
         uses: helm/kind-action@v1
         with:
-          version: v0.31.0
+          version: v0.32.0
           node_image: kindest/node:${{ matrix.k8s-version }}
           cluster_name: kind-${{ matrix.k8s-version }}
           wait: 120s
