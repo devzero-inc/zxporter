@@ -175,6 +175,7 @@ spec:
         app.kubernetes.io/name: zxporter-nodemon
         app.kubernetes.io/instance: zxporter-nodemon
     spec:
+      priorityClassName: devzero-zxporter-devzero-zxporter-critical
       hostPID: true
       serviceAccountName: zxporter-nodemon
       volumes:

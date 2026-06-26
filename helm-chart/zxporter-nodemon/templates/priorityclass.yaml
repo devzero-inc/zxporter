@@ -1,0 +1,17 @@
+{{- if and .Values.global.priorityClass.enabled .Values.priorityClass.create }}
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  {{- /* Hardcoded (not release-derived) to match the same-named PriorityClass the parent
+         zxporter chart and the kustomize dist/ bundles create, so a standalone nodemon install
+         (CI, helm-release-nodemon) targets the SAME class the parent would. When installed via
+         the parent chart, the parent sets zxporter-nodemon.priorityClass.create=false so this
+         object isn't defined twice. */}}
+  name: devzero-zxporter-devzero-zxporter-critical
+  labels:
+    {{- include "zxporter-nodemon.labels" . | nindent 4 }}
+value: {{ .Values.priorityClass.value | int64 }}
+globalDefault: false
+description: {{ .Values.priorityClass.description | quote }}
+preemptionPolicy: {{ .Values.priorityClass.preemptionPolicy }}
+{{- end }}

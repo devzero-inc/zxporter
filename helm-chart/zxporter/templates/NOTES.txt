@@ -62,7 +62,7 @@ To check DCGM exporter status:
 For detailed installation and configuration instructions, refer to:
   https://www.devzero.io/docs/k8s-automation/getting-started/step-by-step#nvidia-gpus-on-k8s
 
-{{- if .Values.priorityClass.enabled }}
+{{- if .Values.global.priorityClass.enabled }}
 
 High priority class has been configured for critical workload scheduling.
 
