@@ -1,6 +1,6 @@
 dependencies:
 - name: zxporter-nodemon
   repository: file://../zxporter-nodemon
-  version: 0.0.9
-digest: sha256:1c240a12f1bb768b7325821d3928477bb1f9a951872fc8a175a9fc293976e5f8
-generated: "2026-06-26T18:15:27.322535+05:30"
+  version: 0.0.10
+digest: sha256:196ca1521326ea1d8202c9d9fec878226109a0e0bd1c6d29b21f0d6cbe50d564
+generated: "2026-06-26T16:07:36.112875-07:00"
