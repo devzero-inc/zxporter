@@ -39,14 +39,22 @@ jobs:
       - name: Run make build-installer
         run: make build-installer
       
-      - name: Check for changes in dist/install.yaml
+      - name: Check for uncommitted changes in dist/
         run: |
-          if [[ -n $(git status --porcelain dist/install.yaml) ]]; then
-            echo "::error::Running 'make build-installer' produced changes to dist/install.yaml that aren't committed to the repository."
-            echo "Please run 'make build-installer' locally and commit the changes to dist/install.yaml before pushing."
-            git status dist/install.yaml
-            git diff dist/install.yaml
+          # build-installer regenerates every bundle under dist/ (install.yaml,
+          # install-nvidia-runtime.yaml, installer_updater*, backend-install*,
+          # nodemon.yaml, nodemon-nvidia-runtime.yaml, zxporter.yaml). Guard the
+          # whole directory: previously only dist/install.yaml was checked, so the
+          # NVIDIA-runtime nodemon manifest -- appended only to
+          # install-nvidia-runtime.yaml -- could drift without failing CI.
+          if [[ -n $(git status --porcelain dist/) ]]; then
+            echo "::error::Running 'make build-installer' produced uncommitted changes under dist/."
+            echo "Please run 'make build-installer' locally and commit the dist/ changes before pushing."
+            git status --porcelain dist/
+            # Stage so newly generated (untracked) bundles also appear in the diff.
+            git add -A dist/
+            git diff --cached -- dist/
             exit 1
           else
-            echo "No uncommitted changes detected in dist/install.yaml. The file is properly committed."
+            echo "No uncommitted changes detected under dist/. Generated bundles are in sync."
           fi
