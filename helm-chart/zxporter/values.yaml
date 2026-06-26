@@ -144,15 +144,22 @@ mpaServer:
   port: 50051
 
 # Priority Class for critical workloads
+# global.priorityClass.enabled is the single source of truth for whether the
+# custom PriorityClass is used at all. Being a global, it auto-propagates to the
+# nodemon subchart, so the object (created here) and the DaemonSet reference (in
+# the subchart) can never drift out of sync.
+global:
+  priorityClass:
+    enabled: true
+
 priorityClass:
-  enabled: true
   value: 1000000000
   description: "This priority class is for critical zxporter infrastructure components."
   preemptionPolicy: PreemptLowerPriority
 
-# Subchart overrides. The parent chart owns the PriorityClass object (above),
-# so the bundled nodemon subchart must NOT create it again (would be a duplicate
-# resource). The nodemon DaemonSet still references it via priorityClass.enabled.
+# Subchart overrides. The parent chart owns the PriorityClass object, so the
+# bundled nodemon subchart must NOT create it again (would be a duplicate
+# resource). The DaemonSet still references it, gated on the shared global.
 zxporter-nodemon:
   priorityClass:
     create: false

@@ -1,4 +1,4 @@
-{{- if and .Values.priorityClass.enabled .Values.priorityClass.create }}
+{{- if and .Values.global.priorityClass.enabled .Values.priorityClass.create }}
 apiVersion: scheduling.k8s.io/v1
 kind: PriorityClass
 metadata:
@@ -10,7 +10,7 @@ metadata:
   name: devzero-zxporter-devzero-zxporter-critical
   labels:
     {{- include "zxporter-nodemon.labels" . | nindent 4 }}
-value: {{ .Values.priorityClass.value }}
+value: {{ .Values.priorityClass.value | int64 }}
 globalDefault: false
 description: {{ .Values.priorityClass.description | quote }}
 preemptionPolicy: {{ .Values.priorityClass.preemptionPolicy }}

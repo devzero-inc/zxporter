@@ -66,11 +66,12 @@ spec:
         app.kubernetes.io/name: {{ include "zxporter-nodemon.name" $ }}
         app.kubernetes.io/instance: {{ $v.instance }}
     spec:
-      {{- if $.Values.priorityClass.enabled }}
+      {{- if $.Values.global.priorityClass.enabled }}
       {{- /* Lets the node agent schedule on memory-packed nodes instead of losing the
              scheduling race and leaving that node without telemetry. Custom class — NOT the
              reserved system-node-critical, which GKE blocks in non-kube-system namespaces (#445).
-             Must equal the PriorityClass name created by the parent chart's templates/priorityclass.yaml. */}}
+             Gated on the shared global so the reference and the PriorityClass object (created by
+             this subchart when standalone, or the parent chart when bundled) can't drift. */}}
       priorityClassName: devzero-zxporter-devzero-zxporter-critical
       {{- end }}
       {{- if $.Values.jvmMetrics.enabled }}
