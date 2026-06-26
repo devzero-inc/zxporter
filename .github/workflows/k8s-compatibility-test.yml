@@ -111,10 +111,6 @@ jobs:
         # Test against K8s versions from the last ~2 years
         # See https://kubernetes.io/releases/ for release/EOL dates
         k8s-version:
-          - v1.27.16
-          - v1.28.15
-          - v1.29.14
-          - v1.30.13
           - v1.31.14
           - v1.32.11
           - v1.33.7
