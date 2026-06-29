@@ -73,11 +73,8 @@ DEVZERO_MONITORING_NAMESPACE ?= devzero-system
 # DIST_INSTALL_BUNDLE is the final complete manifest
 DIST_DIR ?= dist
 DIST_INSTALL_BUNDLE ?= $(DIST_DIR)/install.yaml
-DIST_INSTALL_NVIDIA_RUNTIME_BUNDLE ?= $(DIST_DIR)/install-nvidia-runtime.yaml
 DIST_BACKEND_INSTALL_BUNDLE ?= $(DIST_DIR)/backend-install.yaml
-DIST_BACKEND_INSTALL_NVIDIA_RUNTIME_BUNDLE ?= $(DIST_DIR)/backend-install-nvidia-runtime.yaml
 DIST_INSTALLER_UPDATER_BUNDLE ?= $(DIST_DIR)/installer_updater.yaml
-DIST_INSTALLER_UPDATER_NVIDIA_RUNTIME_BUNDLE ?= $(DIST_DIR)/installer_updater-nvidia-runtime.yaml
 DIST_ZXPORTER_BUNDLE ?= $(DIST_DIR)/zxporter.yaml
 
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
@@ -289,22 +286,9 @@ final-installer:
 		-e 's|namespace: $(DEVZERO_MONITORING_NAMESPACE)|namespace: {{.zxporter_namespace}}|g' \
 		-e 's|name: $(DEVZERO_MONITORING_NAMESPACE)|name: {{.zxporter_namespace}}|g' \
 		$(DIST_BACKEND_INSTALL_BUNDLE) > $(DIST_BACKEND_INSTALL_BUNDLE).tmp && mv $(DIST_BACKEND_INSTALL_BUNDLE).tmp $(DIST_BACKEND_INSTALL_BUNDLE)
-	@cp $(DIST_INSTALL_NVIDIA_RUNTIME_BUNDLE) $(DIST_BACKEND_INSTALL_NVIDIA_RUNTIME_BUNDLE)
-	@$(YQ) -i '(select(.kind == "ConfigMap" and .metadata.name == "devzero-zxporter-env-config") | .data.DAKR_URL) = "{{ .api_url }}/dakr"' $(DIST_BACKEND_INSTALL_NVIDIA_RUNTIME_BUNDLE)
-	@$(YQ) -i '(select(.kind == "Deployment") | .spec.template.spec.containers[]? | select(.image == "ttl.sh/zxporter:latest")).image = "docker.io/devzeroinc/zxporter:latest"' $(DIST_BACKEND_INSTALL_NVIDIA_RUNTIME_BUNDLE)
-	@$(YQ) -i '(select(.kind == "DaemonSet") | .spec.template.spec.containers[]? | select(.image == "ttl.sh/zxporter-nodemon:latest")).image = "docker.io/devzeroinc/zxporter-nodemon:latest"' $(DIST_BACKEND_INSTALL_NVIDIA_RUNTIME_BUNDLE)
-	@$(YQ) -i '(select(.kind == "Secret" and .metadata.name == "devzero-zxporter-token") | .stringData.CLUSTER_TOKEN) = "{{ .cluster_token }}"' $(DIST_BACKEND_INSTALL_NVIDIA_RUNTIME_BUNDLE)
-	@$(MAKE) installer-without-configmap DIST_BACKEND_INSTALL_BUNDLE=$(DIST_BACKEND_INSTALL_NVIDIA_RUNTIME_BUNDLE) DIST_INSTALLER_UPDATER_BUNDLE=$(DIST_INSTALLER_UPDATER_NVIDIA_RUNTIME_BUNDLE)
-	@echo "[INFO] Templating namespace in backend-install-nvidia-runtime.yaml for DAKR backend"
-	@sed \
-		-e 's|namespace: $(DEVZERO_MONITORING_NAMESPACE)|namespace: {{.zxporter_namespace}}|g' \
-		-e 's|name: $(DEVZERO_MONITORING_NAMESPACE)|name: {{.zxporter_namespace}}|g' \
-		$(DIST_BACKEND_INSTALL_NVIDIA_RUNTIME_BUNDLE) > $(DIST_BACKEND_INSTALL_NVIDIA_RUNTIME_BUNDLE).tmp && mv $(DIST_BACKEND_INSTALL_NVIDIA_RUNTIME_BUNDLE).tmp $(DIST_BACKEND_INSTALL_NVIDIA_RUNTIME_BUNDLE)
 	@if [ -d "$(DAKR_DIR)/services/dakr_installers" ]; then \
 		cp $(DIST_BACKEND_INSTALL_BUNDLE) $(DAKR_DIR)/services/dakr_installers/install.yaml; \
-		cp $(DIST_BACKEND_INSTALL_NVIDIA_RUNTIME_BUNDLE) $(DAKR_DIR)/services/dakr_installers/install-nvidia-runtime.yaml; \
 		cp $(DIST_INSTALLER_UPDATER_BUNDLE) $(DAKR_DIR)/services/dakr_installers/installer_updater.yaml; \
-		cp $(DIST_INSTALLER_UPDATER_NVIDIA_RUNTIME_BUNDLE) $(DAKR_DIR)/services/dakr_installers/installer_updater-nvidia-runtime.yaml; \
 		echo "[INFO] Synced installer files to $(DAKR_DIR)/services/dakr_installers/"; \
 	fi
 
@@ -353,9 +337,7 @@ build-installer: manifests generate kustomize yq helm ## Generate a consolidated
 		sed "s|CLUSTER_TOKEN: '{{ .cluster_token }}'|CLUSTER_TOKEN: \"$(CLUSTER_TOKEN)\"|g" $(DIST_ZXPORTER_BUNDLE) > $(DIST_ZXPORTER_BUNDLE).tmp && mv $(DIST_ZXPORTER_BUNDLE).tmp $(DIST_ZXPORTER_BUNDLE); \
 	fi
 	@cat $(DIST_ZXPORTER_BUNDLE) >> $(DIST_INSTALL_BUNDLE)
-	@cp $(DIST_INSTALL_BUNDLE) $(DIST_INSTALL_NVIDIA_RUNTIME_BUNDLE)
-
-	@echo "[INFO] Generate and append nodemon DaemonSet to installer"
+	@echo "[INFO] Generate and append nodemon DaemonSets to installer"
 	@$(HELM) template zxporter-nodemon ./helm-chart/zxporter-nodemon \
 		--namespace $(DEVZERO_MONITORING_NAMESPACE) \
 		--set provider=other \
@@ -364,23 +346,12 @@ build-installer: manifests generate kustomize yq helm ## Generate a consolidated
 		--set image.tag=$(word 2,$(subst :, ,$(IMG_NODEMON))) \
 		> $(DIST_DIR)/nodemon.yaml
 	@cat $(DIST_DIR)/nodemon.yaml >> $(DIST_INSTALL_BUNDLE)
-	@echo "[INFO] Generate and append NVIDIA-runtime nodemon DaemonSets to installer variant"
-	@$(HELM) template zxporter-nodemon ./helm-chart/zxporter-nodemon \
-		--namespace $(DEVZERO_MONITORING_NAMESPACE) \
-		--set provider=other \
-		--set priorityClass.create=false \
-		--set dcgmExporter.runtimeClassName=nvidia \
-		--set image.repository=$(word 1,$(subst :, ,$(IMG_NODEMON))) \
-		--set image.tag=$(word 2,$(subst :, ,$(IMG_NODEMON))) \
-		> $(DIST_DIR)/nodemon-nvidia-runtime.yaml
-	@cat $(DIST_DIR)/nodemon-nvidia-runtime.yaml >> $(DIST_INSTALL_NVIDIA_RUNTIME_BUNDLE)
 
 ifneq ($(INCLUDE_PROMETHEUS_CLEANUP),1)
 	@echo "[INFO] Skipping Prometheus cleanup job (set INCLUDE_PROMETHEUS_CLEANUP=1 to include)"
 else
 	@echo "[INFO] Append Prometheus cleanup migration job"
 	@cat config/migration/prometheus-cleanup-job.yaml >> $(DIST_INSTALL_BUNDLE)
-	@cat config/migration/prometheus-cleanup-job.yaml >> $(DIST_INSTALL_NVIDIA_RUNTIME_BUNDLE)
 endif
 
 	@echo "[INFO] Building backend installer"

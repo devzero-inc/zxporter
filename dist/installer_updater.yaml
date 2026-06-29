@@ -859,11 +859,6 @@ metadata:
     app.kubernetes.io/instance: zxporter-nodemon
     app.kubernetes.io/version: "0.0.10"
     app.kubernetes.io/managed-by: Helm
-  annotations:
-    ignore-check.kube-linter.io/privileged-container: "This daemon set needs to run DCGM Exporter as privileged to access the GPU metrics."
-    ignore-check.kube-linter.io/run-as-non-root: "This daemon set needs to run DCGM Exporter as root to access the GPU metrics."
-    ignore-check.kube-linter.io/privilege-escalation-container: "This daemon set needs escalate privileges for DCGM Exporter."
-    ignore-check.kube-linter.io/no-read-only-root-fs: "This daemon set needs to run DCGM Exporter with read-only root filesystem."
 spec:
   selector:
     matchLabels:
@@ -878,6 +873,94 @@ spec:
       priorityClassName: devzero-zxporter-devzero-zxporter-critical
       hostPID: true
       serviceAccountName: zxporter-nodemon
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: nvidia.com/gpu.present
+                    operator: NotIn
+                    values:
+                      - "true"
+      tolerations:
+        - effect: NoExecute
+          operator: Exists
+        - effect: NoSchedule
+          operator: Exists
+        - effect: PreferNoSchedule
+          operator: Exists
+      containers:
+        - name: zxporter-nodemon
+          securityContext:
+            runAsNonRoot: false
+            runAsUser: 0
+            readOnlyRootFilesystem: true
+            capabilities:
+              add:
+                - SYS_PTRACE
+          image: "docker.io/devzeroinc/zxporter-nodemon:latest"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 6061
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          envFrom:
+            - configMapRef:
+                name: zxporter-nodemon-zxporter-nodemon
+          env:
+            - name: "NODE_NAME"
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: "JVM_METRICS_ENABLED"
+              value: "true"
+          resources:
+            limits:
+              memory: 256Mi
+            requests:
+              cpu: 60m
+              memory: 256Mi
+---
+# Source: zxporter-nodemon/templates/daemonset.yaml
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: zxporter-nodemon-gpu
+  namespace: '{{.zxporter_namespace}}'
+  labels:
+    helm.sh/chart: zxporter-nodemon-0.0.10
+    app.kubernetes.io/name: zxporter-nodemon
+    app.kubernetes.io/instance: zxporter-nodemon-gpu
+    app.kubernetes.io/version: "0.0.10"
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    ignore-check.kube-linter.io/privileged-container: "This daemon set needs to run DCGM Exporter as privileged to access the GPU metrics."
+    ignore-check.kube-linter.io/run-as-non-root: "This daemon set needs to run DCGM Exporter as root to access the GPU metrics."
+    ignore-check.kube-linter.io/privilege-escalation-container: "This daemon set needs escalate privileges for DCGM Exporter."
+    ignore-check.kube-linter.io/no-read-only-root-fs: "This daemon set needs to run DCGM Exporter with read-only root filesystem."
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: zxporter-nodemon
+      app.kubernetes.io/instance: zxporter-nodemon-gpu
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: zxporter-nodemon
+        app.kubernetes.io/instance: zxporter-nodemon-gpu
+    spec:
+      priorityClassName: devzero-zxporter-devzero-zxporter-critical
+      hostPID: true
+      runtimeClassName: "nvidia"
+      serviceAccountName: zxporter-nodemon
       volumes:
         - name: "pod-gpu-resources"
           hostPath:
@@ -885,6 +968,15 @@ spec:
         - name: zxporter-nodemon-dcgm-metrics
           configMap:
             name: zxporter-nodemon-dcgm-metrics
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: nvidia.com/gpu.present
+                    operator: In
+                    values:
+                      - "true"
       tolerations:
         - effect: NoExecute
           operator: Exists
@@ -942,13 +1034,10 @@ spec:
                 - NET_RAW
             runAsNonRoot: false
             runAsUser: 0
-          image: "nvcr.io/nvidia/k8s/dcgm-exporter:3.3.7-3.5.0-ubuntu22.04"
+          image: "nvcr.io/nvidia/k8s/dcgm-exporter:4.5.2-4.8.1-ubuntu22.04"
           imagePullPolicy: IfNotPresent
           command: ["/bin/bash", "-c"]
           args:
-            # nodemon now schedules on every node (incl. non-GPU), so the DCGM sidecar must idle
-            # gracefully instead of crashlooping where there is no GPU. Use the resilient retry loop
-            # for all providers, including GCP.
             - hostname $NODE_NAME; for ((;;)) { r=$(dcgm-exporter -f /etc/dcgm-exporter/counters.csv); echo "dcgm-exporter could not run"; sleep 60 ; }
           ports:
             - name: "metrics"

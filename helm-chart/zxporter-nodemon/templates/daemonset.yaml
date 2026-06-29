@@ -1,26 +1,8 @@
-{{- $rcConfig := .Values.dcgmExporter.runtimeClassName | toString }}
-{{- $rc := "" }}
-{{- if eq $rcConfig "auto" }}
-{{-   if lookup "node.k8s.io/v1" "RuntimeClass" "" "nvidia" }}
-{{-     $rc = "nvidia" }}
-{{-   end }}
-{{- else }}
-{{-   $rc = $rcConfig }}
-{{- end }}
-{{- $key := .Values.dcgmExporter.gpuNodeSelectorKey | toString }}
-{{- $vals := .Values.dcgmExporter.gpuNodeSelectorValues | default list }}
-{{- $gpuTerms := .Values.dcgmExporter.gpuNodeSelectorTerms | default list }}
-{{- if ne $key "" }}
-{{-   $gpuTerms = list (dict "matchExpressions" (list (dict "key" $key "operator" "In" "values" $vals))) }}
-{{- end }}
+{{- $rc := .Values.dcgmExporter.runtimeClassName | default "" | toString }}
 {{- $provider := required ".Values.provider is required (gcp|eks|azure)" .Values.provider }}
-{{- if and (ne $rcConfig "auto") (ne $rc "") (eq (len $gpuTerms) 0) }}
-{{-   fail "dcgmExporter.runtimeClassName is set but dcgmExporter.gpuNodeSelectorTerms is empty: set the GPU node selector so the RuntimeClass only lands on GPU nodes" }}
-{{- end }}
-{{- $split := and .Values.dcgmExporter.enabled (ne $rc "") (gt (len $gpuTerms) 0) }}
-{{- if and $split (ne $key "") (eq (len $vals) 0) }}
-{{-   fail "dcgmExporter.gpuNodeSelectorValues must be non-empty when legacy gpuNodeSelectorKey is used" }}
-{{- end }}
+{{- $gpuKey := .Values.dcgmExporter.gpuNodeSelector.key | default "" | toString }}
+{{- $gpuVal := .Values.dcgmExporter.gpuNodeSelector.value | default "" | toString }}
+{{- $split := and .Values.dcgmExporter.enabled (ne $rc "") (ne $gpuKey "") }}
 {{- $base := include "zxporter-nodemon.fullname" . }}
 {{- $gpuName := printf "%s-gpu" ($base | trunc 59 | trimSuffix "-") }}
 {{- $variants := list (dict "name" $base "instance" $base "withDcgm" .Values.dcgmExporter.enabled "rc" "" "gpuAff" "none") }}
@@ -109,45 +91,28 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       {{- else }}
-      {{- $selectorTerms := list }}
-      {{- if eq $v.gpuAff "include" }}
-      {{-   $selectorTerms = $gpuTerms }}
-      {{- else }}
-      {{-   $excludeExprs := list }}
-      {{-   range $term := $gpuTerms }}
-      {{-     $exprs := ($term.matchExpressions | default list) }}
-      {{-     if gt (len $exprs) 1 }}
-      {{-       fail "dcgmExporter.gpuNodeSelectorTerms: a term with multiple matchExpressions cannot be negated for the non-GPU DaemonSet; split it into separate single-expression terms" }}
-      {{-     end }}
-      {{-     range $expr := $exprs }}
-      {{-       $op := $expr.operator | default "In" }}
-      {{-       if eq $op "In" }}
-      {{-         $excludeExprs = append $excludeExprs (dict "key" $expr.key "operator" "NotIn" "values" ($expr.values | default list)) }}
-      {{-       else if eq $op "Exists" }}
-      {{-         $excludeExprs = append $excludeExprs (dict "key" $expr.key "operator" "DoesNotExist") }}
-      {{-       else }}
-      {{-         fail (printf "dcgmExporter.gpuNodeSelectorTerms uses unsupported operator %q for non-GPU DaemonSet exclusion; use In or Exists" $op) }}
-      {{-       end }}
-      {{-     end }}
-      {{-   end }}
-      {{-   $selectorTerms = list (dict "matchExpressions" $excludeExprs) }}
-      {{- end }}
       {{- $affinity := deepCopy ($.Values.nodemon.affinity | default dict) }}
       {{- $nodeAffinity := deepCopy (get $affinity "nodeAffinity" | default dict) }}
       {{- $required := deepCopy (get $nodeAffinity "requiredDuringSchedulingIgnoredDuringExecution" | default dict) }}
       {{- $userTerms := get $required "nodeSelectorTerms" | default list }}
+      {{- $gpuExpr := dict "key" $gpuKey "operator" "In" "values" (list $gpuVal) }}
+      {{- $antiGpuExpr := dict "key" $gpuKey "operator" "NotIn" "values" (list $gpuVal) }}
+      {{- $selectorTerm := dict }}
+      {{- if eq $v.gpuAff "include" }}
+      {{-   $selectorTerm = dict "matchExpressions" (list $gpuExpr) }}
+      {{- else }}
+      {{-   $selectorTerm = dict "matchExpressions" (list $antiGpuExpr) }}
+      {{- end }}
       {{- $combinedTerms := list }}
       {{- if gt (len $userTerms) 0 }}
       {{-   range $userTerm := $userTerms }}
-      {{-     range $selectorTerm := $selectorTerms }}
-      {{-       $term := deepCopy $userTerm }}
-      {{-       $expressions := concat (get $term "matchExpressions" | default list) (get $selectorTerm "matchExpressions" | default list) }}
-      {{-       $_ := set $term "matchExpressions" $expressions }}
-      {{-       $combinedTerms = append $combinedTerms $term }}
-      {{-     end }}
+      {{-     $term := deepCopy $userTerm }}
+      {{-     $expressions := concat (get $term "matchExpressions" | default list) (get $selectorTerm "matchExpressions" | default list) }}
+      {{-     $_ := set $term "matchExpressions" $expressions }}
+      {{-     $combinedTerms = append $combinedTerms $term }}
       {{-   end }}
       {{- else }}
-      {{-   $combinedTerms = $selectorTerms }}
+      {{-   $combinedTerms = list $selectorTerm }}
       {{- end }}
       {{- $_ := set $required "nodeSelectorTerms" $combinedTerms }}
       {{- $_ := set $nodeAffinity "requiredDuringSchedulingIgnoredDuringExecution" $required }}
@@ -220,9 +185,6 @@ spec:
           imagePullPolicy: {{ $.Values.dcgmExporter.image.pullPolicy }}
           command: [ "/bin/bash", "-c" ]
           args:
-          # nodemon now schedules on every node (incl. non-GPU), so the DCGM sidecar must idle
-          # gracefully instead of crashlooping where there is no GPU. Use the resilient retry loop
-          # for all providers, including GCP.
           {{- if $.Values.dcgmExporter.useExternalHostEngine }}
             - hostname $NODE_NAME; for ((;;)) { r=$(dcgm-exporter --remote-hostengine-info ${NODE_IP} -f /etc/dcgm-exporter/counters.csv); echo "dcgm-exporter could not run"; sleep 60 ; }
           {{- else }}
@@ -248,11 +210,22 @@ spec:
                 fieldRef:
                   fieldPath: status.hostIP
             {{- end }}
-            {{- if eq $.Values.provider "gcp" }}
+            {{- $hasCustomLDLibraryPath := false }}
+            {{- range $.Values.dcgmExporter.extraEnv }}
+            {{- if eq .name "LD_LIBRARY_PATH" }}
+            {{- $hasCustomLDLibraryPath = true }}
+            {{- end }}
+            {{- end }}
+            {{- if and (eq $.Values.provider "gcp") (not $hasCustomLDLibraryPath) }}
             - name: "LD_LIBRARY_PATH"
               value: "/usr/local/nvidia/lib64"
+            {{- end }}
+            {{- if eq $.Values.provider "gcp" }}
             - name: "DCGM_EXPORTER_KUBERNETES_GPU_ID_TYPE"
               value: "device-name"
+            {{- end }}
+            {{- with $.Values.dcgmExporter.extraEnv }}
+            {{- toYaml . | nindent 12 }}
             {{- end }}
           volumeMounts:
             - name: "pod-gpu-resources"

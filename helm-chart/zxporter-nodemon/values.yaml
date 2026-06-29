@@ -79,35 +79,35 @@ priorityClass:
 
 dcgmExporter:
   enabled: true
-  # RuntimeClass for the GPU DaemonSet only.
-  # "auto" uses the "nvidia" RuntimeClass if the cluster has one.
-  # Set "" to render the original single DaemonSet without a RuntimeClass.
-  runtimeClassName: "auto"
-  # Node selector terms used to scope the RuntimeClass DaemonSet to GPU nodes.
-  # Terms are ORed; expressions within a term are ANDed.
-  gpuNodeSelectorTerms:
-    - matchExpressions:
-        - key: nvidia.com/gpu.present
-          operator: In
-          values:
-            - "true"
-    - matchExpressions:
-        - key: cloud.google.com/gke-accelerator
-          operator: Exists
-    - matchExpressions:
-        - key: cloud.google.com/gcp-accelerator
-          operator: Exists
-    - matchExpressions:
-        - key: kubernetes.azure.com/accelerator
-          operator: Exists
-  # Legacy selector override. Prefer gpuNodeSelectorTerms for new installs.
-  gpuNodeSelectorKey: ""
-  gpuNodeSelectorValues: []
+  # runtimeClassName -- RuntimeClass applied to the GPU-only DaemonSet
+  # (zxporter-nodemon-gpu). Set to "nvidia" (default) so the NVIDIA container
+  # runtime injects host driver libraries (libnvidia-ml.so) into the DCGM sidecar.
+  # The GPU DaemonSet only schedules on nodes labelled nvidia.com/gpu.present=true
+  # (set by the NVIDIA GPU Operator), so the RuntimeClass is never evaluated on
+  # nodes that lack it. Set to "" to disable the split and fall back to the
+  # original single DaemonSet with an embedded DCGM sidecar (e.g. GKE COS where
+  # the driver is host-mounted via provider=gcp).
+  runtimeClassName: "nvidia"
+  # gpuNodeSelector -- label used to identify GPU Operator nodes for the split.
+  # The GPU DaemonSet includes nodes matching this label; the base DaemonSet
+  # excludes them. Only nodes where the GPU Operator's node-feature-discovery
+  # sets this label will get the runtimeClassName pod.
+  gpuNodeSelector:
+    key: "nvidia.com/gpu.present"
+    value: "true"
   image:
     repository: nvcr.io/nvidia/k8s/dcgm-exporter
     pullPolicy: IfNotPresent
-    tag: 3.3.7-3.5.0-ubuntu22.04
+    tag: 4.5.2-4.8.1-ubuntu22.04
   useExternalHostEngine: false
+  # extraEnv -- extra env vars for the dcgm-exporter sidecar, e.g. LD_LIBRARY_PATH
+  # when the driver lives outside the provider=gcp default (/usr/local/nvidia/lib64).
+  # These are appended to what the chart already sets, so don't redefine the chart's
+  # own vars (duplicates are invalid). LD_LIBRARY_PATH is the exception — setting it
+  # here replaces the provider=gcp default instead of duplicating it.
+  extraEnv: []
+  #  - name: LD_LIBRARY_PATH
+  #    value: /usr/local/nvidia/lib64
 
 # updateStrategy -- Controls `daemonset.spec.updateStrategy` field.
 # updateStrategy:
