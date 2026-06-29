@@ -8,7 +8,7 @@
 {{- $variants := list (dict "name" $base "instance" $base "withDcgm" .Values.dcgmExporter.enabled "rc" "" "gpuAff" "none") }}
 {{- if $split }}
 {{-   $variants = list
-        (dict "name" $base "instance" $base "withDcgm" false "rc" "" "gpuAff" "exclude")
+        (dict "name" $base "instance" $base "withDcgm" true "rc" "" "gpuAff" "exclude")
         (dict "name" $gpuName "instance" $gpuName "withDcgm" true "rc" $rc "gpuAff" "include") }}
 {{- end }}
 {{- range $v := $variants }}
