@@ -338,9 +338,13 @@ build-installer: manifests generate kustomize yq helm ## Generate a consolidated
 	fi
 	@cat $(DIST_ZXPORTER_BUNDLE) >> $(DIST_INSTALL_BUNDLE)
 	@echo "[INFO] Generate and append nodemon DaemonSets to installer"
+	@# Render with provider=gcp so the DCGM sidecar includes the GCP hostPath mount
+	@# and LD_LIBRARY_PATH. On non-GCP clusters the hostPath is harmless (empty dir)
+	@# and the GPU DaemonSet uses runtimeClassName instead. This avoids needing a
+	@# per-provider template variable for the nodemon section.
 	@$(HELM) template zxporter-nodemon ./helm-chart/zxporter-nodemon \
 		--namespace $(DEVZERO_MONITORING_NAMESPACE) \
-		--set provider=other \
+		--set provider=gcp \
 		--set priorityClass.create=false \
 		--set image.repository=$(word 1,$(subst :, ,$(IMG_NODEMON))) \
 		--set image.tag=$(word 2,$(subst :, ,$(IMG_NODEMON))) \

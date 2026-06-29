@@ -1,5 +1,5 @@
 {{- $rc := .Values.dcgmExporter.runtimeClassName | default "" | toString }}
-{{- $provider := required ".Values.provider is required (gcp|eks|azure)" .Values.provider }}
+{{- $provider := required ".Values.provider is required (gcp|aws|azure|oci|other)" .Values.provider }}
 {{- $gpuKey := .Values.dcgmExporter.gpuNodeSelector.key | default "" | toString }}
 {{- $gpuVal := .Values.dcgmExporter.gpuNodeSelector.value | default "" | toString }}
 {{- $split := and .Values.dcgmExporter.enabled (ne $rc "") (ne $gpuKey "") }}

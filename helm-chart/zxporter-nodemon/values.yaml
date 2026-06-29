@@ -1,4 +1,4 @@
-provider: "" # gcp | eks | azure |
+provider: "" # gcp | aws | azure | oci | other | eks (legacy alias for aws)
 
 # fullnameOverride pins all nodemon resource names to a stable value, independent of the Helm
 # release name. It MUST stay "zxporter-nodemon" so that:
