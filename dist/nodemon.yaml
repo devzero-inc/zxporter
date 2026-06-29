@@ -6,10 +6,10 @@ metadata:
   name: zxporter-nodemon
   namespace: devzero-system
   labels:
-    helm.sh/chart: zxporter-nodemon-0.0.4
+    helm.sh/chart: zxporter-nodemon-0.0.10
     app.kubernetes.io/name: zxporter-nodemon
     app.kubernetes.io/instance: zxporter-nodemon
-    app.kubernetes.io/version: "0.0.4"
+    app.kubernetes.io/version: "0.0.10"
     app.kubernetes.io/managed-by: Helm
 ---
 # Source: zxporter-nodemon/templates/dcgm-exporter-configmap.yaml
@@ -82,10 +82,10 @@ kind: ClusterRole
 metadata:
   name: zxporter-nodemon
   labels:
-    helm.sh/chart: zxporter-nodemon-0.0.4
+    helm.sh/chart: zxporter-nodemon-0.0.10
     app.kubernetes.io/name: zxporter-nodemon
     app.kubernetes.io/instance: zxporter-nodemon
-    app.kubernetes.io/version: "0.0.4"
+    app.kubernetes.io/version: "0.0.10"
     app.kubernetes.io/managed-by: Helm
 rules:
 - apiGroups:
@@ -95,6 +95,7 @@ rules:
   verbs:
   - get
   - list
+  - watch
 - apiGroups:
     - apps
   resources:
@@ -132,10 +133,10 @@ kind: ClusterRoleBinding
 metadata:
   name: zxporter-nodemon
   labels:
-    helm.sh/chart: zxporter-nodemon-0.0.4
+    helm.sh/chart: zxporter-nodemon-0.0.10
     app.kubernetes.io/name: zxporter-nodemon
     app.kubernetes.io/instance: zxporter-nodemon
-    app.kubernetes.io/version: "0.0.4"
+    app.kubernetes.io/version: "0.0.10"
     app.kubernetes.io/managed-by: Helm
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -153,10 +154,10 @@ metadata:
   name: zxporter-nodemon
   namespace: devzero-system
   labels:
-    helm.sh/chart: zxporter-nodemon-0.0.4
+    helm.sh/chart: zxporter-nodemon-0.0.10
     app.kubernetes.io/name: zxporter-nodemon
     app.kubernetes.io/instance: zxporter-nodemon
-    app.kubernetes.io/version: "0.0.4"
+    app.kubernetes.io/version: "0.0.10"
     app.kubernetes.io/managed-by: Helm
   annotations:
     ignore-check.kube-linter.io/privileged-container: "This daemon set needs to run DCGM Exporter as privileged to access the GPU metrics."
@@ -174,6 +175,8 @@ spec:
         app.kubernetes.io/name: zxporter-nodemon
         app.kubernetes.io/instance: zxporter-nodemon
     spec:
+      priorityClassName: devzero-zxporter-devzero-zxporter-critical
+      hostPID: true
       serviceAccountName: zxporter-nodemon
       volumes:
         - name: "pod-gpu-resources"
@@ -192,8 +195,12 @@ spec:
       containers:
         - name: zxporter-nodemon
           securityContext:
+            runAsNonRoot: false
+            runAsUser: 0
             readOnlyRootFilesystem: true
-            runAsNonRoot: true
+            capabilities:
+              add:
+                - SYS_PTRACE
           image: "ttl.sh/zxporter-nodemon:latest"
           imagePullPolicy: IfNotPresent
           ports:
@@ -216,14 +223,16 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+            - name: "JVM_METRICS_ENABLED"
+              value: "true"
             - name: "DCGM_HOST"
               value: "localhost"
           resources:
             limits:
-              memory: 128Mi
+              memory: 256Mi
             requests:
-              cpu: 50m
-              memory: 128Mi
+              cpu: 60m
+              memory: 256Mi
         - name: dcgm-exporter
           securityContext:
             capabilities:
@@ -237,6 +246,9 @@ spec:
           imagePullPolicy: IfNotPresent
           command: [ "/bin/bash", "-c" ]
           args:
+          # nodemon now schedules on every node (incl. non-GPU), so the DCGM sidecar must idle
+          # gracefully instead of crashlooping where there is no GPU. Use the resilient retry loop
+          # for all providers, including GCP.
             - hostname $NODE_NAME; for ((;;)) { r=$(dcgm-exporter -f /etc/dcgm-exporter/counters.csv); echo "dcgm-exporter could not run"; sleep 60 ; }
           ports:
             - name: "metrics"

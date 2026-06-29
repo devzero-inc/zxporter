@@ -1,11 +1,50 @@
+{{- $rcConfig := .Values.dcgmExporter.runtimeClassName | toString }}
+{{- $rc := "" }}
+{{- if eq $rcConfig "auto" }}
+{{-   if lookup "node.k8s.io/v1" "RuntimeClass" "" "nvidia" }}
+{{-     $rc = "nvidia" }}
+{{-   end }}
+{{- else }}
+{{-   $rc = $rcConfig }}
+{{- end }}
+{{- $key := .Values.dcgmExporter.gpuNodeSelectorKey | toString }}
+{{- $vals := .Values.dcgmExporter.gpuNodeSelectorValues | default list }}
+{{- $gpuTerms := .Values.dcgmExporter.gpuNodeSelectorTerms | default list }}
+{{- if ne $key "" }}
+{{-   $gpuTerms = list (dict "matchExpressions" (list (dict "key" $key "operator" "In" "values" $vals))) }}
+{{- end }}
+{{- $provider := required ".Values.provider is required (gcp|eks|azure)" .Values.provider }}
+{{- if and (ne $rcConfig "auto") (ne $rc "") (eq (len $gpuTerms) 0) }}
+{{-   fail "dcgmExporter.runtimeClassName is set but dcgmExporter.gpuNodeSelectorTerms is empty: set the GPU node selector so the RuntimeClass only lands on GPU nodes" }}
+{{- end }}
+{{- $split := and .Values.dcgmExporter.enabled (ne $rc "") (gt (len $gpuTerms) 0) }}
+{{- if and $split (ne $key "") (eq (len $vals) 0) }}
+{{-   fail "dcgmExporter.gpuNodeSelectorValues must be non-empty when legacy gpuNodeSelectorKey is used" }}
+{{- end }}
+{{- $base := include "zxporter-nodemon.fullname" . }}
+{{- $gpuName := printf "%s-gpu" ($base | trunc 59 | trimSuffix "-") }}
+{{- $variants := list (dict "name" $base "instance" $base "withDcgm" .Values.dcgmExporter.enabled "rc" "" "gpuAff" "none") }}
+{{- if $split }}
+{{-   $variants = list
+        (dict "name" $base "instance" $base "withDcgm" false "rc" "" "gpuAff" "exclude")
+        (dict "name" $gpuName "instance" $gpuName "withDcgm" true "rc" $rc "gpuAff" "include") }}
+{{- end }}
+{{- range $v := $variants }}
+---
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: {{ include "zxporter-nodemon.fullname" . }}
-  namespace: {{ .Release.Namespace }}
+  name: {{ $v.name }}
+  namespace: {{ $.Release.Namespace }}
   labels:
-    {{- include "zxporter-nodemon.labels" . | nindent 4 }}
-  {{- if .Values.dcgmExporter.enabled }}
+    helm.sh/chart: {{ include "zxporter-nodemon.chart" $ }}
+    app.kubernetes.io/name: {{ include "zxporter-nodemon.name" $ }}
+    app.kubernetes.io/instance: {{ $v.instance }}
+    {{- if $.Chart.AppVersion }}
+    app.kubernetes.io/version: {{ $.Chart.AppVersion | quote }}
+    {{- end }}
+    app.kubernetes.io/managed-by: {{ $.Release.Service }}
+  {{- if $v.withDcgm }}
   annotations:
     ignore-check.kube-linter.io/privileged-container: "This daemon set needs to run DCGM Exporter as privileged to access the GPU metrics."
     ignore-check.kube-linter.io/run-as-non-root: "This daemon set needs to run DCGM Exporter as root to access the GPU metrics."
@@ -13,66 +52,117 @@ metadata:
     ignore-check.kube-linter.io/no-read-only-root-fs: "This daemon set needs to run DCGM Exporter with read-only root filesystem."
   {{- end }}
 spec:
-  {{- with .Values.updateStrategy }}
+  {{- with $.Values.updateStrategy }}
   updateStrategy:
     {{- toYaml . | nindent 4 }}
   {{- end }}
   selector:
     matchLabels:
-      {{- include "zxporter-nodemon.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/name: {{ include "zxporter-nodemon.name" $ }}
+      app.kubernetes.io/instance: {{ $v.instance }}
   template:
     metadata:
       labels:
-        {{- include "zxporter-nodemon.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/name: {{ include "zxporter-nodemon.name" $ }}
+        app.kubernetes.io/instance: {{ $v.instance }}
     spec:
-      {{- if .Values.jvmMetrics.enabled }}
+      {{- if $.Values.global.priorityClass.enabled }}
+      {{- /* Lets the node agent schedule on memory-packed nodes instead of losing the
+             scheduling race and leaving that node without telemetry. Custom class — NOT the
+             reserved system-node-critical, which GKE blocks in non-kube-system namespaces (#445).
+             Gated on the shared global so the reference and the PriorityClass object (created by
+             this subchart when standalone, or the parent chart when bundled) can't drift. */}}
+      priorityClassName: devzero-zxporter-devzero-zxporter-critical
+      {{- end }}
+      {{- if $.Values.jvmMetrics.enabled }}
       hostPID: true
       {{- end }}
-      {{- with .Values.imagePullSecrets }}
+      {{- with $.Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if eq (required ".Values.provider is required (gcp|eks|azure)" .Values.provider) "eks" }}
-      priorityClassName: system-node-critical
+      {{- if $v.rc }}
+      runtimeClassName: {{ $v.rc | quote }}
       {{- end }}
-      serviceAccountName: {{ include "zxporter-nodemon.serviceAccountName" . }}
-      {{- if .Values.dcgmExporter.enabled }}
+      serviceAccountName: {{ include "zxporter-nodemon.serviceAccountName" $ }}
+      {{- if $v.withDcgm }}
       volumes:
         - name: "pod-gpu-resources"
           hostPath:
             path: /var/lib/kubelet/pod-resources
-        - name: {{- include "dcgm-exporter.config-map" . | indent 1 }}
+        - name: {{- include "dcgm-exporter.config-map" $ | indent 1 }}
           configMap:
-            name: {{- include "dcgm-exporter.config-map" . | indent 1 }}
-        {{- if eq .Values.provider "gcp" }}
+            name: {{- include "dcgm-exporter.config-map" $ | indent 1 }}
+        {{- if eq $.Values.provider "gcp" }}
         - name: "nvidia-install-dir-host"
           hostPath:
             path: /home/kubernetes/bin/nvidia
         {{- end }}
       {{- end }}
-      {{- with .Values.nodeSelector }}
+      {{- with $.Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if .Values.nodemon.affinity }}
-      {{- with .Values.nodemon.affinity }}
+      {{- if eq $v.gpuAff "none" }}
+      {{- with $.Values.nodemon.affinity }}
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- else if (eq .Values.provider "gcp")}}
-      {{- with .Values.gcp.affinity }}
+      {{- else }}
+      {{- $selectorTerms := list }}
+      {{- if eq $v.gpuAff "include" }}
+      {{-   $selectorTerms = $gpuTerms }}
+      {{- else }}
+      {{-   $excludeExprs := list }}
+      {{-   range $term := $gpuTerms }}
+      {{-     $exprs := ($term.matchExpressions | default list) }}
+      {{-     if gt (len $exprs) 1 }}
+      {{-       fail "dcgmExporter.gpuNodeSelectorTerms: a term with multiple matchExpressions cannot be negated for the non-GPU DaemonSet; split it into separate single-expression terms" }}
+      {{-     end }}
+      {{-     range $expr := $exprs }}
+      {{-       $op := $expr.operator | default "In" }}
+      {{-       if eq $op "In" }}
+      {{-         $excludeExprs = append $excludeExprs (dict "key" $expr.key "operator" "NotIn" "values" ($expr.values | default list)) }}
+      {{-       else if eq $op "Exists" }}
+      {{-         $excludeExprs = append $excludeExprs (dict "key" $expr.key "operator" "DoesNotExist") }}
+      {{-       else }}
+      {{-         fail (printf "dcgmExporter.gpuNodeSelectorTerms uses unsupported operator %q for non-GPU DaemonSet exclusion; use In or Exists" $op) }}
+      {{-       end }}
+      {{-     end }}
+      {{-   end }}
+      {{-   $selectorTerms = list (dict "matchExpressions" $excludeExprs) }}
+      {{- end }}
+      {{- $affinity := deepCopy ($.Values.nodemon.affinity | default dict) }}
+      {{- $nodeAffinity := deepCopy (get $affinity "nodeAffinity" | default dict) }}
+      {{- $required := deepCopy (get $nodeAffinity "requiredDuringSchedulingIgnoredDuringExecution" | default dict) }}
+      {{- $userTerms := get $required "nodeSelectorTerms" | default list }}
+      {{- $combinedTerms := list }}
+      {{- if gt (len $userTerms) 0 }}
+      {{-   range $userTerm := $userTerms }}
+      {{-     range $selectorTerm := $selectorTerms }}
+      {{-       $term := deepCopy $userTerm }}
+      {{-       $expressions := concat (get $term "matchExpressions" | default list) (get $selectorTerm "matchExpressions" | default list) }}
+      {{-       $_ := set $term "matchExpressions" $expressions }}
+      {{-       $combinedTerms = append $combinedTerms $term }}
+      {{-     end }}
+      {{-   end }}
+      {{- else }}
+      {{-   $combinedTerms = $selectorTerms }}
+      {{- end }}
+      {{- $_ := set $required "nodeSelectorTerms" $combinedTerms }}
+      {{- $_ := set $nodeAffinity "requiredDuringSchedulingIgnoredDuringExecution" $required }}
+      {{- $_ := set $affinity "nodeAffinity" $nodeAffinity }}
       affinity:
-        {{- toYaml . | nindent 8 }}
+        {{- toYaml $affinity | nindent 8 }}
       {{- end }}
-      {{- end }}
-      {{- with .Values.nodemon.tolerations }}
+      {{- with $.Values.nodemon.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       containers:
         - name: zxporter-nodemon
           securityContext:
-          {{- if .Values.jvmMetrics.enabled }}
+          {{- if $.Values.jvmMetrics.enabled }}
             runAsNonRoot: false
             runAsUser: 0
             readOnlyRootFilesystem: true
@@ -80,13 +170,13 @@ spec:
               add:
                 - SYS_PTRACE
           {{- else }}
-          {{- toYaml .Values.nodemon.securityContext | nindent 12 }}
+          {{- toYaml $.Values.nodemon.securityContext | nindent 12 }}
           {{- end }}
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          image: "{{ $.Values.image.repository }}:{{ $.Values.image.tag | default $.Chart.AppVersion }}"
+          imagePullPolicy: {{ $.Values.image.pullPolicy }}
           ports:
             - name: http
-              containerPort: {{ .Values.nodemon.port }}
+              containerPort: {{ $.Values.nodemon.port }}
               protocol: TCP
           livenessProbe:
             httpGet:
@@ -98,20 +188,22 @@ spec:
               port: http
           envFrom:
             - configMapRef:
-                name: {{- include "zxporter-nodemon.config-map" . | indent 1}}
+                name: {{- include "zxporter-nodemon.config-map" $ | indent 1}}
           env:
             - name: "NODE_NAME"
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+            - name: "JVM_METRICS_ENABLED"
+              value: {{ $.Values.jvmMetrics.enabled | quote }}
 
-          {{- if .Values.dcgmExporter.enabled }}
+          {{- if $v.withDcgm }}
             - name: "DCGM_HOST"
               value: "localhost"
           {{- end }}
           resources:
-            {{- toYaml .Values.nodemon.resources | nindent 12 }}
-        {{- if .Values.dcgmExporter.enabled }}
+            {{- toYaml $.Values.nodemon.resources | nindent 12 }}
+        {{- if $v.withDcgm }}
         - name: dcgm-exporter
           securityContext:
             capabilities:
@@ -121,25 +213,20 @@ spec:
                 - NET_RAW
             runAsNonRoot: false
             runAsUser: 0
-            {{- if eq .Values.provider "gcp"}}
+            {{- if eq $.Values.provider "gcp"}}
             privileged: true
             {{- end }}
-          image: "{{ .Values.dcgmExporter.image.repository }}:{{ .Values.dcgmExporter.image.tag }}"
-          imagePullPolicy: {{ .Values.dcgmExporter.image.pullPolicy }}
+          image: "{{ $.Values.dcgmExporter.image.repository }}:{{ $.Values.dcgmExporter.image.tag }}"
+          imagePullPolicy: {{ $.Values.dcgmExporter.image.pullPolicy }}
           command: [ "/bin/bash", "-c" ]
           args:
-          {{- if eq .Values.provider "gcp"}}
-            {{- if .Values.dcgmExporter.useExternalHostEngine }}
-            - hostname $NODE_NAME; dcgm-exporter --remote-hostengine-info ${NODE_IP} -f /etc/dcgm-exporter/counters.csv
-            {{- else }}
-            - hostname $NODE_NAME; dcgm-exporter -f /etc/dcgm-exporter/counters.csv
-            {{- end }}
-          {{- else }}
-            {{- if .Values.dcgmExporter.useExternalHostEngine }}
+          # nodemon now schedules on every node (incl. non-GPU), so the DCGM sidecar must idle
+          # gracefully instead of crashlooping where there is no GPU. Use the resilient retry loop
+          # for all providers, including GCP.
+          {{- if $.Values.dcgmExporter.useExternalHostEngine }}
             - hostname $NODE_NAME; for ((;;)) { r=$(dcgm-exporter --remote-hostengine-info ${NODE_IP} -f /etc/dcgm-exporter/counters.csv); echo "dcgm-exporter could not run"; sleep 60 ; }
-            {{- else }}
+          {{- else }}
             - hostname $NODE_NAME; for ((;;)) { r=$(dcgm-exporter -f /etc/dcgm-exporter/counters.csv); echo "dcgm-exporter could not run"; sleep 60 ; }
-            {{- end }}
           {{- end }}
           ports:
             - name: "metrics"
@@ -155,13 +242,13 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
-            {{- if .Values.dcgmExporter.useExternalHostEngine }}
+            {{- if $.Values.dcgmExporter.useExternalHostEngine }}
             - name: "NODE_IP"
               valueFrom:
                 fieldRef:
                   fieldPath: status.hostIP
             {{- end }}
-            {{- if eq .Values.provider "gcp" }}
+            {{- if eq $.Values.provider "gcp" }}
             - name: "LD_LIBRARY_PATH"
               value: "/usr/local/nvidia/lib64"
             - name: "DCGM_EXPORTER_KUBERNETES_GPU_ID_TYPE"
@@ -171,10 +258,11 @@ spec:
             - name: "pod-gpu-resources"
               readOnly: true
               mountPath: "/var/lib/kubelet/pod-resources"
-            {{- if eq .Values.provider "gcp" }}
+            {{- if eq $.Values.provider "gcp" }}
             - name: "nvidia-install-dir-host"
               mountPath: /usr/local/nvidia
             {{- end }}
-            - name: {{- include "dcgm-exporter.config-map" . | indent 1 }}
+            - name: {{- include "dcgm-exporter.config-map" $ | indent 1 }}
               mountPath: "/etc/dcgm-exporter"
         {{- end }}
+{{- end }}

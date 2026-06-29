@@ -4,6 +4,7 @@
 *.dll
 *.so
 *.dylib
+*.tgz
 bin/*
 Dockerfile.cross
 
@@ -31,6 +32,7 @@ config/**/charts
 .claude
 
 /zxporter-netmon
+/zxporter-nodemon
 *.o
 !internal/networkmonitor/ebpf/*.o
 

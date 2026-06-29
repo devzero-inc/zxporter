@@ -172,6 +172,7 @@ rules:
   - ""
   resources:
   - nodes/metrics
+  - nodes/proxy
   - nodes/status
   - pods/status
   verbs:
@@ -721,7 +722,7 @@ spec:
         resources:
           requests:
             cpu: 200m
-            memory: 128Mi
+            memory: 2Gi
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:

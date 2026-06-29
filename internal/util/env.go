@@ -55,10 +55,6 @@ const (
 	// Default value: [] (all namespaces)
 	_ENV_TARGET_NAMESPACES = "TARGET_NAMESPACES"
 
-	// PROMETHEUS_URL is the URL of the Prometheus server.
-	// Default value: ""
-	_ENV_PROMETHEUS_URL = "PROMETHEUS_URL"
-
 	// DISABLE_NETWORK_IO_METRICS determines whether to disable network IO metrics.
 	// Default value: false
 	_ENV_DISABLE_NETWORK_IO_METRICS = "DISABLE_NETWORK_IO_METRICS"

@@ -21,8 +21,10 @@ spec:
         control-plane: controller-manager
         {{- include "zxporter.selectorLabels" . | nindent 8 }}
     spec:
-      {{- if .Values.priorityClass.enabled }}
-      priorityClassName: {{ include "zxporter.fullname" . }}-critical
+      {{- if .Values.global.priorityClass.enabled }}
+      {{- /* Must equal the PriorityClass name in templates/priorityclass.yaml, which is hardcoded
+             to the (double-prefixed) dist/ bundle name so helm + installer_updater stay in sync. */}}
+      priorityClassName: devzero-zxporter-devzero-zxporter-critical
       {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
@@ -44,6 +46,7 @@ spec:
             - --health-probe-bind-address=:8081
             - --zap-log-level={{ .Values.zxporter.logLevel }}
           image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - name: http-metrics
               containerPort: 8080

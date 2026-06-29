@@ -53,7 +53,7 @@ jobs:
 
             echo "Debug: MAJOR=${BASH_REMATCH[1]}, MINOR=${BASH_REMATCH[2]}, PATCH=${PATCH}, PATCH_SHORT=${PATCH_SHORT}"
             echo "Debug: FULLV=${FULLV}"
-            echo "is_release=${IS_RELEASE}" >> $GITHUB_OUTPUT
+            echo "is_release=true" >> $GITHUB_OUTPUT
           else
             echo "MAJOR=0" >> $GITHUB_ENV
             echo "MINOR=0" >> $GITHUB_ENV

@@ -1,20 +1,30 @@
-provider: "" # gcp | eks | azure | 
+provider: "" # gcp | eks | azure |
+
+# fullnameOverride pins all nodemon resource names to a stable value, independent of the Helm
+# release name. It MUST stay "zxporter-nodemon" so that:
+#   1. the zxporter controller can discover nodemon pods via the fixed label selector
+#      app.kubernetes.io/name=zxporter-nodemon (see internal/collector/nodemon_client.go), and
+#   2. names + selectors match the generated dist/ bundles, so running dist/installer_updater.yaml
+#      after a Helm install updates the existing resources instead of creating duplicates.
+nameOverride: ""
+fullnameOverride: "zxporter-nodemon"
+
 imagePullSecrets: [ ]
 
 serviceAccount:
   create: true
-  automount: true
   annotations: { }
 
 image:
   repository: docker.io/devzeroinc/zxporter-nodemon
   pullPolicy: IfNotPresent
-  tag: "v0.0.83"
+  tag: "v0.0.88"
 
 nodemon:
-  # the affinity field is the preferred way of adding affinity annotations
-  # for gcp provider the gcp.affinity will be used if this isn't defined but in the future custom affinity annotations
-  # should be defined in the nodemon.affinity field
+  # nodemon.affinity -- optional pod affinity/anti-affinity. Leave empty so nodemon schedules on
+  # EVERY node (it is the sole source of node/container metrics). Only set this if you intentionally
+  # want to restrict where nodemon runs. NOTE: this is no longer GPU-gated on GCP — DCGM/GPU metrics
+  # are handled by the dcgm-exporter sidecar, which idles gracefully on non-GPU nodes.
   affinity:
   config: { }
   # config:
@@ -24,10 +34,10 @@ nodemon:
   #   DCGM_LABELS: ""
   resources:
     limits:
-      memory: 128Mi
+      memory: 256Mi
     requests:
-      cpu: 50m
-      memory: 128Mi
+      cpu: 60m
+      memory: 256Mi
   securityContext:
     readOnlyRootFilesystem: true
     runAsNonRoot: true
@@ -45,30 +55,59 @@ nodemon:
 # jvmMetrics -- Enable JVM metrics collection via hsperfdata.
 # NOTE: requires hostPID + running nodemon as UID 0 to read /proc/<pid>/root/tmp/hsperfdata_*/<nsPid>
 jvmMetrics:
-  enabled: false
+  enabled: true
+
+# global.priorityClass.enabled is the single toggle for using the custom
+# PriorityClass. The parent zxporter chart supplies it (auto-propagated to this
+# subchart); this default applies when nodemon is installed standalone (CI,
+# helm-release-nodemon).
+global:
+  priorityClass:
+    enabled: true
+
+# Assigns the node agent a custom PriorityClass so it can schedule on
+# memory-packed nodes. When installed standalone the subchart creates the
+# PriorityClass itself (create: true). When installed via the parent zxporter
+# chart, the parent already owns the object and overrides create to false to
+# avoid duplicate ownership. value/description/preemptionPolicy must match the
+# parent's so the class is identical whichever chart creates it.
+priorityClass:
+  create: true
+  value: 1000000000
+  description: "This priority class is for critical zxporter infrastructure components."
+  preemptionPolicy: PreemptLowerPriority
 
 dcgmExporter:
   enabled: true
+  # RuntimeClass for the GPU DaemonSet only.
+  # "auto" uses the "nvidia" RuntimeClass if the cluster has one.
+  # Set "" to render the original single DaemonSet without a RuntimeClass.
+  runtimeClassName: "auto"
+  # Node selector terms used to scope the RuntimeClass DaemonSet to GPU nodes.
+  # Terms are ORed; expressions within a term are ANDed.
+  gpuNodeSelectorTerms:
+    - matchExpressions:
+        - key: nvidia.com/gpu.present
+          operator: In
+          values:
+            - "true"
+    - matchExpressions:
+        - key: cloud.google.com/gke-accelerator
+          operator: Exists
+    - matchExpressions:
+        - key: cloud.google.com/gcp-accelerator
+          operator: Exists
+    - matchExpressions:
+        - key: kubernetes.azure.com/accelerator
+          operator: Exists
+  # Legacy selector override. Prefer gpuNodeSelectorTerms for new installs.
+  gpuNodeSelectorKey: ""
+  gpuNodeSelectorValues: []
   image:
     repository: nvcr.io/nvidia/k8s/dcgm-exporter
     pullPolicy: IfNotPresent
     tag: 3.3.7-3.5.0-ubuntu22.04
   useExternalHostEngine: false
-
-gcp:
-  affinity:
-    nodeAffinity:
-      requiredDuringSchedulingIgnoredDuringExecution:
-        nodeSelectorTerms:
-          - matchExpressions:
-              - key: cloud.google.com/gke-accelerator
-                operator: Exists
-
-migrate:
-  image:
-    repository: alpine/k8s
-    pullPolicy: IfNotPresent
-    tag: 1.31.0
 
 # updateStrategy -- Controls `daemonset.spec.updateStrategy` field.
 # updateStrategy:

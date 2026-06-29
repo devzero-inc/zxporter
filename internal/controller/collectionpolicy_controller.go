@@ -166,12 +166,18 @@ type PolicyConfig struct {
 // +kubebuilder:rbac:groups=devzero.io,resources=collectionpolicies/finalizers,verbs=update
 
 // ========================================
-// BOOTSTRAP PERMISSIONS (entrypoint.sh)
+// BOOTSTRAP PERMISSIONS (currently UNUSED)
 // ========================================
-// These permissions are required for automatic metrics-server installation
-// via kubectl apply in entrypoint.sh when metrics-server is not detected
+// NOTE: These write permissions were originally added for an "automatic metrics-server
+// installation via kubectl apply in entrypoint.sh" path that DOES NOT EXIST — entrypoint.sh
+// only execs the app, and metrics-server is no longer used (node/container metrics come from the
+// nodemon DaemonSet, with a kubelet /stats/summary fallback). No controller code creates
+// serviceaccounts/clusterroles/clusterrolebindings/rolebindings/apiservices, and deployments/
+// services/serviceaccounts are only ever read by collectors. These create/update/patch grants are
+// dead and are candidates for least-privilege removal (tracked as a follow-up; left intact here to
+// keep this change focused and avoid an unreviewed RBAC reduction).
 
-// ServiceAccount creation for metrics-server
+// ServiceAccount creation (unused)
 // +kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;create;update;patch
 
 // RBAC setup for metrics-server (ClusterRoles, ClusterRoleBindings, RoleBindings)
@@ -198,6 +204,8 @@ type PolicyConfig struct {
 
 // Metrics access
 // +kubebuilder:rbac:groups="",resources=nodes/metrics,verbs=get
+// nodes/proxy: kubelet Summary API fallback (/stats/summary) for nodes without a nodemon pod
+// +kubebuilder:rbac:groups="",resources=nodes/proxy,verbs=get
 
 // Core Kubernetes resources (READ-ONLY monitoring and collection)
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch
@@ -213,7 +221,7 @@ type PolicyConfig struct {
 // +kubebuilder:rbac:groups="",resources=persistentvolumes,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=endpoints,verbs=get;list;watch
 
-// Apps API Group resources (READ-ONLY monitoring - note: deployments also needs write for metrics-server bootstrap)
+// Apps API Group resources (READ-ONLY monitoring; deployments write lives in the unused bootstrap block above)
 // +kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch
 // +kubebuilder:rbac:groups=apps,resources=daemonsets,verbs=get;list;watch
 // +kubebuilder:rbac:groups=apps,resources=replicasets,verbs=get;list;watch
