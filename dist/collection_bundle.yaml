@@ -15,6 +15,4 @@ spec:
     frequency: "30s"
     bufferSize: 1000000
     dakrURL: "https://dakr.devzero.io"
-    # IMPORTANT: point this to existing prometheus installation, if not using DevZero-provided defaults
-    prometheusURL: "http://prometheus-server.devzero-zxporter.svc.cluster.local:9090"
 ---

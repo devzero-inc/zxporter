@@ -69,65 +69,6 @@ resources:
     memory: 2Gi
   limits: {}
 
-# Node Exporter configuration
-nodeExporter:
-  image:
-    repository: quay.io/prometheus/node-exporter
-    tag: v1.9.1
-    pullPolicy: IfNotPresent
-  resources:
-    requests:
-      cpu: 250m
-      memory: 500Mi
-    limits:
-      memory: 500Mi
-  port: 9101
-  hostNetwork: true
-  hostPID: true
-
-# Kube State Metrics configuration
-kubeStateMetrics:
-  image:
-    repository: registry.k8s.io/kube-state-metrics/kube-state-metrics
-    tag: v2.15.0
-    pullPolicy: IfNotPresent
-  resources:
-    requests:
-      cpu: 250m
-      memory: 500Mi
-    limits:
-      memory: 500Mi
-  replicas: 1
-
-# Prometheus Server configuration
-prometheus:
-  image:
-    repository: quay.io/prometheus/prometheus
-    tag: v3.4.1
-    pullPolicy: IfNotPresent
-  configReloader:
-    image:
-      repository: quay.io/prometheus-operator/prometheus-config-reloader
-      tag: v0.83.0
-      pullPolicy: IfNotPresent
-    resources:
-      requests:
-        cpu: 250m
-        memory: 500Mi
-      limits:
-        memory: 500Mi
-  resources:
-    requests:
-      cpu: 100m
-      memory: 2Gi
-    limits:
-      memory: 2Gi
-  replicas: 1
-  retention: 2d
-  scrapeInterval: 1m
-  evaluationInterval: 1m
-  scrapeTimeout: 10s
-
 nodeSelector: {}
 tolerations: []
 affinity: {}

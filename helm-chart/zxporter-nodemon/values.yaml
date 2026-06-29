@@ -13,7 +13,6 @@ imagePullSecrets: [ ]
 
 serviceAccount:
   create: true
-  automount: true
   annotations: { }
 
 image:
@@ -109,12 +108,6 @@ dcgmExporter:
     pullPolicy: IfNotPresent
     tag: 3.3.7-3.5.0-ubuntu22.04
   useExternalHostEngine: false
-
-migrate:
-  image:
-    repository: alpine/k8s
-    pullPolicy: IfNotPresent
-    tag: 1.31.0
 
 # updateStrategy -- Controls `daemonset.spec.updateStrategy` field.
 # updateStrategy:
