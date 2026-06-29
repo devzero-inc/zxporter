@@ -46,6 +46,7 @@ spec:
             - --health-probe-bind-address=:8081
             - --zap-log-level={{ .Values.zxporter.logLevel }}
           image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - name: http-metrics
               containerPort: 8080
