@@ -4,8 +4,8 @@ kind: Namespace
 metadata:
   labels:
     control-plane: controller-manager
-    app.kubernetes.io/name: '{{.zxporter_namespace}}'
-  name: '{{.zxporter_namespace}}'
+    app.kubernetes.io/name: {{.zxporter_namespace}}
+  name: {{.zxporter_namespace}}
 ---
 apiVersion: v1
 kind: Namespace
@@ -14,7 +14,7 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/name: devzero-zxporter
     control-plane: controller-manager
-  name: '{{.zxporter_namespace}}'
+  name: {{.zxporter_namespace}}
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -23,7 +23,7 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/name: devzero-zxporter
   name: devzero-zxporter-controller-manager
-  namespace: '{{.zxporter_namespace}}'
+  namespace: {{.zxporter_namespace}}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -32,7 +32,7 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/name: devzero-zxporter
   name: devzero-zxporter-leader-election-role
-  namespace: '{{.zxporter_namespace}}'
+  namespace: {{.zxporter_namespace}}
 rules:
   - apiGroups:
       - ""
@@ -523,7 +523,7 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/name: devzero-zxporter
   name: devzero-zxporter-leader-election-rolebinding
-  namespace: '{{.zxporter_namespace}}'
+  namespace: {{.zxporter_namespace}}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
@@ -531,7 +531,7 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: devzero-zxporter-controller-manager
-    namespace: '{{.zxporter_namespace}}'
+    namespace: {{.zxporter_namespace}}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -547,7 +547,7 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: devzero-zxporter-controller-manager
-    namespace: '{{.zxporter_namespace}}'
+    namespace: {{.zxporter_namespace}}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -560,7 +560,70 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: devzero-zxporter-controller-manager
-    namespace: '{{.zxporter_namespace}}'
+    namespace: {{.zxporter_namespace}}
+---
+apiVersion: v1
+data:
+  BUFFER_SIZE: ""
+  CLUSTER_TOKEN: ""
+  COLLECTION_FREQUENCY: ""
+  DAKR_URL: '{{ .api_url }}/dakr'
+  DISABLED_COLLECTORS: ""
+  EXCLUDED_CLUSTERROLEBINDINGS: ""
+  EXCLUDED_CLUSTERROLES: ""
+  EXCLUDED_CRDGROUPS: ""
+  EXCLUDED_CRDS: ""
+  EXCLUDED_CRONJOBS: ""
+  EXCLUDED_DAEMONSETS: ""
+  EXCLUDED_DEPLOYMENTS: ""
+  EXCLUDED_ENDPOINTS: ""
+  EXCLUDED_EVENTS: ""
+  EXCLUDED_HPAS: ""
+  EXCLUDED_INGRESSCLASSES: ""
+  EXCLUDED_INGRESSES: ""
+  EXCLUDED_JOBS: ""
+  EXCLUDED_LIMITRANGES: ""
+  EXCLUDED_NAMESPACES: ""
+  EXCLUDED_NETWORKPOLICIES: ""
+  EXCLUDED_NODES: ""
+  EXCLUDED_PDBS: ""
+  EXCLUDED_PODS: ""
+  EXCLUDED_PSPS: ""
+  EXCLUDED_PVCS: ""
+  EXCLUDED_PVS: ""
+  EXCLUDED_REPLICATIONCONTROLLERS: ""
+  EXCLUDED_RESOURCEQUOTAS: ""
+  EXCLUDED_ROLEBINDINGS: ""
+  EXCLUDED_ROLES: ""
+  EXCLUDED_SERVICEACCOUNTS: ""
+  EXCLUDED_SERVICES: ""
+  EXCLUDED_STATEFULSETS: ""
+  EXCLUDED_STORAGECLASSES: ""
+  EXCLUDED_VPAS: ""
+  K8S_PROVIDER: '{{ .k8s_provider }}'
+  KUBE_CONTEXT_NAME: '{{ .kube_context_name }}'
+  MASK_SECRET_DATA: ""
+  NODE_METRICS_INTERVAL: ""
+  TARGET_NAMESPACES: ""
+  TOKEN_CONFIGMAP_NAME: devzero-zxporter-env-config
+  TOKEN_CREDENTIALS_SECRET_NAME: devzero-zxporter-credentials
+  TOKEN_RUNTIME_SECRET_NAME: devzero-zxporter-token
+  TOKEN_SECRET_NAME: devzero-zxporter-token
+  USE_SECRET_FOR_TOKEN: "true"
+  WATCHED_CRDS: ""
+kind: ConfigMap
+metadata:
+  name: devzero-zxporter-env-config
+  namespace: {{.zxporter_namespace}}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: devzero-zxporter-token
+  namespace: {{.zxporter_namespace}}
+stringData:
+  CLUSTER_TOKEN: '{{ .cluster_token }}'
+type: Opaque
 ---
 apiVersion: v1
 kind: Service
@@ -570,7 +633,7 @@ metadata:
     app.kubernetes.io/name: devzero-zxporter
     control-plane: controller-manager
   name: devzero-zxporter-controller-manager-metrics-service
-  namespace: '{{.zxporter_namespace}}'
+  namespace: {{.zxporter_namespace}}
 spec:
   ports:
     - name: https
@@ -587,7 +650,7 @@ metadata:
     app.kubernetes.io/name: devzero-zxporter
     control-plane: controller-manager
   name: devzero-zxporter-controller-manager-mpa
-  namespace: '{{.zxporter_namespace}}'
+  namespace: {{.zxporter_namespace}}
 spec:
   ports:
     - name: mpa-grpc
@@ -615,7 +678,7 @@ metadata:
     app.kubernetes.io/name: devzero-zxporter
     control-plane: controller-manager
   name: devzero-zxporter-controller-manager
-  namespace: '{{.zxporter_namespace}}'
+  namespace: {{.zxporter_namespace}}
 spec:
   replicas: 2
   selector:
@@ -692,7 +755,7 @@ apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
   name: devzero-zxporter-devzero-zxporter-pdb
-  namespace: '{{.zxporter_namespace}}'
+  namespace: {{.zxporter_namespace}}
 spec:
   minAvailable: 1
   selector:
@@ -704,7 +767,7 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: zxporter-nodemon
-  namespace: '{{.zxporter_namespace}}'
+  namespace: {{.zxporter_namespace}}
   labels:
     helm.sh/chart: zxporter-nodemon-0.0.10
     app.kubernetes.io/name: zxporter-nodemon
@@ -717,7 +780,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: zxporter-nodemon-dcgm-metrics
-  namespace: '{{.zxporter_namespace}}'
+  namespace: {{.zxporter_namespace}}
 data:
   counters.csv: |
     # Temperature and power usage,,
@@ -773,7 +836,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: zxporter-nodemon-zxporter-nodemon
-  namespace: '{{.zxporter_namespace}}'
+  namespace: {{.zxporter_namespace}}
 data:
 ---
 # Source: zxporter-nodemon/templates/rbac.yaml
@@ -845,14 +908,14 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: zxporter-nodemon
-    namespace: '{{.zxporter_namespace}}'
+    namespace: {{.zxporter_namespace}}
 ---
 # Source: zxporter-nodemon/templates/daemonset.yaml
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: zxporter-nodemon
-  namespace: '{{.zxporter_namespace}}'
+  namespace: {{.zxporter_namespace}}
   labels:
     helm.sh/chart: zxporter-nodemon-0.0.10
     app.kubernetes.io/name: zxporter-nodemon
@@ -885,6 +948,9 @@ spec:
         - name: zxporter-nodemon-dcgm-metrics
           configMap:
             name: zxporter-nodemon-dcgm-metrics
+        - name: "nvidia-install-dir-host"
+          hostPath:
+            path: /home/kubernetes/bin/nvidia
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -951,6 +1017,7 @@ spec:
                 - NET_RAW
             runAsNonRoot: false
             runAsUser: 0
+            privileged: true
           image: "nvcr.io/nvidia/k8s/dcgm-exporter:4.5.2-4.8.1-ubuntu22.04"
           imagePullPolicy: IfNotPresent
           command: ["/bin/bash", "-c"]
@@ -970,10 +1037,16 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+            - name: "LD_LIBRARY_PATH"
+              value: "/usr/local/nvidia/lib64"
+            - name: "DCGM_EXPORTER_KUBERNETES_GPU_ID_TYPE"
+              value: "device-name"
           volumeMounts:
             - name: "pod-gpu-resources"
               readOnly: true
               mountPath: "/var/lib/kubelet/pod-resources"
+            - name: "nvidia-install-dir-host"
+              mountPath: /usr/local/nvidia
             - name: zxporter-nodemon-dcgm-metrics
               mountPath: "/etc/dcgm-exporter"
 ---
@@ -982,7 +1055,7 @@ apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: zxporter-nodemon-gpu
-  namespace: '{{.zxporter_namespace}}'
+  namespace: {{.zxporter_namespace}}
   labels:
     helm.sh/chart: zxporter-nodemon-0.0.10
     app.kubernetes.io/name: zxporter-nodemon
@@ -1016,6 +1089,9 @@ spec:
         - name: zxporter-nodemon-dcgm-metrics
           configMap:
             name: zxporter-nodemon-dcgm-metrics
+        - name: "nvidia-install-dir-host"
+          hostPath:
+            path: /home/kubernetes/bin/nvidia
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -1082,6 +1158,7 @@ spec:
                 - NET_RAW
             runAsNonRoot: false
             runAsUser: 0
+            privileged: true
           image: "nvcr.io/nvidia/k8s/dcgm-exporter:4.5.2-4.8.1-ubuntu22.04"
           imagePullPolicy: IfNotPresent
           command: ["/bin/bash", "-c"]
@@ -1101,9 +1178,15 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+            - name: "LD_LIBRARY_PATH"
+              value: "/usr/local/nvidia/lib64"
+            - name: "DCGM_EXPORTER_KUBERNETES_GPU_ID_TYPE"
+              value: "device-name"
           volumeMounts:
             - name: "pod-gpu-resources"
               readOnly: true
               mountPath: "/var/lib/kubelet/pod-resources"
+            - name: "nvidia-install-dir-host"
+              mountPath: /usr/local/nvidia
             - name: zxporter-nodemon-dcgm-metrics
               mountPath: "/etc/dcgm-exporter"

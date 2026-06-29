@@ -948,9 +948,6 @@ spec:
         - name: zxporter-nodemon-dcgm-metrics
           configMap:
             name: zxporter-nodemon-dcgm-metrics
-        - name: "nvidia-install-dir-host"
-          hostPath:
-            path: /home/kubernetes/bin/nvidia
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -1017,7 +1014,6 @@ spec:
                 - NET_RAW
             runAsNonRoot: false
             runAsUser: 0
-            privileged: true
           image: "nvcr.io/nvidia/k8s/dcgm-exporter:4.5.2-4.8.1-ubuntu22.04"
           imagePullPolicy: IfNotPresent
           command: [ "/bin/bash", "-c" ]
@@ -1037,16 +1033,10 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
-            - name: "LD_LIBRARY_PATH"
-              value: "/usr/local/nvidia/lib64"
-            - name: "DCGM_EXPORTER_KUBERNETES_GPU_ID_TYPE"
-              value: "device-name"
           volumeMounts:
             - name: "pod-gpu-resources"
               readOnly: true
               mountPath: "/var/lib/kubelet/pod-resources"
-            - name: "nvidia-install-dir-host"
-              mountPath: /usr/local/nvidia
             - name: zxporter-nodemon-dcgm-metrics
               mountPath: "/etc/dcgm-exporter"
 ---
@@ -1089,9 +1079,6 @@ spec:
         - name: zxporter-nodemon-dcgm-metrics
           configMap:
             name: zxporter-nodemon-dcgm-metrics
-        - name: "nvidia-install-dir-host"
-          hostPath:
-            path: /home/kubernetes/bin/nvidia
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -1158,7 +1145,6 @@ spec:
                 - NET_RAW
             runAsNonRoot: false
             runAsUser: 0
-            privileged: true
           image: "nvcr.io/nvidia/k8s/dcgm-exporter:4.5.2-4.8.1-ubuntu22.04"
           imagePullPolicy: IfNotPresent
           command: [ "/bin/bash", "-c" ]
@@ -1178,15 +1164,9 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
-            - name: "LD_LIBRARY_PATH"
-              value: "/usr/local/nvidia/lib64"
-            - name: "DCGM_EXPORTER_KUBERNETES_GPU_ID_TYPE"
-              value: "device-name"
           volumeMounts:
             - name: "pod-gpu-resources"
               readOnly: true
               mountPath: "/var/lib/kubelet/pod-resources"
-            - name: "nvidia-install-dir-host"
-              mountPath: /usr/local/nvidia
             - name: zxporter-nodemon-dcgm-metrics
               mountPath: "/etc/dcgm-exporter"
