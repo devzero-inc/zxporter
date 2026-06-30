@@ -127,6 +127,7 @@ jobs:
     - name: Create PR to update Chart.yaml version and appVersion
       uses: peter-evans/create-pull-request@v6
       with:
+        base: main
         commit-message: "chore(helm): update Chart.yaml version to ${{ steps.bump_version.outputs.new_version }}"
         title: "chore(helm): update Chart.yaml version to ${{ steps.bump_version.outputs.new_version }}"
         body: |

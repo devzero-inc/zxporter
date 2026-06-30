@@ -152,6 +152,7 @@ jobs:
             - name: Create PR to update Chart.yaml version and appVersion
               uses: peter-evans/create-pull-request@v6
               with:
+                  base: main
                   commit-message: "chore(helm): bump nodemon chart to ${{ steps.bump_version.outputs.new_version }} and sync zxporter dependency"
                   title: "chore(helm): bump nodemon chart to ${{ steps.bump_version.outputs.new_version }} and sync zxporter dependency"
                   body: |
