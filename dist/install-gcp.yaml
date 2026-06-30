@@ -710,7 +710,7 @@ spec:
               key: CLUSTER_TOKEN
               name: devzero-zxporter-token
               optional: true
-        image: ttl.sh/zxporter:latest
+        image: docker.io/devzeroinc/zxporter:v0.0.93
         livenessProbe:
           httpGet:
             path: /healthz
@@ -976,7 +976,7 @@ spec:
             capabilities:
               add:
                 - SYS_PTRACE
-          image: "ttl.sh/zxporter-nodemon:latest"
+          image: "docker.io/devzeroinc/zxporter-nodemon:v0.0.93"
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
@@ -1117,7 +1117,7 @@ spec:
             capabilities:
               add:
                 - SYS_PTRACE
-          image: "ttl.sh/zxporter-nodemon:latest"
+          image: "docker.io/devzeroinc/zxporter-nodemon:v0.0.93"
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
