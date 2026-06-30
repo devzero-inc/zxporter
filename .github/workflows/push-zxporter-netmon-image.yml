@@ -287,6 +287,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ steps.get_workflow_token.outputs.token }}
         run: |
+          cd zxporter-tmp
           pr_url=$(gh pr create \
           --title "update image.tag in Helm values.yaml to ${{ env.FULLV }}" \
           --body "This PR updates the value for 'image.tag' in the helm chart to '${{ env.FULLV }}'." \
