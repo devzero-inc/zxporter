@@ -1,5 +1,4 @@
 provider: "" # gcp | aws | azure | oci | other | eks (legacy alias for aws)
-
 # fullnameOverride pins all nodemon resource names to a stable value, independent of the Helm
 # release name. It MUST stay "zxporter-nodemon" so that:
 #   1. the zxporter controller can discover nodemon pods via the fixed label selector
@@ -8,25 +7,21 @@ provider: "" # gcp | aws | azure | oci | other | eks (legacy alias for aws)
 #      after a Helm install updates the existing resources instead of creating duplicates.
 nameOverride: ""
 fullnameOverride: "zxporter-nodemon"
-
-imagePullSecrets: [ ]
-
+imagePullSecrets: []
 serviceAccount:
   create: true
-  annotations: { }
-
+  annotations: {}
 image:
   repository: docker.io/devzeroinc/zxporter-nodemon
   pullPolicy: IfNotPresent
-  tag: "v0.0.88"
-
+  tag: "v0.0.92"
 nodemon:
   # nodemon.affinity -- optional pod affinity/anti-affinity. Leave empty so nodemon schedules on
   # EVERY node (it is the sole source of node/container metrics). Only set this if you intentionally
   # want to restrict where nodemon runs. NOTE: this is no longer GPU-gated on GCP — DCGM/GPU metrics
   # are handled by the dcgm-exporter sidecar, which idles gracefully on non-GPU nodes.
   affinity:
-  config: { }
+  config: {}
   # config:
   #   # address of the DCGM exporter instance
   #   DCGM_HOST: ""
@@ -51,12 +46,10 @@ nodemon:
       operator: "Exists"
   rbac:
     clusterWide: true
-
 # jvmMetrics -- Enable JVM metrics collection via hsperfdata.
 # NOTE: requires hostPID + running nodemon as UID 0 to read /proc/<pid>/root/tmp/hsperfdata_*/<nsPid>
 jvmMetrics:
   enabled: true
-
 # global.priorityClass.enabled is the single toggle for using the custom
 # PriorityClass. The parent zxporter chart supplies it (auto-propagated to this
 # subchart); this default applies when nodemon is installed standalone (CI,
@@ -64,7 +57,6 @@ jvmMetrics:
 global:
   priorityClass:
     enabled: true
-
 # Assigns the node agent a custom PriorityClass so it can schedule on
 # memory-packed nodes. When installed standalone the subchart creates the
 # PriorityClass itself (create: true). When installed via the parent zxporter
@@ -76,7 +68,6 @@ priorityClass:
   value: 1000000000
   description: "This priority class is for critical zxporter infrastructure components."
   preemptionPolicy: PreemptLowerPriority
-
 dcgmExporter:
   enabled: true
   # runtimeClassName -- RuntimeClass applied to the GPU-only DaemonSet
@@ -108,7 +99,6 @@ dcgmExporter:
   extraEnv: []
   #  - name: LD_LIBRARY_PATH
   #    value: /usr/local/nvidia/lib64
-
 # updateStrategy -- Controls `daemonset.spec.updateStrategy` field.
 # updateStrategy:
 #   type: RollingUpdate
