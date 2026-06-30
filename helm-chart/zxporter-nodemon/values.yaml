@@ -98,7 +98,7 @@ dcgmExporter:
   image:
     repository: nvcr.io/nvidia/k8s/dcgm-exporter
     pullPolicy: IfNotPresent
-    tag: 4.5.2-4.8.1-ubuntu22.04
+    tag: "v0.0.91"
   useExternalHostEngine: false
   # extraEnv -- extra env vars for the dcgm-exporter sidecar, e.g. LD_LIBRARY_PATH
   # when the driver lives outside the provider=gcp default (/usr/local/nvidia/lib64).
