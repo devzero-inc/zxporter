@@ -210,7 +210,7 @@ spec:
             capabilities:
               add:
                 - SYS_PTRACE
-          image: "ttl.sh/zxporter-nodemon:latest"
+          image: "docker.io/devzeroinc/zxporter-nodemon:v0.0.93"
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
@@ -341,7 +341,7 @@ spec:
             capabilities:
               add:
                 - SYS_PTRACE
-          image: "ttl.sh/zxporter-nodemon:latest"
+          image: "docker.io/devzeroinc/zxporter-nodemon:v0.0.93"
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
