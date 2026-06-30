@@ -4,8 +4,8 @@ kind: Namespace
 metadata:
   labels:
     control-plane: controller-manager
-    app.kubernetes.io/name: devzero-system
-  name: devzero-system
+    app.kubernetes.io/name: {{.zxporter_namespace}}
+  name: {{.zxporter_namespace}}
 ---
 apiVersion: v1
 kind: Namespace
@@ -14,7 +14,7 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/name: devzero-zxporter
     control-plane: controller-manager
-  name: devzero-system
+  name: {{.zxporter_namespace}}
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -23,7 +23,7 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/name: devzero-zxporter
   name: devzero-zxporter-controller-manager
-  namespace: devzero-system
+  namespace: {{.zxporter_namespace}}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -32,69 +32,69 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/name: devzero-zxporter
   name: devzero-zxporter-leader-election-role
-  namespace: devzero-system
+  namespace: {{.zxporter_namespace}}
 rules:
-- apiGroups:
-  - ""
-  resources:
-  - configmaps
-  - deployments
-  - serviceaccounts
-  - services
-  verbs:
-  - get
-  - list
-  - watch
-  - create
-  - update
-  - patch
-  - delete
-- apiGroups:
-  - apps
-  resources:
-  - deployments
-  verbs:
-  - get
-  - list
-  - watch
-  - create
-  - update
-  - patch
-  - delete
-- apiGroups:
-  - coordination.k8s.io
-  resources:
-  - leases
-  verbs:
-  - get
-  - list
-  - watch
-  - create
-  - update
-  - patch
-  - delete
-- apiGroups:
-  - ""
-  resources:
-  - events
-  verbs:
-  - create
-  - patch
-- apiGroups:
-  - rbac.authorization.k8s.io
-  resources:
-  - rolebindings
-  - roles
-  - clusterrolebindings
-  - clusterroles
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+      - deployments
+      - serviceaccounts
+      - services
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  - apiGroups:
+      - apps
+    resources:
+      - deployments
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  - apiGroups:
+      - coordination.k8s.io
+    resources:
+      - leases
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  - apiGroups:
+      - ""
+    resources:
+      - events
+    verbs:
+      - create
+      - patch
+  - apiGroups:
+      - rbac.authorization.k8s.io
+    resources:
+      - rolebindings
+      - roles
+      - clusterrolebindings
+      - clusterroles
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -104,24 +104,24 @@ metadata:
     app.kubernetes.io/name: devzero-zxporter
   name: devzero-zxporter-collectionpolicy-editor-role
 rules:
-- apiGroups:
-  - devzero.io
-  resources:
-  - collectionpolicies
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - devzero.io
-  resources:
-  - collectionpolicies/status
-  verbs:
-  - get
+  - apiGroups:
+      - devzero.io
+    resources:
+      - collectionpolicies
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - devzero.io
+    resources:
+      - collectionpolicies/status
+    verbs:
+      - get
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -131,390 +131,390 @@ metadata:
     app.kubernetes.io/name: devzero-zxporter
   name: devzero-zxporter-collectionpolicy-viewer-role
 rules:
-- apiGroups:
-  - devzero.io
-  resources:
-  - collectionpolicies
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - devzero.io
-  resources:
-  - collectionpolicies/status
-  verbs:
-  - get
+  - apiGroups:
+      - devzero.io
+    resources:
+      - collectionpolicies
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - devzero.io
+    resources:
+      - collectionpolicies/status
+    verbs:
+      - get
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: devzero-zxporter-manager-role
 rules:
-- apiGroups:
-  - ""
-  resources:
-  - configmaps
-  verbs:
-  - get
-  - list
-  - update
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - endpoints
-  - events
-  - limitranges
-  - namespaces
-  - nodes
-  - persistentvolumeclaims
-  - persistentvolumes
-  - pods
-  - replicationcontrollers
-  - resourcequotas
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - nodes/metrics
-  - nodes/proxy
-  - nodes/status
-  - pods/status
-  verbs:
-  - get
-- apiGroups:
-  - ""
-  resources:
-  - secrets
-  verbs:
-  - create
-- apiGroups:
-  - ""
-  resourceNames:
-  - devzero-zxporter-token
-  resources:
-  - secrets
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - ""
-  resources:
-  - serviceaccounts
-  - services
-  verbs:
-  - create
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - apiextensions.k8s.io
-  resources:
-  - customresourcedefinitions
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - apiregistration.k8s.io
-  resources:
-  - apiservices
-  verbs:
-  - create
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - apps
-  resources:
-  - daemonsets
-  - replicasets
-  - statefulsets
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - apps
-  resources:
-  - deployments
-  verbs:
-  - create
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - argoproj.io
-  resources:
-  - rollouts
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - autoscaling
-  resources:
-  - horizontalpodautoscalers
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - autoscaling.k8s.io
-  resources:
-  - verticalpodautoscalers
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - batch
-  resources:
-  - cronjobs
-  - jobs
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - batch.volcano.sh
-  resources:
-  - jobs
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - dakr.devzero.io
-  resources:
-  - workloadrecommendations
-  - workloadrules
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - datadoghq.com
-  resources:
-  - extendeddaemonsetreplicasets
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - devzero.io
-  resources:
-  - collectionpolicies
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - devzero.io
-  resources:
-  - collectionpolicies/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - devzero.io
-  resources:
-  - collectionpolicies/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - devzero.karpenter.sh
-  resources:
-  - karpentersettings
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - karpenter.azure.com
-  resources:
-  - aksnodeclasses
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - karpenter.k8s.aws
-  resources:
-  - awsnodetemplates
-  - ec2nodeclasses
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - karpenter.k8s.gcp
-  resources:
-  - gcenodeclasses
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - karpenter.k8s.oracle
-  resources:
-  - ocinodeclasses
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - karpenter.sh
-  resources:
-  - machines
-  - nodeclaims
-  - nodeoverlays
-  - nodepools
-  - provisioners
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - keda.sh
-  resources:
-  - clustertriggerauthentications
-  - scaledjobs
-  - scaledobjects
-  - triggerauthentications
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - kubeflow.org
-  resources:
-  - notebooks
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - metrics.k8s.io
-  resources:
-  - nodes
-  - pods
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - networking.k8s.io
-  resources:
-  - ingressclasses
-  - ingresses
-  - networkpolicies
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - policy
-  resources:
-  - poddisruptionbudgets
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - postgresql.cnpg.io
-  resources:
-  - clusters
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - rbac.authorization.k8s.io
-  resources:
-  - clusterrolebindings
-  - clusterroles
-  - rolebindings
-  verbs:
-  - create
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - rbac.authorization.k8s.io
-  resources:
-  - roles
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - sparkoperator.k8s.io
-  resources:
-  - scheduledsparkapplications
-  - sparkapplications
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - storage.k8s.io
-  resources:
-  - csidrivers
-  - csinodes
-  - csistoragecapacities
-  - storageclasses
-  - volumeattachments
-  verbs:
-  - get
-  - list
-  - watch
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+    verbs:
+      - get
+      - list
+      - update
+      - watch
+  - apiGroups:
+      - ""
+    resources:
+      - endpoints
+      - events
+      - limitranges
+      - namespaces
+      - nodes
+      - persistentvolumeclaims
+      - persistentvolumes
+      - pods
+      - replicationcontrollers
+      - resourcequotas
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - ""
+    resources:
+      - nodes/metrics
+      - nodes/proxy
+      - nodes/status
+      - pods/status
+    verbs:
+      - get
+  - apiGroups:
+      - ""
+    resources:
+      - secrets
+    verbs:
+      - create
+  - apiGroups:
+      - ""
+    resourceNames:
+      - devzero-zxporter-token
+    resources:
+      - secrets
+    verbs:
+      - get
+      - patch
+      - update
+  - apiGroups:
+      - ""
+    resources:
+      - serviceaccounts
+      - services
+    verbs:
+      - create
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - apiextensions.k8s.io
+    resources:
+      - customresourcedefinitions
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - apiregistration.k8s.io
+    resources:
+      - apiservices
+    verbs:
+      - create
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - apps
+    resources:
+      - daemonsets
+      - replicasets
+      - statefulsets
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - apps
+    resources:
+      - deployments
+    verbs:
+      - create
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - argoproj.io
+    resources:
+      - rollouts
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - autoscaling
+    resources:
+      - horizontalpodautoscalers
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - autoscaling.k8s.io
+    resources:
+      - verticalpodautoscalers
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - batch
+    resources:
+      - cronjobs
+      - jobs
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - batch.volcano.sh
+    resources:
+      - jobs
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - dakr.devzero.io
+    resources:
+      - workloadrecommendations
+      - workloadrules
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - datadoghq.com
+    resources:
+      - extendeddaemonsetreplicasets
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - devzero.io
+    resources:
+      - collectionpolicies
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - devzero.io
+    resources:
+      - collectionpolicies/finalizers
+    verbs:
+      - update
+  - apiGroups:
+      - devzero.io
+    resources:
+      - collectionpolicies/status
+    verbs:
+      - get
+      - patch
+      - update
+  - apiGroups:
+      - devzero.karpenter.sh
+    resources:
+      - karpentersettings
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - karpenter.azure.com
+    resources:
+      - aksnodeclasses
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - karpenter.k8s.aws
+    resources:
+      - awsnodetemplates
+      - ec2nodeclasses
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - karpenter.k8s.gcp
+    resources:
+      - gcenodeclasses
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - karpenter.k8s.oracle
+    resources:
+      - ocinodeclasses
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - karpenter.sh
+    resources:
+      - machines
+      - nodeclaims
+      - nodeoverlays
+      - nodepools
+      - provisioners
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - keda.sh
+    resources:
+      - clustertriggerauthentications
+      - scaledjobs
+      - scaledobjects
+      - triggerauthentications
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - kubeflow.org
+    resources:
+      - notebooks
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - metrics.k8s.io
+    resources:
+      - nodes
+      - pods
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - networking.k8s.io
+    resources:
+      - ingressclasses
+      - ingresses
+      - networkpolicies
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - policy
+    resources:
+      - poddisruptionbudgets
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - postgresql.cnpg.io
+    resources:
+      - clusters
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - rbac.authorization.k8s.io
+    resources:
+      - clusterrolebindings
+      - clusterroles
+      - rolebindings
+    verbs:
+      - create
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - rbac.authorization.k8s.io
+    resources:
+      - roles
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - sparkoperator.k8s.io
+    resources:
+      - scheduledsparkapplications
+      - sparkapplications
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - storage.k8s.io
+    resources:
+      - csidrivers
+      - csinodes
+      - csistoragecapacities
+      - storageclasses
+      - volumeattachments
+    verbs:
+      - get
+      - list
+      - watch
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: devzero-zxporter-metrics-auth-role
 rules:
-- apiGroups:
-  - authentication.k8s.io
-  resources:
-  - tokenreviews
-  verbs:
-  - create
-- apiGroups:
-  - authorization.k8s.io
-  resources:
-  - subjectaccessreviews
-  verbs:
-  - create
+  - apiGroups:
+      - authentication.k8s.io
+    resources:
+      - tokenreviews
+    verbs:
+      - create
+  - apiGroups:
+      - authorization.k8s.io
+    resources:
+      - subjectaccessreviews
+    verbs:
+      - create
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: devzero-zxporter-metrics-reader
 rules:
-- nonResourceURLs:
-  - /metrics
-  verbs:
-  - get
+  - nonResourceURLs:
+      - /metrics
+    verbs:
+      - get
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -523,15 +523,15 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/name: devzero-zxporter
   name: devzero-zxporter-leader-election-rolebinding
-  namespace: devzero-system
+  namespace: {{.zxporter_namespace}}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
   name: devzero-zxporter-leader-election-role
 subjects:
-- kind: ServiceAccount
-  name: devzero-zxporter-controller-manager
-  namespace: devzero-system
+  - kind: ServiceAccount
+    name: devzero-zxporter-controller-manager
+    namespace: {{.zxporter_namespace}}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -545,9 +545,9 @@ roleRef:
   kind: ClusterRole
   name: devzero-zxporter-manager-role
 subjects:
-- kind: ServiceAccount
-  name: devzero-zxporter-controller-manager
-  namespace: devzero-system
+  - kind: ServiceAccount
+    name: devzero-zxporter-controller-manager
+    namespace: {{.zxporter_namespace}}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -558,16 +558,16 @@ roleRef:
   kind: ClusterRole
   name: devzero-zxporter-metrics-auth-role
 subjects:
-- kind: ServiceAccount
-  name: devzero-zxporter-controller-manager
-  namespace: devzero-system
+  - kind: ServiceAccount
+    name: devzero-zxporter-controller-manager
+    namespace: {{.zxporter_namespace}}
 ---
 apiVersion: v1
 data:
   BUFFER_SIZE: ""
   CLUSTER_TOKEN: ""
   COLLECTION_FREQUENCY: ""
-  DAKR_URL: https://dakr.devzero.io
+  DAKR_URL: '{{ .api_url }}/dakr'
   DISABLED_COLLECTORS: ""
   EXCLUDED_CLUSTERROLEBINDINGS: ""
   EXCLUDED_CLUSTERROLES: ""
@@ -614,13 +614,13 @@ data:
 kind: ConfigMap
 metadata:
   name: devzero-zxporter-env-config
-  namespace: devzero-system
+  namespace: {{.zxporter_namespace}}
 ---
 apiVersion: v1
 kind: Secret
 metadata:
   name: devzero-zxporter-token
-  namespace: devzero-system
+  namespace: {{.zxporter_namespace}}
 stringData:
   CLUSTER_TOKEN: '{{ .cluster_token }}'
 type: Opaque
@@ -633,13 +633,13 @@ metadata:
     app.kubernetes.io/name: devzero-zxporter
     control-plane: controller-manager
   name: devzero-zxporter-controller-manager-metrics-service
-  namespace: devzero-system
+  namespace: {{.zxporter_namespace}}
 spec:
   ports:
-  - name: https
-    port: 8443
-    protocol: TCP
-    targetPort: 8443
+    - name: https
+      port: 8443
+      protocol: TCP
+      targetPort: 8443
   selector:
     control-plane: controller-manager
 ---
@@ -650,13 +650,13 @@ metadata:
     app.kubernetes.io/name: devzero-zxporter
     control-plane: controller-manager
   name: devzero-zxporter-controller-manager-mpa
-  namespace: devzero-system
+  namespace: {{.zxporter_namespace}}
 spec:
   ports:
-  - name: mpa-grpc
-    port: 50051
-    protocol: TCP
-    targetPort: mpa-grpc
+    - name: mpa-grpc
+      port: 50051
+      protocol: TCP
+      targetPort: mpa-grpc
   selector:
     control-plane: controller-manager
   type: ClusterIP
@@ -678,7 +678,7 @@ metadata:
     app.kubernetes.io/name: devzero-zxporter
     control-plane: controller-manager
   name: devzero-zxporter-controller-manager
-  namespace: devzero-system
+  namespace: {{.zxporter_namespace}}
 spec:
   replicas: 2
   selector:
@@ -694,68 +694,68 @@ spec:
         control-plane: controller-manager
     spec:
       containers:
-      - args:
-        - --metrics-bind-address=:8443
-        - --leader-elect
-        - --mpa-server-port=50051
-        - --health-probe-bind-address=:8081
-        env:
-        - name: POD_NAMESPACE
-          valueFrom:
-            fieldRef:
-              fieldPath: metadata.namespace
-        - name: CLUSTER_TOKEN
-          valueFrom:
-            secretKeyRef:
-              key: CLUSTER_TOKEN
-              name: devzero-zxporter-token
-              optional: true
-        image: ttl.sh/zxporter:latest
-        livenessProbe:
-          httpGet:
-            path: /healthz
-            port: 8081
-          initialDelaySeconds: 15
-          periodSeconds: 20
-        name: manager
-        ports:
-        - containerPort: 50051
-          name: mpa-grpc
-          protocol: TCP
-        readinessProbe:
-          httpGet:
-            path: /readyz
-            port: 8081
-          initialDelaySeconds: 5
-          periodSeconds: 10
-        resources:
-          requests:
-            cpu: 200m
-            memory: 2Gi
-        securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-            - ALL
-        volumeMounts:
-        - mountPath: /etc/zxporter/config
-          name: config-volume
-          readOnly: true
+        - args:
+            - --metrics-bind-address=:8443
+            - --leader-elect
+            - --mpa-server-port=50051
+            - --health-probe-bind-address=:8081
+          env:
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: CLUSTER_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  key: CLUSTER_TOKEN
+                  name: devzero-zxporter-token
+                  optional: true
+          image: docker.io/devzeroinc/zxporter:latest
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8081
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          name: manager
+          ports:
+            - containerPort: 50051
+              name: mpa-grpc
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8081
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 200m
+              memory: 2Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - mountPath: /etc/zxporter/config
+              name: config-volume
+              readOnly: true
       priorityClassName: devzero-zxporter-devzero-zxporter-critical
       securityContext:
         runAsNonRoot: true
       serviceAccountName: devzero-zxporter-controller-manager
       terminationGracePeriodSeconds: 10
       volumes:
-      - configMap:
-          name: devzero-zxporter-env-config
-        name: config-volume
+        - configMap:
+            name: devzero-zxporter-env-config
+          name: config-volume
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
   name: devzero-zxporter-devzero-zxporter-pdb
-  namespace: devzero-system
+  namespace: {{.zxporter_namespace}}
 spec:
   minAvailable: 1
   selector:
@@ -767,7 +767,7 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: zxporter-nodemon
-  namespace: devzero-system
+  namespace: {{.zxporter_namespace}}
   labels:
     helm.sh/chart: zxporter-nodemon-0.0.10
     app.kubernetes.io/name: zxporter-nodemon
@@ -780,7 +780,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: zxporter-nodemon-dcgm-metrics
-  namespace: devzero-system
+  namespace: {{.zxporter_namespace}}
 data:
   counters.csv: |
     # Temperature and power usage,,
@@ -836,7 +836,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: zxporter-nodemon-zxporter-nodemon
-  namespace: devzero-system
+  namespace: {{.zxporter_namespace}}
 data:
 ---
 # Source: zxporter-nodemon/templates/rbac.yaml
@@ -851,44 +851,44 @@ metadata:
     app.kubernetes.io/version: "0.0.10"
     app.kubernetes.io/managed-by: Helm
 rules:
-- apiGroups:
-  - ""
-  resources:
-  - pods
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-    - apps
-  resources:
-    - replicasets
-    - deployments
-    - statefulsets
-    - daemonsets
-  verbs:
-    - get
-- apiGroups:
-    - batch
-  resources:
-    - jobs
-    - cronjobs
-  verbs:
-    - get
-- apiGroups:
-    - argoproj.io
-  resources:
-    - rollouts
-  verbs:
-    - get
-- apiGroups:
-    - ""
-  resources:
-    - nodes/proxy
-    - nodes/metrics
-    - nodes/stats
-  verbs:
-    - get
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - apps
+    resources:
+      - replicasets
+      - deployments
+      - statefulsets
+      - daemonsets
+    verbs:
+      - get
+  - apiGroups:
+      - batch
+    resources:
+      - jobs
+      - cronjobs
+    verbs:
+      - get
+  - apiGroups:
+      - argoproj.io
+    resources:
+      - rollouts
+    verbs:
+      - get
+  - apiGroups:
+      - ""
+    resources:
+      - nodes/proxy
+      - nodes/metrics
+      - nodes/stats
+    verbs:
+      - get
 ---
 # Source: zxporter-nodemon/templates/rbac.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -906,22 +906,27 @@ roleRef:
   kind: ClusterRole
   name: zxporter-nodemon
 subjects:
-- kind: ServiceAccount
-  name: zxporter-nodemon
-  namespace: devzero-system
+  - kind: ServiceAccount
+    name: zxporter-nodemon
+    namespace: {{.zxporter_namespace}}
 ---
 # Source: zxporter-nodemon/templates/daemonset.yaml
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: zxporter-nodemon
-  namespace: devzero-system
+  namespace: {{.zxporter_namespace}}
   labels:
     helm.sh/chart: zxporter-nodemon-0.0.10
     app.kubernetes.io/name: zxporter-nodemon
     app.kubernetes.io/instance: zxporter-nodemon
     app.kubernetes.io/version: "0.0.10"
     app.kubernetes.io/managed-by: Helm
+  annotations:
+    ignore-check.kube-linter.io/privileged-container: "This daemon set needs to run DCGM Exporter as privileged to access the GPU metrics."
+    ignore-check.kube-linter.io/run-as-non-root: "This daemon set needs to run DCGM Exporter as root to access the GPU metrics."
+    ignore-check.kube-linter.io/privilege-escalation-container: "This daemon set needs escalate privileges for DCGM Exporter."
+    ignore-check.kube-linter.io/no-read-only-root-fs: "This daemon set needs to run DCGM Exporter with read-only root filesystem."
 spec:
   selector:
     matchLabels:
@@ -936,100 +941,6 @@ spec:
       priorityClassName: devzero-zxporter-devzero-zxporter-critical
       hostPID: true
       serviceAccountName: zxporter-nodemon
-      affinity:
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-            - matchExpressions:
-              - key: nvidia.com/gpu.present
-                operator: NotIn
-                values:
-                - "true"
-              - key: cloud.google.com/gke-accelerator
-                operator: DoesNotExist
-              - key: cloud.google.com/gcp-accelerator
-                operator: DoesNotExist
-              - key: kubernetes.azure.com/accelerator
-                operator: DoesNotExist
-      tolerations:
-        - effect: NoExecute
-          operator: Exists
-        - effect: NoSchedule
-          operator: Exists
-        - effect: PreferNoSchedule
-          operator: Exists
-      containers:
-        - name: zxporter-nodemon
-          securityContext:
-            runAsNonRoot: false
-            runAsUser: 0
-            readOnlyRootFilesystem: true
-            capabilities:
-              add:
-                - SYS_PTRACE
-          image: "ttl.sh/zxporter-nodemon:latest"
-          imagePullPolicy: IfNotPresent
-          ports:
-            - name: http
-              containerPort: 6061
-              protocol: TCP
-          livenessProbe:
-            httpGet:
-              path: /healthz
-              port: http
-          readinessProbe:
-            httpGet:
-              path: /healthz
-              port: http
-          envFrom:
-            - configMapRef:
-                name: zxporter-nodemon-zxporter-nodemon
-          env:
-            - name: "NODE_NAME"
-              valueFrom:
-                fieldRef:
-                  fieldPath: spec.nodeName
-            - name: "JVM_METRICS_ENABLED"
-              value: "true"
-          resources:
-            limits:
-              memory: 256Mi
-            requests:
-              cpu: 60m
-              memory: 256Mi
----
-# Source: zxporter-nodemon/templates/daemonset.yaml
-apiVersion: apps/v1
-kind: DaemonSet
-metadata:
-  name: zxporter-nodemon-gpu
-  namespace: devzero-system
-  labels:
-    helm.sh/chart: zxporter-nodemon-0.0.10
-    app.kubernetes.io/name: zxporter-nodemon
-    app.kubernetes.io/instance: zxporter-nodemon-gpu
-    app.kubernetes.io/version: "0.0.10"
-    app.kubernetes.io/managed-by: Helm
-  annotations:
-    ignore-check.kube-linter.io/privileged-container: "This daemon set needs to run DCGM Exporter as privileged to access the GPU metrics."
-    ignore-check.kube-linter.io/run-as-non-root: "This daemon set needs to run DCGM Exporter as root to access the GPU metrics."
-    ignore-check.kube-linter.io/privilege-escalation-container: "This daemon set needs escalate privileges for DCGM Exporter."
-    ignore-check.kube-linter.io/no-read-only-root-fs: "This daemon set needs to run DCGM Exporter with read-only root filesystem."
-spec:
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: zxporter-nodemon
-      app.kubernetes.io/instance: zxporter-nodemon-gpu
-  template:
-    metadata:
-      labels:
-        app.kubernetes.io/name: zxporter-nodemon
-        app.kubernetes.io/instance: zxporter-nodemon-gpu
-    spec:
-      priorityClassName: devzero-zxporter-devzero-zxporter-critical
-      hostPID: true
-      runtimeClassName: "nvidia"
-      serviceAccountName: zxporter-nodemon
       volumes:
         - name: "pod-gpu-resources"
           hostPath:
@@ -1037,24 +948,18 @@ spec:
         - name: zxporter-nodemon-dcgm-metrics
           configMap:
             name: zxporter-nodemon-dcgm-metrics
+        - name: "nvidia-install-dir-host"
+          hostPath:
+            path: /home/kubernetes/bin/nvidia
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
-            - matchExpressions:
-              - key: nvidia.com/gpu.present
-                operator: In
-                values:
-                - "true"
-            - matchExpressions:
-              - key: cloud.google.com/gke-accelerator
-                operator: Exists
-            - matchExpressions:
-              - key: cloud.google.com/gcp-accelerator
-                operator: Exists
-            - matchExpressions:
-              - key: kubernetes.azure.com/accelerator
-                operator: Exists
+              - matchExpressions:
+                  - key: nvidia.com/gpu.present
+                    operator: NotIn
+                    values:
+                      - "true"
       tolerations:
         - effect: NoExecute
           operator: Exists
@@ -1071,7 +976,7 @@ spec:
             capabilities:
               add:
                 - SYS_PTRACE
-          image: "ttl.sh/zxporter-nodemon:latest"
+          image: "docker.io/devzeroinc/zxporter-nodemon:latest"
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
@@ -1112,13 +1017,11 @@ spec:
                 - NET_RAW
             runAsNonRoot: false
             runAsUser: 0
-          image: "nvcr.io/nvidia/k8s/dcgm-exporter:3.3.7-3.5.0-ubuntu22.04"
+            privileged: true
+          image: "nvcr.io/nvidia/k8s/dcgm-exporter:4.5.2-4.8.1-ubuntu22.04"
           imagePullPolicy: IfNotPresent
-          command: [ "/bin/bash", "-c" ]
+          command: ["/bin/bash", "-c"]
           args:
-          # nodemon now schedules on every node (incl. non-GPU), so the DCGM sidecar must idle
-          # gracefully instead of crashlooping where there is no GPU. Use the resilient retry loop
-          # for all providers, including GCP.
             - hostname $NODE_NAME; for ((;;)) { r=$(dcgm-exporter -f /etc/dcgm-exporter/counters.csv); echo "dcgm-exporter could not run"; sleep 60 ; }
           ports:
             - name: "metrics"
@@ -1134,9 +1037,156 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+            - name: "LD_LIBRARY_PATH"
+              value: "/usr/local/nvidia/lib64"
+            - name: "DCGM_EXPORTER_KUBERNETES_GPU_ID_TYPE"
+              value: "device-name"
           volumeMounts:
             - name: "pod-gpu-resources"
               readOnly: true
               mountPath: "/var/lib/kubelet/pod-resources"
+            - name: "nvidia-install-dir-host"
+              mountPath: /usr/local/nvidia
+            - name: zxporter-nodemon-dcgm-metrics
+              mountPath: "/etc/dcgm-exporter"
+---
+# Source: zxporter-nodemon/templates/daemonset.yaml
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: zxporter-nodemon-gpu
+  namespace: {{.zxporter_namespace}}
+  labels:
+    helm.sh/chart: zxporter-nodemon-0.0.10
+    app.kubernetes.io/name: zxporter-nodemon
+    app.kubernetes.io/instance: zxporter-nodemon-gpu
+    app.kubernetes.io/version: "0.0.10"
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    ignore-check.kube-linter.io/privileged-container: "This daemon set needs to run DCGM Exporter as privileged to access the GPU metrics."
+    ignore-check.kube-linter.io/run-as-non-root: "This daemon set needs to run DCGM Exporter as root to access the GPU metrics."
+    ignore-check.kube-linter.io/privilege-escalation-container: "This daemon set needs escalate privileges for DCGM Exporter."
+    ignore-check.kube-linter.io/no-read-only-root-fs: "This daemon set needs to run DCGM Exporter with read-only root filesystem."
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: zxporter-nodemon
+      app.kubernetes.io/instance: zxporter-nodemon-gpu
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: zxporter-nodemon
+        app.kubernetes.io/instance: zxporter-nodemon-gpu
+    spec:
+      priorityClassName: devzero-zxporter-devzero-zxporter-critical
+      hostPID: true
+      runtimeClassName: "nvidia"
+      serviceAccountName: zxporter-nodemon
+      volumes:
+        - name: "pod-gpu-resources"
+          hostPath:
+            path: /var/lib/kubelet/pod-resources
+        - name: zxporter-nodemon-dcgm-metrics
+          configMap:
+            name: zxporter-nodemon-dcgm-metrics
+        - name: "nvidia-install-dir-host"
+          hostPath:
+            path: /home/kubernetes/bin/nvidia
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: nvidia.com/gpu.present
+                    operator: In
+                    values:
+                      - "true"
+      tolerations:
+        - effect: NoExecute
+          operator: Exists
+        - effect: NoSchedule
+          operator: Exists
+        - effect: PreferNoSchedule
+          operator: Exists
+      containers:
+        - name: zxporter-nodemon
+          securityContext:
+            runAsNonRoot: false
+            runAsUser: 0
+            readOnlyRootFilesystem: true
+            capabilities:
+              add:
+                - SYS_PTRACE
+          image: "docker.io/devzeroinc/zxporter-nodemon:latest"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 6061
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          envFrom:
+            - configMapRef:
+                name: zxporter-nodemon-zxporter-nodemon
+          env:
+            - name: "NODE_NAME"
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: "JVM_METRICS_ENABLED"
+              value: "true"
+            - name: "DCGM_HOST"
+              value: "localhost"
+          resources:
+            limits:
+              memory: 256Mi
+            requests:
+              cpu: 60m
+              memory: 256Mi
+        - name: dcgm-exporter
+          securityContext:
+            capabilities:
+              add:
+                - SYS_ADMIN
+              drop:
+                - NET_RAW
+            runAsNonRoot: false
+            runAsUser: 0
+            privileged: true
+          image: "nvcr.io/nvidia/k8s/dcgm-exporter:4.5.2-4.8.1-ubuntu22.04"
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/bash", "-c"]
+          args:
+            - hostname $NODE_NAME; for ((;;)) { r=$(dcgm-exporter -f /etc/dcgm-exporter/counters.csv); echo "dcgm-exporter could not run"; sleep 60 ; }
+          ports:
+            - name: "metrics"
+              containerPort: 9400
+          env:
+            - name: "DCGM_EXPORTER_KUBERNETES"
+              value: "true"
+            - name: "DCGM_EXPORTER_LISTEN"
+              value: ":9400"
+            - name: "DCGM_EXPORTER_INTERVAL"
+              value: "5000"
+            - name: "NODE_NAME"
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: "LD_LIBRARY_PATH"
+              value: "/usr/local/nvidia/lib64"
+            - name: "DCGM_EXPORTER_KUBERNETES_GPU_ID_TYPE"
+              value: "device-name"
+          volumeMounts:
+            - name: "pod-gpu-resources"
+              readOnly: true
+              mountPath: "/var/lib/kubelet/pod-resources"
+            - name: "nvidia-install-dir-host"
+              mountPath: /usr/local/nvidia
             - name: zxporter-nodemon-dcgm-metrics
               mountPath: "/etc/dcgm-exporter"
