@@ -6,6 +6,102 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 For releases prior to automated changelog generation, please see the
 [GitHub Releases](https://github.com/devzero-inc/zxporter/releases) page.
 
+## [v0.0.89] - 2026-06-30
+
+<!-- Release notes generated using configuration in .github/release.yml at main -->
+
+### What's Changed
+### Other Changes
+* bump zxp image tags to v0.0.88 + fix auto helm-bump PR creation by @dray92 in https://github.com/devzero-inc/zxporter/pull/452
+* chore(helm): update Chart.yaml version to 0.0.67 by @github-actions[bot] in https://github.com/devzero-inc/zxporter/pull/454
+* chore(helm): update Chart.yaml version to 0.0.27 by @github-actions[bot] in https://github.com/devzero-inc/zxporter/pull/455
+* ci: fix nodemon helm-release follow-up PR + reconcile chart to 0.0.10 by @dray92 in https://github.com/devzero-inc/zxporter/pull/456
+* chore(helm): remove dead Prometheus/monitoring config and clean up charts by @sandipanpanda in https://github.com/devzero-inc/zxporter/pull/457
+* install both dameonset and let the node selector or affinity decide w… by @Parthiba-Hazra in https://github.com/devzero-inc/zxporter/pull/458
+
+
+**Full Changelog**: https://github.com/devzero-inc/zxporter/compare/v0.0.88...v0.0.89
+
+## [v0.0.88] - 2026-06-26
+
+<!-- Release notes generated using configuration in .github/release.yml at main -->
+
+### What's Changed
+### Other Changes
+* ci: revert to Namespace runners + trim K8s test matrix by @dray92 in https://github.com/devzero-inc/zxporter/pull/450
+* Give nodemon the custom PriorityClass so it schedules on packed nodes by @dray92 in https://github.com/devzero-inc/zxporter/pull/451
+
+
+**Full Changelog**: https://github.com/devzero-inc/zxporter/compare/v0.0.87...v0.0.88
+
+## [v0.0.87] - 2026-06-26
+
+<!-- Release notes generated using configuration in .github/release.yml at v0.0.87 -->
+
+### What's Changed
+### Other Changes
+* fix: remove system-node-critical priorityClassName from nodemon daemonset by @dray92 in https://github.com/devzero-inc/zxporter/pull/445
+* chore(helm): update Chart.yaml version to 0.0.65 by @github-actions[bot] in https://github.com/devzero-inc/zxporter/pull/446
+* nodemon: inject NVML into dcgm-exporter by @rst0git in https://github.com/devzero-inc/zxporter/pull/447
+* ci: guard entire dist/ in build-installer-check by @rst0git in https://github.com/devzero-inc/zxporter/pull/448
+* bump zxp v0.0.87 image charts by @sandipanpanda in https://github.com/devzero-inc/zxporter/pull/449
+
+### New Contributors
+* @rst0git made their first contribution in https://github.com/devzero-inc/zxporter/pull/447
+
+**Full Changelog**: https://github.com/devzero-inc/zxporter/compare/v0.0.86...v0.0.87
+
+## [v0.0.86] - 2026-06-24
+
+<!-- Release notes generated using configuration in .github/release.yml at main -->
+
+### What's Changed
+### Other Changes
+* chore(helm): update Chart.yaml version to 0.0.63 by @github-actions[bot] in https://github.com/devzero-inc/zxporter/pull/433
+* chore(helm): update Chart.yaml version to 0.0.24 by @github-actions[bot] in https://github.com/devzero-inc/zxporter/pull/434
+* chore(helm): bump nodemon chart to 0.0.7 and sync zxporter dependency by @github-actions[bot] in https://github.com/devzero-inc/zxporter/pull/435
+* jvm metrics collect fix by @Parthiba-Hazra in https://github.com/devzero-inc/zxporter/pull/437
+* fix(nodemon): correct G1 heap-max double-count in JVM metrics by @dray92 in https://github.com/devzero-inc/zxporter/pull/438
+* helm: bump resources and make Helm names match dist/ bundles by @sandipanpanda in https://github.com/devzero-inc/zxporter/pull/440
+* bump zxp versions v0.0.86 by @sandipanpanda in https://github.com/devzero-inc/zxporter/pull/441
+* ci: switch build/push jobs from Namespace to ubuntu-latest runners by @dray92 in https://github.com/devzero-inc/zxporter/pull/443
+* ci: switch build/push runners from Namespace to ubuntu-latest by @dray92 in https://github.com/devzero-inc/zxporter/pull/444
+
+
+**Full Changelog**: https://github.com/devzero-inc/zxporter/compare/v0.0.85...v0.0.86
+
+## [v0.0.85] - 2026-06-23
+
+<!-- Release notes generated using configuration in .github/release.yml at v0.0.85 -->
+
+### What's Changed
+### Other Changes
+* bump zxp to v0.0.84 by @sandipanpanda in https://github.com/devzero-inc/zxporter/pull/423
+* make the service name same for both helm and zxp by @Parthiba-Hazra in https://github.com/devzero-inc/zxporter/pull/424
+* chore(helm): update Chart.yaml version to 0.0.61 by @github-actions[bot] in https://github.com/devzero-inc/zxporter/pull/425
+* chore(helm): update nodemon Chart.yaml version to 0.0.5 by @github-actions[bot] in https://github.com/devzero-inc/zxporter/pull/427
+* chore(helm): update Chart.yaml version to 0.0.23 by @github-actions[bot] in https://github.com/devzero-inc/zxporter/pull/426
+* bump nodemon dependency in zxp chart automatically and ci improvs by @sandipanpanda in https://github.com/devzero-inc/zxporter/pull/428
+* chore(helm): bump nodemon chart to 0.0.6 and sync zxporter dependency by @github-actions[bot] in https://github.com/devzero-inc/zxporter/pull/429
+* chore(helm): update Chart.yaml version to 0.0.62 by @github-actions[bot] in https://github.com/devzero-inc/zxporter/pull/430
+* bump zxp to v0.0.85 by @sandipanpanda in https://github.com/devzero-inc/zxporter/pull/432
+
+
+**Full Changelog**: https://github.com/devzero-inc/zxporter/compare/v0.0.84...v0.0.85
+
+## [v0.0.84] - 2026-06-22
+
+<!-- Release notes generated using configuration in .github/release.yml at main -->
+
+### What's Changed
+### Other Changes
+* bump zxp to 83 by @sandipanpanda in https://github.com/devzero-inc/zxporter/pull/419
+* chore: update changelog for v0.0.83 by @github-actions[bot] in https://github.com/devzero-inc/zxporter/pull/418
+* Guarantee node/container metrics coverage with kubelet fallback by @Tzvonimir in https://github.com/devzero-inc/zxporter/pull/420
+
+
+**Full Changelog**: https://github.com/devzero-inc/zxporter/compare/v0.0.83...v0.0.84
+
 ## [v0.0.83] - 2026-06-17
 
 <!-- Release notes generated using configuration in .github/release.yml at main -->
