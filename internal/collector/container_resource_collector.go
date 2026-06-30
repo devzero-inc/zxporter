@@ -888,7 +888,17 @@ func (c *ContainerResourceCollector) emitCPUThrottleEvent(
 	containerMetrics metricsv1beta1.ContainerMetrics,
 	throttleFraction float64,
 ) {
-	dedupKey := fmt.Sprintf("%s/%s/%s", pod.Namespace, pod.Name, containerMetrics.Name)
+	// Include restart count so each container instance gets its own 5-minute
+	// dedup window. Without this, a crashlooping pod's second restart would be
+	// suppressed even though it is a distinct container execution.
+	restartCount := int32(0)
+	for i := range pod.Status.ContainerStatuses {
+		if pod.Status.ContainerStatuses[i].Name == containerMetrics.Name {
+			restartCount = pod.Status.ContainerStatuses[i].RestartCount
+			break
+		}
+	}
+	dedupKey := fmt.Sprintf("%s/%s/%s/%d", pod.Namespace, pod.Name, containerMetrics.Name, restartCount)
 
 	c.throttle.mu.Lock()
 	if lastEmit, ok := c.throttle.lastEmitted[dedupKey]; ok && time.Since(lastEmit) < 5*time.Minute {

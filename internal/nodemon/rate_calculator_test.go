@@ -24,14 +24,39 @@ func TestRateCalculator_SecondSampleComputesRate(t *testing.T) {
 	assert.InDelta(t, 10.0, rate, 0.0001, "expected (1300-1000)/30 = 10.0 per second")
 }
 
-func TestRateCalculator_CounterResetReturnsZero(t *testing.T) {
+func TestRateCalculator_CounterResetReturnsEstimate(t *testing.T) {
 	rc := NewRateCalculator()
 	base := time.Now()
 
+	// Seed a high counter value (simulates a long-running container).
 	rc.Rate("pod/default/nginx", "cpu_total", 5000.0, base)
+
+	// Counter drops to 100 — container restarted, CFS counters reset to 0
+	// and accumulated 100 periods in the 10 seconds since restart.
 	rate := rc.Rate("pod/default/nginx", "cpu_total", 100.0, base.Add(10*time.Second))
 
-	assert.Equal(t, 0.0, rate, "counter reset (current < previous) should return 0")
+	// Expect value/elapsed = 100/10 = 10.0, not 0.
+	// This preserves signal for short-lived containers that never live long
+	// enough for two scrapes with a positive delta.
+	assert.InDelta(t, 10.0, rate, 0.0001, "counter reset should return value/elapsed estimate, not 0")
+}
+
+func TestRateCalculator_AfterResetNextScrapeUsesResetBaseline(t *testing.T) {
+	rc := NewRateCalculator()
+	base := time.Now()
+
+	// Scrape 1: seed a high counter.
+	rc.Rate("pod/default/nginx", "cpu_total", 5000.0, base)
+
+	// Scrape 2: counter reset — new container accumulated 100 periods.
+	rc.Rate("pod/default/nginx", "cpu_total", 100.0, base.Add(30*time.Second))
+
+	// Scrape 3: normal increment from the reset baseline (100 → 130 in 30s).
+	rate := rc.Rate("pod/default/nginx", "cpu_total", 130.0, base.Add(60*time.Second))
+
+	// Rate should use the reset baseline (100), not the pre-reset value (5000).
+	// delta = 130-100 = 30, elapsed = 30s → 1.0/s
+	assert.InDelta(t, 1.0, rate, 0.0001, "post-reset scrape should compute delta from reset baseline")
 }
 
 func TestRateCalculator_IndependentKeys(t *testing.T) {

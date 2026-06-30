@@ -188,6 +188,87 @@ func TestCAdvisorScraper_ComputesRatesAfterTwoScrapes(t *testing.T) {
 	assert.InDelta(t, 0.0, m.NetworkTxDropsPerSec, 0.001, "network tx drops/sec (no change)")
 }
 
+// cadvisorReset is a scrape where both CFS counters have reset to low values
+// (simulating a container restart). With the counter-reset estimate fix, the
+// scraper should emit a non-zero throttle fraction (30/100 = 0.30) rather than
+// an empty result, even though both counters are lower than before.
+const cadvisorReset = `# HELP container_cpu_cfs_throttled_periods_total Total throttled CPU periods.
+# TYPE container_cpu_cfs_throttled_periods_total counter
+container_cpu_cfs_throttled_periods_total{container="nginx",namespace="default",pod="web-abc"} 30
+# HELP container_cpu_cfs_periods_total Total CPU CFS periods.
+# TYPE container_cpu_cfs_periods_total counter
+container_cpu_cfs_periods_total{container="nginx",namespace="default",pod="web-abc"} 100
+# HELP container_fs_reads_bytes_total Total bytes read from filesystem.
+# TYPE container_fs_reads_bytes_total counter
+container_fs_reads_bytes_total{container="nginx",namespace="default",pod="web-abc"} 4096
+# HELP container_fs_writes_bytes_total Total bytes written to filesystem.
+# TYPE container_fs_writes_bytes_total counter
+container_fs_writes_bytes_total{container="nginx",namespace="default",pod="web-abc"} 0
+# HELP container_fs_reads_total Total filesystem read operations.
+# TYPE container_fs_reads_total counter
+container_fs_reads_total{container="nginx",namespace="default",pod="web-abc"} 10
+# HELP container_fs_writes_total Total filesystem write operations.
+# TYPE container_fs_writes_total counter
+container_fs_writes_total{container="nginx",namespace="default",pod="web-abc"} 0
+# HELP container_network_receive_packets_total Total network packets received.
+# TYPE container_network_receive_packets_total counter
+container_network_receive_packets_total{namespace="default",pod="web-abc"} 50
+# HELP container_network_transmit_packets_total Total network packets transmitted.
+# TYPE container_network_transmit_packets_total counter
+container_network_transmit_packets_total{namespace="default",pod="web-abc"} 30
+# HELP container_network_receive_errors_total Total network receive errors.
+# TYPE container_network_receive_errors_total counter
+container_network_receive_errors_total{namespace="default",pod="web-abc"} 0
+# HELP container_network_transmit_errors_total Total network transmit errors.
+# TYPE container_network_transmit_errors_total counter
+container_network_transmit_errors_total{namespace="default",pod="web-abc"} 0
+# HELP container_network_receive_packets_dropped_total Total network receive packet drops.
+# TYPE container_network_receive_packets_dropped_total counter
+container_network_receive_packets_dropped_total{namespace="default",pod="web-abc"} 0
+# HELP container_network_transmit_packets_dropped_total Total network transmit packet drops.
+# TYPE container_network_transmit_packets_dropped_total counter
+container_network_transmit_packets_dropped_total{namespace="default",pod="web-abc"} 0
+`
+
+// TestCAdvisorScraper_CounterResetPreservesThrottleSignal verifies that when a
+// container restarts and CFS counters reset to lower values, the scraper still
+// emits a non-zero throttle fraction (value/elapsed) rather than silently
+// dropping the observation. This is critical for crashlooping pods that never
+// survive two scrape intervals with a positive delta.
+func TestCAdvisorScraper_CounterResetPreservesThrottleSignal(t *testing.T) {
+	callCount := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
+		callCount++
+		if callCount == 1 {
+			_, _ = w.Write([]byte(cadvisorSample1)) // high counters from old container
+		} else {
+			_, _ = w.Write([]byte(cadvisorReset)) // counters reset after restart
+		}
+	}))
+	defer srv.Close()
+
+	log := newCAdvisorTestLogger()
+	scraper := nodemon.NewCAdvisorScraper(srv.URL, srv.Client(), log)
+
+	base := time.Now()
+	// First scrape — sets baseline from old container (throttled=300, total=1000).
+	_, err := scraper.Scrape(context.Background(), base)
+	require.NoError(t, err)
+
+	// Second scrape — container restarted; counters reset to throttled=30, total=100.
+	// Both values are less than baseline so delta < 0 for both.
+	// Expected throttle fraction: 30/100 = 0.30 (estimate via value/elapsed).
+	results, err := scraper.Scrape(context.Background(), base.Add(30*time.Second))
+	require.NoError(t, err)
+	require.Len(t, results, 1, "counter reset should still produce an entry, not empty result")
+
+	m := results[0]
+	// throttleFraction = (30/30) / (100/30) = 30/100 = 0.30
+	assert.InDelta(t, 0.30, m.CPUThrottleFraction, 0.001,
+		"throttle fraction on counter reset should be 30/100 = 0.30")
+}
+
 // TestCAdvisorScraper_HandlesHTTPError verifies that an HTTP error from the
 // cAdvisor endpoint is propagated as an error (not silently ignored).
 func TestCAdvisorScraper_HandlesHTTPError(t *testing.T) {

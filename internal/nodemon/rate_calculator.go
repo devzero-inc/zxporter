@@ -29,8 +29,13 @@ func NewRateCalculator() *RateCalculator {
 //
 // Returns 0 on:
 //   - first call for a key (no baseline yet)
-//   - counter reset (current value < previous value)
 //   - zero elapsed time between observations
+//
+// On counter reset (current value < previous value), returns value/elapsed as
+// a conservative estimate of the rate since the reset. This preserves signal
+// for short-lived containers (e.g. crashlooping pods) whose CFS counters reset
+// on every restart — they would otherwise always return 0 because they never
+// survive two scrape intervals with a positive delta.
 func (rc *RateCalculator) Rate(entity, metric string, value float64, ts time.Time) float64 {
 	key := entity + "\x00" + metric
 
@@ -51,8 +56,10 @@ func (rc *RateCalculator) Rate(entity, metric string, value float64, ts time.Tim
 
 	delta := value - prev.value
 	if delta < 0 {
-		// Counter reset — new baseline is already stored above.
-		return 0
+		// Counter reset (e.g. container restart). The new counter has been
+		// accumulating since the reset; use value/elapsed as a conservative
+		// lower-bound estimate rather than dropping the observation entirely.
+		return value / elapsed
 	}
 
 	return delta / elapsed
