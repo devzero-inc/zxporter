@@ -228,8 +228,8 @@ jobs:
         id: get_workflow_token
         uses: peter-murray/workflow-application-token-action@v4
         with:
-          application_id: ${{ secrets.WORKFLOW_ACTIONS_APP_ID }}
-          application_private_key: ${{ secrets.WORKFLOW_ACTIONS_PEM }}
+          application_id: ${{ secrets.WORKFLOW_ACTIONS_APP_ID_PUBLIC }}
+          application_private_key: ${{ secrets.WORKFLOW_ACTIONS_PEM_PUBLIC }}
           organization: devzero-inc
           permissions: "contents:write, pull_requests:write"
 
