@@ -378,13 +378,6 @@ build-installer: manifests generate kustomize yq helm ## Generate a consolidated
 		> $(DIST_DIR)/nodemon-gcp.yaml
 	@cat $(DIST_DIR)/nodemon-gcp.yaml >> $(DIST_INSTALL_GCP_BUNDLE)
 
-ifneq ($(INCLUDE_PROMETHEUS_CLEANUP),1)
-	@echo "[INFO] Skipping Prometheus cleanup job (set INCLUDE_PROMETHEUS_CLEANUP=1 to include)"
-else
-	@echo "[INFO] Append Prometheus cleanup migration job"
-	@cat config/migration/prometheus-cleanup-job.yaml >> $(DIST_INSTALL_BUNDLE)
-endif
-
 	@echo "[INFO] Building backend installer"
 	@$(MAKE) final-installer
 
