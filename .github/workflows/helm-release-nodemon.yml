@@ -166,10 +166,10 @@ jobs:
                       helm-chart/zxporter/Chart.yaml
                       helm-chart/zxporter/Chart.lock
                       dist/install.yaml
-                      dist/install-nvidia-runtime.yaml
+                      dist/install-gcp.yaml
                       dist/backend-install.yaml
-                      dist/backend-install-nvidia-runtime.yaml
+                      dist/backend-install-gcp.yaml
                       dist/installer_updater.yaml
-                      dist/installer_updater-nvidia-runtime.yaml
+                      dist/installer_updater-gcp.yaml
                       dist/nodemon.yaml
-                      dist/nodemon-nvidia-runtime.yaml
+                      dist/nodemon-gcp.yaml
