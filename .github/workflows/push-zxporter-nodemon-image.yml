@@ -222,12 +222,14 @@ jobs:
           path: zxporter-tmp
           token: ${{ steps.get_workflow_token.outputs.token }}
 
+      - name: Install yq
+        run: |
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+
       - name: Update image.tag in values.yaml
         run: |
-          NEW_TAG="${{ env.FULLV }}"
-          # on mac: sed -i '' "s/^    tag: .*/    tag: \"$NEW_TAG\"/" zxporter-tmp/helm-chart/zxporter-nodemon/values.yaml
-          sed -i.bak "s/^    tag: .*/    tag: \"$NEW_TAG\"/" zxporter-tmp/helm-chart/zxporter-nodemon/values.yaml
-          rm zxporter-tmp/helm-chart/zxporter-nodemon/values.yaml.bak || true
+          yq e -i '.image.tag = "${{ env.FULLV }}"' zxporter-tmp/helm-chart/zxporter-nodemon/values.yaml
 
       - name: Check if there are changes
         id: changes
