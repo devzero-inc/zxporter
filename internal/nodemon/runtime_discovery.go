@@ -18,10 +18,12 @@ func classifyRuntimeProcess(comm, cmdline string) processKind {
 
 // discoverRuntimeProcesses performs a single /proc walk and buckets matches into
 // Java, Node.js, and generic-runtime processes, avoiding the multiple walks
-// that per-runtime discovery would incur.
+// that per-runtime discovery would incur. probe classifies containerized
+// processes that comm/cmdline couldn't (callers pass probeRuntimeProcess or a
+// memoized wrapper around it).
 // Returns nil slices and nil error if procRoot does not exist (non-Linux hosts).
-func discoverRuntimeProcesses(procRoot string) (javaProcs []JavaProcess, nodeProcs []NodeJSProcess, runtimeProcs []RuntimeProcess, err error) {
-	entries, err := walkProcEntriesProbed(procRoot, classifyRuntimeProcess, probeRuntimeProcess)
+func discoverRuntimeProcesses(procRoot string, probe func(e procEntry) processKind) (javaProcs []JavaProcess, nodeProcs []NodeJSProcess, runtimeProcs []RuntimeProcess, err error) {
+	entries, err := walkProcEntriesProbed(procRoot, classifyRuntimeProcess, probe)
 	if err != nil {
 		return nil, nil, nil, err
 	}

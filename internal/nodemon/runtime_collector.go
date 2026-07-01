@@ -38,6 +38,9 @@ type RuntimeCollector struct {
 	// Node.js cache (a container can host processes of more than one runtime, so
 	// containerID alone is not a sufficient key).
 	runtimeVersionCache map[string]nodeVersionInfo
+	// probeCache memoizes executable-probe classifications (see newMemoizedProbe)
+	// so long-lived unclassifiable processes aren't re-inspected every cycle.
+	probeCache map[string]probeCacheEntry
 }
 
 // NewRuntimeCollector creates a RuntimeCollector. index must already be started
@@ -51,6 +54,7 @@ func NewRuntimeCollector(nodeName string, index *PodContainerIndex, log logr.Log
 		log:                 log.WithName("runtime-collector"),
 		nodeVersionCache:    make(map[string]nodeVersionInfo),
 		runtimeVersionCache: make(map[string]nodeVersionInfo),
+		probeCache:          make(map[string]probeCacheEntry),
 	}
 }
 
@@ -58,7 +62,13 @@ func NewRuntimeCollector(nodeName string, index *PodContainerIndex, log logr.Log
 // discovered containers on this node, from a single /proc walk.
 func (c *RuntimeCollector) QueryRuntimeMetrics(ctx context.Context) (RuntimeMetrics, error) {
 	start := time.Now()
-	javaProcs, nodeProcs, runtimeProcs, err := discoverRuntimeProcesses(c.procRoot)
+
+	c.mu.Lock()
+	prevProbeCache := c.probeCache
+	c.mu.Unlock()
+	probe, nextProbeCache := newMemoizedProbe(prevProbeCache, probeRuntimeProcess)
+
+	javaProcs, nodeProcs, runtimeProcs, err := discoverRuntimeProcesses(c.procRoot, probe)
 	if err != nil {
 		return RuntimeMetrics{}, fmt.Errorf("discovering runtime processes: %w", err)
 	}
@@ -74,6 +84,10 @@ func (c *RuntimeCollector) QueryRuntimeMetrics(ctx context.Context) (RuntimeMetr
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
+	// The walk completed, so the rebuilt probe cache covers every currently
+	// running container — adopt it (drops entries for dead containers).
+	c.probeCache = nextProbeCache
 
 	nodeJSMetrics, newCache, nodeJSErr := buildNodeJSMetrics(ctx, nodeProcs, c.index, c.nodeName, c.nodeVersionCache, c.log)
 	if nodeJSErr == nil {

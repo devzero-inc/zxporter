@@ -3,6 +3,7 @@ package nodemon
 import (
 	"debug/buildinfo"
 	"debug/elf"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -192,6 +193,45 @@ func classifyExtraRuntime(comm, cmdline string) processKind {
 // isPythonName matches python, python3, python3.11, ...
 func isPythonName(s string) bool {
 	return s == "python" || pythonExeVersionRe.MatchString(s)
+}
+
+// probeCacheEntry is the memoized result of probing a (container, executable)
+// pair, with the same bounded-retry semantics as version caching: an unknown
+// result is re-probed a few times (a .NET apphost may not have mapped
+// libcoreclr yet in its first observed cycle) and then pinned.
+type probeCacheEntry struct {
+	Kind     processKind
+	Attempts int
+}
+
+// newMemoizedProbe wraps inner with a per-cycle memo seeded from prev, so a
+// long-lived unclassifiable process (nginx, postgres, any static binary) pays
+// the executable inspection once, not on every scrape cycle. The cache key is
+// containerID + the exe link target: same-container processes with different
+// executables are probed independently, and the rebuilt map returned alongside
+// the probe drops entries for containers/processes that are gone.
+func newMemoizedProbe(prev map[string]probeCacheEntry, inner func(e procEntry) processKind) (func(e procEntry) processKind, map[string]probeCacheEntry) {
+	next := make(map[string]probeCacheEntry)
+	probe := func(e procEntry) processKind {
+		exeTarget, err := os.Readlink(filepath.Join(e.PidDir, "exe"))
+		if err != nil || exeTarget == "" {
+			// Unreadable exe is transient (process exiting, permissions) — probe
+			// without caching so it isn't pinned as unknown.
+			return inner(e)
+		}
+		key := e.ContainerID + "|" + exeTarget
+
+		entry, cached := next[key]
+		if !cached {
+			entry, cached = prev[key]
+		}
+		if !cached || (entry.Kind == processKindUnknown && entry.Attempts < maxNodeVersionResolveAttempts) {
+			entry = probeCacheEntry{Kind: inner(e), Attempts: entry.Attempts + 1}
+		}
+		next[key] = entry
+		return entry.Kind
+	}
+	return probe, next
 }
 
 // probeRuntimeProcess identifies runtimes that can't be classified from
