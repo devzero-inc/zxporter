@@ -25,7 +25,17 @@ const (
 // V8/OpenSSL/ICU/uv version strings baked into the same binary. The literal
 // `https://` prefix anchors the host boundary so this can't match a lookalike
 // domain like `evilnodejs.org/download/release/...` appearing elsewhere in the
-// scanned bytes (flagged by CodeQL: missing regexp anchor).
+// scanned bytes.
+//
+// CodeQL still flags this as go/regex/missing-regexp-anchor since the query
+// looks for a syntactic `^`/`\A`/`\b` anchor and doesn't reason about literal
+// prefixes. A real `^`/`\A` anchor isn't applicable here — the string legitimately
+// appears mid-file, not at a fixed offset — and there is no meaningful security
+// impact to suppress: the extracted value is display-only telemetry (NodeVersion),
+// never fetched or used for any trust/redirect/file-path decision. A crafted
+// binary could at worst cause a wrong version number to be reported for that
+// binary's own container — no escalation, no cross-tenant effect.
+// codeql[go/regex/missing-regexp-anchor]
 var nodeReleaseURLRe = regexp.MustCompile(`https://nodejs\.org/download/release/v(\d+\.\d+\.\d+)/`)
 
 // maxNodeBinaryScanBytes bounds the read-only scan of a discovered node binary.
