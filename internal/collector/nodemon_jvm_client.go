@@ -1,11 +1,7 @@
 package collector
 
 import (
-	"context"
 	"encoding/json"
-	"fmt"
-	"io"
-	"net/http"
 	"time"
 )
 
@@ -35,54 +31,6 @@ type NodemonJVMMetrics struct {
 	FlagSources    map[string]any `json:"flag_sources,omitempty"`
 	RawCmdline     string         `json:"raw_cmdline,omitempty"`
 	Timestamp      time.Time      `json:"timestamp"`
-}
-
-// FetchAllJVMMetrics discovers all nodemon pods and fetches JVM metrics from each,
-// merging the results into a single slice.
-func (c *NodemonClient) FetchAllJVMMetrics(ctx context.Context) ([]NodemonJVMMetrics, error) {
-	nodeToIP, err := c.refreshCache(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if len(nodeToIP) == 0 {
-		return nil, nil
-	}
-
-	var all []NodemonJVMMetrics
-	for nodeName, podIP := range nodeToIP {
-		url := fmt.Sprintf("http://%s:%d/container/jvm-metrics", podIP, c.port)
-		metrics, fetchErr := c.fetchJVMMetrics(ctx, url)
-		if fetchErr != nil {
-			c.log.Error(fetchErr, "Failed to fetch JVM metrics from exporter pod", "node", nodeName, "podIP", podIP)
-			continue
-		}
-		all = append(all, metrics...)
-	}
-	return all, nil
-}
-
-func (c *NodemonClient) fetchJVMMetrics(ctx context.Context, url string) ([]NodemonJVMMetrics, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return nil, fmt.Errorf("creating request: %w", err)
-	}
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("HTTP request to nodemon failed: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("nodemon returned status %d", resp.StatusCode)
-	}
-
-	const maxResponseBytes = 16 << 20 // 16MiB safety cap
-	var metrics []NodemonJVMMetrics
-	if err := json.NewDecoder(io.LimitReader(resp.Body, maxResponseBytes)).Decode(&metrics); err != nil {
-		return nil, fmt.Errorf("decoding nodemon jvm response: %w", err)
-	}
-	return metrics, nil
 }
 
 // IndexJVMMetricsByContainer indexes JVM metrics by (pod, container, namespace) for O(1) lookup.

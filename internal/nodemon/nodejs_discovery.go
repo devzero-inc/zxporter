@@ -26,10 +26,16 @@ const (
 var nodeReleaseURLRe = regexp.MustCompile(`nodejs\.org/download/release/v(\d+\.\d+\.\d+)/`)
 
 // maxNodeBinaryScanBytes bounds the read-only scan of a discovered node binary.
-// Best-effort: some builds may lay out the release-URL string beyond this prefix,
-// in which case NodeVersion is left empty rather than reading the whole (often
-// 80-100MB) binary on every scrape.
-const maxNodeBinaryScanBytes = 16 << 20 // 16MiB
+//
+// Measured empirically against the official node:{18,20,22,24}-slim Docker Hub
+// images: the release-URL string sits at 30-45MB into an 91-122MB binary (it
+// scales with binary size, not a fixed offset — it is NOT near the head or tail
+// of the file). 64MiB covers all four with ~20MB of margin over the largest
+// observed offset. Best-effort: as Node's binary keeps growing across releases,
+// this may eventually need to grow too — the nodejs-metrics-kind CI workflow
+// exercises this against a real image on every PR specifically to catch that
+// regression before it reaches production.
+const maxNodeBinaryScanBytes = 64 << 20 // 64MiB
 
 // NodeJSProcess holds info about a discovered Node.js process running inside a
 // Kubernetes container, prior to version resolution (which the collector layer
@@ -49,23 +55,39 @@ type NodeJSProcess struct {
 // running inside Kubernetes container cgroups.
 // Returns nil, nil if procRoot does not exist (non-Linux hosts).
 func discoverNodeProcesses(procRoot string) ([]NodeJSProcess, error) {
-	entries, err := walkProcEntries(procRoot, isNodeProcess)
+	entries, err := walkProcEntries(procRoot, classifyNodeOnly)
 	if err != nil {
 		return nil, err
 	}
 
 	procs := make([]NodeJSProcess, 0, len(entries))
 	for _, e := range entries {
-		procs = append(procs, NodeJSProcess{
-			PidHost:     e.PidHost,
-			PidNS:       e.PidNS,
-			ContainerID: e.ContainerID,
-			CmdLine:     e.CmdLine,
-			PidDir:      e.PidDir,
-		})
+		procs = append(procs, nodeJSProcessFromEntry(e))
 	}
 
 	return procs, nil
+}
+
+// classifyNodeOnly is a single-runtime classifier for callers that only care
+// about Node.js processes (the legacy /container/nodejs-metrics path).
+func classifyNodeOnly(comm, cmdline string) processKind {
+	if isNodeProcess(comm, cmdline) {
+		return processKindNode
+	}
+	return processKindUnknown
+}
+
+// nodeJSProcessFromEntry builds a NodeJSProcess from a procEntry already
+// classified as processKindNode. Version resolution is deferred to the
+// collector layer, which caches it per container.
+func nodeJSProcessFromEntry(e procEntry) NodeJSProcess {
+	return NodeJSProcess{
+		PidHost:     e.PidHost,
+		PidNS:       e.PidNS,
+		ContainerID: e.ContainerID,
+		CmdLine:     e.CmdLine,
+		PidDir:      e.PidDir,
+	}
 }
 
 // isNodeProcess returns true if the process comm is "node" or its first cmdline

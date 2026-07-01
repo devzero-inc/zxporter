@@ -33,13 +33,25 @@ type procEntry struct {
 	CmdLine     string
 	ContainerID string
 	PidNS       int
+	Kind        processKind
 }
 
+// processKind identifies which runtime a discovered process belongs to, so a
+// single /proc walk can serve every process-introspection collector (JVM,
+// Node.js, ...) instead of each running its own separate walk.
+type processKind int
+
+const (
+	processKindUnknown processKind = iota
+	processKindJava
+	processKindNode
+)
+
 // walkProcEntries scans procRoot (usually "/proc") and returns entries for
-// processes whose (comm, cmdline) satisfy predicate and which resolve to a
-// Kubernetes container cgroup and namespace PID. Returns nil, nil if procRoot
-// does not exist (non-Linux hosts).
-func walkProcEntries(procRoot string, predicate func(comm, cmdline string) bool) ([]procEntry, error) {
+// processes whose (comm, cmdline) classify is not processKindUnknown, and which
+// resolve to a Kubernetes container cgroup and namespace PID. Returns nil, nil if
+// procRoot does not exist (non-Linux hosts).
+func walkProcEntries(procRoot string, classify func(comm, cmdline string) processKind) ([]procEntry, error) {
 	entries, err := os.ReadDir(procRoot)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -66,7 +78,8 @@ func walkProcEntries(procRoot string, predicate func(comm, cmdline string) bool)
 		rawCmdline := readProcFile(filepath.Join(pidDir, "cmdline"))
 		cmdline := string(bytes.ReplaceAll([]byte(rawCmdline), []byte{0}, []byte{' '}))
 
-		if !predicate(comm, cmdline) {
+		kind := classify(comm, cmdline)
+		if kind == processKindUnknown {
 			continue
 		}
 
@@ -88,6 +101,7 @@ func walkProcEntries(procRoot string, predicate func(comm, cmdline string) bool)
 			Comm:        comm,
 			CmdLine:     strings.TrimSpace(cmdline),
 			ContainerID: containerID,
+			Kind:        kind,
 			PidNS:       nsPid,
 		})
 	}

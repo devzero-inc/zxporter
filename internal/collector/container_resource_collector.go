@@ -325,25 +325,22 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 		}
 	}
 
-	// Pre-fetch JVM metrics from the nodemon (one HTTP call for the entire cycle)
+	// Pre-fetch JVM + Node.js metrics from the nodemon in a single combined request
+	// (one HTTP call per node, backed by one /proc walk on the nodemon side) rather
+	// than issuing two independent per-runtime fetches.
 	var jvmIndex map[gpuContainerKey]NodemonJVMMetrics
-	if c.nodemonClient != nil && !c.config.DisableJVMMetrics {
-		allJVMMetrics, err := c.nodemonClient.FetchAllJVMMetrics(ctx)
-		if err != nil {
-			c.logger.Error(err, "Failed to fetch JVM metrics from nodemon")
-		} else {
-			jvmIndex = IndexJVMMetricsByContainer(allJVMMetrics)
-		}
-	}
-
-	// Pre-fetch Node.js detection metrics from the nodemon (one HTTP call for the entire cycle)
 	var nodeJSIndex map[gpuContainerKey]NodemonNodeJSMetrics
-	if c.nodemonClient != nil && !c.config.DisableNodeJSMetrics {
-		allNodeJSMetrics, err := c.nodemonClient.FetchAllNodeJSMetrics(ctx)
+	if c.nodemonClient != nil && !(c.config.DisableJVMMetrics && c.config.DisableNodeJSMetrics) {
+		runtimeMetrics, err := c.nodemonClient.FetchAllRuntimeMetrics(ctx)
 		if err != nil {
-			c.logger.Error(err, "Failed to fetch Node.js metrics from nodemon")
+			c.logger.Error(err, "Failed to fetch runtime metrics from nodemon")
 		} else {
-			nodeJSIndex = IndexNodeJSMetricsByContainer(allNodeJSMetrics)
+			if !c.config.DisableJVMMetrics {
+				jvmIndex = IndexJVMMetricsByContainer(runtimeMetrics.JVM)
+			}
+			if !c.config.DisableNodeJSMetrics {
+				nodeJSIndex = IndexNodeJSMetricsByContainer(runtimeMetrics.NodeJS)
+			}
 		}
 	}
 

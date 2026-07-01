@@ -41,34 +41,43 @@ func (c *JVMCollector) QueryJVMMetrics(ctx context.Context) ([]JVMMetric, error)
 	}
 	c.log.Info("Discovered java processes", "count", len(procs), "took", time.Since(start).String())
 
-	start = time.Now()
+	return buildJVMMetrics(ctx, procs, c.index, c.nodeName, c.log)
+}
+
+// buildJVMMetrics reads hsperfdata for each discovered Java process and builds
+// the corresponding JVMMetric. Shared by JVMCollector (the legacy
+// /container/jvm-metrics path) and RuntimeCollector (the combined
+// /container/runtime-metrics path), so there is one implementation of the
+// per-process build step regardless of which /proc walk discovered procs.
+func buildJVMMetrics(ctx context.Context, procs []JavaProcess, index *PodContainerIndex, nodeName string, log logr.Logger) ([]JVMMetric, error) {
+	start := time.Now()
 	metrics := make([]JVMMetric, 0, len(procs))
 	for _, proc := range procs {
 		select {
 		case <-ctx.Done():
-			c.log.Info("JVM metrics query cancelled", "collected", len(metrics), "remaining", len(procs)-len(metrics))
+			log.Info("JVM metrics query cancelled", "collected", len(metrics), "remaining", len(procs)-len(metrics))
 			return metrics, ctx.Err()
 		default:
 		}
 
-		c.log.Info("Reading hsperfdata", "pid", proc.PidHost, "path", proc.HsperfDataPath)
+		log.Info("Reading hsperfdata", "pid", proc.PidHost, "path", proc.HsperfDataPath)
 		if st, err := os.Stat(proc.HsperfDataPath); err == nil {
-			c.log.Info("hsperfdata stat", "pid", proc.PidHost, "sizeBytes", st.Size())
+			log.Info("hsperfdata stat", "pid", proc.PidHost, "sizeBytes", st.Size())
 		} else {
-			c.log.Error(err, "hsperfdata stat failed", "pid", proc.PidHost, "path", proc.HsperfDataPath)
+			log.Error(err, "hsperfdata stat failed", "pid", proc.PidHost, "path", proc.HsperfDataPath)
 		}
 		readStart := time.Now()
 		counters, err := readHsperfdata(proc.HsperfDataPath)
 		if err != nil {
-			c.log.Error(err, "Failed to read hsperfdata", "pid", proc.PidHost, "path", proc.HsperfDataPath)
+			log.Error(err, "Failed to read hsperfdata", "pid", proc.PidHost, "path", proc.HsperfDataPath)
 			continue
 		}
-		c.log.Info("Read hsperfdata", "pid", proc.PidHost, "counters", len(counters), "took", time.Since(readStart).String())
+		log.Info("Read hsperfdata", "pid", proc.PidHost, "counters", len(counters), "took", time.Since(readStart).String())
 
-		info, _ := c.index.Lookup(proc.ContainerID)
-		metrics = append(metrics, buildJVMMetric(counters, proc, info, c.nodeName))
+		info, _ := index.Lookup(proc.ContainerID)
+		metrics = append(metrics, buildJVMMetric(counters, proc, info, nodeName))
 	}
-	c.log.Info("Built JVM metrics", "count", len(metrics), "took", time.Since(start).String())
+	log.Info("Built JVM metrics", "count", len(metrics), "took", time.Since(start).String())
 
 	return metrics, nil
 }
