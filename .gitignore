@@ -46,3 +46,9 @@ helm-chart/zxporter/local_values.yaml
 
 docs/plans
 .DS_Store
+
+# local reference checkouts / scratch files, never part of the repo
+.serena/
+castai-egressd-ref
+kvisor-ref
+starburst-savings-report.pdf

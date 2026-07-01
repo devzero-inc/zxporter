@@ -120,7 +120,7 @@ func (e *Exporter) getDCGMUrls(ctx context.Context) ([]string, error) {
 }
 
 // NewServerMux creates the HTTP mux for the nodemon.
-func NewServerMux(containerMetricsHandler http.Handler, jvmMetricsHandler http.Handler) *http.ServeMux {
+func NewServerMux(containerMetricsHandler http.Handler, jvmMetricsHandler http.Handler, runtimeMetricsHandler http.Handler) *http.ServeMux {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/debug/pprof/", pprof.Index)
@@ -140,6 +140,10 @@ func NewServerMux(containerMetricsHandler http.Handler, jvmMetricsHandler http.H
 
 	if jvmMetricsHandler != nil {
 		mux.Handle("/container/jvm-metrics", jvmMetricsHandler)
+	}
+
+	if runtimeMetricsHandler != nil {
+		mux.Handle("/container/runtime-metrics", runtimeMetricsHandler)
 	}
 
 	return mux

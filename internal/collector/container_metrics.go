@@ -87,6 +87,16 @@ type ContainerMetricsSnapshot struct {
 	JvmRawCmdline         string `json:"jvmRawCmdline,omitempty"`
 	JvmFlagsExtractedJSON string `json:"jvmFlagsExtractedJson,omitempty"`
 	JvmFlagSourcesJSON    string `json:"jvmFlagSourcesJson,omitempty"`
+
+	// Node.js detection (from zxporter-nodemon /container/nodejs-metrics). Scoped to
+	// existence + version for now — no heap/flags capture (no hsperfdata equivalent for V8).
+	// Runtime detection (from zxporter-nodemon /container/runtime-metrics
+	// "runtimes" bucket): Node.js, .NET, Go, GraalVM native-image, Python, Ruby,
+	// Deno, Bun. One entry per detected runtime in the container; existence +
+	// best-effort version. JVM stays on the dedicated Jvm* fields above because
+	// its payload (hsperfdata heap metrics, flag extraction) is richer and
+	// already shipped.
+	RuntimeProcesses []ContainerRuntimeProcess `json:"runtimeProcesses,omitempty"`
 }
 
 // BuildOOMSnapshot constructs a ContainerMetricsSnapshot for an OOM event.
