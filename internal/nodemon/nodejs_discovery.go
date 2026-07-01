@@ -22,8 +22,11 @@ const (
 //
 // This is deliberately anchored on Node's own release metadata rather than a
 // generic semver pattern — a bare `v\d+\.\d+\.\d+` regex would also match the
-// V8/OpenSSL/ICU/uv version strings baked into the same binary.
-var nodeReleaseURLRe = regexp.MustCompile(`nodejs\.org/download/release/v(\d+\.\d+\.\d+)/`)
+// V8/OpenSSL/ICU/uv version strings baked into the same binary. The literal
+// `https://` prefix anchors the host boundary so this can't match a lookalike
+// domain like `evilnodejs.org/download/release/...` appearing elsewhere in the
+// scanned bytes (flagged by CodeQL: missing regexp anchor).
+var nodeReleaseURLRe = regexp.MustCompile(`https://nodejs\.org/download/release/v(\d+\.\d+\.\d+)/`)
 
 // maxNodeBinaryScanBytes bounds the read-only scan of a discovered node binary.
 //

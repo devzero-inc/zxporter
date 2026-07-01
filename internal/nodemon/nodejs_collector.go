@@ -13,7 +13,18 @@ import (
 type nodeVersionInfo struct {
 	Version string
 	Source  string
+	// Attempts counts unresolved resolution attempts so far. Bounds retries for
+	// containers that will never resolve (custom/stripped binary, or the
+	// release-URL string genuinely beyond the scan window) — without this, an
+	// unresolved result would trigger a fresh (up to 64MiB) binary scan on every
+	// single scrape cycle for the container's entire lifetime.
+	Attempts int
 }
+
+// maxNodeVersionResolveAttempts caps how many scrape cycles retry an unresolved
+// version before giving up. Small enough to bound worst-case scan cost, large
+// enough to ride out a few cycles of "process still starting" transient failures.
+const maxNodeVersionResolveAttempts = 5
 
 // NodeJSCollector detects Node.js processes via /proc and resolves their version
 // on a best-effort, no-opt-in basis (env var, else a read-only binary scan). It
@@ -96,12 +107,15 @@ func buildNodeJSMetrics(
 
 		// Only treat a cache hit as authoritative if it actually resolved a version —
 		// an unresolved result (transient /proc read failure, process not yet fully
-		// started, release-URL string beyond the scan window) is retried on the next
-		// cycle rather than being stuck as "unknown" for the container's lifetime.
+		// started, release-URL string beyond the scan window) is retried on later
+		// cycles rather than being stuck as "unknown" for the container's lifetime.
+		// Capped at maxNodeVersionResolveAttempts so a genuinely-unresolvable
+		// container (no matching env/binary content at all) doesn't pay a fresh
+		// scan cost every single cycle forever.
 		info, cached := cache[proc.ContainerID]
-		if !cached || info.Version == "" {
+		if !cached || (info.Version == "" && info.Attempts < maxNodeVersionResolveAttempts) {
 			version, source := resolveNodeVersion(proc.PidDir)
-			info = nodeVersionInfo{Version: version, Source: source}
+			info = nodeVersionInfo{Version: version, Source: source, Attempts: info.Attempts + 1}
 		}
 		newCache[proc.ContainerID] = info
 

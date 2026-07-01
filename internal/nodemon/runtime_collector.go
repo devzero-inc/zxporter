@@ -2,6 +2,7 @@ package nodemon
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -54,18 +55,18 @@ func (c *RuntimeCollector) QueryRuntimeMetrics(ctx context.Context) (RuntimeMetr
 	}
 	c.log.Info("Discovered runtime processes", "java", len(javaProcs), "nodejs", len(nodeProcs), "took", time.Since(start).String())
 
-	jvmMetrics, err := buildJVMMetrics(ctx, javaProcs, c.index, c.nodeName, c.log)
-	if err != nil {
-		return RuntimeMetrics{JVM: jvmMetrics}, err
-	}
+	// Always attempt both builds, even if one is cancelled/errors — a slow JVM
+	// hsperfdata read (many Java containers) must not starve Node.js visibility
+	// for the cycle, and vice versa, even though they share one /proc walk.
+	jvmMetrics, jvmErr := buildJVMMetrics(ctx, javaProcs, c.index, c.nodeName, c.log)
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	nodeJSMetrics, newCache, err := buildNodeJSMetrics(ctx, nodeProcs, c.index, c.nodeName, c.nodeVersionCache, c.log)
-	if err == nil {
+	nodeJSMetrics, newCache, nodeJSErr := buildNodeJSMetrics(ctx, nodeProcs, c.index, c.nodeName, c.nodeVersionCache, c.log)
+	if nodeJSErr == nil {
 		c.nodeVersionCache = newCache
 	}
 
-	return RuntimeMetrics{JVM: jvmMetrics, NodeJS: nodeJSMetrics}, err
+	return RuntimeMetrics{JVM: jvmMetrics, NodeJS: nodeJSMetrics}, errors.Join(jvmErr, nodeJSErr)
 }
