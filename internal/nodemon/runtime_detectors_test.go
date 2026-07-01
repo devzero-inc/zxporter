@@ -198,6 +198,61 @@ func TestProbeRuntimeProcess(t *testing.T) {
 	})
 }
 
+func TestNewMemoizedProbe(t *testing.T) {
+	makeEntry := func(t *testing.T, target string) procEntry {
+		pidDir := t.TempDir()
+		require.NoError(t, os.Symlink(target, filepath.Join(pidDir, "exe")))
+		return procEntry{PidDir: pidDir, ContainerID: "c1"}
+	}
+
+	t.Run("classified result probed once across cycles", func(t *testing.T) {
+		calls := 0
+		inner := func(procEntry) processKind { calls++; return processKindGo }
+		e := makeEntry(t, "/app/mybinary")
+
+		probe, next := newMemoizedProbe(nil, inner)
+		assert.Equal(t, processKindGo, probe(e))
+		assert.Equal(t, processKindGo, probe(e))   // same cycle
+		probe2, _ := newMemoizedProbe(next, inner) // next cycle, seeded
+		assert.Equal(t, processKindGo, probe2(e))
+		assert.Equal(t, 1, calls)
+	})
+
+	t.Run("unknown retried up to cap then pinned", func(t *testing.T) {
+		calls := 0
+		inner := func(procEntry) processKind { calls++; return processKindUnknown }
+		e := makeEntry(t, "/usr/sbin/nginx")
+
+		cache := map[string]probeCacheEntry(nil)
+		for cycle := 0; cycle < maxNodeVersionResolveAttempts+3; cycle++ {
+			var probe func(procEntry) processKind
+			probe, cache = newMemoizedProbe(cache, inner)
+			assert.Equal(t, processKindUnknown, probe(e))
+		}
+		assert.Equal(t, maxNodeVersionResolveAttempts, calls)
+	})
+
+	t.Run("different exe in same container probed separately", func(t *testing.T) {
+		calls := 0
+		inner := func(procEntry) processKind { calls++; return processKindGo }
+		probe, _ := newMemoizedProbe(nil, inner)
+		assert.Equal(t, processKindGo, probe(makeEntry(t, "/app/one")))
+		assert.Equal(t, processKindGo, probe(makeEntry(t, "/app/two")))
+		assert.Equal(t, 2, calls)
+	})
+
+	t.Run("unreadable exe probed but not cached", func(t *testing.T) {
+		calls := 0
+		inner := func(procEntry) processKind { calls++; return processKindUnknown }
+		e := procEntry{PidDir: t.TempDir(), ContainerID: "c1"} // no exe link
+		probe, next := newMemoizedProbe(nil, inner)
+		probe(e)
+		probe(e)
+		assert.Equal(t, 2, calls, "transient unreadable exe must not be memoized")
+		assert.Empty(t, next)
+	})
+}
+
 func TestGraalVMVersionRe(t *testing.T) {
 	tests := []struct {
 		in   string
