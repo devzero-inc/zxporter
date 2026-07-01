@@ -45,6 +45,11 @@ type ContainerResourceCollectorConfig struct {
 	// DisableNodeJSMetrics determines whether to disable Node.js detection (via zxporter-nodemon).
 	// Default is false.
 	DisableNodeJSMetrics bool
+
+	// DisableRuntimeProcessMetrics determines whether to disable generic-runtime
+	// detection (.NET, Go, GraalVM native-image, Python, Ruby, Deno, Bun — via
+	// zxporter-nodemon). Default is false.
+	DisableRuntimeProcessMetrics bool
 }
 
 func strFromMap(m map[string]interface{}, key string) string {
@@ -330,7 +335,9 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 	// than issuing two independent per-runtime fetches.
 	var jvmIndex map[gpuContainerKey]NodemonJVMMetrics
 	var nodeJSIndex map[gpuContainerKey]NodemonNodeJSMetrics
-	if c.nodemonClient != nil && !(c.config.DisableJVMMetrics && c.config.DisableNodeJSMetrics) {
+	var runtimeProcessIndex map[gpuContainerKey][]NodemonRuntimeProcessMetrics
+	if c.nodemonClient != nil &&
+		!(c.config.DisableJVMMetrics && c.config.DisableNodeJSMetrics && c.config.DisableRuntimeProcessMetrics) {
 		runtimeMetrics, err := c.nodemonClient.FetchAllRuntimeMetrics(ctx)
 		if err != nil {
 			c.logger.Error(err, "Failed to fetch runtime metrics from nodemon")
@@ -340,6 +347,9 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 			}
 			if !c.config.DisableNodeJSMetrics {
 				nodeJSIndex = IndexNodeJSMetricsByContainer(runtimeMetrics.NodeJS)
+			}
+			if !c.config.DisableRuntimeProcessMetrics {
+				runtimeProcessIndex = IndexRuntimeProcessMetricsByContainer(runtimeMetrics.Runtimes)
 			}
 		}
 	}
@@ -463,6 +473,19 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 				}
 			}
 
+			// Generic-runtime detection lookup (optional)
+			var runtimeProcesses []ContainerRuntimeProcess
+			if runtimeProcessIndex != nil {
+				key := gpuContainerKey{
+					Pod:       podMetrics.Name,
+					Container: containerMetrics.Name,
+					Namespace: podMetrics.Namespace,
+				}
+				if rm, ok := runtimeProcessIndex[key]; ok {
+					runtimeProcesses = RuntimeProcessesFromNodemon(rm)
+				}
+			}
+
 			// Process the container metrics with optional network/IO data
 			c.processContainerMetrics(
 				pod,
@@ -472,6 +495,7 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 				gpuMetrics,
 				jvmMetrics,
 				nodeJSMetrics,
+				runtimeProcesses,
 				throttleFraction,
 			)
 		}
@@ -488,6 +512,7 @@ func (c *ContainerResourceCollector) processContainerMetrics(
 	gpuMetrics map[string]interface{},
 	jvmMetrics map[string]interface{},
 	nodeJSMetrics map[string]interface{},
+	runtimeProcesses []ContainerRuntimeProcess,
 	throttleFraction float64,
 ) {
 	// Find the container spec in the pod
@@ -677,6 +702,10 @@ func (c *ContainerResourceCollector) processContainerMetrics(
 		metricsSnapshot.JvmRawCmdline = strFromMap(jvmMetrics, "RawCmdline")
 		metricsSnapshot.JvmFlagsExtractedJSON = strFromMap(jvmMetrics, "FlagsExtractedJSON")
 		metricsSnapshot.JvmFlagSourcesJSON = strFromMap(jvmMetrics, "FlagSourcesJSON")
+	}
+
+	if len(runtimeProcesses) > 0 {
+		metricsSnapshot.RuntimeProcesses = runtimeProcesses
 	}
 
 	if len(nodeJSMetrics) > 0 {

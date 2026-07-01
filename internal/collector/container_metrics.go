@@ -94,6 +94,12 @@ type ContainerMetricsSnapshot struct {
 	NodeJsVersion       string `json:"nodeJsVersion,omitempty"`
 	NodeJsVersionSource string `json:"nodeJsVersionSource,omitempty"`
 	NodeJsRawCmdline    string `json:"nodeJsRawCmdline,omitempty"`
+
+	// Generic-runtime detection (from zxporter-nodemon /container/runtime-metrics
+	// "runtimes" bucket): .NET, Go, GraalVM native-image, Python, Ruby, Deno, Bun.
+	// One entry per detected runtime in the container; existence + best-effort
+	// version, same scope as Node.js detection.
+	RuntimeProcesses []ContainerRuntimeProcess `json:"runtimeProcesses,omitempty"`
 }
 
 // BuildOOMSnapshot constructs a ContainerMetricsSnapshot for an OOM event.
