@@ -28,33 +28,52 @@ type JavaProcess struct {
 // running inside Kubernetes container cgroups.
 // Returns nil, nil if procRoot does not exist (non-Linux hosts).
 func discoverJavaProcesses(procRoot string) ([]JavaProcess, error) {
-	entries, err := walkProcEntries(procRoot, isJavaProcess)
+	entries, err := walkProcEntries(procRoot, classifyJavaOnly)
 	if err != nil {
 		return nil, err
 	}
 
 	procs := make([]JavaProcess, 0, len(entries))
 	for _, e := range entries {
-		hsperfPath := findHsperfdata(e.PidDir, e.PidNS)
-		if hsperfPath == "" {
-			continue
+		if jp, ok := javaProcessFromEntry(e); ok {
+			procs = append(procs, jp)
 		}
-
-		// Also capture env-injected JVM options (common in k8s via JAVA_TOOL_OPTIONS,
-		// JDK_JAVA_OPTIONS, JAVA_OPTS). These do NOT appear in /proc/<pid>/cmdline.
-		envJavaOpts := readEnvVars(filepath.Join(e.PidDir, "environ"), "JAVA_TOOL_OPTIONS", "JDK_JAVA_OPTIONS", "JAVA_OPTS")
-
-		procs = append(procs, JavaProcess{
-			PidHost:        e.PidHost,
-			PidNS:          e.PidNS,
-			ContainerID:    e.ContainerID,
-			CmdLine:        e.CmdLine,
-			EnvJavaOpts:    envJavaOpts,
-			HsperfDataPath: hsperfPath,
-		})
 	}
 
 	return procs, nil
+}
+
+// classifyJavaOnly is a single-runtime classifier for callers that only care
+// about Java processes (the legacy /container/jvm-metrics path).
+func classifyJavaOnly(comm, cmdline string) processKind {
+	if isJavaProcess(comm, cmdline) {
+		return processKindJava
+	}
+	return processKindUnknown
+}
+
+// javaProcessFromEntry builds a JavaProcess from a procEntry already classified
+// as processKindJava, reading the JVM-specific bits (hsperfdata path, env-injected
+// options) that walkProcEntries doesn't itself resolve. Returns ok=false if no
+// hsperfdata file is found (e.g. -XX:-UsePerfData, or the process just exited).
+func javaProcessFromEntry(e procEntry) (JavaProcess, bool) {
+	hsperfPath := findHsperfdata(e.PidDir, e.PidNS)
+	if hsperfPath == "" {
+		return JavaProcess{}, false
+	}
+
+	// Also capture env-injected JVM options (common in k8s via JAVA_TOOL_OPTIONS,
+	// JDK_JAVA_OPTIONS, JAVA_OPTS). These do NOT appear in /proc/<pid>/cmdline.
+	envJavaOpts := readEnvVars(filepath.Join(e.PidDir, "environ"), "JAVA_TOOL_OPTIONS", "JDK_JAVA_OPTIONS", "JAVA_OPTS")
+
+	return JavaProcess{
+		PidHost:        e.PidHost,
+		PidNS:          e.PidNS,
+		ContainerID:    e.ContainerID,
+		CmdLine:        e.CmdLine,
+		EnvJavaOpts:    envJavaOpts,
+		HsperfDataPath: hsperfPath,
+	}, true
 }
 
 // isJavaProcess returns true if the process comm is "java" or its first cmdline

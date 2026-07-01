@@ -52,3 +52,10 @@ Expected fields include:
 - `gc_time_seconds_total` (map)
 - `safepoint_time_seconds_total`, `safepoint_sync_time_seconds_total`
 - `flags_extracted` (best-effort from `/proc/<pid>/cmdline`)
+
+## Combined endpoint
+
+`GET /container/runtime-metrics` returns `{"jvm": [...], "nodejs": [...]}` from a single
+`/proc` walk covering every process-introspection collector (see `docs/nodejs-metrics.md`).
+This is what the zxporter collector actually polls each cycle; `/container/jvm-metrics`
+remains available separately for direct debugging/CI use.

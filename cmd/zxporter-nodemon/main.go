@@ -113,10 +113,17 @@ func main() {
 	// Only start process-introspection collectors (JVM, Node.js) when explicitly enabled
 	// via Helm values (runtimeMetrics.enabled). They require hostPID: true and SYS_PTRACE
 	// capability, which are only granted in the pod spec when runtimeMetrics.enabled is true.
-	// Both collectors share a single PodContainerIndex (one Pod informer/watch) rather than
+	// All of them share a single PodContainerIndex (one Pod informer/watch) rather than
 	// each running their own.
+	//
+	// /container/runtime-metrics (RuntimeCollector) is the combined endpoint the zxporter
+	// collector actually polls each cycle — one /proc walk covering every runtime. The
+	// legacy per-runtime /container/jvm-metrics and /container/nodejs-metrics endpoints
+	// (their own JVMCollector/NodeJSCollector, each with its own /proc walk) are kept
+	// alongside it for backward compatibility (existing CI/docs/direct debugging use).
 	var jvmMetricsHandler http.Handler
 	var nodeJSMetricsHandler http.Handler
+	var runtimeMetricsHandler http.Handler
 	var podContainerIndex *nodemon.PodContainerIndex
 	runtimeMetricsEnabled := os.Getenv("RUNTIME_METRICS_ENABLED") == "true"
 	if runtimeMetricsEnabled {
@@ -133,12 +140,16 @@ func main() {
 			nodeJSCollector := nodemon.NewNodeJSCollector(cfg.NodeName, podContainerIndex, logger)
 			nodeJSMetricsHandler = nodemon.NewNodeJSMetricsHandler(nodeJSCollector, logger)
 			logger.Info("Node.js metrics collection enabled")
+
+			runtimeCollector := nodemon.NewRuntimeCollector(cfg.NodeName, podContainerIndex, logger)
+			runtimeMetricsHandler = nodemon.NewRuntimeMetricsHandler(runtimeCollector, logger)
+			logger.Info("Combined runtime metrics collection enabled")
 		}
 	} else {
 		logger.Info("Runtime metrics collection disabled (set runtimeMetrics.enabled=true in Helm values to enable)")
 	}
 
-	mux := nodemon.NewServerMux(containerMetricsHandler, jvmMetricsHandler, nodeJSMetricsHandler)
+	mux := nodemon.NewServerMux(containerMetricsHandler, jvmMetricsHandler, nodeJSMetricsHandler, runtimeMetricsHandler)
 
 	// Register unified endpoints
 	mux.Handle("/v2/container/metrics", nodemon.NewUnifiedContainerHandler(unifiedExporter, logger))

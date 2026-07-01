@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strconv"
 	"sync"
 	"time"
 
@@ -80,7 +81,7 @@ func (idx *PodContainerIndex) checkProcRootVisibility() {
 		if !e.IsDir() {
 			continue
 		}
-		if _, err := fmt.Sscanf(e.Name(), "%d", new(int)); err == nil {
+		if _, err := strconv.Atoi(e.Name()); err == nil {
 			pidCount++
 		}
 	}

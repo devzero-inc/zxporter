@@ -102,3 +102,33 @@ func TestNodeJSCollector_QueryNodeJSMetrics_NoJavaProcessesFound(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, metrics)
 }
+
+func TestNodeJSCollector_QueryNodeJSMetrics_RetriesUnresolvedVersion(t *testing.T) {
+	// No NODE_VERSION env and no exe symlink at all — first query can't resolve
+	// anything (e.g. transient /proc read failure on a process that's still starting).
+	procRoot, containerID := buildFakeNodeProc(t, 4242, "PATH=/usr/bin\x00", "", "")
+
+	idx := &PodContainerIndex{containerMap: map[string]containerInfo{}}
+	c := NewNodeJSCollector("node-1", idx, testr.New(t))
+	c.procRoot = procRoot
+
+	metrics, err := c.QueryNodeJSMetrics(context.Background())
+	require.NoError(t, err)
+	require.Len(t, metrics, 1)
+	assert.Empty(t, metrics[0].NodeVersion, "first scrape has nothing to resolve from")
+
+	// Now the binary becomes readable — e.g. the process finished starting.
+	binary := "https://nodejs.org/download/release/v20.11.1/node-v20.11.1.tar.gz"
+	exeTarget := "/usr/local/bin/node"
+	pidDir := filepath.Join(procRoot, strconv.Itoa(4242))
+	require.NoError(t, os.Symlink(exeTarget, filepath.Join(pidDir, "exe")))
+	rootPath := filepath.Join(pidDir, "root", exeTarget)
+	require.NoError(t, os.MkdirAll(filepath.Dir(rootPath), 0o755))
+	require.NoError(t, os.WriteFile(rootPath, []byte(binary), 0o644))
+
+	metrics, err = c.QueryNodeJSMetrics(context.Background())
+	require.NoError(t, err)
+	require.Len(t, metrics, 1)
+	assert.Equal(t, containerID, metrics[0].ContainerID)
+	assert.Equal(t, "20.11.1", metrics[0].NodeVersion, "an unresolved result must be retried, not cached forever")
+}

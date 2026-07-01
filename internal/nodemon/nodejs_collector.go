@@ -58,26 +58,56 @@ func (c *NodeJSCollector) QueryNodeJSMetrics(ctx context.Context) ([]NodeJSMetri
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	// Only adopt the rebuilt cache on a completed (non-cancelled) pass — on
+	// cancellation buildNodeJSMetrics returns a partial cache covering only the
+	// containers processed so far, and swapping it in would drop cached entries
+	// for containers not yet reached this cycle.
+	metrics, newCache, err := buildNodeJSMetrics(ctx, procs, c.index, c.nodeName, c.versionCache, c.log)
+	if err == nil {
+		c.versionCache = newCache
+	}
+	return metrics, err
+}
+
+// buildNodeJSMetrics resolves (with caching) the Node.js version for each
+// discovered process and builds the corresponding NodeJSMetric. Shared by
+// NodeJSCollector (the legacy /container/nodejs-metrics path) and
+// RuntimeCollector (the combined /container/runtime-metrics path), so there is
+// one implementation of the per-process build step regardless of which /proc
+// walk discovered procs. Returns the updated cache (rebuilt to only retain
+// currently-running containers) alongside the metrics.
+func buildNodeJSMetrics(
+	ctx context.Context,
+	procs []NodeJSProcess,
+	index *PodContainerIndex,
+	nodeName string,
+	cache map[string]nodeVersionInfo,
+	log logr.Logger,
+) ([]NodeJSMetric, map[string]nodeVersionInfo, error) {
 	newCache := make(map[string]nodeVersionInfo, len(procs))
 	metrics := make([]NodeJSMetric, 0, len(procs))
 	for _, proc := range procs {
 		select {
 		case <-ctx.Done():
-			c.log.Info("Node.js metrics query cancelled", "collected", len(metrics), "remaining", len(procs)-len(metrics))
-			return metrics, ctx.Err()
+			log.Info("Node.js metrics query cancelled", "collected", len(metrics), "remaining", len(procs)-len(metrics))
+			return metrics, newCache, ctx.Err()
 		default:
 		}
 
-		info, cached := c.versionCache[proc.ContainerID]
-		if !cached {
+		// Only treat a cache hit as authoritative if it actually resolved a version —
+		// an unresolved result (transient /proc read failure, process not yet fully
+		// started, release-URL string beyond the scan window) is retried on the next
+		// cycle rather than being stuck as "unknown" for the container's lifetime.
+		info, cached := cache[proc.ContainerID]
+		if !cached || info.Version == "" {
 			version, source := resolveNodeVersion(proc.PidDir)
 			info = nodeVersionInfo{Version: version, Source: source}
 		}
 		newCache[proc.ContainerID] = info
 
-		containerInfo, _ := c.index.Lookup(proc.ContainerID)
+		containerInfo, _ := index.Lookup(proc.ContainerID)
 		metrics = append(metrics, NodeJSMetric{
-			NodeName:          c.nodeName,
+			NodeName:          nodeName,
 			Pod:               containerInfo.Pod,
 			Namespace:         containerInfo.Namespace,
 			Container:         containerInfo.Container,
@@ -90,7 +120,6 @@ func (c *NodeJSCollector) QueryNodeJSMetrics(ctx context.Context) ([]NodeJSMetri
 			Timestamp:         time.Now().UTC(),
 		})
 	}
-	c.versionCache = newCache
 
-	return metrics, nil
+	return metrics, newCache, nil
 }

@@ -28,7 +28,18 @@ This requires the same privileges as JVM detection:
 - running zxporter-nodemon as **UID 0** (root) with `SYS_PTRACE`
 
 Both JVM and Node.js detection share a single Pod informer (`PodContainerIndex`) rather than
-each running their own Pod watch.
+each running their own Pod watch, and the zxporter collector fetches both via a single
+combined endpoint (below) rather than issuing two separate per-cycle requests.
+
+## Combined endpoint
+
+- `GET /container/runtime-metrics`
+
+Returns `{"jvm": [...], "nodejs": [...]}` from a single `/proc` walk covering both runtimes.
+This is what the zxporter collector actually polls each cycle. `/container/jvm-metrics` and
+`/container/nodejs-metrics` remain available as separate endpoints (each with their own
+independent `/proc` walk) for direct debugging/CI use, but are no longer on the collector's
+hot path.
 
 ## Enable via Helm (chart: zxporter-nodemon)
 
