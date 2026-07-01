@@ -9,19 +9,20 @@ import (
 	"strings"
 )
 
-// This file implements detection + passive version resolution for runtimes beyond
-// JVM and Node.js: .NET, Go, GraalVM native-image, Python, Ruby, Deno, and Bun.
-// Like Node.js detection, this is deliberately scoped to existence + version — no
-// live heap/GC stats (none of these expose an hsperfdata-equivalent counters
-// file), and nothing is ever executed: resolution only reads /proc pseudo-files
-// and, where needed, a bounded prefix of the on-disk binary.
+// This file implements detection + passive version resolution for every runtime
+// except the JVM: Node.js, .NET, Go, GraalVM native-image, Python, Ruby, Deno,
+// and Bun. Deliberately scoped to existence + version — no live heap/GC stats
+// (none of these expose an hsperfdata-equivalent counters file), and nothing is
+// ever executed: resolution only reads /proc pseudo-files and, where needed, a
+// bounded prefix of the on-disk binary. The JVM keeps its own jvm_* pipeline
+// because its payload (hsperfdata heap metrics, flag extraction) is richer.
 //
 // Two detection strategies exist because not every runtime is identifiable from
 // comm/cmdline:
 //
 //   - table detectors (extraRuntimeDetectors): interpreters/launchers with a
-//     stable process name — dotnet, python, ruby, deno, bun. Matched by
-//     classifyRuntimeProcess during the /proc walk, same as java/node.
+//     stable process name — node, dotnet, python, ruby, deno, bun. Matched by
+//     classifyRuntimeProcess during the /proc walk, same as java.
 //   - probes (probeRuntimeProcess): compiled binaries named after the app — Go
 //     binaries (detected via the embedded build info every Go binary carries)
 //     and GraalVM native-image binaries (detected via the SubstrateVM image-heap
@@ -155,8 +156,8 @@ type runtimeDetector struct {
 	resolveVersion func(pidDir string) (version, source string)
 }
 
-// extraRuntimeDetectors is the table of comm/cmdline-classifiable runtimes beyond
-// java and node (which keep their dedicated pipelines).
+// extraRuntimeDetectors is the table of comm/cmdline-classifiable runtimes
+// beyond java (which keeps its dedicated hsperfdata pipeline).
 var extraRuntimeDetectors = []runtimeDetector{
 	{
 		name:           runtimeNameNodeJS,
@@ -197,8 +198,8 @@ var extraRuntimeDetectors = []runtimeDetector{
 }
 
 // runtimeNameForKind maps a processKind to the runtime name reported to the
-// control plane. Only covers the generic runtimes (java/node have their own
-// metric types).
+// control plane. Covers every runtime except java, which has its own metric
+// type and pipeline.
 func runtimeNameForKind(kind processKind) string {
 	switch kind {
 	case processKindNode:
