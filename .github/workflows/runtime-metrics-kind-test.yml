@@ -323,6 +323,14 @@ jobs:
           # official images' env vars, bun via the embedded user-agent scan.
           # dotnet/deno allow two sources because their images have carried the
           # env var in some tags and not others.
+          #
+          # The version prefix is empty where the fixture image cannot pin the
+          # runtime version (caddy's Go toolchain, the retagged dotnet sample,
+          # deno:latest / bun:1 floating tags) — exact values would break CI on
+          # unrelated upstream image pushes. Every version must still look like
+          # a semver (see version_shape below), so a junk match can't pass.
+          import re
+          version_shape = re.compile(r'\d+\.\d+(\.\d+)?')
           expected = {
               'python': ('python-app', {'env'}, '3.12.'),
               'ruby':   ('ruby-app', {'env'}, '3.3.'),
@@ -339,8 +347,8 @@ jobs:
                       f'runtimes bucket missing {runtime_name} for {pod_prefix}; got '
                       f'{[(m.get("runtime"), m.get("pod")) for m in generic]}')
               m = match[0]
-              if not m.get('version'):
-                  raise SystemExit(f'{runtime_name} ({pod_prefix}) expected a resolved version, got {m!r}')
+              if not version_shape.match(m.get('version') or ''):
+                  raise SystemExit(f'{runtime_name} ({pod_prefix}) expected a semver-shaped resolved version, got {m!r}')
               if m.get('version_source') not in allowed_sources:
                   raise SystemExit(
                       f'{runtime_name} ({pod_prefix}) expected version_source in {sorted(allowed_sources)}, '
