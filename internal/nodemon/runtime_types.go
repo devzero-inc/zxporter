@@ -31,7 +31,7 @@ type RuntimeProcessMetric struct {
 
 // RuntimeProcess is a discovered generic-runtime process prior to version
 // resolution (which the collector layer caches per container), the analog of
-// NodeJSProcess for the probed/table-detected runtimes.
+// JavaProcess for the probed/table-detected runtimes.
 type RuntimeProcess struct {
 	Kind        processKind
 	Runtime     string

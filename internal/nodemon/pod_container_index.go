@@ -24,7 +24,7 @@ type containerInfo struct {
 
 // PodContainerIndex maintains a node-scoped containerID -> pod/namespace/container
 // mapping via a Pod informer. It requires hostPID: true to be useful, since the
-// collectors that consult it (JVMCollector, NodeJSCollector, ...) resolve process
+// collectors that consult it (JVMCollector, RuntimeCollector) resolve process
 // container IDs from /proc, which is only populated with cross-namespace PIDs when
 // hostPID is enabled.
 //

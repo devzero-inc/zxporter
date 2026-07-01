@@ -257,8 +257,9 @@ jobs:
               raise SystemExit(f'java21-per-flag-sources expected heap.max_bytes > 0; got heap={heap}')
           assert_close('java21-per-flag-sources heap.max_bytes vs xmx_bytes', heap.get('max_bytes'), flags.get('xmx_bytes'))
 
-          # ============ Node.js: legacy /container/nodejs-metrics ============
-          nodejs = fetch('/container/nodejs-metrics?namespace=nodejs-spike')
+          # ============ Node.js (runtimes bucket) ============
+          nodejs = [m for m in fetch('/container/runtime-metrics?namespace=nodejs-spike').get('runtimes', [])
+                    if m.get('runtime') == 'nodejs']
 
           def req_prefix_list(data, prefix):
               for m in data:
@@ -268,32 +269,32 @@ jobs:
               raise SystemExit(f'missing pod prefix={prefix}; got pods={[m.get("pod") for m in data]}')
 
           if any((m.get('pod', '') or '').startswith('not-node') for m in nodejs):
-              raise SystemExit('not-node unexpectedly present in Node.js metrics')
+              raise SystemExit('not-node unexpectedly detected as nodejs')
 
           m_env = req_prefix_list(nodejs, 'node-version-env')
-          if m_env.get('node_version_source') != 'env':
-              raise SystemExit(f'node-version-env expected source=env got {m_env.get("node_version_source")!r}')
-          if not m_env.get('node_version'):
+          if m_env.get('version_source') != 'env':
+              raise SystemExit(f'node-version-env expected source=env got {m_env.get("version_source")!r}')
+          if not m_env.get('version'):
               raise SystemExit(f'node-version-env expected a resolved version, got {m_env!r}')
 
           m_scan = req_prefix_list(nodejs, 'node-version-binaryscan')
-          if m_scan.get('node_version_source') != 'binary-scan':
-              raise SystemExit(f'node-version-binaryscan expected source=binary-scan got {m_scan.get("node_version_source")!r}')
-          if not m_scan.get('node_version'):
+          if m_scan.get('version_source') != 'binary-scan':
+              raise SystemExit(f'node-version-binaryscan expected source=binary-scan got {m_scan.get("version_source")!r}')
+          if not m_scan.get('version'):
               raise SystemExit(f'node-version-binaryscan expected a resolved version, got {m_scan!r}')
 
           # Both deployments run the identical node:20-slim binary, so env-resolved and
           # binary-scan-resolved versions must agree — the whole point of this pairing.
-          if m_env.get('node_version') != m_scan.get('node_version'):
+          if m_env.get('version') != m_scan.get('version'):
               raise SystemExit(
                   f'env and binary-scan resolved different versions for the same image: '
-                  f'{m_env.get("node_version")!r} vs {m_scan.get("node_version")!r}'
+                  f'{m_env.get("version")!r} vs {m_scan.get("version")!r}'
               )
 
           # ============ Combined /container/runtime-metrics ============
           # This is the endpoint the zxporter collector actually polls each cycle
-          # (single /proc walk covering every runtime). Assert all three buckets
-          # are populated in one response so no bucket can silently come back
+          # (single /proc walk covering every runtime). Assert both buckets are
+          # populated in one response so neither can silently come back
           # empty/broken.
           runtime = fetch('/container/runtime-metrics')
 
@@ -301,13 +302,11 @@ jobs:
           if not any((p or '').startswith('java8-xmx-only') for p in jvm_pods):
               raise SystemExit(f'runtime-metrics missing java8-xmx-only in jvm bucket; got {jvm_pods}')
 
-          nodejs_pods = {m.get('pod') for m in runtime.get('nodejs', [])}
-          if not any((p or '').startswith('node-version-env') for p in nodejs_pods):
-              raise SystemExit(f'runtime-metrics missing node-version-env in nodejs bucket; got {nodejs_pods}')
-          if not any((p or '').startswith('node-version-binaryscan') for p in nodejs_pods):
-              raise SystemExit(f'runtime-metrics missing node-version-binaryscan in nodejs bucket; got {nodejs_pods}')
-          if any((p or '').startswith('not-node') for p in nodejs_pods):
-              raise SystemExit(f'runtime-metrics unexpectedly includes not-node in nodejs bucket; got {nodejs_pods}')
+          all_runtime_pods = {m.get('pod') for m in runtime.get('runtimes', [])}
+          if not any((p or '').startswith('node-version-env') for p in all_runtime_pods):
+              raise SystemExit(f'runtime-metrics missing node-version-env in runtimes bucket; got {all_runtime_pods}')
+          if any((p or '').startswith('not-node') for p in all_runtime_pods):
+              raise SystemExit(f'runtime-metrics unexpectedly includes not-node in runtimes bucket; got {all_runtime_pods}')
 
           # ============ Generic runtimes bucket ============
           # dotnet-app deliberately exercises the apphost probe path (comm is the

@@ -224,12 +224,12 @@ func TestNewMemoizedProbe(t *testing.T) {
 		e := makeEntry(t, "/usr/sbin/nginx")
 
 		cache := map[string]probeCacheEntry(nil)
-		for cycle := 0; cycle < maxNodeVersionResolveAttempts+3; cycle++ {
+		for cycle := 0; cycle < maxVersionResolveAttempts+3; cycle++ {
 			var probe func(procEntry) processKind
 			probe, cache = newMemoizedProbe(cache, inner)
 			assert.Equal(t, processKindUnknown, probe(e))
 		}
-		assert.Equal(t, maxNodeVersionResolveAttempts, calls)
+		assert.Equal(t, maxVersionResolveAttempts, calls)
 	})
 
 	t.Run("different exe in same container probed separately", func(t *testing.T) {

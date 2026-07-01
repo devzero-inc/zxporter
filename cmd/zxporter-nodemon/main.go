@@ -110,19 +110,17 @@ func main() {
 	// Create HTTP handlers
 	containerMetricsHandler := nodemon.NewContainerMetricsHandler(exporter, logger) // GPU-only (backward compat)
 
-	// Only start process-introspection collectors (JVM, Node.js) when explicitly enabled
-	// via Helm values (runtimeMetrics.enabled). They require hostPID: true and SYS_PTRACE
+	// Only start process-introspection collectors when explicitly enabled via
+	// Helm values (runtimeMetrics.enabled). They require hostPID: true and SYS_PTRACE
 	// capability, which are only granted in the pod spec when runtimeMetrics.enabled is true.
 	// All of them share a single PodContainerIndex (one Pod informer/watch) rather than
 	// each running their own.
 	//
 	// /container/runtime-metrics (RuntimeCollector) is the combined endpoint the zxporter
 	// collector actually polls each cycle — one /proc walk covering every runtime. The
-	// legacy per-runtime /container/jvm-metrics and /container/nodejs-metrics endpoints
-	// (their own JVMCollector/NodeJSCollector, each with its own /proc walk) are kept
-	// alongside it for backward compatibility (existing CI/docs/direct debugging use).
+	// legacy /container/jvm-metrics endpoint (its own JVMCollector and /proc walk) is
+	// kept alongside it for backward compatibility with already-shipped consumers.
 	var jvmMetricsHandler http.Handler
-	var nodeJSMetricsHandler http.Handler
 	var runtimeMetricsHandler http.Handler
 	var podContainerIndex *nodemon.PodContainerIndex
 	runtimeMetricsEnabled := os.Getenv("RUNTIME_METRICS_ENABLED") == "true"
@@ -130,16 +128,12 @@ func main() {
 		podContainerIndex = nodemon.NewPodContainerIndex(cfg.NodeName, k8sClient, logger)
 		if err := podContainerIndex.Start(); err != nil {
 			logger.Error(err,
-				"Failed to start pod container index — JVM/Node.js metrics unavailable, nodemon will continue")
+				"Failed to start pod container index — runtime metrics unavailable, nodemon will continue")
 			podContainerIndex = nil
 		} else {
 			jvmCollector := nodemon.NewJVMCollector(cfg.NodeName, podContainerIndex, logger)
 			jvmMetricsHandler = nodemon.NewJVMMetricsHandler(jvmCollector, logger)
 			logger.Info("JVM metrics collection enabled")
-
-			nodeJSCollector := nodemon.NewNodeJSCollector(cfg.NodeName, podContainerIndex, logger)
-			nodeJSMetricsHandler = nodemon.NewNodeJSMetricsHandler(nodeJSCollector, logger)
-			logger.Info("Node.js metrics collection enabled")
 
 			runtimeCollector := nodemon.NewRuntimeCollector(cfg.NodeName, podContainerIndex, logger)
 			runtimeMetricsHandler = nodemon.NewRuntimeMetricsHandler(runtimeCollector, logger)
@@ -149,7 +143,7 @@ func main() {
 		logger.Info("Runtime metrics collection disabled (set runtimeMetrics.enabled=true in Helm values to enable)")
 	}
 
-	mux := nodemon.NewServerMux(containerMetricsHandler, jvmMetricsHandler, nodeJSMetricsHandler, runtimeMetricsHandler)
+	mux := nodemon.NewServerMux(containerMetricsHandler, jvmMetricsHandler, runtimeMetricsHandler)
 
 	// Register unified endpoints
 	mux.Handle("/v2/container/metrics", nodemon.NewUnifiedContainerHandler(unifiedExporter, logger))

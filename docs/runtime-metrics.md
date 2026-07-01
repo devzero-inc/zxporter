@@ -1,4 +1,4 @@
-# Generic runtime detection (.NET, Go, GraalVM, Python, Ruby, Deno, Bun)
+# Runtime detection (Node.js, .NET, Go, GraalVM, Python, Ruby, Deno, Bun)
 
 `zxporter-nodemon` automatically detects the language runtime running in every
 container on the node — no customer opt-in, no workload changes — and reports
@@ -16,6 +16,7 @@ gated by `runtimeMetrics.enabled` (default `true`).
 
 | Runtime | Detected via | Version sources (in order) |
 |---|---|---|
+| Node.js (`nodejs`) | comm/argv0 `node`, or interpreter exe basename (npm/npx-style script comms) | `NODE_VERSION` env (official Docker Hub images); embedded `nodejs.org/download/release/vX.Y.Z/` release-URL scan |
 | .NET (`dotnet`) | comm/argv0 `dotnet`, or mapped `libcoreclr.so` (apphost-deployed apps) | `DOTNET_VERSION` env; `Microsoft.NETCore.App/<ver>/` in `/proc/<pid>/maps` |
 | Go (`go`) | embedded Go build info in the executable (probe) | build info (`go1.x.y`, prefix stripped) |
 | GraalVM native-image (`graalvm-native-image`) | SubstrateVM ELF section in the executable (probe) | embedded `GraalVM ...` release string (best-effort) |
@@ -34,8 +35,9 @@ counters file).
 ## Endpoint
 
 These detections are served in the `runtimes` bucket of the combined endpoint
-(alongside the `jvm` and `nodejs` buckets — see `docs/jvm-metrics.md` and
-`docs/nodejs-metrics.md`):
+(alongside the `jvm` bucket — see `docs/jvm-metrics.md`; JVM stays separate
+because its payload is hsperfdata-backed heap metrics + flag extraction, not
+just existence + version):
 
 ```
 GET http://<nodemon>:6061/container/runtime-metrics

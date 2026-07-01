@@ -40,8 +40,7 @@ type runtimeMetricsHandler struct {
 // NewRuntimeMetricsHandler creates an HTTP handler for GET /container/runtime-metrics,
 // the combined JVM + Node.js endpoint backed by a single /proc walk. Supports the
 // same ?container=, ?pod=, ?namespace=, ?node= query filters as the legacy
-// /container/jvm-metrics and /container/nodejs-metrics endpoints, applied to both
-// slices.
+// /container/jvm-metrics endpoint, applied to both slices.
 func NewRuntimeMetricsHandler(querier RuntimeMetricsQuerier, log logr.Logger) http.Handler {
 	return &runtimeMetricsHandler{
 		querier: querier,
@@ -66,9 +65,6 @@ func (h *runtimeMetricsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 		Namespace: r.URL.Query().Get("namespace"),
 		Node:      r.URL.Query().Get("node"),
 	}
-	// jvmMetricsFilter and nodeJSMetricsFilter are structurally identical (same
-	// field names/types) — a straight conversion instead of copying field-by-field.
-	nodeJSFilter := nodeJSMetricsFilter(jvmFilter)
 
 	// Hard cap to avoid stalling the HTTP server / probes, matching the legacy handlers.
 	ctx, cancel := context.WithTimeout(r.Context(), 2500*time.Millisecond)
@@ -80,7 +76,7 @@ func (h *runtimeMetricsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 		// their errors, so a failure in one doesn't discard data the other side
 		// successfully built. Only treat this as a hard failure when there's
 		// nothing usable at all; otherwise log it and serve the partial result.
-		if len(metrics.JVM) == 0 && len(metrics.NodeJS) == 0 && len(metrics.Runtimes) == 0 {
+		if len(metrics.JVM) == 0 && len(metrics.Runtimes) == 0 {
 			if ctx.Err() != nil {
 				h.log.Error(ctx.Err(), "Timed out querying runtime metrics")
 				http.Error(w, "runtime metrics query timed out", http.StatusGatewayTimeout)
@@ -97,17 +93,11 @@ func (h *runtimeMetricsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 
 	result := RuntimeMetrics{
 		JVM:      make([]JVMMetric, 0, len(metrics.JVM)),
-		NodeJS:   make([]NodeJSMetric, 0, len(metrics.NodeJS)),
 		Runtimes: make([]RuntimeProcessMetric, 0, len(metrics.Runtimes)),
 	}
 	for i := range metrics.JVM {
 		if jvmFilter.matches(&metrics.JVM[i]) {
 			result.JVM = append(result.JVM, metrics.JVM[i])
-		}
-	}
-	for i := range metrics.NodeJS {
-		if nodeJSFilter.matches(&metrics.NodeJS[i]) {
-			result.NodeJS = append(result.NodeJS, metrics.NodeJS[i])
 		}
 	}
 	for i := range metrics.Runtimes {

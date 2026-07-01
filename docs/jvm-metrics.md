@@ -55,7 +55,7 @@ Expected fields include:
 
 ## Combined endpoint
 
-`GET /container/runtime-metrics` returns `{"jvm": [...], "nodejs": [...]}` from a single
-`/proc` walk covering every process-introspection collector (see `docs/nodejs-metrics.md`).
+`GET /container/runtime-metrics` returns `{"jvm": [...], "runtimes": [...]}` from a single
+`/proc` walk covering every process-introspection collector (see `docs/runtime-metrics.md`).
 This is what the zxporter collector actually polls each cycle; `/container/jvm-metrics`
 remains available separately for direct debugging/CI use.
