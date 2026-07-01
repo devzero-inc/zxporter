@@ -3,6 +3,13 @@
 {{- $gpuKey := .Values.dcgmExporter.gpuNodeSelector.key | default "" | toString }}
 {{- $gpuVal := .Values.dcgmExporter.gpuNodeSelector.value | default "" | toString }}
 {{- $split := and .Values.dcgmExporter.enabled (ne $rc "") (ne $gpuKey "") }}
+{{- /* runtimeMetrics.enabled is the canonical toggle for hostPID + root + SYS_PTRACE
+       (needed by every process-introspection collector: JVM, Node.js, ...). jvmMetrics.enabled
+       is kept as a deprecated fallback for installs that already override it explicitly. */}}
+{{- $runtimeMetricsEnabled := .Values.jvmMetrics.enabled }}
+{{- if hasKey (.Values.runtimeMetrics | default dict) "enabled" }}
+{{- $runtimeMetricsEnabled = .Values.runtimeMetrics.enabled }}
+{{- end }}
 {{- $base := include "zxporter-nodemon.fullname" . }}
 {{- $gpuName := printf "%s-gpu" ($base | trunc 59 | trimSuffix "-") }}
 {{- $variants := list (dict "name" $base "instance" $base "withDcgm" .Values.dcgmExporter.enabled "rc" "" "gpuAff" "none") }}
@@ -56,7 +63,7 @@ spec:
              this subchart when standalone, or the parent chart when bundled) can't drift. */}}
       priorityClassName: devzero-zxporter-devzero-zxporter-critical
       {{- end }}
-      {{- if $.Values.jvmMetrics.enabled }}
+      {{- if $runtimeMetricsEnabled }}
       hostPID: true
       {{- end }}
       {{- with $.Values.imagePullSecrets }}
@@ -127,7 +134,7 @@ spec:
       containers:
         - name: zxporter-nodemon
           securityContext:
-          {{- if $.Values.jvmMetrics.enabled }}
+          {{- if $runtimeMetricsEnabled }}
             runAsNonRoot: false
             runAsUser: 0
             readOnlyRootFilesystem: true
@@ -159,8 +166,8 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
-            - name: "JVM_METRICS_ENABLED"
-              value: {{ $.Values.jvmMetrics.enabled | quote }}
+            - name: "RUNTIME_METRICS_ENABLED"
+              value: {{ $runtimeMetricsEnabled | quote }}
 
           {{- if $v.withDcgm }}
             - name: "DCGM_HOST"

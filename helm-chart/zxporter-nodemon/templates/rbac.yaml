@@ -1,3 +1,7 @@
+{{- $runtimeMetricsEnabled := .Values.jvmMetrics.enabled }}
+{{- if hasKey (.Values.runtimeMetrics | default dict) "enabled" }}
+{{- $runtimeMetricsEnabled = .Values.runtimeMetrics.enabled }}
+{{- end }}
 {{- if .Values.serviceAccount.create -}}
 apiVersion: v1
 kind: ServiceAccount
@@ -29,7 +33,7 @@ rules:
   verbs:
   - get
   - list
-  {{- if .Values.jvmMetrics.enabled }}
+  {{- if $runtimeMetricsEnabled }}
   - watch
   {{- end }}
 - apiGroups:
