@@ -76,6 +76,12 @@ jobs:
           kubectl -n jvm-spike rollout status deploy/java21-per-flag-sources --timeout=300s
           kubectl -n jvm-spike rollout status deploy/not-java --timeout=300s
 
+      - name: Deploy Node.js test workloads (validates the combined endpoint serves both runtimes)
+        run: |
+          kubectl apply -f test/fixtures/nodejs-apps.yaml
+          kubectl -n nodejs-spike rollout status deploy/node-version-env --timeout=300s
+          kubectl -n nodejs-spike rollout status deploy/not-node --timeout=300s
+
       - name: Validate nodemon JVM metrics output (baseline)
         run: |
           POD_IP=$(kubectl -n devzero-system get pod -l app.kubernetes.io/name=zxporter-nodemon -o jsonpath='{.items[0].status.podIP}')
@@ -204,6 +210,28 @@ jobs:
           if (heap.get('max_bytes') or 0) <= 0:
               raise SystemExit(f'java21-per-flag-sources expected heap.max_bytes > 0; got heap={heap}')
           assert_close('java21-per-flag-sources heap.max_bytes vs xmx_bytes', heap.get('max_bytes'), flags.get('xmx_bytes'))
+
+          # --- Combined /container/runtime-metrics endpoint ---
+          # This is the endpoint the zxporter collector actually polls each cycle
+          # (single /proc walk covering both runtimes). Deploying only Node.js
+          # workloads in nodejs-metrics-kind, or only JVM workloads here, would
+          # never catch one bucket silently coming back empty/broken — so this
+          # JVM-flavored workflow also deploys a couple of Node.js fixtures and
+          # checks the "nodejs" bucket, symmetric to what nodejs-metrics-kind does
+          # for the "jvm" bucket.
+          runtime_url = f'http://{pod_ip}:6061/container/runtime-metrics'
+          with urllib.request.urlopen(runtime_url, timeout=30) as r:
+              runtime = json.loads(r.read().decode('utf-8'))
+
+          jvm_pods = {m.get('pod') for m in runtime.get('jvm', [])}
+          if not any((p or '').startswith('java8-xmx-only') for p in jvm_pods):
+              raise SystemExit(f'runtime-metrics missing java8-xmx-only in jvm bucket; got {jvm_pods}')
+
+          nodejs_pods = {m.get('pod') for m in runtime.get('nodejs', [])}
+          if not any((p or '').startswith('node-version-env') for p in nodejs_pods):
+              raise SystemExit(f'runtime-metrics missing node-version-env in nodejs bucket; got {nodejs_pods}')
+          if any((p or '').startswith('not-node') for p in nodejs_pods):
+              raise SystemExit(f'runtime-metrics unexpectedly includes not-node in nodejs bucket; got {nodejs_pods}')
 
           print('OK')
           PY
