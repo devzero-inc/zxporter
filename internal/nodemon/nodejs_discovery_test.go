@@ -58,7 +58,7 @@ func TestResolveNodeVersion_FromEnv(t *testing.T) {
 
 	version, source := resolveNodeVersion(pidDir)
 	assert.Equal(t, "20.11.1", version)
-	assert.Equal(t, nodeVersionSourceEnv, source)
+	assert.Equal(t, runtimeVersionSourceEnv, source)
 }
 
 func TestResolveNodeVersion_FromBinaryScan(t *testing.T) {
@@ -67,7 +67,7 @@ func TestResolveNodeVersion_FromBinaryScan(t *testing.T) {
 
 	version, source := resolveNodeVersion(pidDir)
 	assert.Equal(t, "18.19.1", version)
-	assert.Equal(t, nodeVersionSourceBinaryScan, source)
+	assert.Equal(t, runtimeVersionSourceBinaryScan, source)
 }
 
 func TestResolveNodeVersion_EnvTakesPrecedenceOverBinaryScan(t *testing.T) {
@@ -76,7 +76,7 @@ func TestResolveNodeVersion_EnvTakesPrecedenceOverBinaryScan(t *testing.T) {
 
 	version, source := resolveNodeVersion(pidDir)
 	assert.Equal(t, "20.11.1", version, "env var must win over binary scan")
-	assert.Equal(t, nodeVersionSourceEnv, source)
+	assert.Equal(t, runtimeVersionSourceEnv, source)
 }
 
 func TestResolveNodeVersion_Unknown(t *testing.T) {

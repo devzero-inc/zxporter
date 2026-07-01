@@ -11,33 +11,50 @@ import (
 )
 
 // RuntimeMetrics bundles the process-introspection metrics collected in a single
-// /proc walk, across every supported runtime.
+// /proc walk, across every supported runtime. JVM has its own bucket because its
+// payload is hsperfdata-backed heap metrics + flag extraction; every other
+// runtime (Node.js, .NET, Go, GraalVM native-image, Python, Ruby, Deno, Bun) is
+// existence + best-effort version and shares the generic shape.
 type RuntimeMetrics struct {
-	JVM    []JVMMetric    `json:"jvm"`
-	NodeJS []NodeJSMetric `json:"nodejs"`
-	// Runtimes carries the generic-runtime detections (.NET, Go, GraalVM
-	// native-image, Python, Ruby, Deno, Bun) — existence + best-effort version.
+	JVM      []JVMMetric            `json:"jvm"`
 	Runtimes []RuntimeProcessMetric `json:"runtimes"`
 }
 
-// RuntimeCollector performs a single /proc walk per query and builds metrics for
-// every discovered runtime (JVM, Node.js), instead of running an independent
-// JVMCollector and NodeJSCollector walk. This is what backs the combined
-// /container/runtime-metrics endpoint, which the zxporter collector uses instead
-// of issuing two separate per-cycle HTTP fetches.
+// versionResolveInfo is the cached result of resolving a container's runtime
+// version.
+type versionResolveInfo struct {
+	Version string
+	Source  string
+	// Attempts counts unresolved resolution attempts so far. Bounds retries for
+	// containers that will never resolve (custom/stripped binary, or the marker
+	// string genuinely beyond the scan window) — without this, an unresolved
+	// result would trigger a fresh (up to 64MiB) binary scan on every single
+	// scrape cycle for the container's entire lifetime.
+	Attempts int
+}
+
+// maxVersionResolveAttempts caps how many scrape cycles retry an unresolved
+// version (and an unknown probe classification) before giving up. Small enough
+// to bound worst-case scan cost, large enough to ride out a few cycles of
+// "process still starting" transient failures.
+const maxVersionResolveAttempts = 5
+
+// RuntimeCollector performs a single /proc walk per query and builds metrics
+// for every discovered runtime. This backs the combined
+// /container/runtime-metrics endpoint, which the zxporter collector polls once
+// per cycle.
 type RuntimeCollector struct {
 	nodeName string
 	index    *PodContainerIndex
 	procRoot string
 	log      logr.Logger
 
-	mu               sync.Mutex
-	nodeVersionCache map[string]nodeVersionInfo
-	// runtimeVersionCache caches generic-runtime version resolution keyed by
-	// containerID+"/"+runtime, with the same bounded-retry semantics as the
-	// Node.js cache (a container can host processes of more than one runtime, so
-	// containerID alone is not a sufficient key).
-	runtimeVersionCache map[string]nodeVersionInfo
+	mu sync.Mutex
+	// versionCache caches version resolution keyed by containerID+"/"+runtime,
+	// with bounded retries (a container can host processes of more than one
+	// runtime, so containerID alone is not a sufficient key). Rebuilt each
+	// completed cycle to only retain currently-running containers.
+	versionCache map[string]versionResolveInfo
 	// probeCache memoizes executable-probe classifications (see newMemoizedProbe)
 	// so long-lived unclassifiable processes aren't re-inspected every cycle.
 	probeCache map[string]probeCacheEntry
@@ -48,17 +65,16 @@ type RuntimeCollector struct {
 // defaults to "/proc".
 func NewRuntimeCollector(nodeName string, index *PodContainerIndex, log logr.Logger) *RuntimeCollector {
 	return &RuntimeCollector{
-		nodeName:            nodeName,
-		index:               index,
-		procRoot:            "/proc",
-		log:                 log.WithName("runtime-collector"),
-		nodeVersionCache:    make(map[string]nodeVersionInfo),
-		runtimeVersionCache: make(map[string]nodeVersionInfo),
-		probeCache:          make(map[string]probeCacheEntry),
+		nodeName:     nodeName,
+		index:        index,
+		procRoot:     "/proc",
+		log:          log.WithName("runtime-collector"),
+		versionCache: make(map[string]versionResolveInfo),
+		probeCache:   make(map[string]probeCacheEntry),
 	}
 }
 
-// QueryRuntimeMetrics returns JVM, Node.js, and generic-runtime metrics for all
+// QueryRuntimeMetrics returns JVM and generic-runtime metrics for all
 // discovered containers on this node, from a single /proc walk.
 func (c *RuntimeCollector) QueryRuntimeMetrics(ctx context.Context) (RuntimeMetrics, error) {
 	start := time.Now()
@@ -68,18 +84,18 @@ func (c *RuntimeCollector) QueryRuntimeMetrics(ctx context.Context) (RuntimeMetr
 	c.mu.Unlock()
 	probe, nextProbeCache := newMemoizedProbe(prevProbeCache, probeRuntimeProcess)
 
-	javaProcs, nodeProcs, runtimeProcs, err := discoverRuntimeProcesses(c.procRoot, probe)
+	javaProcs, runtimeProcs, err := discoverRuntimeProcesses(c.procRoot, probe)
 	if err != nil {
 		return RuntimeMetrics{}, fmt.Errorf("discovering runtime processes: %w", err)
 	}
 	c.log.Info("Discovered runtime processes",
-		"java", len(javaProcs), "nodejs", len(nodeProcs), "other", len(runtimeProcs),
+		"java", len(javaProcs), "other", len(runtimeProcs),
 		"took", time.Since(start).String())
 
-	// Always attempt every build, even if one is cancelled/errors — a slow JVM
-	// hsperfdata read (many Java containers) must not starve Node.js or
-	// generic-runtime visibility for the cycle, and vice versa, even though they
-	// share one /proc walk.
+	// Always attempt both builds, even if one is cancelled/errors — a slow JVM
+	// hsperfdata read (many Java containers) must not starve generic-runtime
+	// visibility for the cycle, and vice versa, even though they share one
+	// /proc walk.
 	jvmMetrics, jvmErr := buildJVMMetrics(ctx, javaProcs, c.index, c.nodeName, c.log)
 
 	c.mu.Lock()
@@ -89,34 +105,32 @@ func (c *RuntimeCollector) QueryRuntimeMetrics(ctx context.Context) (RuntimeMetr
 	// running container — adopt it (drops entries for dead containers).
 	c.probeCache = nextProbeCache
 
-	nodeJSMetrics, newCache, nodeJSErr := buildNodeJSMetrics(ctx, nodeProcs, c.index, c.nodeName, c.nodeVersionCache, c.log)
-	if nodeJSErr == nil {
-		c.nodeVersionCache = newCache
-	}
-
-	runtimeMetrics, newRuntimeCache, runtimeErr := buildRuntimeProcessMetrics(ctx, runtimeProcs, c.index, c.nodeName, c.runtimeVersionCache, c.log)
+	// Only adopt the rebuilt version cache on a completed (non-cancelled) pass —
+	// on cancellation buildRuntimeProcessMetrics returns a partial cache covering
+	// only the containers processed so far, and swapping it in would drop cached
+	// entries for containers not yet reached this cycle.
+	runtimeMetrics, newCache, runtimeErr := buildRuntimeProcessMetrics(ctx, runtimeProcs, c.index, c.nodeName, c.versionCache, c.log)
 	if runtimeErr == nil {
-		c.runtimeVersionCache = newRuntimeCache
+		c.versionCache = newCache
 	}
 
-	return RuntimeMetrics{JVM: jvmMetrics, NodeJS: nodeJSMetrics, Runtimes: runtimeMetrics},
-		errors.Join(jvmErr, nodeJSErr, runtimeErr)
+	return RuntimeMetrics{JVM: jvmMetrics, Runtimes: runtimeMetrics},
+		errors.Join(jvmErr, runtimeErr)
 }
 
-// buildRuntimeProcessMetrics resolves (with caching and the same bounded-retry
-// semantics as buildNodeJSMetrics) the version for each discovered
-// generic-runtime process and builds the corresponding RuntimeProcessMetric.
-// Returns the updated cache (rebuilt to only retain currently-running
-// container/runtime pairs) alongside the metrics.
+// buildRuntimeProcessMetrics resolves (with caching and bounded retries) the
+// version for each discovered generic-runtime process and builds the
+// corresponding RuntimeProcessMetric. Returns the updated cache (rebuilt to
+// only retain currently-running container/runtime pairs) alongside the metrics.
 func buildRuntimeProcessMetrics(
 	ctx context.Context,
 	procs []RuntimeProcess,
 	index *PodContainerIndex,
 	nodeName string,
-	cache map[string]nodeVersionInfo,
+	cache map[string]versionResolveInfo,
 	log logr.Logger,
-) ([]RuntimeProcessMetric, map[string]nodeVersionInfo, error) {
-	newCache := make(map[string]nodeVersionInfo, len(procs))
+) ([]RuntimeProcessMetric, map[string]versionResolveInfo, error) {
+	newCache := make(map[string]versionResolveInfo, len(procs))
 	metrics := make([]RuntimeProcessMetric, 0, len(procs))
 	for _, proc := range procs {
 		select {
@@ -126,11 +140,16 @@ func buildRuntimeProcessMetrics(
 		default:
 		}
 
+		// Only treat a cache hit as authoritative if it actually resolved a
+		// version — an unresolved result (transient /proc read failure, process
+		// not yet fully started, marker string beyond the scan window) is retried
+		// on later cycles, capped so a genuinely-unresolvable container doesn't
+		// pay a fresh scan cost every cycle forever.
 		cacheKey := proc.ContainerID + "/" + proc.Runtime
 		info, cached := cache[cacheKey]
-		if !cached || (info.Version == "" && info.Attempts < maxNodeVersionResolveAttempts) {
+		if !cached || (info.Version == "" && info.Attempts < maxVersionResolveAttempts) {
 			version, source := resolveRuntimeVersion(proc.Kind, proc.PidDir)
-			info = nodeVersionInfo{Version: version, Source: source, Attempts: info.Attempts + 1}
+			info = versionResolveInfo{Version: version, Source: source, Attempts: info.Attempts + 1}
 		}
 		newCache[cacheKey] = info
 

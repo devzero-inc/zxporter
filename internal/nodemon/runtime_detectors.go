@@ -31,6 +31,7 @@ import (
 
 // runtime names reported in RuntimeProcessMetric.Runtime.
 const (
+	runtimeNameNodeJS  = "nodejs"
 	runtimeNameDotnet  = "dotnet"
 	runtimeNameGo      = "go"
 	runtimeNameGraalVM = "graalvm-native-image"
@@ -91,6 +92,12 @@ type runtimeDetector struct {
 // java and node (which keep their dedicated pipelines).
 var extraRuntimeDetectors = []runtimeDetector{
 	{
+		name:           runtimeNameNodeJS,
+		kind:           processKindNode,
+		match:          isNodeProcess,
+		resolveVersion: resolveNodeVersion,
+	},
+	{
 		name:           runtimeNameDotnet,
 		kind:           processKindDotnet,
 		match:          commOrArgv0Matcher(func(s string) bool { return s == "dotnet" }),
@@ -127,6 +134,8 @@ var extraRuntimeDetectors = []runtimeDetector{
 // metric types).
 func runtimeNameForKind(kind processKind) string {
 	switch kind {
+	case processKindNode:
+		return runtimeNameNodeJS
 	case processKindDotnet:
 		return runtimeNameDotnet
 	case processKindGo:
@@ -225,7 +234,7 @@ func newMemoizedProbe(prev map[string]probeCacheEntry, inner func(e procEntry) p
 		if !cached {
 			entry, cached = prev[key]
 		}
-		if !cached || (entry.Kind == processKindUnknown && entry.Attempts < maxNodeVersionResolveAttempts) {
+		if !cached || (entry.Kind == processKindUnknown && entry.Attempts < maxVersionResolveAttempts) {
 			entry = probeCacheEntry{Kind: inner(e), Attempts: entry.Attempts + 1}
 		}
 		next[key] = entry

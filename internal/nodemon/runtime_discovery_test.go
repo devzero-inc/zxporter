@@ -83,20 +83,19 @@ func TestDiscoverRuntimeProcesses_SingleWalkBucketsAllKinds(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, os.Symlink(self, filepath.Join(procRoot, "400", "exe")))
 
-	javaProcs, nodeProcs, runtimeProcs, err := discoverRuntimeProcesses(procRoot, probeRuntimeProcess)
+	javaProcs, runtimeProcs, err := discoverRuntimeProcesses(procRoot, probeRuntimeProcess)
 	require.NoError(t, err)
 
 	require.Len(t, javaProcs, 1)
 	assert.Equal(t, javaContainerID, javaProcs[0].ContainerID)
 
-	require.Len(t, nodeProcs, 1)
-	assert.Equal(t, nodeContainerID, nodeProcs[0].ContainerID)
-
-	require.Len(t, runtimeProcs, 2)
+	require.Len(t, runtimeProcs, 3)
 	byRuntime := map[string]RuntimeProcess{}
 	for _, p := range runtimeProcs {
 		byRuntime[p.Runtime] = p
 	}
+	require.Contains(t, byRuntime, runtimeNameNodeJS)
+	assert.Equal(t, nodeContainerID, byRuntime[runtimeNameNodeJS].ContainerID)
 	require.Contains(t, byRuntime, runtimeNamePython)
 	assert.Equal(t, pythonContainerID, byRuntime[runtimeNamePython].ContainerID)
 	require.Contains(t, byRuntime, runtimeNameGo)
@@ -107,18 +106,16 @@ func TestDiscoverRuntimeProcesses_UnprobeableUnknownIsDropped(t *testing.T) {
 	procRoot := t.TempDir()
 	buildFakeProcTree(t, procRoot, 500, "someapp") // no exe symlink: probe fails
 
-	javaProcs, nodeProcs, runtimeProcs, err := discoverRuntimeProcesses(procRoot, probeRuntimeProcess)
+	javaProcs, runtimeProcs, err := discoverRuntimeProcesses(procRoot, probeRuntimeProcess)
 	require.NoError(t, err)
 	assert.Empty(t, javaProcs)
-	assert.Empty(t, nodeProcs)
 	assert.Empty(t, runtimeProcs)
 }
 
 func TestDiscoverRuntimeProcesses_NoMatches(t *testing.T) {
 	procRoot := t.TempDir()
-	javaProcs, nodeProcs, runtimeProcs, err := discoverRuntimeProcesses(procRoot, probeRuntimeProcess)
+	javaProcs, runtimeProcs, err := discoverRuntimeProcesses(procRoot, probeRuntimeProcess)
 	require.NoError(t, err)
 	assert.Empty(t, javaProcs)
-	assert.Empty(t, nodeProcs)
 	assert.Empty(t, runtimeProcs)
 }
