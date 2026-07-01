@@ -14,6 +14,24 @@ type RuntimeMetricsQuerier interface {
 	QueryRuntimeMetrics(ctx context.Context) (RuntimeMetrics, error)
 }
 
+// matchesRuntimeProcess applies the same container/pod/namespace/node query
+// filter to a generic-runtime metric.
+func (f jvmMetricsFilter) matchesRuntimeProcess(m *RuntimeProcessMetric) bool {
+	if f.Container != "" && m.Container != f.Container {
+		return false
+	}
+	if f.Pod != "" && m.Pod != f.Pod {
+		return false
+	}
+	if f.Namespace != "" && m.Namespace != f.Namespace {
+		return false
+	}
+	if f.Node != "" && m.NodeName != f.Node {
+		return false
+	}
+	return true
+}
+
 type runtimeMetricsHandler struct {
 	querier RuntimeMetricsQuerier
 	log     logr.Logger
@@ -62,7 +80,7 @@ func (h *runtimeMetricsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 		// their errors, so a failure in one doesn't discard data the other side
 		// successfully built. Only treat this as a hard failure when there's
 		// nothing usable at all; otherwise log it and serve the partial result.
-		if len(metrics.JVM) == 0 && len(metrics.NodeJS) == 0 {
+		if len(metrics.JVM) == 0 && len(metrics.NodeJS) == 0 && len(metrics.Runtimes) == 0 {
 			if ctx.Err() != nil {
 				h.log.Error(ctx.Err(), "Timed out querying runtime metrics")
 				http.Error(w, "runtime metrics query timed out", http.StatusGatewayTimeout)
@@ -78,8 +96,9 @@ func (h *runtimeMetricsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 	}
 
 	result := RuntimeMetrics{
-		JVM:    make([]JVMMetric, 0, len(metrics.JVM)),
-		NodeJS: make([]NodeJSMetric, 0, len(metrics.NodeJS)),
+		JVM:      make([]JVMMetric, 0, len(metrics.JVM)),
+		NodeJS:   make([]NodeJSMetric, 0, len(metrics.NodeJS)),
+		Runtimes: make([]RuntimeProcessMetric, 0, len(metrics.Runtimes)),
 	}
 	for i := range metrics.JVM {
 		if jvmFilter.matches(&metrics.JVM[i]) {
@@ -89,6 +108,11 @@ func (h *runtimeMetricsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 	for i := range metrics.NodeJS {
 		if nodeJSFilter.matches(&metrics.NodeJS[i]) {
 			result.NodeJS = append(result.NodeJS, metrics.NodeJS[i])
+		}
+	}
+	for i := range metrics.Runtimes {
+		if jvmFilter.matchesRuntimeProcess(&metrics.Runtimes[i]) {
+			result.Runtimes = append(result.Runtimes, metrics.Runtimes[i])
 		}
 	}
 

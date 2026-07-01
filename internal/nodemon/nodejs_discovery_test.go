@@ -113,10 +113,10 @@ func TestResolveNodeExePath(t *testing.T) {
 	pidDir := t.TempDir()
 	require.NoError(t, os.Symlink("/usr/local/bin/node", filepath.Join(pidDir, "exe")))
 
-	assert.Equal(t, filepath.Join(pidDir, "root", "usr", "local", "bin", "node"), resolveNodeExePath(pidDir))
+	assert.Equal(t, filepath.Join(pidDir, "root", "usr", "local", "bin", "node"), resolveExePath(pidDir))
 }
 
 func TestResolveNodeExePath_MissingSymlink(t *testing.T) {
 	pidDir := t.TempDir()
-	assert.Empty(t, resolveNodeExePath(pidDir))
+	assert.Empty(t, resolveExePath(pidDir))
 }

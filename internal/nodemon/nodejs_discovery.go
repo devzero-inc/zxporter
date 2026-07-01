@@ -130,28 +130,24 @@ func resolveNodeVersion(pidDir string) (version, source string) {
 		}
 	}
 
-	exePath := resolveNodeExePath(pidDir)
+	exePath := resolveExePath(pidDir)
 	if exePath == "" {
 		return "", ""
 	}
 
-	content := readFileCapped(exePath, maxNodeBinaryScanBytes)
-	if content == "" {
-		return "", ""
-	}
-
-	if m := nodeReleaseURLRe.FindStringSubmatch(content); len(m) == 2 {
-		return m[1], nodeVersionSourceBinaryScan
+	// Streamed in bounded chunks (not loaded whole) — see scanFileSubmatch.
+	if v := scanFileSubmatch(exePath, maxNodeBinaryScanBytes, nodeReleaseURLRe); v != "" {
+		return v, nodeVersionSourceBinaryScan
 	}
 
 	return "", ""
 }
 
-// resolveNodeExePath resolves the on-disk path to a process's executable via the
+// resolveExePath resolves the on-disk path to a process's executable via the
 // /proc/<pid>/root overlay, so it can be read from outside the process's own
 // mount namespace. Returns "" if /proc/<pid>/exe cannot be read (process may have
 // exited, or permissions are insufficient).
-func resolveNodeExePath(pidDir string) string {
+func resolveExePath(pidDir string) string {
 	target, err := os.Readlink(filepath.Join(pidDir, "exe"))
 	if err != nil || target == "" {
 		return ""

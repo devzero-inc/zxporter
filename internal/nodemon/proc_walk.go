@@ -45,6 +45,13 @@ const (
 	processKindUnknown processKind = iota
 	processKindJava
 	processKindNode
+	processKindDotnet
+	processKindGo
+	processKindGraalVM
+	processKindPython
+	processKindRuby
+	processKindDeno
+	processKindBun
 )
 
 // walkProcEntries scans procRoot (usually "/proc") and returns entries for
@@ -52,6 +59,18 @@ const (
 // resolve to a Kubernetes container cgroup and namespace PID. Returns nil, nil if
 // procRoot does not exist (non-Linux hosts).
 func walkProcEntries(procRoot string, classify func(comm, cmdline string) processKind) ([]procEntry, error) {
+	return walkProcEntriesProbed(procRoot, classify, nil)
+}
+
+// walkProcEntriesProbed is walkProcEntries plus an optional probe stage for
+// runtimes that cannot be identified from comm/cmdline (Go binaries, GraalVM
+// native images — both named after the application). When classify returns
+// processKindUnknown and probe is non-nil, the entry's container cgroup and
+// NSpid are still resolved first, and probe runs only if both succeed — so the
+// (comparatively expensive) executable inspection never runs for host daemons
+// or other non-containerized processes. Entries that remain unknown after the
+// probe are dropped.
+func walkProcEntriesProbed(procRoot string, classify func(comm, cmdline string) processKind, probe func(e procEntry) processKind) ([]procEntry, error) {
 	entries, err := os.ReadDir(procRoot)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -79,7 +98,7 @@ func walkProcEntries(procRoot string, classify func(comm, cmdline string) proces
 		cmdline := string(bytes.ReplaceAll([]byte(rawCmdline), []byte{0}, []byte{' '}))
 
 		kind := classify(comm, cmdline)
-		if kind == processKindUnknown {
+		if kind == processKindUnknown && probe == nil {
 			continue
 		}
 
@@ -95,7 +114,7 @@ func walkProcEntries(procRoot string, classify func(comm, cmdline string) proces
 			continue
 		}
 
-		procs = append(procs, procEntry{
+		entry := procEntry{
 			PidHost:     pid,
 			PidDir:      pidDir,
 			Comm:        comm,
@@ -103,7 +122,18 @@ func walkProcEntries(procRoot string, classify func(comm, cmdline string) proces
 			ContainerID: containerID,
 			Kind:        kind,
 			PidNS:       nsPid,
-		})
+		}
+
+		// Probe stage: only for containerized processes comm/cmdline couldn't
+		// classify (see walkProcEntriesProbed doc).
+		if entry.Kind == processKindUnknown {
+			entry.Kind = probe(entry)
+			if entry.Kind == processKindUnknown {
+				continue
+			}
+		}
+
+		procs = append(procs, entry)
 	}
 
 	return procs, nil
@@ -182,6 +212,56 @@ func readFileCapped(path string, maxBytes int64) string {
 		return ""
 	}
 	return string(b)
+}
+
+// scanFileSubmatch streams up to maxBytes of path through re in fixed-size
+// chunks and returns the first capture group of the first match, or "" if none.
+// Unlike readFileCapped, memory use is bounded by the chunk buffer (a few MiB)
+// regardless of maxBytes — required for the binary version scans, which read up
+// to 64MiB of runtime executables: loading that into memory per scan OOM-kills
+// nodemon under its own 256Mi limit when several containers scan in one cycle.
+// An overlap window carried between chunks ensures a match spanning a chunk
+// boundary is still found.
+func scanFileSubmatch(path string, maxBytes int64, re *regexp.Regexp) string {
+	f, err := os.Open(path)
+	if err != nil {
+		return ""
+	}
+	defer func() {
+		// close errors on a read-only scan are not actionable.
+		_ = f.Close()
+	}()
+
+	const chunkSize = 4 << 20 // 4MiB reads
+	const overlap = 4 << 10   // 4KiB carry-over: far longer than any version string we match
+	buf := make([]byte, overlap+chunkSize)
+
+	carry := 0
+	var total int64
+	for total < maxBytes {
+		want := int64(chunkSize)
+		if remaining := maxBytes - total; remaining < want {
+			want = remaining
+		}
+		n, err := io.ReadFull(f, buf[carry:int64(carry)+want])
+		total += int64(n)
+		if n > 0 {
+			valid := carry + n
+			if m := re.FindSubmatch(buf[:valid]); len(m) == 2 {
+				return string(m[1])
+			}
+			// Carry the tail forward so a boundary-spanning match is seen whole.
+			carry = overlap
+			if valid < carry {
+				carry = valid
+			}
+			copy(buf, buf[valid-carry:valid])
+		}
+		if err != nil {
+			break
+		}
+	}
+	return ""
 }
 
 // readEnvVars reads /proc/<pid>/environ-style NUL-separated key=value content

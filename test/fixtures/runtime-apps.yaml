@@ -1,0 +1,122 @@
+# Generic-runtime detection fixtures (.NET, Go, Python, Ruby, Deno, Bun) for
+# validating the "runtimes" bucket of /container/runtime-metrics.
+# GraalVM native-image has no small canonical public image, so it is covered by
+# unit tests only.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: runtime-spike
+---
+# Python: official image sets PYTHON_VERSION → resolves via env.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: python-app
+  namespace: runtime-spike
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: python-app}
+  template:
+    metadata:
+      labels: {app: python-app}
+    spec:
+      containers:
+        - name: app
+          image: python:3.12-slim
+          command: ["python3", "-c", "import time\nwhile True: time.sleep(60)"]
+---
+# Ruby: official image sets RUBY_VERSION → resolves via env.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ruby-app
+  namespace: runtime-spike
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: ruby-app}
+  template:
+    metadata:
+      labels: {app: ruby-app}
+    spec:
+      containers:
+        - name: app
+          image: ruby:3.3-slim
+          command: ["ruby", "-e", "sleep"]
+---
+# Go: caddy is a plain Go binary with an app-named comm — exercises the
+# buildinfo probe path (no env var, no cmdline signature).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: go-app
+  namespace: runtime-spike
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: go-app}
+  template:
+    metadata:
+      labels: {app: go-app}
+    spec:
+      containers:
+        - name: app
+          image: caddy:2
+---
+# .NET: framework-dependent sample app — resolves via DOTNET_VERSION env or the
+# libcoreclr path in /proc/<pid>/maps.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dotnet-app
+  namespace: runtime-spike
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: dotnet-app}
+  template:
+    metadata:
+      labels: {app: dotnet-app}
+    spec:
+      containers:
+        - name: app
+          image: mcr.microsoft.com/dotnet/samples:aspnetapp
+---
+# Deno: comm "deno"; version via DENO_VERSION env or embedded user-agent scan.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: deno-app
+  namespace: runtime-spike
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: deno-app}
+  template:
+    metadata:
+      labels: {app: deno-app}
+    spec:
+      containers:
+        - name: app
+          image: denoland/deno:latest
+          command: ["deno", "eval", "setInterval(() => {}, 60000)"]
+---
+# Bun: comm "bun"; version via embedded user-agent scan.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bun-app
+  namespace: runtime-spike
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: bun-app}
+  template:
+    metadata:
+      labels: {app: bun-app}
+    spec:
+      containers:
+        - name: app
+          image: oven/bun:1
+          command: ["bun", "-e", "setInterval(() => {}, 60000)"]
