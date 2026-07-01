@@ -48,12 +48,9 @@ func (h *runtimeMetricsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 		Namespace: r.URL.Query().Get("namespace"),
 		Node:      r.URL.Query().Get("node"),
 	}
-	nodeJSFilter := nodeJSMetricsFilter{
-		Container: jvmFilter.Container,
-		Pod:       jvmFilter.Pod,
-		Namespace: jvmFilter.Namespace,
-		Node:      jvmFilter.Node,
-	}
+	// jvmMetricsFilter and nodeJSMetricsFilter are structurally identical (same
+	// field names/types) — a straight conversion instead of copying field-by-field.
+	nodeJSFilter := nodeJSMetricsFilter(jvmFilter)
 
 	// Hard cap to avoid stalling the HTTP server / probes, matching the legacy handlers.
 	ctx, cancel := context.WithTimeout(r.Context(), 2500*time.Millisecond)
@@ -61,15 +58,23 @@ func (h *runtimeMetricsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 
 	metrics, err := h.querier.QueryRuntimeMetrics(ctx)
 	if err != nil {
-		if ctx.Err() != nil {
-			h.log.Error(ctx.Err(), "Timed out querying runtime metrics")
-			http.Error(w, "runtime metrics query timed out", http.StatusGatewayTimeout)
+		// QueryRuntimeMetrics attempts JVM and Node.js independently and joins
+		// their errors, so a failure in one doesn't discard data the other side
+		// successfully built. Only treat this as a hard failure when there's
+		// nothing usable at all; otherwise log it and serve the partial result.
+		if len(metrics.JVM) == 0 && len(metrics.NodeJS) == 0 {
+			if ctx.Err() != nil {
+				h.log.Error(ctx.Err(), "Timed out querying runtime metrics")
+				http.Error(w, "runtime metrics query timed out", http.StatusGatewayTimeout)
+				return
+			}
+
+			h.log.Error(err, "Failed to query runtime metrics")
+			http.Error(w, "internal server error", http.StatusInternalServerError)
 			return
 		}
 
-		h.log.Error(err, "Failed to query runtime metrics")
-		http.Error(w, "internal server error", http.StatusInternalServerError)
-		return
+		h.log.Error(err, "Runtime metrics query partially failed; serving partial results")
 	}
 
 	result := RuntimeMetrics{

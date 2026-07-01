@@ -35,7 +35,7 @@ func TestRuntimeCollector_QueryRuntimeMetrics_SingleWalkCoversBothKinds(t *testi
 
 func TestRuntimeCollector_QueryRuntimeMetrics_CachesNodeVersionAcrossCalls(t *testing.T) {
 	binary := "junk https://nodejs.org/download/release/v20.11.1/node-v20.11.1.tar.gz junk"
-	procRoot, containerID := buildFakeNodeProc(t, 300, "PATH=/usr/bin\x00", "/usr/local/bin/node", binary)
+	procRoot, containerID := buildFakeNodeProc(t, 300, "/usr/local/bin/node", binary)
 
 	idx := &PodContainerIndex{containerMap: map[string]containerInfo{}}
 	c := NewRuntimeCollector("node-1", idx, testr.New(t))
