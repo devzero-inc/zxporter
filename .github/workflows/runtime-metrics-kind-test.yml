@@ -316,23 +316,47 @@ jobs:
           for m in generic:
               by_runtime.setdefault(m.get('runtime'), []).append(m)
 
+          # Per-runtime: which pod must be detected, which resolution path(s) are
+          # acceptable, and what the version must look like where the fixture
+          # image pins it. The allowed sources are the fixture's *point*: go-app
+          # (caddy) must resolve via the buildinfo probe, python/ruby via the
+          # official images' env vars, bun via the embedded user-agent scan.
+          # dotnet/deno allow two sources because their images have carried the
+          # env var in some tags and not others.
           expected = {
-              'python': 'python-app',
-              'ruby': 'ruby-app',
-              'go': 'go-app',
-              'dotnet': 'dotnet-app',
-              'deno': 'deno-app',
-              'bun': 'bun-app',
+              'python': ('python-app', {'env'}, '3.12.'),
+              'ruby':   ('ruby-app', {'env'}, '3.3.'),
+              'go':     ('go-app', {'buildinfo'}, ''),
+              'dotnet': ('dotnet-app', {'env', 'maps'}, ''),
+              'deno':   ('deno-app', {'env', 'binary-scan'}, ''),
+              'bun':    ('bun-app', {'env', 'binary-scan'}, ''),
           }
-          for runtime_name, pod_prefix in expected.items():
+          for runtime_name, (pod_prefix, allowed_sources, version_prefix) in expected.items():
               entries = by_runtime.get(runtime_name, [])
               match = [m for m in entries if (m.get('pod', '') or '').startswith(pod_prefix)]
               if not match:
                   raise SystemExit(
                       f'runtimes bucket missing {runtime_name} for {pod_prefix}; got '
                       f'{[(m.get("runtime"), m.get("pod")) for m in generic]}')
-              if not match[0].get('version'):
-                  raise SystemExit(f'{runtime_name} ({pod_prefix}) expected a resolved version, got {match[0]!r}')
+              m = match[0]
+              if not m.get('version'):
+                  raise SystemExit(f'{runtime_name} ({pod_prefix}) expected a resolved version, got {m!r}')
+              if m.get('version_source') not in allowed_sources:
+                  raise SystemExit(
+                      f'{runtime_name} ({pod_prefix}) expected version_source in {sorted(allowed_sources)}, '
+                      f'got {m.get("version_source")!r}')
+              if version_prefix and not m['version'].startswith(version_prefix):
+                  raise SystemExit(
+                      f'{runtime_name} ({pod_prefix}) expected version {version_prefix}x (fixture image pin), '
+                      f'got {m["version"]!r}')
+              if not m.get('raw_cmdline'):
+                  raise SystemExit(f'{runtime_name} ({pod_prefix}) expected raw_cmdline to be populated, got {m!r}')
+
+          # Cross-container isolation: a detection must carry its own pod's
+          # metadata, not leak another container's.
+          go_entry = [m for m in by_runtime.get('go', []) if (m.get('pod', '') or '').startswith('go-app')][0]
+          if go_entry.get('namespace') != 'runtime-spike' or not go_entry.get('container_id'):
+              raise SystemExit(f'go-app entry has bad pod metadata: {go_entry!r}')
 
           print('OK')
           PY
