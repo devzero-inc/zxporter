@@ -79,6 +79,13 @@ jobs:
           kubectl apply -f test/fixtures/jvm-apps.yaml
           kubectl -n jvm-spike rollout status deploy/java8-xmx-only --timeout=300s
 
+      - name: Deploy generic-runtime test workloads (.NET, Go, Python, Ruby, Deno, Bun)
+        run: |
+          kubectl apply -f test/fixtures/runtime-apps.yaml
+          for d in python-app ruby-app go-app dotnet-app deno-app bun-app; do
+            kubectl -n runtime-spike rollout status deploy/$d --timeout=600s
+          done
+
       - name: Validate nodemon Node.js + combined runtime metrics output
         run: |
           POD_IP=$(kubectl -n devzero-system get pod -l app.kubernetes.io/name=zxporter-nodemon -o jsonpath='{.items[0].status.podIP}')
@@ -146,6 +153,32 @@ jobs:
           jvm_pods = {m.get('pod') for m in runtime.get('jvm', [])}
           if not any((p or '').startswith('java8-xmx-only') for p in jvm_pods):
               raise SystemExit(f'runtime-metrics missing java8-xmx-only in jvm bucket; got {jvm_pods}')
+
+          # --- Generic runtimes bucket ---
+          # dotnet-app deliberately exercises the apphost probe path (comm is the
+          # app name, not "dotnet"); go-app exercises the buildinfo probe.
+          generic = fetch('/container/runtime-metrics?namespace=runtime-spike').get('runtimes', [])
+          by_runtime = {}
+          for m in generic:
+              by_runtime.setdefault(m.get('runtime'), []).append(m)
+
+          expected = {
+              'python': 'python-app',
+              'ruby': 'ruby-app',
+              'go': 'go-app',
+              'dotnet': 'dotnet-app',
+              'deno': 'deno-app',
+              'bun': 'bun-app',
+          }
+          for runtime_name, pod_prefix in expected.items():
+              entries = by_runtime.get(runtime_name, [])
+              match = [m for m in entries if (m.get('pod', '') or '').startswith(pod_prefix)]
+              if not match:
+                  raise SystemExit(
+                      f'runtimes bucket missing {runtime_name} for {pod_prefix}; got '
+                      f'{[(m.get("runtime"), m.get("pod")) for m in generic]}')
+              if not match[0].get('version'):
+                  raise SystemExit(f'{runtime_name} ({pod_prefix}) expected a resolved version, got {match[0]!r}')
 
           print('OK')
           PY

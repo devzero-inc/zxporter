@@ -8,13 +8,14 @@ import (
 	"net/http"
 )
 
-// NodemonRuntimeMetrics bundles the combined JVM + Node.js metrics returned by
-// the nodemon GET /container/runtime-metrics endpoint — one HTTP round-trip and
-// one /proc walk per node instead of the two separate FetchAllJVMMetrics /
-// FetchAllNodeJSMetrics calls.
+// NodemonRuntimeMetrics bundles the combined JVM + Node.js + generic-runtime
+// metrics returned by the nodemon GET /container/runtime-metrics endpoint — one
+// HTTP round-trip and one /proc walk per node instead of separate per-runtime
+// fetches.
 type NodemonRuntimeMetrics struct {
-	JVM    []NodemonJVMMetrics    `json:"jvm"`
-	NodeJS []NodemonNodeJSMetrics `json:"nodejs"`
+	JVM      []NodemonJVMMetrics            `json:"jvm"`
+	NodeJS   []NodemonNodeJSMetrics         `json:"nodejs"`
+	Runtimes []NodemonRuntimeProcessMetrics `json:"runtimes"`
 }
 
 // FetchAllRuntimeMetrics discovers all nodemon pods and fetches combined JVM +
@@ -38,6 +39,7 @@ func (c *NodemonClient) FetchAllRuntimeMetrics(ctx context.Context) (NodemonRunt
 		}
 		all.JVM = append(all.JVM, metrics.JVM...)
 		all.NodeJS = append(all.NodeJS, metrics.NodeJS...)
+		all.Runtimes = append(all.Runtimes, metrics.Runtimes...)
 	}
 	return all, nil
 }
