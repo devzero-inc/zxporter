@@ -34,8 +34,10 @@ const (
 // impact to suppress: the extracted value is display-only telemetry (NodeVersion),
 // never fetched or used for any trust/redirect/file-path decision. A crafted
 // binary could at worst cause a wrong version number to be reported for that
-// binary's own container — no escalation, no cross-tenant effect.
-// codeql[go/regex/missing-regexp-anchor]
+// binary's own container — no escalation, no cross-tenant effect. Dismissed as a
+// false positive on the code-scanning alert directly (this repo runs CodeQL via
+// Default Setup, which doesn't honor inline `codeql[...]` suppression comments —
+// that's an Advanced Setup-only feature).
 var nodeReleaseURLRe = regexp.MustCompile(`https://nodejs\.org/download/release/v(\d+\.\d+\.\d+)/`)
 
 // maxNodeBinaryScanBytes bounds the read-only scan of a discovered node binary.
