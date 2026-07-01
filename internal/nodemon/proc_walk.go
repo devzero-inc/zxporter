@@ -264,6 +264,18 @@ func scanFileSubmatch(path string, maxBytes int64, re *regexp.Regexp) string {
 	return ""
 }
 
+// resolveExePath resolves the on-disk path to a process's executable via the
+// /proc/<pid>/root overlay, so it can be read from outside the process's own
+// mount namespace. Returns "" if /proc/<pid>/exe cannot be read (process may have
+// exited, or permissions are insufficient).
+func resolveExePath(pidDir string) string {
+	target, err := os.Readlink(filepath.Join(pidDir, "exe"))
+	if err != nil || target == "" {
+		return ""
+	}
+	return filepath.Join(pidDir, "root", target)
+}
+
 // readEnvVars reads /proc/<pid>/environ-style NUL-separated key=value content
 // and returns the requested keys that are present and non-empty.
 func readEnvVars(environPath string, keys ...string) map[string]string {

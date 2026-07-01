@@ -57,15 +57,6 @@ func strFromMap(m map[string]interface{}, key string) string {
 	return s
 }
 
-func boolFromMap(m map[string]interface{}, key string) bool {
-	v, ok := m[key]
-	if !ok || v == nil {
-		return false
-	}
-	b, _ := v.(bool)
-	return b
-}
-
 func i64FromMap(m map[string]interface{}, key string) int64 {
 	v, ok := m[key]
 	if !ok || v == nil {
