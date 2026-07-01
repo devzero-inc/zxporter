@@ -41,6 +41,10 @@ type ContainerResourceCollectorConfig struct {
 	// DisableJVMMetrics determines whether to disable JVM metrics collection (via zxporter-nodemon).
 	// Default is false.
 	DisableJVMMetrics bool
+
+	// DisableNodeJSMetrics determines whether to disable Node.js detection (via zxporter-nodemon).
+	// Default is false.
+	DisableNodeJSMetrics bool
 }
 
 func strFromMap(m map[string]interface{}, key string) string {
@@ -50,6 +54,15 @@ func strFromMap(m map[string]interface{}, key string) string {
 	}
 	s, _ := v.(string)
 	return s
+}
+
+func boolFromMap(m map[string]interface{}, key string) bool {
+	v, ok := m[key]
+	if !ok || v == nil {
+		return false
+	}
+	b, _ := v.(bool)
+	return b
 }
 
 func i64FromMap(m map[string]interface{}, key string) int64 {
@@ -323,6 +336,17 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 		}
 	}
 
+	// Pre-fetch Node.js detection metrics from the nodemon (one HTTP call for the entire cycle)
+	var nodeJSIndex map[gpuContainerKey]NodemonNodeJSMetrics
+	if c.nodemonClient != nil && !c.config.DisableNodeJSMetrics {
+		allNodeJSMetrics, err := c.nodemonClient.FetchAllNodeJSMetrics(ctx)
+		if err != nil {
+			c.logger.Error(err, "Failed to fetch Node.js metrics from nodemon")
+		} else {
+			nodeJSIndex = IndexNodeJSMetricsByContainer(allNodeJSMetrics)
+		}
+	}
+
 	// Process each pod's metrics
 	for _, podMetrics := range podMetricsList.Items {
 		// Skip excluded pods
@@ -429,6 +453,19 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 				}
 			}
 
+			// Node.js detection lookup (optional)
+			nodeJSMetrics := make(map[string]interface{})
+			if nodeJSIndex != nil {
+				key := gpuContainerKey{
+					Pod:       podMetrics.Name,
+					Container: containerMetrics.Name,
+					Namespace: podMetrics.Namespace,
+				}
+				if nm, ok := nodeJSIndex[key]; ok {
+					nodeJSMetrics = NodeJSMetricsFromNodemon(nm)
+				}
+			}
+
 			// Process the container metrics with optional network/IO data
 			c.processContainerMetrics(
 				pod,
@@ -437,6 +474,7 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 				ioMetrics,
 				gpuMetrics,
 				jvmMetrics,
+				nodeJSMetrics,
 				throttleFraction,
 			)
 		}
@@ -452,6 +490,7 @@ func (c *ContainerResourceCollector) processContainerMetrics(
 	ioMetrics map[string]float64,
 	gpuMetrics map[string]interface{},
 	jvmMetrics map[string]interface{},
+	nodeJSMetrics map[string]interface{},
 	throttleFraction float64,
 ) {
 	// Find the container spec in the pod
@@ -641,6 +680,13 @@ func (c *ContainerResourceCollector) processContainerMetrics(
 		metricsSnapshot.JvmRawCmdline = strFromMap(jvmMetrics, "RawCmdline")
 		metricsSnapshot.JvmFlagsExtractedJSON = strFromMap(jvmMetrics, "FlagsExtractedJSON")
 		metricsSnapshot.JvmFlagSourcesJSON = strFromMap(jvmMetrics, "FlagSourcesJSON")
+	}
+
+	if len(nodeJSMetrics) > 0 {
+		metricsSnapshot.NodeJsDetected = boolFromMap(nodeJSMetrics, "NodeJsDetected")
+		metricsSnapshot.NodeJsVersion = strFromMap(nodeJSMetrics, "NodeJsVersion")
+		metricsSnapshot.NodeJsVersionSource = strFromMap(nodeJSMetrics, "NodeJsVersionSource")
+		metricsSnapshot.NodeJsRawCmdline = strFromMap(nodeJSMetrics, "RawCmdline")
 	}
 
 	// Send the resource usage data to the batch channel

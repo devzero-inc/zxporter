@@ -87,6 +87,13 @@ type ContainerMetricsSnapshot struct {
 	JvmRawCmdline         string `json:"jvmRawCmdline,omitempty"`
 	JvmFlagsExtractedJSON string `json:"jvmFlagsExtractedJson,omitempty"`
 	JvmFlagSourcesJSON    string `json:"jvmFlagSourcesJson,omitempty"`
+
+	// Node.js detection (from zxporter-nodemon /container/nodejs-metrics). Scoped to
+	// existence + version for now — no heap/flags capture (no hsperfdata equivalent for V8).
+	NodeJsDetected      bool   `json:"nodeJsDetected,omitempty"`
+	NodeJsVersion       string `json:"nodeJsVersion,omitempty"`
+	NodeJsVersionSource string `json:"nodeJsVersionSource,omitempty"`
+	NodeJsRawCmdline    string `json:"nodeJsRawCmdline,omitempty"`
 }
 
 // BuildOOMSnapshot constructs a ContainerMetricsSnapshot for an OOM event.

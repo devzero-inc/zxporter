@@ -232,7 +232,7 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
-            - name: "JVM_METRICS_ENABLED"
+            - name: "RUNTIME_METRICS_ENABLED"
               value: "true"
             - name: "DCGM_HOST"
               value: "localhost"
@@ -363,7 +363,7 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
-            - name: "JVM_METRICS_ENABLED"
+            - name: "RUNTIME_METRICS_ENABLED"
               value: "true"
             - name: "DCGM_HOST"
               value: "localhost"

@@ -19,9 +19,12 @@ No attach/JMX/javaagent/async-profiler is used.
 Set:
 
 ```yaml
-jvmMetrics:
+runtimeMetrics:
   enabled: true
 ```
+
+(The older `jvmMetrics.enabled` key still works as a fallback if `runtimeMetrics.enabled` is
+unset — it was renamed because this same toggle now also gates Node.js runtime detection.)
 
 When enabled, the DaemonSet will:
 - set `spec.hostPID: true`

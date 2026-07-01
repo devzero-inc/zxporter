@@ -24,7 +24,7 @@ func TestReadJVMFlagsFromProcEnviron(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, f.Sync())
 
-	env := readJavaOptsFromProcEnviron(f.Name())
+	env := readEnvVars(f.Name(), "JAVA_TOOL_OPTIONS", "JDK_JAVA_OPTIONS", "JAVA_OPTS")
 	flags, _, _ := ParseJVMFlagsWithSources("java", env)
 	parsed := flags
 	require.NotNil(t, parsed.XmsBytes)

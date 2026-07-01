@@ -46,8 +46,15 @@ nodemon:
       operator: "Exists"
   rbac:
     clusterWide: true
-# jvmMetrics -- Enable JVM metrics collection via hsperfdata.
-# NOTE: requires hostPID + running nodemon as UID 0 to read /proc/<pid>/root/tmp/hsperfdata_*/<nsPid>
+# runtimeMetrics -- Enable process-introspection metrics (JVM heap via hsperfdata,
+# Node.js detection/version). NOTE: requires hostPID + running nodemon as UID 0 +
+# SYS_PTRACE to read other containers' /proc/<pid>/root overlay.
+# Leave unset to fall back to the deprecated jvmMetrics.enabled below.
+runtimeMetrics: {}
+#  enabled: true
+# jvmMetrics.enabled -- Deprecated: renamed to runtimeMetrics.enabled now that this
+# toggle also gates Node.js detection, not just JVM. Kept for backward compatibility
+# with existing overrides; set runtimeMetrics.enabled instead going forward.
 jvmMetrics:
   enabled: true
 # global.priorityClass.enabled is the single toggle for using the custom
