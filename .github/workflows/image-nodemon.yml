@@ -1,0 +1,93 @@
+name: "Image: zxporter-nodemon"
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: "Release version to build (vX.Y.Z)"
+        required: true
+        type: string
+      ref:
+        description: "Git ref to checkout (tag/sha to build); empty = triggering ref"
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+jobs:
+  package-and-push:
+    name: Package & Push zxporter-nodemon image
+    runs-on: namespace-profile-dz-generic
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.ref }}
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_ZXPORTER_BALANCE_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_ZXPORTER_BALANCE_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: namespacelabs/nscloud-setup-buildx-action@v0
+
+      - name: Set build metadata
+        run: |
+          VERSION="${{ inputs.version }}"
+          if [[ ! "$VERSION" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+            echo "::error::version '$VERSION' must match vX.Y.Z"; exit 1
+          fi
+          {
+            echo "MAJOR=${BASH_REMATCH[1]}"
+            echo "MINOR=${BASH_REMATCH[2]}"
+            echo "PATCH=${BASH_REMATCH[3]}"
+            echo "GITVERSION=${VERSION}"
+            echo "COMMIT_HASH=$(git rev-parse --short HEAD)"
+            echo "GIT_TREE_STATE=clean"
+            echo "BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          } >> "$GITHUB_ENV"
+
+      - name: Fail if image tag already exists
+        run: |
+          if docker manifest inspect docker.io/devzeroinc/zxporter-nodemon:${{ inputs.version }} >/dev/null 2>&1; then
+            echo "::error::docker.io/devzeroinc/zxporter-nodemon:${{ inputs.version }} already exists; delete it to re-release."
+            exit 1
+          fi
+
+      - name: Configure AWS credentials for ECR using OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ECR_PUSH_ROLE_ARN }}
+          role-session-name: GitHubActions-ZxporterNodemonBuild
+          aws-region: us-east-1
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+        with:
+          registry-type: public
+
+      - name: Build and push multi-arch image
+        run: |
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            --push \
+            -t docker.io/devzeroinc/zxporter-nodemon:${{ inputs.version }} \
+            -t public.ecr.aws/devzeroinc/zxporter-nodemon:${{ inputs.version }} \
+            --build-arg TARGETOS \
+            --build-arg TARGETARCH \
+            --build-arg MAJOR="$MAJOR" \
+            --build-arg MINOR="$MINOR" \
+            --build-arg PATCH="$PATCH" \
+            --build-arg GITVERSION="$GITVERSION" \
+            --build-arg COMMIT_HASH="$COMMIT_HASH" \
+            --build-arg GIT_TREE_STATE="$GIT_TREE_STATE" \
+            --build-arg BUILD_DATE="$BUILD_DATE" \
+            -f Dockerfile.nodemon \
+            .
