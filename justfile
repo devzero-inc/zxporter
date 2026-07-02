@@ -1,5 +1,5 @@
 # zxporter release automation.
-# `just tag zxporter vX.Y.Z` validates + pushes ONE tag; CI (release.yml) does the rest:
+# `just release zxporter vX.Y.Z` validates + pushes ONE tag; CI (release.yml) does the rest:
 # builds/pushes the 3 images, publishes the 3 OCI charts at a unified version, opens one
 # auto-merged bump PR (Chart.yaml/lock, values.yaml, dist/), cuts the GitHub Release, and
 # dispatches the cross-repo services metadata/manifest update.
@@ -15,8 +15,8 @@ tag-list:
 
 # Cut a unified release. Dispatches the Release workflow, which bumps versions, tags the
 # bumped commit, builds/pushes images + charts, opens the bump PR, and updates services.
-# Usage: just tag zxporter v0.1.0     (append `dry` to preview: just tag zxporter v0.1.0 dry)
-tag component version dry="":
+# Usage: just release zxporter v0.1.0     (append `dry` to preview: just release zxporter v0.1.0 dry)
+release component version dry="":
     #!/usr/bin/env bash
     set -euo pipefail
     if [[ "{{component}}" != "zxporter" ]]; then

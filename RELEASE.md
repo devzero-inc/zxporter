@@ -3,14 +3,14 @@
 Releases are **one command**; CI does the rest.
 
 ```bash
-just tag zxporter vX.Y.Z        # cut release vX.Y.Z
-just tag zxporter vX.Y.Z dry    # preview only
-just tag-list                   # recent release/chart tags
+just release zxporter vX.Y.Z        # cut release vX.Y.Z
+just release zxporter vX.Y.Z dry    # preview only
+just tag-list                       # recent release/chart tags
 ```
 
 Prereq: `gh` CLI authenticated with access to `devzero-inc/zxporter`.
 
-`just tag` validates `vX.Y.Z` and dispatches the **Release** workflow
+`just release` validates `vX.Y.Z` and dispatches the **Release** workflow
 (`.github/workflows/release.yml`), which:
 
 1. Bumps chart/image versions, regenerates `Chart.lock` + `dist/`, and tags
