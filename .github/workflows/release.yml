@@ -1,6 +1,6 @@
 name: Release
 
-# Dispatch-only. `just tag zxporter vX.Y.Z` runs `gh workflow run release.yml -f version=vX.Y.Z`.
+# Dispatch-only. `just release zxporter vX.Y.Z` runs `gh workflow run release.yml -f version=vX.Y.Z`.
 # We deliberately do NOT trigger on tag push: the tag must point at the *bumped* commit, so
 # CI bumps first and creates the tag itself (see the bump-and-tag job). A bare tag push on
 # pre-bump main would embed stale image/chart versions in the tagged tree.
