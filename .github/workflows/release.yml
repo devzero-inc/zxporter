@@ -1,0 +1,198 @@
+name: Release
+
+# Dispatch-only. `just tag zxporter vX.Y.Z` runs `gh workflow run release.yml -f version=vX.Y.Z`.
+# We deliberately do NOT trigger on tag push: the tag must point at the *bumped* commit, so
+# CI bumps first and creates the tag itself (see the bump-and-tag job). A bare tag push on
+# pre-bump main would embed stale image/chart versions in the tagged tree.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (vX.Y.Z)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+  pull-requests: write
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      bare: ${{ steps.v.outputs.bare }}
+    steps:
+      - id: v
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          VERSION="$INPUT_VERSION"
+          if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::version '$VERSION' must be vX.Y.Z"; exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "bare=${VERSION#v}" >> "$GITHUB_OUTPUT"
+
+  # Bump versions on a branch, tag that bumped commit, then open an auto-merged PR to bring the
+  # bump into main. The tag is an immutable ref to the bumped commit, so it carries vX.Y.Z even
+  # before the PR merges. Downstream jobs check out the tag, so images build from the bumped code
+  # and charts embed image.tag=vX.Y.Z.
+  bump-and-tag:
+    needs: resolve
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.DEBO_GITHUB_PAT }}
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
+          cache: true
+      - uses: azure/setup-helm@v4
+        with:
+          version: "3.12.3"
+      - name: Install yq
+        run: |
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+      - name: Bump versions, tag the bump commit, open auto-merge PR
+        env:
+          GH_TOKEN: ${{ secrets.DEBO_GITHUB_PAT }}
+          V: ${{ needs.resolve.outputs.version }}
+          B: ${{ needs.resolve.outputs.bare }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions-dzbot"
+          git config user.email "github-actions@github.com"
+
+          # Fail fast if this version was already released (a UI workflow_dispatch bypasses the
+          # justfile guard), before doing any bump/build work.
+          if git ls-remote --exit-code --tags origin "$V" >/dev/null 2>&1; then
+            echo "::error::tag $V already exists on origin"; exit 1
+          fi
+
+          branch="release/bump-$V"
+          git checkout -b "$branch"
+
+          # Unified version bumps (chart versions, nodemon dependency pin, image tags).
+          for c in zxporter zxporter-nodemon zxporter-netmon; do
+            yq e -i ".version = \"$B\" | .appVersion = \"$B\"" "helm-chart/$c/Chart.yaml"
+          done
+          yq e -i "(.dependencies[] | select(.name == \"zxporter-nodemon\")).version = \"$B\"" \
+            helm-chart/zxporter/Chart.yaml
+          yq e -i ".image.tag = \"$V\"" helm-chart/zxporter/values.yaml
+          yq e -i ".image.tag = \"$V\"" helm-chart/zxporter-nodemon/values.yaml
+          yq e -i ".image.tag = \"$V\"" helm-chart/zxporter-netmon/values.yaml
+
+          # Regenerate Chart.lock + dist bundles. build-installer runs with DEFAULTS: dist/
+          # backend bundles stay pinned to :latest (the services retriever pins the version at
+          # copy time) so this matches build-installer-check.yml. Only legitimate dist/ delta
+          # is the bumped nodemon `helm.sh/chart: zxporter-nodemon-<bare>` label.
+          rm -f helm-chart/zxporter/charts/zxporter-nodemon-*.tgz
+          helm dependency update helm-chart/zxporter
+          make build-installer
+
+          if [[ -z "$(git status --porcelain)" ]]; then
+            echo "::error::version bump produced no changes"; exit 1
+          fi
+          git add helm-chart dist
+          git commit -m "chore(release): bump charts + image tags to $B / $V and sync dist"
+
+          # Tag the bump commit (immutable ref -> carries vX.Y.Z even before the PR merges),
+          # then push the branch and the tag.
+          git tag -a "$V" -m "release $V"
+          git push origin --force "$branch"
+          git push origin "$V"
+
+          # Open the PR that brings the bump into main and let it auto-merge once checks pass.
+          gh pr create --base main --head "$branch" \
+            --title "chore(release): bump to $V" \
+            --body "Unified release $V: chart versions=$B, image.tag=$V, nodemon dep=$B, regenerated Chart.lock + dist/. The tag $V points at this commit." \
+            || true
+          gh pr merge "$branch" --auto --squash || \
+            echo "::warning::auto-merge unavailable; PR left open for manual merge"
+
+  image-zxporter:
+    needs: [resolve, bump-and-tag]
+    uses: ./.github/workflows/image-zxporter.yml
+    secrets: inherit
+    with:
+      version: ${{ needs.resolve.outputs.version }}
+      ref: ${{ needs.resolve.outputs.version }}
+
+  image-nodemon:
+    needs: [resolve, bump-and-tag]
+    uses: ./.github/workflows/image-nodemon.yml
+    secrets: inherit
+    with:
+      version: ${{ needs.resolve.outputs.version }}
+      ref: ${{ needs.resolve.outputs.version }}
+
+  image-netmon:
+    needs: [resolve, bump-and-tag]
+    uses: ./.github/workflows/image-netmon.yml
+    secrets: inherit
+    with:
+      version: ${{ needs.resolve.outputs.version }}
+      ref: ${{ needs.resolve.outputs.version }}
+
+  chart-netmon:
+    needs: [resolve, bump-and-tag, image-netmon]
+    uses: ./.github/workflows/chart-netmon.yml
+    secrets: inherit
+    with:
+      version: ${{ needs.resolve.outputs.version }}
+      ref: ${{ needs.resolve.outputs.version }}
+
+  chart-nodemon:
+    needs: [resolve, bump-and-tag, image-nodemon]
+    uses: ./.github/workflows/chart-nodemon.yml
+    secrets: inherit
+    with:
+      version: ${{ needs.resolve.outputs.version }}
+      ref: ${{ needs.resolve.outputs.version }}
+
+  chart-zxporter:
+    needs: [resolve, bump-and-tag, image-zxporter, chart-nodemon]
+    uses: ./.github/workflows/chart-zxporter.yml
+    secrets: inherit
+    with:
+      version: ${{ needs.resolve.outputs.version }}
+      ref: ${{ needs.resolve.outputs.version }}
+
+  release-notes:
+    needs: [resolve, bump-and-tag, image-zxporter, image-nodemon, image-netmon]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V="${{ needs.resolve.outputs.version }}"
+          if gh release view "$V" >/dev/null 2>&1; then
+            echo "release $V exists; skipping"
+          else
+            gh release create "$V" --generate-notes --title "$V"
+          fi
+
+  trigger-services:
+    needs: [resolve, chart-zxporter, chart-nodemon, chart-netmon]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch services metadata retriever
+        env:
+          GH_TOKEN: ${{ secrets.DEBO_GITHUB_PAT }}
+        run: |
+          gh workflow run latest_zxporter_metadata_retriever.yml \
+            --repo devzero-inc/services --ref main
