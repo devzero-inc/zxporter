@@ -11,8 +11,7 @@
 image:
   repository: docker.io/devzeroinc/zxporter
   pullPolicy: IfNotPresent
-  tag: "v0.0.93"
-
+  tag: "v0.0.95"
 # ZXPorter configuration
 zxporter:
   dakrUrl: "https://dakr.devzero.io"
@@ -20,14 +19,12 @@ zxporter:
   # Cluster token for authentication with the DevZero platform
   # Required: Either clusterToken or patToken must be provided
   clusterToken: ""
-
   # Personal Access Token (PAT) for automatic cluster token exchange
   # If clusterToken is not provided but patToken is, the system will
   # automatically exchange the PAT for a cluster token on startup
   # This is the recommended approach for production deployments
   # Example: "dzu-aKAAyJgsrblR0dFmgnoB_sQjiVNs-I3Y4gI7jJnePgs="
   patToken: ""
-
   # Kubernetes context name to identify this cluster
   # Required: Must be set to a unique identifier for your cluster
   # Examples:
@@ -37,7 +34,6 @@ zxporter:
   #   - OCI: "ocid1.cluster.oc1.iad.aaaaaaaa..."
   #   - Other: "production-cluster" or "staging-cluster"
   kubeContextName: ""
-
   # Kubernetes provider type
   # Required: Must be one of: "aws", "gcp", "azure", "oci", "other"
   # This helps optimize collection for specific cloud providers
@@ -45,15 +41,12 @@ zxporter:
   # Set to true to store CLUSTER_TOKEN and PAT_TOKEN in Kubernetes Secrets instead of ConfigMap
   # Default is false for backward compatibility
   useSecretForToken: true
-
   # Log level for the zxporter application
   # Valid values: debug, info, error
   # Default: error
   logLevel: "error"
-
   # Disable GPU metrics collection (set to "true" for clusters without GPUs)
   disableGPUMetrics: ""
-
   # Resource names for token storage (configurable for different environments)
   # Input credentials Secret: Contains initial PAT/CLUSTER tokens (user-managed)
   tokenCredentialsSecretName: "devzero-zxporter-credentials"
@@ -61,29 +54,24 @@ zxporter:
   tokenSecretName: "devzero-zxporter-token"
   # ConfigMap: Contains configuration and tokens when useSecretForToken=false
   tokenConfigMapName: "devzero-zxporter-env-config"
-
 # ZXPorter controller resources
 resources:
   requests:
     cpu: 200m
     memory: 2Gi
   limits: {}
-
 nodeSelector: {}
 tolerations: []
 affinity: {}
-
 # High Availability Configuration
 highAvailability:
   enabled: true
   podDisruptionBudget:
     enabled: true
     minAvailable: 1
-
 # MPA Server Configuration
 mpaServer:
   port: 50051
-
 # Priority Class for critical workloads
 # global.priorityClass.enabled is the single source of truth for whether the
 # custom PriorityClass is used at all. Being a global, it auto-propagates to the
@@ -92,12 +80,10 @@ mpaServer:
 global:
   priorityClass:
     enabled: true
-
 priorityClass:
   value: 1000000000
   description: "This priority class is for critical zxporter infrastructure components."
   preemptionPolicy: PreemptLowerPriority
-
 # Subchart overrides. The parent chart owns the PriorityClass object, so the
 # bundled nodemon subchart must NOT create it again (would be a duplicate
 # resource). The DaemonSet still references it, gated on the shared global.

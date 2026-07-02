@@ -2,13 +2,10 @@ image:
   repository: devzeroinc/zxporter-netmon
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "v0.0.88"
-
+  tag: "v0.0.95"
 imagePullSecrets: []
 nameOverride: ""
-
 fullnameOverride: ""
-
 serviceAccount:
   # Specifies whether a service account should be created
   create: true
@@ -17,12 +14,10 @@ serviceAccount:
   # The name of the service account to use.
   # If not set and create is true, a name is generated using the fullname template
   name: "zxporter-netmon"
-
 podAnnotations:
   container.apparmor.security.beta.kubernetes.io/zxporter-netmon: "unconfined"
-
 podSecurityContext: {}
-  # fsGroup: 2000
+# fsGroup: 2000
 
 securityContext:
   privileged: true
@@ -32,7 +27,6 @@ securityContext:
     add:
       - NET_ADMIN
       - SYS_RESOURCE
-
 resources:
   limits:
     cpu: 100m
@@ -40,18 +34,13 @@ resources:
   requests:
     cpu: 50m
     memory: 64Mi
-
 nodeSelector: {}
-
 tolerations:
   - operator: Exists
     effect: NoSchedule
-
 affinity: {}
-
 hostNetwork: true
 dnsPolicy: ClusterFirstWithHostNet
-
 # Config for collection
 config:
   containerPort: 8081
