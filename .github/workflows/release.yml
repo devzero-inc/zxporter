@@ -47,11 +47,23 @@ jobs:
       contents: write
       pull-requests: write
     steps:
+      # Mint a GitHub App token (same mechanism as push-zxporter-*-image.yml). We need a
+      # non-GITHUB_TOKEN credential so the bump PR triggers its `on: pull_request` CI checks
+      # (PRs opened with GITHUB_TOKEN don't), which the auto-merge below waits on. It also lets
+      # us push the branch/tag and open the PR.
+      - name: Get GitHub App token
+        id: app_token
+        uses: peter-murray/workflow-application-token-action@v4
+        with:
+          application_id: ${{ secrets.WORKFLOW_ACTIONS_APP_ID_PUBLIC }}
+          application_private_key: ${{ secrets.WORKFLOW_ACTIONS_PEM_PUBLIC }}
+          organization: devzero-inc
+          permissions: "contents:write, pull_requests:write"
       - uses: actions/checkout@v4
         with:
           ref: main
           fetch-depth: 0
-          token: ${{ secrets.DEBO_GITHUB_PAT }}
+          token: ${{ steps.app_token.outputs.token }}
       - uses: actions/setup-go@v5
         with:
           go-version-file: "go.mod"
@@ -65,7 +77,7 @@ jobs:
           sudo chmod +x /usr/local/bin/yq
       - name: Bump versions, tag the bump commit, open auto-merge PR
         env:
-          GH_TOKEN: ${{ secrets.DEBO_GITHUB_PAT }}
+          GH_TOKEN: ${{ steps.app_token.outputs.token }}
           V: ${{ needs.resolve.outputs.version }}
           B: ${{ needs.resolve.outputs.bare }}
         run: |
@@ -190,9 +202,19 @@ jobs:
     needs: [resolve, chart-zxporter, chart-nodemon, chart-netmon]
     runs-on: ubuntu-latest
     steps:
+      # Cross-repo dispatch needs a credential scoped to devzero-inc/services with actions:write;
+      # GITHUB_TOKEN is confined to this repo. Reuse the org GitHub App (same as bump-and-tag).
+      - name: Get GitHub App token
+        id: app_token
+        uses: peter-murray/workflow-application-token-action@v4
+        with:
+          application_id: ${{ secrets.WORKFLOW_ACTIONS_APP_ID_PUBLIC }}
+          application_private_key: ${{ secrets.WORKFLOW_ACTIONS_PEM_PUBLIC }}
+          organization: devzero-inc
+          permissions: "actions:write"
       - name: Dispatch services metadata retriever
         env:
-          GH_TOKEN: ${{ secrets.DEBO_GITHUB_PAT }}
+          GH_TOKEN: ${{ steps.app_token.outputs.token }}
         run: |
           gh workflow run latest_zxporter_metadata_retriever.yml \
             --repo devzero-inc/services --ref main
