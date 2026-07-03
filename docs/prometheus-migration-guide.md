@@ -576,10 +576,9 @@ helm install zxporter ./helm-chart/zxporter \
   --set zxporter.useSecretForToken=true \
   --set zxporter.clusterToken="$CLUSTER_TOKEN" \
   --set zxporter.kubeContextName="$CLUSTER_NAME" \
-  --set zxporter.k8sProvider="$K8S_PROVIDER" \
+  --set global.k8sProvider="$K8S_PROVIDER" \
   --set zxporter.dakrUrl="$DAKR_URL" \
-  --set zxporter.logLevel="${LOG_LEVEL:-error}" \
-  --set zxporter-nodemon.provider="$K8S_PROVIDER"
+  --set zxporter.logLevel="${LOG_LEVEL:-error}"
 ```
 
 > This creates everything in one shot: namespace, ConfigMap, Secret, Deployment, nodemon DaemonSet. Helm manages all resources.

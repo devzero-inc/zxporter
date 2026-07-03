@@ -1,5 +1,5 @@
 {{- $rc := .Values.dcgmExporter.runtimeClassName | default "" | toString }}
-{{- $provider := required ".Values.provider is required (gcp|aws|azure|oci|other)" .Values.provider }}
+{{- $provider := required ".Values.global.k8sProvider is required (gcp|aws|azure|oci|other)" .Values.global.k8sProvider }}
 {{- $gpuKey := .Values.dcgmExporter.gpuNodeSelector.key | default "" | toString }}
 {{- $gpuVal := .Values.dcgmExporter.gpuNodeSelector.value | default "" | toString }}
 {{- $split := and .Values.dcgmExporter.enabled (ne $rc "") (ne $gpuKey "") }}
@@ -75,7 +75,7 @@ spec:
         - name: {{- include "dcgm-exporter.config-map" $ | indent 1 }}
           configMap:
             name: {{- include "dcgm-exporter.config-map" $ | indent 1 }}
-        {{- if eq $.Values.provider "gcp" }}
+        {{- if eq $.Values.global.k8sProvider "gcp" }}
         - name: "nvidia-install-dir-host"
           hostPath:
             path: /home/kubernetes/bin/nvidia
@@ -178,7 +178,7 @@ spec:
                 - NET_RAW
             runAsNonRoot: false
             runAsUser: 0
-            {{- if eq $.Values.provider "gcp"}}
+            {{- if eq $.Values.global.k8sProvider "gcp"}}
             privileged: true
             {{- end }}
           image: "{{ $.Values.dcgmExporter.image.repository }}:{{ $.Values.dcgmExporter.image.tag }}"
@@ -216,11 +216,11 @@ spec:
             {{- $hasCustomLDLibraryPath = true }}
             {{- end }}
             {{- end }}
-            {{- if and (eq $.Values.provider "gcp") (not $hasCustomLDLibraryPath) }}
+            {{- if and (eq $.Values.global.k8sProvider "gcp") (not $hasCustomLDLibraryPath) }}
             - name: "LD_LIBRARY_PATH"
               value: "/usr/local/nvidia/lib64"
             {{- end }}
-            {{- if eq $.Values.provider "gcp" }}
+            {{- if eq $.Values.global.k8sProvider "gcp" }}
             - name: "DCGM_EXPORTER_KUBERNETES_GPU_ID_TYPE"
               value: "device-name"
             {{- end }}
@@ -231,7 +231,7 @@ spec:
             - name: "pod-gpu-resources"
               readOnly: true
               mountPath: "/var/lib/kubelet/pod-resources"
-            {{- if eq $.Values.provider "gcp" }}
+            {{- if eq $.Values.global.k8sProvider "gcp" }}
             - name: "nvidia-install-dir-host"
               mountPath: /usr/local/nvidia
             {{- end }}

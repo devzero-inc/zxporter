@@ -1,4 +1,3 @@
-provider: "" # gcp | aws | azure | oci | other | eks (legacy alias for aws)
 # fullnameOverride pins all nodemon resource names to a stable value, independent of the Helm
 # release name. It MUST stay "zxporter-nodemon" so that:
 #   1. the zxporter controller can discover nodemon pods via the fixed label selector
@@ -50,11 +49,16 @@ nodemon:
 # NOTE: requires hostPID + running nodemon as UID 0 to read /proc/<pid>/root/tmp/hsperfdata_*/<nsPid>
 jvmMetrics:
   enabled: true
-# global.priorityClass.enabled is the single toggle for using the custom
-# PriorityClass. The parent zxporter chart supplies it (auto-propagated to this
-# subchart); this default applies when nodemon is installed standalone (CI,
-# helm-release-nodemon).
+# global values are the single source of truth shared with the parent zxporter
+# chart, which auto-propagates them to this subchart. These defaults apply when
+# nodemon is installed standalone (CI, helm-release-nodemon).
 global:
+  # k8sProvider gates the GPU driver hostPath / LD_LIBRARY_PATH on provider=gcp.
+  # Required (non-empty) at render time. When bundled under the parent chart it is
+  # supplied by global.k8sProvider there — set it ONLY in one place, never both.
+  k8sProvider: ""
+  # global.priorityClass.enabled is the single toggle for using the custom
+  # PriorityClass. The parent zxporter chart supplies it (auto-propagated here).
   priorityClass:
     enabled: true
 # Assigns the node agent a custom PriorityClass so it can schedule on

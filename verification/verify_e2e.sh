@@ -113,7 +113,7 @@ if [[ "$ENABLE_CONTROL_PLANE_TEST" == "true" ]]; then
         --set monitoring.enabled=false \
         --set highAvailability.enabled=false \
         --set zxporter.kubeContextName="$CLUSTER_CONTEXT" \
-        --set zxporter.k8sProvider="$PROVIDER" \
+        --set global.k8sProvider="$PROVIDER" \
         --set zxporter.logLevel="debug"
         
     echo "Updating zxporter-netmon configuration to point to TestServer..."

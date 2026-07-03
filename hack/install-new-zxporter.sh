@@ -41,7 +41,7 @@ helm install "$RELEASE_NAME" ./helm-chart/zxporter \
   --set image.tag="$IMAGE_TAG" \
   --set zxporter.clusterToken="$CLUSTER_TOKEN" \
   --set zxporter.kubeContextName="$KUBE_CONTEXT" \
-  --set zxporter.k8sProvider="$K8S_PROVIDER"
+  --set global.k8sProvider="$K8S_PROVIDER"
 
 echo ""
 echo "=== Installing nodemon DaemonSet ==="
@@ -50,7 +50,7 @@ helm install zxporter-nodemon ./helm-chart/zxporter-nodemon \
   --namespace "$NAMESPACE" \
   --set image.repository=docker.io/parthiba007/nodemon \
   --set image.tag=prom \
-  --set provider="$K8S_PROVIDER"
+  --set global.k8sProvider="$K8S_PROVIDER"
 
 echo ""
 echo "=== Done. Checking pods ==="

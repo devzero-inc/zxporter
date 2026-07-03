@@ -56,7 +56,7 @@ jobs:
           kubectl create ns devzero-system || true
           helm upgrade --install zxporter-nodemon ./helm-chart/zxporter-nodemon \
             -n devzero-system \
-            --set provider=eks \
+            --set global.k8sProvider=other \
             --set dcgmExporter.enabled=false \
             --set jvmMetrics.enabled=true \
             --set image.repository=zxporter-nodemon \

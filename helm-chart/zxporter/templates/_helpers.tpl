@@ -60,12 +60,12 @@ Validate required configuration
     {{- fail "ERROR: zxporter.kubeContextName is required. Please provide a unique identifier for your cluster." -}}
   {{- end -}}
   
-  {{- if empty .Values.zxporter.k8sProvider -}}
-    {{- fail "ERROR: zxporter.k8sProvider is required. Please set it to one of: aws, gcp, azure, oci, other" -}}
+  {{- if empty .Values.global.k8sProvider -}}
+    {{- fail "ERROR: global.k8sProvider is required. Please set it to one of: aws, gcp, azure, oci, other" -}}
   {{- end -}}
-  
+
   {{- $validProviders := list "aws" "gcp" "azure" "oci" "other" -}}
-  {{- if not (has .Values.zxporter.k8sProvider $validProviders) -}}
-    {{- fail (printf "ERROR: zxporter.k8sProvider must be one of: %s. Got: %s" (join ", " $validProviders) .Values.zxporter.k8sProvider) -}}
+  {{- if not (has .Values.global.k8sProvider $validProviders) -}}
+    {{- fail (printf "ERROR: global.k8sProvider must be one of: %s. Got: %s" (join ", " $validProviders) .Values.global.k8sProvider) -}}
   {{- end -}}
 {{- end }}

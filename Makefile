@@ -361,7 +361,7 @@ build-installer: manifests generate kustomize yq helm ## Generate a consolidated
 	@echo "[INFO] Generate and append default nodemon DaemonSets (provider=other)"
 	@$(HELM) template zxporter-nodemon ./helm-chart/zxporter-nodemon \
 		--namespace $(DEVZERO_MONITORING_NAMESPACE) \
-		--set provider=other \
+		--set global.k8sProvider=other \
 		--set priorityClass.create=false \
 		--set image.repository=$(word 1,$(subst :, ,$(IMG_NODEMON))) \
 		--set image.tag=$(word 2,$(subst :, ,$(IMG_NODEMON))) \
@@ -371,7 +371,7 @@ build-installer: manifests generate kustomize yq helm ## Generate a consolidated
 	@echo "[INFO] Generate and append GCP nodemon DaemonSets (provider=gcp)"
 	@$(HELM) template zxporter-nodemon ./helm-chart/zxporter-nodemon \
 		--namespace $(DEVZERO_MONITORING_NAMESPACE) \
-		--set provider=gcp \
+		--set global.k8sProvider=gcp \
 		--set priorityClass.create=false \
 		--set image.repository=$(word 1,$(subst :, ,$(IMG_NODEMON))) \
 		--set image.tag=$(word 2,$(subst :, ,$(IMG_NODEMON))) \
