@@ -7,6 +7,7 @@ type ContainerMetricsSnapshot struct {
 	// Container identification
 	ContainerName string `json:"containerName"`
 	PodName       string `json:"podName"`
+	PodUID        string `json:"podUid,omitempty"`
 	Namespace     string `json:"namespace"`
 	NodeName      string `json:"nodeName"`
 
@@ -112,6 +113,7 @@ func BuildOOMSnapshot(pod *corev1.Pod, cs corev1.ContainerStatus) *ContainerMetr
 	return &ContainerMetricsSnapshot{
 		ContainerName:         cs.Name,
 		PodName:               pod.Name,
+		PodUID:                string(pod.UID),
 		Namespace:             pod.Namespace,
 		NodeName:              pod.Spec.NodeName,
 		WorkloadName:          workloadName,

@@ -547,6 +547,7 @@ func (c *ContainerResourceCollector) processContainerMetrics(
 		// Container identification
 		ContainerName: containerMetrics.Name,
 		PodName:       pod.Name,
+		PodUID:        string(pod.UID),
 		Namespace:     pod.Namespace,
 		NodeName:      pod.Spec.NodeName,
 
