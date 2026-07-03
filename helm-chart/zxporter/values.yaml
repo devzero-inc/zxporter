@@ -4,7 +4,7 @@
 # The following fields MUST be configured before deployment:
 # 1. zxporter.clusterToken OR zxporter.patToken (at least one required)
 # 2. zxporter.kubeContextName - unique identifier for your cluster
-# 3. zxporter.k8sProvider - one of: aws, gcp, azure, oci, other
+# 3. global.k8sProvider - one of: aws, gcp, azure, oci, other
 #
 # For production deployments, we recommend using patToken for automatic token exchange.
 
@@ -34,10 +34,6 @@ zxporter:
   #   - OCI: "ocid1.cluster.oc1.iad.aaaaaaaa..."
   #   - Other: "production-cluster" or "staging-cluster"
   kubeContextName: ""
-  # Kubernetes provider type
-  # Required: Must be one of: "aws", "gcp", "azure", "oci", "other"
-  # This helps optimize collection for specific cloud providers
-  k8sProvider: ""
   # Set to true to store CLUSTER_TOKEN and PAT_TOKEN in Kubernetes Secrets instead of ConfigMap
   # Default is false for backward compatibility
   useSecretForToken: true
@@ -78,6 +74,13 @@ mpaServer:
 # nodemon subchart, so the object (created here) and the DaemonSet reference (in
 # the subchart) can never drift out of sync.
 global:
+  # k8sProvider is the SINGLE source of truth for the cloud provider. It is
+  # shared by the parent chart (controller K8S_PROVIDER env) and the bundled
+  # zxporter-nodemon subchart (which gates its GPU driver hostPath/LD_LIBRARY_PATH
+  # on provider=gcp). Being a global, it auto-propagates to the subchart, so it
+  # must ONLY be set here — never on zxporter-nodemon.provider.
+  # Required: one of "aws", "gcp", "azure", "oci", "other".
+  k8sProvider: ""
   priorityClass:
     enabled: true
 priorityClass:

@@ -20,7 +20,7 @@ The Nodemon scrapes metrics from NVIDIA DCGM (Data Center GPU Manager) exporters
 ```bash
 helm install zxporter-nodemon helm-chart/zxporter-nodemon \
   --namespace devzero-system --create-namespace \
-  --set provider=gcp \
+  --set global.k8sProvider=gcp \
   --set dcgmExporter.enabled=true
 ```
 
@@ -29,7 +29,7 @@ helm install zxporter-nodemon helm-chart/zxporter-nodemon \
 ```bash
 helm install zxporter-nodemon helm-chart/zxporter-nodemon \
   --namespace devzero-system --create-namespace \
-  --set provider=gcp \
+  --set global.k8sProvider=gcp \
   --set dcgmExporter.enabled=false \
   --set nodemon.config.DCGM_LABELS="app.kubernetes.io/name=dcgm-exporter"
 ```
@@ -42,7 +42,8 @@ Both nodemon and DCGM exporter run as sidecar containers in the same pod. Best f
 
 ```yaml
 # values.yaml
-provider: gcp  # gcp | eks | azure
+global:
+  k8sProvider: gcp  # gcp | aws | azure | oci | other
 dcgmExporter:
   enabled: true
   useExternalHostEngine: false
@@ -54,7 +55,8 @@ If you already have DCGM exporter deployed separately, disable the embedded one 
 
 ```yaml
 # values.yaml
-provider: gcp
+global:
+  k8sProvider: gcp
 dcgmExporter:
   enabled: false
 nodemon:
@@ -68,7 +70,8 @@ For environments where DCGM host engine runs at the node level (e.g., GCP with C
 
 ```yaml
 # values.yaml
-provider: gcp
+global:
+  k8sProvider: gcp
 dcgmExporter:
   enabled: true
   useExternalHostEngine: true  # Connect to DCGM running on host
@@ -80,7 +83,8 @@ Point directly to a specific DCGM exporter instance.
 
 ```yaml
 # values.yaml
-provider: eks
+global:
+  k8sProvider: aws
 dcgmExporter:
   enabled: false
 nodemon:
@@ -135,7 +139,7 @@ kubectl describe nodes | grep -A5 "Allocatable:" | grep nvidia
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `provider` | Cloud provider: `gcp`, `eks`, `azure` | **Required** |
+| `global.k8sProvider` | Cloud provider: `aws`, `gcp`, `azure`, `oci`, `other` (single source of truth, shared with the parent chart) | **Required** |
 | `dcgmExporter.enabled` | Deploy DCGM exporter sidecar | `true` |
 | `dcgmExporter.useExternalHostEngine` | Connect to host-level DCGM engine | `false` |
 | `dcgmExporter.runtimeClassName` | RuntimeClass for the GPU DaemonSet (`zxporter-nodemon-gpu`). Set to `""` to disable the split and use the original single DaemonSet with an embedded DCGM sidecar. | `"nvidia"` |
@@ -155,7 +159,7 @@ non-GPU nodes) and `zxporter-nodemon-gpu` (GPU Operator nodes only, with
 `nvidia.com/gpu.present=true`, which is set by the NVIDIA GPU Operator's
 node-feature-discovery. On GKE without the GPU Operator, these labels are absent
 so the GPU DaemonSet has zero pods and the base DaemonSet runs everywhere using
-the `provider=gcp` hostPath mount for NVML. GPU nodes added after install are
+the `global.k8sProvider=gcp` hostPath mount for NVML. GPU nodes added after install are
 picked up automatically by the DaemonSet controller.
 
 ## API Reference
