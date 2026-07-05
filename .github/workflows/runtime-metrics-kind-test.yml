@@ -61,15 +61,15 @@ jobs:
           # canonical one (privileges, env, RBAC), and disabling via the
           # deprecated key alone must still work.
           helm template zxporter-nodemon ./helm-chart/zxporter-nodemon \
-            --set provider=eks --set dcgmExporter.enabled=false \
+            --set global.k8sProvider=other --set dcgmExporter.enabled=false \
             --set jvmMetrics.enabled=true > /tmp/render-deprecated.yaml
           helm template zxporter-nodemon ./helm-chart/zxporter-nodemon \
-            --set provider=eks --set dcgmExporter.enabled=false \
+            --set global.k8sProvider=other --set dcgmExporter.enabled=false \
             --set runtimeMetrics.enabled=true > /tmp/render-canonical.yaml
           diff -u /tmp/render-deprecated.yaml /tmp/render-canonical.yaml
 
           helm template zxporter-nodemon ./helm-chart/zxporter-nodemon \
-            --set provider=eks --set dcgmExporter.enabled=false \
+            --set global.k8sProvider=other --set dcgmExporter.enabled=false \
             --set jvmMetrics.enabled=false > /tmp/render-disabled.yaml
           if grep -q 'RUNTIME_METRICS_ENABLED' /tmp/render-disabled.yaml && \
              grep -A1 'RUNTIME_METRICS_ENABLED' /tmp/render-disabled.yaml | grep -q '"true"'; then
