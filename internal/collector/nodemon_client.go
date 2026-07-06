@@ -41,7 +41,8 @@ type UnifiedContainerMetric struct {
 	DiskReadOpsPerSec      float64 `json:"disk_read_ops_per_sec"`
 	DiskWriteOpsPerSec     float64 `json:"disk_write_ops_per_sec"`
 	CPUThrottleFraction    float64 `json:"cpu_throttle_fraction"`
-	// GPU (optional)
+	// GPU (optional, aggregated across all GPUs assigned to this container)
+	GPUDeviceCount   int     `json:"gpu_device_count,omitempty"`
 	GPUUtilization   float64 `json:"gpu_utilization,omitempty"`
 	GPUMemoryUsedMiB float64 `json:"gpu_memory_used_mib,omitempty"`
 	GPUMemoryFreeMiB float64 `json:"gpu_memory_free_mib,omitempty"`

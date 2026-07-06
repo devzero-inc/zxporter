@@ -393,22 +393,20 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 					if containers, ok := c.nodemonContainerMetricsCache[key]; ok {
 						for _, m := range containers {
 							if m.Container == containerMetrics.Name && m.GPUUtilization > 0 {
-								// GPUUsage is a fraction (0-1), not percentage — matches old behavior
-								gpuMetrics["GPUUsage"] = m.GPUUtilization / 100.0
+								deviceCount := m.GPUDeviceCount
+								if deviceCount < 1 {
+									deviceCount = 1
+								}
+								// GPUUtilization is already the average across all GPUs.
+								// GPUUsage = GPU-equivalents = avgUtil * deviceCount / 100
+								gpuMetrics["GPUUsage"] = m.GPUUtilization * float64(deviceCount) / 100.0
 								gpuMetrics["GPUUtilizationPercentage"] = m.GPUUtilization
 								gpuMetrics["GPUMemoryUsedMb"] = m.GPUMemoryUsedMiB
 								gpuMetrics["GPUMemoryFreeMb"] = m.GPUMemoryFreeMiB
 								gpuMetrics["GPUPowerUsageWatts"] = m.GPUPowerWatts
 								gpuMetrics["GPUTemperatureCelsius"] = m.GPUTemperature
 								gpuMetrics["GPUTotalMemoryMb"] = m.GPUMemoryUsedMiB + m.GPUMemoryFreeMiB
-								// GPUMetricsCount = actual GPU device count from pod spec
-								gpuCount := int64(1)
-								if rc, ok := gpuMetrics["GPURequestCount"]; ok {
-									if v, ok := rc.(int64); ok && v > 0 {
-										gpuCount = v
-									}
-								}
-								gpuMetrics["GPUMetricsCount"] = gpuCount
+								gpuMetrics["GPUMetricsCount"] = int64(deviceCount)
 								break
 							}
 						}

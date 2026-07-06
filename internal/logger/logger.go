@@ -5,6 +5,7 @@ import (
 	"hash/fnv"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"go.uber.org/zap"
@@ -47,6 +48,7 @@ type logger struct {
 	// clusterID string
 	// teamID    string
 
+	stopped  atomic.Bool
 	stopOnce sync.Once
 	stopCh   chan struct{}
 	wg       sync.WaitGroup
@@ -118,6 +120,10 @@ func (l *logger) Report(
 		Fields:    fields,
 	}
 
+	if l.stopped.Load() {
+		return
+	}
+
 	select {
 	case l.logQueue <- entry:
 		// Log successfully queued
@@ -131,6 +137,7 @@ func (l *logger) Report(
 func (l *logger) Stop() {
 	l.stopOnce.Do(func() {
 		l.defaultLogger.Info("Stopping telemetry logger...")
+		l.stopped.Store(true)
 		close(l.stopCh)
 		l.wg.Wait()
 		l.defaultLogger.Info("Telemetry logger stopped.")

@@ -139,11 +139,13 @@ func indexCAdvisorMetrics(metrics []CAdvisorContainerMetrics) map[string]*CAdvis
 }
 
 // indexGPUMetrics builds a lookup map keyed by "namespace/pod/container".
-func indexGPUMetrics(metrics []GPUMetric) map[string]*GPUMetric {
-	idx := make(map[string]*GPUMetric, len(metrics))
+// Multiple GPUs assigned to the same container are grouped into a slice.
+func indexGPUMetrics(metrics []GPUMetric) map[string][]*GPUMetric {
+	idx := make(map[string][]*GPUMetric)
 	for i := range metrics {
 		m := &metrics[i]
-		idx[m.Namespace+"/"+m.Pod+"/"+m.Container] = m
+		key := m.Namespace + "/" + m.Pod + "/" + m.Container
+		idx[key] = append(idx[key], m)
 	}
 	return idx
 }
@@ -153,7 +155,7 @@ func indexGPUMetrics(metrics []GPUMetric) map[string]*GPUMetric {
 func (u *UnifiedExporter) buildContainerAndPVCMetrics(
 	stats *StatsSummary,
 	cadvisorIndex map[string]*CAdvisorContainerMetrics,
-	gpuIndex map[string]*GPUMetric,
+	gpuIndex map[string][]*GPUMetric,
 	now time.Time,
 ) ([]ContainerMetricsResponse, []PVCMetricsResponse) {
 	if stats == nil {
@@ -196,7 +198,7 @@ func (u *UnifiedExporter) buildSingleContainerMetric(
 	pod PodStats,
 	container ContainerStats,
 	cadvisorIndex map[string]*CAdvisorContainerMetrics,
-	gpuIndex map[string]*GPUMetric,
+	gpuIndex map[string][]*GPUMetric,
 	rxBytes, txBytes uint64,
 	now time.Time,
 ) ContainerMetricsResponse {
@@ -239,14 +241,25 @@ func (u *UnifiedExporter) buildSingleContainerMetric(
 		resp.CPUThrottleFraction = cm.CPUThrottleFraction
 	}
 
-	// Merge GPU metrics
+	// Merge GPU metrics — aggregate across all GPUs assigned to this container.
+	// Utilization and temperature are averaged; memory and power are summed.
 	gpuKey := pod.PodRef.Namespace + "/" + pod.PodRef.Name + "/" + container.Name
-	if gm, ok := gpuIndex[gpuKey]; ok {
-		resp.GPUUtilization = gm.GPUUtilization
-		resp.GPUMemoryUsedMiB = gm.FramebufferUsed
-		resp.GPUMemoryFreeMiB = gm.FramebufferFree
-		resp.GPUPowerWatts = gm.PowerUsage
-		resp.GPUTemperature = gm.Temperature
+	if gpuSlice, ok := gpuIndex[gpuKey]; ok && len(gpuSlice) > 0 {
+		n := float64(len(gpuSlice))
+		var totalUtil, totalMemUsed, totalMemFree, totalPower, totalTemp float64
+		for _, gm := range gpuSlice {
+			totalUtil += gm.GPUUtilization
+			totalMemUsed += gm.FramebufferUsed
+			totalMemFree += gm.FramebufferFree
+			totalPower += gm.PowerUsage
+			totalTemp += gm.Temperature
+		}
+		resp.GPUDeviceCount = len(gpuSlice)
+		resp.GPUUtilization = totalUtil / n
+		resp.GPUMemoryUsedMiB = totalMemUsed
+		resp.GPUMemoryFreeMiB = totalMemFree
+		resp.GPUPowerWatts = totalPower
+		resp.GPUTemperature = totalTemp / n
 	}
 
 	return resp
