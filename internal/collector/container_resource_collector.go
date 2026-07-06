@@ -265,7 +265,6 @@ func (c *ContainerResourceCollector) collectResourcesLoop(ctx context.Context) {
 func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Context) {
 	// Build pod metrics from nodemon data
 	podMetricsList, err := c.buildPodMetricsFromNodemon(ctx)
-
 	if err != nil {
 		if c.telemetryLogger != nil {
 			c.telemetryLogger.Report(
