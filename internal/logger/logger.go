@@ -157,7 +157,13 @@ func (l *logger) run(ctx context.Context) {
 
 	for {
 		select {
-		case logEntry := <-l.logQueue:
+		case logEntry, ok := <-l.logQueue:
+			if !ok {
+				if len(batch) > 0 {
+					l.flush(ctx, batch)
+				}
+				return
+			}
 			batch = append(batch, logEntry)
 			if len(batch) >= l.config.BatchSize {
 				l.flush(ctx, batch)
