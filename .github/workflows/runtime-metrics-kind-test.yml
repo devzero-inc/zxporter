@@ -250,14 +250,15 @@ jobs:
               raise SystemExit(f'java21-jdk-options expected heap.max_bytes > 0; got heap={heap}')
           assert_close('java21-jdk-options heap.max_bytes vs xmx_bytes', heap.get('heap_max_size_bytes'), flags.get('xmx_bytes'))
 
-          # Precedence: JAVA_TOOL_OPTIONS > JDK_JAVA_OPTIONS > JAVA_OPTS
+          # Env precedence (real JVM behavior, hsperfdata-validated):
+          # JDK_JAVA_OPTIONS beats JAVA_TOOL_OPTIONS beats JAVA_OPTS
           menv = req_prefix('java21-precedence-env')
           flags = menv.get('flags_extracted', {})
-          if flags.get('xmx_bytes') != 100663296 or flags.get('xms_bytes') != 25165824:
-              raise SystemExit(f'java21-precedence-env expected xmx=96m xms=24m got flags={flags}')
+          if flags.get('xmx_bytes') != 134217728 or flags.get('xms_bytes') != 33554432:
+              raise SystemExit(f'java21-precedence-env expected xmx=128m xms=32m (JDK_JAVA_OPTIONS wins) got flags={flags}')
           src = menv.get('flag_sources', {})
-          if str(src.get('xmx_bytes', '')) != 'JAVA_TOOL_OPTIONS' or str(src.get('xms_bytes', '')) != 'JAVA_TOOL_OPTIONS':
-              raise SystemExit(f'java21-precedence-env expected sources JAVA_TOOL_OPTIONS; got {src}')
+          if str(src.get('xmx_bytes', '')) != 'JDK_JAVA_OPTIONS' or str(src.get('xms_bytes', '')) != 'JDK_JAVA_OPTIONS':
+              raise SystemExit(f'java21-precedence-env expected sources JDK_JAVA_OPTIONS; got {src}')
           heap = menv
           if (heap.get('heap_max_size_bytes') or 0) <= 0:
               raise SystemExit(f'java21-precedence-env expected heap.max_bytes > 0; got heap={heap}')

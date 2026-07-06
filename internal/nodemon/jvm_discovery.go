@@ -139,7 +139,8 @@ func ParseJVMFlags(cmdline string) JVMFlagsExtracted {
 // don’t appear in /proc/<pid>/cmdline), so this is best-effort:
 //   - cmdline is treated as highest precedence
 //   - env vars are applied in the following precedence order:
-//     JAVA_TOOL_OPTIONS, JDK_JAVA_OPTIONS, JAVA_OPTS
+//     JDK_JAVA_OPTIONS, JAVA_TOOL_OPTIONS, JAVA_OPTS (matching real JVM
+//     last-occurrence-wins semantics — see the comment at the application loop)
 //
 // The returned effectiveCmdline is the cmdline plus the env options appended as
 // tokens for observability.
@@ -190,8 +191,17 @@ func ParseJVMFlagsWithSources(cmdline string, envJavaOpts map[string]string) (JV
 
 	applyTokens(strings.Fields(cmdline), "cmdline")
 
+	// Application order encodes precedence (applyTokens is first-wins):
+	// cmdline > JDK_JAVA_OPTIONS > JAVA_TOOL_OPTIONS > JAVA_OPTS. This matches
+	// the real JVM: the launcher prepends JDK_JAVA_OPTIONS to the command line,
+	// while JAVA_TOOL_OPTIONS options come before everything — and for duplicate
+	// flags the last occurrence wins, so JDK_JAVA_OPTIONS overrides
+	// JAVA_TOOL_OPTIONS. (Validated against hsperfdata ground truth in CI: with
+	// JAVA_TOOL_OPTIONS=-Xmx96m and JDK_JAVA_OPTIONS=-Xmx128m the JVM runs a
+	// 128MiB heap.) JAVA_OPTS is not read by the JVM at all — it's a shell-script
+	// convention — so it ranks last as a best-effort hint.
 	effective := strings.TrimSpace(cmdline)
-	for _, k := range []string{"JAVA_TOOL_OPTIONS", "JDK_JAVA_OPTIONS", "JAVA_OPTS"} {
+	for _, k := range []string{"JDK_JAVA_OPTIONS", "JAVA_TOOL_OPTIONS", "JAVA_OPTS"} {
 		v := ""
 		if envJavaOpts != nil {
 			v = envJavaOpts[k]

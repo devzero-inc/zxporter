@@ -397,7 +397,7 @@ func TestResolveExePath_MissingSymlink(t *testing.T) {
 // .comment section with the given content, and returns its path. Layout:
 // ELF header, .comment data, .shstrtab data, section header table
 // (NULL, .comment, .shstrtab).
-func makeELFWithComment(t *testing.T, dir, comment string) string {
+func makeELFWithComment(t *testing.T, dir, comment string) {
 	t.Helper()
 
 	shstrtab := []byte("\x00.comment\x00.shstrtab\x00")
@@ -448,9 +448,7 @@ func makeELFWithComment(t *testing.T, dir, comment string) string {
 	section(1, 1, commentOff, uint64(len(comment)))    // .comment PROGBITS
 	section(10, 3, shstrtabOff, uint64(len(shstrtab))) // .shstrtab STRTAB
 
-	path := filepath.Join(dir, "exe")
-	require.NoError(t, os.WriteFile(path, buf, 0o755))
-	return path
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "exe"), buf, 0o755))
 }
 
 func TestProbeAndResolveRust_ELFComment(t *testing.T) {
