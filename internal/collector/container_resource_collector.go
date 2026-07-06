@@ -37,7 +37,6 @@ type ContainerResourceCollectorConfig struct {
 	// DisableGPUMetrics determines whether to disable GPU metrics collection
 	// Default is false, so metrics are collected by default
 	DisableGPUMetrics bool
-
 }
 
 func strFromMap(m map[string]interface{}, key string) string {
