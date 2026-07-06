@@ -105,13 +105,21 @@ func (c *RuntimeCollector) QueryRuntimeMetrics(ctx context.Context) (RuntimeMetr
 	// running container — adopt it (drops entries for dead containers).
 	c.probeCache = nextProbeCache
 
-	// Only adopt the rebuilt version cache on a completed (non-cancelled) pass —
-	// on cancellation buildRuntimeProcessMetrics returns a partial cache covering
-	// only the containers processed so far, and swapping it in would drop cached
-	// entries for containers not yet reached this cycle.
+	// Only swap in the rebuilt version cache wholesale on a completed pass — on
+	// cancellation it covers only the containers processed so far, and swapping
+	// would drop entries for containers not yet reached this cycle. But DO merge
+	// the partial results per key: each contains an incremented Attempts counter,
+	// and discarding those would reset the bounded-retry cap on every cancelled
+	// cycle — on a node where scans routinely exceed the handler budget, the cap
+	// would never be reached and unresolvable binaries would be re-scanned (up
+	// to 64MiB each) every single cycle forever.
 	runtimeMetrics, newCache, runtimeErr := buildRuntimeProcessMetrics(ctx, runtimeProcs, c.index, c.nodeName, c.versionCache, c.log)
 	if runtimeErr == nil {
 		c.versionCache = newCache
+	} else {
+		for k, v := range newCache {
+			c.versionCache[k] = v
+		}
 	}
 
 	return RuntimeMetrics{JVM: jvmMetrics, Runtimes: runtimeMetrics},
@@ -153,7 +161,15 @@ func buildRuntimeProcessMetrics(
 		}
 		newCache[cacheKey] = info
 
-		containerInfo, _ := index.Lookup(proc.ContainerID)
+		// Skip processes whose container isn't (yet) in the pod index — host-level
+		// or non-k8s containers, or pods the informer hasn't delivered. Emitting
+		// them with empty pod/namespace metadata just ships unattributable
+		// cmdlines the collector can never join to a container; a pod that is
+		// merely not-yet-indexed is picked up on the next cycle.
+		containerInfo, ok := index.Lookup(proc.ContainerID)
+		if !ok {
+			continue
+		}
 		metrics = append(metrics, RuntimeProcessMetric{
 			Runtime:       proc.Runtime,
 			NodeName:      nodeName,

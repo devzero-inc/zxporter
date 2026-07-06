@@ -38,14 +38,6 @@ type ContainerResourceCollectorConfig struct {
 	// Default is false, so metrics are collected by default
 	DisableGPUMetrics bool
 
-	// DisableJVMMetrics determines whether to disable JVM metrics collection (via zxporter-nodemon).
-	// Default is false.
-	DisableJVMMetrics bool
-
-	// DisableRuntimeProcessMetrics determines whether to disable generic-runtime
-	// detection (.NET, Go, GraalVM native-image, Python, Ruby, Deno, Bun — via
-	// zxporter-nodemon). Default is false.
-	DisableRuntimeProcessMetrics bool
 }
 
 func strFromMap(m map[string]interface{}, key string) string {
@@ -188,8 +180,7 @@ func (c *ContainerResourceCollector) Start(ctx context.Context) error {
 	c.logger.Info("Starting container resource collector",
 		"namespaces", c.namespaces,
 		"updateInterval", c.config.UpdateInterval,
-		"disableGPUMetrics", c.config.DisableGPUMetrics,
-		"disableJVMMetrics", c.config.DisableJVMMetrics)
+		"disableGPUMetrics", c.config.DisableGPUMetrics)
 
 	// Check if metrics client is available
 	if c.metricsClient == nil {
@@ -322,18 +313,17 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 	// than issuing two independent per-runtime fetches.
 	var jvmIndex map[gpuContainerKey]NodemonJVMMetrics
 	var runtimeProcessIndex map[gpuContainerKey][]NodemonRuntimeProcessMetrics
-	if c.nodemonClient != nil &&
-		!(c.config.DisableJVMMetrics && c.config.DisableRuntimeProcessMetrics) {
+	// Runtime detection is gated node-side by the Helm value
+	// runtimeMetrics.enabled — when disabled, nodemon doesn't register the
+	// route and FetchAllRuntimeMetrics quietly returns nothing. No separate
+	// collector-side flag: one gate, one source of truth.
+	if c.nodemonClient != nil {
 		runtimeMetrics, err := c.nodemonClient.FetchAllRuntimeMetrics(ctx)
 		if err != nil {
 			c.logger.Error(err, "Failed to fetch runtime metrics from nodemon")
 		} else {
-			if !c.config.DisableJVMMetrics {
-				jvmIndex = IndexJVMMetricsByContainer(runtimeMetrics.JVM)
-			}
-			if !c.config.DisableRuntimeProcessMetrics {
-				runtimeProcessIndex = IndexRuntimeProcessMetricsByContainer(runtimeMetrics.Runtimes)
-			}
+			jvmIndex = IndexJVMMetricsByContainer(runtimeMetrics.JVM)
+			runtimeProcessIndex = IndexRuntimeProcessMetricsByContainer(runtimeMetrics.Runtimes)
 		}
 	}
 

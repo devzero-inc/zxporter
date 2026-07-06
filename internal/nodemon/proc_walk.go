@@ -52,6 +52,7 @@ const (
 	processKindRuby
 	processKindDeno
 	processKindBun
+	processKindRust
 )
 
 // walkProcEntries scans procRoot (usually "/proc") and returns entries for
@@ -279,7 +280,11 @@ func resolveExePath(pidDir string) string {
 // readEnvVars reads /proc/<pid>/environ-style NUL-separated key=value content
 // and returns the requested keys that are present and non-empty.
 func readEnvVars(environPath string, keys ...string) map[string]string {
-	raw := readProcFile(environPath)
+	// environ gets its own (larger) cap: readProcFile's 64KiB default silently
+	// truncates big environments, which would hide a version env var sitting
+	// past the cut and force the expensive binary-scan fallback every cycle.
+	// Linux caps a process's environment near 2MiB.
+	raw := readFileCapped(environPath, 2<<20)
 	if raw == "" {
 		return nil
 	}

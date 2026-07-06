@@ -120,3 +120,24 @@ spec:
         - name: app
           image: oven/bun:1
           command: ["bun", "-e", "setInterval(() => {}, 60000)"]
+---
+# Rust: vector is a Rust binary with an app-named comm — exercises the ELF
+# .comment probe path (rustc toolchain stamp). Runs standalone with its
+# bundled default config. Tag pinned: 'latest' points at debian by default
+# and the alpine variant keeps the image small.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rust-app
+  namespace: runtime-spike
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: rust-app}
+  template:
+    metadata:
+      labels: {app: rust-app}
+    spec:
+      containers:
+        - name: app
+          image: timberio/vector:0.49.0-alpine

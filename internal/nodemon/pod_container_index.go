@@ -155,9 +155,12 @@ func (idx *PodContainerIndex) startInformer() error {
 	defer syncCancel()
 
 	syncDone := make(chan bool, 1)
+	// Capture the channel value: on the timeout path below, cleanupInformer
+	// reassigns idx.stopCh while this goroutine may not have read the field yet.
+	stopCh := idx.stopCh
 	go func() {
 		syncDone <- cache.WaitForCacheSync(
-			idx.stopCh, podInformer.HasSynced,
+			stopCh, podInformer.HasSynced,
 		)
 	}()
 

@@ -219,6 +219,10 @@ func TestParseMemSize(t *testing.T) {
 		{"", 0, true},
 		{"abc", 0, true},
 		{"1.5g", 0, true},
+		// Whitespace-only must error, not panic: reachable from a container's
+		// own env via quoted values like JAVA_TOOL_OPTIONS=-Xmx" ".
+		{" ", 0, true},
+		{"\t", 0, true},
 	}
 
 	for _, tc := range tests {

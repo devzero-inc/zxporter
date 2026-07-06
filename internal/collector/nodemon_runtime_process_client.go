@@ -35,15 +35,23 @@ func IndexRuntimeProcessMetricsByContainer(metrics []NodemonRuntimeProcessMetric
 	for _, m := range metrics {
 		key := gpuContainerKey{Pod: m.Pod, Container: m.Container, Namespace: m.Namespace}
 		// Keep one entry per runtime per container — multiple processes of the
-		// same runtime in one container add no signal.
+		// same runtime in one container add no signal. On collision prefer an
+		// entry with a resolved version: /proc walk order is arbitrary, and a
+		// container can host e.g. a versionless wrapper process alongside the
+		// real, resolvable worker.
+		replaced := false
 		duplicate := false
-		for _, existing := range index[key] {
+		for i, existing := range index[key] {
 			if existing.Runtime == m.Runtime {
 				duplicate = true
+				if existing.Version == "" && m.Version != "" {
+					index[key][i] = m
+					replaced = true
+				}
 				break
 			}
 		}
-		if !duplicate {
+		if !duplicate && !replaced {
 			index[key] = append(index[key], m)
 		}
 	}

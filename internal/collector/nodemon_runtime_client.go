@@ -1,6 +1,7 @@
 package collector
 
 import (
+	"errors"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -17,8 +18,13 @@ type NodemonRuntimeMetrics struct {
 	Runtimes []NodemonRuntimeProcessMetrics `json:"runtimes"`
 }
 
+// errRuntimeMetricsDisabled marks a nodemon 404 on /container/runtime-metrics:
+// the route is only registered when RUNTIME_METRICS_ENABLED=true, so a 404
+// means the feature is off (runtimeMetrics.enabled=false), not a failure.
+var errRuntimeMetricsDisabled = errors.New("runtime metrics disabled on nodemon")
+
 // FetchAllRuntimeMetrics discovers all nodemon pods and fetches combined JVM +
-// Node.js metrics from each, merging the results across nodes.
+// generic-runtime metrics from each, merging the results across nodes.
 func (c *NodemonClient) FetchAllRuntimeMetrics(ctx context.Context) (NodemonRuntimeMetrics, error) {
 	nodeToIP, err := c.refreshCache(ctx)
 	if err != nil {
@@ -32,6 +38,11 @@ func (c *NodemonClient) FetchAllRuntimeMetrics(ctx context.Context) (NodemonRunt
 	for nodeName, podIP := range nodeToIP {
 		url := fmt.Sprintf("http://%s:%d/container/runtime-metrics", podIP, c.port)
 		metrics, fetchErr := c.fetchRuntimeMetrics(ctx, url)
+		if errors.Is(fetchErr, errRuntimeMetricsDisabled) {
+			// Feature is off chart-wide; don't error-spam every node every cycle.
+			c.log.V(1).Info("Runtime metrics disabled on nodemon; skipping fetch", "node", nodeName)
+			continue
+		}
 		if fetchErr != nil {
 			c.log.Error(fetchErr, "Failed to fetch runtime metrics from exporter pod", "node", nodeName, "podIP", podIP)
 			continue
@@ -54,6 +65,9 @@ func (c *NodemonClient) fetchRuntimeMetrics(ctx context.Context, url string) (No
 	}
 	defer func() { _ = resp.Body.Close() }()
 
+	if resp.StatusCode == http.StatusNotFound {
+		return NodemonRuntimeMetrics{}, errRuntimeMetricsDisabled
+	}
 	if resp.StatusCode != http.StatusOK {
 		return NodemonRuntimeMetrics{}, fmt.Errorf("nodemon returned status %d", resp.StatusCode)
 	}

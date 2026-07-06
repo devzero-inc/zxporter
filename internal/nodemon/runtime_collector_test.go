@@ -75,7 +75,9 @@ func TestRuntimeCollector_QueryRuntimeMetrics_CachesNodeVersionAcrossCalls(t *te
 	binary := "junk https://nodejs.org/download/release/v20.11.1/node-v20.11.1.tar.gz junk"
 	procRoot, containerID := buildFakeNodeProc(t, 300, "/usr/local/bin/node", binary)
 
-	idx := &PodContainerIndex{containerMap: map[string]containerInfo{}}
+	idx := &PodContainerIndex{containerMap: map[string]containerInfo{
+		containerID: {Pod: "node-app", Namespace: "default", Container: "app"},
+	}}
 	c := NewRuntimeCollector("node-1", idx, testr.New(t))
 	c.procRoot = procRoot
 
@@ -125,7 +127,9 @@ func TestBuildRuntimeProcessMetrics_StopsRetryingAfterMaxAttempts(t *testing.T) 
 		PidDir:      pidDir,
 	}
 
-	idx := &PodContainerIndex{containerMap: map[string]containerInfo{}}
+	idx := &PodContainerIndex{containerMap: map[string]containerInfo{
+		containerID: {Pod: "node-app", Namespace: "default", Container: "app"},
+	}}
 	cache := map[string]versionResolveInfo(nil)
 	for cycle := 0; cycle < maxVersionResolveAttempts+3; cycle++ {
 		metrics, newCache, err := buildRuntimeProcessMetrics(

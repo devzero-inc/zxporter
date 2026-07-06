@@ -259,10 +259,15 @@ func splitJavaOpts(s string) []string {
 
 // parseMemSize parses JVM memory size strings: "256m", "4g", "512k", or bare bytes.
 func parseMemSize(s string) (int64, error) {
-	if s == "" {
+	lower := strings.ToLower(strings.TrimSpace(s))
+	// Check AFTER trimming: a whitespace-only value (constructible via quoted
+	// JVM env vars like JAVA_TOOL_OPTIONS=-Xmx" ", which are read from the
+	// target container's environ and thus attacker-controlled) must not reach
+	// the last-byte index below — that would panic on every scrape for as long
+	// as the offending process lives.
+	if lower == "" {
 		return 0, fmt.Errorf("empty size string")
 	}
-	lower := strings.ToLower(strings.TrimSpace(s))
 	var multiplier int64 = 1
 	switch lower[len(lower)-1] {
 	case 'k':

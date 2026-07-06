@@ -40,6 +40,7 @@ const (
 	runtimeNameRuby    = "ruby"
 	runtimeNameDeno    = "deno"
 	runtimeNameBun     = "bun"
+	runtimeNameRust    = "rust"
 )
 
 // version sources reported in RuntimeProcessMetric.VersionSource.
@@ -50,6 +51,7 @@ const (
 	runtimeVersionSourceComm       = "comm"
 	runtimeVersionSourceBuildInfo  = "buildinfo"
 	runtimeVersionSourceBinaryScan = "binary-scan"
+	runtimeVersionSourceELFComment = "elf-comment"
 )
 
 // maxMapsReadBytes caps reads of /proc/<pid>/maps for version resolution. maps
@@ -74,6 +76,15 @@ var (
 	// legitimately appears mid-binary).
 	denoUserAgentRe = regexp.MustCompile(`Deno/(\d+\.\d+\.\d+)`)
 	bunUserAgentRe  = regexp.MustCompile(`Bun/(\d+\.\d+\.\d+)`)
+	// rustCommentVersionRe matches the toolchain stamp rustc writes into every
+	// binary's ELF .comment section, e.g. "rustc version 1.88.0 (6b00bc388 2025-06-23)".
+	// This is the toolchain version (the analog of Go's buildinfo version) — Rust
+	// has no runtime, so there is nothing else to version.
+	rustCommentVersionRe = regexp.MustCompile(`rustc version (\d+\.\d+\.\d+)`)
+	// rustcPathMarkerRe matches the /rustc/<commit-hash>/ source-path prefix Rust
+	// embeds in panic/backtrace metadata — the fallback detection signal for
+	// binaries whose .comment section was stripped.
+	rustcPathMarkerRe = regexp.MustCompile(`(/rustc/[0-9a-f]{40}/)`)
 	// graalVMVersionRe best-effort matches the GraalVM release string embedded in
 	// native-image binaries, e.g. "GraalVM CE 22.3.1" or "Oracle GraalVM 21+35.1".
 	graalVMVersionRe = regexp.MustCompile(`GraalVM (?:[A-Z]{2} )?(\d+(?:\.\d+)*(?:\+[\d.]+)?)`)
@@ -218,6 +229,8 @@ func runtimeNameForKind(kind processKind) string {
 		return runtimeNameDeno
 	case processKindBun:
 		return runtimeNameBun
+	case processKindRust:
+		return runtimeNameRust
 	default:
 		return ""
 	}
@@ -230,6 +243,8 @@ func resolveRuntimeVersion(kind processKind, pidDir string) (version, source str
 		return resolveGoVersion(pidDir)
 	case processKindGraalVM:
 		return resolveGraalVMVersion(pidDir)
+	case processKindRust:
+		return resolveRustVersion(pidDir)
 	default:
 		for _, d := range extraRuntimeDetectors {
 			if d.kind == kind {
@@ -312,11 +327,13 @@ func newMemoizedProbe(prev map[string]probeCacheEntry, inner func(e procEntry) p
 }
 
 // probeRuntimeProcess identifies runtimes that can't be classified from
-// comm/cmdline because the binary is named after the application: Go binaries
-// and GraalVM native images. It only reads the executable's headers/sections via
-// the /proc/<pid>/exe magic link — nothing is executed. Called by the /proc walk
-// only for processes that already resolved to a container cgroup, so host
-// daemons are never probed.
+// comm/cmdline because the binary is named after the application: Go binaries,
+// GraalVM native images, Rust binaries, and .NET apphost launchers. It only
+// reads the executable's headers/sections (and, as a last resort, a bounded
+// streamed scan of its content) via the /proc/<pid>/exe magic link — nothing is
+// executed. Called by the /proc walk only for processes that already resolved
+// to a container cgroup, so host daemons are never probed. Checks are ordered
+// cheapest-first; results are memoized per (container, exe) by newMemoizedProbe.
 func probeRuntimeProcess(e procEntry) processKind {
 	exePath := filepath.Join(e.PidDir, "exe")
 
@@ -339,11 +356,9 @@ func probeRuntimeProcess(e procEntry) processKind {
 		return processKindGo
 	}
 
-	// GraalVM native-image binaries carry the SubstrateVM image heap in a
-	// dedicated ELF section. These are Java workloads that the hsperfdata-based
-	// JVM detector cannot see (no HotSpot, no perf counters file).
-	if hasSVMSection(exePath) {
-		return processKindGraalVM
+	// Section/comment-level ELF checks: GraalVM native-image and Rust.
+	if kind := probeELFKind(exePath); kind != processKindUnknown {
+		return kind
 	}
 
 	// .NET's default deployment shape is an apphost: a small native launcher
@@ -354,26 +369,61 @@ func probeRuntimeProcess(e procEntry) processKind {
 		return processKindDotnet
 	}
 
+	// Last resort (most expensive — bounded streamed content scan, memoized per
+	// container/exe): Rust binaries whose .comment section was stripped still
+	// embed /rustc/<commit-hash>/ source paths in their panic/backtrace
+	// metadata. Best-effort: in very large Rust binaries these paths can sit
+	// beyond the scan cap (measured 74MiB into vector's 118MiB binary), which is
+	// why the .comment check above is the primary Rust signal.
+	if v := scanFileSubmatch(exePath, maxBinaryScanBytes, rustcPathMarkerRe); v != "" {
+		return processKindRust
+	}
+
 	return processKindUnknown
 }
 
-// hasSVMSection reports whether the ELF binary at path contains a SubstrateVM
-// section (".svm_heap" et al.), the marker of a GraalVM native-image binary.
-func hasSVMSection(path string) bool {
+// probeELFKind inspects the ELF sections of the binary at path for runtime
+// markers: the SubstrateVM image-heap section (GraalVM native-image — Java
+// workloads the hsperfdata-based JVM detector cannot see: no HotSpot, no perf
+// counters file), and the rustc toolchain stamp in the .comment section (Rust).
+// One ELF open covers both. Returns processKindUnknown for non-ELF files.
+func probeELFKind(path string) processKind {
 	f, err := elf.Open(path)
 	if err != nil {
-		return false
+		return processKindUnknown
 	}
 	defer func() {
 		// close errors on a read-only probe are not actionable.
 		_ = f.Close()
 	}()
+
 	for _, s := range f.Sections {
 		if strings.Contains(s.Name, "svm_heap") {
-			return true
+			return processKindGraalVM
 		}
 	}
-	return false
+
+	if comment := elfCommentData(f); rustCommentVersionRe.Match(comment) {
+		return processKindRust
+	}
+
+	return processKindUnknown
+}
+
+// elfCommentData returns the contents of the ELF .comment section, or nil.
+// The section is a few tens of bytes of toolchain stamps ("GCC: (GNU) 12.2.0",
+// "rustc version 1.88.0 (...)"), but cap the read defensively since the size
+// field is attacker-controlled in a crafted binary.
+func elfCommentData(f *elf.File) []byte {
+	s := f.Section(".comment")
+	if s == nil || s.Size > 1<<16 {
+		return nil
+	}
+	d, err := s.Data()
+	if err != nil {
+		return nil
+	}
+	return d
 }
 
 // resolveDotnetVersion resolves the .NET runtime version: DOTNET_VERSION env var
@@ -406,6 +456,24 @@ func resolveGoVersion(pidDir string) (version, source string) {
 // version is a bonus and may legitimately stay empty.
 func resolveGraalVMVersion(pidDir string) (version, source string) {
 	return scanBinaryVersion(pidDir, graalVMVersionRe)
+}
+
+// resolveRustVersion reads the rustc toolchain version from the executable's
+// ELF .comment section. Empty for .comment-stripped binaries (detected via the
+// /rustc/ path marker instead) — still reported as a detected Rust workload.
+func resolveRustVersion(pidDir string) (version, source string) {
+	f, err := elf.Open(filepath.Join(pidDir, "exe"))
+	if err != nil {
+		return "", ""
+	}
+	defer func() {
+		// close errors on a read-only probe are not actionable.
+		_ = f.Close()
+	}()
+	if m := rustCommentVersionRe.FindSubmatch(elfCommentData(f)); len(m) == 2 {
+		return string(m[1]), runtimeVersionSourceELFComment
+	}
+	return "", ""
 }
 
 // resolvePythonVersion resolves the CPython version: PYTHON_VERSION env var

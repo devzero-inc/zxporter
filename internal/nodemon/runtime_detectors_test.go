@@ -392,3 +392,95 @@ func TestResolveExePath_MissingSymlink(t *testing.T) {
 	pidDir := t.TempDir()
 	assert.Empty(t, resolveExePath(pidDir))
 }
+
+// makeELFWithComment writes a minimal but valid ELF64 file containing a
+// .comment section with the given content, and returns its path. Layout:
+// ELF header, .comment data, .shstrtab data, section header table
+// (NULL, .comment, .shstrtab).
+func makeELFWithComment(t *testing.T, dir, comment string) string {
+	t.Helper()
+
+	shstrtab := []byte("\x00.comment\x00.shstrtab\x00")
+	commentOff := uint64(64)
+	shstrtabOff := commentOff + uint64(len(comment))
+	shoff := shstrtabOff + uint64(len(shstrtab))
+
+	var buf []byte
+	le := func(v uint64, n int) {
+		for i := 0; i < n; i++ {
+			buf = append(buf, byte(v>>(8*i)))
+		}
+	}
+
+	// ELF header
+	buf = append(buf, 0x7f, 'E', 'L', 'F', 2, 1, 1, 0) // magic, 64-bit, LE, current
+	buf = append(buf, make([]byte, 8)...)              // padding
+	le(2, 2)                                           // e_type ET_EXEC
+	le(0x3e, 2)                                        // e_machine EM_X86_64
+	le(1, 4)                                           // e_version
+	le(0, 8)                                           // e_entry
+	le(0, 8)                                           // e_phoff
+	le(shoff, 8)                                       // e_shoff
+	le(0, 4)                                           // e_flags
+	le(64, 2)                                          // e_ehsize
+	le(0, 2)                                           // e_phentsize
+	le(0, 2)                                           // e_phnum
+	le(64, 2)                                          // e_shentsize
+	le(3, 2)                                           // e_shnum
+	le(2, 2)                                           // e_shstrndx
+
+	buf = append(buf, comment...)
+	buf = append(buf, shstrtab...)
+
+	section := func(nameOff, typ uint64, off, size uint64) {
+		le(nameOff, 4) // sh_name
+		le(typ, 4)     // sh_type
+		le(0, 8)       // sh_flags
+		le(0, 8)       // sh_addr
+		le(off, 8)     // sh_offset
+		le(size, 8)    // sh_size
+		le(0, 4)       // sh_link
+		le(0, 4)       // sh_info
+		le(1, 8)       // sh_addralign
+		le(0, 8)       // sh_entsize
+	}
+	section(0, 0, 0, 0)                                // NULL
+	section(1, 1, commentOff, uint64(len(comment)))    // .comment PROGBITS
+	section(10, 3, shstrtabOff, uint64(len(shstrtab))) // .shstrtab STRTAB
+
+	path := filepath.Join(dir, "exe")
+	require.NoError(t, os.WriteFile(path, buf, 0o755))
+	return path
+}
+
+func TestProbeAndResolveRust_ELFComment(t *testing.T) {
+	pidDir := t.TempDir()
+	makeELFWithComment(t, pidDir, "GCC: (GNU) 12.2.0\x00rustc version 1.88.0 (6b00bc388 2025-06-23)\x00")
+
+	assert.Equal(t, processKindRust, probeRuntimeProcess(procEntry{PidDir: pidDir, Comm: "vector"}))
+
+	v, src := resolveRustVersion(pidDir)
+	assert.Equal(t, "1.88.0", v)
+	assert.Equal(t, runtimeVersionSourceELFComment, src)
+}
+
+func TestProbeRust_PathMarkerFallback(t *testing.T) {
+	// .comment-stripped binary: not a valid ELF for the section checks (plain
+	// content file), but carries the /rustc/<hash>/ panic-metadata path.
+	pidDir := t.TempDir()
+	content := "junk /rustc/6b00bc3880198600130e1cf62b8f8a93494488cc/library/std/src/panicking.rs junk"
+	require.NoError(t, os.WriteFile(filepath.Join(pidDir, "exe"), []byte(content), 0o755))
+
+	assert.Equal(t, processKindRust, probeRuntimeProcess(procEntry{PidDir: pidDir, Comm: "myapp"}))
+
+	// Marker-only detection resolves no version — still reported as detected.
+	v, src := resolveRustVersion(pidDir)
+	assert.Empty(t, v)
+	assert.Empty(t, src)
+}
+
+func TestProbeRust_CommentWithoutRustcIsNotRust(t *testing.T) {
+	pidDir := t.TempDir()
+	makeELFWithComment(t, pidDir, "GCC: (GNU) 12.2.0\x00")
+	assert.Equal(t, processKindUnknown, probeRuntimeProcess(procEntry{PidDir: pidDir, Comm: "nginx"}))
+}
