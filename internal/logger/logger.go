@@ -96,6 +96,10 @@ func (l *logger) Report(
 	err error,
 	fields map[string]string,
 ) {
+	if l.stopped.Load() {
+		return
+	}
+
 	errorString := ""
 	if err != nil {
 		errorString = err.Error()
@@ -153,14 +157,7 @@ func (l *logger) run(ctx context.Context) {
 
 	for {
 		select {
-		case logEntry, ok := <-l.logQueue:
-			if !ok {
-				// Channel closed, flush remaining batch and exit
-				if len(batch) > 0 {
-					l.flush(ctx, batch)
-				}
-				return
-			}
+		case logEntry := <-l.logQueue:
 			batch = append(batch, logEntry)
 			if len(batch) >= l.config.BatchSize {
 				l.flush(ctx, batch)
@@ -172,8 +169,21 @@ func (l *logger) run(ctx context.Context) {
 				batch = make([]*gen.LogEntry, 0, l.config.BatchSize)
 			}
 		case <-l.stopCh:
-			// flush the queue one last time before exiting
-			close(l.logQueue)
+			// Drain remaining entries and flush before exiting.
+			// logQueue is never closed, so no send-on-closed-channel panic.
+		drainLoop:
+			for {
+				select {
+				case entry := <-l.logQueue:
+					batch = append(batch, entry)
+				default:
+					break drainLoop
+				}
+			}
+			if len(batch) > 0 {
+				l.flush(ctx, batch)
+			}
+			return
 		}
 	}
 }
