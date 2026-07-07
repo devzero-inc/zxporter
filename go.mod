@@ -15,7 +15,7 @@ require (
 
 require (
 	github.com/Code-Hex/go-generics-cache v1.5.1
-	github.com/cilium/cilium v1.17.15
+	github.com/cilium/cilium v1.17.16
 	github.com/cilium/ebpf v0.17.1
 	github.com/florianl/go-conntrack v0.5.0
 	github.com/google/gopacket v1.1.19
