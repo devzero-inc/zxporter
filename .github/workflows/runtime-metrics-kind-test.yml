@@ -1,0 +1,524 @@
+name: runtime-metrics-kind
+
+# Language-agnostic end-to-end validation of zxporter-nodemon's runtime
+# detection on a real kind cluster: JVM (hsperfdata heap metrics + flag-source
+# attribution), Node.js (env + binary-scan version resolution), and the generic
+# runtimes (.NET, Go, Rust, Python, Ruby, Deno, Bun), all served by the combined
+# /container/runtime-metrics endpoint's single /proc walk.
+#
+# Consolidates the former jvm-metrics-kind and nodejs-metrics-kind workflows —
+# one cluster, one nodemon deploy, every runtime asserted. The dual Helm-key
+# coverage those two workflows split between them (deprecated jvmMetrics.enabled
+# vs canonical runtimeMetrics.enabled) is preserved as an explicit template
+# parity check below.
+
+permissions:
+  contents: read
+
+on:
+  pull_request:
+    # Nodemon helm chart templates are exercised here, so do not ignore
+    # helm-chart/** — only skip documentation-only changes.
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'LICENSE'
+  workflow_dispatch:
+
+jobs:
+  runtime-metrics-kind:
+    # Use our namespace runner profile (same pattern as image-push workflows).
+    # This avoids relying on GitHub-hosted runner labels.
+    runs-on: namespace-profile-dz-generic
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
+          cache: true
+
+      - name: Create kind cluster
+        uses: helm/kind-action@v1
+        with:
+          version: v0.27.0
+          node_image: kindest/node:v1.32.3
+          cluster_name: kind-runtime-metrics
+          wait: 120s
+
+      - name: Install metrics-server
+        run: |
+          helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
+          helm repo update
+          helm upgrade --install --set args={--kubelet-insecure-tls} metrics-server metrics-server/metrics-server --namespace kube-system
+          kubectl wait --for=condition=available --timeout=300s deployment/metrics-server -n kube-system
+
+      - name: Helm key parity (deprecated jvmMetrics.enabled vs canonical runtimeMetrics.enabled)
+        run: |
+          # The deprecated key must render the exact same manifests as the
+          # canonical one (privileges, env, RBAC), and disabling via the
+          # deprecated key alone must still work.
+          helm template zxporter-nodemon ./helm-chart/zxporter-nodemon \
+            --set global.k8sProvider=other --set dcgmExporter.enabled=false \
+            --set jvmMetrics.enabled=true > /tmp/render-deprecated.yaml
+          helm template zxporter-nodemon ./helm-chart/zxporter-nodemon \
+            --set global.k8sProvider=other --set dcgmExporter.enabled=false \
+            --set runtimeMetrics.enabled=true > /tmp/render-canonical.yaml
+          diff -u /tmp/render-deprecated.yaml /tmp/render-canonical.yaml
+
+          helm template zxporter-nodemon ./helm-chart/zxporter-nodemon \
+            --set global.k8sProvider=other --set dcgmExporter.enabled=false \
+            --set jvmMetrics.enabled=false > /tmp/render-disabled.yaml
+          if grep -q 'RUNTIME_METRICS_ENABLED' /tmp/render-disabled.yaml && \
+             grep -A1 'RUNTIME_METRICS_ENABLED' /tmp/render-disabled.yaml | grep -q '"true"'; then
+            echo 'jvmMetrics.enabled=false did not disable runtime metrics'; exit 1
+          fi
+          # The privileges are the point of the toggle: they must be absent
+          # from the disabled render (and present in the enabled one, proving
+          # the greps aren't vacuous).
+          if grep -qE 'hostPID: true|SYS_PTRACE' /tmp/render-disabled.yaml; then
+            echo 'disabled render still grants process-introspection privileges'; exit 1
+          fi
+          grep -q 'hostPID: true' /tmp/render-canonical.yaml
+          grep -q 'SYS_PTRACE' /tmp/render-canonical.yaml
+
+      - name: Build nodemon image
+        run: |
+          docker build -f Dockerfile.nodemon -t zxporter-nodemon:runtime-ci .
+
+      - name: Load nodemon image into kind
+        run: |
+          kind load docker-image zxporter-nodemon:runtime-ci --name kind-runtime-metrics
+
+      - name: Deploy zxporter-nodemon (runtime metrics enabled)
+        run: |
+          kubectl create ns devzero-system || true
+          helm upgrade --install zxporter-nodemon ./helm-chart/zxporter-nodemon \
+            -n devzero-system \
+            --set global.k8sProvider=other \
+            --set dcgmExporter.enabled=false \
+            --set runtimeMetrics.enabled=true \
+            --set image.repository=zxporter-nodemon \
+            --set image.tag=runtime-ci \
+            --set image.pullPolicy=IfNotPresent
+          kubectl -n devzero-system rollout status ds/zxporter-nodemon --timeout=180s
+
+      - name: Deploy JVM test workloads
+        run: |
+          kubectl apply -f test/fixtures/jvm-apps.yaml
+          kubectl -n jvm-spike rollout status deploy/java8-xmx-only --timeout=300s
+          kubectl -n jvm-spike rollout status deploy/java11-tool-options --timeout=300s
+          kubectl -n jvm-spike rollout status deploy/java17-maxram-only --timeout=300s
+          kubectl -n jvm-spike rollout status deploy/java21-jdk-options --timeout=300s
+          kubectl -n jvm-spike rollout status deploy/java21-precedence-env --timeout=300s
+          kubectl -n jvm-spike rollout status deploy/java21-precedence-cmdline --timeout=300s
+          kubectl -n jvm-spike rollout status deploy/java21-per-flag-sources --timeout=300s
+          kubectl -n jvm-spike rollout status deploy/not-java --timeout=300s
+
+      - name: Deploy Node.js test workloads
+        run: |
+          kubectl apply -f test/fixtures/nodejs-apps.yaml
+          kubectl -n nodejs-spike rollout status deploy/node-version-env --timeout=300s
+          kubectl -n nodejs-spike rollout status deploy/node-version-binaryscan --timeout=300s
+          kubectl -n nodejs-spike rollout status deploy/not-node --timeout=300s
+
+      - name: Deploy generic-runtime test workloads (.NET, Go, Rust, Python, Ruby, Deno, Bun)
+        run: |
+          kubectl apply -f test/fixtures/runtime-apps.yaml
+          for d in python-app ruby-app go-app dotnet-app deno-app bun-app rust-app; do
+            kubectl -n runtime-spike rollout status deploy/$d --timeout=600s
+          done
+
+      - name: Validate runtime metrics output (baseline, all runtimes)
+        run: |
+          POD_IP=$(kubectl -n devzero-system get pod -l app.kubernetes.io/name=zxporter-nodemon -o jsonpath='{.items[0].status.podIP}')
+          echo "nodemon podIP=$POD_IP"
+
+          # Assertions (python; no jq dependency).
+          # Avoid `kubectl run -i --rm` + heredoc (flaky/non-interactive on Actions).
+          kubectl -n devzero-system run py-assert --image=python:3.12-slim --restart=Never --command -- sleep 3600
+          kubectl -n devzero-system wait --for=condition=Ready --timeout=120s pod/py-assert
+
+          kubectl -n devzero-system exec -i py-assert -- python - <<PY
+          import json
+          import time
+          import urllib.request
+
+          pod_ip = '${POD_IP}'
+
+          def fetch(path):
+              url = f'http://{pod_ip}:6061{path}'
+              with urllib.request.urlopen(url, timeout=30) as r:
+                  return json.loads(r.read().decode('utf-8'))
+
+          def req_prefix_map(by_pod, prefix):
+              for k, v in by_pod.items():
+                  if k and k.startswith(prefix):
+                      return v
+              raise SystemExit(f'missing pod prefix={prefix}; got pods={list(by_pod.keys())}')
+
+          def assert_close(name, got, expected, rel=0.10, abs_bytes=16*1024*1024):
+              if got is None or expected is None:
+                  raise SystemExit(f'{name} missing values for close-check (got={got} expected={expected})')
+              lo = expected - max(abs_bytes, int(expected * rel))
+              hi = expected + max(abs_bytes, int(expected * rel))
+              if not (lo <= got <= hi):
+                  raise SystemExit(f'{name} expected ~{expected} (±max({abs_bytes}, {int(expected*rel)})) got {got}; range=[{lo},{hi}]')
+
+          # Cold-cache warm-up: the first queries trigger up-to-64MiB binary
+          # scans that can exceed nodemon's 2.5s handler budget, which then
+          # serves partial results. Resolution is cached across cycles, so poll
+          # until everything expected has appeared, then run the strict
+          # assertions (which give precise failure messages if it never does).
+          need_versions = ['node-version-env', 'node-version-binaryscan', 'python-app',
+                           'ruby-app', 'go-app', 'dotnet-app', 'deno-app', 'bun-app', 'rust-app']
+          def all_present():
+              c = fetch('/container/runtime-metrics')
+              if not any((m.get('pod') or '').startswith('java8-xmx-only') for m in c.get('jvm', [])):
+                  return False
+              rt = c.get('runtimes', [])
+              return all(
+                  any((m.get('pod') or '').startswith(p) and m.get('version') for m in rt)
+                  for p in need_versions)
+          for _ in range(36):  # up to ~3min
+              try:
+                  if all_present():
+                      break
+              except Exception:
+                  pass
+              time.sleep(5)
+
+          # ============ JVM: legacy /container/jvm-metrics ============
+          data = fetch('/container/jvm-metrics?namespace=jvm-spike')
+          by_pod = {m.get('pod'): m for m in data}
+          req_prefix = lambda p: req_prefix_map(by_pod, p)
+
+          # Ensure not-java absent
+          if any((m.get('pod', '') or '').startswith('not-java') for m in data):
+              raise SystemExit('not-java unexpectedly present in JVM metrics')
+
+          # java8: cmdline -Xmx192m => 201326592
+          m8 = req_prefix('java8-xmx-only')
+          flags = m8.get('flags_extracted', {})
+          if flags.get('xmx_bytes') != 201326592:
+              raise SystemExit(f'java8-xmx-only expected xmx_bytes=201326592 got {flags.get("xmx_bytes")}')
+          src = m8.get('flag_sources', {})
+          if str(src.get('xmx_bytes', '')) != 'cmdline':
+              raise SystemExit(f'java8-xmx-only expected xmx source cmdline; got {src}')
+
+          # java11: env JAVA_TOOL_OPTIONS provides xmx/xms/maxram; sources should be JAVA_TOOL_OPTIONS
+          m11 = req_prefix('java11-tool-options')
+          flags = m11.get('flags_extracted', {})
+          if flags.get('xmx_bytes') != 167772160 or flags.get('xms_bytes') != 50331648 or flags.get('max_ram_percentage') != 65:
+              raise SystemExit(f'java11-tool-options flags mismatch: {flags}')
+          src = m11.get('flag_sources', {})
+          if str(src.get('xmx_bytes', '')) != 'JAVA_TOOL_OPTIONS' or str(src.get('xms_bytes', '')) != 'JAVA_TOOL_OPTIONS':
+              raise SystemExit(f'java11-tool-options expected xmx/xms sources JAVA_TOOL_OPTIONS; got {src}')
+
+          # java17: maxram only should be 40
+          m17 = req_prefix('java17-maxram-only')
+          flags = m17.get('flags_extracted', {})
+          if flags.get('max_ram_percentage') != 40:
+              raise SystemExit(f'java17-maxram-only expected max_ram_percentage=40 got {flags.get("max_ram_percentage")}')
+
+          # Spot-check that hsperfdata-derived heap metrics exist (non-zero) for JVM pods.
+          # And when Xmx is known, ensure heap.max_bytes is roughly consistent (buffered to avoid flakiness).
+          for name, m in [('java8-xmx-only', m8), ('java11-tool-options', m11), ('java17-maxram-only', m17)]:
+              heap = m
+              if (heap.get('heap_max_size_bytes') or 0) <= 0:
+                  raise SystemExit(f'{name} expected heap.max_bytes > 0; got heap={heap}')
+              if (heap.get('heap_used_bytes') or 0) < 0:
+                  raise SystemExit(f'{name} expected heap.used_bytes >= 0; got heap={heap}')
+
+              flags = m.get('flags_extracted', {})
+              xmx = flags.get('xmx_bytes')
+              if xmx:
+                  assert_close(f'{name} heap.max_bytes vs xmx_bytes', heap.get('heap_max_size_bytes'), xmx)
+
+          # java21: verify JDK_JAVA_OPTIONS parsing + source attribution
+          m21 = req_prefix('java21-jdk-options')
+          flags = m21.get('flags_extracted', {})
+          if flags.get('xmx_bytes') != 134217728 or flags.get('xms_bytes') != 33554432:
+              raise SystemExit(f'java21-jdk-options flags mismatch: {flags}')
+          src = m21.get('flag_sources', {})
+          if str(src.get('xmx_bytes', '')) != 'JDK_JAVA_OPTIONS' or str(src.get('xms_bytes', '')) != 'JDK_JAVA_OPTIONS':
+              raise SystemExit(f'java21-jdk-options expected xmx/xms sources JDK_JAVA_OPTIONS; got {src}')
+          heap = m21
+          if (heap.get('heap_max_size_bytes') or 0) <= 0:
+              raise SystemExit(f'java21-jdk-options expected heap.max_bytes > 0; got heap={heap}')
+          assert_close('java21-jdk-options heap.max_bytes vs xmx_bytes', heap.get('heap_max_size_bytes'), flags.get('xmx_bytes'))
+
+          # Env precedence (real JVM behavior, hsperfdata-validated):
+          # JDK_JAVA_OPTIONS beats JAVA_TOOL_OPTIONS beats JAVA_OPTS
+          menv = req_prefix('java21-precedence-env')
+          flags = menv.get('flags_extracted', {})
+          if flags.get('xmx_bytes') != 134217728 or flags.get('xms_bytes') != 33554432:
+              raise SystemExit(f'java21-precedence-env expected xmx=128m xms=32m (JDK_JAVA_OPTIONS wins) got flags={flags}')
+          src = menv.get('flag_sources', {})
+          if str(src.get('xmx_bytes', '')) != 'JDK_JAVA_OPTIONS' or str(src.get('xms_bytes', '')) != 'JDK_JAVA_OPTIONS':
+              raise SystemExit(f'java21-precedence-env expected sources JDK_JAVA_OPTIONS; got {src}')
+          heap = menv
+          if (heap.get('heap_max_size_bytes') or 0) <= 0:
+              raise SystemExit(f'java21-precedence-env expected heap.max_bytes > 0; got heap={heap}')
+          assert_close('java21-precedence-env heap.max_bytes vs xmx_bytes', heap.get('heap_max_size_bytes'), flags.get('xmx_bytes'))
+
+          # Precedence: cmdline beats env
+          mcmd = req_prefix('java21-precedence-cmdline')
+          flags = mcmd.get('flags_extracted', {})
+          if flags.get('xmx_bytes') != 83886080 or flags.get('xms_bytes') != 16777216:
+              raise SystemExit(f'java21-precedence-cmdline expected xmx=80m xms=16m got flags={flags}')
+          src = mcmd.get('flag_sources', {})
+          if str(src.get('xmx_bytes', '')) != 'cmdline' or str(src.get('xms_bytes', '')) != 'cmdline':
+              raise SystemExit(f'java21-precedence-cmdline expected sources cmdline; got {src}')
+          heap = mcmd
+          if (heap.get('heap_max_size_bytes') or 0) <= 0:
+              raise SystemExit(f'java21-precedence-cmdline expected heap.max_bytes > 0; got heap={heap}')
+          assert_close('java21-precedence-cmdline heap.max_bytes vs xmx_bytes', heap.get('heap_max_size_bytes'), flags.get('xmx_bytes'))
+
+          # Per-flag sourcing: Xmx from JAVA_TOOL_OPTIONS; Xms from JDK_JAVA_OPTIONS
+          mpf = req_prefix('java21-per-flag-sources')
+          flags = mpf.get('flags_extracted', {})
+          if flags.get('xmx_bytes') != 117440512 or flags.get('xms_bytes') != 29360128:
+              raise SystemExit(f'java21-per-flag-sources expected xmx=112m xms=28m got flags={flags}')
+          src = mpf.get('flag_sources', {})
+          if str(src.get('xmx_bytes', '')) != 'JAVA_TOOL_OPTIONS' or str(src.get('xms_bytes', '')) != 'JDK_JAVA_OPTIONS':
+              raise SystemExit(f'java21-per-flag-sources expected xmx source JAVA_TOOL_OPTIONS and xms source JDK_JAVA_OPTIONS; got {src}')
+          heap = mpf
+          if (heap.get('heap_max_size_bytes') or 0) <= 0:
+              raise SystemExit(f'java21-per-flag-sources expected heap.max_bytes > 0; got heap={heap}')
+          assert_close('java21-per-flag-sources heap.max_bytes vs xmx_bytes', heap.get('heap_max_size_bytes'), flags.get('xmx_bytes'))
+
+          # ============ Node.js (runtimes bucket) ============
+          nodejs = [m for m in fetch('/container/runtime-metrics?namespace=nodejs-spike').get('runtimes', [])
+                    if m.get('runtime') == 'nodejs']
+
+          def req_prefix_list(data, prefix):
+              for m in data:
+                  pod = m.get('pod', '') or ''
+                  if pod.startswith(prefix):
+                      return m
+              raise SystemExit(f'missing pod prefix={prefix}; got pods={[m.get("pod") for m in data]}')
+
+          if any((m.get('pod', '') or '').startswith('not-node') for m in nodejs):
+              raise SystemExit('not-node unexpectedly detected as nodejs')
+
+          m_env = req_prefix_list(nodejs, 'node-version-env')
+          if m_env.get('version_source') != 'env':
+              raise SystemExit(f'node-version-env expected source=env got {m_env.get("version_source")!r}')
+          if not m_env.get('version'):
+              raise SystemExit(f'node-version-env expected a resolved version, got {m_env!r}')
+
+          m_scan = req_prefix_list(nodejs, 'node-version-binaryscan')
+          if m_scan.get('version_source') != 'binary-scan':
+              raise SystemExit(f'node-version-binaryscan expected source=binary-scan got {m_scan.get("version_source")!r}')
+          if not m_scan.get('version'):
+              raise SystemExit(f'node-version-binaryscan expected a resolved version, got {m_scan!r}')
+
+          # Both deployments run the identical node:20-slim binary, so env-resolved and
+          # binary-scan-resolved versions must agree — the whole point of this pairing.
+          if m_env.get('version') != m_scan.get('version'):
+              raise SystemExit(
+                  f'env and binary-scan resolved different versions for the same image: '
+                  f'{m_env.get("version")!r} vs {m_scan.get("version")!r}'
+              )
+
+          # ============ Combined /container/runtime-metrics ============
+          # This is the endpoint the zxporter collector actually polls each cycle
+          # (single /proc walk covering every runtime). Assert both buckets are
+          # populated in one response so neither can silently come back
+          # empty/broken.
+          runtime = fetch('/container/runtime-metrics')
+
+          jvm_pods = {m.get('pod') for m in runtime.get('jvm', [])}
+          if not any((p or '').startswith('java8-xmx-only') for p in jvm_pods):
+              raise SystemExit(f'runtime-metrics missing java8-xmx-only in jvm bucket; got {jvm_pods}')
+
+          all_runtime_pods = {m.get('pod') for m in runtime.get('runtimes', [])}
+          if not any((p or '').startswith('node-version-env') for p in all_runtime_pods):
+              raise SystemExit(f'runtime-metrics missing node-version-env in runtimes bucket; got {all_runtime_pods}')
+          if any((p or '').startswith('not-node') for p in all_runtime_pods):
+              raise SystemExit(f'runtime-metrics unexpectedly includes not-node in runtimes bucket; got {all_runtime_pods}')
+
+          # ============ Generic runtimes bucket ============
+          # dotnet-app deliberately exercises the apphost probe path (comm is the
+          # app name, not "dotnet"); go-app exercises the buildinfo probe.
+          generic = fetch('/container/runtime-metrics?namespace=runtime-spike').get('runtimes', [])
+          by_runtime = {}
+          for m in generic:
+              by_runtime.setdefault(m.get('runtime'), []).append(m)
+
+          # Per-runtime: which pod must be detected, which resolution path(s) are
+          # acceptable, and what the version must look like where the fixture
+          # image pins it. The allowed sources are the fixture's *point*: go-app
+          # (caddy) must resolve via the buildinfo probe, python/ruby via the
+          # official images' env vars, bun via the embedded user-agent scan.
+          # dotnet/deno allow two sources because their images have carried the
+          # env var in some tags and not others.
+          #
+          # The version prefix is empty where the fixture image cannot pin the
+          # runtime version (caddy's Go toolchain, the retagged dotnet sample,
+          # deno:latest / bun:1 floating tags) — exact values would break CI on
+          # unrelated upstream image pushes. Every version must still look like
+          # a semver (see version_shape below), so a junk match can't pass.
+          import re
+          version_shape = re.compile(r'\d+\.\d+(\.\d+)?')
+          expected = {
+              'python': ('python-app', {'env'}, '3.12.'),
+              'ruby':   ('ruby-app', {'env'}, '3.3.'),
+              'go':     ('go-app', {'buildinfo'}, ''),
+              'dotnet': ('dotnet-app', {'env', 'maps'}, ''),
+              'deno':   ('deno-app', {'env', 'binary-scan'}, ''),
+              'bun':    ('bun-app', {'env', 'binary-scan'}, ''),
+              'rust':   ('rust-app', {'elf-comment'}, ''),
+          }
+          for runtime_name, (pod_prefix, allowed_sources, version_prefix) in expected.items():
+              entries = by_runtime.get(runtime_name, [])
+              match = [m for m in entries if (m.get('pod', '') or '').startswith(pod_prefix)]
+              if not match:
+                  raise SystemExit(
+                      f'runtimes bucket missing {runtime_name} for {pod_prefix}; got '
+                      f'{[(m.get("runtime"), m.get("pod")) for m in generic]}')
+              m = match[0]
+              if not version_shape.match(m.get('version') or ''):
+                  raise SystemExit(f'{runtime_name} ({pod_prefix}) expected a semver-shaped resolved version, got {m!r}')
+              if m.get('version_source') not in allowed_sources:
+                  raise SystemExit(
+                      f'{runtime_name} ({pod_prefix}) expected version_source in {sorted(allowed_sources)}, '
+                      f'got {m.get("version_source")!r}')
+              if version_prefix and not m['version'].startswith(version_prefix):
+                  raise SystemExit(
+                      f'{runtime_name} ({pod_prefix}) expected version {version_prefix}x (fixture image pin), '
+                      f'got {m["version"]!r}')
+              if not m.get('raw_cmdline'):
+                  raise SystemExit(f'{runtime_name} ({pod_prefix}) expected raw_cmdline to be populated, got {m!r}')
+
+          # Cross-container isolation: a detection must carry its own pod's
+          # metadata, not leak another container's.
+          go_entry = [m for m in by_runtime.get('go', []) if (m.get('pod', '') or '').startswith('go-app')][0]
+          if go_entry.get('namespace') != 'runtime-spike' or not go_entry.get('container_id'):
+              raise SystemExit(f'go-app entry has bad pod metadata: {go_entry!r}')
+
+          print('OK')
+          PY
+
+          kubectl -n devzero-system delete pod/py-assert --ignore-not-found=true
+
+      - name: Mutate workloads (simulate MPA changes)
+        run: |
+          # Simulate post-recommendation changes:
+          # - resources req/limit tightened (closer to heap)
+          # - JVM heap flags changed (env/cmdline)
+          kubectl -n jvm-spike set resources deploy/java11-tool-options -c app --requests=cpu=10m,memory=256Mi --limits=cpu=100m,memory=256Mi
+          kubectl -n jvm-spike set env deploy/java11-tool-options JAVA_TOOL_OPTIONS="-Xms64m -Xmx200m -XX:MaxRAMPercentage=65 -Dfrom=tooloptions-mutated"
+
+          # cmdline mutation: update the command to use different Xms/Xmx
+          # Use a strategic merge patch (less brittle than JSONPatch quoting/escaping in Actions).
+          kubectl -n jvm-spike patch deploy/java21-precedence-cmdline --type strategic -p "$(cat <<'PATCH'
+          spec:
+            template:
+              metadata:
+                annotations:
+                  zxporter.dev/mutation: "1"
+              spec:
+                containers:
+                  - name: app
+                    args:
+                      - |
+                        cat >/tmp/DummyMain.java <<'EOF'
+                        public class DummyMain { public static void main(String[] args) throws Exception { for(;;) Thread.sleep(60000); } }
+                        EOF
+                        javac /tmp/DummyMain.java
+                        # cmdline should win over env
+                        exec java -Xms24m -Xmx104m -cp /tmp DummyMain
+          PATCH
+          )"
+          kubectl -n jvm-spike set resources deploy/java21-precedence-cmdline -c app --requests=cpu=10m,memory=256Mi --limits=cpu=100m,memory=256Mi
+
+          # Wait for rollouts
+          kubectl -n jvm-spike rollout status deploy/java11-tool-options --timeout=300s
+          kubectl -n jvm-spike rollout status deploy/java21-precedence-cmdline --timeout=300s
+
+      - name: Validate JVM metrics output (after mutation)
+        run: |
+          POD_IP=$(kubectl -n devzero-system get pod -l app.kubernetes.io/name=zxporter-nodemon -o jsonpath='{.items[0].status.podIP}')
+          echo "nodemon podIP=$POD_IP"
+
+          kubectl -n devzero-system run py-assert2 --image=python:3.12-slim --restart=Never --command -- sleep 3600
+          kubectl -n devzero-system wait --for=condition=Ready --timeout=120s pod/py-assert2
+
+          kubectl -n devzero-system exec -i py-assert2 -- python - <<PY
+          import json
+          import time
+          import urllib.request
+
+          pod_ip = '${POD_IP}'
+          url = f'http://{pod_ip}:6061/container/jvm-metrics?namespace=jvm-spike'
+
+          # After a rollout completes, nodemon may need some time to discover the new JVM
+          # processes and refresh metrics. Poll before asserting to avoid flakiness.
+          last_pods = []
+          by_pod = {}
+          for attempt in range(12):  # ~60s total @ 5s sleep
+              with urllib.request.urlopen(url, timeout=30) as r:
+                  data = json.loads(r.read().decode('utf-8'))
+              by_pod = {m.get('pod'): m for m in data}
+              last_pods = [p for p in by_pod.keys() if p]
+
+              m11 = next((m for p, m in by_pod.items() if p and p.startswith('java11-tool-options')), None)
+              mcmd = next((m for p, m in by_pod.items() if p and p.startswith('java21-precedence-cmdline')), None)
+
+              ok11 = (m11 or {}).get('flags_extracted', {}).get('xmx_bytes') == 209715200
+              okcmd = (mcmd or {}).get('flags_extracted', {}).get('xmx_bytes') == 109051904
+
+              if ok11 and okcmd:
+                  break
+              time.sleep(5)
+          else:
+              raise SystemExit(f'timed out waiting for mutated metrics to appear; last pods={last_pods}')
+
+          def req_prefix(prefix):
+              for k, v in by_pod.items():
+                  if k and k.startswith(prefix):
+                      return v
+              raise SystemExit(f'missing pod prefix={prefix}; got pods={list(by_pod.keys())}')
+
+          def assert_close(name, got, expected, rel=0.10, abs_bytes=16*1024*1024):
+              if got is None or expected is None:
+                  raise SystemExit(f'{name} missing values for close-check (got={got} expected={expected})')
+              lo = expected - max(abs_bytes, int(expected * rel))
+              hi = expected + max(abs_bytes, int(expected * rel))
+              if not (lo <= got <= hi):
+                  raise SystemExit(f'{name} expected ~{expected} (±max({abs_bytes}, {int(expected*rel)})) got {got}; range=[{lo},{hi}]')
+
+          # java11 mutated: JAVA_TOOL_OPTIONS now sets Xms64m/Xmx200m
+          m11 = req_prefix('java11-tool-options')
+          flags = m11.get('flags_extracted', {})
+          if flags.get('xmx_bytes') != 209715200 or flags.get('xms_bytes') != 67108864 or flags.get('max_ram_percentage') != 65:
+              raise SystemExit(f'java11-tool-options mutated flags mismatch: {flags}')
+          src = m11.get('flag_sources', {})
+          if str(src.get('xmx_bytes', '')) != 'JAVA_TOOL_OPTIONS' or str(src.get('xms_bytes', '')) != 'JAVA_TOOL_OPTIONS':
+              raise SystemExit(f'java11-tool-options mutated expected sources JAVA_TOOL_OPTIONS; got {src}')
+          heap = m11
+          if (heap.get('heap_max_size_bytes') or 0) <= 0:
+              raise SystemExit(f'java11-tool-options mutated expected heap.max_bytes > 0; got heap={heap}')
+          assert_close('java11-tool-options mutated heap.max_bytes vs xmx_bytes', heap.get('heap_max_size_bytes'), flags.get('xmx_bytes'))
+
+          # java21 precedence-cmdline mutated: cmdline Xms24m/Xmx104m should win
+          mcmd = req_prefix('java21-precedence-cmdline')
+          flags = mcmd.get('flags_extracted', {})
+          if flags.get('xmx_bytes') != 109051904 or flags.get('xms_bytes') != 25165824:
+              raise SystemExit(f'java21-precedence-cmdline mutated flags mismatch: {flags}')
+          src = mcmd.get('flag_sources', {})
+          if str(src.get('xmx_bytes', '')) != 'cmdline' or str(src.get('xms_bytes', '')) != 'cmdline':
+              raise SystemExit(f'java21-precedence-cmdline mutated expected sources cmdline; got {src}')
+          heap = mcmd
+          if (heap.get('heap_max_size_bytes') or 0) <= 0:
+              raise SystemExit(f'java21-precedence-cmdline mutated expected heap.max_bytes > 0; got heap={heap}')
+          assert_close('java21-precedence-cmdline mutated heap.max_bytes vs xmx_bytes', heap.get('heap_max_size_bytes'), flags.get('xmx_bytes'))
+
+          print('OK')
+          PY
+
+          kubectl -n devzero-system delete pod/py-assert2 --ignore-not-found=true

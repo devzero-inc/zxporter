@@ -19,9 +19,12 @@ No attach/JMX/javaagent/async-profiler is used.
 Set:
 
 ```yaml
-jvmMetrics:
+runtimeMetrics:
   enabled: true
 ```
+
+(The older `jvmMetrics.enabled` key still works as a fallback if `runtimeMetrics.enabled` is
+unset — it was renamed because this same toggle now also gates Node.js runtime detection.)
 
 When enabled, the DaemonSet will:
 - set `spec.hostPID: true`
@@ -49,3 +52,10 @@ Expected fields include:
 - `gc_time_seconds_total` (map)
 - `safepoint_time_seconds_total`, `safepoint_sync_time_seconds_total`
 - `flags_extracted` (best-effort from `/proc/<pid>/cmdline`)
+
+## Combined endpoint
+
+`GET /container/runtime-metrics` returns `{"jvm": [...], "runtimes": [...]}` from a single
+`/proc` walk covering every process-introspection collector (see `docs/runtime-metrics.md`).
+This is what the zxporter collector actually polls each cycle; `/container/jvm-metrics`
+remains available separately for direct debugging/CI use.

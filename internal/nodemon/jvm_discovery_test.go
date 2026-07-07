@@ -24,7 +24,7 @@ func TestReadJVMFlagsFromProcEnviron(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, f.Sync())
 
-	env := readJavaOptsFromProcEnviron(f.Name())
+	env := readEnvVars(f.Name(), "JAVA_TOOL_OPTIONS", "JDK_JAVA_OPTIONS", "JAVA_OPTS")
 	flags, _, _ := ParseJVMFlagsWithSources("java", env)
 	parsed := flags
 	require.NotNil(t, parsed.XmsBytes)
@@ -203,6 +203,39 @@ func TestParseJVMFlags(t *testing.T) {
 	}
 }
 
+func TestParseJVMFlags_EnvPrecedenceMatchesRealJVM(t *testing.T) {
+	// Real JVM semantics (validated against hsperfdata ground truth in the kind
+	// e2e test): the launcher prepends JDK_JAVA_OPTIONS to the command line and
+	// JAVA_TOOL_OPTIONS options come before everything; last occurrence of a
+	// duplicate flag wins. So: cmdline > JDK_JAVA_OPTIONS > JAVA_TOOL_OPTIONS >
+	// JAVA_OPTS (the last not read by the JVM at all — weakest hint only).
+	env := map[string]string{
+		"JAVA_TOOL_OPTIONS": "-Xmx96m -Xms24m",
+		"JDK_JAVA_OPTIONS":  "-Xmx128m -Xms32m",
+		"JAVA_OPTS":         "-Xmx160m -Xms40m",
+	}
+
+	flags, sources, _ := ParseJVMFlagsWithSources("java -jar app.jar", env)
+	if flags.XmxBytes == nil || *flags.XmxBytes != 128<<20 {
+		t.Fatalf("expected JDK_JAVA_OPTIONS Xmx=128m to win, got %v", flags.XmxBytes)
+	}
+	if flags.XmsBytes == nil || *flags.XmsBytes != 32<<20 {
+		t.Fatalf("expected JDK_JAVA_OPTIONS Xms=32m to win, got %v", flags.XmsBytes)
+	}
+	if sources.XmxBytes != "JDK_JAVA_OPTIONS" || sources.XmsBytes != "JDK_JAVA_OPTIONS" {
+		t.Fatalf("expected sources JDK_JAVA_OPTIONS, got %v", sources)
+	}
+
+	// cmdline still beats every env var.
+	flags, sources, _ = ParseJVMFlagsWithSources("java -Xmx80m -jar app.jar", env)
+	if flags.XmxBytes == nil || *flags.XmxBytes != 80<<20 {
+		t.Fatalf("expected cmdline Xmx=80m to win, got %v", flags.XmxBytes)
+	}
+	if sources.XmxBytes != "cmdline" {
+		t.Fatalf("expected source cmdline, got %v", sources)
+	}
+}
+
 func TestParseMemSize(t *testing.T) {
 	tests := []struct {
 		input   string
@@ -219,6 +252,10 @@ func TestParseMemSize(t *testing.T) {
 		{"", 0, true},
 		{"abc", 0, true},
 		{"1.5g", 0, true},
+		// Whitespace-only must error, not panic: reachable from a container's
+		// own env via quoted values like JAVA_TOOL_OPTIONS=-Xmx" ".
+		{" ", 0, true},
+		{"\t", 0, true},
 	}
 
 	for _, tc := range tests {

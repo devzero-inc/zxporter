@@ -37,10 +37,6 @@ type ContainerResourceCollectorConfig struct {
 	// DisableGPUMetrics determines whether to disable GPU metrics collection
 	// Default is false, so metrics are collected by default
 	DisableGPUMetrics bool
-
-	// DisableJVMMetrics determines whether to disable JVM metrics collection (via zxporter-nodemon).
-	// Default is false.
-	DisableJVMMetrics bool
 }
 
 func strFromMap(m map[string]interface{}, key string) string {
@@ -183,8 +179,7 @@ func (c *ContainerResourceCollector) Start(ctx context.Context) error {
 	c.logger.Info("Starting container resource collector",
 		"namespaces", c.namespaces,
 		"updateInterval", c.config.UpdateInterval,
-		"disableGPUMetrics", c.config.DisableGPUMetrics,
-		"disableJVMMetrics", c.config.DisableJVMMetrics)
+		"disableGPUMetrics", c.config.DisableGPUMetrics)
 
 	// Check if metrics client is available
 	if c.metricsClient == nil {
@@ -312,14 +307,22 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 		}
 	}
 
-	// Pre-fetch JVM metrics from the nodemon (one HTTP call for the entire cycle)
+	// Pre-fetch JVM + Node.js metrics from the nodemon in a single combined request
+	// (one HTTP call per node, backed by one /proc walk on the nodemon side) rather
+	// than issuing two independent per-runtime fetches.
 	var jvmIndex map[gpuContainerKey]NodemonJVMMetrics
-	if c.nodemonClient != nil && !c.config.DisableJVMMetrics {
-		allJVMMetrics, err := c.nodemonClient.FetchAllJVMMetrics(ctx)
+	var runtimeProcessIndex map[gpuContainerKey][]NodemonRuntimeProcessMetrics
+	// Runtime detection is gated node-side by the Helm value
+	// runtimeMetrics.enabled — when disabled, nodemon doesn't register the
+	// route and FetchAllRuntimeMetrics quietly returns nothing. No separate
+	// collector-side flag: one gate, one source of truth.
+	if c.nodemonClient != nil {
+		runtimeMetrics, err := c.nodemonClient.FetchAllRuntimeMetrics(ctx)
 		if err != nil {
-			c.logger.Error(err, "Failed to fetch JVM metrics from nodemon")
+			c.logger.Error(err, "Failed to fetch runtime metrics from nodemon")
 		} else {
-			jvmIndex = IndexJVMMetricsByContainer(allJVMMetrics)
+			jvmIndex = IndexJVMMetricsByContainer(runtimeMetrics.JVM)
+			runtimeProcessIndex = IndexRuntimeProcessMetricsByContainer(runtimeMetrics.Runtimes)
 		}
 	}
 
@@ -429,6 +432,19 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 				}
 			}
 
+			// Generic-runtime detection lookup (optional)
+			var runtimeProcesses []ContainerRuntimeProcess
+			if runtimeProcessIndex != nil {
+				key := gpuContainerKey{
+					Pod:       podMetrics.Name,
+					Container: containerMetrics.Name,
+					Namespace: podMetrics.Namespace,
+				}
+				if rm, ok := runtimeProcessIndex[key]; ok {
+					runtimeProcesses = RuntimeProcessesFromNodemon(rm)
+				}
+			}
+
 			// Process the container metrics with optional network/IO data
 			c.processContainerMetrics(
 				pod,
@@ -437,6 +453,7 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 				ioMetrics,
 				gpuMetrics,
 				jvmMetrics,
+				runtimeProcesses,
 				throttleFraction,
 			)
 		}
@@ -452,6 +469,7 @@ func (c *ContainerResourceCollector) processContainerMetrics(
 	ioMetrics map[string]float64,
 	gpuMetrics map[string]interface{},
 	jvmMetrics map[string]interface{},
+	runtimeProcesses []ContainerRuntimeProcess,
 	throttleFraction float64,
 ) {
 	// Find the container spec in the pod
@@ -642,6 +660,10 @@ func (c *ContainerResourceCollector) processContainerMetrics(
 		metricsSnapshot.JvmRawCmdline = strFromMap(jvmMetrics, "RawCmdline")
 		metricsSnapshot.JvmFlagsExtractedJSON = strFromMap(jvmMetrics, "FlagsExtractedJSON")
 		metricsSnapshot.JvmFlagSourcesJSON = strFromMap(jvmMetrics, "FlagSourcesJSON")
+	}
+
+	if len(runtimeProcesses) > 0 {
+		metricsSnapshot.RuntimeProcesses = runtimeProcesses
 	}
 
 	// Send the resource usage data to the batch channel

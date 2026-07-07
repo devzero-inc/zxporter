@@ -1,0 +1,76 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: nodejs-spike
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: node-version-env
+  namespace: nodejs-spike
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: node-version-env
+  template:
+    metadata:
+      labels:
+        app: node-version-env
+    spec:
+      containers:
+        - name: app
+          # Official Docker Hub image: bakes NODE_VERSION into the image ENV, so
+          # detection should resolve via the env-var path.
+          image: node:20-slim
+          command: ["node", "-e", "setInterval(() => {}, 60000)"]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: node-version-binaryscan
+  namespace: nodejs-spike
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: node-version-binaryscan
+  template:
+    metadata:
+      labels:
+        app: node-version-binaryscan
+    spec:
+      containers:
+        - name: app
+          # Same official image/binary as node-version-env, but with the baked-in
+          # NODE_VERSION explicitly masked (empty overrides the image ENV at the
+          # container process level) to force the binary-scan fallback path.
+          # Both deployments therefore run the identical real node binary, so
+          # asserting their resolved versions match is a meaningful cross-check
+          # that env and binary-scan resolution agree.
+          image: node:20-slim
+          env:
+            - name: NODE_VERSION
+              value: ""
+          command: ["node", "-e", "setInterval(() => {}, 60000)"]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: not-node
+  namespace: nodejs-spike
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: not-node
+  template:
+    metadata:
+      labels:
+        app: not-node
+    spec:
+      containers:
+        - name: app
+          image: busybox:1.36
+          command: ["sh", "-lc"]
+          args: ["sleep 3600"]

@@ -136,7 +136,7 @@ spec:
         - name: app
           image: eclipse-temurin:21-jdk
           env:
-            # Precedence model: JAVA_TOOL_OPTIONS > JDK_JAVA_OPTIONS > JAVA_OPTS
+            # Real JVM env precedence (validated via hsperfdata): JDK_JAVA_OPTIONS > JAVA_TOOL_OPTIONS > JAVA_OPTS
             - name: JAVA_TOOL_OPTIONS
               value: "-Xms24m -Xmx96m -Dfrom=toolopts"
             - name: JDK_JAVA_OPTIONS
