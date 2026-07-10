@@ -7,7 +7,7 @@ To learn more about the release, try:
   $ helm status {{ .Release.Name }}  -n {{ .Release.Namespace }}
   $ helm get all {{ .Release.Name }}  -n {{ .Release.Namespace }}
 
-{{- if and (not .Values.zxporter.clusterToken) (not .Values.zxporter.patToken) }}
+{{- if and (not .Values.zxporter.clusterToken) (not .Values.zxporter.patToken) (not (dig "existingSecret" "name" "" .Values.zxporter)) }}
 
 NOTE: No authentication token configuration detected.
 
@@ -15,6 +15,15 @@ ZXPorter requires either a cluster token or PAT token to authenticate with the D
 Please configure one of the following:
 1. Set zxporter.clusterToken with your cluster token from the DevZero dashboard
 2. Set zxporter.patToken with your Personal Access Token for automatic token exchange (recommended for production)
+3. Set zxporter.existingSecret.name to a pre-existing Secret (in this namespace) holding CLUSTER_TOKEN and/or PAT_TOKEN (recommended for SOPS/GitOps)
+
+{{- end }}
+{{- if dig "existingSecret" "name" "" .Values.zxporter }}
+
+NOTE: Using pre-existing token Secret "{{ dig "existingSecret" "name" "" .Values.zxporter }}".
+Ensure it exists in namespace {{ .Release.Namespace }} and contains at least one of:
+  - {{ dig "existingSecret" "clusterTokenKey" "CLUSTER_TOKEN" .Values.zxporter }} (cluster token)
+  - {{ dig "existingSecret" "patTokenKey" "PAT_TOKEN" .Values.zxporter }} (PAT token)
 
 {{- end }}
 
