@@ -1,27 +1,46 @@
-# Use an existing Secret for the token (SOPS / GitOps)
+# Use an existing Kubernetes Secret for the token
 
-Instead of putting `clusterToken` / `patToken` in your values, point the chart
-at a Secret you manage. You encrypt only that Secret with
-[SOPS](https://github.com/getsops/sops); your values file stays token-free.
+By default the chart creates the token Secret from `zxporter.clusterToken` /
+`zxporter.patToken`. Instead, you can create the Secret yourself and point the
+chart at it — the token then never passes through the Helm command or values file.
+Good for GitOps, and for encrypting the Secret with
+[SOPS](https://github.com/getsops/sops) (see [Option B](#option-b-manage-with-sops)).
 
-## The one flag that matters
+## What the chart needs
 
-Take the helm command from the dashboard's **Connect cluster** button and add:
-
+1. **The Secret exists** in the release namespace before install (`secretKeyRef` is
+   namespace-local).
+2. **It holds the token** under `PAT_TOKEN` and/or `CLUSTER_TOKEN` (one is enough).
+   Override the key names with `existingSecret.clusterTokenKey` / `patTokenKey`.
+3. **You pass its name** — append to the dashboard's **Connect cluster** Helm command:
 ```
 --set zxporter.existingSecret.name=<your-secret-name>
 ```
 
-That's it — the chart then reads the token from your Secret instead of creating
-its own, and no token ever appears in the helm command or values.
+Setting `existingSecret.name` satisfies the chart's "token required" check, so you
+don't also need `clusterToken`/`patToken`.
 
-## Steps (SOPS + age)
+## Option A: plain Secret
+
+```bash
+export NS=devzero-system
+kubectl create namespace $NS --dry-run=client -o yaml | kubectl apply -f -
+kubectl create secret generic zxporter-token -n $NS \
+  --from-literal=PAT_TOKEN='dzp_your_pat'
+```
+
+Then run the Connect-cluster command with
+`--set zxporter.existingSecret.name=zxporter-token`.
+
+## Option B: manage with SOPS
 
 ```bash
 export NS=devzero-system
 
-# 1. Create the SOPS-encrypted Secret (encrypt only the data; commit the .enc.yaml).
-age-keygen -o key.txt                      # prints: Public key: age1xxxx...
+# Reuse your Age key, or generate one if you don't have it (a shared key lets
+# teammates and your GitOps controller decrypt the same Secret).
+age-keygen -o key.txt                          # prints: Public key: age1xxxx...
+
 cat > zxporter-token.secret.yaml <<'EOF'
 apiVersion: v1
 kind: Secret
@@ -29,43 +48,41 @@ metadata:
   name: zxporter-token
 type: Opaque
 stringData:
-  PAT_TOKEN: "dzp_your_pat"                 # or CLUSTER_TOKEN: "..."
+  PAT_TOKEN: "dzp_your_pat"
 EOF
 sops --encrypt --age age1xxxx... --encrypted-regex '^(data|stringData)$' \
   zxporter-token.secret.yaml > zxporter-token.secret.enc.yaml
-rm zxporter-token.secret.yaml
+rm zxporter-token.secret.yaml                   # keep only the encrypted file
 
-# 2. Apply it into the namespace (server-side keeps plaintext out of annotations).
+# Apply it (--server-side keeps the plaintext out of the last-applied annotation).
 kubectl create namespace $NS --dry-run=client -o yaml | kubectl apply -f -
 SOPS_AGE_KEY_FILE=$PWD/key.txt sops --decrypt zxporter-token.secret.enc.yaml \
   | kubectl apply --server-side -n $NS -f -
-
-# 3. Run the dashboard's Connect-cluster helm command with the extra flag:
-#      --set zxporter.existingSecret.name=zxporter-token
 ```
 
-**GitOps:** commit `zxporter-token.secret.enc.yaml` and let Argo CD (KSOPS /
-`argocd-vault-plugin`) or Flux (`decryption.provider: sops`) decrypt it at sync
-time; set `zxporter.existingSecret.name` in the HelmRelease/Application values.
+Then run the Connect-cluster command with
+`--set zxporter.existingSecret.name=zxporter-token`.
 
-## Values
+**GitOps:** commit `zxporter-token.secret.enc.yaml` and let Argo CD (KSOPS) or
+Flux (`decryption.provider: sops`) decrypt it at sync time; set
+`zxporter.existingSecret.name` in the HelmRelease/Application values.
+
+## Via values.yaml
 
 ```yaml
 zxporter:
   existingSecret:
-    name: ""                       # your Secret; empty = use clusterToken/patToken
-    clusterTokenKey: "CLUSTER_TOKEN"
+    name: zxporter-token           # empty = chart creates its own Secret
+    clusterTokenKey: "CLUSTER_TOKEN"   # override only if your keys differ
     patTokenKey: "PAT_TOKEN"
 ```
 
-Provide one token — `CLUSTER_TOKEN` or `PAT_TOKEN`. Only used when
-`useSecretForToken: true` (the default).
+`useSecretForToken` defaults to `true`. (Turning it off puts tokens in a
+ConfigMap and ignores `existingSecret`.)
 
 ## Gotchas
 
-- **Secret must exist in the release namespace before install** (`secretKeyRef`
-  is namespace-local).
 - **Name must differ from `tokenSecretName`** (default `devzero-zxporter-token`) —
-  the chart manages that one itself. The chart fails fast if they match.
-- **Wrong/missing key = no auth, no crash** (keys are `optional`). Check pod logs
-  for `no URL or token was configured`.
+  the chart owns that runtime Secret, so a matching name fails the install.
+- **A wrong/missing key won't crash the pod** (keys are `optional`) — it just can't
+  authenticate. Check logs for `no URL or token was configured`.

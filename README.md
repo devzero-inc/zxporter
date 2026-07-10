@@ -172,6 +172,7 @@ Exporter is required.
 
 - `zxporter.dakrUrl`: DAKR server URL (default: "https://dakr.devzero.io")
 - `zxporter.targetNamespaces`: Comma-separated list of namespaces to monitor (empty = all)
+- `zxporter.existingSecret.name`: Use a Secret you manage for the token instead of passing it to Helm — see [docs/existing-secret-sops.md](docs/existing-secret-sops.md)
 - `image.repository`: Container image repository
 - `image.tag`: Container image tag
 
