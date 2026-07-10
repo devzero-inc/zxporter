@@ -60,6 +60,26 @@ spec:
                 fieldRef:
                   fieldPath: metadata.namespace
           {{- if .Values.zxporter.useSecretForToken }}
+          {{- $existingName := dig "existingSecret" "name" "" .Values.zxporter }}
+          {{- if $existingName }}
+            # Tokens sourced from a pre-existing (e.g. SOPS-managed) Secret.
+            # Both keys are optional so a Secret with only one of them is valid.
+            # CLUSTER_TOKEN is taken from this Secret rather than the runtime Secret;
+            # after a PAT exchange the controller still recovers the exchanged token
+            # from the runtime Secret via the Kubernetes API (see custom.go).
+            - name: CLUSTER_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $existingName }}
+                  key: {{ dig "existingSecret" "clusterTokenKey" "CLUSTER_TOKEN" .Values.zxporter }}
+                  optional: true
+            - name: PAT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $existingName }}
+                  key: {{ dig "existingSecret" "patTokenKey" "PAT_TOKEN" .Values.zxporter }}
+                  optional: true
+          {{- else }}
             - name: CLUSTER_TOKEN
               valueFrom:
                 secretKeyRef:
@@ -73,6 +93,7 @@ spec:
                   name: {{ .Values.zxporter.tokenCredentialsSecretName }}
                   key: PAT_TOKEN
             {{- end }}
+          {{- end }}
           {{- end }}
           livenessProbe:
             httpGet:
