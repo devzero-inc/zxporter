@@ -43,6 +43,29 @@ zxporter:
   logLevel: "error"
   # Disable GPU metrics collection (set to "true" for clusters without GPUs)
   disableGPUMetrics: ""
+  # Point to a pre-existing Secret that already holds the auth token(s), instead of
+  # passing clusterToken/patToken through this values file. This is intended for
+  # GitOps/SOPS workflows where you want to encrypt only the Secret, not the whole
+  # values file.
+  #
+  # When existingSecret.name is set:
+  #   - the chart does NOT create the credentials Secret (you manage it yourself)
+  #   - the controller sources PAT_TOKEN and/or CLUSTER_TOKEN from this Secret
+  #   - it satisfies the "a token is required" validation
+  #
+  # Requirements:
+  #   - The Secret must already exist in the release namespace (secretKeyRef is
+  #     namespace-local) before the controller pod starts.
+  #   - It must contain at least one of the keys below. Both env vars are injected
+  #     with optional=true, so a Secret with only one key is fine.
+  #   - Only meaningful when useSecretForToken=true.
+  existingSecret:
+    # Name of the pre-existing Secret. Leave empty to use clusterToken/patToken above.
+    name: ""
+    # Key within the Secret holding the cluster token (direct-token installs).
+    clusterTokenKey: "CLUSTER_TOKEN"
+    # Key within the Secret holding the PAT token (PAT-exchange installs).
+    patTokenKey: "PAT_TOKEN"
   # Resource names for token storage (configurable for different environments)
   # Input credentials Secret: Contains initial PAT/CLUSTER tokens (user-managed)
   tokenCredentialsSecretName: "devzero-zxporter-credentials"

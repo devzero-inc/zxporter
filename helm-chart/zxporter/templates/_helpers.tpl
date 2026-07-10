@@ -52,10 +52,15 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 Validate required configuration
 */}}
 {{- define "zxporter.validateConfig" -}}
-  {{- if and (empty .Values.zxporter.clusterToken) (empty .Values.zxporter.patToken) -}}
-    {{- fail "ERROR: Either zxporter.clusterToken or zxporter.patToken must be provided. Please set one of these values in your values file." -}}
+  {{- if and (empty .Values.zxporter.clusterToken) (empty .Values.zxporter.patToken) (empty (dig "existingSecret" "name" "" .Values.zxporter)) -}}
+    {{- fail "ERROR: A token must be provided. Set one of zxporter.clusterToken, zxporter.patToken, or zxporter.existingSecret.name (a pre-existing Secret holding the token)." -}}
   {{- end -}}
-  
+
+  {{- $existingName := dig "existingSecret" "name" "" .Values.zxporter -}}
+  {{- if and $existingName (eq $existingName .Values.zxporter.tokenSecretName) -}}
+    {{- fail (printf "ERROR: zxporter.existingSecret.name (%q) must not equal zxporter.tokenSecretName. The chart creates and writes to that runtime Secret itself, so reusing the name would collide on install and let the controller overwrite your managed Secret." .Values.zxporter.tokenSecretName) -}}
+  {{- end -}}
+
   {{- if empty .Values.zxporter.kubeContextName -}}
     {{- fail "ERROR: zxporter.kubeContextName is required. Please provide a unique identifier for your cluster." -}}
   {{- end -}}
