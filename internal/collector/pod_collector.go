@@ -641,6 +641,25 @@ func (c *PodCollector) trackStartupLifecycle(_, newPod *corev1.Pod) {
 		entry, exists := c.startupTracker[key]
 
 		if !exists {
+			// If the container is already Running and Ready the first time we
+			// observe it (no live tracker entry), we have no reliable data for
+			// how long it actually took to start: either it existed before this
+			// collector started watching it (snapshotStartupLifecycles already
+			// handles that case once, using real historical condition
+			// timestamps, during the initial informer cache sync) or a
+			// previously tracked entry for this exact (pod, container,
+			// restartCount) was already emitted and deleted, and this is an
+			// unrelated, later status update re-discovering the same stable
+			// container. Creating a fresh entry here would immediately match
+			// the Ready branch below using now() as a stand-in for the real
+			// ready time, fabricating an ever-growing, wrong duration that
+			// gets worse the longer the container has actually been running.
+			// Skip it rather than report data we can't trust.
+			if newStatus.Ready && newStatus.State.Running != nil {
+				c.startupTrackerMu.Unlock()
+				continue
+			}
+
 			// New lifecycle entry — pod is in Pending or later phase
 			workloadName, workloadKind := getWorkloadInfo(newPod)
 			entry = &startupLifecycleEntry{
