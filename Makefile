@@ -88,6 +88,14 @@ DIST_BACKEND_INSTALL_GCP_LOWPRIV_BUNDLE ?= $(DIST_DIR)/backend-install-gcp-lowpr
 DIST_INSTALLER_UPDATER_LOWPRIV_BUNDLE ?= $(DIST_DIR)/installer_updater-lowpriv.yaml
 DIST_INSTALLER_UPDATER_GCP_LOWPRIV_BUNDLE ?= $(DIST_DIR)/installer_updater-gcp-lowpriv.yaml
 
+# final-installer's dakr-sync destination filenames (see DAKR_DIR below). Parameterized
+# so build-installer's second (lowpriv) final-installer invocation can override them to
+# the -lowpriv names instead of clobbering the privileged sync from the first invocation.
+DAKR_INSTALL_DEST ?= install.yaml
+DAKR_INSTALL_GCP_DEST ?= install-gcp.yaml
+DAKR_UPDATER_DEST ?= installer_updater.yaml
+DAKR_UPDATER_GCP_DEST ?= installer_updater-gcp.yaml
+
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.31.0
 
@@ -310,10 +318,10 @@ final-installer:
 		-e 's|name: $(DEVZERO_MONITORING_NAMESPACE)|name: {{.zxporter_namespace}}|g' \
 		$(DIST_BACKEND_INSTALL_GCP_BUNDLE) > $(DIST_BACKEND_INSTALL_GCP_BUNDLE).tmp && mv $(DIST_BACKEND_INSTALL_GCP_BUNDLE).tmp $(DIST_BACKEND_INSTALL_GCP_BUNDLE)
 	@if [ -d "$(DAKR_DIR)/services/dakr_installers" ]; then \
-		cp $(DIST_BACKEND_INSTALL_BUNDLE) $(DAKR_DIR)/services/dakr_installers/install.yaml; \
-		cp $(DIST_BACKEND_INSTALL_GCP_BUNDLE) $(DAKR_DIR)/services/dakr_installers/install-gcp.yaml; \
-		cp $(DIST_INSTALLER_UPDATER_BUNDLE) $(DAKR_DIR)/services/dakr_installers/installer_updater.yaml; \
-		cp $(DIST_INSTALLER_UPDATER_GCP_BUNDLE) $(DAKR_DIR)/services/dakr_installers/installer_updater-gcp.yaml; \
+		cp $(DIST_BACKEND_INSTALL_BUNDLE) $(DAKR_DIR)/services/dakr_installers/$(DAKR_INSTALL_DEST); \
+		cp $(DIST_BACKEND_INSTALL_GCP_BUNDLE) $(DAKR_DIR)/services/dakr_installers/$(DAKR_INSTALL_GCP_DEST); \
+		cp $(DIST_INSTALLER_UPDATER_BUNDLE) $(DAKR_DIR)/services/dakr_installers/$(DAKR_UPDATER_DEST); \
+		cp $(DIST_INSTALLER_UPDATER_GCP_BUNDLE) $(DAKR_DIR)/services/dakr_installers/$(DAKR_UPDATER_GCP_DEST); \
 		echo "[INFO] Synced installer files to $(DAKR_DIR)/services/dakr_installers/"; \
 	fi
 
@@ -421,7 +429,11 @@ build-installer: manifests generate kustomize yq helm ## Generate a consolidated
 		DIST_BACKEND_INSTALL_BUNDLE=$(DIST_BACKEND_INSTALL_LOWPRIV_BUNDLE) \
 		DIST_BACKEND_INSTALL_GCP_BUNDLE=$(DIST_BACKEND_INSTALL_GCP_LOWPRIV_BUNDLE) \
 		DIST_INSTALLER_UPDATER_BUNDLE=$(DIST_INSTALLER_UPDATER_LOWPRIV_BUNDLE) \
-		DIST_INSTALLER_UPDATER_GCP_BUNDLE=$(DIST_INSTALLER_UPDATER_GCP_LOWPRIV_BUNDLE)
+		DIST_INSTALLER_UPDATER_GCP_BUNDLE=$(DIST_INSTALLER_UPDATER_GCP_LOWPRIV_BUNDLE) \
+		DAKR_INSTALL_DEST=install-lowpriv.yaml \
+		DAKR_INSTALL_GCP_DEST=install-gcp-lowpriv.yaml \
+		DAKR_UPDATER_DEST=installer_updater-lowpriv.yaml \
+		DAKR_UPDATER_GCP_DEST=installer_updater-gcp-lowpriv.yaml
 
 .PHONY: build-env-configmap
 build-env-configmap: DIST_INSTALL_BUNDLE=$(DIST_DIR)/env_configmap.yaml
