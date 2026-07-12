@@ -528,6 +528,10 @@ uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified 
 deploy: build-installer ## Deploy controller to the K8s cluster specified in ~/.kube/config.
 	cat $(DIST_INSTALL_BUNDLE) | $(KUBECTL) apply -f -
 
+.PHONY: deploy-lowpriv
+deploy-lowpriv: build-installer ## Deploy controller with the low-privilege nodemon variant (no hostPID/root/SYS_PTRACE, no runtime metrics) to the K8s cluster specified in ~/.kube/config.
+	cat $(DIST_INSTALL_LOWPRIV_BUNDLE) | $(KUBECTL) apply -f -
+
 .PHONY: local-deploy
 local-deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/config.
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
