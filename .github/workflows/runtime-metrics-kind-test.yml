@@ -84,6 +84,32 @@ jobs:
           grep -q 'hostPID: true' /tmp/render-canonical.yaml
           grep -q 'SYS_PTRACE' /tmp/render-canonical.yaml
 
+      - name: Static dist/ low-privilege bundle coverage
+        run: |
+          # dist/*-lowpriv.yaml are committed `helm template --set
+          # runtimeMetrics.enabled=false` output (see Makefile's build-installer
+          # target) -- the manifests actually served by the plain curl+kubectl
+          # installer and dakr's backend, not just a live helm-template render.
+          # The Helm key parity step above already proves the template logic
+          # itself is correct; this proves the *committed* static output matches,
+          # so a stale dist/ (someone hand-edited the chart but forgot `make
+          # build-installer`) fails CI here rather than shipping quietly.
+          for f in dist/nodemon-lowpriv.yaml dist/nodemon-gcp-lowpriv.yaml; do
+            echo "checking $f"
+            if grep -qE 'hostPID: true|SYS_PTRACE' "$f"; then
+              echo "::error::$f still grants process-introspection privileges"; exit 1
+            fi
+            if ! grep -A1 'RUNTIME_METRICS_ENABLED' "$f" | grep -q '"false"'; then
+              echo "::error::$f did not disable runtime metrics"; exit 1
+            fi
+          done
+          # And the privileged bundles must still carry them, proving the greps
+          # above aren't vacuous.
+          for f in dist/nodemon.yaml dist/nodemon-gcp.yaml; do
+            grep -q 'hostPID: true' "$f"
+            grep -q 'SYS_PTRACE' "$f"
+          done
+
       - name: Build nodemon image
         run: |
           docker build -f Dockerfile.nodemon -t zxporter-nodemon:runtime-ci .

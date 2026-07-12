@@ -119,7 +119,14 @@ jobs:
           - v1.36.1
         deployment-method:
           - helm
+          # "manifest" (unchanged name — required-status-check contexts in the
+          # branch ruleset are pinned to "Test on K8s <version> (manifest)" for
+          # all six k8s-versions; renaming it would silently strand those checks
+          # and block every future merge) exercises dist/install.yaml. The new
+          # manifest-lowpriv variant exercises dist/install-lowpriv.yaml — same
+          # coverage, extended to the no-hostPID/root/SYS_PTRACE bundle.
           - manifest
+          - manifest-lowpriv
           
     steps:
       - name: Set Docker image names
@@ -246,6 +253,9 @@ jobs:
 
             helm dependency update helm-chart/zxporter/
             make helm-chart-install YQ=/usr/local/bin/yq
+          elif [ "${{ matrix.deployment-method }}" = "manifest-lowpriv" ]; then
+            echo "Deploying ZXporter using make deploy-lowpriv (nodemon: no hostPID/root/SYS_PTRACE, no runtime metrics)..."
+            make deploy-lowpriv IMG=${{ env.ZXPORTER_IMG }} IMG_NODEMON=${{ env.NODEMON_IMG }} DAKR_URL=http://testserver.devzero-system.svc.cluster.local:50051 TARGET_NAMESPACES=dztest CLUSTER_TOKEN=test-token-for-ci
           else
             echo "Deploying ZXporter using make deploy..."
             make deploy IMG=${{ env.ZXPORTER_IMG }} IMG_NODEMON=${{ env.NODEMON_IMG }} DAKR_URL=http://testserver.devzero-system.svc.cluster.local:50051 TARGET_NAMESPACES=dztest CLUSTER_TOKEN=test-token-for-ci

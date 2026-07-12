@@ -41,12 +41,12 @@ jobs:
       
       - name: Check for uncommitted changes in dist/
         run: |
-          # build-installer regenerates every bundle under dist/ (install.yaml,
-          # install-nvidia-runtime.yaml, installer_updater*, backend-install*,
-          # nodemon.yaml, nodemon-nvidia-runtime.yaml, zxporter.yaml). Guard the
-          # whole directory: previously only dist/install.yaml was checked, so the
-          # NVIDIA-runtime nodemon manifest -- appended only to
-          # install-nvidia-runtime.yaml -- could drift without failing CI.
+          # build-installer regenerates every bundle under dist/: install*.yaml,
+          # installer_updater*.yaml, backend-install*.yaml, nodemon*.yaml,
+          # zxporter.yaml -- each with a -gcp provider variant and a -lowpriv
+          # (runtimeMetrics.enabled=false) variant. Guard the whole directory:
+          # previously only dist/install.yaml was checked, so bundles appended
+          # by later variants could drift without failing CI.
           if [[ -n $(git status --porcelain dist/) ]]; then
             echo "::error::Running 'make build-installer' produced uncommitted changes under dist/."
             echo "Please run 'make build-installer' locally and commit the dist/ changes before pushing."
