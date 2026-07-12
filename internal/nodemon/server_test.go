@@ -8,11 +8,11 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// stubHandler returns a fixed status so we only assert on route registration,
+// stubHandler always responds 200 OK, so we only assert on route registration,
 // not handler internals (those are covered by the handler's own tests).
-func stubHandler(status int) http.Handler {
+func stubHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(status)
+		w.WriteHeader(http.StatusOK)
 	})
 }
 
@@ -20,7 +20,7 @@ func stubHandler(status int) http.Handler {
 // when RUNTIME_METRICS_ENABLED=true (the default, privileged install): the JVM and
 // combined runtime-metrics handlers are non-nil and must be reachable.
 func TestNewServerMux_HighPrivilegeMode(t *testing.T) {
-	mux := NewServerMux(stubHandler(http.StatusOK), stubHandler(http.StatusOK), stubHandler(http.StatusOK))
+	mux := NewServerMux(stubHandler(), stubHandler(), stubHandler())
 
 	for _, path := range []string{"/container/metrics", "/container/jvm-metrics", "/container/runtime-metrics"} {
 		rec := httptest.NewRecorder()
@@ -39,7 +39,7 @@ func TestNewServerMux_HighPrivilegeMode(t *testing.T) {
 // passes nil handlers for them; those routes must not be registered, while the
 // always-on endpoints (container metrics, healthz) keep working.
 func TestNewServerMux_LowPrivilegeMode(t *testing.T) {
-	mux := NewServerMux(stubHandler(http.StatusOK), nil, nil)
+	mux := NewServerMux(stubHandler(), nil, nil)
 
 	for _, path := range []string{"/container/jvm-metrics", "/container/runtime-metrics"} {
 		rec := httptest.NewRecorder()
