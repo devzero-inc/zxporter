@@ -79,6 +79,14 @@ DIST_BACKEND_INSTALL_GCP_BUNDLE ?= $(DIST_DIR)/backend-install-gcp.yaml
 DIST_INSTALLER_UPDATER_BUNDLE ?= $(DIST_DIR)/installer_updater.yaml
 DIST_INSTALLER_UPDATER_GCP_BUNDLE ?= $(DIST_DIR)/installer_updater-gcp.yaml
 DIST_ZXPORTER_BUNDLE ?= $(DIST_DIR)/zxporter.yaml
+# -lowpriv variants: nodemon rendered with runtimeMetrics.enabled=false, i.e. no
+# hostPID / root / SYS_PTRACE. Mirrors the -gcp provider-suffix convention above.
+DIST_INSTALL_LOWPRIV_BUNDLE ?= $(DIST_DIR)/install-lowpriv.yaml
+DIST_INSTALL_GCP_LOWPRIV_BUNDLE ?= $(DIST_DIR)/install-gcp-lowpriv.yaml
+DIST_BACKEND_INSTALL_LOWPRIV_BUNDLE ?= $(DIST_DIR)/backend-install-lowpriv.yaml
+DIST_BACKEND_INSTALL_GCP_LOWPRIV_BUNDLE ?= $(DIST_DIR)/backend-install-gcp-lowpriv.yaml
+DIST_INSTALLER_UPDATER_LOWPRIV_BUNDLE ?= $(DIST_DIR)/installer_updater-lowpriv.yaml
+DIST_INSTALLER_UPDATER_GCP_LOWPRIV_BUNDLE ?= $(DIST_DIR)/installer_updater-gcp-lowpriv.yaml
 
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.31.0
@@ -276,7 +284,7 @@ docker-buildx: ## Build and push docker image for the manager for cross-platform
 
 .PHONY: final-installer
 final-installer:
-	@cp dist/install.yaml $(DIST_BACKEND_INSTALL_BUNDLE)
+	@cp $(DIST_INSTALL_BUNDLE) $(DIST_BACKEND_INSTALL_BUNDLE)
 	@$(YQ) -i '(select(.kind == "ConfigMap" and .metadata.name == "devzero-zxporter-env-config") | .data.DAKR_URL) = "{{ .api_url }}/dakr"' $(DIST_BACKEND_INSTALL_BUNDLE)
 	@$(YQ) -i '(select(.kind == "Deployment") | .spec.template.spec.containers[]? | select(.image == "ttl.sh/zxporter:latest")).image = "docker.io/devzeroinc/zxporter:latest"' $(DIST_BACKEND_INSTALL_BUNDLE)
 # nodemon's DaemonSet image must also come off the ephemeral ttl.sh registry and
@@ -355,8 +363,11 @@ build-installer: manifests generate kustomize yq helm ## Generate a consolidated
 	fi
 	@cat $(DIST_ZXPORTER_BUNDLE) >> $(DIST_INSTALL_BUNDLE)
 	@# Save the base bundle (namespace + controller) before appending nodemon — used
-	@# as the starting point for both the default and GCP installer variants.
+	@# as the starting point for both the default and GCP installer variants, and
+	@# the low-privilege (runtimeMetrics.enabled=false) variants of each.
 	@cp $(DIST_INSTALL_BUNDLE) $(DIST_INSTALL_GCP_BUNDLE)
+	@cp $(DIST_INSTALL_BUNDLE) $(DIST_INSTALL_LOWPRIV_BUNDLE)
+	@cp $(DIST_INSTALL_BUNDLE) $(DIST_INSTALL_GCP_LOWPRIV_BUNDLE)
 
 	@echo "[INFO] Generate and append default nodemon DaemonSets (provider=other)"
 	@$(HELM) template zxporter-nodemon ./helm-chart/zxporter-nodemon \
@@ -378,8 +389,39 @@ build-installer: manifests generate kustomize yq helm ## Generate a consolidated
 		> $(DIST_DIR)/nodemon-gcp.yaml
 	@cat $(DIST_DIR)/nodemon-gcp.yaml >> $(DIST_INSTALL_GCP_BUNDLE)
 
+	@echo "[INFO] Generate and append low-privilege default nodemon DaemonSets (provider=other, runtimeMetrics.enabled=false)"
+	@$(HELM) template zxporter-nodemon ./helm-chart/zxporter-nodemon \
+		--namespace $(DEVZERO_MONITORING_NAMESPACE) \
+		--set global.k8sProvider=other \
+		--set priorityClass.create=false \
+		--set runtimeMetrics.enabled=false \
+		--set image.repository=$(word 1,$(subst :, ,$(IMG_NODEMON))) \
+		--set image.tag=$(word 2,$(subst :, ,$(IMG_NODEMON))) \
+		> $(DIST_DIR)/nodemon-lowpriv.yaml
+	@cat $(DIST_DIR)/nodemon-lowpriv.yaml >> $(DIST_INSTALL_LOWPRIV_BUNDLE)
+
+	@echo "[INFO] Generate and append low-privilege GCP nodemon DaemonSets (provider=gcp, runtimeMetrics.enabled=false)"
+	@$(HELM) template zxporter-nodemon ./helm-chart/zxporter-nodemon \
+		--namespace $(DEVZERO_MONITORING_NAMESPACE) \
+		--set global.k8sProvider=gcp \
+		--set priorityClass.create=false \
+		--set runtimeMetrics.enabled=false \
+		--set image.repository=$(word 1,$(subst :, ,$(IMG_NODEMON))) \
+		--set image.tag=$(word 2,$(subst :, ,$(IMG_NODEMON))) \
+		> $(DIST_DIR)/nodemon-gcp-lowpriv.yaml
+	@cat $(DIST_DIR)/nodemon-gcp-lowpriv.yaml >> $(DIST_INSTALL_GCP_LOWPRIV_BUNDLE)
+
 	@echo "[INFO] Building backend installer"
 	@$(MAKE) final-installer
+
+	@echo "[INFO] Building low-privilege backend installer (runtime metrics disabled)"
+	@$(MAKE) final-installer \
+		DIST_INSTALL_BUNDLE=$(DIST_INSTALL_LOWPRIV_BUNDLE) \
+		DIST_INSTALL_GCP_BUNDLE=$(DIST_INSTALL_GCP_LOWPRIV_BUNDLE) \
+		DIST_BACKEND_INSTALL_BUNDLE=$(DIST_BACKEND_INSTALL_LOWPRIV_BUNDLE) \
+		DIST_BACKEND_INSTALL_GCP_BUNDLE=$(DIST_BACKEND_INSTALL_GCP_LOWPRIV_BUNDLE) \
+		DIST_INSTALLER_UPDATER_BUNDLE=$(DIST_INSTALLER_UPDATER_LOWPRIV_BUNDLE) \
+		DIST_INSTALLER_UPDATER_GCP_BUNDLE=$(DIST_INSTALLER_UPDATER_GCP_LOWPRIV_BUNDLE)
 
 .PHONY: build-env-configmap
 build-env-configmap: DIST_INSTALL_BUNDLE=$(DIST_DIR)/env_configmap.yaml
