@@ -25,6 +25,9 @@ outputs:
   nodemon_img:
     description: "nodemon image URL"
     value: ${{ steps.set-image.outputs.nodemon_img }}
+  commit_hash:
+    description: "The exact short commit hash baked into the zxporter image at build time — pass to the test job so `expected.json` matches without re-computing (which drifts between checkout actions)."
+    value: ${{ steps.commit.outputs.commit_hash }}
 
 runs:
   using: composite
@@ -64,12 +67,27 @@ runs:
         cache: true
         cache-dependency-path: ${{ inputs.working-directory }}/go.sum
 
+    - name: Compute and export commit hash
+      id: commit
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        # Compute the short commit hash HERE, pin it to the image via COMMIT_HASH,
+        # and expose it as an output. The test job reuses this exact value so the
+        # validator's expected.json matches what the Makefile baked into the
+        # container. Otherwise git's auto-abbrev picks different lengths
+        # depending on the fetch depth / checkout action, and expected drifts
+        # from actual by 1-3 chars.
+        COMMIT_HASH=$(git rev-parse --short HEAD)
+        echo "COMMIT_HASH=$COMMIT_HASH" >> "$GITHUB_ENV"
+        echo "commit_hash=$COMMIT_HASH" >> "$GITHUB_OUTPUT"
+
     - name: Build and push Docker images
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       run: |
-        echo "Building and pushing zxporter image: ${ZXPORTER_IMG}"
-        make docker-build docker-push IMG=${ZXPORTER_IMG}
+        echo "Building and pushing zxporter image: ${ZXPORTER_IMG} (commit=${COMMIT_HASH})"
+        make docker-build docker-push IMG=${ZXPORTER_IMG} COMMIT_HASH=${COMMIT_HASH}
 
         echo "Building and pushing testserver image: ${TESTSERVER_IMG}"
         make testserver-docker-build testserver-docker-push TESTSERVER_IMG=${TESTSERVER_IMG}
@@ -77,5 +95,5 @@ runs:
         echo "Building and pushing stress image: ${STRESS_IMG}"
         make stress-docker-build stress-docker-push STRESS_IMG=${STRESS_IMG}
 
-        echo "Building and pushing nodemon image: ${NODEMON_IMG}"
-        make docker-build-nodemon docker-push-nodemon IMG_NODEMON=${NODEMON_IMG}
+        echo "Building and pushing nodemon image: ${NODEMON_IMG} (commit=${COMMIT_HASH})"
+        make docker-build-nodemon docker-push-nodemon IMG_NODEMON=${NODEMON_IMG} COMMIT_HASH=${COMMIT_HASH}
