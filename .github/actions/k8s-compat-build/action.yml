@@ -33,10 +33,15 @@ runs:
       id: set-image
       shell: bash
       run: |
-        ZXPORTER_IMG="ttl.sh/$(uuidgen):2h"
-        TESTSERVER_IMG="ttl.sh/$(uuidgen):2h"
-        STRESS_IMG="ttl.sh/$(uuidgen):2h"
-        NODEMON_IMG="ttl.sh/$(uuidgen):2h"
+        # /proc/sys/kernel/random/uuid is on every Linux kernel; uuidgen isn't
+        # preinstalled on the services `namespace-profile-dz-generic` runner
+        # (only on ubuntu-latest, which is what the public repo uses). Reading
+        # /proc gives the same v4 UUID shape everywhere.
+        gen_uuid() { cat /proc/sys/kernel/random/uuid; }
+        ZXPORTER_IMG="ttl.sh/$(gen_uuid):2h"
+        TESTSERVER_IMG="ttl.sh/$(gen_uuid):2h"
+        STRESS_IMG="ttl.sh/$(gen_uuid):2h"
+        NODEMON_IMG="ttl.sh/$(gen_uuid):2h"
         MAJOR="0"
         MINOR="0"
         PATCH="1-compatibility-test"
