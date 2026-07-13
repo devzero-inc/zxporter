@@ -32,7 +32,11 @@ inputs:
     description: "nodemon image URL (from the build action)."
     required: true
   commit-sha:
-    description: "The commit SHA under test (for zxporter_git_commit assertion)."
+    description: "The commit SHA under test. Deprecated — kept for backward compat; the value now comes from `commit-hash` (the exact short SHA the build job baked into the image). If commit-hash is empty this input is unused."
+    required: false
+    default: ""
+  commit-hash:
+    description: "The exact short commit hash the build job baked into the zxporter image (from the k8s-compat-build action's `commit_hash` output). Used as-is in `expected.json` so the validator's comparison matches the value inside the container."
     required: true
 
 runs:
@@ -242,12 +246,14 @@ runs:
 
         echo "$STATS_RESPONSE" > stats.json
 
-        # Ask git for the short SHA the way zxporter's Makefile does
-        # (`git rev-parse --short HEAD`) — git picks the abbreviation length
-        # based on repo size, so 7 chars on the public repo but ~10 on the
-        # services monorepo. Hardcoding `cut -c1-7` mismatches on services
-        # and the validator complains 'expected: a47fedf, actual: a47fedf50d'.
-        COMMIT_SHORT=$(git rev-parse --short HEAD)
+        # Use the exact short SHA the build job baked into the image. We
+        # tried `git rev-parse --short HEAD` here, but git auto-chooses
+        # abbreviation length based on the number of objects available
+        # locally, and the build job (nscloud-checkout-action full clone)
+        # vs. test job (actions/checkout even with fetch-depth: 0) can
+        # settle on different lengths for the same SHA. Passing the value
+        # forward removes that whole class of drift.
+        COMMIT_SHORT="${{ inputs.commit-hash }}"
 
         cat <<EOF > expected.json
         {
