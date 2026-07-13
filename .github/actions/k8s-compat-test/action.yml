@@ -1,0 +1,312 @@
+name: "zxporter: k8s-compat test"
+description: |
+  Runs the per-matrix (k8s-version × deployment-method) portion of the
+  k8s compatibility test: kind cluster + testserver + stress workload +
+  zxporter deploy (helm or manifest) + stats validation.
+
+  Consumed by both the public repo's test job
+  (./.github/actions/k8s-compat-test) and the services-side mirror
+  (./operators/zxporter/.github/actions/k8s-compat-test).
+
+inputs:
+  working-directory:
+    description: "Path to the zxporter tree relative to the repo root."
+    required: false
+    default: "."
+  k8s-version:
+    description: "Kubernetes version to spin up the kind cluster on (e.g. v1.35.1)."
+    required: true
+  deployment-method:
+    description: "helm or manifest — how zxporter is deployed into kind."
+    required: true
+  zxporter-img:
+    description: "zxporter image URL (from the build action)."
+    required: true
+  testserver-img:
+    description: "testserver image URL (from the build action)."
+    required: true
+  stress-img:
+    description: "stress test image URL (from the build action)."
+    required: true
+  nodemon-img:
+    description: "nodemon image URL (from the build action)."
+    required: true
+  commit-sha:
+    description: "The commit SHA under test (for zxporter_git_commit assertion)."
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Set Docker image names
+      shell: bash
+      run: |
+        echo "ZXPORTER_IMG=${{ inputs.zxporter-img }}" >> $GITHUB_ENV
+        echo "TESTSERVER_IMG=${{ inputs.testserver-img }}" >> $GITHUB_ENV
+        echo "STRESS_IMG=${{ inputs.stress-img }}" >> $GITHUB_ENV
+        echo "NODEMON_IMG=${{ inputs.nodemon-img }}" >> $GITHUB_ENV
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version-file: ${{ inputs.working-directory }}/go.mod
+        cache: true
+        cache-dependency-path: ${{ inputs.working-directory }}/go.sum
+
+    - name: Install yq
+      shell: bash
+      run: |
+        YQ_VERSION=v4.40.5
+        curl -sSL "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64" -o /usr/local/bin/yq
+        chmod +x /usr/local/bin/yq
+
+    - name: Create k8s Kind Cluster
+      uses: helm/kind-action@v1
+      with:
+        version: v0.32.0
+        node_image: kindest/node:${{ inputs.k8s-version }}
+        cluster_name: kind-${{ inputs.k8s-version }}
+        wait: 120s
+
+    - name: Deploy testserver to Kubernetes
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        # Create namespace if it doesn't exist
+        kubectl create namespace devzero-system --dry-run=client -o yaml | kubectl apply -f -
+
+        # Replace the image placeholder in the testserver Kubernetes manifest
+        sed "s|\${TESTSERVER_IMG}|${TESTSERVER_IMG}|g" test/testserver/kubernetes.yaml > testserver-k8s.yaml
+
+        # Apply the testserver Kubernetes manifest
+        kubectl apply -f testserver-k8s.yaml
+
+        # Wait for the testserver pod to be ready
+        echo "Waiting for testserver pod to be ready..."
+        kubectl wait --for=condition=ready pod -l app=testserver -n devzero-system --timeout=120s
+
+        TESTSERVER_POD=$(kubectl get pods -n devzero-system -l app=testserver -o jsonpath='{.items[0].metadata.name}')
+        echo "Testserver pod: $TESTSERVER_POD"
+        kubectl logs $TESTSERVER_POD -n devzero-system
+
+    - name: Create dztest namespace and deploy stress test pod
+      shell: bash
+      run: |
+        kubectl create namespace dztest --dry-run=client -o yaml | kubectl apply -f -
+        cat <<EOF | kubectl apply -f -
+        apiVersion: v1
+        kind: Pod
+        metadata:
+          name: stress-test
+          namespace: dztest
+        spec:
+          containers:
+          - name: stress
+            image: ${STRESS_IMG}
+            args:
+            - "--cpu"
+            - "1"
+            - "--vm"
+            - "1"
+            - "--vm-bytes"
+            - "180M"
+            - "--vm-hang"
+            - "0"
+            resources:
+              requests:
+                cpu: 500m
+                memory: 64Mi
+              limits:
+                cpu: 2000m
+                memory: 256Mi
+        EOF
+
+        echo "Waiting for stress pod to be ready..."
+        if ! kubectl wait --for=condition=ready pod/stress-test -n dztest --timeout=60s; then
+          echo "Stress pod did not become ready within timeout. Checking events and status..."
+          kubectl describe pod/stress-test -n dztest
+          kubectl get events -n dztest --sort-by='.lastTimestamp' | grep stress-test
+          echo "Continuing with test despite stress pod not being ready..."
+        fi
+
+        kubectl get pod stress-test -n dztest -o wide
+
+    - name: Deploy ZXporter with custom DAKR_URL and TARGET_NAMESPACES
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        echo "Setting DAKR_URL to http://testserver.devzero-system.svc.cluster.local:50051"
+        echo "Setting TARGET_NAMESPACES to dztest"
+
+        if [ "${{ inputs.deployment-method }}" = "helm" ]; then
+          echo "Deploying ZXporter using Helm..."
+          yq eval '.image.repository = "'"${ZXPORTER_IMG%:*}"'"' -i helm-chart/zxporter/values.yaml
+          yq eval '.image.tag = "'"${ZXPORTER_IMG##*:}"'"' -i helm-chart/zxporter/values.yaml
+          yq eval '.zxporter.dakrUrl = "http://testserver.devzero-system.svc.cluster.local:50051"' -i helm-chart/zxporter/values.yaml
+          yq eval '.zxporter.targetNamespaces = "dztest"' -i helm-chart/zxporter/values.yaml
+          yq eval '.zxporter.clusterToken = "test-token-for-ci"' -i helm-chart/zxporter/values.yaml
+          yq eval '.zxporter.kubeContextName = "test-kind-cluster"' -i helm-chart/zxporter/values.yaml
+          yq eval '.global.k8sProvider = "other"' -i helm-chart/zxporter/values.yaml
+          yq eval '.zxporter.logLevel = "info"' -i helm-chart/zxporter/values.yaml
+          yq eval '.zxporter-nodemon.image.repository = "'"${NODEMON_IMG%:*}"'"' -i helm-chart/zxporter/values.yaml
+          yq eval '.zxporter-nodemon.image.tag = "'"${NODEMON_IMG##*:}"'"' -i helm-chart/zxporter/values.yaml
+          echo "Updated values.yaml:"
+          cat helm-chart/zxporter/values.yaml
+
+          helm dependency update helm-chart/zxporter/
+          make helm-chart-install YQ=/usr/local/bin/yq
+        elif [ "${{ inputs.deployment-method }}" = "manifest-lowpriv" ]; then
+          echo "Deploying ZXporter using make deploy-lowpriv (nodemon: no hostPID/root/SYS_PTRACE, no runtime metrics)..."
+          make deploy-lowpriv IMG=${ZXPORTER_IMG} IMG_NODEMON=${NODEMON_IMG} DAKR_URL=http://testserver.devzero-system.svc.cluster.local:50051 TARGET_NAMESPACES=dztest CLUSTER_TOKEN=test-token-for-ci
+        else
+          echo "Deploying ZXporter using make deploy..."
+          make deploy IMG=${ZXPORTER_IMG} IMG_NODEMON=${NODEMON_IMG} DAKR_URL=http://testserver.devzero-system.svc.cluster.local:50051 TARGET_NAMESPACES=dztest CLUSTER_TOKEN=test-token-for-ci
+        fi
+
+    - name: Wait for deployment to be ready
+      shell: bash
+      run: |
+        echo "Waiting for deployment to be ready..."
+        kubectl wait --for=condition=available --timeout=300s deployment/devzero-zxporter-controller-manager -n devzero-system || true
+
+        echo "Getting pod status..."
+        kubectl get pods -n devzero-system -o wide
+
+        echo "Describing deployment..."
+        kubectl describe deployment devzero-zxporter-controller-manager -n devzero-system
+
+        echo "Getting pod details..."
+        POD_NAME=$(kubectl get pods -n devzero-system -l control-plane=controller-manager -o jsonpath='{.items[0].metadata.name}')
+        kubectl describe pod $POD_NAME -n devzero-system
+
+        echo "Getting events for the namespace..."
+        kubectl get events -n devzero-system --sort-by='.lastTimestamp'
+
+        echo "Checking node status..."
+        kubectl describe nodes
+
+        echo "Checking node resources..."
+        kubectl get nodes -o custom-columns=NAME:.metadata.name,CPU:.status.capacity.cpu,MEMORY:.status.capacity.memory
+
+    - name: Verify ZXporter is running
+      shell: bash
+      run: |
+        echo "Getting all devzero resource status..."
+        kubectl get all -n devzero-system -o wide
+
+        echo "Getting pod logs (if any)..."
+        POD_NAME=$(kubectl get pods -n devzero-system -l control-plane=controller-manager -o jsonpath='{.items[0].metadata.name}')
+        kubectl logs $POD_NAME -n devzero-system --tail=100 || echo "No logs available"
+
+        echo "Getting pod events..."
+        kubectl get events -n devzero-system --field-selector involvedObject.name=$POD_NAME --sort-by='.lastTimestamp'
+
+    - name: Wait for data collection (2 minutes)
+      shell: bash
+      run: |
+        echo "Waiting for 2 minutes to collect data from ZXporter..."
+        sleep 120
+
+        echo "Getting pod logs (if any)..."
+        POD_NAME=$(kubectl get pods -n devzero-system -l control-plane=controller-manager -o jsonpath='{.items[0].metadata.name}')
+        kubectl logs $POD_NAME -n devzero-system --tail=100 || echo "No logs available"
+
+    - name: Check testserver stats and validate resource usage
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        echo "Checking testserver stats..."
+
+        TESTSERVER_POD=$(kubectl get pods -n devzero-system -l app=testserver -o jsonpath='{.items[0].metadata.name}')
+        echo "Testserver pod: $TESTSERVER_POD"
+
+        echo "=== TESTSERVER LOGS ==="
+        kubectl logs $TESTSERVER_POD -n devzero-system
+        echo "=== END TESTSERVER LOGS ==="
+
+        echo "Calling stats endpoint..."
+
+        kubectl run curlbox \
+          -n devzero-system \
+          --image=curlimages/curl:latest \
+          --restart=Never \
+          --command -- sleep 120
+
+        kubectl wait --for=condition=Ready pod/curlbox -n devzero-system --timeout=30s
+
+        echo "=== STATS ENDPOINT RESPONSE ==="
+        STATS_RESPONSE=$(kubectl exec -n devzero-system curlbox -- \
+          curl -s http://testserver.devzero-system.svc.cluster.local:8080/stats)
+        echo "$STATS_RESPONSE"
+        echo "=== END STATS ENDPOINT RESPONSE ==="
+
+        echo "$STATS_RESPONSE" > stats.json
+
+        COMMIT_SHORT=$(echo "${{ inputs.commit-sha }}" | cut -c1-7)
+
+        cat <<EOF > expected.json
+        {
+          "usage_report_pods": {
+            "dztest/stress-test": {
+              "requests": {
+                "cpu": "500m",
+                "memory": "64Mi"
+              },
+              "limits": {
+                "cpu": "2",
+                "memory": "256Mi"
+              },
+              "containers": {
+                "stress": {
+                  "used_cpu": "1000m",
+                  "used_memory": "190000000"
+                }
+              }
+            }
+          },
+          "usage_report_cluster": {
+            "provider": "generic",
+            "version": "${{ inputs.k8s-version }}",
+            "zxporter_git_commit": "${COMMIT_SHORT}"
+          }
+        }
+        EOF
+
+        kubectl delete pod curlbox -n devzero-system --ignore-not-found
+
+        TOTAL_MESSAGES=$(echo "$STATS_RESPONSE" | grep -o '"total_messages": [0-9]*' | awk '{print $2}')
+        echo "Total messages received: $TOTAL_MESSAGES"
+
+        echo "Checking for resource usage information..."
+
+        POD_USAGE=$(echo "$STATS_RESPONSE" | grep -o '"usage_report_pods":' || echo "")
+        if [ ! -z "$POD_USAGE" ]; then
+          echo "✅ Pod resource usage information is available in the stats"
+        else
+          echo "⚠️ No pod resource usage information found"
+          exit 1
+        fi
+
+        NODE_USAGE=$(echo "$STATS_RESPONSE" | grep -o '"usage_report_nodes":' || echo "")
+        if [ ! -z "$NODE_USAGE" ]; then
+          echo "✅ Node resource usage information is available in the stats"
+        else
+          echo "⚠️ No node resource usage information found"
+        fi
+
+        if [ "$TOTAL_MESSAGES" -gt 0 ]; then
+          echo "Testserver received data from ZXporter!"
+        else
+          echo "ERROR: No data received by testserver from ZXporter!"
+          exit 1
+        fi
+
+        echo "Running validator to validate resource usage..."
+        go run ./test/validator/main.go --stats=stats.json --expected=expected.json --tolerance=20
+
+    - name: Check zxporter logs again for any errors
+      shell: bash
+      run: |
+        echo "Checking ZXporter logs for errors..."
+        POD_NAME=$(kubectl get pods -n devzero-system -l control-plane=controller-manager -o jsonpath='{.items[0].metadata.name}')
+        kubectl logs $POD_NAME -n devzero-system

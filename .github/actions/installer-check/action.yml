@@ -1,0 +1,53 @@
+name: "zxporter: build-installer drift check"
+description: |
+  Runs `make build-installer` inside the zxporter tree and fails if any
+  file under dist/ changed. Consumed by two callers:
+
+    - operators/zxporter/.github/workflows/build-installer-check.yml
+      (published to devzero-inc/zxporter)
+    - .github/workflows/zxporter-installer-check.yml on services root
+
+  Both paths resolve to this same file on disk.
+
+inputs:
+  working-directory:
+    description: "Path to the zxporter tree relative to the repo root."
+    required: false
+    default: "."
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version-file: ${{ inputs.working-directory }}/go.mod
+        cache: true
+        cache-dependency-path: ${{ inputs.working-directory }}/go.sum
+
+    - name: Run make build-installer
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: make build-installer
+
+    - name: Check for uncommitted changes in dist/
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        # build-installer regenerates every bundle under dist/ (install.yaml,
+        # install-nvidia-runtime.yaml, installer_updater*, backend-install*,
+        # nodemon.yaml, nodemon-nvidia-runtime.yaml, zxporter.yaml). Guard the
+        # whole directory: previously only dist/install.yaml was checked, so the
+        # NVIDIA-runtime nodemon manifest -- appended only to
+        # install-nvidia-runtime.yaml -- could drift without failing CI.
+        if [[ -n $(git status --porcelain dist/) ]]; then
+          echo "::error::Running 'make build-installer' produced uncommitted changes under dist/."
+          echo "Please run 'make build-installer' locally and commit the dist/ changes before pushing."
+          git status --porcelain dist/
+          # Stage so newly generated (untracked) bundles also appear in the diff.
+          git add -A dist/
+          git diff --cached -- dist/
+          exit 1
+        else
+          echo "No uncommitted changes detected under dist/. Generated bundles are in sync."
+        fi
