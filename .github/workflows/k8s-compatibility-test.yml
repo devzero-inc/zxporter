@@ -47,6 +47,7 @@ jobs:
       testserver_img: ${{ steps.build.outputs.testserver_img }}
       stress_img: ${{ steps.build.outputs.stress_img }}
       nodemon_img: ${{ steps.build.outputs.nodemon_img }}
+      commit_hash: ${{ steps.build.outputs.commit_hash }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -90,6 +91,7 @@ jobs:
           k8s-version: ${{ matrix.k8s-version }}
           deployment-method: ${{ matrix.deployment-method }}
           zxporter-img: ${{ needs.build.outputs.image }}
+          commit-hash: ${{ needs.build.outputs.commit_hash }}
           testserver-img: ${{ needs.build.outputs.testserver_img }}
           stress-img: ${{ needs.build.outputs.stress_img }}
           nodemon-img: ${{ needs.build.outputs.nodemon_img }}
