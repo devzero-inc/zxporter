@@ -1,0 +1,70 @@
+name: "Chart: zxporter-netmon"
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: "Release version (vX.Y.Z)"
+        required: true
+        type: string
+      ref:
+        description: "Git ref to checkout (tag/sha to build); empty = triggering ref"
+        required: false
+        type: string
+        default: ""
+
+env:
+  REGISTRY: registry-1.docker.io
+  CHART_NAME: zxporter-netmon
+  ORG: devzeroinc
+  CHART_TAG_PREFIX: chart-netmon-v
+
+jobs:
+  release-chart:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.ref }}
+
+      - uses: azure/setup-helm@v4
+        with:
+          version: "3.12.3"
+
+      - name: Compute bare version
+        id: v
+        env:
+          VERSION: ${{ inputs.version }}
+        run: echo "bare=${VERSION#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Helm registry login
+        run: |
+          echo "${{ secrets.DOCKERHUB_ZXPORTER_BALANCE_TOKEN }}" | \
+            helm registry login registry-1.docker.io \
+              --username "${{ secrets.DOCKERHUB_ZXPORTER_BALANCE_USERNAME }}" --password-stdin
+
+      - name: Create and push chart tag
+        run: |
+          git config --global user.email "actions@github.com"
+          git config --global user.name "GitHub Actions"
+          TAG="${{ env.CHART_TAG_PREFIX }}${{ steps.v.outputs.bare }}"
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            echo "tag $TAG exists; skipping"
+          else
+            git tag "$TAG" && git push origin "$TAG"
+          fi
+
+      - name: Package and push chart
+        run: |
+          helm dependency update helm-chart/${{ env.CHART_NAME }}
+          helm lint helm-chart/${{ env.CHART_NAME }}
+          mkdir -p helm-chart/packages
+          helm package helm-chart/${{ env.CHART_NAME }} \
+            --version ${{ steps.v.outputs.bare }} --app-version ${{ steps.v.outputs.bare }} \
+            --destination helm-chart/packages
+          helm push helm-chart/packages/${{ env.CHART_NAME }}-${{ steps.v.outputs.bare }}.tgz \
+            oci://${{ env.REGISTRY }}/${{ env.ORG }}
