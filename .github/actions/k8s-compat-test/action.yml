@@ -242,7 +242,12 @@ runs:
 
         echo "$STATS_RESPONSE" > stats.json
 
-        COMMIT_SHORT=$(echo "${{ inputs.commit-sha }}" | cut -c1-7)
+        # Ask git for the short SHA the way zxporter's Makefile does
+        # (`git rev-parse --short HEAD`) — git picks the abbreviation length
+        # based on repo size, so 7 chars on the public repo but ~10 on the
+        # services monorepo. Hardcoding `cut -c1-7` mismatches on services
+        # and the validator complains 'expected: a47fedf, actual: a47fedf50d'.
+        COMMIT_SHORT=$(git rev-parse --short HEAD)
 
         cat <<EOF > expected.json
         {
