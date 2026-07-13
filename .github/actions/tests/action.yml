@@ -1,0 +1,40 @@
+name: "zxporter: Go tests"
+description: |
+  Runs `make test` inside the zxporter tree. Consumed by two callers:
+
+    - operators/zxporter/.github/workflows/run-tests.yml (published to
+      devzero-inc/zxporter as .github/workflows/run-tests.yml; uses this
+      action via `./.github/actions/tests`)
+    - .github/workflows/zxporter-tests.yml on services root (uses this
+      action via `./operators/zxporter/.github/actions/tests`)
+
+  Both paths resolve to this same file on disk — services embeds it under
+  operators/zxporter/, the public repo receives it at its own root via
+  subrepo push. Passing working-directory lets the services-side caller
+  point at operators/zxporter/ while the public-side caller uses '.'.
+
+inputs:
+  working-directory:
+    description: "Path to the zxporter tree relative to the repo root."
+    required: false
+    default: "."
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version-file: ${{ inputs.working-directory }}/go.mod
+        cache: true
+        cache-dependency-path: ${{ inputs.working-directory }}/go.sum
+
+    - name: Download dependencies
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: go mod download
+
+    - name: Run make test
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: make test
