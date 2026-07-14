@@ -2,7 +2,6 @@ package snap
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
@@ -597,18 +596,6 @@ func (c *ClusterSnapshotter) sendSnapshot(
 		"nodes", len(snapshot.Nodes),
 		"namespaces", len(snapshot.Namespaces))
 
-	// Estimate snapshot size
-	jsonBytes, err := json.Marshal(snapshot)
-	if err != nil {
-		c.logger.Error(err, "Failed to marshal snapshot for size estimation")
-		return
-	}
-
-	snapshotSize := len(jsonBytes)
-	c.logger.Info("Snapshot size calculated",
-		"size_bytes", snapshotSize,
-		"size_mb", float64(snapshotSize)/(1024*1024))
-
 	var sendErr error
 	var clusterID string
 
@@ -637,8 +624,7 @@ func (c *ClusterSnapshotter) sendSnapshot(
 	}
 
 	if sendErr != nil {
-		c.logger.Error(sendErr, "Failed to send cluster snapshot",
-			"size", snapshotSize)
+		c.logger.Error(sendErr, "Failed to send cluster snapshot")
 		return
 	}
 
