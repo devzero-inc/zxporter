@@ -17,7 +17,7 @@ require (
 	github.com/Code-Hex/go-generics-cache v1.5.1
 	github.com/cilium/cilium v1.17.16
 	github.com/cilium/ebpf v0.17.1
-	github.com/florianl/go-conntrack v0.5.0
+	github.com/florianl/go-conntrack v0.7.0
 	github.com/google/gopacket v1.1.19
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	google.golang.org/genproto v0.0.0-20250922171735-9219d122eba9
