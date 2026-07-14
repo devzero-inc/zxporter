@@ -3,7 +3,7 @@ module github.com/devzero-inc/zxporter
 go 1.25.5
 
 require (
-	connectrpc.com/connect v1.18.1
+	connectrpc.com/connect v1.20.0
 	github.com/NVIDIA/KAI-scheduler v0.4.6
 	github.com/onsi/ginkgo/v2 v2.27.2
 	github.com/onsi/gomega v1.38.2
