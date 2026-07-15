@@ -2,6 +2,7 @@ package snap
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -24,6 +25,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/metadata"
 )
 
 // ResourceListFunc defines a function type for listing resources by UID
@@ -60,6 +62,7 @@ type ClusterSnapshotter struct {
 	client             kubernetes.Interface
 	kedaClient         kedaclient.Interface
 	dynamicClient      dynamic.Interface
+	metadataClient     metadata.Interface
 	logger             logr.Logger
 	sender             transport.DirectSender
 	collectorManager   *collector.CollectionManager
@@ -72,12 +75,17 @@ type ClusterSnapshotter struct {
 	excludedNodes      map[string]bool
 	clusterHandlers    map[string]ResourceHandler
 	namespacedHandlers map[string]NamespacedResourceHandler
+	// streamingUnsupported remembers that the backend rejected the batched
+	// snapshot RPC; the legacy path is used until the periodic re-probe.
+	streamingUnsupported bool
+	snapshotCycle        int
 }
 
 func NewClusterSnapshotter(
 	client kubernetes.Interface,
 	kedaClient kedaclient.Interface,
 	dynamicClient dynamic.Interface,
+	metadataClient metadata.Interface,
 	interval time.Duration,
 	sender transport.DirectSender,
 	collectorManager *collector.CollectionManager,
@@ -105,6 +113,7 @@ func NewClusterSnapshotter(
 		client:           client,
 		kedaClient:       kedaClient,
 		dynamicClient:    dynamicClient,
+		metadataClient:   metadataClient,
 		logger:           logger.WithName("cluster-snapshotter"),
 		sender:           sender,
 		collectorManager: collectorManager,
@@ -522,6 +531,40 @@ func (c *ClusterSnapshotter) snapshotLoop(ctx context.Context) {
 func (c *ClusterSnapshotter) takeSnapshot(ctx context.Context) {
 	c.logger.Info("Taking cluster snapshot")
 	startTime := time.Now()
+
+	c.mu.Lock()
+	c.snapshotCycle++
+	c.mu.Unlock()
+
+	if opener, ok := c.streamingSupported(); ok {
+		// Hold the send lock across the whole streamed send — same
+		// "don't send multiple snapshots at once" invariant the legacy
+		// sendSnapshot enforces. The flag updates ride the same critical
+		// section.
+		c.mu.Lock()
+		err := c.streamSnapshot(ctx, opener)
+		if err == nil {
+			// A working backend clears any remembered unsupported state so
+			// streaming resumes every cycle, not just on re-probe cycles.
+			c.streamingUnsupported = false
+		} else if errors.Is(err, transport.ErrSnapshotBatchedUnsupported) {
+			c.streamingUnsupported = true
+		}
+		c.mu.Unlock()
+
+		if err == nil {
+			c.logger.Info("Snapshot completed", "duration", time.Since(startTime), "mode", "streaming")
+			return
+		}
+		if !errors.Is(err, transport.ErrSnapshotBatchedUnsupported) {
+			// Transient failure: parts of the snapshot may already be
+			// applied (idempotently); retry the whole snapshot next cycle
+			// rather than double-sending via the legacy path now.
+			c.logger.Error(err, "Failed to stream cluster snapshot; will retry next cycle")
+			return
+		}
+		c.logger.Info("Backend does not support batched snapshots; falling back to legacy snapshot path")
+	}
 
 	snapshot, err := c.captureClusterState(ctx)
 	if err != nil {
