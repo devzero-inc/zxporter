@@ -17,6 +17,11 @@ Good for GitOps, and for encrypting the Secret with
 --set zxporter.existingSecret.name=<your-secret-name>
 ```
 
+If you are using the dashboard's Connect cluster Helm command, append the following to the command to ensure the cluster token provided by DevZero is not stored in the Helm values:
+```
+--set zxporter.clusterToken=""
+```
+
 Setting `existingSecret.name` satisfies the chart's "token required" check, so you
 don't also need `clusterToken`/`patToken`.
 
