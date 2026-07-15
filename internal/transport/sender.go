@@ -188,6 +188,34 @@ func (s *DirectDakrSender) SendClusterSnapshotStream(
 	return clusterID, missingResources, err
 }
 
+// OpenClusterSnapshotBatchStream injects the sender's cluster/team identity
+// and opens a batched snapshot stream on the underlying client.
+func (s *DirectDakrSender) OpenClusterSnapshotBatchStream(
+	ctx context.Context,
+	snapshotID string,
+	timestamp time.Time,
+	isFullSnapshot bool,
+) (SnapshotBatchStream, error) {
+	if s.dakrClient == nil {
+		return nil, fmt.Errorf("dakr client is nil, cannot open cluster snapshot batch stream")
+	}
+
+	ctxWithCluster := context.WithValue(ctx, clusterIDContextKey, s.clusterID)
+	ctxWithTeam := context.WithValue(ctxWithCluster, teamIDContextKey, s.teamID)
+	return s.dakrClient.OpenClusterSnapshotBatchStream(ctxWithTeam, snapshotID, timestamp, isFullSnapshot)
+}
+
+// OpenClusterSnapshotBatchStream is unsupported in the simple client; callers
+// fall back to the legacy snapshot path.
+func (c *SimpleDakrClient) OpenClusterSnapshotBatchStream(
+	ctx context.Context,
+	snapshotID string,
+	timestamp time.Time,
+	isFullSnapshot bool,
+) (SnapshotBatchStream, error) {
+	return nil, ErrSnapshotBatchedUnsupported
+}
+
 // Update sender.go with fallback logic
 func (c *SimpleDakrClient) SendClusterSnapshotStream(
 	ctx context.Context,
