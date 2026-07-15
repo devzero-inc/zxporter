@@ -2,6 +2,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: devzero-zxporter-controller-manager-mpa
+  namespace: {{ .Release.Namespace }}
   labels:
     {{- include "zxporter.labels" . | nindent 4 }}
 spec:
