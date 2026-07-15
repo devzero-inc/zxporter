@@ -96,6 +96,9 @@ const (
 	// K8SServiceGetLatestContainerRequestLimitsProcedure is the fully-qualified name of the
 	// K8SService's GetLatestContainerRequestLimits RPC.
 	K8SServiceGetLatestContainerRequestLimitsProcedure = "/api.v1.K8SService/GetLatestContainerRequestLimits"
+	// K8SServiceGetWorkloadLanguagesProcedure is the fully-qualified name of the K8SService's
+	// GetWorkloadLanguages RPC.
+	K8SServiceGetWorkloadLanguagesProcedure = "/api.v1.K8SService/GetWorkloadLanguages"
 	// K8SServiceGetForecastWorkloadsProcedure is the fully-qualified name of the K8SService's
 	// GetForecastWorkloads RPC.
 	K8SServiceGetForecastWorkloadsProcedure = "/api.v1.K8SService/GetForecastWorkloads"
@@ -227,6 +230,8 @@ type K8SServiceClient interface {
 	GetWorkloadContainerTimeSeries(context.Context, *connect.Request[v1.GetWorkloadContainerTimeSeriesRequest]) (*connect.Response[v1.GetWorkloadContainerTimeSeriesResponse], error)
 	// GetLatestContainerRequestLimits retrieves the most recent request/limit values per container for a workload.
 	GetLatestContainerRequestLimits(context.Context, *connect.Request[v1.GetLatestContainerRequestLimitsRequest]) (*connect.Response[v1.GetLatestContainerRequestLimitsResponse], error)
+	// GetWorkloadLanguages retrieves the distinct detected languages/versions across a cluster's workloads.
+	GetWorkloadLanguages(context.Context, *connect.Request[v1.GetWorkloadLanguagesRequest]) (*connect.Response[v1.GetWorkloadLanguagesResponse], error)
 	// GetForecastWorkloads retrieves all workloads for a specific cluster.
 	//
 	// Deprecated: do not use.
@@ -386,6 +391,11 @@ func NewK8SServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...
 			baseURL+K8SServiceGetLatestContainerRequestLimitsProcedure,
 			opts...,
 		),
+		getWorkloadLanguages: connect.NewClient[v1.GetWorkloadLanguagesRequest, v1.GetWorkloadLanguagesResponse](
+			httpClient,
+			baseURL+K8SServiceGetWorkloadLanguagesProcedure,
+			opts...,
+		),
 		getForecastWorkloads: connect.NewClient[v1.GetForecastWorkloadsRequest, v1.GetForecastWorkloadsResponse](
 			httpClient,
 			baseURL+K8SServiceGetForecastWorkloadsProcedure,
@@ -513,6 +523,7 @@ type k8SServiceClient struct {
 	getWorkloadContainerPercentiles *connect.Client[v1.GetWorkloadContainerPercentilesRequest, v1.GetWorkloadContainerPercentilesResponse]
 	getWorkloadContainerTimeSeries  *connect.Client[v1.GetWorkloadContainerTimeSeriesRequest, v1.GetWorkloadContainerTimeSeriesResponse]
 	getLatestContainerRequestLimits *connect.Client[v1.GetLatestContainerRequestLimitsRequest, v1.GetLatestContainerRequestLimitsResponse]
+	getWorkloadLanguages            *connect.Client[v1.GetWorkloadLanguagesRequest, v1.GetWorkloadLanguagesResponse]
 	getForecastWorkloads            *connect.Client[v1.GetForecastWorkloadsRequest, v1.GetForecastWorkloadsResponse]
 	getForecastWorkload             *connect.Client[v1.GetForecastWorkloadRequest, v1.GetForecastWorkloadResponse]
 	getResources                    *connect.Client[v1.GetResourcesRequest, v1.GetResourcesResponse]
@@ -645,6 +656,11 @@ func (c *k8SServiceClient) GetWorkloadContainerTimeSeries(ctx context.Context, r
 // GetLatestContainerRequestLimits calls api.v1.K8SService.GetLatestContainerRequestLimits.
 func (c *k8SServiceClient) GetLatestContainerRequestLimits(ctx context.Context, req *connect.Request[v1.GetLatestContainerRequestLimitsRequest]) (*connect.Response[v1.GetLatestContainerRequestLimitsResponse], error) {
 	return c.getLatestContainerRequestLimits.CallUnary(ctx, req)
+}
+
+// GetWorkloadLanguages calls api.v1.K8SService.GetWorkloadLanguages.
+func (c *k8SServiceClient) GetWorkloadLanguages(ctx context.Context, req *connect.Request[v1.GetWorkloadLanguagesRequest]) (*connect.Response[v1.GetWorkloadLanguagesResponse], error) {
+	return c.getWorkloadLanguages.CallUnary(ctx, req)
 }
 
 // GetForecastWorkloads calls api.v1.K8SService.GetForecastWorkloads.
@@ -802,6 +818,8 @@ type K8SServiceHandler interface {
 	GetWorkloadContainerTimeSeries(context.Context, *connect.Request[v1.GetWorkloadContainerTimeSeriesRequest]) (*connect.Response[v1.GetWorkloadContainerTimeSeriesResponse], error)
 	// GetLatestContainerRequestLimits retrieves the most recent request/limit values per container for a workload.
 	GetLatestContainerRequestLimits(context.Context, *connect.Request[v1.GetLatestContainerRequestLimitsRequest]) (*connect.Response[v1.GetLatestContainerRequestLimitsResponse], error)
+	// GetWorkloadLanguages retrieves the distinct detected languages/versions across a cluster's workloads.
+	GetWorkloadLanguages(context.Context, *connect.Request[v1.GetWorkloadLanguagesRequest]) (*connect.Response[v1.GetWorkloadLanguagesResponse], error)
 	// GetForecastWorkloads retrieves all workloads for a specific cluster.
 	//
 	// Deprecated: do not use.
@@ -957,6 +975,11 @@ func NewK8SServiceHandler(svc K8SServiceHandler, opts ...connect.HandlerOption) 
 		svc.GetLatestContainerRequestLimits,
 		opts...,
 	)
+	k8SServiceGetWorkloadLanguagesHandler := connect.NewUnaryHandler(
+		K8SServiceGetWorkloadLanguagesProcedure,
+		svc.GetWorkloadLanguages,
+		opts...,
+	)
 	k8SServiceGetForecastWorkloadsHandler := connect.NewUnaryHandler(
 		K8SServiceGetForecastWorkloadsProcedure,
 		svc.GetForecastWorkloads,
@@ -1103,6 +1126,8 @@ func NewK8SServiceHandler(svc K8SServiceHandler, opts ...connect.HandlerOption) 
 			k8SServiceGetWorkloadContainerTimeSeriesHandler.ServeHTTP(w, r)
 		case K8SServiceGetLatestContainerRequestLimitsProcedure:
 			k8SServiceGetLatestContainerRequestLimitsHandler.ServeHTTP(w, r)
+		case K8SServiceGetWorkloadLanguagesProcedure:
+			k8SServiceGetWorkloadLanguagesHandler.ServeHTTP(w, r)
 		case K8SServiceGetForecastWorkloadsProcedure:
 			k8SServiceGetForecastWorkloadsHandler.ServeHTTP(w, r)
 		case K8SServiceGetForecastWorkloadProcedure:
@@ -1238,6 +1263,10 @@ func (UnimplementedK8SServiceHandler) GetWorkloadContainerTimeSeries(context.Con
 
 func (UnimplementedK8SServiceHandler) GetLatestContainerRequestLimits(context.Context, *connect.Request[v1.GetLatestContainerRequestLimitsRequest]) (*connect.Response[v1.GetLatestContainerRequestLimitsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.K8SService.GetLatestContainerRequestLimits is not implemented"))
+}
+
+func (UnimplementedK8SServiceHandler) GetWorkloadLanguages(context.Context, *connect.Request[v1.GetWorkloadLanguagesRequest]) (*connect.Response[v1.GetWorkloadLanguagesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.K8SService.GetWorkloadLanguages is not implemented"))
 }
 
 func (UnimplementedK8SServiceHandler) GetForecastWorkloads(context.Context, *connect.Request[v1.GetForecastWorkloadsRequest]) (*connect.Response[v1.GetForecastWorkloadsResponse], error) {
