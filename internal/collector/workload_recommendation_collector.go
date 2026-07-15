@@ -101,6 +101,11 @@ func (c *WorkloadRecommendationCollector) Start(ctx context.Context) error {
 	// Create WorkloadRecommendation informer
 	c.wrInformer = c.informerFactory.ForResource(workloadRecommendationGVR).Informer()
 
+	// Strip managedFields + last-applied-configuration from cached objects.
+	if err := c.wrInformer.SetTransform(StripMetadataTransform); err != nil {
+		return fmt.Errorf("failed to set WorkloadRecommendation informer transform: %w", err)
+	}
+
 	// Add event handlers
 	_, err := c.wrInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {

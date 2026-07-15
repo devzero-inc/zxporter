@@ -108,6 +108,11 @@ func (c *VerticalPodAutoscalerCollector) Start(ctx context.Context) error {
 	// Create VPA informer
 	c.vpaInformer = c.informerFactory.ForResource(vpaGVR).Informer()
 
+	// Strip managedFields + last-applied-configuration from cached objects.
+	if err := c.vpaInformer.SetTransform(StripMetadataTransform); err != nil {
+		return fmt.Errorf("failed to set VPA informer transform: %w", err)
+	}
+
 	// Add event handlers
 	_, err := c.vpaInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
