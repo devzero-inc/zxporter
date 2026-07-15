@@ -15,6 +15,7 @@ require (
 
 require (
 	github.com/Code-Hex/go-generics-cache v1.5.1
+	github.com/KimMachineGun/automemlimit v0.7.5
 	github.com/cilium/cilium v1.17.16
 	github.com/cilium/ebpf v0.17.1
 	github.com/florianl/go-conntrack v0.7.0
@@ -60,6 +61,7 @@ require (
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/oklog/ulid v1.3.1 // indirect
 	github.com/opentracing/opentracing-go v1.2.1-0.20220228012449-10b1cf09e00b // indirect
+	github.com/pbnjay/memory v0.0.0-20210728143218-7b4eea64cf58 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.3 // indirect
 	github.com/petermattis/goid v0.0.0-20240813172612-4fcff4a6cae7 // indirect
 	github.com/sagikazarmark/locafero v0.4.0 // indirect

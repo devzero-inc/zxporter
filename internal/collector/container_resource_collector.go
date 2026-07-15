@@ -186,18 +186,8 @@ func (c *ContainerResourceCollector) Start(ctx context.Context) error {
 		return fmt.Errorf("metrics client is not available, cannot collect container resources")
 	}
 
-	// Create informer factory based on namespace configuration
-	if len(c.namespaces) == 1 && c.namespaces[0] != "" {
-		// Watch a specific namespace
-		c.informerFactory = informers.NewSharedInformerFactoryWithOptions(
-			c.k8sClient,
-			0, // No resync period, rely on events
-			informers.WithNamespace(c.namespaces[0]),
-		)
-	} else {
-		// Watch all namespaces
-		c.informerFactory = informers.NewSharedInformerFactory(c.k8sClient, 0)
-	}
+	// Create informer factory (StripMetadataTransform applied via newInformerFactory).
+	c.informerFactory = newInformerFactory(c.k8sClient, c.namespaces)
 
 	// Create pod informer to maintain a cache of pod information
 	c.podInformer = c.informerFactory.Core().V1().Pods().Informer()
