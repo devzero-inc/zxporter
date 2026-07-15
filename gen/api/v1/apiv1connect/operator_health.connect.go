@@ -36,11 +36,15 @@ const (
 	// OperatorHealthServiceReportHealthProcedure is the fully-qualified name of the
 	// OperatorHealthService's ReportHealth RPC.
 	OperatorHealthServiceReportHealthProcedure = "/api.v1.OperatorHealthService/ReportHealth"
+	// OperatorHealthServiceReportConnectorHealthProcedure is the fully-qualified name of the
+	// OperatorHealthService's ReportConnectorHealth RPC.
+	OperatorHealthServiceReportConnectorHealthProcedure = "/api.v1.OperatorHealthService/ReportConnectorHealth"
 )
 
 // OperatorHealthServiceClient is a client for the api.v1.OperatorHealthService service.
 type OperatorHealthServiceClient interface {
 	ReportHealth(context.Context, *connect.Request[v1.ReportHealthRequest]) (*connect.Response[v1.ReportHealthResponse], error)
+	ReportConnectorHealth(context.Context, *connect.Request[v1.ReportConnectorHealthRequest]) (*connect.Response[v1.ReportConnectorHealthResponse], error)
 }
 
 // NewOperatorHealthServiceClient constructs a client for the api.v1.OperatorHealthService service.
@@ -58,12 +62,18 @@ func NewOperatorHealthServiceClient(httpClient connect.HTTPClient, baseURL strin
 			baseURL+OperatorHealthServiceReportHealthProcedure,
 			opts...,
 		),
+		reportConnectorHealth: connect.NewClient[v1.ReportConnectorHealthRequest, v1.ReportConnectorHealthResponse](
+			httpClient,
+			baseURL+OperatorHealthServiceReportConnectorHealthProcedure,
+			opts...,
+		),
 	}
 }
 
 // operatorHealthServiceClient implements OperatorHealthServiceClient.
 type operatorHealthServiceClient struct {
-	reportHealth *connect.Client[v1.ReportHealthRequest, v1.ReportHealthResponse]
+	reportHealth          *connect.Client[v1.ReportHealthRequest, v1.ReportHealthResponse]
+	reportConnectorHealth *connect.Client[v1.ReportConnectorHealthRequest, v1.ReportConnectorHealthResponse]
 }
 
 // ReportHealth calls api.v1.OperatorHealthService.ReportHealth.
@@ -71,9 +81,15 @@ func (c *operatorHealthServiceClient) ReportHealth(ctx context.Context, req *con
 	return c.reportHealth.CallUnary(ctx, req)
 }
 
+// ReportConnectorHealth calls api.v1.OperatorHealthService.ReportConnectorHealth.
+func (c *operatorHealthServiceClient) ReportConnectorHealth(ctx context.Context, req *connect.Request[v1.ReportConnectorHealthRequest]) (*connect.Response[v1.ReportConnectorHealthResponse], error) {
+	return c.reportConnectorHealth.CallUnary(ctx, req)
+}
+
 // OperatorHealthServiceHandler is an implementation of the api.v1.OperatorHealthService service.
 type OperatorHealthServiceHandler interface {
 	ReportHealth(context.Context, *connect.Request[v1.ReportHealthRequest]) (*connect.Response[v1.ReportHealthResponse], error)
+	ReportConnectorHealth(context.Context, *connect.Request[v1.ReportConnectorHealthRequest]) (*connect.Response[v1.ReportConnectorHealthResponse], error)
 }
 
 // NewOperatorHealthServiceHandler builds an HTTP handler from the service implementation. It
@@ -87,10 +103,17 @@ func NewOperatorHealthServiceHandler(svc OperatorHealthServiceHandler, opts ...c
 		svc.ReportHealth,
 		opts...,
 	)
+	operatorHealthServiceReportConnectorHealthHandler := connect.NewUnaryHandler(
+		OperatorHealthServiceReportConnectorHealthProcedure,
+		svc.ReportConnectorHealth,
+		opts...,
+	)
 	return "/api.v1.OperatorHealthService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case OperatorHealthServiceReportHealthProcedure:
 			operatorHealthServiceReportHealthHandler.ServeHTTP(w, r)
+		case OperatorHealthServiceReportConnectorHealthProcedure:
+			operatorHealthServiceReportConnectorHealthHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -102,4 +125,8 @@ type UnimplementedOperatorHealthServiceHandler struct{}
 
 func (UnimplementedOperatorHealthServiceHandler) ReportHealth(context.Context, *connect.Request[v1.ReportHealthRequest]) (*connect.Response[v1.ReportHealthResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.OperatorHealthService.ReportHealth is not implemented"))
+}
+
+func (UnimplementedOperatorHealthServiceHandler) ReportConnectorHealth(context.Context, *connect.Request[v1.ReportConnectorHealthRequest]) (*connect.Response[v1.ReportConnectorHealthResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.OperatorHealthService.ReportConnectorHealth is not implemented"))
 }
