@@ -21,7 +21,13 @@ import (
 	"crypto/tls"
 	"flag"
 	"os"
+	"runtime/debug"
 	"time"
+
+	// Sets GOMEMLIMIT to 0.9 x the container's cgroup memory limit at startup so
+	// the GC collects aggressively before the kernel OOM-kills the pod. No-ops
+	// safely when no cgroup memory limit is set.
+	_ "github.com/KimMachineGun/automemlimit"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -64,6 +70,7 @@ func main() {
 	var enableHTTP2 bool
 	var reconcileInterval time.Duration
 	var mpaServerPort int
+	var pprofAddr string
 	var tlsOpts []func(*tls.Config)
 	flag.StringVar(
 		&metricsAddr,
@@ -92,6 +99,10 @@ func main() {
 	flag.DurationVar(&reconcileInterval, "reconcile-interval", 5*time.Second,
 		"The interval at which the controller will perform reconciliation.")
 	flag.IntVar(&mpaServerPort, "mpa-server-port", 50051, "The port for the MPA gRPC server.")
+	flag.StringVar(&pprofAddr, "pprof-bind-address", "127.0.0.1:8082",
+		"The address the pprof endpoint binds to (serves /debug/pprof/*). "+
+			"Defaults to localhost so it is only reachable via `kubectl port-forward`. "+
+			"Set to empty to disable.")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -99,6 +110,11 @@ func main() {
 	flag.Parse()
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+
+	// Read back the GOMEMLIMIT set by the automemlimit side-effect import above.
+	// A value of math.MaxInt64 means no limit is in effect (e.g. no cgroup memory
+	// limit); anything smaller confirms the GC ceiling is active.
+	setupLog.Info("effective GOMEMLIMIT", "bytes", debug.SetMemoryLimit(-1))
 
 	// if the enable-http2 flag is false (the default), http/2 should be disabled
 	// due to its vulnerabilities. More specifically, disabling http/2 will
@@ -180,6 +196,7 @@ func main() {
 		Metrics:                metricsServerOptions,
 		WebhookServer:          webhookServer,
 		HealthProbeBindAddress: "", // Custom health server used instead
+		PprofBindAddress:       pprofAddr,
 		LeaderElection:         enableLeaderElection,
 		LeaderElectionID:       "055ced15.devzero.io",
 		// LeaderElectionReleaseOnCancel defines if the leader should step down voluntarily

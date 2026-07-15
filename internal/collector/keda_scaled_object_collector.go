@@ -92,17 +92,22 @@ func NewScaledObjectCollector(
 func (c *ScaledObjectCollector) Start(ctx context.Context) error {
 	c.logger.Info("Starting ScaledObject collector", "namespaces", c.namespaces)
 
-	// Create informer factory based on namespace configuration
+	// Create informer factory based on namespace configuration.
+	// StripMetadataTransform drops managedFields + last-applied-configuration
+	// from cached objects to reduce memory.
 	if len(c.namespaces) == 1 && c.namespaces[0] != "" {
-		// Watch a specific namespace
 		c.informerFactory = kedainformers.NewSharedInformerFactoryWithOptions(
 			c.client,
-			0, // No resync period, rely on events
+			0,
+			kedainformers.WithTransform(StripMetadataTransform),
 			kedainformers.WithNamespace(c.namespaces[0]),
 		)
 	} else {
-		// Watch all namespaces
-		c.informerFactory = kedainformers.NewSharedInformerFactory(c.client, 0)
+		c.informerFactory = kedainformers.NewSharedInformerFactoryWithOptions(
+			c.client,
+			0,
+			kedainformers.WithTransform(StripMetadataTransform),
+		)
 	}
 
 	// Create ScaledObject informer
