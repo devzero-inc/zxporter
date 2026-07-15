@@ -53,7 +53,11 @@ func NewCRDCollector(
 func (c *CRDCollector) Start(ctx context.Context) error {
 	c.logger.Info("Starting CRD collector")
 
-	factory := apiextinformers.NewSharedInformerFactory(c.client, 0)
+	factory := apiextinformers.NewSharedInformerFactoryWithOptions(
+		c.client,
+		0,
+		apiextinformers.WithTransform(StripMetadataTransform),
+	)
 	c.informer = factory.Apiextensions().V1().CustomResourceDefinitions().Informer()
 
 	_, err := c.informer.AddEventHandler(cache.ResourceEventHandlerFuncs{

@@ -115,6 +115,11 @@ func (c *DatadogCollector) Start(ctx context.Context) error {
 	// Create informer for ExtendedDaemonSetReplicaSets
 	informer := factory.ForResource(gvr).Informer()
 
+	// Strip managedFields + last-applied-configuration from cached objects.
+	if err := informer.SetTransform(StripMetadataTransform); err != nil {
+		return fmt.Errorf("failed to set informer transform: %w", err)
+	}
+
 	// Add event handlers
 	_, err := informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {

@@ -86,17 +86,7 @@ func (c *RoleCollector) Start(ctx context.Context) error {
 	c.logger.Info("Starting Role collector", "namespaces", c.namespaces)
 
 	// Create informer factory based on namespace configuration
-	if len(c.namespaces) == 1 && c.namespaces[0] != "" {
-		// Watch a specific namespace
-		c.informerFactory = informers.NewSharedInformerFactoryWithOptions(
-			c.client,
-			0, // No resync period, rely on events
-			informers.WithNamespace(c.namespaces[0]),
-		)
-	} else {
-		// Watch all namespaces
-		c.informerFactory = informers.NewSharedInformerFactory(c.client, 0)
-	}
+	c.informerFactory = newInformerFactory(c.client, c.namespaces)
 
 	// Create Role informer
 	c.roleInformer = c.informerFactory.Rbac().V1().Roles().Informer()

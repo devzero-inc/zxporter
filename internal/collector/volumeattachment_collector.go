@@ -78,7 +78,7 @@ func (c *VolumeAttachmentCollector) Start(ctx context.Context) error {
 	c.logger.Info("Starting VolumeAttachment collector")
 
 	// Create informer factory - VolumeAttachments are cluster-scoped, not namespaced
-	c.informerFactory = informers.NewSharedInformerFactory(c.client, 0)
+	c.informerFactory = newInformerFactory(c.client, nil)
 
 	// Create VolumeAttachment informer
 	c.volumeAttachmentInformer = c.informerFactory.Storage().V1().VolumeAttachments().Informer()
