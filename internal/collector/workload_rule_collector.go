@@ -95,6 +95,11 @@ func (c *WorkloadRuleCollector) Start(ctx context.Context) error {
 
 	c.wrInformer = c.informerFactory.ForResource(workloadRuleGVR).Informer()
 
+	// Strip managedFields + last-applied-configuration from cached objects.
+	if err := c.wrInformer.SetTransform(StripMetadataTransform); err != nil {
+		return fmt.Errorf("failed to set WorkloadRule informer transform: %w", err)
+	}
+
 	_, err := c.wrInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			wr, ok := obj.(*unstructured.Unstructured)
