@@ -99,6 +99,12 @@ container_network_receive_packets_dropped_total{namespace="default",pod="web-abc
 # HELP container_network_transmit_packets_dropped_total Total network transmit packet drops.
 # TYPE container_network_transmit_packets_dropped_total counter
 container_network_transmit_packets_dropped_total{namespace="default",pod="web-abc"} 1
+# HELP container_memory_cache Total page cache memory.
+# TYPE container_memory_cache gauge
+container_memory_cache{container="nginx",namespace="default",pod="web-abc"} 1048576
+# HELP container_memory_swap Container swap usage in bytes.
+# TYPE container_memory_swap gauge
+container_memory_swap{container="nginx",namespace="default",pod="web-abc"} 65536
 `
 
 func newCAdvisorTestLogger() logr.Logger {
@@ -186,6 +192,36 @@ func TestCAdvisorScraper_ComputesRatesAfterTwoScrapes(t *testing.T) {
 	// Network drops unchanged → rate = 0
 	assert.InDelta(t, 0.0, m.NetworkRxDropsPerSec, 0.001, "network rx drops/sec (no change)")
 	assert.InDelta(t, 0.0, m.NetworkTxDropsPerSec, 0.001, "network tx drops/sec (no change)")
+
+	// Memory gauges are carried through as absolute values (not rates).
+	assert.Equal(t, uint64(1048576), m.MemoryCacheBytes, "memory cache bytes")
+	assert.Equal(t, uint64(65536), m.MemorySwapBytes, "memory swap bytes")
+}
+
+// TestCAdvisorScraper_MemoryGaugesEmittedOnFirstScrape verifies that a container
+// carrying only memory gauges (no counter deltas) is still emitted on the first
+// scrape, since gauges are absolute and need no baseline.
+func TestCAdvisorScraper_MemoryGaugesEmittedOnFirstScrape(t *testing.T) {
+	const memOnly = `# HELP container_memory_cache Total page cache memory.
+# TYPE container_memory_cache gauge
+container_memory_cache{container="idle",namespace="default",pod="idle-pod"} 4096
+# HELP container_memory_swap Container swap usage in bytes.
+# TYPE container_memory_swap gauge
+container_memory_swap{container="idle",namespace="default",pod="idle-pod"} 2048
+`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
+		_, _ = w.Write([]byte(memOnly))
+	}))
+	defer srv.Close()
+
+	scraper := nodemon.NewCAdvisorScraper(srv.URL, srv.Client(), newCAdvisorTestLogger())
+
+	results, err := scraper.Scrape(context.Background(), time.Now())
+	require.NoError(t, err)
+	require.Len(t, results, 1, "container with memory gauges should be emitted on first scrape")
+	assert.Equal(t, uint64(4096), results[0].MemoryCacheBytes)
+	assert.Equal(t, uint64(2048), results[0].MemorySwapBytes)
 }
 
 // TestCAdvisorScraper_HandlesHTTPError verifies that an HTTP error from the

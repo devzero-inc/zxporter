@@ -22,4 +22,10 @@ type CAdvisorContainerMetrics struct {
 
 	// CPU throttle (ratio 0-1)
 	CPUThrottleFraction float64
+
+	// Memory gauges carried through directly from cAdvisor (not rates).
+	// container_memory_cache is page cache; container_memory_swap is swapped-out
+	// (non-resident) memory. Both are absent from the kubelet stats/summary API.
+	MemoryCacheBytes uint64
+	MemorySwapBytes  uint64
 }
