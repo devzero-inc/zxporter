@@ -5,7 +5,7 @@ go 1.26.0
 require (
 	connectrpc.com/connect v1.20.0
 	github.com/NVIDIA/KAI-scheduler v0.4.6
-	github.com/onsi/ginkgo/v2 v2.29.0
+	github.com/onsi/ginkgo/v2 v2.32.0
 	github.com/onsi/gomega v1.42.1
 	github.com/stretchr/testify v1.11.1
 	k8s.io/apimachinery v0.36.0
