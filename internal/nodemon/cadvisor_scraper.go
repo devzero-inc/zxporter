@@ -3,6 +3,7 @@ package nodemon
 import (
 	"context"
 	"fmt"
+	"math"
 	"net/http"
 	"time"
 
@@ -39,6 +40,10 @@ type rawCounters struct {
 	netTxErrors  float64
 	netRxDrops   float64
 	netTxDrops   float64
+
+	// Memory gauges (not counters — carried through as absolute values).
+	memoryCache float64
+	memorySwap  float64
 }
 
 // CAdvisorScraper fetches the kubelet /metrics/cadvisor endpoint and computes
@@ -121,6 +126,25 @@ func counterValue(m *dto.Metric) float64 {
 	return 0
 }
 
+// gaugeValue returns the float64 value of a gauge metric.
+func gaugeValue(m *dto.Metric) float64 {
+	if g := m.GetGauge(); g != nil {
+		return g.GetValue()
+	}
+	return 0
+}
+
+// clampFloatToUint64 converts a gauge float64 to uint64, clamping negatives,
+// NaN, and ±Inf to 0. NaN and Inf must be handled explicitly because
+// uint64(NaN) and uint64(+Inf) are implementation-defined in Go (-Inf is
+// caught by the v <= 0 check).
+func clampFloatToUint64(v float64) uint64 {
+	if math.IsNaN(v) || math.IsInf(v, 0) || v <= 0 {
+		return 0
+	}
+	return uint64(v)
+}
+
 // groupCounters walks the parsed metric families and accumulates raw counter
 // values into a map keyed by (namespace, pod, container).
 func (s *CAdvisorScraper) groupCounters(families map[string]*dto.MetricFamily) map[containerKey]*rawCounters {
@@ -147,6 +171,23 @@ func (s *CAdvisorScraper) groupCounters(families map[string]*dto.MetricFamily) m
 				continue
 			}
 			apply(get(containerKey{ns, pod, container}), counterValue(m))
+		}
+	}
+
+	// Per-container gauge metrics (have a "container" label). Same keying as
+	// applyContainerMetric, but reads gauge values instead of counters.
+	applyContainerGauge := func(family *dto.MetricFamily, apply func(rc *rawCounters, v float64)) {
+		if family == nil {
+			return
+		}
+		for _, m := range family.GetMetric() {
+			ns := labelValue(m, "namespace")
+			pod := labelValue(m, "pod")
+			container := labelValue(m, "container")
+			if ns == "" || pod == "" || container == "" {
+				continue
+			}
+			apply(get(containerKey{ns, pod, container}), gaugeValue(m))
 		}
 	}
 
@@ -178,6 +219,12 @@ func (s *CAdvisorScraper) groupCounters(families map[string]*dto.MetricFamily) m
 		func(rc *rawCounters, v float64) { rc.fsReadOps = v })
 	applyContainerMetric(families["container_fs_writes_total"],
 		func(rc *rawCounters, v float64) { rc.fsWriteOps = v })
+
+	// Memory gauges — carried through as absolute values (see rawCounters).
+	applyContainerGauge(families["container_memory_cache"],
+		func(rc *rawCounters, v float64) { rc.memoryCache = v })
+	applyContainerGauge(families["container_memory_swap"],
+		func(rc *rawCounters, v float64) { rc.memorySwap = v })
 
 	applyNetworkMetric(families["container_network_receive_packets_total"],
 		func(rc *rawCounters, v float64) { rc.netRxPackets = v })
@@ -246,9 +293,11 @@ func (s *CAdvisorScraper) computeRates(groups map[containerKey]*rawCounters, now
 		diskRO := s.rates.Rate(entity, "fs_read_ops", rc.fsReadOps, now)
 		diskWO := s.rates.Rate(entity, "fs_write_ops", rc.fsWriteOps, now)
 
-		// All counter rates are 0 on first scrape — skip this entry.
+		// All counter rates are 0 on first scrape — skip this entry, unless it
+		// carries memory gauges (which are absolute and valid on the first scrape).
 		if throttledRate == 0 && totalRate == 0 &&
-			diskRB == 0 && diskWB == 0 && diskRO == 0 && diskWO == 0 {
+			diskRB == 0 && diskWB == 0 && diskRO == 0 && diskWO == 0 &&
+			rc.memoryCache == 0 && rc.memorySwap == 0 {
 			// Check if there are any network rates too.
 			nr := podNet[[2]string{k.namespace, k.pod}]
 			if nr.rxPkts == 0 && nr.txPkts == 0 && nr.rxErr == 0 &&
@@ -285,6 +334,9 @@ func (s *CAdvisorScraper) computeRates(groups map[containerKey]*rawCounters, now
 			DiskWriteOpsPerSec:   diskWO,
 
 			CPUThrottleFraction: throttleFraction,
+
+			MemoryCacheBytes: clampFloatToUint64(rc.memoryCache),
+			MemorySwapBytes:  clampFloatToUint64(rc.memorySwap),
 		})
 	}
 

@@ -550,6 +550,10 @@ func (c *ContainerResourceCollector) processContainerMetrics(
 	// Create resource data with both metrics and pod info
 	containerKey := fmt.Sprintf("%s/%s/%s", pod.Namespace, pod.Name, containerMetrics.Name)
 
+	// Single nodemon-cache lookup that supplies both the RSS value and the
+	// cache/swap breakdown below, avoiding a duplicate map lookup + linear scan.
+	mem := c.getContainerMemoryBreakdown(pod.Namespace, pod.Name, containerMetrics.Name)
+
 	metricsSnapshot := &ContainerMetricsSnapshot{
 		// Container identification
 		ContainerName: containerMetrics.Name,
@@ -561,7 +565,7 @@ func (c *ContainerResourceCollector) processContainerMetrics(
 		// CPU/Memory resource usage
 		CpuUsageMillis:   cpuUsage,
 		MemoryUsageBytes: effectiveMemoryUsage,
-		MemoryRssBytes:   c.getContainerRSSBytes(pod.Namespace, pod.Name, containerMetrics.Name),
+		MemoryRssBytes:   int64(mem.rss),
 
 		// Resource requests and limits
 		CpuRequestMillis:   cpuRequestMillis,
@@ -580,6 +584,20 @@ func (c *ContainerResourceCollector) processContainerMetrics(
 		ContainerRestarts:     containerStatus != nil && containerStatus.RestartCount != 0,
 		RestartCount:          int64(restartCount),
 		LastTerminationReason: lastTerminationReason,
+	}
+
+	// Derive the memory cache/swap breakdown from the nodemon cache (looked up
+	// once above). We derive from the TRUE kubelet UsageBytes (not
+	// effectiveMemoryUsage, which is working-set-derived and OOM-adjusted), so the
+	// inactive-cache split stays accurate. Containers not in the cache
+	// (kubelet-fallback nodes) leave these at 0 here; that breakdown is
+	// unavailable without the nodemon cAdvisor scrape.
+	if mem.found {
+		active, inactive := deriveMemoryCacheSplit(mem.workingSet, mem.usage, mem.cache)
+		metricsSnapshot.MemoryCacheBytes = int64(mem.cache)
+		metricsSnapshot.MemorySwapBytes = int64(mem.swap)
+		metricsSnapshot.MemoryActiveCacheBytes = active
+		metricsSnapshot.MemoryInactiveCacheBytes = inactive
 	}
 
 	// Resolve Top-Level Workload
@@ -1052,23 +1070,63 @@ func (c *ContainerResourceCollector) AddResource(resource interface{}) error {
 	return nil
 }
 
-// getContainerRSSBytes returns the RSS (Resident Set Size) in bytes for a container
-// from the pre-fetched nodemon cache. Returns 0 if not available.
-func (c *ContainerResourceCollector) getContainerRSSBytes(namespace, podName, containerName string) int64 {
+// containerMemoryBreakdown holds the raw nodemon-sourced memory values needed to
+// derive the active/inactive cache split, plus the RSS value. workingSet, usage,
+// and rss come from the kubelet stats/summary API; cache and swap come from the
+// cAdvisor scraper.
+type containerMemoryBreakdown struct {
+	workingSet uint64
+	usage      uint64
+	cache      uint64
+	swap       uint64
+	rss        uint64
+	found      bool
+}
+
+// getContainerMemoryBreakdown returns the memory working-set, true usage, cache,
+// swap, and RSS for a container from the pre-fetched nodemon cache. found is false
+// when the container is not in the cache (e.g. kubelet-fallback nodes, which are
+// not indexed here).
+func (c *ContainerResourceCollector) getContainerMemoryBreakdown(namespace, podName, containerName string) containerMemoryBreakdown {
 	if c.nodemonContainerMetricsCache == nil {
-		return 0
+		return containerMemoryBreakdown{}
 	}
 	key := namespace + "/" + podName
 	containers, ok := c.nodemonContainerMetricsCache[key]
 	if !ok {
-		return 0
+		return containerMemoryBreakdown{}
 	}
 	for _, m := range containers {
 		if m.Container == containerName {
-			return int64(m.MemoryRSSBytes)
+			return containerMemoryBreakdown{
+				workingSet: m.MemoryWorkingSet,
+				usage:      m.MemoryUsageBytes,
+				cache:      m.MemoryCacheBytes,
+				swap:       m.MemorySwapBytes,
+				rss:        m.MemoryRSSBytes,
+				found:      true,
+			}
 		}
 	}
-	return 0
+	return containerMemoryBreakdown{}
+}
+
+// deriveMemoryCacheSplit computes the active/inactive cache breakdown from the
+// raw memory values. Both derivations clamp at 0 to guard against counter skew
+// (working set can momentarily exceed usage; inactive can exceed cache).
+//
+//	inactive = max(0, usage - workingSet)   // both from kubelet summary → exact
+//	active   = max(0, cache - inactive)     // cache from cAdvisor
+func deriveMemoryCacheSplit(workingSet, usage, cache uint64) (active, inactive int64) {
+	inactive = int64(usage) - int64(workingSet)
+	if inactive < 0 {
+		inactive = 0
+	}
+	active = int64(cache) - inactive
+	if active < 0 {
+		active = 0
+	}
+	return active, inactive
 }
 
 func (c *ContainerResourceCollector) resolveWorkload(pod *corev1.Pod) (string, string) {
