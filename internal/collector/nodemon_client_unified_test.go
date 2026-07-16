@@ -25,6 +25,8 @@ func TestNodemonClient_FetchContainerMetrics(t *testing.T) {
 			MemoryWorkingSet:       134217728,
 			MemoryUsageBytes:       150000000,
 			MemoryRSSBytes:         120000000,
+			MemoryCacheBytes:       67108864,
+			MemorySwapBytes:        4194304,
 			NetworkRxBytes:         1048576,
 			NetworkTxBytes:         524288,
 			NetworkRxPacketsPerSec: 100.5,
@@ -99,6 +101,12 @@ func TestNodemonClient_FetchContainerMetrics(t *testing.T) {
 	}
 	if g0.MemoryWorkingSet != 134217728 {
 		t.Errorf("MemoryWorkingSet: got %d, want %d", g0.MemoryWorkingSet, 134217728)
+	}
+	if g0.MemoryCacheBytes != 67108864 {
+		t.Errorf("MemoryCacheBytes: got %d, want %d", g0.MemoryCacheBytes, 67108864)
+	}
+	if g0.MemorySwapBytes != 4194304 {
+		t.Errorf("MemorySwapBytes: got %d, want %d", g0.MemorySwapBytes, 4194304)
 	}
 	if g0.NetworkRxBytes != 1048576 {
 		t.Errorf("NetworkRxBytes: got %d, want %d", g0.NetworkRxBytes, 1048576)

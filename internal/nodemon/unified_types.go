@@ -18,6 +18,10 @@ type ContainerMetricsResponse struct {
 	NetworkRxBytes    uint64 `json:"network_rx_bytes"`
 	NetworkTxBytes    uint64 `json:"network_tx_bytes"`
 
+	// From cAdvisor (gauges). Absent from stats/summary.
+	MemoryCacheBytes uint64 `json:"memory_cache_bytes"`
+	MemorySwapBytes  uint64 `json:"memory_swap_bytes"`
+
 	// From cAdvisor (rates)
 	NetworkRxPacketsPerSec float64 `json:"network_rx_packets_per_sec"`
 	NetworkTxPacketsPerSec float64 `json:"network_tx_packets_per_sec"`
