@@ -176,6 +176,11 @@ func containerMetricsFromSummary(nodeName string, summary *kubeletSummary) []Uni
 				if mem.RSSBytes != nil {
 					m.MemoryRSSBytes = *mem.RSSBytes
 				}
+				// The memory cache/swap/active/inactive breakdown is unavailable on
+				// the kubelet Summary-API fallback path: it requires the nodemon
+				// cAdvisor scrape (page cache and swap gauges), which this in-process
+				// fallback does not have. Only working set, usage, and RSS are
+				// available here.
 			}
 			out = append(out, m)
 		}
