@@ -90,6 +90,18 @@ func (m *MockMetricsServer) SendTelemetryMetrics(
 	return connect.NewResponse(&gen.SendTelemetryMetricsResponse{}), nil
 }
 
+func (m *MockMetricsServer) SendClusterSnapshotBatched(
+	ctx context.Context,
+	stream *connect.ClientStream[gen.ClusterSnapshotBatch],
+) (*connect.Response[gen.SendClusterSnapshotBatchedResponse], error) {
+	for stream.Receive() {
+	}
+	if err := stream.Err(); err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	return connect.NewResponse(&gen.SendClusterSnapshotBatchedResponse{Status: "processed"}), nil
+}
+
 func (m *MockMetricsServer) SendClusterSnapshotStream(
 	ctx context.Context,
 	stream *connect.ClientStream[gen.ClusterSnapshotChunk],
