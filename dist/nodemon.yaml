@@ -251,7 +251,7 @@ spec:
                 - NET_RAW
             runAsNonRoot: false
             runAsUser: 0
-          image: "nvcr.io/nvidia/k8s/dcgm-exporter:4.5.2-4.8.1-ubuntu22.04"
+          image: "docker.io/devzeroinc/dcgm-exporter:4.5.2-4.8.1-ubuntu22.04"
           imagePullPolicy: IfNotPresent
           command: [ "/bin/bash", "-c" ]
           args:
@@ -294,6 +294,8 @@ metadata:
     ignore-check.kube-linter.io/run-as-non-root: "This daemon set needs to run DCGM Exporter as root to access the GPU metrics."
     ignore-check.kube-linter.io/privilege-escalation-container: "This daemon set needs escalate privileges for DCGM Exporter."
     ignore-check.kube-linter.io/no-read-only-root-fs: "This daemon set needs to run DCGM Exporter with read-only root filesystem."
+    devzero.io/gpu-runtime-mode: "auto"
+    devzero.io/gpu-runtime-class: "nvidia"
 spec:
   selector:
     matchLabels:
@@ -382,7 +384,7 @@ spec:
                 - NET_RAW
             runAsNonRoot: false
             runAsUser: 0
-          image: "nvcr.io/nvidia/k8s/dcgm-exporter:4.5.2-4.8.1-ubuntu22.04"
+          image: "docker.io/devzeroinc/dcgm-exporter:4.5.2-4.8.1-ubuntu22.04"
           imagePullPolicy: IfNotPresent
           command: [ "/bin/bash", "-c" ]
           args:

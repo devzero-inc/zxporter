@@ -13,6 +13,7 @@ func TestComponentNames_AreDistinct(t *testing.T) {
 		ComponentDakrTransport,
 		ComponentMpaServer,
 		ComponentPrometheus,
+		ComponentGPURuntimeResolver,
 	}
 	seen := make(map[string]bool)
 	for _, name := range names {
@@ -20,4 +21,8 @@ func TestComponentNames_AreDistinct(t *testing.T) {
 		assert.False(t, seen[name], "duplicate component name: %s", name)
 		seen[name] = true
 	}
+}
+
+func TestComponentGPURuntimeResolver_Name(t *testing.T) {
+	assert.Equal(t, "gpu_runtime_resolver", ComponentGPURuntimeResolver)
 }

@@ -1,8 +1,15 @@
-{{- $rc := .Values.dcgmExporter.runtimeClassName | default "" | toString }}
+{{- include "zxporter-nodemon.validateConfig" . -}}
+{{- $gpuMode := default "explicit" (dig "gpuRuntime" "mode" "" .Values.global) -}}
+{{- $gpuClass := dig "gpuRuntime" "runtimeClassName" "" .Values.global | default "" | toString }}
+{{- $gpuRuntime := "" -}}
+{{- if or (eq $gpuMode "auto") (eq $gpuMode "explicit") -}}
+{{- $gpuRuntime = $gpuClass -}}
+{{- end -}}
 {{- $provider := required ".Values.global.k8sProvider is required (gcp|aws|azure|oci|other)" .Values.global.k8sProvider }}
+{{- $legacyRuntimeClassName := .Values.dcgmExporter.runtimeClassName | default "" | toString }}
 {{- $gpuKey := .Values.dcgmExporter.gpuNodeSelector.key | default "" | toString }}
 {{- $gpuVal := .Values.dcgmExporter.gpuNodeSelector.value | default "" | toString }}
-{{- $split := and .Values.dcgmExporter.enabled (ne $rc "") (ne $gpuKey "") }}
+{{- $split := and .Values.dcgmExporter.enabled (ne $gpuKey "") (ne $gpuVal "") (ne $legacyRuntimeClassName "") }}
 {{- /* runtimeMetrics.enabled is the canonical toggle for hostPID + root + SYS_PTRACE
        (needed by every process-introspection collector: JVM, Node.js, ...). jvmMetrics.enabled
        is kept as a deprecated fallback for installs that already override it explicitly. */}}
@@ -12,11 +19,11 @@
 {{- end }}
 {{- $base := include "zxporter-nodemon.fullname" . }}
 {{- $gpuName := printf "%s-gpu" ($base | trunc 59 | trimSuffix "-") }}
-{{- $variants := list (dict "name" $base "instance" $base "withDcgm" .Values.dcgmExporter.enabled "rc" "" "gpuAff" "none") }}
+{{- $variants := list (dict "name" $base "instance" $base "withDcgm" .Values.dcgmExporter.enabled "gpuAff" "none") }}
 {{- if $split }}
 {{-   $variants = list
-        (dict "name" $base "instance" $base "withDcgm" true "rc" "" "gpuAff" "exclude")
-        (dict "name" $gpuName "instance" $gpuName "withDcgm" true "rc" $rc "gpuAff" "include") }}
+        (dict "name" $base "instance" $base "withDcgm" true "gpuAff" "exclude")
+        (dict "name" $gpuName "instance" $gpuName "withDcgm" true "gpuAff" "include") }}
 {{- end }}
 {{- range $v := $variants }}
 ---
@@ -39,6 +46,10 @@ metadata:
     ignore-check.kube-linter.io/run-as-non-root: "This daemon set needs to run DCGM Exporter as root to access the GPU metrics."
     ignore-check.kube-linter.io/privilege-escalation-container: "This daemon set needs escalate privileges for DCGM Exporter."
     ignore-check.kube-linter.io/no-read-only-root-fs: "This daemon set needs to run DCGM Exporter with read-only root filesystem."
+    {{- if eq $v.gpuAff "include" }}
+    devzero.io/gpu-runtime-mode: {{ $gpuMode | quote }}
+    devzero.io/gpu-runtime-class: {{ $gpuRuntime | quote }}
+    {{- end }}
   {{- end }}
 spec:
   {{- with $.Values.updateStrategy }}
@@ -70,8 +81,10 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if $v.rc }}
-      runtimeClassName: {{ $v.rc | quote }}
+      {{- if eq $v.gpuAff "include" }}
+      {{- if ne $gpuRuntime "" }}
+      runtimeClassName: {{ $gpuRuntime | quote }}
+      {{- end }}
       {{- end }}
       serviceAccountName: {{ include "zxporter-nodemon.serviceAccountName" $ }}
       {{- if $v.withDcgm }}

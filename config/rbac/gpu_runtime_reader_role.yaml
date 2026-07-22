@@ -1,0 +1,13 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: gpu-runtime-reader
+rules:
+- apiGroups:
+  - node.k8s.io
+  resources:
+  - runtimeclasses
+  resourceNames:
+  - nvidia
+  verbs:
+  - get

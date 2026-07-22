@@ -104,6 +104,13 @@ global:
   # must ONLY be set here — never on zxporter-nodemon.provider.
   # Required: one of "aws", "gcp", "azure", "oci", "other".
   k8sProvider: ""
+  # global.gpuRuntime drives the bundled nodemon GPU DaemonSet and the parent
+  # chart's resolver RBAC. Auto is the controller-managed mode; default keeps
+  # the split DaemonSet but does not render resolver RBAC; explicit lets callers
+  # choose a fixed RuntimeClass without the resolver.
+  gpuRuntime:
+    mode: auto
+    runtimeClassName: nvidia
   priorityClass:
     enabled: true
 priorityClass:
