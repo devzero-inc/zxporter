@@ -381,6 +381,8 @@ build-installer: manifests generate kustomize yq helm ## Generate a consolidated
 	@$(HELM) template zxporter-nodemon ./helm-chart/zxporter-nodemon \
 		--namespace $(DEVZERO_MONITORING_NAMESPACE) \
 		--set global.k8sProvider=other \
+		--set global.gpuRuntime.mode=auto \
+		--set global.gpuRuntime.runtimeClassName=nvidia \
 		--set priorityClass.create=false \
 		--set image.repository=$(word 1,$(subst :, ,$(IMG_NODEMON))) \
 		--set image.tag=$(word 2,$(subst :, ,$(IMG_NODEMON))) \
@@ -391,6 +393,8 @@ build-installer: manifests generate kustomize yq helm ## Generate a consolidated
 	@$(HELM) template zxporter-nodemon ./helm-chart/zxporter-nodemon \
 		--namespace $(DEVZERO_MONITORING_NAMESPACE) \
 		--set global.k8sProvider=gcp \
+		--set global.gpuRuntime.mode=auto \
+		--set global.gpuRuntime.runtimeClassName=nvidia \
 		--set priorityClass.create=false \
 		--set image.repository=$(word 1,$(subst :, ,$(IMG_NODEMON))) \
 		--set image.tag=$(word 2,$(subst :, ,$(IMG_NODEMON))) \
@@ -401,6 +405,8 @@ build-installer: manifests generate kustomize yq helm ## Generate a consolidated
 	@$(HELM) template zxporter-nodemon ./helm-chart/zxporter-nodemon \
 		--namespace $(DEVZERO_MONITORING_NAMESPACE) \
 		--set global.k8sProvider=other \
+		--set global.gpuRuntime.mode=auto \
+		--set global.gpuRuntime.runtimeClassName=nvidia \
 		--set priorityClass.create=false \
 		--set runtimeMetrics.enabled=false \
 		--set image.repository=$(word 1,$(subst :, ,$(IMG_NODEMON))) \
@@ -412,6 +418,8 @@ build-installer: manifests generate kustomize yq helm ## Generate a consolidated
 	@$(HELM) template zxporter-nodemon ./helm-chart/zxporter-nodemon \
 		--namespace $(DEVZERO_MONITORING_NAMESPACE) \
 		--set global.k8sProvider=gcp \
+		--set global.gpuRuntime.mode=auto \
+		--set global.gpuRuntime.runtimeClassName=nvidia \
 		--set priorityClass.create=false \
 		--set runtimeMetrics.enabled=false \
 		--set image.repository=$(word 1,$(subst :, ,$(IMG_NODEMON))) \

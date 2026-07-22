@@ -11,4 +11,5 @@ const (
 	ComponentEBPFTracer          = "ebpf_tracer"
 	ComponentPodCache            = "pod_cache"
 	ComponentKarpenterDeployment = "karpenter_deployment"
+	ComponentGPURuntimeResolver  = "gpu_runtime_resolver"
 )

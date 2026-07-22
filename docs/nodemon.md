@@ -140,6 +140,8 @@ kubectl describe nodes | grep -A5 "Allocatable:" | grep nvidia
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `global.k8sProvider` | Cloud provider: `aws`, `gcp`, `azure`, `oci`, `other` (single source of truth, shared with the parent chart) | **Required** |
+| `global.gpuRuntime.mode` | How the GPU DaemonSet gets its RuntimeClass: `auto`, `default`, or `explicit`. See below. Standalone default is `explicit`; the parent chart overrides to `auto`. | `explicit` (standalone) |
+| `global.gpuRuntime.runtimeClassName` | RuntimeClass rendered on `zxporter-nodemon-gpu` in `auto`/`explicit` modes. Required unless mode is `default`. | `nvidia` |
 | `dcgmExporter.enabled` | Deploy DCGM exporter sidecar | `true` |
 | `dcgmExporter.useExternalHostEngine` | Connect to host-level DCGM engine | `false` |
 | `dcgmExporter.runtimeClassName` | RuntimeClass for the GPU DaemonSet (`zxporter-nodemon-gpu`). Set to `""` to disable the split and use the original single DaemonSet with an embedded DCGM sidecar. | `"nvidia"` |
@@ -161,6 +163,36 @@ node-feature-discovery. On GKE without the GPU Operator, these labels are absent
 so the GPU DaemonSet has zero pods and the base DaemonSet runs everywhere using
 the `global.k8sProvider=gcp` hostPath mount for NVML. GPU nodes added after install are
 picked up automatically by the DaemonSet controller.
+
+### GPU RuntimeClass modes (`global.gpuRuntime`)
+
+The GPU DaemonSet needs `runtimeClassName: nvidia` only on clusters where the
+NVIDIA runtime is not the default and a `nvidia` RuntimeClass object exists. The
+node label (`nvidia.com/gpu.present=true`) and the RuntimeClass are independent,
+so `global.gpuRuntime.mode` decouples the two:
+
+- **`auto`** — render `runtimeClassName` initially, then let the parent chart's
+  leader-elected GPU runtime resolver keep it when the named RuntimeClass exists
+  and remove it (falling back to the cluster default runtime) when it does not.
+  The resolver is granted narrowly scoped RBAC (`get` on the named RuntimeClass,
+  `get`/`patch` on `zxporter-nodemon-gpu` only). This is the parent chart default.
+- **`default`** — never render `runtimeClassName`; use the cluster's default
+  runtime. No resolver RBAC is rendered, so the operator holds **no** RuntimeClass
+  or DaemonSet-patch permission. GPU metrics work only if the default runtime
+  already provides the NVIDIA integration.
+- **`explicit`** — render the configured `runtimeClassName` statically with no
+  resolver and no resolver RBAC. This is the standalone nodemon default (the
+  standalone chart has no controller to run the resolver).
+
+`auto`/`explicit` require a non-empty `runtimeClassName`; an empty name fails
+Helm rendering. A present-but-broken CRI handler is **not** auto-detected or
+masked — Kubernetes will fail the pod and that surfaces through normal
+pod/event telemetry rather than a silent fallback.
+
+The split itself is still gated on the legacy `dcgmExporter.runtimeClassName`
+being non-empty (set `""` to collapse back to a single embedded-DCGM DaemonSet),
+preserved for backward compatibility; `global.gpuRuntime` only controls the
+RuntimeClass value and the GPU DaemonSet's `devzero.io/gpu-runtime-*` annotations.
 
 ## API Reference
 

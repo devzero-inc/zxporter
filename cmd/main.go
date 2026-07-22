@@ -160,6 +160,7 @@ func main() {
 	healthManager.Register(health.ComponentDakrTransport)
 	healthManager.Register(health.ComponentMpaServer)
 	healthManager.Register(health.ComponentPrometheus)
+	healthManager.Register(health.ComponentGPURuntimeResolver)
 
 	// Allow 2 minutes for the controller to win leader election and start
 	// reconciling before enforcing readiness checks.
@@ -213,6 +214,17 @@ func main() {
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
+		os.Exit(1)
+	}
+
+	namespace := os.Getenv("POD_NAMESPACE")
+	if namespace == "" {
+		namespace = "devzero-system"
+	}
+	if err := mgr.Add(controller.NewGPURuntimeResolver(
+		mgr.GetClient(), mgr.GetAPIReader(), namespace, 30*time.Second, healthManager,
+	)); err != nil {
+		setupLog.Error(err, "unable to add GPU runtime resolver")
 		os.Exit(1)
 	}
 
