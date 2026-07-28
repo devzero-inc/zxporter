@@ -11,7 +11,7 @@ serviceAccount:
   create: true
   annotations: {}
 image:
-  repository: docker.io/devzeroinc/zxporter-nodemon
+  repository: public.ecr.aws/devzeroinc/zxporter-nodemon
   pullPolicy: IfNotPresent
   tag: "v0.0.99"
 nodemon:
@@ -104,7 +104,7 @@ dcgmExporter:
     key: "nvidia.com/gpu.present"
     value: "true"
   image:
-    repository: docker.io/devzeroinc/dcgm-exporter
+    repository: public.ecr.aws/devzeroinc/dcgm-exporter
     pullPolicy: IfNotPresent
     tag: 4.5.2-4.8.1-ubuntu22.04
   useExternalHostEngine: false
