@@ -248,6 +248,25 @@ func (c *ContainerResourceCollector) collectResourcesLoop(ctx context.Context) {
 
 // collectAllContainerResources collects resource metrics for all containers
 func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Context) {
+	// Snapshot the pod informer cache up front, before the nodemon calls below
+	// (buildPodMetricsFromNodemon, FetchAllContainerMetrics, FetchAllRuntimeMetrics —
+	// all real network round trips that take real wall-clock time on large
+	// clusters). The per-pod loop further down previously re-read the informer
+	// cache by name *after* those calls, which raced against concurrent pod
+	// deletions (e.g. spot instance terminations) and silently dropped that
+	// pod's containers for the cycle. Looking up against a map captured before
+	// the slow calls eliminates that race instead of narrowing it.
+	podByKey := make(map[string]*corev1.Pod)
+	if c.podInformer != nil {
+		for _, obj := range c.podInformer.GetIndexer().List() {
+			pod, ok := obj.(*corev1.Pod)
+			if !ok {
+				continue
+			}
+			podByKey[pod.Namespace+"/"+pod.Name] = pod
+		}
+	}
+
 	// Build pod metrics from nodemon data
 	podMetricsList, err := c.buildPodMetricsFromNodemon(ctx)
 	if err != nil {
@@ -322,12 +341,28 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 			continue
 		}
 
-		// Get the pod object from the cache
-		pod, err := c.getPodFromCache(podMetrics.Namespace, podMetrics.Name)
-		if err != nil {
-			c.logger.Error(err, "Failed to get pod from cache",
+		// Get the pod object from the snapshot captured at the top of this cycle
+		// (see podByKey above) rather than re-reading the informer cache here.
+		pod, exists := podByKey[podMetrics.Namespace+"/"+podMetrics.Name]
+		if !exists {
+			c.logger.Info("Pod not found in informer cache",
 				"namespace", podMetrics.Namespace,
 				"name", podMetrics.Name)
+			if c.telemetryLogger != nil {
+				c.telemetryLogger.Report(
+					gen.LogLevel_LOG_LEVEL_ERROR,
+					"ContainerResourceCollector",
+					"Pod not found in informer cache",
+					fmt.Errorf("pod not found in informer cache"),
+					map[string]string{
+						"collector_type":   c.GetType(),
+						"pod_namespace":    podMetrics.Namespace,
+						"pod_name":         podMetrics.Name,
+						"error_type":       "pod_cache_fail",
+						"zxporter_version": version.Get().String(),
+					},
+				)
+			}
 			continue
 		}
 
@@ -976,11 +1011,6 @@ func (c *ContainerResourceCollector) emitCPUThrottleEvent(
 		EventType: EventTypeAdd,
 		Key:       fmt.Sprintf("cpu-throttle/%s/%s/%s", pod.Namespace, pod.Name, containerMetrics.Name),
 	}
-}
-
-// getPodFromCache retrieves a pod from the informer cache
-func (c *ContainerResourceCollector) getPodFromCache(namespace, name string) (*corev1.Pod, error) {
-	return c.informerFactory.Core().V1().Pods().Lister().Pods(namespace).Get(name)
 }
 
 // isExcluded checks if a pod should be excluded from collection

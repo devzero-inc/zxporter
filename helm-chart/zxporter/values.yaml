@@ -9,7 +9,7 @@
 # For production deployments, we recommend using patToken for automatic token exchange.
 
 image:
-  repository: docker.io/devzeroinc/zxporter
+  repository: public.ecr.aws/devzeroinc/zxporter
   pullPolicy: IfNotPresent
   tag: "v0.0.99"
 # ZXPorter configuration

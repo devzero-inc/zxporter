@@ -1075,7 +1075,7 @@ spec:
             runAsNonRoot: false
             runAsUser: 0
             privileged: true
-          image: "docker.io/devzeroinc/dcgm-exporter:4.5.2-4.8.1-ubuntu22.04"
+          image: "public.ecr.aws/devzeroinc/dcgm-exporter:4.5.2-4.8.1-ubuntu22.04"
           imagePullPolicy: IfNotPresent
           command: ["/bin/bash", "-c"]
           args:
@@ -1218,7 +1218,7 @@ spec:
             runAsNonRoot: false
             runAsUser: 0
             privileged: true
-          image: "docker.io/devzeroinc/dcgm-exporter:4.5.2-4.8.1-ubuntu22.04"
+          image: "public.ecr.aws/devzeroinc/dcgm-exporter:4.5.2-4.8.1-ubuntu22.04"
           imagePullPolicy: IfNotPresent
           command: ["/bin/bash", "-c"]
           args:
