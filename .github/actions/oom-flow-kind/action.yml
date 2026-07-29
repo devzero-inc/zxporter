@@ -1,0 +1,65 @@
+name: "zxporter: oom-flow-kind"
+description: |
+  End-to-end validation of the retroactive OOM-detection flow
+  (internal/health.RestartOOMDetector) on a real kind cluster: a pod is
+  deliberately memory-starved until the kernel/kubelet actually OOM-kills
+  it, then the real detector code runs against that real, live-cluster
+  recorded pod object (not a fake clientset) and its report is asserted on.
+
+  Unlike runtime-metrics-kind, assertions live in a Go/Ginkgo spec
+  (test/e2e/oom_test.go) rather than a shell heredoc, since the interesting
+  logic here is Kubernetes-API-shaped (container termination state), not
+  HTTP-response-shaped.
+
+  Consumed by two callers:
+    - operators/zxporter/.github/workflows/oom-flow-kind-test.yml
+      (published to devzero-inc/zxporter; uses this via
+      ./.github/actions/oom-flow-kind)
+    - .github/workflows/zxporter-oom-flow-kind.yml at services root
+      (uses this via ./operators/zxporter/.github/actions/oom-flow-kind
+      with working-directory: operators/zxporter)
+
+  Caller checks out the repo; this action assumes cwd contains the
+  zxporter source (or the working-directory input points at it).
+
+inputs:
+  working-directory:
+    description: "Path to the zxporter tree relative to the repo root."
+    required: false
+    default: "."
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version-file: ${{ inputs.working-directory }}/go.mod
+        cache: true
+        cache-dependency-path: ${{ inputs.working-directory }}/go.sum
+
+    - name: Create kind cluster
+      uses: helm/kind-action@v1
+      with:
+        version: v0.27.0
+        node_image: kindest/node:v1.32.3
+        cluster_name: kind-oom-flow
+        wait: 120s
+
+    - name: Build stress (OOM victim) image
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        docker build -f Dockerfile.stress -t zxporter-oom-victim:e2e-ci .
+
+    - name: Load stress image into kind
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        kind load docker-image zxporter-oom-victim:e2e-ci --name kind-oom-flow
+
+    - name: Run OOM-flow e2e spec
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        go test ./test/e2e/... -v -ginkgo.v -ginkgo.label-filter=oom -timeout 10m

@@ -19,6 +19,22 @@ metadata:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
+  name: devzero-zxporter-gpu-runtime-patcher
+  namespace: devzero-system
+rules:
+- apiGroups:
+  - apps
+  resourceNames:
+  - zxporter-nodemon-gpu
+  resources:
+  - daemonsets
+  verbs:
+  - get
+  - patch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
   labels:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/name: devzero-zxporter
@@ -134,6 +150,20 @@ rules:
   - devzero.io
   resources:
   - collectionpolicies/status
+  verbs:
+  - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: devzero-zxporter-gpu-runtime-reader
+rules:
+- apiGroups:
+  - node.k8s.io
+  resourceNames:
+  - nvidia
+  resources:
+  - runtimeclasses
   verbs:
   - get
 ---
@@ -510,6 +540,20 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
+  name: devzero-zxporter-gpu-runtime-patcher-rolebinding
+  namespace: devzero-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: devzero-zxporter-gpu-runtime-patcher
+subjects:
+- kind: ServiceAccount
+  name: devzero-zxporter-controller-manager
+  namespace: devzero-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
   labels:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/name: devzero-zxporter
@@ -519,6 +563,19 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
   name: devzero-zxporter-leader-election-role
+subjects:
+- kind: ServiceAccount
+  name: devzero-zxporter-controller-manager
+  namespace: devzero-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: devzero-zxporter-gpu-runtime-reader-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: devzero-zxporter-gpu-runtime-reader
 subjects:
 - kind: ServiceAccount
   name: devzero-zxporter-controller-manager
@@ -695,6 +752,10 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
         - name: CLUSTER_TOKEN
           valueFrom:
             secretKeyRef:

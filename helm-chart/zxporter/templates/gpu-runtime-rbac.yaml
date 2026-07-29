@@ -1,0 +1,60 @@
+{{- $gpuRuntimeMode := default "auto" (dig "gpuRuntime" "mode" "" .Values.global) -}}
+{{- if eq $gpuRuntimeMode "auto" -}}
+{{- $runtimeClassName := required ".Values.global.gpuRuntime.runtimeClassName is required when global.gpuRuntime.mode is auto." (dig "gpuRuntime" "runtimeClassName" "" .Values.global) -}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: devzero-zxporter-gpu-runtime-reader
+rules:
+  - apiGroups:
+      - node.k8s.io
+    resources:
+      - runtimeclasses
+    resourceNames:
+      - {{ $runtimeClassName }}
+    verbs:
+      - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: devzero-zxporter-gpu-runtime-reader-rolebinding
+subjects:
+  - kind: ServiceAccount
+    name: devzero-zxporter-controller-manager
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: devzero-zxporter-gpu-runtime-reader
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: devzero-zxporter-gpu-runtime-patcher
+  namespace: {{ .Release.Namespace }}
+rules:
+  - apiGroups:
+      - apps
+    resources:
+      - daemonsets
+    resourceNames:
+      - zxporter-nodemon-gpu
+    verbs:
+      - get
+      - patch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: devzero-zxporter-gpu-runtime-patcher-rolebinding
+  namespace: {{ .Release.Namespace }}
+subjects:
+  - kind: ServiceAccount
+    name: devzero-zxporter-controller-manager
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: devzero-zxporter-gpu-runtime-patcher
+{{- end }}

@@ -6,10 +6,10 @@ metadata:
   name: zxporter-nodemon
   namespace: devzero-system
   labels:
-    helm.sh/chart: zxporter-nodemon-0.0.99
+    helm.sh/chart: zxporter-nodemon-0.1.1
     app.kubernetes.io/name: zxporter-nodemon
     app.kubernetes.io/instance: zxporter-nodemon
-    app.kubernetes.io/version: "0.0.99"
+    app.kubernetes.io/version: "0.1.1"
     app.kubernetes.io/managed-by: Helm
 ---
 # Source: zxporter-nodemon/templates/dcgm-exporter-configmap.yaml
@@ -82,10 +82,10 @@ kind: ClusterRole
 metadata:
   name: zxporter-nodemon
   labels:
-    helm.sh/chart: zxporter-nodemon-0.0.99
+    helm.sh/chart: zxporter-nodemon-0.1.1
     app.kubernetes.io/name: zxporter-nodemon
     app.kubernetes.io/instance: zxporter-nodemon
-    app.kubernetes.io/version: "0.0.99"
+    app.kubernetes.io/version: "0.1.1"
     app.kubernetes.io/managed-by: Helm
 rules:
 - apiGroups:
@@ -133,10 +133,10 @@ kind: ClusterRoleBinding
 metadata:
   name: zxporter-nodemon
   labels:
-    helm.sh/chart: zxporter-nodemon-0.0.99
+    helm.sh/chart: zxporter-nodemon-0.1.1
     app.kubernetes.io/name: zxporter-nodemon
     app.kubernetes.io/instance: zxporter-nodemon
-    app.kubernetes.io/version: "0.0.99"
+    app.kubernetes.io/version: "0.1.1"
     app.kubernetes.io/managed-by: Helm
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -154,10 +154,10 @@ metadata:
   name: zxporter-nodemon
   namespace: devzero-system
   labels:
-    helm.sh/chart: zxporter-nodemon-0.0.99
+    helm.sh/chart: zxporter-nodemon-0.1.1
     app.kubernetes.io/name: zxporter-nodemon
     app.kubernetes.io/instance: zxporter-nodemon
-    app.kubernetes.io/version: "0.0.99"
+    app.kubernetes.io/version: "0.1.1"
     app.kubernetes.io/managed-by: Helm
   annotations:
     ignore-check.kube-linter.io/privileged-container: "This daemon set needs to run DCGM Exporter as privileged to access the GPU metrics."
@@ -235,6 +235,14 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+            - name: "POD_NAME"
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: "POD_NAMESPACE"
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
             - name: "RUNTIME_METRICS_ENABLED"
               value: "true"
             - name: "DCGM_HOST"
@@ -255,7 +263,7 @@ spec:
             runAsNonRoot: false
             runAsUser: 0
             privileged: true
-          image: "nvcr.io/nvidia/k8s/dcgm-exporter:4.5.2-4.8.1-ubuntu22.04"
+          image: "public.ecr.aws/devzeroinc/dcgm-exporter:4.5.2-4.8.1-ubuntu22.04"
           imagePullPolicy: IfNotPresent
           command: [ "/bin/bash", "-c" ]
           args:
@@ -294,16 +302,18 @@ metadata:
   name: zxporter-nodemon-gpu
   namespace: devzero-system
   labels:
-    helm.sh/chart: zxporter-nodemon-0.0.99
+    helm.sh/chart: zxporter-nodemon-0.1.1
     app.kubernetes.io/name: zxporter-nodemon
     app.kubernetes.io/instance: zxporter-nodemon-gpu
-    app.kubernetes.io/version: "0.0.99"
+    app.kubernetes.io/version: "0.1.1"
     app.kubernetes.io/managed-by: Helm
   annotations:
     ignore-check.kube-linter.io/privileged-container: "This daemon set needs to run DCGM Exporter as privileged to access the GPU metrics."
     ignore-check.kube-linter.io/run-as-non-root: "This daemon set needs to run DCGM Exporter as root to access the GPU metrics."
     ignore-check.kube-linter.io/privilege-escalation-container: "This daemon set needs escalate privileges for DCGM Exporter."
     ignore-check.kube-linter.io/no-read-only-root-fs: "This daemon set needs to run DCGM Exporter with read-only root filesystem."
+    devzero.io/gpu-runtime-mode: "auto"
+    devzero.io/gpu-runtime-class: "nvidia"
 spec:
   selector:
     matchLabels:
@@ -376,6 +386,14 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+            - name: "POD_NAME"
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: "POD_NAMESPACE"
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
             - name: "RUNTIME_METRICS_ENABLED"
               value: "true"
             - name: "DCGM_HOST"
@@ -396,7 +414,7 @@ spec:
             runAsNonRoot: false
             runAsUser: 0
             privileged: true
-          image: "nvcr.io/nvidia/k8s/dcgm-exporter:4.5.2-4.8.1-ubuntu22.04"
+          image: "public.ecr.aws/devzeroinc/dcgm-exporter:4.5.2-4.8.1-ubuntu22.04"
           imagePullPolicy: IfNotPresent
           command: [ "/bin/bash", "-c" ]
           args:

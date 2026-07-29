@@ -1,0 +1,27 @@
+name: oom-flow-kind
+
+# End-to-end validation of the retroactive OOM-detection flow on a real
+# kind cluster. Actual test logic lives in the composite action at
+# .github/actions/oom-flow-kind so the services monorepo can reuse it via
+# ./operators/zxporter/.github/actions/oom-flow-kind.
+
+permissions:
+  contents: read
+
+on:
+  pull_request:
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'LICENSE'
+  workflow_dispatch:
+
+jobs:
+  oom-flow-kind:
+    runs-on: namespace-profile-dz-generic
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run oom-flow-kind
+        uses: ./.github/actions/oom-flow-kind

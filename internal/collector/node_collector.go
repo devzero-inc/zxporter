@@ -466,11 +466,20 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 	var uncoveredNodes []string
 
 	nodes := c.nodeInformer.GetIndexer().List()
+	// Captured once, up front, so the per-node loop below (which does a real
+	// nodemon/kubelet network round trip per node and can take real wall-clock
+	// time on large clusters) never needs to re-read the informer cache. That
+	// second read is what raced against concurrent node deletions (e.g. spot
+	// instance terminations) and silently dropped the node's containers for
+	// the cycle — reusing the object we already have in hand eliminates the
+	// race outright instead of narrowing it.
+	nodeByName := make(map[string]*corev1.Node, len(nodes))
 	for _, obj := range nodes {
 		node, ok := obj.(*corev1.Node)
 		if !ok {
 			continue
 		}
+		nodeByName[node.Name] = node
 		nm := metricsapisv1beta1.NodeMetrics{
 			ObjectMeta: metav1.ObjectMeta{Name: node.Name},
 			Usage:      corev1.ResourceList{},
@@ -551,57 +560,28 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 			continue
 		}
 
-		// Get the node object from the cache
-		nodeObj, exists, err := c.nodeInformer.GetIndexer().GetByKey(nodeMetrics.Name)
-		if err != nil {
-			c.logger.Error(err, "Failed to get node from cache", "name", nodeMetrics.Name)
-			c.telemetryLogger.Report(
-				gen.LogLevel_LOG_LEVEL_ERROR,
-				"NodeCollector",
-				"Failed to get node from cache",
-				err,
-				map[string]string{
-					"collector_type":    c.GetType(),
-					"node_metrics_name": nodeMetrics.Name,
-					"error_type":        "node_cache_fail",
-					"zxporter_version":  version.Get().String(),
-				},
-			)
-			continue
-		}
-
+		// Use the node object captured up front, before the nodemon/kubelet
+		// calls above — see the comment at nodeByName's construction. This
+		// should never miss since nodeMetricsList.Items is itself derived
+		// from the same nodes snapshot; the check is a defensive net that
+		// still reports to telemetry if that invariant is ever violated.
+		node, exists := nodeByName[nodeMetrics.Name]
 		if !exists {
 			c.logger.Info("Node not found in cache", "name", nodeMetrics.Name)
-			c.telemetryLogger.Report(
-				gen.LogLevel_LOG_LEVEL_ERROR,
-				"NodeCollector",
-				"Node not found in informer cache",
-				fmt.Errorf("node not found in informer cache"),
-				map[string]string{
-					"collector_type":    c.GetType(),
-					"node_metrics_name": nodeMetrics.Name,
-					"error_type":        "node_cache_fail",
-					"zxporter_version":  version.Get().String(),
-				},
-			)
-			continue
-		}
-
-		node, ok := nodeObj.(*corev1.Node)
-		if !ok {
-			c.logger.Error(nil, "Failed to convert to Node type", "name", nodeMetrics.Name)
-			c.telemetryLogger.Report(
-				gen.LogLevel_LOG_LEVEL_ERROR,
-				"NodeCollector",
-				"Failed to convert to Node type",
-				fmt.Errorf("failed to convert cache node to node type object"),
-				map[string]string{
-					"collector_type":    c.GetType(),
-					"node_metrics_name": nodeMetrics.Name,
-					"error_type":        "node_object",
-					"zxporter_version":  version.Get().String(),
-				},
-			)
+			if c.telemetryLogger != nil {
+				c.telemetryLogger.Report(
+					gen.LogLevel_LOG_LEVEL_ERROR,
+					"NodeCollector",
+					"Node not found in informer cache",
+					fmt.Errorf("node not found in informer cache"),
+					map[string]string{
+						"collector_type":    c.GetType(),
+						"node_metrics_name": nodeMetrics.Name,
+						"error_type":        "node_cache_fail",
+						"zxporter_version":  version.Get().String(),
+					},
+				)
+			}
 			continue
 		}
 

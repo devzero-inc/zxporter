@@ -1,0 +1,15 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: gpu-runtime-patcher
+  namespace: devzero-system
+rules:
+- apiGroups:
+  - apps
+  resources:
+  - daemonsets
+  resourceNames:
+  - zxporter-nodemon-gpu
+  verbs:
+  - get
+  - patch

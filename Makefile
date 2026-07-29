@@ -291,6 +291,13 @@ docker-buildx: ## Build and push docker image for the manager for cross-platform
 	rm Dockerfile.cross
 
 .PHONY: final-installer
+# public.ecr.aws/devzeroinc only mirrors versioned release tags, never :latest.
+# The customer-facing installers (install*.yaml / installer_updater*.yaml,
+# see sync-zxporter-metadata in the root Justfile) are always version-pinned
+# and correctly point at public ECR. These backend-install* bundles are the
+# only place that legitimately tracks :latest -- keep those two images on
+# docker.io so they keep resolving; only the version-pinned paths need to
+# move off Docker Hub to avoid its anonymous-pull rate limit.
 final-installer:
 	@cp $(DIST_INSTALL_BUNDLE) $(DIST_BACKEND_INSTALL_BUNDLE)
 	@$(YQ) -i '(select(.kind == "ConfigMap" and .metadata.name == "devzero-zxporter-env-config") | .data.DAKR_URL) = "{{ .api_url }}/dakr"' $(DIST_BACKEND_INSTALL_BUNDLE)
@@ -381,6 +388,8 @@ build-installer: manifests generate kustomize yq helm ## Generate a consolidated
 	@$(HELM) template zxporter-nodemon ./helm-chart/zxporter-nodemon \
 		--namespace $(DEVZERO_MONITORING_NAMESPACE) \
 		--set global.k8sProvider=other \
+		--set global.gpuRuntime.mode=auto \
+		--set global.gpuRuntime.runtimeClassName=nvidia \
 		--set priorityClass.create=false \
 		--set image.repository=$(word 1,$(subst :, ,$(IMG_NODEMON))) \
 		--set image.tag=$(word 2,$(subst :, ,$(IMG_NODEMON))) \
@@ -391,6 +400,8 @@ build-installer: manifests generate kustomize yq helm ## Generate a consolidated
 	@$(HELM) template zxporter-nodemon ./helm-chart/zxporter-nodemon \
 		--namespace $(DEVZERO_MONITORING_NAMESPACE) \
 		--set global.k8sProvider=gcp \
+		--set global.gpuRuntime.mode=auto \
+		--set global.gpuRuntime.runtimeClassName=nvidia \
 		--set priorityClass.create=false \
 		--set image.repository=$(word 1,$(subst :, ,$(IMG_NODEMON))) \
 		--set image.tag=$(word 2,$(subst :, ,$(IMG_NODEMON))) \
@@ -401,6 +412,8 @@ build-installer: manifests generate kustomize yq helm ## Generate a consolidated
 	@$(HELM) template zxporter-nodemon ./helm-chart/zxporter-nodemon \
 		--namespace $(DEVZERO_MONITORING_NAMESPACE) \
 		--set global.k8sProvider=other \
+		--set global.gpuRuntime.mode=auto \
+		--set global.gpuRuntime.runtimeClassName=nvidia \
 		--set priorityClass.create=false \
 		--set runtimeMetrics.enabled=false \
 		--set image.repository=$(word 1,$(subst :, ,$(IMG_NODEMON))) \
@@ -412,6 +425,8 @@ build-installer: manifests generate kustomize yq helm ## Generate a consolidated
 	@$(HELM) template zxporter-nodemon ./helm-chart/zxporter-nodemon \
 		--namespace $(DEVZERO_MONITORING_NAMESPACE) \
 		--set global.k8sProvider=gcp \
+		--set global.gpuRuntime.mode=auto \
+		--set global.gpuRuntime.runtimeClassName=nvidia \
 		--set priorityClass.create=false \
 		--set runtimeMetrics.enabled=false \
 		--set image.repository=$(word 1,$(subst :, ,$(IMG_NODEMON))) \

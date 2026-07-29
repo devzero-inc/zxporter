@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/devzero-inc/zxporter/internal/health"
 	"github.com/devzero-inc/zxporter/internal/nodemon"
 	"github.com/devzero-inc/zxporter/internal/version"
 	"github.com/go-logr/zapr"
@@ -167,13 +168,44 @@ func main() {
 	// Graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	_ = ctx // ctx available for future use
+
+	// nodemon has no telemetry logger / dakr client of its own (it's a passive
+	// exporter scraped by the zxporter collector, not a push client), so pass a
+	// nil telemetry sink — the monitor still logs threshold crossings locally,
+	// which is a strict improvement over discovering OOM kills only after the
+	// fact via k8s_events. Wiring an actual telemetry sink here is a follow-up
+	// that needs its own DAKR_URL/cluster-token plumbing into this daemonset.
+	memoryPressureMonitor := health.NewMemoryPressureMonitor(logger, nil, nil)
+	go func() {
+		if err := memoryPressureMonitor.Start(ctx); err != nil {
+			logger.Error(err, "Memory pressure monitor exited with error")
+		}
+	}()
+
+	// Retroactively check whether the *previous* instance of this pod was
+	// OOM-killed, reading pod.status.containerStatuses[].lastState.terminated
+	// off the Pod object — which Kubernetes persists regardless of whether the
+	// dying process got to do anything, unlike the proactive monitor above
+	// which can only warn ahead of a kill it catches in time. Runs once, not
+	// on a ticker; nil telemetryLogger for the same reason as the memory
+	// pressure monitor above (nodemon has no telemetry sink wired up yet), so
+	// it degrades to local logr output only.
+	restartOOMDetector := health.NewRestartOOMDetector(
+		logger,
+		nil,
+		k8sClient,
+		os.Getenv("POD_NAMESPACE"),
+		os.Getenv("POD_NAME"),
+		"zxporter-nodemon",
+	)
+	go restartOOMDetector.Check(ctx)
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 	<-sigChan
 
 	logger.Info("Shutting down...")
+	cancel() // stop the memory pressure monitor
 	if podContainerIndex != nil {
 		podContainerIndex.Stop()
 	}
