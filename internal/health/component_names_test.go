@@ -14,6 +14,7 @@ func TestComponentNames_AreDistinct(t *testing.T) {
 		ComponentMpaServer,
 		ComponentPrometheus,
 		ComponentGPURuntimeResolver,
+		ComponentMemoryPressure,
 	}
 	seen := make(map[string]bool)
 	for _, name := range names {
@@ -25,4 +26,8 @@ func TestComponentNames_AreDistinct(t *testing.T) {
 
 func TestComponentGPURuntimeResolver_Name(t *testing.T) {
 	assert.Equal(t, "gpu_runtime_resolver", ComponentGPURuntimeResolver)
+}
+
+func TestComponentMemoryPressure_Name(t *testing.T) {
+	assert.Equal(t, "memory_pressure", ComponentMemoryPressure)
 }

@@ -195,6 +195,24 @@ func (c *EnvBasedController) Start(ctx context.Context) error {
 		return fmt.Errorf("failed to initialize telemetry components: %w", err)
 	}
 
+	// Retroactively check whether the *previous* instance of this pod was
+	// OOM-killed: unlike MemoryPressureMonitor (which can only warn ahead of a
+	// kill it catches in time), this reads pod.status.containerStatuses[].
+	// lastState.terminated — which Kubernetes persists regardless of whether
+	// the dying process got to do anything — so a kill that happened too fast
+	// to warn about still gets reported, from the surviving instance. Runs
+	// once here (needs the telemetry logger just initialized above), not on a
+	// ticker, since a past termination only needs to be noticed once.
+	restartOOMDetector := health.NewRestartOOMDetector(
+		c.Log,
+		c.Reconciler.TelemetryLogger,
+		c.K8sClient,
+		os.Getenv("POD_NAMESPACE"),
+		os.Getenv("POD_NAME"),
+		"manager",
+	)
+	go restartOOMDetector.Check(ctx)
+
 	// Run the first reconciliation immediately
 	if err := c.doReconcile(ctx); err != nil {
 		c.Log.Error(err, "Failed initial reconciliation")
@@ -206,6 +224,22 @@ func (c *EnvBasedController) Start(ctx context.Context) error {
 
 	// Run perioic health check reporting
 	go c.runHealthReporting(ctx)
+
+	// Proactively watch cgroup memory usage so sustained pressure is reported
+	// to Datadog before the kubelet OOM-kills the pod, instead of only being
+	// discovered afterwards via k8s_events. Started here (rather than added to
+	// mgr directly in cmd/main.go) because it needs the telemetry logger just
+	// initialized above.
+	memoryPressureMonitor := health.NewMemoryPressureMonitor(
+		c.Log,
+		c.Reconciler.TelemetryLogger,
+		c.Reconciler.HealthManager,
+	)
+	go func() {
+		if err := memoryPressureMonitor.Start(ctx); err != nil {
+			c.Log.Error(err, "Memory pressure monitor exited with error")
+		}
+	}()
 
 	// Wait for context cancellation
 	<-ctx.Done()
