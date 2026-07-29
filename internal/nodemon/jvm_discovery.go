@@ -7,10 +7,8 @@ import (
 	"strings"
 )
 
-const (
-	javaComm    = "java"
-	javaBinName = "java"
-)
+const javaComm = "java"
+const javaBinName = "java"
 
 // JavaProcess holds info about a discovered Java process running inside a Kubernetes container.
 type JavaProcess struct {

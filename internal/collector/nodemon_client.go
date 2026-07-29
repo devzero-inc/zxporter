@@ -29,12 +29,6 @@ type UnifiedContainerMetric struct {
 	MemoryRSSBytes    uint64    `json:"memory_rss_bytes"`
 	NetworkRxBytes    uint64    `json:"network_rx_bytes"`
 	NetworkTxBytes    uint64    `json:"network_tx_bytes"`
-	// Memory cache/swap gauges from cAdvisor (memory_cache_bytes/memory_swap_bytes
-	// arrive over the wire from nodemon). The active/inactive cache split is not
-	// stored here — it is derived later in processContainerMetrics via
-	// deriveMemoryCacheSplit from the working_set/usage/cache values above.
-	MemoryCacheBytes uint64 `json:"memory_cache_bytes"`
-	MemorySwapBytes  uint64 `json:"memory_swap_bytes"`
 	// cAdvisor rates
 	NetworkRxPacketsPerSec float64 `json:"network_rx_packets_per_sec"`
 	NetworkTxPacketsPerSec float64 `json:"network_tx_packets_per_sec"`

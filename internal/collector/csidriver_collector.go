@@ -78,7 +78,7 @@ func (c *CSIDriverCollector) Start(ctx context.Context) error {
 	c.logger.Info("Starting CSIDriver collector")
 
 	// Create informer factory - CSIDrivers are cluster-scoped, not namespaced
-	c.informerFactory = newInformerFactory(c.client, nil)
+	c.informerFactory = informers.NewSharedInformerFactory(c.client, 0)
 
 	// Create CSIDriver informer
 	c.csiDriverInformer = c.informerFactory.Storage().V1().CSIDrivers().Informer()

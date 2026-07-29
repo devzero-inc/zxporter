@@ -20,13 +20,6 @@ type ContainerMetricsSnapshot struct {
 	MemoryUsageBytes int64 `json:"memoryUsageBytes"`
 	MemoryRssBytes   int64 `json:"memoryRssBytes"`
 
-	// Memory cache/swap breakdown. Cache/swap come from cAdvisor; active/inactive
-	// cache are derived (inactive = usage - workingSet, active = cache - inactive).
-	MemoryCacheBytes         int64 `json:"memoryCacheBytes,omitempty"`
-	MemorySwapBytes          int64 `json:"memorySwapBytes,omitempty"`
-	MemoryActiveCacheBytes   int64 `json:"memoryActiveCacheBytes,omitempty"`
-	MemoryInactiveCacheBytes int64 `json:"memoryInactiveCacheBytes,omitempty"`
-
 	// Resource requests and limits
 	CpuRequestMillis   int64 `json:"cpuRequestMillis"`
 	CpuLimitMillis     int64 `json:"cpuLimitMillis"`

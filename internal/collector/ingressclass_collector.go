@@ -81,7 +81,7 @@ func (c *IngressClassCollector) Start(ctx context.Context) error {
 	c.logger.Info("Starting IngressClass collector")
 
 	// Create informer factory - IngressClass is cluster-scoped, not namespaced
-	c.informerFactory = newInformerFactory(c.client, nil)
+	c.informerFactory = informers.NewSharedInformerFactory(c.client, 0)
 
 	// Create IngressClass informer
 	c.ingressClassInformer = c.informerFactory.Networking().V1().IngressClasses().Informer()

@@ -91,11 +91,6 @@ func (c *CNPGCollector) Start(ctx context.Context) error {
 
 	informer := factory.ForResource(cnpgGVR).Informer()
 
-	// Strip managedFields + last-applied-configuration from cached objects.
-	if err := informer.SetTransform(StripMetadataTransform); err != nil {
-		return fmt.Errorf("failed to set informer transform: %w", err)
-	}
-
 	_, err := informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			u, ok := obj.(*unstructured.Unstructured)

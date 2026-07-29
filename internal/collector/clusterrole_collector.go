@@ -79,7 +79,7 @@ func (c *ClusterRoleCollector) Start(ctx context.Context) error {
 	c.logger.Info("Starting ClusterRole collector")
 
 	// Create informer factory - ClusterRoles are cluster-scoped, not namespaced
-	c.informerFactory = newInformerFactory(c.client, nil)
+	c.informerFactory = informers.NewSharedInformerFactory(c.client, 0)
 
 	// Create ClusterRole informer
 	c.clusterRoleInformer = c.informerFactory.Rbac().V1().ClusterRoles().Informer()

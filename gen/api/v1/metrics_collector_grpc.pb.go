@@ -19,14 +19,13 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	MetricsCollectorService_SendResource_FullMethodName               = "/api.v1.MetricsCollectorService/SendResource"
-	MetricsCollectorService_SendResourceBatch_FullMethodName          = "/api.v1.MetricsCollectorService/SendResourceBatch"
-	MetricsCollectorService_SendTelemetryMetrics_FullMethodName       = "/api.v1.MetricsCollectorService/SendTelemetryMetrics"
-	MetricsCollectorService_SendClusterSnapshotStream_FullMethodName  = "/api.v1.MetricsCollectorService/SendClusterSnapshotStream"
-	MetricsCollectorService_SendClusterSnapshotBatched_FullMethodName = "/api.v1.MetricsCollectorService/SendClusterSnapshotBatched"
-	MetricsCollectorService_SendTelemetryLogs_FullMethodName          = "/api.v1.MetricsCollectorService/SendTelemetryLogs"
-	MetricsCollectorService_SendNetworkTrafficMetrics_FullMethodName  = "/api.v1.MetricsCollectorService/SendNetworkTrafficMetrics"
-	MetricsCollectorService_NodeMetadata_FullMethodName               = "/api.v1.MetricsCollectorService/NodeMetadata"
+	MetricsCollectorService_SendResource_FullMethodName              = "/api.v1.MetricsCollectorService/SendResource"
+	MetricsCollectorService_SendResourceBatch_FullMethodName         = "/api.v1.MetricsCollectorService/SendResourceBatch"
+	MetricsCollectorService_SendTelemetryMetrics_FullMethodName      = "/api.v1.MetricsCollectorService/SendTelemetryMetrics"
+	MetricsCollectorService_SendClusterSnapshotStream_FullMethodName = "/api.v1.MetricsCollectorService/SendClusterSnapshotStream"
+	MetricsCollectorService_SendTelemetryLogs_FullMethodName         = "/api.v1.MetricsCollectorService/SendTelemetryLogs"
+	MetricsCollectorService_SendNetworkTrafficMetrics_FullMethodName = "/api.v1.MetricsCollectorService/SendNetworkTrafficMetrics"
+	MetricsCollectorService_NodeMetadata_FullMethodName              = "/api.v1.MetricsCollectorService/NodeMetadata"
 )
 
 // MetricsCollectorServiceClient is the client API for MetricsCollectorService service.
@@ -41,10 +40,6 @@ type MetricsCollectorServiceClient interface {
 	SendTelemetryMetrics(ctx context.Context, in *SendTelemetryMetricsRequest, opts ...grpc.CallOption) (*SendTelemetryMetricsResponse, error)
 	// SendClusterSnapshotStream processes cluster snapshot data in chunks via streaming
 	SendClusterSnapshotStream(ctx context.Context, opts ...grpc.CallOption) (MetricsCollectorService_SendClusterSnapshotStreamClient, error)
-	// SendClusterSnapshotBatched processes a cluster snapshot incrementally as
-	// per-resource-type batches, bounding memory on both sides. Supersedes
-	// SendClusterSnapshotStream for agents that support it.
-	SendClusterSnapshotBatched(ctx context.Context, opts ...grpc.CallOption) (MetricsCollectorService_SendClusterSnapshotBatchedClient, error)
 	// SendTelemetryLogs ingests a batch of log messages from the cluster.
 	SendTelemetryLogs(ctx context.Context, in *SendTelemetryLogsRequest, opts ...grpc.CallOption) (*SendTelemetryLogsResponse, error)
 	// SendNetworkTrafficMetrics pushes network traffic metrics from a node.
@@ -121,40 +116,6 @@ func (x *metricsCollectorServiceSendClusterSnapshotStreamClient) CloseAndRecv() 
 	return m, nil
 }
 
-func (c *metricsCollectorServiceClient) SendClusterSnapshotBatched(ctx context.Context, opts ...grpc.CallOption) (MetricsCollectorService_SendClusterSnapshotBatchedClient, error) {
-	stream, err := c.cc.NewStream(ctx, &MetricsCollectorService_ServiceDesc.Streams[1], MetricsCollectorService_SendClusterSnapshotBatched_FullMethodName, opts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &metricsCollectorServiceSendClusterSnapshotBatchedClient{stream}
-	return x, nil
-}
-
-type MetricsCollectorService_SendClusterSnapshotBatchedClient interface {
-	Send(*ClusterSnapshotBatch) error
-	CloseAndRecv() (*SendClusterSnapshotBatchedResponse, error)
-	grpc.ClientStream
-}
-
-type metricsCollectorServiceSendClusterSnapshotBatchedClient struct {
-	grpc.ClientStream
-}
-
-func (x *metricsCollectorServiceSendClusterSnapshotBatchedClient) Send(m *ClusterSnapshotBatch) error {
-	return x.ClientStream.SendMsg(m)
-}
-
-func (x *metricsCollectorServiceSendClusterSnapshotBatchedClient) CloseAndRecv() (*SendClusterSnapshotBatchedResponse, error) {
-	if err := x.ClientStream.CloseSend(); err != nil {
-		return nil, err
-	}
-	m := new(SendClusterSnapshotBatchedResponse)
-	if err := x.ClientStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
 func (c *metricsCollectorServiceClient) SendTelemetryLogs(ctx context.Context, in *SendTelemetryLogsRequest, opts ...grpc.CallOption) (*SendTelemetryLogsResponse, error) {
 	out := new(SendTelemetryLogsResponse)
 	err := c.cc.Invoke(ctx, MetricsCollectorService_SendTelemetryLogs_FullMethodName, in, out, opts...)
@@ -194,10 +155,6 @@ type MetricsCollectorServiceServer interface {
 	SendTelemetryMetrics(context.Context, *SendTelemetryMetricsRequest) (*SendTelemetryMetricsResponse, error)
 	// SendClusterSnapshotStream processes cluster snapshot data in chunks via streaming
 	SendClusterSnapshotStream(MetricsCollectorService_SendClusterSnapshotStreamServer) error
-	// SendClusterSnapshotBatched processes a cluster snapshot incrementally as
-	// per-resource-type batches, bounding memory on both sides. Supersedes
-	// SendClusterSnapshotStream for agents that support it.
-	SendClusterSnapshotBatched(MetricsCollectorService_SendClusterSnapshotBatchedServer) error
 	// SendTelemetryLogs ingests a batch of log messages from the cluster.
 	SendTelemetryLogs(context.Context, *SendTelemetryLogsRequest) (*SendTelemetryLogsResponse, error)
 	// SendNetworkTrafficMetrics pushes network traffic metrics from a node.
@@ -221,9 +178,6 @@ func (UnimplementedMetricsCollectorServiceServer) SendTelemetryMetrics(context.C
 }
 func (UnimplementedMetricsCollectorServiceServer) SendClusterSnapshotStream(MetricsCollectorService_SendClusterSnapshotStreamServer) error {
 	return status.Errorf(codes.Unimplemented, "method SendClusterSnapshotStream not implemented")
-}
-func (UnimplementedMetricsCollectorServiceServer) SendClusterSnapshotBatched(MetricsCollectorService_SendClusterSnapshotBatchedServer) error {
-	return status.Errorf(codes.Unimplemented, "method SendClusterSnapshotBatched not implemented")
 }
 func (UnimplementedMetricsCollectorServiceServer) SendTelemetryLogs(context.Context, *SendTelemetryLogsRequest) (*SendTelemetryLogsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SendTelemetryLogs not implemented")
@@ -328,32 +282,6 @@ func (x *metricsCollectorServiceSendClusterSnapshotStreamServer) Recv() (*Cluste
 	return m, nil
 }
 
-func _MetricsCollectorService_SendClusterSnapshotBatched_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(MetricsCollectorServiceServer).SendClusterSnapshotBatched(&metricsCollectorServiceSendClusterSnapshotBatchedServer{stream})
-}
-
-type MetricsCollectorService_SendClusterSnapshotBatchedServer interface {
-	SendAndClose(*SendClusterSnapshotBatchedResponse) error
-	Recv() (*ClusterSnapshotBatch, error)
-	grpc.ServerStream
-}
-
-type metricsCollectorServiceSendClusterSnapshotBatchedServer struct {
-	grpc.ServerStream
-}
-
-func (x *metricsCollectorServiceSendClusterSnapshotBatchedServer) SendAndClose(m *SendClusterSnapshotBatchedResponse) error {
-	return x.ServerStream.SendMsg(m)
-}
-
-func (x *metricsCollectorServiceSendClusterSnapshotBatchedServer) Recv() (*ClusterSnapshotBatch, error) {
-	m := new(ClusterSnapshotBatch)
-	if err := x.ServerStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
 func _MetricsCollectorService_SendTelemetryLogs_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(SendTelemetryLogsRequest)
 	if err := dec(in); err != nil {
@@ -444,11 +372,6 @@ var MetricsCollectorService_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "SendClusterSnapshotStream",
 			Handler:       _MetricsCollectorService_SendClusterSnapshotStream_Handler,
-			ClientStreams: true,
-		},
-		{
-			StreamName:    "SendClusterSnapshotBatched",
-			Handler:       _MetricsCollectorService_SendClusterSnapshotBatched_Handler,
 			ClientStreams: true,
 		},
 	},

@@ -109,8 +109,15 @@ func (c *PersistentVolumeClaimMetricsCollector) Start(ctx context.Context) error
 		"namespaces", c.namespaces,
 		"updateInterval", c.config.UpdateInterval)
 
-	// StripMetadataTransform applied via newInformerFactory.
-	c.informerFactory = newInformerFactory(c.k8sClient, c.namespaces)
+	if len(c.namespaces) == 1 && c.namespaces[0] != "" {
+		c.informerFactory = informers.NewSharedInformerFactoryWithOptions(
+			c.k8sClient,
+			0, // No resync period, rely on events
+			informers.WithNamespace(c.namespaces[0]),
+		)
+	} else {
+		c.informerFactory = informers.NewSharedInformerFactory(c.k8sClient, 0)
+	}
 
 	c.pvcInformer = c.informerFactory.Core().V1().PersistentVolumeClaims().Informer()
 

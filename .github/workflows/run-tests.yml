@@ -6,7 +6,7 @@ permissions:
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
@@ -22,6 +22,7 @@ jobs:
     steps:
       # paths-filter uses the GitHub API on pull_request events, but on push
       # events it shells out to git and needs the repo checked out first.
+      # Without this, pushes to main fail with "fatal: not a git repository".
       - name: Checkout code
         uses: actions/checkout@v4
 
@@ -42,14 +43,21 @@ jobs:
     needs: changes
     if: ${{ github.event_name == 'workflow_dispatch' || needs.changes.outputs.run == 'true' }}
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Composite action; single source of truth for the actual test logic.
-      # Path resolves to .github/actions/tests inside THIS repo (whichever it
-      # is: devzero-inc/zxporter published, or devzero-inc/services under
-      # operators/zxporter/). The services-side sibling workflow points at
-      # the same file via ./operators/zxporter/.github/actions/tests.
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
+          cache: true
+      
+      - name: Install dependencies
+        run: |
+          # Install any dependencies required for testing
+          go mod download
+      
       - name: Run tests
-        uses: ./.github/actions/tests
+        run: make test

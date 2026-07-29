@@ -80,7 +80,7 @@ func (c *StorageClassCollector) Start(ctx context.Context) error {
 	c.logger.Info("Starting StorageClass collector")
 
 	// Create informer factory - StorageClasses are cluster-scoped, not namespaced
-	c.informerFactory = newInformerFactory(c.client, nil)
+	c.informerFactory = informers.NewSharedInformerFactory(c.client, 0)
 
 	// Create StorageClass informer
 	c.storageClassInformer = c.informerFactory.Storage().V1().StorageClasses().Informer()

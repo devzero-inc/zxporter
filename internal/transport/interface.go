@@ -30,14 +30,6 @@ type DakrClient interface {
 		snapshotID string,
 		timestamp time.Time,
 	) (string, *gen.ClusterSnapshot, error)
-	// OpenClusterSnapshotBatchStream opens a per-resource-type batched
-	// snapshot stream (memory-bounded successor of SendClusterSnapshotStream).
-	OpenClusterSnapshotBatchStream(
-		ctx context.Context,
-		snapshotID string,
-		timestamp time.Time,
-		isFullSnapshot bool,
-	) (SnapshotBatchStream, error)
 	// telemetry_logger.TelemetryLogSender sends a batch of log entries to Dakr
 	telemetry_logger.TelemetryLogSender
 	// ExchangePATForClusterToken exchanges a PAT token for a cluster token

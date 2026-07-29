@@ -76,7 +76,7 @@ func (c *CSINodeCollector) Start(ctx context.Context) error {
 	c.logger.Info("Starting CSINode collector")
 
 	// Create informer factory for all namespaces
-	c.informerFactory = newInformerFactory(c.client, nil)
+	c.informerFactory = informers.NewSharedInformerFactory(c.client, 0)
 
 	// Create CSINode informer
 	c.csiNodeInformer = c.informerFactory.Storage().V1().CSINodes().Informer()

@@ -47,8 +47,6 @@ func sampleContainerMetrics() []nodemon.ContainerMetricsResponse {
 			MemoryWorkingSet:    256 * 1024 * 1024,
 			MemoryUsageBytes:    300 * 1024 * 1024,
 			MemoryRSSBytes:      200 * 1024 * 1024,
-			MemoryCacheBytes:    64 * 1024 * 1024,
-			MemorySwapBytes:     8 * 1024 * 1024,
 			NetworkRxBytes:      1_000_000,
 			NetworkTxBytes:      500_000,
 			DiskReadBytesPerSec: 1024.0,
@@ -130,8 +128,6 @@ func TestUnifiedContainerHandler_ReturnsJSON(t *testing.T) {
 	r.Equal("nginx", first.Container)
 	r.Equal(uint64(500_000_000), first.CPUUsageNanoCores)
 	r.Equal(uint64(256*1024*1024), first.MemoryWorkingSet)
-	r.Equal(uint64(64*1024*1024), first.MemoryCacheBytes)
-	r.Equal(uint64(8*1024*1024), first.MemorySwapBytes)
 	r.InDelta(0.05, first.CPUThrottleFraction, 0.0001)
 }
 

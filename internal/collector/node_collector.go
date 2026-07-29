@@ -125,8 +125,8 @@ func (c *NodeCollector) Start(ctx context.Context) error {
 		"updateInterval", c.config.UpdateInterval,
 		"disableGPUMetrics", c.config.DisableGPUMetrics)
 
-	// Create informer factory (StripMetadataTransform applied via newInformerFactory).
-	c.informerFactory = newInformerFactory(c.k8sClient, nil)
+	// Create informer factory
+	c.informerFactory = informers.NewSharedInformerFactory(c.k8sClient, 0)
 
 	// Create node informer
 	c.nodeInformer = c.informerFactory.Core().V1().Nodes().Informer()

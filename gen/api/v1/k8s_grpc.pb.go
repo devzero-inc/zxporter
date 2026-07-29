@@ -41,7 +41,6 @@ const (
 	K8SService_GetWorkloadContainerPercentiles_FullMethodName = "/api.v1.K8SService/GetWorkloadContainerPercentiles"
 	K8SService_GetWorkloadContainerTimeSeries_FullMethodName  = "/api.v1.K8SService/GetWorkloadContainerTimeSeries"
 	K8SService_GetLatestContainerRequestLimits_FullMethodName = "/api.v1.K8SService/GetLatestContainerRequestLimits"
-	K8SService_GetWorkloadLanguages_FullMethodName            = "/api.v1.K8SService/GetWorkloadLanguages"
 	K8SService_GetForecastWorkloads_FullMethodName            = "/api.v1.K8SService/GetForecastWorkloads"
 	K8SService_GetForecastWorkload_FullMethodName             = "/api.v1.K8SService/GetForecastWorkload"
 	K8SService_GetResources_FullMethodName                    = "/api.v1.K8SService/GetResources"
@@ -116,8 +115,6 @@ type K8SServiceClient interface {
 	GetWorkloadContainerTimeSeries(ctx context.Context, in *GetWorkloadContainerTimeSeriesRequest, opts ...grpc.CallOption) (*GetWorkloadContainerTimeSeriesResponse, error)
 	// GetLatestContainerRequestLimits retrieves the most recent request/limit values per container for a workload.
 	GetLatestContainerRequestLimits(ctx context.Context, in *GetLatestContainerRequestLimitsRequest, opts ...grpc.CallOption) (*GetLatestContainerRequestLimitsResponse, error)
-	// GetWorkloadLanguages retrieves the distinct detected languages/versions across a cluster's workloads.
-	GetWorkloadLanguages(ctx context.Context, in *GetWorkloadLanguagesRequest, opts ...grpc.CallOption) (*GetWorkloadLanguagesResponse, error)
 	// Deprecated: Do not use.
 	// GetForecastWorkloads retrieves all workloads for a specific cluster.
 	GetForecastWorkloads(ctx context.Context, in *GetForecastWorkloadsRequest, opts ...grpc.CallOption) (*GetForecastWorkloadsResponse, error)
@@ -362,15 +359,6 @@ func (c *k8SServiceClient) GetLatestContainerRequestLimits(ctx context.Context, 
 	return out, nil
 }
 
-func (c *k8SServiceClient) GetWorkloadLanguages(ctx context.Context, in *GetWorkloadLanguagesRequest, opts ...grpc.CallOption) (*GetWorkloadLanguagesResponse, error) {
-	out := new(GetWorkloadLanguagesResponse)
-	err := c.cc.Invoke(ctx, K8SService_GetWorkloadLanguages_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // Deprecated: Do not use.
 func (c *k8SServiceClient) GetForecastWorkloads(ctx context.Context, in *GetForecastWorkloadsRequest, opts ...grpc.CallOption) (*GetForecastWorkloadsResponse, error) {
 	out := new(GetForecastWorkloadsResponse)
@@ -605,8 +593,6 @@ type K8SServiceServer interface {
 	GetWorkloadContainerTimeSeries(context.Context, *GetWorkloadContainerTimeSeriesRequest) (*GetWorkloadContainerTimeSeriesResponse, error)
 	// GetLatestContainerRequestLimits retrieves the most recent request/limit values per container for a workload.
 	GetLatestContainerRequestLimits(context.Context, *GetLatestContainerRequestLimitsRequest) (*GetLatestContainerRequestLimitsResponse, error)
-	// GetWorkloadLanguages retrieves the distinct detected languages/versions across a cluster's workloads.
-	GetWorkloadLanguages(context.Context, *GetWorkloadLanguagesRequest) (*GetWorkloadLanguagesResponse, error)
 	// Deprecated: Do not use.
 	// GetForecastWorkloads retrieves all workloads for a specific cluster.
 	GetForecastWorkloads(context.Context, *GetForecastWorkloadsRequest) (*GetForecastWorkloadsResponse, error)
@@ -714,9 +700,6 @@ func (UnimplementedK8SServiceServer) GetWorkloadContainerTimeSeries(context.Cont
 }
 func (UnimplementedK8SServiceServer) GetLatestContainerRequestLimits(context.Context, *GetLatestContainerRequestLimitsRequest) (*GetLatestContainerRequestLimitsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetLatestContainerRequestLimits not implemented")
-}
-func (UnimplementedK8SServiceServer) GetWorkloadLanguages(context.Context, *GetWorkloadLanguagesRequest) (*GetWorkloadLanguagesResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetWorkloadLanguages not implemented")
 }
 func (UnimplementedK8SServiceServer) GetForecastWorkloads(context.Context, *GetForecastWorkloadsRequest) (*GetForecastWorkloadsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetForecastWorkloads not implemented")
@@ -1187,24 +1170,6 @@ func _K8SService_GetLatestContainerRequestLimits_Handler(srv interface{}, ctx co
 	return interceptor(ctx, in, info, handler)
 }
 
-func _K8SService_GetWorkloadLanguages_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetWorkloadLanguagesRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(K8SServiceServer).GetWorkloadLanguages(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: K8SService_GetWorkloadLanguages_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(K8SServiceServer).GetWorkloadLanguages(ctx, req.(*GetWorkloadLanguagesRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _K8SService_GetForecastWorkloads_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetForecastWorkloadsRequest)
 	if err := dec(in); err != nil {
@@ -1659,10 +1624,6 @@ var K8SService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetLatestContainerRequestLimits",
 			Handler:    _K8SService_GetLatestContainerRequestLimits_Handler,
-		},
-		{
-			MethodName: "GetWorkloadLanguages",
-			Handler:    _K8SService_GetWorkloadLanguages_Handler,
 		},
 		{
 			MethodName: "GetForecastWorkloads",

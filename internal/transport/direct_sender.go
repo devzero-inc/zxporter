@@ -84,16 +84,6 @@ func (s *directSenderImpl) SendClusterSnapshotStream(
 	return clusterID, missingResources, nil
 }
 
-// OpenClusterSnapshotBatchStream forwards to the DakrClient.
-func (s *directSenderImpl) OpenClusterSnapshotBatchStream(
-	ctx context.Context,
-	snapshotID string,
-	timestamp time.Time,
-	isFullSnapshot bool,
-) (SnapshotBatchStream, error) {
-	return s.dakrClient.OpenClusterSnapshotBatchStream(ctx, snapshotID, timestamp, isFullSnapshot)
-}
-
 // SendTelemetryLogs forwards a telemetry log request directly using the DakrClient.
 func (s *directSenderImpl) SendTelemetryLogs(
 	ctx context.Context,

@@ -79,7 +79,7 @@ func (c *PersistentVolumeCollector) Start(ctx context.Context) error {
 	c.logger.Info("Starting PersistentVolume collector")
 
 	// Create informer factory - PVs are cluster-scoped, not namespaced
-	c.informerFactory = newInformerFactory(c.client, nil)
+	c.informerFactory = informers.NewSharedInformerFactory(c.client, 0)
 
 	// Create PV informer
 	c.pvInformer = c.informerFactory.Core().V1().PersistentVolumes().Informer()

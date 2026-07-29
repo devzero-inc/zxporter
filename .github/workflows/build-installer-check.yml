@@ -13,12 +13,48 @@ jobs:
   build-installer-check:
     name: Check if build-installer produces changes
     runs-on: ubuntu-latest
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Composite action; single source of truth for the actual check logic.
-      # The services-side sibling workflow points at the same file via
-      # ./operators/zxporter/.github/actions/installer-check.
-      - name: Check installer manifests
-        uses: ./.github/actions/installer-check
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
+          cache: true
+      
+      - name: Set up build environment
+        # Add any setup steps you need here, for example:
+        # - Setting up the correct version of the programming language
+        # - Installing dependencies
+        # You may need to customize this based on your project requirements
+        run: |
+          # Example: Install dependencies
+          # apt-get update && apt-get install -y <your-dependencies>
+          # or
+          # npm install
+          echo "Setting up build environment"
+      
+      - name: Run make build-installer
+        run: make build-installer
+      
+      - name: Check for uncommitted changes in dist/
+        run: |
+          # build-installer regenerates every bundle under dist/: install*.yaml,
+          # installer_updater*.yaml, backend-install*.yaml, nodemon*.yaml,
+          # zxporter.yaml -- each with a -gcp provider variant and a -lowpriv
+          # (runtimeMetrics.enabled=false) variant. Guard the whole directory:
+          # previously only dist/install.yaml was checked, so bundles appended
+          # by later variants could drift without failing CI.
+          if [[ -n $(git status --porcelain dist/) ]]; then
+            echo "::error::Running 'make build-installer' produced uncommitted changes under dist/."
+            echo "Please run 'make build-installer' locally and commit the dist/ changes before pushing."
+            git status --porcelain dist/
+            # Stage so newly generated (untracked) bundles also appear in the diff.
+            git add -A dist/
+            git diff --cached -- dist/
+            exit 1
+          else
+            echo "No uncommitted changes detected under dist/. Generated bundles are in sync."
+          fi

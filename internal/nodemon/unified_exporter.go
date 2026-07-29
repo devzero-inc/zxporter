@@ -237,8 +237,6 @@ func (u *UnifiedExporter) buildSingleContainerMetric(
 		resp.DiskReadOpsPerSec = cm.DiskReadOpsPerSec
 		resp.DiskWriteOpsPerSec = cm.DiskWriteOpsPerSec
 		resp.CPUThrottleFraction = cm.CPUThrottleFraction
-		resp.MemoryCacheBytes = cm.MemoryCacheBytes
-		resp.MemorySwapBytes = cm.MemorySwapBytes
 	}
 
 	// Merge GPU metrics

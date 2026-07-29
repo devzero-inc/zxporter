@@ -290,11 +290,6 @@ func (c *KarpenterCollector) startResourceInformer(
 	// Create an informer for this resource
 	informer := factory.ForResource(gvr).Informer()
 
-	// Strip managedFields + last-applied-configuration from cached objects.
-	if err := informer.SetTransform(StripMetadataTransform); err != nil {
-		return fmt.Errorf("failed to set informer transform: %w", err)
-	}
-
 	// Add event handlers
 	_, err = informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {

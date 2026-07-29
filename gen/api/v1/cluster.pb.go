@@ -21,60 +21,6 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// ClusterLivenessPreference controls whether GetClusterIDByName considers
-// zxporter heartbeat freshness when picking among multiple matching rows.
-type ClusterLivenessPreference int32
-
-const (
-	ClusterLivenessPreference_CLUSTER_LIVENESS_PREFERENCE_UNSPECIFIED  ClusterLivenessPreference = 0 // = IGNORE
-	ClusterLivenessPreference_CLUSTER_LIVENESS_PREFERENCE_IGNORE       ClusterLivenessPreference = 1 // pure created_at DESC
-	ClusterLivenessPreference_CLUSTER_LIVENESS_PREFERENCE_PREFER_LIVE  ClusterLivenessPreference = 2 // live rows first, fall back to newest
-	ClusterLivenessPreference_CLUSTER_LIVENESS_PREFERENCE_REQUIRE_LIVE ClusterLivenessPreference = 3 // 404 if no row pinged within 60m
-)
-
-// Enum value maps for ClusterLivenessPreference.
-var (
-	ClusterLivenessPreference_name = map[int32]string{
-		0: "CLUSTER_LIVENESS_PREFERENCE_UNSPECIFIED",
-		1: "CLUSTER_LIVENESS_PREFERENCE_IGNORE",
-		2: "CLUSTER_LIVENESS_PREFERENCE_PREFER_LIVE",
-		3: "CLUSTER_LIVENESS_PREFERENCE_REQUIRE_LIVE",
-	}
-	ClusterLivenessPreference_value = map[string]int32{
-		"CLUSTER_LIVENESS_PREFERENCE_UNSPECIFIED":  0,
-		"CLUSTER_LIVENESS_PREFERENCE_IGNORE":       1,
-		"CLUSTER_LIVENESS_PREFERENCE_PREFER_LIVE":  2,
-		"CLUSTER_LIVENESS_PREFERENCE_REQUIRE_LIVE": 3,
-	}
-)
-
-func (x ClusterLivenessPreference) Enum() *ClusterLivenessPreference {
-	p := new(ClusterLivenessPreference)
-	*p = x
-	return p
-}
-
-func (x ClusterLivenessPreference) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (ClusterLivenessPreference) Descriptor() protoreflect.EnumDescriptor {
-	return file_api_v1_cluster_proto_enumTypes[0].Descriptor()
-}
-
-func (ClusterLivenessPreference) Type() protoreflect.EnumType {
-	return &file_api_v1_cluster_proto_enumTypes[0]
-}
-
-func (x ClusterLivenessPreference) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Use ClusterLivenessPreference.Descriptor instead.
-func (ClusterLivenessPreference) EnumDescriptor() ([]byte, []int) {
-	return file_api_v1_cluster_proto_rawDescGZIP(), []int{0}
-}
-
 // GetClustersBasicInfoRequest is used to fetch basic cluster information for all clusters in a team
 type GetClustersBasicInfoRequest struct {
 	state         protoimpl.MessageState
@@ -179,112 +125,6 @@ func (x *GetClustersBasicInfoResponse) GetClusters() []*Cluster {
 	return nil
 }
 
-// GetClusterBasicInfoRequest is used to fetch basic information for a single cluster
-type GetClusterBasicInfoRequest struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-
-	TeamId    string `protobuf:"bytes,1,opt,name=team_id,json=teamId,proto3" json:"team_id,omitempty"`
-	ClusterId string `protobuf:"bytes,2,opt,name=cluster_id,json=clusterId,proto3" json:"cluster_id,omitempty"`
-}
-
-func (x *GetClusterBasicInfoRequest) Reset() {
-	*x = GetClusterBasicInfoRequest{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_cluster_proto_msgTypes[2]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
-	}
-}
-
-func (x *GetClusterBasicInfoRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*GetClusterBasicInfoRequest) ProtoMessage() {}
-
-func (x *GetClusterBasicInfoRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_cluster_proto_msgTypes[2]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GetClusterBasicInfoRequest.ProtoReflect.Descriptor instead.
-func (*GetClusterBasicInfoRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_cluster_proto_rawDescGZIP(), []int{2}
-}
-
-func (x *GetClusterBasicInfoRequest) GetTeamId() string {
-	if x != nil {
-		return x.TeamId
-	}
-	return ""
-}
-
-func (x *GetClusterBasicInfoRequest) GetClusterId() string {
-	if x != nil {
-		return x.ClusterId
-	}
-	return ""
-}
-
-// GetClusterBasicInfoResponse contains basic information for a single cluster
-// (id, name, displayName/custom_name, cloudProvider, isDisconnected). Mirrors a single
-// entry from GetClustersBasicInfoResponse.clusters — operator versions are NOT included.
-type GetClusterBasicInfoResponse struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-
-	Cluster *Cluster `protobuf:"bytes,1,opt,name=cluster,proto3" json:"cluster,omitempty"`
-}
-
-func (x *GetClusterBasicInfoResponse) Reset() {
-	*x = GetClusterBasicInfoResponse{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_cluster_proto_msgTypes[3]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
-	}
-}
-
-func (x *GetClusterBasicInfoResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*GetClusterBasicInfoResponse) ProtoMessage() {}
-
-func (x *GetClusterBasicInfoResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_cluster_proto_msgTypes[3]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GetClusterBasicInfoResponse.ProtoReflect.Descriptor instead.
-func (*GetClusterBasicInfoResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_cluster_proto_rawDescGZIP(), []int{3}
-}
-
-func (x *GetClusterBasicInfoResponse) GetCluster() *Cluster {
-	if x != nil {
-		return x.Cluster
-	}
-	return nil
-}
-
 // GetClustersWithMetricsRequest is used to fetch clusters with full metrics (optimized version)
 type GetClustersWithMetricsRequest struct {
 	state         protoimpl.MessageState
@@ -302,7 +142,7 @@ type GetClustersWithMetricsRequest struct {
 func (x *GetClustersWithMetricsRequest) Reset() {
 	*x = GetClustersWithMetricsRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_cluster_proto_msgTypes[4]
+		mi := &file_api_v1_cluster_proto_msgTypes[2]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -315,7 +155,7 @@ func (x *GetClustersWithMetricsRequest) String() string {
 func (*GetClustersWithMetricsRequest) ProtoMessage() {}
 
 func (x *GetClustersWithMetricsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_cluster_proto_msgTypes[4]
+	mi := &file_api_v1_cluster_proto_msgTypes[2]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -328,7 +168,7 @@ func (x *GetClustersWithMetricsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetClustersWithMetricsRequest.ProtoReflect.Descriptor instead.
 func (*GetClustersWithMetricsRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_cluster_proto_rawDescGZIP(), []int{4}
+	return file_api_v1_cluster_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *GetClustersWithMetricsRequest) GetTeamId() string {
@@ -390,7 +230,7 @@ type GetClustersWithMetricsResponse struct {
 func (x *GetClustersWithMetricsResponse) Reset() {
 	*x = GetClustersWithMetricsResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_cluster_proto_msgTypes[5]
+		mi := &file_api_v1_cluster_proto_msgTypes[3]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -403,7 +243,7 @@ func (x *GetClustersWithMetricsResponse) String() string {
 func (*GetClustersWithMetricsResponse) ProtoMessage() {}
 
 func (x *GetClustersWithMetricsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_cluster_proto_msgTypes[5]
+	mi := &file_api_v1_cluster_proto_msgTypes[3]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -416,7 +256,7 @@ func (x *GetClustersWithMetricsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetClustersWithMetricsResponse.ProtoReflect.Descriptor instead.
 func (*GetClustersWithMetricsResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_cluster_proto_rawDescGZIP(), []int{5}
+	return file_api_v1_cluster_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *GetClustersWithMetricsResponse) GetClusters() []*Cluster {
@@ -476,7 +316,7 @@ type GetClustersDeltaMetricsRequest struct {
 func (x *GetClustersDeltaMetricsRequest) Reset() {
 	*x = GetClustersDeltaMetricsRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_cluster_proto_msgTypes[6]
+		mi := &file_api_v1_cluster_proto_msgTypes[4]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -489,7 +329,7 @@ func (x *GetClustersDeltaMetricsRequest) String() string {
 func (*GetClustersDeltaMetricsRequest) ProtoMessage() {}
 
 func (x *GetClustersDeltaMetricsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_cluster_proto_msgTypes[6]
+	mi := &file_api_v1_cluster_proto_msgTypes[4]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -502,7 +342,7 @@ func (x *GetClustersDeltaMetricsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetClustersDeltaMetricsRequest.ProtoReflect.Descriptor instead.
 func (*GetClustersDeltaMetricsRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_cluster_proto_rawDescGZIP(), []int{6}
+	return file_api_v1_cluster_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *GetClustersDeltaMetricsRequest) GetTeamId() string {
@@ -547,7 +387,7 @@ type ClusterDeltaMetrics struct {
 func (x *ClusterDeltaMetrics) Reset() {
 	*x = ClusterDeltaMetrics{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_cluster_proto_msgTypes[7]
+		mi := &file_api_v1_cluster_proto_msgTypes[5]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -560,7 +400,7 @@ func (x *ClusterDeltaMetrics) String() string {
 func (*ClusterDeltaMetrics) ProtoMessage() {}
 
 func (x *ClusterDeltaMetrics) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_cluster_proto_msgTypes[7]
+	mi := &file_api_v1_cluster_proto_msgTypes[5]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -573,7 +413,7 @@ func (x *ClusterDeltaMetrics) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClusterDeltaMetrics.ProtoReflect.Descriptor instead.
 func (*ClusterDeltaMetrics) Descriptor() ([]byte, []int) {
-	return file_api_v1_cluster_proto_rawDescGZIP(), []int{7}
+	return file_api_v1_cluster_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *ClusterDeltaMetrics) GetId() string {
@@ -609,7 +449,7 @@ type GetClustersDeltaMetricsResponse struct {
 func (x *GetClustersDeltaMetricsResponse) Reset() {
 	*x = GetClustersDeltaMetricsResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_cluster_proto_msgTypes[8]
+		mi := &file_api_v1_cluster_proto_msgTypes[6]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -622,7 +462,7 @@ func (x *GetClustersDeltaMetricsResponse) String() string {
 func (*GetClustersDeltaMetricsResponse) ProtoMessage() {}
 
 func (x *GetClustersDeltaMetricsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_cluster_proto_msgTypes[8]
+	mi := &file_api_v1_cluster_proto_msgTypes[6]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -635,7 +475,7 @@ func (x *GetClustersDeltaMetricsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetClustersDeltaMetricsResponse.ProtoReflect.Descriptor instead.
 func (*GetClustersDeltaMetricsResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_cluster_proto_rawDescGZIP(), []int{8}
+	return file_api_v1_cluster_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *GetClustersDeltaMetricsResponse) GetClusters() []*ClusterDeltaMetrics {
@@ -658,7 +498,7 @@ type CreateClusterTokenRequest struct {
 func (x *CreateClusterTokenRequest) Reset() {
 	*x = CreateClusterTokenRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_cluster_proto_msgTypes[9]
+		mi := &file_api_v1_cluster_proto_msgTypes[7]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -671,7 +511,7 @@ func (x *CreateClusterTokenRequest) String() string {
 func (*CreateClusterTokenRequest) ProtoMessage() {}
 
 func (x *CreateClusterTokenRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_cluster_proto_msgTypes[9]
+	mi := &file_api_v1_cluster_proto_msgTypes[7]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -684,7 +524,7 @@ func (x *CreateClusterTokenRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateClusterTokenRequest.ProtoReflect.Descriptor instead.
 func (*CreateClusterTokenRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_cluster_proto_rawDescGZIP(), []int{9}
+	return file_api_v1_cluster_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *CreateClusterTokenRequest) GetClusterName() string {
@@ -714,7 +554,7 @@ type CreateClusterTokenResponse struct {
 func (x *CreateClusterTokenResponse) Reset() {
 	*x = CreateClusterTokenResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_cluster_proto_msgTypes[10]
+		mi := &file_api_v1_cluster_proto_msgTypes[8]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -727,7 +567,7 @@ func (x *CreateClusterTokenResponse) String() string {
 func (*CreateClusterTokenResponse) ProtoMessage() {}
 
 func (x *CreateClusterTokenResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_cluster_proto_msgTypes[10]
+	mi := &file_api_v1_cluster_proto_msgTypes[8]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -740,7 +580,7 @@ func (x *CreateClusterTokenResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateClusterTokenResponse.ProtoReflect.Descriptor instead.
 func (*CreateClusterTokenResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_cluster_proto_rawDescGZIP(), []int{10}
+	return file_api_v1_cluster_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *CreateClusterTokenResponse) GetToken() string {
@@ -773,7 +613,7 @@ type GetNetworkDependenciesRequest struct {
 func (x *GetNetworkDependenciesRequest) Reset() {
 	*x = GetNetworkDependenciesRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_cluster_proto_msgTypes[11]
+		mi := &file_api_v1_cluster_proto_msgTypes[9]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -786,7 +626,7 @@ func (x *GetNetworkDependenciesRequest) String() string {
 func (*GetNetworkDependenciesRequest) ProtoMessage() {}
 
 func (x *GetNetworkDependenciesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_cluster_proto_msgTypes[11]
+	mi := &file_api_v1_cluster_proto_msgTypes[9]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -799,7 +639,7 @@ func (x *GetNetworkDependenciesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetNetworkDependenciesRequest.ProtoReflect.Descriptor instead.
 func (*GetNetworkDependenciesRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_cluster_proto_rawDescGZIP(), []int{11}
+	return file_api_v1_cluster_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *GetNetworkDependenciesRequest) GetClusterId() string {
@@ -851,7 +691,7 @@ type WorkloadNode struct {
 func (x *WorkloadNode) Reset() {
 	*x = WorkloadNode{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_cluster_proto_msgTypes[12]
+		mi := &file_api_v1_cluster_proto_msgTypes[10]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -864,7 +704,7 @@ func (x *WorkloadNode) String() string {
 func (*WorkloadNode) ProtoMessage() {}
 
 func (x *WorkloadNode) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_cluster_proto_msgTypes[12]
+	mi := &file_api_v1_cluster_proto_msgTypes[10]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -877,7 +717,7 @@ func (x *WorkloadNode) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorkloadNode.ProtoReflect.Descriptor instead.
 func (*WorkloadNode) Descriptor() ([]byte, []int) {
-	return file_api_v1_cluster_proto_rawDescGZIP(), []int{12}
+	return file_api_v1_cluster_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *WorkloadNode) GetWorkloadName() string {
@@ -914,7 +754,7 @@ type ExternalNode struct {
 func (x *ExternalNode) Reset() {
 	*x = ExternalNode{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_cluster_proto_msgTypes[13]
+		mi := &file_api_v1_cluster_proto_msgTypes[11]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -927,7 +767,7 @@ func (x *ExternalNode) String() string {
 func (*ExternalNode) ProtoMessage() {}
 
 func (x *ExternalNode) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_cluster_proto_msgTypes[13]
+	mi := &file_api_v1_cluster_proto_msgTypes[11]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -940,7 +780,7 @@ func (x *ExternalNode) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExternalNode.ProtoReflect.Descriptor instead.
 func (*ExternalNode) Descriptor() ([]byte, []int) {
-	return file_api_v1_cluster_proto_rawDescGZIP(), []int{13}
+	return file_api_v1_cluster_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *ExternalNode) GetDomain() string {
@@ -970,7 +810,7 @@ type ServiceNode struct {
 func (x *ServiceNode) Reset() {
 	*x = ServiceNode{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_cluster_proto_msgTypes[14]
+		mi := &file_api_v1_cluster_proto_msgTypes[12]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -983,7 +823,7 @@ func (x *ServiceNode) String() string {
 func (*ServiceNode) ProtoMessage() {}
 
 func (x *ServiceNode) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_cluster_proto_msgTypes[14]
+	mi := &file_api_v1_cluster_proto_msgTypes[12]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -996,7 +836,7 @@ func (x *ServiceNode) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServiceNode.ProtoReflect.Descriptor instead.
 func (*ServiceNode) Descriptor() ([]byte, []int) {
-	return file_api_v1_cluster_proto_rawDescGZIP(), []int{14}
+	return file_api_v1_cluster_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *ServiceNode) GetServiceName() string {
@@ -1027,7 +867,7 @@ type CloudResourceNode struct {
 func (x *CloudResourceNode) Reset() {
 	*x = CloudResourceNode{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_cluster_proto_msgTypes[15]
+		mi := &file_api_v1_cluster_proto_msgTypes[13]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1040,7 +880,7 @@ func (x *CloudResourceNode) String() string {
 func (*CloudResourceNode) ProtoMessage() {}
 
 func (x *CloudResourceNode) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_cluster_proto_msgTypes[15]
+	mi := &file_api_v1_cluster_proto_msgTypes[13]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1053,7 +893,7 @@ func (x *CloudResourceNode) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CloudResourceNode.ProtoReflect.Descriptor instead.
 func (*CloudResourceNode) Descriptor() ([]byte, []int) {
-	return file_api_v1_cluster_proto_rawDescGZIP(), []int{15}
+	return file_api_v1_cluster_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *CloudResourceNode) GetDomain() string {
@@ -1098,7 +938,7 @@ type DependencyEdge struct {
 func (x *DependencyEdge) Reset() {
 	*x = DependencyEdge{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_cluster_proto_msgTypes[16]
+		mi := &file_api_v1_cluster_proto_msgTypes[14]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1111,7 +951,7 @@ func (x *DependencyEdge) String() string {
 func (*DependencyEdge) ProtoMessage() {}
 
 func (x *DependencyEdge) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_cluster_proto_msgTypes[16]
+	mi := &file_api_v1_cluster_proto_msgTypes[14]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1124,7 +964,7 @@ func (x *DependencyEdge) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DependencyEdge.ProtoReflect.Descriptor instead.
 func (*DependencyEdge) Descriptor() ([]byte, []int) {
-	return file_api_v1_cluster_proto_rawDescGZIP(), []int{16}
+	return file_api_v1_cluster_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *DependencyEdge) GetSrcWorkload() *WorkloadNode {
@@ -1209,7 +1049,7 @@ type GetNetworkDependenciesResponse struct {
 func (x *GetNetworkDependenciesResponse) Reset() {
 	*x = GetNetworkDependenciesResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_cluster_proto_msgTypes[17]
+		mi := &file_api_v1_cluster_proto_msgTypes[15]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1222,7 +1062,7 @@ func (x *GetNetworkDependenciesResponse) String() string {
 func (*GetNetworkDependenciesResponse) ProtoMessage() {}
 
 func (x *GetNetworkDependenciesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_cluster_proto_msgTypes[17]
+	mi := &file_api_v1_cluster_proto_msgTypes[15]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1235,7 +1075,7 @@ func (x *GetNetworkDependenciesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetNetworkDependenciesResponse.ProtoReflect.Descriptor instead.
 func (*GetNetworkDependenciesResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_cluster_proto_rawDescGZIP(), []int{17}
+	return file_api_v1_cluster_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *GetNetworkDependenciesResponse) GetEdges() []*DependencyEdge {
@@ -1263,7 +1103,7 @@ type GetNetworkMetricsTimeSeriesRequest struct {
 func (x *GetNetworkMetricsTimeSeriesRequest) Reset() {
 	*x = GetNetworkMetricsTimeSeriesRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_cluster_proto_msgTypes[18]
+		mi := &file_api_v1_cluster_proto_msgTypes[16]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1276,7 +1116,7 @@ func (x *GetNetworkMetricsTimeSeriesRequest) String() string {
 func (*GetNetworkMetricsTimeSeriesRequest) ProtoMessage() {}
 
 func (x *GetNetworkMetricsTimeSeriesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_cluster_proto_msgTypes[18]
+	mi := &file_api_v1_cluster_proto_msgTypes[16]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1289,7 +1129,7 @@ func (x *GetNetworkMetricsTimeSeriesRequest) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use GetNetworkMetricsTimeSeriesRequest.ProtoReflect.Descriptor instead.
 func (*GetNetworkMetricsTimeSeriesRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_cluster_proto_rawDescGZIP(), []int{18}
+	return file_api_v1_cluster_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *GetNetworkMetricsTimeSeriesRequest) GetClusterId() string {
@@ -1354,7 +1194,7 @@ type GetNetworkMetricsTimeSeriesResponse struct {
 func (x *GetNetworkMetricsTimeSeriesResponse) Reset() {
 	*x = GetNetworkMetricsTimeSeriesResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_cluster_proto_msgTypes[19]
+		mi := &file_api_v1_cluster_proto_msgTypes[17]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1367,7 +1207,7 @@ func (x *GetNetworkMetricsTimeSeriesResponse) String() string {
 func (*GetNetworkMetricsTimeSeriesResponse) ProtoMessage() {}
 
 func (x *GetNetworkMetricsTimeSeriesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_cluster_proto_msgTypes[19]
+	mi := &file_api_v1_cluster_proto_msgTypes[17]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1380,7 +1220,7 @@ func (x *GetNetworkMetricsTimeSeriesResponse) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use GetNetworkMetricsTimeSeriesResponse.ProtoReflect.Descriptor instead.
 func (*GetNetworkMetricsTimeSeriesResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_cluster_proto_rawDescGZIP(), []int{19}
+	return file_api_v1_cluster_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *GetNetworkMetricsTimeSeriesResponse) GetBuckets() []*NetworkTimeSeriesBucket {
@@ -1412,7 +1252,7 @@ type TimeSeriesZone struct {
 func (x *TimeSeriesZone) Reset() {
 	*x = TimeSeriesZone{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_cluster_proto_msgTypes[20]
+		mi := &file_api_v1_cluster_proto_msgTypes[18]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1425,7 +1265,7 @@ func (x *TimeSeriesZone) String() string {
 func (*TimeSeriesZone) ProtoMessage() {}
 
 func (x *TimeSeriesZone) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_cluster_proto_msgTypes[20]
+	mi := &file_api_v1_cluster_proto_msgTypes[18]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1438,7 +1278,7 @@ func (x *TimeSeriesZone) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TimeSeriesZone.ProtoReflect.Descriptor instead.
 func (*TimeSeriesZone) Descriptor() ([]byte, []int) {
-	return file_api_v1_cluster_proto_rawDescGZIP(), []int{20}
+	return file_api_v1_cluster_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *TimeSeriesZone) GetStartTime() *timestamppb.Timestamp {
@@ -1492,7 +1332,7 @@ type NetworkTimeSeriesBucket struct {
 func (x *NetworkTimeSeriesBucket) Reset() {
 	*x = NetworkTimeSeriesBucket{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_cluster_proto_msgTypes[21]
+		mi := &file_api_v1_cluster_proto_msgTypes[19]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1505,7 +1345,7 @@ func (x *NetworkTimeSeriesBucket) String() string {
 func (*NetworkTimeSeriesBucket) ProtoMessage() {}
 
 func (x *NetworkTimeSeriesBucket) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_cluster_proto_msgTypes[21]
+	mi := &file_api_v1_cluster_proto_msgTypes[19]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1518,7 +1358,7 @@ func (x *NetworkTimeSeriesBucket) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NetworkTimeSeriesBucket.ProtoReflect.Descriptor instead.
 func (*NetworkTimeSeriesBucket) Descriptor() ([]byte, []int) {
-	return file_api_v1_cluster_proto_rawDescGZIP(), []int{21}
+	return file_api_v1_cluster_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *NetworkTimeSeriesBucket) GetTimestamp() *timestamppb.Timestamp {
@@ -1621,7 +1461,7 @@ type NetworkPercentileValues struct {
 func (x *NetworkPercentileValues) Reset() {
 	*x = NetworkPercentileValues{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_cluster_proto_msgTypes[22]
+		mi := &file_api_v1_cluster_proto_msgTypes[20]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1634,7 +1474,7 @@ func (x *NetworkPercentileValues) String() string {
 func (*NetworkPercentileValues) ProtoMessage() {}
 
 func (x *NetworkPercentileValues) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_cluster_proto_msgTypes[22]
+	mi := &file_api_v1_cluster_proto_msgTypes[20]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1647,7 +1487,7 @@ func (x *NetworkPercentileValues) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NetworkPercentileValues.ProtoReflect.Descriptor instead.
 func (*NetworkPercentileValues) Descriptor() ([]byte, []int) {
-	return file_api_v1_cluster_proto_rawDescGZIP(), []int{22}
+	return file_api_v1_cluster_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *NetworkPercentileValues) GetP50() float64 {
@@ -1700,7 +1540,7 @@ type GetNodeTypeCountsRequest struct {
 func (x *GetNodeTypeCountsRequest) Reset() {
 	*x = GetNodeTypeCountsRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_cluster_proto_msgTypes[23]
+		mi := &file_api_v1_cluster_proto_msgTypes[21]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1713,7 +1553,7 @@ func (x *GetNodeTypeCountsRequest) String() string {
 func (*GetNodeTypeCountsRequest) ProtoMessage() {}
 
 func (x *GetNodeTypeCountsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_cluster_proto_msgTypes[23]
+	mi := &file_api_v1_cluster_proto_msgTypes[21]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1726,7 +1566,7 @@ func (x *GetNodeTypeCountsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetNodeTypeCountsRequest.ProtoReflect.Descriptor instead.
 func (*GetNodeTypeCountsRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_cluster_proto_rawDescGZIP(), []int{23}
+	return file_api_v1_cluster_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *GetNodeTypeCountsRequest) GetTeamId() string {
@@ -1769,7 +1609,7 @@ type GetNodeTypeCountsResponse struct {
 func (x *GetNodeTypeCountsResponse) Reset() {
 	*x = GetNodeTypeCountsResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_cluster_proto_msgTypes[24]
+		mi := &file_api_v1_cluster_proto_msgTypes[22]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1782,7 +1622,7 @@ func (x *GetNodeTypeCountsResponse) String() string {
 func (*GetNodeTypeCountsResponse) ProtoMessage() {}
 
 func (x *GetNodeTypeCountsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_cluster_proto_msgTypes[24]
+	mi := &file_api_v1_cluster_proto_msgTypes[22]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1795,7 +1635,7 @@ func (x *GetNodeTypeCountsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetNodeTypeCountsResponse.ProtoReflect.Descriptor instead.
 func (*GetNodeTypeCountsResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_cluster_proto_rawDescGZIP(), []int{24}
+	return file_api_v1_cluster_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *GetNodeTypeCountsResponse) GetNodeInfo() *NodeInfo {
@@ -1811,17 +1651,14 @@ type GetClusterIDByNameRequest struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	TeamId        string                     `protobuf:"bytes,1,opt,name=team_id,json=teamId,proto3" json:"team_id,omitempty"`
-	Name          string                     `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	Region        *string                    `protobuf:"bytes,3,opt,name=region,proto3,oneof" json:"region,omitempty"`                                    // e.g. "us-east-1" — joined against regions.name
-	CloudProvider *string                    `protobuf:"bytes,4,opt,name=cloud_provider,json=cloudProvider,proto3,oneof" json:"cloud_provider,omitempty"` // e.g. "aws"      — joined against cloud_providers.name
-	Liveness      *ClusterLivenessPreference `protobuf:"varint,5,opt,name=liveness,proto3,enum=api.v1.ClusterLivenessPreference,oneof" json:"liveness,omitempty"`
+	TeamId string `protobuf:"bytes,1,opt,name=team_id,json=teamId,proto3" json:"team_id,omitempty"`
+	Name   string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
 }
 
 func (x *GetClusterIDByNameRequest) Reset() {
 	*x = GetClusterIDByNameRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_cluster_proto_msgTypes[25]
+		mi := &file_api_v1_cluster_proto_msgTypes[23]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1834,7 +1671,7 @@ func (x *GetClusterIDByNameRequest) String() string {
 func (*GetClusterIDByNameRequest) ProtoMessage() {}
 
 func (x *GetClusterIDByNameRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_cluster_proto_msgTypes[25]
+	mi := &file_api_v1_cluster_proto_msgTypes[23]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1847,7 +1684,7 @@ func (x *GetClusterIDByNameRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetClusterIDByNameRequest.ProtoReflect.Descriptor instead.
 func (*GetClusterIDByNameRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_cluster_proto_rawDescGZIP(), []int{25}
+	return file_api_v1_cluster_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *GetClusterIDByNameRequest) GetTeamId() string {
@@ -1864,27 +1701,6 @@ func (x *GetClusterIDByNameRequest) GetName() string {
 	return ""
 }
 
-func (x *GetClusterIDByNameRequest) GetRegion() string {
-	if x != nil && x.Region != nil {
-		return *x.Region
-	}
-	return ""
-}
-
-func (x *GetClusterIDByNameRequest) GetCloudProvider() string {
-	if x != nil && x.CloudProvider != nil {
-		return *x.CloudProvider
-	}
-	return ""
-}
-
-func (x *GetClusterIDByNameRequest) GetLiveness() ClusterLivenessPreference {
-	if x != nil && x.Liveness != nil {
-		return *x.Liveness
-	}
-	return ClusterLivenessPreference_CLUSTER_LIVENESS_PREFERENCE_UNSPECIFIED
-}
-
 // GetClusterIDByNameResponse returns just the cluster ID
 type GetClusterIDByNameResponse struct {
 	state         protoimpl.MessageState
@@ -1897,7 +1713,7 @@ type GetClusterIDByNameResponse struct {
 func (x *GetClusterIDByNameResponse) Reset() {
 	*x = GetClusterIDByNameResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_cluster_proto_msgTypes[26]
+		mi := &file_api_v1_cluster_proto_msgTypes[24]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1910,7 +1726,7 @@ func (x *GetClusterIDByNameResponse) String() string {
 func (*GetClusterIDByNameResponse) ProtoMessage() {}
 
 func (x *GetClusterIDByNameResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_cluster_proto_msgTypes[26]
+	mi := &file_api_v1_cluster_proto_msgTypes[24]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1923,7 +1739,7 @@ func (x *GetClusterIDByNameResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetClusterIDByNameResponse.ProtoReflect.Descriptor instead.
 func (*GetClusterIDByNameResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_cluster_proto_rawDescGZIP(), []int{26}
+	return file_api_v1_cluster_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *GetClusterIDByNameResponse) GetId() string {
@@ -1946,7 +1762,7 @@ type GetClusterInfoByNameRequest struct {
 func (x *GetClusterInfoByNameRequest) Reset() {
 	*x = GetClusterInfoByNameRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_cluster_proto_msgTypes[27]
+		mi := &file_api_v1_cluster_proto_msgTypes[25]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1959,7 +1775,7 @@ func (x *GetClusterInfoByNameRequest) String() string {
 func (*GetClusterInfoByNameRequest) ProtoMessage() {}
 
 func (x *GetClusterInfoByNameRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_cluster_proto_msgTypes[27]
+	mi := &file_api_v1_cluster_proto_msgTypes[25]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1972,7 +1788,7 @@ func (x *GetClusterInfoByNameRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetClusterInfoByNameRequest.ProtoReflect.Descriptor instead.
 func (*GetClusterInfoByNameRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_cluster_proto_rawDescGZIP(), []int{27}
+	return file_api_v1_cluster_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *GetClusterInfoByNameRequest) GetTeamId() string {
@@ -2001,7 +1817,7 @@ type GetClusterInfoByNameResponse struct {
 func (x *GetClusterInfoByNameResponse) Reset() {
 	*x = GetClusterInfoByNameResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_cluster_proto_msgTypes[28]
+		mi := &file_api_v1_cluster_proto_msgTypes[26]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2014,7 +1830,7 @@ func (x *GetClusterInfoByNameResponse) String() string {
 func (*GetClusterInfoByNameResponse) ProtoMessage() {}
 
 func (x *GetClusterInfoByNameResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_cluster_proto_msgTypes[28]
+	mi := &file_api_v1_cluster_proto_msgTypes[26]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2027,7 +1843,7 @@ func (x *GetClusterInfoByNameResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetClusterInfoByNameResponse.ProtoReflect.Descriptor instead.
 func (*GetClusterInfoByNameResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_cluster_proto_rawDescGZIP(), []int{28}
+	return file_api_v1_cluster_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *GetClusterInfoByNameResponse) GetCluster() *Cluster {
@@ -2057,16 +1873,6 @@ var file_api_v1_cluster_proto_rawDesc = []byte{
 	0x6e, 0x73, 0x65, 0x12, 0x2b, 0x0a, 0x08, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x73, 0x18,
 	0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x0f, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x43,
 	0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x52, 0x08, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x73,
-	0x22, 0x54, 0x0a, 0x1a, 0x47, 0x65, 0x74, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x42, 0x61,
-	0x73, 0x69, 0x63, 0x49, 0x6e, 0x66, 0x6f, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x17,
-	0x0a, 0x07, 0x74, 0x65, 0x61, 0x6d, 0x5f, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52,
-	0x06, 0x74, 0x65, 0x61, 0x6d, 0x49, 0x64, 0x12, 0x1d, 0x0a, 0x0a, 0x63, 0x6c, 0x75, 0x73, 0x74,
-	0x65, 0x72, 0x5f, 0x69, 0x64, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x09, 0x63, 0x6c, 0x75,
-	0x73, 0x74, 0x65, 0x72, 0x49, 0x64, 0x22, 0x48, 0x0a, 0x1b, 0x47, 0x65, 0x74, 0x43, 0x6c, 0x75,
-	0x73, 0x74, 0x65, 0x72, 0x42, 0x61, 0x73, 0x69, 0x63, 0x49, 0x6e, 0x66, 0x6f, 0x52, 0x65, 0x73,
-	0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x29, 0x0a, 0x07, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72,
-	0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x0f, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e,
-	0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x52, 0x07, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72,
 	0x22, 0xe3, 0x02, 0x0a, 0x1d, 0x47, 0x65, 0x74, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x73,
 	0x57, 0x69, 0x74, 0x68, 0x4d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65,
 	0x73, 0x74, 0x12, 0x17, 0x0a, 0x07, 0x74, 0x65, 0x61, 0x6d, 0x5f, 0x69, 0x64, 0x18, 0x01, 0x20,
@@ -2331,121 +2137,91 @@ var file_api_v1_cluster_proto_rawDesc = []byte{
 	0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x2d, 0x0a, 0x09, 0x6e, 0x6f, 0x64, 0x65, 0x5f,
 	0x69, 0x6e, 0x66, 0x6f, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x10, 0x2e, 0x61, 0x70, 0x69,
 	0x2e, 0x76, 0x31, 0x2e, 0x4e, 0x6f, 0x64, 0x65, 0x49, 0x6e, 0x66, 0x6f, 0x52, 0x08, 0x6e, 0x6f,
-	0x64, 0x65, 0x49, 0x6e, 0x66, 0x6f, 0x22, 0x80, 0x02, 0x0a, 0x19, 0x47, 0x65, 0x74, 0x43, 0x6c,
-	0x75, 0x73, 0x74, 0x65, 0x72, 0x49, 0x44, 0x42, 0x79, 0x4e, 0x61, 0x6d, 0x65, 0x52, 0x65, 0x71,
-	0x75, 0x65, 0x73, 0x74, 0x12, 0x17, 0x0a, 0x07, 0x74, 0x65, 0x61, 0x6d, 0x5f, 0x69, 0x64, 0x18,
-	0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x74, 0x65, 0x61, 0x6d, 0x49, 0x64, 0x12, 0x12, 0x0a,
-	0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x6e, 0x61, 0x6d,
-	0x65, 0x12, 0x1b, 0x0a, 0x06, 0x72, 0x65, 0x67, 0x69, 0x6f, 0x6e, 0x18, 0x03, 0x20, 0x01, 0x28,
-	0x09, 0x48, 0x00, 0x52, 0x06, 0x72, 0x65, 0x67, 0x69, 0x6f, 0x6e, 0x88, 0x01, 0x01, 0x12, 0x2a,
-	0x0a, 0x0e, 0x63, 0x6c, 0x6f, 0x75, 0x64, 0x5f, 0x70, 0x72, 0x6f, 0x76, 0x69, 0x64, 0x65, 0x72,
-	0x18, 0x04, 0x20, 0x01, 0x28, 0x09, 0x48, 0x01, 0x52, 0x0d, 0x63, 0x6c, 0x6f, 0x75, 0x64, 0x50,
-	0x72, 0x6f, 0x76, 0x69, 0x64, 0x65, 0x72, 0x88, 0x01, 0x01, 0x12, 0x42, 0x0a, 0x08, 0x6c, 0x69,
-	0x76, 0x65, 0x6e, 0x65, 0x73, 0x73, 0x18, 0x05, 0x20, 0x01, 0x28, 0x0e, 0x32, 0x21, 0x2e, 0x61,
-	0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x4c, 0x69, 0x76,
-	0x65, 0x6e, 0x65, 0x73, 0x73, 0x50, 0x72, 0x65, 0x66, 0x65, 0x72, 0x65, 0x6e, 0x63, 0x65, 0x48,
-	0x02, 0x52, 0x08, 0x6c, 0x69, 0x76, 0x65, 0x6e, 0x65, 0x73, 0x73, 0x88, 0x01, 0x01, 0x42, 0x09,
-	0x0a, 0x07, 0x5f, 0x72, 0x65, 0x67, 0x69, 0x6f, 0x6e, 0x42, 0x11, 0x0a, 0x0f, 0x5f, 0x63, 0x6c,
-	0x6f, 0x75, 0x64, 0x5f, 0x70, 0x72, 0x6f, 0x76, 0x69, 0x64, 0x65, 0x72, 0x42, 0x0b, 0x0a, 0x09,
-	0x5f, 0x6c, 0x69, 0x76, 0x65, 0x6e, 0x65, 0x73, 0x73, 0x22, 0x2c, 0x0a, 0x1a, 0x47, 0x65, 0x74,
-	0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x49, 0x44, 0x42, 0x79, 0x4e, 0x61, 0x6d, 0x65, 0x52,
-	0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x0e, 0x0a, 0x02, 0x69, 0x64, 0x18, 0x01, 0x20,
-	0x01, 0x28, 0x09, 0x52, 0x02, 0x69, 0x64, 0x22, 0x4a, 0x0a, 0x1b, 0x47, 0x65, 0x74, 0x43, 0x6c,
-	0x75, 0x73, 0x74, 0x65, 0x72, 0x49, 0x6e, 0x66, 0x6f, 0x42, 0x79, 0x4e, 0x61, 0x6d, 0x65, 0x52,
-	0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x17, 0x0a, 0x07, 0x74, 0x65, 0x61, 0x6d, 0x5f, 0x69,
-	0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x74, 0x65, 0x61, 0x6d, 0x49, 0x64, 0x12,
-	0x12, 0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x6e,
-	0x61, 0x6d, 0x65, 0x22, 0x49, 0x0a, 0x1c, 0x47, 0x65, 0x74, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65,
-	0x72, 0x49, 0x6e, 0x66, 0x6f, 0x42, 0x79, 0x4e, 0x61, 0x6d, 0x65, 0x52, 0x65, 0x73, 0x70, 0x6f,
-	0x6e, 0x73, 0x65, 0x12, 0x29, 0x0a, 0x07, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x18, 0x01,
-	0x20, 0x01, 0x28, 0x0b, 0x32, 0x0f, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x43, 0x6c,
-	0x75, 0x73, 0x74, 0x65, 0x72, 0x52, 0x07, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x2a, 0xcb,
-	0x01, 0x0a, 0x19, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x4c, 0x69, 0x76, 0x65, 0x6e, 0x65,
-	0x73, 0x73, 0x50, 0x72, 0x65, 0x66, 0x65, 0x72, 0x65, 0x6e, 0x63, 0x65, 0x12, 0x2b, 0x0a, 0x27,
-	0x43, 0x4c, 0x55, 0x53, 0x54, 0x45, 0x52, 0x5f, 0x4c, 0x49, 0x56, 0x45, 0x4e, 0x45, 0x53, 0x53,
-	0x5f, 0x50, 0x52, 0x45, 0x46, 0x45, 0x52, 0x45, 0x4e, 0x43, 0x45, 0x5f, 0x55, 0x4e, 0x53, 0x50,
-	0x45, 0x43, 0x49, 0x46, 0x49, 0x45, 0x44, 0x10, 0x00, 0x12, 0x26, 0x0a, 0x22, 0x43, 0x4c, 0x55,
-	0x53, 0x54, 0x45, 0x52, 0x5f, 0x4c, 0x49, 0x56, 0x45, 0x4e, 0x45, 0x53, 0x53, 0x5f, 0x50, 0x52,
-	0x45, 0x46, 0x45, 0x52, 0x45, 0x4e, 0x43, 0x45, 0x5f, 0x49, 0x47, 0x4e, 0x4f, 0x52, 0x45, 0x10,
-	0x01, 0x12, 0x2b, 0x0a, 0x27, 0x43, 0x4c, 0x55, 0x53, 0x54, 0x45, 0x52, 0x5f, 0x4c, 0x49, 0x56,
-	0x45, 0x4e, 0x45, 0x53, 0x53, 0x5f, 0x50, 0x52, 0x45, 0x46, 0x45, 0x52, 0x45, 0x4e, 0x43, 0x45,
-	0x5f, 0x50, 0x52, 0x45, 0x46, 0x45, 0x52, 0x5f, 0x4c, 0x49, 0x56, 0x45, 0x10, 0x02, 0x12, 0x2c,
-	0x0a, 0x28, 0x43, 0x4c, 0x55, 0x53, 0x54, 0x45, 0x52, 0x5f, 0x4c, 0x49, 0x56, 0x45, 0x4e, 0x45,
-	0x53, 0x53, 0x5f, 0x50, 0x52, 0x45, 0x46, 0x45, 0x52, 0x45, 0x4e, 0x43, 0x45, 0x5f, 0x52, 0x45,
-	0x51, 0x55, 0x49, 0x52, 0x45, 0x5f, 0x4c, 0x49, 0x56, 0x45, 0x10, 0x03, 0x32, 0x80, 0x08, 0x0a,
-	0x0e, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x12,
-	0x61, 0x0a, 0x14, 0x47, 0x65, 0x74, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x73, 0x42, 0x61,
-	0x73, 0x69, 0x63, 0x49, 0x6e, 0x66, 0x6f, 0x12, 0x23, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31,
-	0x2e, 0x47, 0x65, 0x74, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x73, 0x42, 0x61, 0x73, 0x69,
-	0x63, 0x49, 0x6e, 0x66, 0x6f, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x24, 0x2e, 0x61,
+	0x64, 0x65, 0x49, 0x6e, 0x66, 0x6f, 0x22, 0x48, 0x0a, 0x19, 0x47, 0x65, 0x74, 0x43, 0x6c, 0x75,
+	0x73, 0x74, 0x65, 0x72, 0x49, 0x44, 0x42, 0x79, 0x4e, 0x61, 0x6d, 0x65, 0x52, 0x65, 0x71, 0x75,
+	0x65, 0x73, 0x74, 0x12, 0x17, 0x0a, 0x07, 0x74, 0x65, 0x61, 0x6d, 0x5f, 0x69, 0x64, 0x18, 0x01,
+	0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x74, 0x65, 0x61, 0x6d, 0x49, 0x64, 0x12, 0x12, 0x0a, 0x04,
+	0x6e, 0x61, 0x6d, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x6e, 0x61, 0x6d, 0x65,
+	0x22, 0x2c, 0x0a, 0x1a, 0x47, 0x65, 0x74, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x49, 0x44,
+	0x42, 0x79, 0x4e, 0x61, 0x6d, 0x65, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x0e,
+	0x0a, 0x02, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x02, 0x69, 0x64, 0x22, 0x4a,
+	0x0a, 0x1b, 0x47, 0x65, 0x74, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x49, 0x6e, 0x66, 0x6f,
+	0x42, 0x79, 0x4e, 0x61, 0x6d, 0x65, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x17, 0x0a,
+	0x07, 0x74, 0x65, 0x61, 0x6d, 0x5f, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06,
+	0x74, 0x65, 0x61, 0x6d, 0x49, 0x64, 0x12, 0x12, 0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x02,
+	0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x22, 0x49, 0x0a, 0x1c, 0x47, 0x65,
+	0x74, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x49, 0x6e, 0x66, 0x6f, 0x42, 0x79, 0x4e, 0x61,
+	0x6d, 0x65, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x29, 0x0a, 0x07, 0x63, 0x6c,
+	0x75, 0x73, 0x74, 0x65, 0x72, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x0f, 0x2e, 0x61, 0x70,
+	0x69, 0x2e, 0x76, 0x31, 0x2e, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x52, 0x07, 0x63, 0x6c,
+	0x75, 0x73, 0x74, 0x65, 0x72, 0x32, 0xa0, 0x07, 0x0a, 0x0e, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65,
+	0x72, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x12, 0x61, 0x0a, 0x14, 0x47, 0x65, 0x74, 0x43,
+	0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x73, 0x42, 0x61, 0x73, 0x69, 0x63, 0x49, 0x6e, 0x66, 0x6f,
+	0x12, 0x23, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x43, 0x6c, 0x75,
+	0x73, 0x74, 0x65, 0x72, 0x73, 0x42, 0x61, 0x73, 0x69, 0x63, 0x49, 0x6e, 0x66, 0x6f, 0x52, 0x65,
+	0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x24, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47,
+	0x65, 0x74, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x73, 0x42, 0x61, 0x73, 0x69, 0x63, 0x49,
+	0x6e, 0x66, 0x6f, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x67, 0x0a, 0x16, 0x47,
+	0x65, 0x74, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x73, 0x57, 0x69, 0x74, 0x68, 0x4d, 0x65,
+	0x74, 0x72, 0x69, 0x63, 0x73, 0x12, 0x25, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47,
+	0x65, 0x74, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x73, 0x57, 0x69, 0x74, 0x68, 0x4d, 0x65,
+	0x74, 0x72, 0x69, 0x63, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x26, 0x2e, 0x61,
 	0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72,
-	0x73, 0x42, 0x61, 0x73, 0x69, 0x63, 0x49, 0x6e, 0x66, 0x6f, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e,
-	0x73, 0x65, 0x12, 0x5e, 0x0a, 0x13, 0x47, 0x65, 0x74, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72,
-	0x42, 0x61, 0x73, 0x69, 0x63, 0x49, 0x6e, 0x66, 0x6f, 0x12, 0x22, 0x2e, 0x61, 0x70, 0x69, 0x2e,
-	0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x42, 0x61, 0x73,
-	0x69, 0x63, 0x49, 0x6e, 0x66, 0x6f, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x23, 0x2e,
-	0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65,
-	0x72, 0x42, 0x61, 0x73, 0x69, 0x63, 0x49, 0x6e, 0x66, 0x6f, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e,
-	0x73, 0x65, 0x12, 0x67, 0x0a, 0x16, 0x47, 0x65, 0x74, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72,
-	0x73, 0x57, 0x69, 0x74, 0x68, 0x4d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73, 0x12, 0x25, 0x2e, 0x61,
+	0x73, 0x57, 0x69, 0x74, 0x68, 0x4d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73, 0x52, 0x65, 0x73, 0x70,
+	0x6f, 0x6e, 0x73, 0x65, 0x12, 0x5b, 0x0a, 0x12, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x43, 0x6c,
+	0x75, 0x73, 0x74, 0x65, 0x72, 0x54, 0x6f, 0x6b, 0x65, 0x6e, 0x12, 0x21, 0x2e, 0x61, 0x70, 0x69,
+	0x2e, 0x76, 0x31, 0x2e, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65,
+	0x72, 0x54, 0x6f, 0x6b, 0x65, 0x6e, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x22, 0x2e,
+	0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x43, 0x6c, 0x75,
+	0x73, 0x74, 0x65, 0x72, 0x54, 0x6f, 0x6b, 0x65, 0x6e, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73,
+	0x65, 0x12, 0x6a, 0x0a, 0x17, 0x47, 0x65, 0x74, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x73,
+	0x44, 0x65, 0x6c, 0x74, 0x61, 0x4d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73, 0x12, 0x26, 0x2e, 0x61,
 	0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72,
-	0x73, 0x57, 0x69, 0x74, 0x68, 0x4d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73, 0x52, 0x65, 0x71, 0x75,
-	0x65, 0x73, 0x74, 0x1a, 0x26, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74,
-	0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x73, 0x57, 0x69, 0x74, 0x68, 0x4d, 0x65, 0x74, 0x72,
-	0x69, 0x63, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x5b, 0x0a, 0x12, 0x43,
-	0x72, 0x65, 0x61, 0x74, 0x65, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x54, 0x6f, 0x6b, 0x65,
-	0x6e, 0x12, 0x21, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x43, 0x72, 0x65, 0x61, 0x74,
-	0x65, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x54, 0x6f, 0x6b, 0x65, 0x6e, 0x52, 0x65, 0x71,
-	0x75, 0x65, 0x73, 0x74, 0x1a, 0x22, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x43, 0x72,
-	0x65, 0x61, 0x74, 0x65, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x54, 0x6f, 0x6b, 0x65, 0x6e,
-	0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x6a, 0x0a, 0x17, 0x47, 0x65, 0x74, 0x43,
-	0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x73, 0x44, 0x65, 0x6c, 0x74, 0x61, 0x4d, 0x65, 0x74, 0x72,
-	0x69, 0x63, 0x73, 0x12, 0x26, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74,
-	0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x73, 0x44, 0x65, 0x6c, 0x74, 0x61, 0x4d, 0x65, 0x74,
-	0x72, 0x69, 0x63, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x27, 0x2e, 0x61, 0x70,
-	0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x73,
-	0x44, 0x65, 0x6c, 0x74, 0x61, 0x4d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73, 0x52, 0x65, 0x73, 0x70,
-	0x6f, 0x6e, 0x73, 0x65, 0x12, 0x67, 0x0a, 0x16, 0x47, 0x65, 0x74, 0x4e, 0x65, 0x74, 0x77, 0x6f,
-	0x72, 0x6b, 0x44, 0x65, 0x70, 0x65, 0x6e, 0x64, 0x65, 0x6e, 0x63, 0x69, 0x65, 0x73, 0x12, 0x25,
+	0x73, 0x44, 0x65, 0x6c, 0x74, 0x61, 0x4d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73, 0x52, 0x65, 0x71,
+	0x75, 0x65, 0x73, 0x74, 0x1a, 0x27, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65,
+	0x74, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x73, 0x44, 0x65, 0x6c, 0x74, 0x61, 0x4d, 0x65,
+	0x74, 0x72, 0x69, 0x63, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x67, 0x0a,
+	0x16, 0x47, 0x65, 0x74, 0x4e, 0x65, 0x74, 0x77, 0x6f, 0x72, 0x6b, 0x44, 0x65, 0x70, 0x65, 0x6e,
+	0x64, 0x65, 0x6e, 0x63, 0x69, 0x65, 0x73, 0x12, 0x25, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31,
+	0x2e, 0x47, 0x65, 0x74, 0x4e, 0x65, 0x74, 0x77, 0x6f, 0x72, 0x6b, 0x44, 0x65, 0x70, 0x65, 0x6e,
+	0x64, 0x65, 0x6e, 0x63, 0x69, 0x65, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x26,
 	0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x4e, 0x65, 0x74, 0x77, 0x6f,
 	0x72, 0x6b, 0x44, 0x65, 0x70, 0x65, 0x6e, 0x64, 0x65, 0x6e, 0x63, 0x69, 0x65, 0x73, 0x52, 0x65,
-	0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x26, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47,
-	0x65, 0x74, 0x4e, 0x65, 0x74, 0x77, 0x6f, 0x72, 0x6b, 0x44, 0x65, 0x70, 0x65, 0x6e, 0x64, 0x65,
-	0x6e, 0x63, 0x69, 0x65, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x76, 0x0a,
-	0x1b, 0x47, 0x65, 0x74, 0x4e, 0x65, 0x74, 0x77, 0x6f, 0x72, 0x6b, 0x4d, 0x65, 0x74, 0x72, 0x69,
-	0x63, 0x73, 0x54, 0x69, 0x6d, 0x65, 0x53, 0x65, 0x72, 0x69, 0x65, 0x73, 0x12, 0x2a, 0x2e, 0x61,
-	0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x4e, 0x65, 0x74, 0x77, 0x6f, 0x72, 0x6b,
-	0x4d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73, 0x54, 0x69, 0x6d, 0x65, 0x53, 0x65, 0x72, 0x69, 0x65,
-	0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x2b, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76,
-	0x31, 0x2e, 0x47, 0x65, 0x74, 0x4e, 0x65, 0x74, 0x77, 0x6f, 0x72, 0x6b, 0x4d, 0x65, 0x74, 0x72,
-	0x69, 0x63, 0x73, 0x54, 0x69, 0x6d, 0x65, 0x53, 0x65, 0x72, 0x69, 0x65, 0x73, 0x52, 0x65, 0x73,
-	0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x58, 0x0a, 0x11, 0x47, 0x65, 0x74, 0x4e, 0x6f, 0x64, 0x65,
-	0x54, 0x79, 0x70, 0x65, 0x43, 0x6f, 0x75, 0x6e, 0x74, 0x73, 0x12, 0x20, 0x2e, 0x61, 0x70, 0x69,
-	0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x4e, 0x6f, 0x64, 0x65, 0x54, 0x79, 0x70, 0x65, 0x43,
-	0x6f, 0x75, 0x6e, 0x74, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x21, 0x2e, 0x61,
-	0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x4e, 0x6f, 0x64, 0x65, 0x54, 0x79, 0x70,
-	0x65, 0x43, 0x6f, 0x75, 0x6e, 0x74, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12,
-	0x5b, 0x0a, 0x12, 0x47, 0x65, 0x74, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x49, 0x44, 0x42,
-	0x79, 0x4e, 0x61, 0x6d, 0x65, 0x12, 0x21, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47,
-	0x65, 0x74, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x49, 0x44, 0x42, 0x79, 0x4e, 0x61, 0x6d,
-	0x65, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x22, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76,
-	0x31, 0x2e, 0x47, 0x65, 0x74, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x49, 0x44, 0x42, 0x79,
-	0x4e, 0x61, 0x6d, 0x65, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x61, 0x0a, 0x14,
-	0x47, 0x65, 0x74, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x49, 0x6e, 0x66, 0x6f, 0x42, 0x79,
-	0x4e, 0x61, 0x6d, 0x65, 0x12, 0x23, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65,
-	0x74, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x49, 0x6e, 0x66, 0x6f, 0x42, 0x79, 0x4e, 0x61,
-	0x6d, 0x65, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x24, 0x2e, 0x61, 0x70, 0x69, 0x2e,
-	0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x49, 0x6e, 0x66,
-	0x6f, 0x42, 0x79, 0x4e, 0x61, 0x6d, 0x65, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x42,
-	0x85, 0x01, 0x0a, 0x0a, 0x63, 0x6f, 0x6d, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x42, 0x0c,
-	0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x50, 0x72, 0x6f, 0x74, 0x6f, 0x50, 0x01, 0x5a, 0x30,
-	0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x64, 0x65, 0x76, 0x7a, 0x65,
-	0x72, 0x6f, 0x2d, 0x69, 0x6e, 0x63, 0x2f, 0x7a, 0x78, 0x70, 0x6f, 0x72, 0x74, 0x65, 0x72, 0x2f,
-	0x67, 0x65, 0x6e, 0x2f, 0x61, 0x70, 0x69, 0x2f, 0x76, 0x31, 0x3b, 0x61, 0x70, 0x69, 0x76, 0x31,
-	0xa2, 0x02, 0x03, 0x41, 0x58, 0x58, 0xaa, 0x02, 0x06, 0x41, 0x70, 0x69, 0x2e, 0x56, 0x31, 0xca,
-	0x02, 0x06, 0x41, 0x70, 0x69, 0x5c, 0x56, 0x31, 0xe2, 0x02, 0x12, 0x41, 0x70, 0x69, 0x5c, 0x56,
-	0x31, 0x5c, 0x47, 0x50, 0x42, 0x4d, 0x65, 0x74, 0x61, 0x64, 0x61, 0x74, 0x61, 0xea, 0x02, 0x07,
-	0x41, 0x70, 0x69, 0x3a, 0x3a, 0x56, 0x31, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x76, 0x0a, 0x1b, 0x47, 0x65, 0x74, 0x4e, 0x65, 0x74,
+	0x77, 0x6f, 0x72, 0x6b, 0x4d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73, 0x54, 0x69, 0x6d, 0x65, 0x53,
+	0x65, 0x72, 0x69, 0x65, 0x73, 0x12, 0x2a, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47,
+	0x65, 0x74, 0x4e, 0x65, 0x74, 0x77, 0x6f, 0x72, 0x6b, 0x4d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73,
+	0x54, 0x69, 0x6d, 0x65, 0x53, 0x65, 0x72, 0x69, 0x65, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73,
+	0x74, 0x1a, 0x2b, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x4e, 0x65,
+	0x74, 0x77, 0x6f, 0x72, 0x6b, 0x4d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73, 0x54, 0x69, 0x6d, 0x65,
+	0x53, 0x65, 0x72, 0x69, 0x65, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x58,
+	0x0a, 0x11, 0x47, 0x65, 0x74, 0x4e, 0x6f, 0x64, 0x65, 0x54, 0x79, 0x70, 0x65, 0x43, 0x6f, 0x75,
+	0x6e, 0x74, 0x73, 0x12, 0x20, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74,
+	0x4e, 0x6f, 0x64, 0x65, 0x54, 0x79, 0x70, 0x65, 0x43, 0x6f, 0x75, 0x6e, 0x74, 0x73, 0x52, 0x65,
+	0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x21, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47,
+	0x65, 0x74, 0x4e, 0x6f, 0x64, 0x65, 0x54, 0x79, 0x70, 0x65, 0x43, 0x6f, 0x75, 0x6e, 0x74, 0x73,
+	0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x5b, 0x0a, 0x12, 0x47, 0x65, 0x74, 0x43,
+	0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x49, 0x44, 0x42, 0x79, 0x4e, 0x61, 0x6d, 0x65, 0x12, 0x21,
+	0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x43, 0x6c, 0x75, 0x73, 0x74,
+	0x65, 0x72, 0x49, 0x44, 0x42, 0x79, 0x4e, 0x61, 0x6d, 0x65, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73,
+	0x74, 0x1a, 0x22, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x43, 0x6c,
+	0x75, 0x73, 0x74, 0x65, 0x72, 0x49, 0x44, 0x42, 0x79, 0x4e, 0x61, 0x6d, 0x65, 0x52, 0x65, 0x73,
+	0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x61, 0x0a, 0x14, 0x47, 0x65, 0x74, 0x43, 0x6c, 0x75, 0x73,
+	0x74, 0x65, 0x72, 0x49, 0x6e, 0x66, 0x6f, 0x42, 0x79, 0x4e, 0x61, 0x6d, 0x65, 0x12, 0x23, 0x2e,
+	0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65,
+	0x72, 0x49, 0x6e, 0x66, 0x6f, 0x42, 0x79, 0x4e, 0x61, 0x6d, 0x65, 0x52, 0x65, 0x71, 0x75, 0x65,
+	0x73, 0x74, 0x1a, 0x24, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x43,
+	0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x49, 0x6e, 0x66, 0x6f, 0x42, 0x79, 0x4e, 0x61, 0x6d, 0x65,
+	0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x42, 0x85, 0x01, 0x0a, 0x0a, 0x63, 0x6f, 0x6d,
+	0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x42, 0x0c, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72,
+	0x50, 0x72, 0x6f, 0x74, 0x6f, 0x50, 0x01, 0x5a, 0x30, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e,
+	0x63, 0x6f, 0x6d, 0x2f, 0x64, 0x65, 0x76, 0x7a, 0x65, 0x72, 0x6f, 0x2d, 0x69, 0x6e, 0x63, 0x2f,
+	0x7a, 0x78, 0x70, 0x6f, 0x72, 0x74, 0x65, 0x72, 0x2f, 0x67, 0x65, 0x6e, 0x2f, 0x61, 0x70, 0x69,
+	0x2f, 0x76, 0x31, 0x3b, 0x61, 0x70, 0x69, 0x76, 0x31, 0xa2, 0x02, 0x03, 0x41, 0x58, 0x58, 0xaa,
+	0x02, 0x06, 0x41, 0x70, 0x69, 0x2e, 0x56, 0x31, 0xca, 0x02, 0x06, 0x41, 0x70, 0x69, 0x5c, 0x56,
+	0x31, 0xe2, 0x02, 0x12, 0x41, 0x70, 0x69, 0x5c, 0x56, 0x31, 0x5c, 0x47, 0x50, 0x42, 0x4d, 0x65,
+	0x74, 0x61, 0x64, 0x61, 0x74, 0x61, 0xea, 0x02, 0x07, 0x41, 0x70, 0x69, 0x3a, 0x3a, 0x56, 0x31,
+	0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -2460,111 +2236,103 @@ func file_api_v1_cluster_proto_rawDescGZIP() []byte {
 	return file_api_v1_cluster_proto_rawDescData
 }
 
-var file_api_v1_cluster_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_api_v1_cluster_proto_msgTypes = make([]protoimpl.MessageInfo, 29)
+var file_api_v1_cluster_proto_msgTypes = make([]protoimpl.MessageInfo, 27)
 var file_api_v1_cluster_proto_goTypes = []interface{}{
-	(ClusterLivenessPreference)(0),              // 0: api.v1.ClusterLivenessPreference
-	(*GetClustersBasicInfoRequest)(nil),         // 1: api.v1.GetClustersBasicInfoRequest
-	(*GetClustersBasicInfoResponse)(nil),        // 2: api.v1.GetClustersBasicInfoResponse
-	(*GetClusterBasicInfoRequest)(nil),          // 3: api.v1.GetClusterBasicInfoRequest
-	(*GetClusterBasicInfoResponse)(nil),         // 4: api.v1.GetClusterBasicInfoResponse
-	(*GetClustersWithMetricsRequest)(nil),       // 5: api.v1.GetClustersWithMetricsRequest
-	(*GetClustersWithMetricsResponse)(nil),      // 6: api.v1.GetClustersWithMetricsResponse
-	(*GetClustersDeltaMetricsRequest)(nil),      // 7: api.v1.GetClustersDeltaMetricsRequest
-	(*ClusterDeltaMetrics)(nil),                 // 8: api.v1.ClusterDeltaMetrics
-	(*GetClustersDeltaMetricsResponse)(nil),     // 9: api.v1.GetClustersDeltaMetricsResponse
-	(*CreateClusterTokenRequest)(nil),           // 10: api.v1.CreateClusterTokenRequest
-	(*CreateClusterTokenResponse)(nil),          // 11: api.v1.CreateClusterTokenResponse
-	(*GetNetworkDependenciesRequest)(nil),       // 12: api.v1.GetNetworkDependenciesRequest
-	(*WorkloadNode)(nil),                        // 13: api.v1.WorkloadNode
-	(*ExternalNode)(nil),                        // 14: api.v1.ExternalNode
-	(*ServiceNode)(nil),                         // 15: api.v1.ServiceNode
-	(*CloudResourceNode)(nil),                   // 16: api.v1.CloudResourceNode
-	(*DependencyEdge)(nil),                      // 17: api.v1.DependencyEdge
-	(*GetNetworkDependenciesResponse)(nil),      // 18: api.v1.GetNetworkDependenciesResponse
-	(*GetNetworkMetricsTimeSeriesRequest)(nil),  // 19: api.v1.GetNetworkMetricsTimeSeriesRequest
-	(*GetNetworkMetricsTimeSeriesResponse)(nil), // 20: api.v1.GetNetworkMetricsTimeSeriesResponse
-	(*TimeSeriesZone)(nil),                      // 21: api.v1.TimeSeriesZone
-	(*NetworkTimeSeriesBucket)(nil),             // 22: api.v1.NetworkTimeSeriesBucket
-	(*NetworkPercentileValues)(nil),             // 23: api.v1.NetworkPercentileValues
-	(*GetNodeTypeCountsRequest)(nil),            // 24: api.v1.GetNodeTypeCountsRequest
-	(*GetNodeTypeCountsResponse)(nil),           // 25: api.v1.GetNodeTypeCountsResponse
-	(*GetClusterIDByNameRequest)(nil),           // 26: api.v1.GetClusterIDByNameRequest
-	(*GetClusterIDByNameResponse)(nil),          // 27: api.v1.GetClusterIDByNameResponse
-	(*GetClusterInfoByNameRequest)(nil),         // 28: api.v1.GetClusterInfoByNameRequest
-	(*GetClusterInfoByNameResponse)(nil),        // 29: api.v1.GetClusterInfoByNameResponse
-	(*Cluster)(nil),                             // 30: api.v1.Cluster
-	(*timestamppb.Timestamp)(nil),               // 31: google.protobuf.Timestamp
-	(*ResourceMetrics)(nil),                     // 32: api.v1.ResourceMetrics
-	(*CostInfo)(nil),                            // 33: api.v1.CostInfo
-	(*NodeInfo)(nil),                            // 34: api.v1.NodeInfo
-	(*CostDataPoint)(nil),                       // 35: api.v1.CostDataPoint
-	(*ResourceDataPoint)(nil),                   // 36: api.v1.ResourceDataPoint
+	(*GetClustersBasicInfoRequest)(nil),         // 0: api.v1.GetClustersBasicInfoRequest
+	(*GetClustersBasicInfoResponse)(nil),        // 1: api.v1.GetClustersBasicInfoResponse
+	(*GetClustersWithMetricsRequest)(nil),       // 2: api.v1.GetClustersWithMetricsRequest
+	(*GetClustersWithMetricsResponse)(nil),      // 3: api.v1.GetClustersWithMetricsResponse
+	(*GetClustersDeltaMetricsRequest)(nil),      // 4: api.v1.GetClustersDeltaMetricsRequest
+	(*ClusterDeltaMetrics)(nil),                 // 5: api.v1.ClusterDeltaMetrics
+	(*GetClustersDeltaMetricsResponse)(nil),     // 6: api.v1.GetClustersDeltaMetricsResponse
+	(*CreateClusterTokenRequest)(nil),           // 7: api.v1.CreateClusterTokenRequest
+	(*CreateClusterTokenResponse)(nil),          // 8: api.v1.CreateClusterTokenResponse
+	(*GetNetworkDependenciesRequest)(nil),       // 9: api.v1.GetNetworkDependenciesRequest
+	(*WorkloadNode)(nil),                        // 10: api.v1.WorkloadNode
+	(*ExternalNode)(nil),                        // 11: api.v1.ExternalNode
+	(*ServiceNode)(nil),                         // 12: api.v1.ServiceNode
+	(*CloudResourceNode)(nil),                   // 13: api.v1.CloudResourceNode
+	(*DependencyEdge)(nil),                      // 14: api.v1.DependencyEdge
+	(*GetNetworkDependenciesResponse)(nil),      // 15: api.v1.GetNetworkDependenciesResponse
+	(*GetNetworkMetricsTimeSeriesRequest)(nil),  // 16: api.v1.GetNetworkMetricsTimeSeriesRequest
+	(*GetNetworkMetricsTimeSeriesResponse)(nil), // 17: api.v1.GetNetworkMetricsTimeSeriesResponse
+	(*TimeSeriesZone)(nil),                      // 18: api.v1.TimeSeriesZone
+	(*NetworkTimeSeriesBucket)(nil),             // 19: api.v1.NetworkTimeSeriesBucket
+	(*NetworkPercentileValues)(nil),             // 20: api.v1.NetworkPercentileValues
+	(*GetNodeTypeCountsRequest)(nil),            // 21: api.v1.GetNodeTypeCountsRequest
+	(*GetNodeTypeCountsResponse)(nil),           // 22: api.v1.GetNodeTypeCountsResponse
+	(*GetClusterIDByNameRequest)(nil),           // 23: api.v1.GetClusterIDByNameRequest
+	(*GetClusterIDByNameResponse)(nil),          // 24: api.v1.GetClusterIDByNameResponse
+	(*GetClusterInfoByNameRequest)(nil),         // 25: api.v1.GetClusterInfoByNameRequest
+	(*GetClusterInfoByNameResponse)(nil),        // 26: api.v1.GetClusterInfoByNameResponse
+	(*Cluster)(nil),                             // 27: api.v1.Cluster
+	(*timestamppb.Timestamp)(nil),               // 28: google.protobuf.Timestamp
+	(*ResourceMetrics)(nil),                     // 29: api.v1.ResourceMetrics
+	(*CostInfo)(nil),                            // 30: api.v1.CostInfo
+	(*NodeInfo)(nil),                            // 31: api.v1.NodeInfo
+	(*CostDataPoint)(nil),                       // 32: api.v1.CostDataPoint
+	(*ResourceDataPoint)(nil),                   // 33: api.v1.ResourceDataPoint
 }
 var file_api_v1_cluster_proto_depIdxs = []int32{
-	30, // 0: api.v1.GetClustersBasicInfoResponse.clusters:type_name -> api.v1.Cluster
-	30, // 1: api.v1.GetClusterBasicInfoResponse.cluster:type_name -> api.v1.Cluster
-	31, // 2: api.v1.GetClustersWithMetricsRequest.start_time:type_name -> google.protobuf.Timestamp
-	31, // 3: api.v1.GetClustersWithMetricsRequest.end_time:type_name -> google.protobuf.Timestamp
-	30, // 4: api.v1.GetClustersWithMetricsResponse.clusters:type_name -> api.v1.Cluster
-	32, // 5: api.v1.GetClustersWithMetricsResponse.resource_metrics:type_name -> api.v1.ResourceMetrics
-	33, // 6: api.v1.GetClustersWithMetricsResponse.cost_info:type_name -> api.v1.CostInfo
-	34, // 7: api.v1.GetClustersWithMetricsResponse.node_info:type_name -> api.v1.NodeInfo
-	35, // 8: api.v1.GetClustersWithMetricsResponse.cost_data_points:type_name -> api.v1.CostDataPoint
-	36, // 9: api.v1.GetClustersWithMetricsResponse.resource_data_points:type_name -> api.v1.ResourceDataPoint
-	31, // 10: api.v1.GetClustersDeltaMetricsRequest.start_time:type_name -> google.protobuf.Timestamp
-	31, // 11: api.v1.GetClustersDeltaMetricsRequest.end_time:type_name -> google.protobuf.Timestamp
-	33, // 12: api.v1.ClusterDeltaMetrics.cost_info:type_name -> api.v1.CostInfo
-	32, // 13: api.v1.ClusterDeltaMetrics.resource_metrics:type_name -> api.v1.ResourceMetrics
-	8,  // 14: api.v1.GetClustersDeltaMetricsResponse.clusters:type_name -> api.v1.ClusterDeltaMetrics
-	31, // 15: api.v1.GetNetworkDependenciesRequest.start_time:type_name -> google.protobuf.Timestamp
-	31, // 16: api.v1.GetNetworkDependenciesRequest.end_time:type_name -> google.protobuf.Timestamp
-	13, // 17: api.v1.DependencyEdge.src_workload:type_name -> api.v1.WorkloadNode
-	13, // 18: api.v1.DependencyEdge.dst_workload:type_name -> api.v1.WorkloadNode
-	14, // 19: api.v1.DependencyEdge.dst_external:type_name -> api.v1.ExternalNode
-	15, // 20: api.v1.DependencyEdge.dst_service:type_name -> api.v1.ServiceNode
-	16, // 21: api.v1.DependencyEdge.dst_cloud_resource:type_name -> api.v1.CloudResourceNode
-	17, // 22: api.v1.GetNetworkDependenciesResponse.edges:type_name -> api.v1.DependencyEdge
-	31, // 23: api.v1.GetNetworkMetricsTimeSeriesRequest.start_time:type_name -> google.protobuf.Timestamp
-	31, // 24: api.v1.GetNetworkMetricsTimeSeriesRequest.end_time:type_name -> google.protobuf.Timestamp
-	22, // 25: api.v1.GetNetworkMetricsTimeSeriesResponse.buckets:type_name -> api.v1.NetworkTimeSeriesBucket
-	21, // 26: api.v1.GetNetworkMetricsTimeSeriesResponse.zones:type_name -> api.v1.TimeSeriesZone
-	31, // 27: api.v1.TimeSeriesZone.start_time:type_name -> google.protobuf.Timestamp
-	31, // 28: api.v1.TimeSeriesZone.end_time:type_name -> google.protobuf.Timestamp
-	31, // 29: api.v1.NetworkTimeSeriesBucket.timestamp:type_name -> google.protobuf.Timestamp
-	23, // 30: api.v1.NetworkTimeSeriesBucket.tx_bytes_percentiles:type_name -> api.v1.NetworkPercentileValues
-	23, // 31: api.v1.NetworkTimeSeriesBucket.rx_bytes_percentiles:type_name -> api.v1.NetworkPercentileValues
-	23, // 32: api.v1.NetworkTimeSeriesBucket.cost_percentiles:type_name -> api.v1.NetworkPercentileValues
-	31, // 33: api.v1.GetNodeTypeCountsRequest.start_time:type_name -> google.protobuf.Timestamp
-	31, // 34: api.v1.GetNodeTypeCountsRequest.end_time:type_name -> google.protobuf.Timestamp
-	34, // 35: api.v1.GetNodeTypeCountsResponse.node_info:type_name -> api.v1.NodeInfo
-	0,  // 36: api.v1.GetClusterIDByNameRequest.liveness:type_name -> api.v1.ClusterLivenessPreference
-	30, // 37: api.v1.GetClusterInfoByNameResponse.cluster:type_name -> api.v1.Cluster
-	1,  // 38: api.v1.ClusterService.GetClustersBasicInfo:input_type -> api.v1.GetClustersBasicInfoRequest
-	3,  // 39: api.v1.ClusterService.GetClusterBasicInfo:input_type -> api.v1.GetClusterBasicInfoRequest
-	5,  // 40: api.v1.ClusterService.GetClustersWithMetrics:input_type -> api.v1.GetClustersWithMetricsRequest
-	10, // 41: api.v1.ClusterService.CreateClusterToken:input_type -> api.v1.CreateClusterTokenRequest
-	7,  // 42: api.v1.ClusterService.GetClustersDeltaMetrics:input_type -> api.v1.GetClustersDeltaMetricsRequest
-	12, // 43: api.v1.ClusterService.GetNetworkDependencies:input_type -> api.v1.GetNetworkDependenciesRequest
-	19, // 44: api.v1.ClusterService.GetNetworkMetricsTimeSeries:input_type -> api.v1.GetNetworkMetricsTimeSeriesRequest
-	24, // 45: api.v1.ClusterService.GetNodeTypeCounts:input_type -> api.v1.GetNodeTypeCountsRequest
-	26, // 46: api.v1.ClusterService.GetClusterIDByName:input_type -> api.v1.GetClusterIDByNameRequest
-	28, // 47: api.v1.ClusterService.GetClusterInfoByName:input_type -> api.v1.GetClusterInfoByNameRequest
-	2,  // 48: api.v1.ClusterService.GetClustersBasicInfo:output_type -> api.v1.GetClustersBasicInfoResponse
-	4,  // 49: api.v1.ClusterService.GetClusterBasicInfo:output_type -> api.v1.GetClusterBasicInfoResponse
-	6,  // 50: api.v1.ClusterService.GetClustersWithMetrics:output_type -> api.v1.GetClustersWithMetricsResponse
-	11, // 51: api.v1.ClusterService.CreateClusterToken:output_type -> api.v1.CreateClusterTokenResponse
-	9,  // 52: api.v1.ClusterService.GetClustersDeltaMetrics:output_type -> api.v1.GetClustersDeltaMetricsResponse
-	18, // 53: api.v1.ClusterService.GetNetworkDependencies:output_type -> api.v1.GetNetworkDependenciesResponse
-	20, // 54: api.v1.ClusterService.GetNetworkMetricsTimeSeries:output_type -> api.v1.GetNetworkMetricsTimeSeriesResponse
-	25, // 55: api.v1.ClusterService.GetNodeTypeCounts:output_type -> api.v1.GetNodeTypeCountsResponse
-	27, // 56: api.v1.ClusterService.GetClusterIDByName:output_type -> api.v1.GetClusterIDByNameResponse
-	29, // 57: api.v1.ClusterService.GetClusterInfoByName:output_type -> api.v1.GetClusterInfoByNameResponse
-	48, // [48:58] is the sub-list for method output_type
-	38, // [38:48] is the sub-list for method input_type
-	38, // [38:38] is the sub-list for extension type_name
-	38, // [38:38] is the sub-list for extension extendee
-	0,  // [0:38] is the sub-list for field type_name
+	27, // 0: api.v1.GetClustersBasicInfoResponse.clusters:type_name -> api.v1.Cluster
+	28, // 1: api.v1.GetClustersWithMetricsRequest.start_time:type_name -> google.protobuf.Timestamp
+	28, // 2: api.v1.GetClustersWithMetricsRequest.end_time:type_name -> google.protobuf.Timestamp
+	27, // 3: api.v1.GetClustersWithMetricsResponse.clusters:type_name -> api.v1.Cluster
+	29, // 4: api.v1.GetClustersWithMetricsResponse.resource_metrics:type_name -> api.v1.ResourceMetrics
+	30, // 5: api.v1.GetClustersWithMetricsResponse.cost_info:type_name -> api.v1.CostInfo
+	31, // 6: api.v1.GetClustersWithMetricsResponse.node_info:type_name -> api.v1.NodeInfo
+	32, // 7: api.v1.GetClustersWithMetricsResponse.cost_data_points:type_name -> api.v1.CostDataPoint
+	33, // 8: api.v1.GetClustersWithMetricsResponse.resource_data_points:type_name -> api.v1.ResourceDataPoint
+	28, // 9: api.v1.GetClustersDeltaMetricsRequest.start_time:type_name -> google.protobuf.Timestamp
+	28, // 10: api.v1.GetClustersDeltaMetricsRequest.end_time:type_name -> google.protobuf.Timestamp
+	30, // 11: api.v1.ClusterDeltaMetrics.cost_info:type_name -> api.v1.CostInfo
+	29, // 12: api.v1.ClusterDeltaMetrics.resource_metrics:type_name -> api.v1.ResourceMetrics
+	5,  // 13: api.v1.GetClustersDeltaMetricsResponse.clusters:type_name -> api.v1.ClusterDeltaMetrics
+	28, // 14: api.v1.GetNetworkDependenciesRequest.start_time:type_name -> google.protobuf.Timestamp
+	28, // 15: api.v1.GetNetworkDependenciesRequest.end_time:type_name -> google.protobuf.Timestamp
+	10, // 16: api.v1.DependencyEdge.src_workload:type_name -> api.v1.WorkloadNode
+	10, // 17: api.v1.DependencyEdge.dst_workload:type_name -> api.v1.WorkloadNode
+	11, // 18: api.v1.DependencyEdge.dst_external:type_name -> api.v1.ExternalNode
+	12, // 19: api.v1.DependencyEdge.dst_service:type_name -> api.v1.ServiceNode
+	13, // 20: api.v1.DependencyEdge.dst_cloud_resource:type_name -> api.v1.CloudResourceNode
+	14, // 21: api.v1.GetNetworkDependenciesResponse.edges:type_name -> api.v1.DependencyEdge
+	28, // 22: api.v1.GetNetworkMetricsTimeSeriesRequest.start_time:type_name -> google.protobuf.Timestamp
+	28, // 23: api.v1.GetNetworkMetricsTimeSeriesRequest.end_time:type_name -> google.protobuf.Timestamp
+	19, // 24: api.v1.GetNetworkMetricsTimeSeriesResponse.buckets:type_name -> api.v1.NetworkTimeSeriesBucket
+	18, // 25: api.v1.GetNetworkMetricsTimeSeriesResponse.zones:type_name -> api.v1.TimeSeriesZone
+	28, // 26: api.v1.TimeSeriesZone.start_time:type_name -> google.protobuf.Timestamp
+	28, // 27: api.v1.TimeSeriesZone.end_time:type_name -> google.protobuf.Timestamp
+	28, // 28: api.v1.NetworkTimeSeriesBucket.timestamp:type_name -> google.protobuf.Timestamp
+	20, // 29: api.v1.NetworkTimeSeriesBucket.tx_bytes_percentiles:type_name -> api.v1.NetworkPercentileValues
+	20, // 30: api.v1.NetworkTimeSeriesBucket.rx_bytes_percentiles:type_name -> api.v1.NetworkPercentileValues
+	20, // 31: api.v1.NetworkTimeSeriesBucket.cost_percentiles:type_name -> api.v1.NetworkPercentileValues
+	28, // 32: api.v1.GetNodeTypeCountsRequest.start_time:type_name -> google.protobuf.Timestamp
+	28, // 33: api.v1.GetNodeTypeCountsRequest.end_time:type_name -> google.protobuf.Timestamp
+	31, // 34: api.v1.GetNodeTypeCountsResponse.node_info:type_name -> api.v1.NodeInfo
+	27, // 35: api.v1.GetClusterInfoByNameResponse.cluster:type_name -> api.v1.Cluster
+	0,  // 36: api.v1.ClusterService.GetClustersBasicInfo:input_type -> api.v1.GetClustersBasicInfoRequest
+	2,  // 37: api.v1.ClusterService.GetClustersWithMetrics:input_type -> api.v1.GetClustersWithMetricsRequest
+	7,  // 38: api.v1.ClusterService.CreateClusterToken:input_type -> api.v1.CreateClusterTokenRequest
+	4,  // 39: api.v1.ClusterService.GetClustersDeltaMetrics:input_type -> api.v1.GetClustersDeltaMetricsRequest
+	9,  // 40: api.v1.ClusterService.GetNetworkDependencies:input_type -> api.v1.GetNetworkDependenciesRequest
+	16, // 41: api.v1.ClusterService.GetNetworkMetricsTimeSeries:input_type -> api.v1.GetNetworkMetricsTimeSeriesRequest
+	21, // 42: api.v1.ClusterService.GetNodeTypeCounts:input_type -> api.v1.GetNodeTypeCountsRequest
+	23, // 43: api.v1.ClusterService.GetClusterIDByName:input_type -> api.v1.GetClusterIDByNameRequest
+	25, // 44: api.v1.ClusterService.GetClusterInfoByName:input_type -> api.v1.GetClusterInfoByNameRequest
+	1,  // 45: api.v1.ClusterService.GetClustersBasicInfo:output_type -> api.v1.GetClustersBasicInfoResponse
+	3,  // 46: api.v1.ClusterService.GetClustersWithMetrics:output_type -> api.v1.GetClustersWithMetricsResponse
+	8,  // 47: api.v1.ClusterService.CreateClusterToken:output_type -> api.v1.CreateClusterTokenResponse
+	6,  // 48: api.v1.ClusterService.GetClustersDeltaMetrics:output_type -> api.v1.GetClustersDeltaMetricsResponse
+	15, // 49: api.v1.ClusterService.GetNetworkDependencies:output_type -> api.v1.GetNetworkDependenciesResponse
+	17, // 50: api.v1.ClusterService.GetNetworkMetricsTimeSeries:output_type -> api.v1.GetNetworkMetricsTimeSeriesResponse
+	22, // 51: api.v1.ClusterService.GetNodeTypeCounts:output_type -> api.v1.GetNodeTypeCountsResponse
+	24, // 52: api.v1.ClusterService.GetClusterIDByName:output_type -> api.v1.GetClusterIDByNameResponse
+	26, // 53: api.v1.ClusterService.GetClusterInfoByName:output_type -> api.v1.GetClusterInfoByNameResponse
+	45, // [45:54] is the sub-list for method output_type
+	36, // [36:45] is the sub-list for method input_type
+	36, // [36:36] is the sub-list for extension type_name
+	36, // [36:36] is the sub-list for extension extendee
+	0,  // [0:36] is the sub-list for field type_name
 }
 
 func init() { file_api_v1_cluster_proto_init() }
@@ -2600,30 +2368,6 @@ func file_api_v1_cluster_proto_init() {
 			}
 		}
 		file_api_v1_cluster_proto_msgTypes[2].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetClusterBasicInfoRequest); i {
-			case 0:
-				return &v.state
-			case 1:
-				return &v.sizeCache
-			case 2:
-				return &v.unknownFields
-			default:
-				return nil
-			}
-		}
-		file_api_v1_cluster_proto_msgTypes[3].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetClusterBasicInfoResponse); i {
-			case 0:
-				return &v.state
-			case 1:
-				return &v.sizeCache
-			case 2:
-				return &v.unknownFields
-			default:
-				return nil
-			}
-		}
-		file_api_v1_cluster_proto_msgTypes[4].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*GetClustersWithMetricsRequest); i {
 			case 0:
 				return &v.state
@@ -2635,7 +2379,7 @@ func file_api_v1_cluster_proto_init() {
 				return nil
 			}
 		}
-		file_api_v1_cluster_proto_msgTypes[5].Exporter = func(v interface{}, i int) interface{} {
+		file_api_v1_cluster_proto_msgTypes[3].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*GetClustersWithMetricsResponse); i {
 			case 0:
 				return &v.state
@@ -2647,7 +2391,7 @@ func file_api_v1_cluster_proto_init() {
 				return nil
 			}
 		}
-		file_api_v1_cluster_proto_msgTypes[6].Exporter = func(v interface{}, i int) interface{} {
+		file_api_v1_cluster_proto_msgTypes[4].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*GetClustersDeltaMetricsRequest); i {
 			case 0:
 				return &v.state
@@ -2659,7 +2403,7 @@ func file_api_v1_cluster_proto_init() {
 				return nil
 			}
 		}
-		file_api_v1_cluster_proto_msgTypes[7].Exporter = func(v interface{}, i int) interface{} {
+		file_api_v1_cluster_proto_msgTypes[5].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*ClusterDeltaMetrics); i {
 			case 0:
 				return &v.state
@@ -2671,7 +2415,7 @@ func file_api_v1_cluster_proto_init() {
 				return nil
 			}
 		}
-		file_api_v1_cluster_proto_msgTypes[8].Exporter = func(v interface{}, i int) interface{} {
+		file_api_v1_cluster_proto_msgTypes[6].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*GetClustersDeltaMetricsResponse); i {
 			case 0:
 				return &v.state
@@ -2683,7 +2427,7 @@ func file_api_v1_cluster_proto_init() {
 				return nil
 			}
 		}
-		file_api_v1_cluster_proto_msgTypes[9].Exporter = func(v interface{}, i int) interface{} {
+		file_api_v1_cluster_proto_msgTypes[7].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*CreateClusterTokenRequest); i {
 			case 0:
 				return &v.state
@@ -2695,7 +2439,7 @@ func file_api_v1_cluster_proto_init() {
 				return nil
 			}
 		}
-		file_api_v1_cluster_proto_msgTypes[10].Exporter = func(v interface{}, i int) interface{} {
+		file_api_v1_cluster_proto_msgTypes[8].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*CreateClusterTokenResponse); i {
 			case 0:
 				return &v.state
@@ -2707,7 +2451,7 @@ func file_api_v1_cluster_proto_init() {
 				return nil
 			}
 		}
-		file_api_v1_cluster_proto_msgTypes[11].Exporter = func(v interface{}, i int) interface{} {
+		file_api_v1_cluster_proto_msgTypes[9].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*GetNetworkDependenciesRequest); i {
 			case 0:
 				return &v.state
@@ -2719,7 +2463,7 @@ func file_api_v1_cluster_proto_init() {
 				return nil
 			}
 		}
-		file_api_v1_cluster_proto_msgTypes[12].Exporter = func(v interface{}, i int) interface{} {
+		file_api_v1_cluster_proto_msgTypes[10].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*WorkloadNode); i {
 			case 0:
 				return &v.state
@@ -2731,7 +2475,7 @@ func file_api_v1_cluster_proto_init() {
 				return nil
 			}
 		}
-		file_api_v1_cluster_proto_msgTypes[13].Exporter = func(v interface{}, i int) interface{} {
+		file_api_v1_cluster_proto_msgTypes[11].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*ExternalNode); i {
 			case 0:
 				return &v.state
@@ -2743,7 +2487,7 @@ func file_api_v1_cluster_proto_init() {
 				return nil
 			}
 		}
-		file_api_v1_cluster_proto_msgTypes[14].Exporter = func(v interface{}, i int) interface{} {
+		file_api_v1_cluster_proto_msgTypes[12].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*ServiceNode); i {
 			case 0:
 				return &v.state
@@ -2755,7 +2499,7 @@ func file_api_v1_cluster_proto_init() {
 				return nil
 			}
 		}
-		file_api_v1_cluster_proto_msgTypes[15].Exporter = func(v interface{}, i int) interface{} {
+		file_api_v1_cluster_proto_msgTypes[13].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*CloudResourceNode); i {
 			case 0:
 				return &v.state
@@ -2767,7 +2511,7 @@ func file_api_v1_cluster_proto_init() {
 				return nil
 			}
 		}
-		file_api_v1_cluster_proto_msgTypes[16].Exporter = func(v interface{}, i int) interface{} {
+		file_api_v1_cluster_proto_msgTypes[14].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*DependencyEdge); i {
 			case 0:
 				return &v.state
@@ -2779,7 +2523,7 @@ func file_api_v1_cluster_proto_init() {
 				return nil
 			}
 		}
-		file_api_v1_cluster_proto_msgTypes[17].Exporter = func(v interface{}, i int) interface{} {
+		file_api_v1_cluster_proto_msgTypes[15].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*GetNetworkDependenciesResponse); i {
 			case 0:
 				return &v.state
@@ -2791,7 +2535,7 @@ func file_api_v1_cluster_proto_init() {
 				return nil
 			}
 		}
-		file_api_v1_cluster_proto_msgTypes[18].Exporter = func(v interface{}, i int) interface{} {
+		file_api_v1_cluster_proto_msgTypes[16].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*GetNetworkMetricsTimeSeriesRequest); i {
 			case 0:
 				return &v.state
@@ -2803,7 +2547,7 @@ func file_api_v1_cluster_proto_init() {
 				return nil
 			}
 		}
-		file_api_v1_cluster_proto_msgTypes[19].Exporter = func(v interface{}, i int) interface{} {
+		file_api_v1_cluster_proto_msgTypes[17].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*GetNetworkMetricsTimeSeriesResponse); i {
 			case 0:
 				return &v.state
@@ -2815,7 +2559,7 @@ func file_api_v1_cluster_proto_init() {
 				return nil
 			}
 		}
-		file_api_v1_cluster_proto_msgTypes[20].Exporter = func(v interface{}, i int) interface{} {
+		file_api_v1_cluster_proto_msgTypes[18].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*TimeSeriesZone); i {
 			case 0:
 				return &v.state
@@ -2827,7 +2571,7 @@ func file_api_v1_cluster_proto_init() {
 				return nil
 			}
 		}
-		file_api_v1_cluster_proto_msgTypes[21].Exporter = func(v interface{}, i int) interface{} {
+		file_api_v1_cluster_proto_msgTypes[19].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*NetworkTimeSeriesBucket); i {
 			case 0:
 				return &v.state
@@ -2839,7 +2583,7 @@ func file_api_v1_cluster_proto_init() {
 				return nil
 			}
 		}
-		file_api_v1_cluster_proto_msgTypes[22].Exporter = func(v interface{}, i int) interface{} {
+		file_api_v1_cluster_proto_msgTypes[20].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*NetworkPercentileValues); i {
 			case 0:
 				return &v.state
@@ -2851,7 +2595,7 @@ func file_api_v1_cluster_proto_init() {
 				return nil
 			}
 		}
-		file_api_v1_cluster_proto_msgTypes[23].Exporter = func(v interface{}, i int) interface{} {
+		file_api_v1_cluster_proto_msgTypes[21].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*GetNodeTypeCountsRequest); i {
 			case 0:
 				return &v.state
@@ -2863,7 +2607,7 @@ func file_api_v1_cluster_proto_init() {
 				return nil
 			}
 		}
-		file_api_v1_cluster_proto_msgTypes[24].Exporter = func(v interface{}, i int) interface{} {
+		file_api_v1_cluster_proto_msgTypes[22].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*GetNodeTypeCountsResponse); i {
 			case 0:
 				return &v.state
@@ -2875,7 +2619,7 @@ func file_api_v1_cluster_proto_init() {
 				return nil
 			}
 		}
-		file_api_v1_cluster_proto_msgTypes[25].Exporter = func(v interface{}, i int) interface{} {
+		file_api_v1_cluster_proto_msgTypes[23].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*GetClusterIDByNameRequest); i {
 			case 0:
 				return &v.state
@@ -2887,7 +2631,7 @@ func file_api_v1_cluster_proto_init() {
 				return nil
 			}
 		}
-		file_api_v1_cluster_proto_msgTypes[26].Exporter = func(v interface{}, i int) interface{} {
+		file_api_v1_cluster_proto_msgTypes[24].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*GetClusterIDByNameResponse); i {
 			case 0:
 				return &v.state
@@ -2899,7 +2643,7 @@ func file_api_v1_cluster_proto_init() {
 				return nil
 			}
 		}
-		file_api_v1_cluster_proto_msgTypes[27].Exporter = func(v interface{}, i int) interface{} {
+		file_api_v1_cluster_proto_msgTypes[25].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*GetClusterInfoByNameRequest); i {
 			case 0:
 				return &v.state
@@ -2911,7 +2655,7 @@ func file_api_v1_cluster_proto_init() {
 				return nil
 			}
 		}
-		file_api_v1_cluster_proto_msgTypes[28].Exporter = func(v interface{}, i int) interface{} {
+		file_api_v1_cluster_proto_msgTypes[26].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*GetClusterInfoByNameResponse); i {
 			case 0:
 				return &v.state
@@ -2924,22 +2668,20 @@ func file_api_v1_cluster_proto_init() {
 			}
 		}
 	}
-	file_api_v1_cluster_proto_msgTypes[4].OneofWrappers = []interface{}{}
-	file_api_v1_cluster_proto_msgTypes[23].OneofWrappers = []interface{}{}
-	file_api_v1_cluster_proto_msgTypes[25].OneofWrappers = []interface{}{}
+	file_api_v1_cluster_proto_msgTypes[2].OneofWrappers = []interface{}{}
+	file_api_v1_cluster_proto_msgTypes[21].OneofWrappers = []interface{}{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_api_v1_cluster_proto_rawDesc,
-			NumEnums:      1,
-			NumMessages:   29,
+			NumEnums:      0,
+			NumMessages:   27,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_api_v1_cluster_proto_goTypes,
 		DependencyIndexes: file_api_v1_cluster_proto_depIdxs,
-		EnumInfos:         file_api_v1_cluster_proto_enumTypes,
 		MessageInfos:      file_api_v1_cluster_proto_msgTypes,
 	}.Build()
 	File_api_v1_cluster_proto = out.File

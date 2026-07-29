@@ -90,10 +90,8 @@ var (
 	graalVMVersionRe = regexp.MustCompile(`GraalVM (?:[A-Z]{2} )?(\d+(?:\.\d+)*(?:\+[\d.]+)?)`)
 )
 
-const (
-	nodeComm    = "node"
-	nodeBinName = "node"
-)
+const nodeComm = "node"
+const nodeBinName = "node"
 
 // nodeReleaseURLRe matches the release-URL string Node embeds in its own binary
 // for process.release metadata, e.g.:

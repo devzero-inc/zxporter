@@ -35,7 +35,6 @@ import (
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/metadata"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -99,11 +98,6 @@ func NewEnvBasedController(
 		return nil, fmt.Errorf("failed to create dynamic client: %w", err)
 	}
 
-	metadataClient, err := metadata.NewForConfig(config)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create metadata client: %w", err)
-	}
-
 	discoveryClient, err := discovery.NewDiscoveryClientForConfig(config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create discovery client: %w", err)
@@ -124,7 +118,6 @@ func NewEnvBasedController(
 		KEDAClient:        kedaClientset,
 		K8sClient:         clientset,
 		DynamicClient:     dynamicClient,
-		MetadataClient:    metadataClient,
 		DiscoveryClient:   discoveryClient,
 		ApiExtensions:     apiExtensionClient,
 		TelemetryMetrics:  sharedTelemetryMetrics,

@@ -79,7 +79,7 @@ func (c *NamespaceCollector) Start(ctx context.Context) error {
 	c.logger.Info("Starting namespace collector")
 
 	// Create informer factory - namespace collector always watches all namespaces
-	c.informerFactory = newInformerFactory(c.client, nil)
+	c.informerFactory = informers.NewSharedInformerFactory(c.client, 0)
 
 	// Create namespace informer
 	c.namespaceInformer = c.informerFactory.Core().V1().Namespaces().Informer()

@@ -231,33 +231,6 @@ func (s *MetricsServer) SendResourceBatch(
 	return resp, nil
 }
 
-// SendClusterSnapshotBatched accepts per-resource-type snapshot batches. The
-// test server just drains and acknowledges them; the sender PR replaces this
-// with an implementation that records per-type statistics.
-func (s *MetricsServer) SendClusterSnapshotBatched(
-	ctx context.Context,
-	stream *connect.ClientStream[apiv1.ClusterSnapshotBatch],
-) (*connect.Response[apiv1.SendClusterSnapshotBatchedResponse], error) {
-	var clusterID, snapshotID string
-	var batchesReceived int32
-	for stream.Receive() {
-		msg := stream.Msg()
-		clusterID = msg.GetClusterId()
-		snapshotID = msg.GetSnapshotId()
-		batchesReceived++
-	}
-	if err := stream.Err(); err != nil {
-		return nil, connect.NewError(connect.CodeInternal, err)
-	}
-	return connect.NewResponse(&apiv1.SendClusterSnapshotBatchedResponse{
-		ClusterId:        clusterID,
-		SnapshotId:       snapshotID,
-		Status:           "processed",
-		BatchesReceived:  batchesReceived,
-		MissingResources: nil,
-	}), nil
-}
-
 // SendClusterSnapshotStream implements streaming ingestion for the test server
 // This method:
 // 1. Collects all chunks from the stream

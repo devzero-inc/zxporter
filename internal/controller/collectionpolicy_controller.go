@@ -50,7 +50,6 @@ import (
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/metadata"
 )
 
 // CollectionPolicyReconciler reconciles a CollectionPolicy object
@@ -61,7 +60,6 @@ type CollectionPolicyReconciler struct {
 	KEDAClient        *kedaclient.Clientset
 	K8sClient         *kubernetes.Clientset
 	DynamicClient     *dynamic.DynamicClient
-	MetadataClient    metadata.Interface
 	DiscoveryClient   *discovery.DiscoveryClient
 	DakrClient        transport.DakrClient
 	ApiExtensions     *apiextensionsclientset.Clientset
@@ -1635,7 +1633,6 @@ func (r *CollectionPolicyReconciler) restartCollectors(
 				r.K8sClient,
 				r.KEDAClient,
 				r.DynamicClient,
-				r.MetadataClient,
 				newConfig.ClusterSnapshotInterval,
 				r.Sender,
 				r.CollectionManager,
@@ -2973,7 +2970,6 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				r.K8sClient,
 				r.KEDAClient,
 				r.DynamicClient,
-				r.MetadataClient,
 				config.ClusterSnapshotInterval,
 				r.Sender,
 				r.CollectionManager,
@@ -3776,7 +3772,6 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					r.K8sClient,
 					r.KEDAClient,
 					r.DynamicClient,
-					r.MetadataClient,
 					newConfig.ClusterSnapshotInterval,
 					r.Sender,
 					r.CollectionManager,

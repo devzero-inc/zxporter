@@ -74,13 +74,6 @@ func TestParseKubeletSummary_ContainerMetrics(t *testing.T) {
 	if app.MemoryWorkingSet != 104857600 || app.MemoryUsageBytes != 120000000 || app.MemoryRSSBytes != 90000000 {
 		t.Errorf("app memory mismatch: ws=%d usage=%d rss=%d", app.MemoryWorkingSet, app.MemoryUsageBytes, app.MemoryRSSBytes)
 	}
-	// The cache/swap/active/inactive breakdown is unavailable on the kubelet
-	// Summary-API fallback path (it requires the nodemon cAdvisor scrape), so
-	// cache and swap stay 0.
-	if app.MemoryCacheBytes != 0 || app.MemorySwapBytes != 0 {
-		t.Errorf("app expected zero cache/swap, got cache=%d swap=%d",
-			app.MemoryCacheBytes, app.MemorySwapBytes)
-	}
 
 	// sidecar has no memory usage/rss reported — those stay zero, no panic on nil.
 	side := cms[1]
