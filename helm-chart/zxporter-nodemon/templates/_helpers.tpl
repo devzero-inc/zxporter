@@ -76,3 +76,19 @@ Create the name of the zxporter-nodemon config map
 {{- define "zxporter-nodemon.config-map" -}}
 {{- printf "%s-%s" (include "zxporter-nodemon.fullname" .) "zxporter-nodemon" | replace "+" "_" | trunc 63 | trimSuffix "-" }}
 {{- end }}
+
+{{/*
+Validate required configuration.
+*/}}
+{{- define "zxporter-nodemon.validateConfig" -}}
+{{- $gpuRuntimeMode := default "explicit" (dig "gpuRuntime" "mode" "" .Values.global) -}}
+{{- $validGpuRuntimeModes := list "auto" "default" "explicit" -}}
+{{- if not (has $gpuRuntimeMode $validGpuRuntimeModes) -}}
+{{- fail (printf "ERROR: global.gpuRuntime.mode must be one of: %s. Got: %s" (join ", " $validGpuRuntimeModes) $gpuRuntimeMode) -}}
+{{- end -}}
+
+{{- $gpuRuntimeClassName := dig "gpuRuntime" "runtimeClassName" "" .Values.global -}}
+{{- if and (ne $gpuRuntimeMode "default") (empty $gpuRuntimeClassName) -}}
+{{- fail (printf "ERROR: global.gpuRuntime.runtimeClassName is required when global.gpuRuntime.mode is %s." $gpuRuntimeMode) -}}
+{{- end -}}
+{{- end }}

@@ -11,9 +11,9 @@ serviceAccount:
   create: true
   annotations: {}
 image:
-  repository: docker.io/devzeroinc/zxporter-nodemon
+  repository: public.ecr.aws/devzeroinc/zxporter-nodemon
   pullPolicy: IfNotPresent
-  tag: "v0.0.99"
+  tag: "v0.1.1"
 nodemon:
   # nodemon.affinity -- optional pod affinity/anti-affinity. Leave empty so nodemon schedules on
   # EVERY node (it is the sole source of node/container metrics). Only set this if you intentionally
@@ -64,6 +64,12 @@ global:
   # Required (non-empty) at render time. When bundled under the parent chart it is
   # supplied by global.k8sProvider there — set it ONLY in one place, never both.
   k8sProvider: ""
+  # global.gpuRuntime controls how the GPU DaemonSet gets its RuntimeClass.
+  # Standalone nodemon uses explicit mode by default so it keeps the existing
+  # NVIDIA runtime behavior unless a caller overrides it.
+  gpuRuntime:
+    mode: explicit
+    runtimeClassName: nvidia
   # global.priorityClass.enabled is the single toggle for using the custom
   # PriorityClass. The parent zxporter chart supplies it (auto-propagated here).
   priorityClass:
@@ -98,7 +104,7 @@ dcgmExporter:
     key: "nvidia.com/gpu.present"
     value: "true"
   image:
-    repository: nvcr.io/nvidia/k8s/dcgm-exporter
+    repository: public.ecr.aws/devzeroinc/dcgm-exporter
     pullPolicy: IfNotPresent
     tag: 4.5.2-4.8.1-ubuntu22.04
   useExternalHostEngine: false

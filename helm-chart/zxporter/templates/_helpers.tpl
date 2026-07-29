@@ -73,4 +73,15 @@ Validate required configuration
   {{- if not (has .Values.global.k8sProvider $validProviders) -}}
     {{- fail (printf "ERROR: global.k8sProvider must be one of: %s. Got: %s" (join ", " $validProviders) .Values.global.k8sProvider) -}}
   {{- end -}}
+
+  {{- $gpuRuntimeMode := default "auto" (dig "gpuRuntime" "mode" "" .Values.global) -}}
+  {{- $validGpuRuntimeModes := list "auto" "default" "explicit" -}}
+  {{- if not (has $gpuRuntimeMode $validGpuRuntimeModes) -}}
+    {{- fail (printf "ERROR: global.gpuRuntime.mode must be one of: %s. Got: %s" (join ", " $validGpuRuntimeModes) $gpuRuntimeMode) -}}
+  {{- end -}}
+
+  {{- $gpuRuntimeClassName := dig "gpuRuntime" "runtimeClassName" "" .Values.global -}}
+  {{- if and (ne $gpuRuntimeMode "default") (empty $gpuRuntimeClassName) -}}
+    {{- fail (printf "ERROR: global.gpuRuntime.runtimeClassName is required when global.gpuRuntime.mode is %s." $gpuRuntimeMode) -}}
+  {{- end -}}
 {{- end }}
