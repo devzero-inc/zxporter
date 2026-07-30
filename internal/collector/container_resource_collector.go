@@ -350,6 +350,17 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 		}
 	}
 
+	// Pods nodemon reported metrics for but that aren't in podByKey. This is
+	// an expected race, not a failure: nodemon's /v2/container/metrics cache
+	// refreshes on a fixed 30s ticker (cmd/zxporter-nodemon/main.go) while
+	// this collector polls every 10s by default and snapshots the pod
+	// informer -- a near-instant k8s watch -- fresh each cycle. A pod that
+	// terminates disappears from podByKey almost immediately but can remain
+	// in nodemon's stale response for up to ~30s. On a churny cluster this
+	// happens routinely, so it's aggregated into one summary below instead
+	// of one ERROR telemetry event per pod (see #9431).
+	var missingPods []string
+
 	// Process each pod's metrics
 	for _, podMetrics := range podMetricsList.Items {
 		// Skip excluded pods
@@ -361,24 +372,7 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 		// (see podByKey above) rather than re-reading the informer cache here.
 		pod, exists := podByKey[podMetrics.Namespace+"/"+podMetrics.Name]
 		if !exists {
-			c.logger.Info("Pod not found in informer cache",
-				"namespace", podMetrics.Namespace,
-				"name", podMetrics.Name)
-			if c.telemetryLogger != nil {
-				c.telemetryLogger.Report(
-					gen.LogLevel_LOG_LEVEL_ERROR,
-					"ContainerResourceCollector",
-					"Pod not found in informer cache",
-					fmt.Errorf("pod not found in informer cache"),
-					map[string]string{
-						"collector_type":   c.GetType(),
-						"pod_namespace":    podMetrics.Namespace,
-						"pod_name":         podMetrics.Name,
-						"error_type":       "pod_cache_fail",
-						"zxporter_version": version.Get().String(),
-					},
-				)
-			}
+			missingPods = append(missingPods, podMetrics.Namespace+"/"+podMetrics.Name)
 			continue
 		}
 
@@ -498,6 +492,39 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 			)
 		}
 
+	}
+
+	// Surface the informer/nodemon cache race as one summary per cycle
+	// rather than one ERROR per pod (see #9431).
+	if len(missingPods) > 0 {
+		c.logger.Info("Pods reported by nodemon but not found in informer cache",
+			"count", len(missingPods), "pods", missingPods)
+		if c.telemetryLogger != nil {
+			// Cap the sample list: on a churny cluster missingPods can grow
+			// large, and the exact same volume this fix targets would
+			// otherwise bloat this one field instead of spamming many.
+			// missing_count always carries the true total.
+			const maxMissingPodsSample = 20
+			sample := missingPods
+			suffix := ""
+			if len(sample) > maxMissingPodsSample {
+				suffix = fmt.Sprintf(" (+%d more)", len(sample)-maxMissingPodsSample)
+				sample = sample[:maxMissingPodsSample]
+			}
+			c.telemetryLogger.Report(
+				gen.LogLevel_LOG_LEVEL_WARN,
+				"ContainerResourceCollector",
+				"Pods reported by nodemon but not found in informer cache",
+				nil,
+				map[string]string{
+					"collector_type":   c.GetType(),
+					"missing_count":    fmt.Sprintf("%d", len(missingPods)),
+					"missing_pods":     fmt.Sprintf("%v", sample) + suffix,
+					"event_type":       "pod_cache_miss_summary",
+					"zxporter_version": version.Get().String(),
+				},
+			)
+		}
 	}
 }
 
