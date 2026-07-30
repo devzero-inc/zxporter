@@ -11,7 +11,7 @@
 image:
   repository: public.ecr.aws/devzeroinc/zxporter
   pullPolicy: IfNotPresent
-  tag: "v0.1.2"
+  tag: "v0.1.4"
 # ZXPorter configuration
 zxporter:
   dakrUrl: "https://dakr.devzero.io"

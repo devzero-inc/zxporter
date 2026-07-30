@@ -60,6 +60,18 @@ func (f *fakeTelemetryLogger) reportsWithErrorType(errorType string) []fakeRepor
 	return out
 }
 
+func (f *fakeTelemetryLogger) reportsWithEventType(eventType string) []fakeReport {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var out []fakeReport
+	for _, r := range f.reports {
+		if r.fields["event_type"] == eventType {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
 // newSyncedNodeInformer builds a real SharedIndexInformer for Nodes, backed by
 // a fake clientset seeded with the given nodes, and waits for the initial
 // cache sync so the indexer is populated before the test runs.

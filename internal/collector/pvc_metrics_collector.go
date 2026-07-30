@@ -268,6 +268,17 @@ func (c *PersistentVolumeClaimMetricsCollector) collectAllPVCMetrics(ctx context
 		"pvc_total", len(pvcs),
 		"namespaces", c.namespaces)
 
+	// Fetch cluster-wide PVC metrics from nodemon once for the whole sweep
+	// (a full fan-out HTTP call to every nodemon pod) and index by
+	// (namespace, pvcName) for O(1) lookup below. Previously this was
+	// fetched fresh inside getFilesystemUsage on every single PVC below,
+	// multiplying nodemon request volume by the PVC count — see #9429.
+	allPVCMetrics, pvcMetricsErr := c.nodemonClient.FetchAllPVCMetrics(ctx)
+	if pvcMetricsErr != nil {
+		c.logger.Error(pvcMetricsErr, "Failed to fetch PVC metrics from nodemon; all PVCs in this cycle will report unavailable stats")
+	}
+	pvcMetricsIndex := indexPVCMetricsByNamespacedName(allPVCMetrics)
+
 	// Track collection stats
 	processedCount := 0
 	skippedCount := 0
@@ -293,7 +304,7 @@ func (c *PersistentVolumeClaimMetricsCollector) collectAllPVCMetrics(ctx context
 		}
 
 		// Process the PVC metrics
-		snapshot, err := c.processPVCMetrics(ctx, pvc)
+		snapshot, err := c.processPVCMetrics(pvc, pvcMetricsIndex, pvcMetricsErr)
 		if err != nil {
 			errorCount++
 			c.logger.Error(err, "Failed to process PVC metrics (continuing with next PVC)",
@@ -342,11 +353,15 @@ func (c *PersistentVolumeClaimMetricsCollector) collectAllPVCMetrics(ctx context
 	}
 }
 
-// processPVCMetrics processes metrics for a single PVC
+// processPVCMetrics processes metrics for a single PVC, looking its usage up
+// in pvcMetricsIndex (the whole sweep's single FetchAllPVCMetrics result,
+// fetched once by the caller) rather than fetching from nodemon itself.
+// fetchErr is the error (if any) from that shared fetch.
 // Returns the snapshot and an error if metrics collection fails
 func (c *PersistentVolumeClaimMetricsCollector) processPVCMetrics(
-	ctx context.Context,
 	pvc *corev1.PersistentVolumeClaim,
+	pvcMetricsIndex map[types.NamespacedName]UnifiedPVCMetric,
+	fetchErr error,
 ) (*PersistentVolumeClaimMetricsSnapshot, error) {
 	c.logger.V(1).Info("Processing PVC metrics",
 		"namespace", pvc.Namespace,
@@ -398,7 +413,7 @@ func (c *PersistentVolumeClaimMetricsCollector) processPVCMetrics(
 		return metricsSnapshot, nil
 	}
 
-	usage, err := c.getFilesystemUsage(ctx, pvc)
+	usage, err := c.getFilesystemUsage(pvc, pvcMetricsIndex, fetchErr)
 	if err != nil {
 		c.logger.V(1).Info("Failed to get filesystem usage from nodemon",
 			"namespace", pvc.Namespace,
@@ -455,27 +470,47 @@ type filesystemUsage struct {
 	AvailableBytes int64
 }
 
-// getFilesystemUsage retrieves PVC filesystem usage from the nodemon DaemonSet.
+// getFilesystemUsage looks up a PVC's filesystem usage in pvcMetricsIndex,
+// the whole sweep's single FetchAllPVCMetrics result. fetchErr is that
+// fetch's error, if any — propagated here so every PVC in the cycle reports
+// it consistently, same as when each PVC fetched independently.
 func (c *PersistentVolumeClaimMetricsCollector) getFilesystemUsage(
-	ctx context.Context,
 	pvc *corev1.PersistentVolumeClaim,
+	pvcMetricsIndex map[types.NamespacedName]UnifiedPVCMetric,
+	fetchErr error,
 ) (*filesystemUsage, error) {
-	allMetrics, err := c.nodemonClient.FetchAllPVCMetrics(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("fetching PVC metrics from nodemon: %w", err)
+	if fetchErr != nil {
+		return nil, fmt.Errorf("fetching PVC metrics from nodemon: %w", fetchErr)
 	}
 
-	for _, m := range allMetrics {
-		if m.Namespace == pvc.Namespace && m.PVCName == pvc.Name {
-			return &filesystemUsage{
-				UsedBytes:      int64(m.UsedBytes),
-				CapacityBytes:  int64(m.CapacityBytes),
-				AvailableBytes: int64(m.AvailableBytes),
-			}, nil
+	m, ok := pvcMetricsIndex[types.NamespacedName{Namespace: pvc.Namespace, Name: pvc.Name}]
+	if !ok {
+		return nil, fmt.Errorf("no nodemon metrics found for PVC %s/%s", pvc.Namespace, pvc.Name)
+	}
+
+	return &filesystemUsage{
+		UsedBytes:      int64(m.UsedBytes),
+		CapacityBytes:  int64(m.CapacityBytes),
+		AvailableBytes: int64(m.AvailableBytes),
+	}, nil
+}
+
+// indexPVCMetricsByNamespacedName indexes a FetchAllPVCMetrics result by
+// (namespace, pvcName) for O(1) lookup, so a single cluster-wide fetch can
+// serve every PVC in a sweep instead of being re-fetched per PVC (#9429).
+// A ReadWriteMany PVC mounted on multiple nodes can produce more than one
+// row for the same (namespace, pvcName); the first occurrence wins, matching
+// the previous linear scan's first-match behavior.
+func indexPVCMetricsByNamespacedName(metrics []UnifiedPVCMetric) map[types.NamespacedName]UnifiedPVCMetric {
+	index := make(map[types.NamespacedName]UnifiedPVCMetric, len(metrics))
+	for _, m := range metrics {
+		key := types.NamespacedName{Namespace: m.Namespace, Name: m.PVCName}
+		if _, exists := index[key]; exists {
+			continue
 		}
+		index[key] = m
 	}
-
-	return nil, fmt.Errorf("no nodemon metrics found for PVC %s/%s", pvc.Namespace, pvc.Name)
+	return index
 }
 
 // emitSnapshot sends the metrics snapshot to the batch channel
