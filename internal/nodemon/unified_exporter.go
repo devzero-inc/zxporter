@@ -13,7 +13,8 @@ import (
 type UnifiedExporter struct {
 	statsPoller     *StatsPoller
 	cadvisorScraper *CAdvisorScraper
-	gpuExporter     *Exporter // existing GPU exporter, may be nil
+	gpuExporter     *Exporter     // existing GPU exporter, may be nil
+	cgroupReader    *CgroupReader // direct /sys/fs/cgroup reader, may be nil
 	nodeName        string
 	log             logr.Logger
 
@@ -31,6 +32,7 @@ func NewUnifiedExporter(
 	statsPoller *StatsPoller,
 	cadvisorScraper *CAdvisorScraper,
 	gpuExporter *Exporter,
+	cgroupReader *CgroupReader,
 	nodeName string,
 	log logr.Logger,
 ) *UnifiedExporter {
@@ -38,6 +40,7 @@ func NewUnifiedExporter(
 		statsPoller:     statsPoller,
 		cadvisorScraper: cadvisorScraper,
 		gpuExporter:     gpuExporter,
+		cgroupReader:    cgroupReader,
 		nodeName:        nodeName,
 		log:             log.WithName("unified-exporter"),
 		nodeNetRates:    NewRateCalculator(),
@@ -72,8 +75,11 @@ func (u *UnifiedExporter) Collect(ctx context.Context) {
 
 	cadvisorIndex := indexCAdvisorMetrics(cadvisorMetrics)
 	gpuIndex := indexGPUMetrics(gpuMetrics)
+	// Direct cgroup counters keyed "namespace/pod/container" (nil when the reader
+	// is disabled or the cgroup fs is unavailable).
+	cgroupIndex := u.cgroupReader.Collect()
 
-	containerResults, pvcResults := u.buildContainerAndPVCMetrics(stats, cadvisorIndex, gpuIndex, now)
+	containerResults, pvcResults := u.buildContainerAndPVCMetrics(stats, cadvisorIndex, gpuIndex, cgroupIndex, now)
 	nodeResult := u.buildNodeMetrics(stats, cadvisorMetrics, now)
 
 	// Update cache
@@ -154,6 +160,7 @@ func (u *UnifiedExporter) buildContainerAndPVCMetrics(
 	stats *StatsSummary,
 	cadvisorIndex map[string]*CAdvisorContainerMetrics,
 	gpuIndex map[string]*GPUMetric,
+	cgroupIndex map[string]CgroupSignals,
 	now time.Time,
 ) ([]ContainerMetricsResponse, []PVCMetricsResponse) {
 	if stats == nil {
@@ -167,7 +174,7 @@ func (u *UnifiedExporter) buildContainerAndPVCMetrics(
 		rxBytes, txBytes := aggregatePodNetwork(pod)
 
 		for _, container := range pod.Containers {
-			resp := u.buildSingleContainerMetric(pod, container, cadvisorIndex, gpuIndex, rxBytes, txBytes, now)
+			resp := u.buildSingleContainerMetric(pod, container, cadvisorIndex, gpuIndex, cgroupIndex, rxBytes, txBytes, now)
 			containerResults = append(containerResults, resp)
 		}
 
@@ -197,6 +204,7 @@ func (u *UnifiedExporter) buildSingleContainerMetric(
 	container ContainerStats,
 	cadvisorIndex map[string]*CAdvisorContainerMetrics,
 	gpuIndex map[string]*GPUMetric,
+	cgroupIndex map[string]CgroupSignals,
 	rxBytes, txBytes uint64,
 	now time.Time,
 ) ContainerMetricsResponse {
@@ -239,6 +247,17 @@ func (u *UnifiedExporter) buildSingleContainerMetric(
 		resp.CPUThrottleFraction = cm.CPUThrottleFraction
 		resp.MemoryCacheBytes = cm.MemoryCacheBytes
 		resp.MemorySwapBytes = cm.MemorySwapBytes
+	}
+
+	// Merge direct cgroup counters (same "namespace/pod/container" key as cAdvisor).
+	if cg, ok := cgroupIndex[cadKey]; ok {
+		resp.CfsPeriods = cg.CfsPeriods
+		resp.CfsThrottledPeriods = cg.CfsThrottledPeriods
+		resp.CfsThrottledUsec = cg.CfsThrottledUsec
+		resp.MemoryEventsMax = cg.MemoryEventsMax
+		resp.CPUPressureSomeUsec = cg.CPUPressureSomeUsec
+		resp.MemoryPressureSomeUsec = cg.MemoryPressureSomeUsec
+		resp.MemoryPressureFullUsec = cg.MemoryPressureFullUsec
 	}
 
 	// Merge GPU metrics

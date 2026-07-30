@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strconv"
 	"sync"
 	"time"
 
@@ -158,6 +159,9 @@ type PolicyConfig struct {
 	BufferSize              int
 	MaskSecretData          bool
 	NumResourceProcessors   int
+	NodeMetricsConcurrency  int
+	NodemonRequestTimeout   time.Duration
+	KubeletFallbackTimeout  time.Duration
 }
 
 // ========================================
@@ -447,6 +451,48 @@ func (r *CollectionPolicyReconciler) createNewConfig(
 		}
 	} else {
 		newConfig.NodeMetricsInterval = max(newConfig.UpdateInterval*6, 60*time.Second)
+	}
+
+	// Bound how many nodes' metrics NodeCollector fetches in parallel per
+	// sweep. See Policies.NodeMetricsConcurrency's doc comment for the
+	// reasoning behind the default.
+	nodeMetricsConcurrencyStr := envSpec.Policies.NodeMetricsConcurrency
+	if nodeMetricsConcurrencyStr != "" {
+		if concurrency, err := strconv.Atoi(nodeMetricsConcurrencyStr); err == nil && concurrency > 0 {
+			newConfig.NodeMetricsConcurrency = concurrency
+		} else {
+			logger.Error(err, "Error parsing node metrics concurrency", "concurrency", nodeMetricsConcurrencyStr)
+			newConfig.NodeMetricsConcurrency = 20 // Default
+		}
+	} else {
+		newConfig.NodeMetricsConcurrency = 20 // Default
+	}
+
+	// Bound each HTTP call from the controller to a node's nodemon pod.
+	nodemonRequestTimeoutStr := envSpec.Policies.NodemonRequestTimeout
+	if nodemonRequestTimeoutStr != "" {
+		if timeout, err := time.ParseDuration(nodemonRequestTimeoutStr); err == nil && timeout > 0 {
+			newConfig.NodemonRequestTimeout = timeout
+		} else {
+			logger.Error(err, "Error parsing nodemon request timeout", "timeout", nodemonRequestTimeoutStr)
+			newConfig.NodemonRequestTimeout = 15 * time.Second // Default
+		}
+	} else {
+		newConfig.NodemonRequestTimeout = 15 * time.Second // Default
+	}
+
+	// Bound each call to the kubelet Summary API fallback. This call had no
+	// timeout at all before this field was introduced.
+	kubeletFallbackTimeoutStr := envSpec.Policies.KubeletFallbackTimeout
+	if kubeletFallbackTimeoutStr != "" {
+		if timeout, err := time.ParseDuration(kubeletFallbackTimeoutStr); err == nil && timeout > 0 {
+			newConfig.KubeletFallbackTimeout = timeout
+		} else {
+			logger.Error(err, "Error parsing kubelet fallback timeout", "timeout", kubeletFallbackTimeoutStr)
+			newConfig.KubeletFallbackTimeout = 15 * time.Second // Default
+		}
+	} else {
+		newConfig.KubeletFallbackTimeout = 15 * time.Second // Default
 	}
 
 	// Set cluster snapshot interval (defaults to 3h for reduced network usage)
@@ -1326,8 +1372,11 @@ func (r *CollectionPolicyReconciler) restartCollectors(
 				r.K8sClient,
 				metricsClient,
 				collector.NodeCollectorConfig{
-					UpdateInterval:    newConfig.UpdateInterval,
-					DisableGPUMetrics: newConfig.DisableGPUMetrics,
+					UpdateInterval:               newConfig.UpdateInterval,
+					DisableGPUMetrics:            newConfig.DisableGPUMetrics,
+					MaxConcurrentNodeCollections: newConfig.NodeMetricsConcurrency,
+					NodemonRequestTimeout:        newConfig.NodemonRequestTimeout,
+					KubeletFallbackTimeout:       newConfig.KubeletFallbackTimeout,
 				},
 				newConfig.ExcludedNodes,
 				collector.DefaultMaxBatchSize,
@@ -2700,8 +2749,11 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				r.K8sClient,
 				metricsClient,
 				collector.NodeCollectorConfig{
-					UpdateInterval:    config.UpdateInterval,
-					DisableGPUMetrics: config.DisableGPUMetrics,
+					UpdateInterval:               config.UpdateInterval,
+					DisableGPUMetrics:            config.DisableGPUMetrics,
+					MaxConcurrentNodeCollections: config.NodeMetricsConcurrency,
+					NodemonRequestTimeout:        config.NodemonRequestTimeout,
+					KubeletFallbackTimeout:       config.KubeletFallbackTimeout,
 				},
 				config.ExcludedNodes,
 				collector.DefaultMaxBatchSize,
@@ -3654,8 +3706,11 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					r.K8sClient,
 					metricsClient,
 					collector.NodeCollectorConfig{
-						UpdateInterval:    newConfig.UpdateInterval,
-						DisableGPUMetrics: newConfig.DisableGPUMetrics,
+						UpdateInterval:               newConfig.UpdateInterval,
+						DisableGPUMetrics:            newConfig.DisableGPUMetrics,
+						MaxConcurrentNodeCollections: newConfig.NodeMetricsConcurrency,
+						NodemonRequestTimeout:        newConfig.NodemonRequestTimeout,
+						KubeletFallbackTimeout:       newConfig.KubeletFallbackTimeout,
 					},
 					newConfig.ExcludedNodes,
 					collector.DefaultMaxBatchSize,

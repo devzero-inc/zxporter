@@ -100,8 +100,41 @@ func main() {
 	statsPoller := nodemon.NewStatsPoller(apiProxyBase, k8sHTTPClient, logger)
 	cadvisorScraper := nodemon.NewCAdvisorScraper(apiProxyBase, k8sHTTPClient, logger)
 
+	// Shared node-scoped pod/container index. Started once and reused by the cgroup
+	// reader (identity join via the k8s API — no hostPID needed) and the /proc-walking
+	// runtime collectors (which DO require hostPID). expectHostPID drives the /proc
+	// visibility warning, so it's on only when the runtime collectors are enabled.
+	cgroupMetricsEnabled := envBool("CGROUP_METRICS_ENABLED", true)
+	runtimeMetricsEnabled := os.Getenv("RUNTIME_METRICS_ENABLED") == "true"
+
+	var podContainerIndex *nodemon.PodContainerIndex
+	if cgroupMetricsEnabled || runtimeMetricsEnabled {
+		podContainerIndex = nodemon.NewPodContainerIndex(cfg.NodeName, k8sClient, runtimeMetricsEnabled, logger)
+		if err := podContainerIndex.Start(); err != nil {
+			logger.Error(err,
+				"Failed to start pod container index — cgroup and runtime metrics unavailable, nodemon will continue")
+			podContainerIndex = nil
+		}
+	}
+
+	// Direct /sys/fs/cgroup reader (Plane 0 runtime-aware signals: CFS throttle,
+	// memory.events:max, PSI). Needs the index for the containerID -> pod/container
+	// identity join. Collect() is nil-safe, so a nil reader simply yields no signals.
+	var cgroupReader *nodemon.CgroupReader
+	switch {
+	case cgroupMetricsEnabled && podContainerIndex != nil:
+		cgroupReader = nodemon.NewCgroupReader(podContainerIndex, logger)
+		logger.Info("Cgroup metrics collection enabled")
+	case cgroupMetricsEnabled:
+		logger.Info("Cgroup metrics collection enabled but pod container index unavailable — signals will be empty")
+	default:
+		logger.Info("Cgroup metrics collection disabled (set CGROUP_METRICS_ENABLED=true to enable)")
+	}
+
 	// Create unified exporter that combines all data sources
-	unifiedExporter := nodemon.NewUnifiedExporter(statsPoller, cadvisorScraper, exporter, cfg.NodeName, logger)
+	unifiedExporter := nodemon.NewUnifiedExporter(
+		statsPoller, cadvisorScraper, exporter, cgroupReader, cfg.NodeName, logger,
+	)
 
 	// Start unified collection loop (every 30 seconds)
 	collectionCtx, collectionCancel := context.WithCancel(context.Background())
@@ -111,36 +144,38 @@ func main() {
 	// Create HTTP handlers
 	containerMetricsHandler := nodemon.NewContainerMetricsHandler(exporter, logger) // GPU-only (backward compat)
 
-	// Only start process-introspection collectors when explicitly enabled via
-	// Helm values (runtimeMetrics.enabled). They require hostPID: true and SYS_PTRACE
-	// capability, which are only granted in the pod spec when runtimeMetrics.enabled is true.
-	// All of them share a single PodContainerIndex (one Pod informer/watch) rather than
-	// each running their own.
+	// Process-introspection collectors are enabled only via Helm values
+	// (runtimeMetrics.enabled). They require hostPID: true and SYS_PTRACE, granted in
+	// the pod spec only when runtimeMetrics.enabled is true, and reuse the shared
+	// podContainerIndex started above.
 	//
 	// /container/runtime-metrics (RuntimeCollector) is the combined endpoint the zxporter
 	// collector actually polls each cycle — one /proc walk covering every runtime. The
 	// legacy /container/jvm-metrics endpoint (its own JVMCollector and /proc walk) is
 	// kept alongside it for backward compatibility with already-shipped consumers.
+	// Bounds how long the scan-heavy /container/jvm-metrics and
+	// /container/runtime-metrics handlers may take per request before
+	// returning whatever partial data is available (see
+	// nodemon.DefaultScanHandlerTimeout for why this exists).
+	scanHandlerTimeoutMs := envInt("SCAN_HANDLER_TIMEOUT_MS", int(nodemon.DefaultScanHandlerTimeout/time.Millisecond))
+	scanHandlerTimeout := time.Duration(scanHandlerTimeoutMs) * time.Millisecond
+
 	var jvmMetricsHandler http.Handler
 	var runtimeMetricsHandler http.Handler
-	var podContainerIndex *nodemon.PodContainerIndex
-	runtimeMetricsEnabled := os.Getenv("RUNTIME_METRICS_ENABLED") == "true"
-	if runtimeMetricsEnabled {
-		podContainerIndex = nodemon.NewPodContainerIndex(cfg.NodeName, k8sClient, logger)
-		if err := podContainerIndex.Start(); err != nil {
-			logger.Error(err,
-				"Failed to start pod container index — runtime metrics unavailable, nodemon will continue")
-			podContainerIndex = nil
-		} else {
-			jvmCollector := nodemon.NewJVMCollector(cfg.NodeName, podContainerIndex, logger)
-			jvmMetricsHandler = nodemon.NewJVMMetricsHandler(jvmCollector, logger)
-			logger.Info("JVM metrics collection enabled")
+	switch {
+	case runtimeMetricsEnabled && podContainerIndex != nil:
+		jvmCollector := nodemon.NewJVMCollector(cfg.NodeName, podContainerIndex, logger)
+		jvmMetricsHandler = nodemon.NewJVMMetricsHandler(jvmCollector, logger, scanHandlerTimeout)
+		go jvmCollector.StartCollectionLoop(collectionCtx, 30*time.Second)
+		logger.Info("JVM metrics collection enabled")
 
-			runtimeCollector := nodemon.NewRuntimeCollector(cfg.NodeName, podContainerIndex, logger)
-			runtimeMetricsHandler = nodemon.NewRuntimeMetricsHandler(runtimeCollector, logger)
-			logger.Info("Combined runtime metrics collection enabled")
-		}
-	} else {
+		runtimeCollector := nodemon.NewRuntimeCollector(cfg.NodeName, podContainerIndex, logger)
+		runtimeMetricsHandler = nodemon.NewRuntimeMetricsHandler(runtimeCollector, logger, scanHandlerTimeout)
+		go runtimeCollector.StartCollectionLoop(collectionCtx, 30*time.Second)
+		logger.Info("Combined runtime metrics collection enabled")
+	case runtimeMetricsEnabled:
+		logger.Info("Runtime metrics collection requested but pod container index unavailable")
+	default:
 		logger.Info("Runtime metrics collection disabled (set runtimeMetrics.enabled=true in Helm values to enable)")
 	}
 
@@ -239,6 +274,15 @@ func envInt(key string, defaultValue int) int {
 	if v := os.Getenv(key); v != "" {
 		if i, err := strconv.Atoi(v); err == nil {
 			return i
+		}
+	}
+	return defaultValue
+}
+
+func envBool(key string, defaultValue bool) bool {
+	if v := os.Getenv(key); v != "" {
+		if b, err := strconv.ParseBool(v); err == nil {
+			return b
 		}
 	}
 	return defaultValue

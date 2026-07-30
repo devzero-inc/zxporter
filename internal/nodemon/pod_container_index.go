@@ -36,6 +36,7 @@ type PodContainerIndex struct {
 	k8sClient       kubernetes.Interface
 	informerFactory informers.SharedInformerFactory
 	procRoot        string
+	expectHostPID   bool
 	log             logr.Logger
 
 	mu           sync.RWMutex
@@ -44,14 +45,25 @@ type PodContainerIndex struct {
 }
 
 // NewPodContainerIndex creates a PodContainerIndex. procRoot defaults to "/proc".
-func NewPodContainerIndex(nodeName string, k8sClient kubernetes.Interface, log logr.Logger) *PodContainerIndex {
+//
+// expectHostPID should be true only when the index feeds /proc-walking collectors
+// (JVM/runtime), which require hostPID: true. The cgroup reader resolves identities
+// from container statuses via the k8s API and does NOT need hostPID, so callers that
+// only use the reader pass false to skip the /proc visibility warning.
+func NewPodContainerIndex(
+	nodeName string,
+	k8sClient kubernetes.Interface,
+	expectHostPID bool,
+	log logr.Logger,
+) *PodContainerIndex {
 	return &PodContainerIndex{
-		nodeName:     nodeName,
-		k8sClient:    k8sClient,
-		procRoot:     "/proc",
-		log:          log.WithName("pod-container-index"),
-		containerMap: make(map[string]containerInfo),
-		stopCh:       make(chan struct{}),
+		nodeName:      nodeName,
+		k8sClient:     k8sClient,
+		procRoot:      "/proc",
+		expectHostPID: expectHostPID,
+		log:           log.WithName("pod-container-index"),
+		containerMap:  make(map[string]containerInfo),
+		stopCh:        make(chan struct{}),
 	}
 }
 
@@ -217,7 +229,9 @@ func (idx *PodContainerIndex) Start() error {
 		}
 
 		idx.log.Info("Pod informer cache synced")
-		idx.checkProcRootVisibility()
+		if idx.expectHostPID {
+			idx.checkProcRootVisibility()
+		}
 		return nil
 	}
 

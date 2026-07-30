@@ -100,6 +100,16 @@ type ContainerResourceCollector struct {
 	networkByteRates *nodemon.RateCalculator
 	rsLister         appslisters.ReplicaSetLister
 	rsInformer       cache.SharedIndexInformer
+
+	// loopWG tracks collectResourcesLoop's goroutine so Stop() can wait for
+	// an in-flight sweep to finish before closing batchChan. Closing stopCh
+	// alone only stops the loop from starting its *next* sweep — a sweep
+	// already in progress doesn't observe stopCh until it returns to the
+	// loop's select. Without waiting here, Stop() could close batchChan
+	// while the sweep is still sending on it, which panics the whole
+	// process (or blocks forever, once batchChan is also nil'd out) — see
+	// the identical issue NodeCollector had, fixed in #9411.
+	loopWG sync.WaitGroup
 }
 
 // NewContainerResourceCollector creates a new collector for container resource metrics
@@ -151,8 +161,8 @@ func NewContainerResourceCollector(
 	if ns == "" {
 		ns = defaultNamespace
 	}
-	nodemonClient := NewNodemonClient(k8sClient, ns, logger)
-	kubeletClient := NewKubeletSummaryClient(k8sClient, logger)
+	nodemonClient := NewNodemonClient(k8sClient, ns, logger, 0)
+	kubeletClient := NewKubeletSummaryClient(k8sClient, logger, 0)
 
 	return &ContainerResourceCollector{
 		k8sClient:        k8sClient,
@@ -213,7 +223,10 @@ func (c *ContainerResourceCollector) Start(ctx context.Context) error {
 	// Start a ticker to collect resource metrics at regular intervals
 	c.ticker = time.NewTicker(c.config.UpdateInterval)
 
-	// Start the collection loop
+	// Start the collection loop. loopWG lets Stop() wait for an in-flight
+	// sweep to finish before closing batchChan — see the comment on
+	// loopWG's field declaration.
+	c.loopWG.Add(1)
 	go c.collectResourcesLoop(ctx)
 
 	// Monitor for context cancellation
@@ -232,6 +245,8 @@ func (c *ContainerResourceCollector) Start(ctx context.Context) error {
 
 // collectResourcesLoop collects container resource metrics at regular intervals
 func (c *ContainerResourceCollector) collectResourcesLoop(ctx context.Context) {
+	defer c.loopWG.Done()
+
 	// Collect immediately on start
 	c.collectAllContainerResources(ctx)
 
@@ -267,8 +282,12 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 		}
 	}
 
-	// Build pod metrics from nodemon data
-	podMetricsList, err := c.buildPodMetricsFromNodemon(ctx)
+	// Fetch container metrics from nodemon ONCE and derive both the
+	// PodMetricsList (CPU/memory) and nodemonContainerMetricsCache
+	// (network/IO/throttle/GPU lookups) from the same result — this used to
+	// be two separate FetchAllContainerMetrics calls hitting the exact same
+	// endpoint on every node for identical data (see #9417).
+	allContainerMetrics, failedNodes, err := c.nodemonClient.FetchAllContainerMetrics(ctx)
 	if err != nil {
 		if c.telemetryLogger != nil {
 			c.telemetryLogger.Report(
@@ -288,6 +307,14 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 		return
 	}
 
+	// Kubelet fallback: for any node that has pods but no nodemon pod — OR where
+	// the nodemon pod is Running but failed to serve metrics — scrape the kubelet
+	// Summary API directly so those containers still get CPU/memory metrics.
+	allContainerMetrics = append(allContainerMetrics, c.fallbackContainerMetrics(ctx, failedNodes)...)
+
+	podMetricsList := buildPodMetricsListFromContainerMetrics(allContainerMetrics)
+	c.nodemonContainerMetricsCache = indexContainerMetricsByPod(allContainerMetrics)
+
 	if c.telemetryLogger != nil {
 		c.telemetryLogger.Report(
 			gen.LogLevel_LOG_LEVEL_INFO,
@@ -302,17 +329,6 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 				"zxporter_version": version.Get().String(),
 			},
 		)
-	}
-
-	// Pre-fetch container metrics from nodemon for network/IO/throttle (one call per cycle)
-	c.nodemonContainerMetricsCache = nil
-	if c.nodemonClient != nil {
-		allContainerMetrics, _, err := c.nodemonClient.FetchAllContainerMetrics(ctx)
-		if err != nil {
-			c.logger.Error(err, "Failed to fetch container metrics from nodemon")
-		} else {
-			c.nodemonContainerMetricsCache = indexContainerMetricsByPod(allContainerMetrics)
-		}
 	}
 
 	// Pre-fetch JVM + Node.js metrics from the nodemon in a single combined request
@@ -602,6 +618,16 @@ func (c *ContainerResourceCollector) processContainerMetrics(
 		MemoryUsageBytes: effectiveMemoryUsage,
 		MemoryRssBytes:   int64(mem.rss),
 
+		// Runtime-aware cgroup counters (Plane 0), from the same single lookup.
+		// Zero when the container is not in the nodemon cache.
+		CfsPeriods:             mem.cfsPeriods,
+		CfsThrottledPeriods:    mem.cfsThrottledPeriods,
+		CfsThrottledUsec:       mem.cfsThrottledUsec,
+		MemoryEventsMax:        mem.memoryEventsMax,
+		CpuPressureSomeUsec:    mem.cpuPressureSomeUsec,
+		MemoryPressureSomeUsec: mem.memoryPressureSomeUsec,
+		MemoryPressureFullUsec: mem.memoryPressureFullUsec,
+
 		// Resource requests and limits
 		CpuRequestMillis:   cpuRequestMillis,
 		CpuLimitMillis:     cpuLimitMillis,
@@ -722,17 +748,10 @@ func (c *ContainerResourceCollector) processContainerMetrics(
 // into a PodMetricsList compatible with the metrics-server format. This allows the rest
 // of collectAllContainerResources to work unchanged — CPU/memory come from nodemon's
 // stats/summary data (usageNanoCores, workingSetBytes) instead of the metrics-server API.
-func (c *ContainerResourceCollector) buildPodMetricsFromNodemon(ctx context.Context) (*metricsv1beta1.PodMetricsList, error) {
-	allMetrics, failedNodes, err := c.nodemonClient.FetchAllContainerMetrics(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch container metrics from nodemon: %w", err)
-	}
-
-	// Kubelet fallback: for any node that has pods but no nodemon pod — OR where
-	// the nodemon pod is Running but failed to serve metrics — scrape the kubelet
-	// Summary API directly so those containers still get CPU/memory metrics.
-	allMetrics = append(allMetrics, c.fallbackContainerMetrics(ctx, failedNodes)...)
-
+// Pure and I/O-free: the caller fetches allMetrics once (via FetchAllContainerMetrics
+// plus the kubelet fallback) and passes it here, instead of this function doing its own
+// (previously redundant, see #9417) fetch.
+func buildPodMetricsListFromContainerMetrics(allMetrics []UnifiedContainerMetric) *metricsv1beta1.PodMetricsList {
 	// Group by pod
 	podMap := make(map[string]*metricsv1beta1.PodMetrics)
 	for _, m := range allMetrics {
@@ -769,9 +788,7 @@ func (c *ContainerResourceCollector) buildPodMetricsFromNodemon(ctx context.Cont
 	for _, pm := range podMap {
 		result.Items = append(result.Items, *pm)
 	}
-
-	c.logger.V(1).Info("Built pod metrics from nodemon", "pods", len(result.Items), "containers", len(allMetrics))
-	return result, nil
+	return result
 }
 
 // fallbackContainerMetrics scrapes the kubelet Summary API for any node that
@@ -1059,6 +1076,11 @@ func (c *ContainerResourceCollector) Stop() error {
 		c.logger.Info("Closed container resource collector stop channel")
 	}
 
+	// 2b. Wait for collectResourcesLoop's goroutine to actually return
+	// before closing batchChan below — see the comment on loopWG's field
+	// declaration.
+	c.loopWG.Wait()
+
 	// 3. Close the batchChan (input to the batcher).
 	if c.batchChan != nil {
 		close(c.batchChan)
@@ -1111,6 +1133,16 @@ type containerMemoryBreakdown struct {
 	swap       uint64
 	rss        uint64
 	found      bool
+
+	// Runtime-aware cgroup counters (Plane 0), carried on the same nodemon cache
+	// entry so they ride the single lookup below rather than a second scan.
+	cfsPeriods             int64
+	cfsThrottledPeriods    int64
+	cfsThrottledUsec       int64
+	memoryEventsMax        int64
+	cpuPressureSomeUsec    int64
+	memoryPressureSomeUsec int64
+	memoryPressureFullUsec int64
 }
 
 // getContainerMemoryBreakdown returns the memory working-set, true usage, cache,
@@ -1129,12 +1161,19 @@ func (c *ContainerResourceCollector) getContainerMemoryBreakdown(namespace, podN
 	for _, m := range containers {
 		if m.Container == containerName {
 			return containerMemoryBreakdown{
-				workingSet: m.MemoryWorkingSet,
-				usage:      m.MemoryUsageBytes,
-				cache:      m.MemoryCacheBytes,
-				swap:       m.MemorySwapBytes,
-				rss:        m.MemoryRSSBytes,
-				found:      true,
+				workingSet:             m.MemoryWorkingSet,
+				usage:                  m.MemoryUsageBytes,
+				cache:                  m.MemoryCacheBytes,
+				swap:                   m.MemorySwapBytes,
+				rss:                    m.MemoryRSSBytes,
+				found:                  true,
+				cfsPeriods:             m.CfsPeriods,
+				cfsThrottledPeriods:    m.CfsThrottledPeriods,
+				cfsThrottledUsec:       m.CfsThrottledUsec,
+				memoryEventsMax:        m.MemoryEventsMax,
+				cpuPressureSomeUsec:    m.CPUPressureSomeUsec,
+				memoryPressureSomeUsec: m.MemoryPressureSomeUsec,
+				memoryPressureFullUsec: m.MemoryPressureFullUsec,
 			}
 		}
 	}

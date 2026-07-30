@@ -71,6 +71,22 @@ const (
 	// Default value: collection frequency * 6
 	_ENV_NODE_METRICS_INTERVAL = "NODE_METRICS_INTERVAL"
 
+	// NODE_METRICS_CONCURRENCY bounds how many nodes' metrics are collected
+	// in parallel per sweep. See Policies.NodeMetricsConcurrency's doc
+	// comment for the reasoning.
+	// Default value: 20
+	_ENV_NODE_METRICS_CONCURRENCY = "NODE_METRICS_CONCURRENCY"
+
+	// NODEMON_REQUEST_TIMEOUT bounds each HTTP call from the controller to a
+	// node's nodemon pod.
+	// Default value: 15s
+	_ENV_NODEMON_REQUEST_TIMEOUT = "NODEMON_REQUEST_TIMEOUT"
+
+	// KUBELET_FALLBACK_TIMEOUT bounds each call to the kubelet Summary API,
+	// used as a metrics fallback for nodes with no nodemon pod.
+	// Default value: 15s
+	_ENV_KUBELET_FALLBACK_TIMEOUT = "KUBELET_FALLBACK_TIMEOUT"
+
 	// CLUSTER_SNAPSHOT_INTERVAL is how often to take cluster snapshots.
 	// Default value: 3h
 	_ENV_CLUSTER_SNAPSHOT_INTERVAL = "CLUSTER_SNAPSHOT_INTERVAL"
@@ -548,6 +564,15 @@ func LoadCollectionPolicySpecFromEnv() (v1.CollectionPolicySpec, error) {
 	}
 	if v := getEnv(_ENV_NODE_METRICS_INTERVAL); v != "" {
 		newSpec.Policies.NodeMetricsInterval = v
+	}
+	if v := getEnv(_ENV_NODE_METRICS_CONCURRENCY); v != "" {
+		newSpec.Policies.NodeMetricsConcurrency = v
+	}
+	if v := getEnv(_ENV_NODEMON_REQUEST_TIMEOUT); v != "" {
+		newSpec.Policies.NodemonRequestTimeout = v
+	}
+	if v := getEnv(_ENV_KUBELET_FALLBACK_TIMEOUT); v != "" {
+		newSpec.Policies.KubeletFallbackTimeout = v
 	}
 	if v := getEnv(_ENV_CLUSTER_SNAPSHOT_INTERVAL); v != "" {
 		newSpec.Policies.ClusterSnapshotInterval = v

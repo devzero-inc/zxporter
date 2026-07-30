@@ -123,7 +123,7 @@ func TestCollectAllContainerResources_SurvivesPodDeletedDuringNodemonFetch(t *te
 
 	c := &ContainerResourceCollector{
 		nodemonClient:    nmClient,
-		kubeletClient:    NewKubeletSummaryClient(k8sfake.NewSimpleClientset(), logr.Discard()),
+		kubeletClient:    NewKubeletSummaryClient(k8sfake.NewSimpleClientset(), logr.Discard(), 0),
 		podInformer:      informer,
 		batchChan:        make(chan CollectedResource, 10),
 		config:           ContainerResourceCollectorConfig{DisableGPUMetrics: true},

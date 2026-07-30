@@ -11,7 +11,7 @@
 image:
   repository: public.ecr.aws/devzeroinc/zxporter
   pullPolicy: IfNotPresent
-  tag: "v0.1.1"
+  tag: "v0.1.2"
 # ZXPorter configuration
 zxporter:
   dakrUrl: "https://dakr.devzero.io"
@@ -43,6 +43,20 @@ zxporter:
   logLevel: "error"
   # Disable GPU metrics collection (set to "true" for clusters without GPUs)
   disableGPUMetrics: ""
+  # How many nodes' metrics NodeCollector fetches in parallel per sweep.
+  # Raise this for clusters with hundreds of nodes — see the
+  # NodeMetricsConcurrency field doc in api/v1/collectionpolicy_types.go for
+  # the reasoning and its interaction with nodemonRequestTimeout/
+  # kubeletFallbackTimeout below. This default is a starting point, not
+  # empirically load-tested against very large fleets.
+  nodeMetricsConcurrency: 20
+  # How long the controller waits for a single HTTP call to a node's nodemon
+  # pod before giving up. Go duration string, e.g. "15s".
+  nodemonRequestTimeout: "15s"
+  # How long the controller waits for a single call to the kubelet Summary
+  # API (the metrics fallback for nodes with no nodemon pod) before giving
+  # up. Go duration string, e.g. "15s".
+  kubeletFallbackTimeout: "15s"
   # Point to a pre-existing Secret that already holds the auth token(s), instead of
   # passing clusterToken/patToken through this values file. This is intended for
   # GitOps/SOPS workflows where you want to encrypt only the Secret, not the whole

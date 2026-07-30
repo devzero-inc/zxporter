@@ -35,6 +35,16 @@ type ContainerMetricsResponse struct {
 	DiskWriteOpsPerSec     float64 `json:"disk_write_ops_per_sec"`
 	CPUThrottleFraction    float64 `json:"cpu_throttle_fraction"`
 
+	// Runtime-aware cgroup signals (Plane 0), read directly from /sys/fs/cgroup.
+	// Cumulative Int64 kernel counters (window rate = last-first).
+	CfsPeriods             int64 `json:"cfs_periods,omitempty"`
+	CfsThrottledPeriods    int64 `json:"cfs_throttled_periods,omitempty"`
+	CfsThrottledUsec       int64 `json:"cfs_throttled_usec,omitempty"`
+	MemoryEventsMax        int64 `json:"memory_events_max,omitempty"`
+	CPUPressureSomeUsec    int64 `json:"cpu_pressure_some_usec,omitempty"`
+	MemoryPressureSomeUsec int64 `json:"memory_pressure_some_usec,omitempty"`
+	MemoryPressureFullUsec int64 `json:"memory_pressure_full_usec,omitempty"`
+
 	// From GPU (optional)
 	GPUUtilization   float64 `json:"gpu_utilization,omitempty"`
 	GPUMemoryUsedMiB float64 `json:"gpu_memory_used_mib,omitempty"`

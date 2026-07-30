@@ -44,6 +44,11 @@ type PersistentVolumeClaimMetricsCollector struct {
 	metrics         *TelemetryMetrics
 	telemetryLogger telemetry_logger.Logger
 	mu              sync.RWMutex
+
+	// loopWG tracks collectMetricsLoop's goroutine so Stop() can wait for
+	// an in-flight sweep to finish before closing batchChan — see the
+	// identical issue NodeCollector had, fixed in #9411.
+	loopWG sync.WaitGroup
 }
 
 // NewPersistentVolumeClaimMetricsCollector creates a new collector for PVC storage metrics
@@ -85,7 +90,7 @@ func NewPersistentVolumeClaimMetricsCollector(
 	if ns == "" {
 		ns = defaultNamespace
 	}
-	nodemonClient := NewNodemonClient(k8sClient, ns, logger)
+	nodemonClient := NewNodemonClient(k8sClient, ns, logger, 0)
 
 	return &PersistentVolumeClaimMetricsCollector{
 		k8sClient:       k8sClient,
@@ -129,6 +134,7 @@ func (c *PersistentVolumeClaimMetricsCollector) Start(ctx context.Context) error
 
 	c.ticker = time.NewTicker(c.config.UpdateInterval)
 
+	c.loopWG.Add(1)
 	go c.collectMetricsLoop(ctx)
 
 	stopCh := c.stopCh
@@ -150,6 +156,8 @@ func (c *PersistentVolumeClaimMetricsCollector) Start(ctx context.Context) error
 
 // collectMetricsLoop collects PVC metrics at regular intervals
 func (c *PersistentVolumeClaimMetricsCollector) collectMetricsLoop(ctx context.Context) {
+	defer c.loopWG.Done()
+
 	// Collect immediately on start
 	c.collectAllPVCMetrics(ctx)
 
@@ -572,6 +580,11 @@ func (c *PersistentVolumeClaimMetricsCollector) Stop() error {
 		close(c.stopCh)
 		c.logger.Info("Closed PVC metrics collector stop channel")
 	}
+
+	// Wait for collectMetricsLoop's goroutine to actually return before
+	// closing batchChan below — see the comment on loopWG's field
+	// declaration.
+	c.loopWG.Wait()
 
 	if c.batchChan != nil {
 		close(c.batchChan)
