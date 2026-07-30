@@ -14,13 +14,12 @@ import (
 	telemetry_logger "github.com/devzero-inc/zxporter/internal/logger"
 	"github.com/devzero-inc/zxporter/internal/version"
 	"github.com/go-logr/logr"
+	"golang.org/x/sync/errgroup"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
-	metricsapisv1beta1 "k8s.io/metrics/pkg/apis/metrics/v1beta1"
 	metricsv1 "k8s.io/metrics/pkg/client/clientset/versioned"
 )
 
@@ -32,6 +31,21 @@ type NodeCollectorConfig struct {
 	// DisableGPUMetrics determines whether to disable GPU metrics collection
 	// Default is false, so metrics are collected by default
 	DisableGPUMetrics bool
+
+	// MaxConcurrentNodeCollections bounds how many nodes' metrics are
+	// collected in parallel per sweep. Non-positive falls back to
+	// defaultMaxConcurrentNodeCollections. See
+	// Policies.NodeMetricsConcurrency's doc comment (api/v1/collectionpolicy_types.go)
+	// for the full reasoning.
+	MaxConcurrentNodeCollections int
+
+	// NodemonRequestTimeout bounds each HTTP call to a node's nodemon pod.
+	// Non-positive falls back to defaultNodemonRequestTimeout.
+	NodemonRequestTimeout time.Duration
+
+	// KubeletFallbackTimeout bounds each call to the kubelet Summary API
+	// fallback. Non-positive falls back to defaultKubeletFallbackTimeout.
+	KubeletFallbackTimeout time.Duration
 }
 
 // NodeCollector collects node events and resource metrics
@@ -56,6 +70,16 @@ type NodeCollector struct {
 	nodeToPodsMap   map[string]map[string]*corev1.Pod // Maps node name -> pod key -> pod object
 	podInformer     cache.SharedIndexInformer
 	podMapMutex     sync.RWMutex
+
+	// loopWG tracks collectNodeResourcesLoop's goroutine so Stop() can wait
+	// for an in-flight sweep to finish before closing batchChan. Closing
+	// stopCh alone only stops the loop from starting its *next* sweep — a
+	// sweep already in progress (now up to config.MaxConcurrentNodeCollections
+	// workers, each blocking on a send to batchChan) doesn't observe stopCh
+	// until it returns to the loop's select. Without waiting here, Stop()
+	// could close batchChan while a worker is still sending on it, which
+	// panics the whole process.
+	loopWG sync.WaitGroup
 }
 
 // NewNodeCollector creates a new collector for node resources
@@ -98,8 +122,8 @@ func NewNodeCollector(
 	if ns == "" {
 		ns = defaultNamespace
 	}
-	nodemonClient := NewNodemonClient(k8sClient, ns, logger)
-	kubeletClient := NewKubeletSummaryClient(k8sClient, logger)
+	nodemonClient := NewNodemonClient(k8sClient, ns, logger, config.NodemonRequestTimeout)
+	kubeletClient := NewKubeletSummaryClient(k8sClient, logger, config.KubeletFallbackTimeout)
 
 	return &NodeCollector{
 		k8sClient:       k8sClient,
@@ -211,7 +235,10 @@ func (c *NodeCollector) Start(ctx context.Context) error {
 	// Start a ticker to collect resource metrics at regular intervals
 	c.ticker = time.NewTicker(c.config.UpdateInterval)
 
-	// Start the resource collection loop
+	// Start the resource collection loop. loopWG lets Stop() wait for an
+	// in-flight sweep to finish before closing batchChan — see the comment
+	// on loopWG's field declaration.
+	c.loopWG.Add(1)
 	go c.collectNodeResourcesLoop(ctx)
 
 	// Monitor for context cancellation
@@ -423,6 +450,8 @@ func (c *NodeCollector) nodeStatusChanged(oldNode, newNode *corev1.Node) bool {
 
 // collectNodeResourcesLoop collects node resource metrics at regular intervals
 func (c *NodeCollector) collectNodeResourcesLoop(ctx context.Context) {
+	defer c.loopWG.Done()
+
 	// Collect immediately on start
 	c.collectAllNodeResources(ctx)
 
@@ -437,7 +466,37 @@ func (c *NodeCollector) collectNodeResourcesLoop(ctx context.Context) {
 	}
 }
 
-// collectAllNodeResources collects resource metrics for all nodes
+// collectAllNodeResources collects resource metrics for all nodes.
+//
+// defaultMaxConcurrentNodeCollections bounds how many nodes' metrics are
+// collected in parallel per sweep when NodeCollectorConfig.MaxConcurrentNodeCollections
+// isn't set. collectAllNodeResources used to do this serially — see
+// https://github.com/devzero-inc/services/issues/9410 — where a
+// several-hundred-node, high-churn fleet made sweeps balloon to 60-90s+
+// against the 10s collection tick, smearing a single sweep's node
+// timestamps across multiple wall-clock minutes. Bounded (rather than
+// unbounded) fan-out avoids hammering the API server (the kubelet fallback
+// path goes through it) or every nodemon pod at once on very large fleets.
+// This default hasn't been empirically load-tested against very large
+// fleets — see Policies.NodeMetricsConcurrency's doc comment
+// (api/v1/collectionpolicy_types.go) for how to tune it per cluster.
+const defaultMaxConcurrentNodeCollections = 20
+
+// nodeCollectionOutcome is one node's coverage classification, reported back
+// from the parallel per-node worker for aggregate telemetry after the fact.
+type nodeCollectionOutcome struct {
+	nodeName string
+	coverage nodeCoverage
+}
+
+type nodeCoverage int
+
+const (
+	nodeCoverageNodemon nodeCoverage = iota
+	nodeCoverageKubeletFallback
+	nodeCoverageUncovered
+)
+
 func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 	// Skip if metrics client is unavailable
 	if c.metricsClient == nil {
@@ -456,61 +515,54 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 		return
 	}
 
-	// Build node metrics from nodemon /node/metrics endpoint (uses kubelet stats/summary
-	// node-level data which includes system processes, not just container aggregation)
-	nodeMetricsList := &metricsapisv1beta1.NodeMetricsList{}
+	// Captured once, up front — the per-node work below does real
+	// nodemon/kubelet network round trips and can take real wall-clock time,
+	// so it must never re-read the informer cache; that second read is what
+	// used to race against concurrent node deletions (e.g. spot instance
+	// terminations) and silently drop the node's containers for the cycle.
+	nodes := c.nodeInformer.GetIndexer().List()
+	nodeObjs := make([]*corev1.Node, 0, len(nodes))
+	for _, obj := range nodes {
+		if node, ok := obj.(*corev1.Node); ok {
+			nodeObjs = append(nodeObjs, node)
+		}
+	}
 
-	// Coverage accounting: nodemon is the primary source; nodes without a nodemon
-	// pod fall back to the kubelet Summary API. Nodes where both fail are true gaps.
+	outcomes := make([]nodeCollectionOutcome, len(nodeObjs))
+
+	concurrency := c.config.MaxConcurrentNodeCollections
+	if concurrency <= 0 {
+		concurrency = defaultMaxConcurrentNodeCollections
+	}
+
+	var g errgroup.Group
+	g.SetLimit(concurrency)
+	for i, node := range nodeObjs {
+		i, node := i, node
+		g.Go(func() error {
+			outcomes[i] = c.collectSingleNodeResources(ctx, node)
+			return nil // per-node failures are logged/reported, never abort the sweep
+		})
+	}
+	_ = g.Wait() // collectSingleNodeResources never returns an error
+
+	// Coverage accounting: nodemon is the primary source; nodes without a
+	// nodemon pod fall back to the kubelet Summary API. Nodes where both
+	// fail are true gaps.
 	var nodemonCovered, kubeletFallback int
 	var uncoveredNodes []string
-
-	nodes := c.nodeInformer.GetIndexer().List()
-	// Captured once, up front, so the per-node loop below (which does a real
-	// nodemon/kubelet network round trip per node and can take real wall-clock
-	// time on large clusters) never needs to re-read the informer cache. That
-	// second read is what raced against concurrent node deletions (e.g. spot
-	// instance terminations) and silently dropped the node's containers for
-	// the cycle — reusing the object we already have in hand eliminates the
-	// race outright instead of narrowing it.
-	nodeByName := make(map[string]*corev1.Node, len(nodes))
-	for _, obj := range nodes {
-		node, ok := obj.(*corev1.Node)
-		if !ok {
-			continue
-		}
-		nodeByName[node.Name] = node
-		nm := metricsapisv1beta1.NodeMetrics{
-			ObjectMeta: metav1.ObjectMeta{Name: node.Name},
-			Usage:      corev1.ResourceList{},
-		}
-		// Fetch node-level metrics from nodemon (includes system process CPU/memory)
-		nodeMetric, err := c.nodemonClient.FetchNodeMetricsByNode(ctx, node.Name)
-		if err != nil {
-			c.logger.V(1).Info("Failed to fetch node metrics from nodemon", "node", node.Name, "error", err)
-			nodeMetric = nil
-		}
-		if nodeMetric == nil {
-			// No nodemon pod on this node — fall back to the kubelet Summary API.
-			if km, kerr := c.kubeletClient.FetchNodeMetricsByNode(ctx, node.Name); kerr != nil {
-				c.logger.V(1).Info("Kubelet node-metrics fallback failed", "node", node.Name, "error", kerr)
-				uncoveredNodes = append(uncoveredNodes, node.Name)
-			} else if km != nil {
-				nodeMetric = km
-				kubeletFallback++
-			}
-		} else {
+	for _, o := range outcomes {
+		switch o.coverage {
+		case nodeCoverageNodemon:
 			nodemonCovered++
+		case nodeCoverageKubeletFallback:
+			kubeletFallback++
+		case nodeCoverageUncovered:
+			uncoveredNodes = append(uncoveredNodes, o.nodeName)
 		}
-		if nodeMetric != nil {
-			cpuMillis := int64(nodeMetric.CPUUsageNanoCores / 1_000_000)
-			nm.Usage[corev1.ResourceCPU] = *resource.NewMilliQuantity(cpuMillis, resource.DecimalSI)
-			nm.Usage[corev1.ResourceMemory] = *resource.NewQuantity(int64(nodeMetric.MemoryWorkingSet), resource.BinarySI)
-		}
-		nodeMetricsList.Items = append(nodeMetricsList.Items, nm)
 	}
 	c.logger.V(1).Info("Built node metrics",
-		"nodes", len(nodeMetricsList.Items),
+		"nodes", len(outcomes),
 		"nodemonCovered", nodemonCovered,
 		"kubeletFallback", kubeletFallback,
 		"uncovered", len(uncoveredNodes))
@@ -522,7 +574,7 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 			"Fetched node metrics",
 			nil,
 			map[string]string{
-				"node_count":       fmt.Sprintf("%d", len(nodeMetricsList.Items)),
+				"node_count":       fmt.Sprintf("%d", len(outcomes)),
 				"nodemon_covered":  fmt.Sprintf("%d", nodemonCovered),
 				"kubelet_fallback": fmt.Sprintf("%d", kubeletFallback),
 				"excluded_nodes":   fmt.Sprintf("%v", c.excludedNodes),
@@ -552,195 +604,198 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 			)
 		}
 	}
-
-	// Process each node's metrics
-	for _, nodeMetrics := range nodeMetricsList.Items {
-		// Skip excluded nodes
-		if c.isExcluded(nodeMetrics.Name) {
-			continue
-		}
-
-		// Use the node object captured up front, before the nodemon/kubelet
-		// calls above — see the comment at nodeByName's construction. This
-		// should never miss since nodeMetricsList.Items is itself derived
-		// from the same nodes snapshot; the check is a defensive net that
-		// still reports to telemetry if that invariant is ever violated.
-		node, exists := nodeByName[nodeMetrics.Name]
-		if !exists {
-			c.logger.Info("Node not found in cache", "name", nodeMetrics.Name)
-			if c.telemetryLogger != nil {
-				c.telemetryLogger.Report(
-					gen.LogLevel_LOG_LEVEL_ERROR,
-					"NodeCollector",
-					"Node not found in informer cache",
-					fmt.Errorf("node not found in informer cache"),
-					map[string]string{
-						"collector_type":    c.GetType(),
-						"node_metrics_name": nodeMetrics.Name,
-						"error_type":        "node_cache_fail",
-						"zxporter_version":  version.Get().String(),
-					},
-				)
-			}
-			continue
-		}
-
-		// Extract CPU usage in millicores
-		cpuQuantity := nodeMetrics.Usage.Cpu()
-		cpuUsage := cpuQuantity.MilliValue()
-
-		// Extract memory usage in bytes
-		memoryQuantity := nodeMetrics.Usage.Memory()
-		memoryUsage := memoryQuantity.Value()
-
-		// Get allocatable resources from the node
-		cpuAllocatable := node.Status.Allocatable.Cpu().MilliValue()
-		memoryAllocatable := node.Status.Allocatable.Memory().Value()
-
-		// Get capacity from the node
-		cpuCapacity := node.Status.Capacity.Cpu().MilliValue()
-		memoryCapacity := node.Status.Capacity.Memory().Value()
-
-		// Calculate utilization percentages
-		cpuUtilizationPercent := float64(cpuUsage) / float64(cpuAllocatable) * 100
-		memoryUtilizationPercent := float64(memoryUsage) / float64(memoryAllocatable) * 100
-
-		// Fetch network and I/O metrics from nodemon
-		var networkMetrics map[string]float64
-		var gpuMetrics map[string]interface{}
-
-		if netMetrics, netErr := c.collectNodeNetworkIOMetrics(ctx, node.Name); netErr != nil {
-			c.logger.Error(netErr, "Failed to collect node network and io metrics from nodemon",
-				"name", node.Name)
-			networkMetrics = make(map[string]float64)
-		} else {
-			networkMetrics = netMetrics
-		}
-
-		// Fetch GPU metrics from nodemon if enabled
-		if !c.config.DisableGPUMetrics && c.nodemonClient != nil {
-			nodemonMetrics, fetchErr := c.nodemonClient.FetchMetricsByNode(ctx, node.Name)
-			if fetchErr != nil {
-				c.logger.Error(fetchErr, "Failed to fetch GPU metrics from nodemon", "node", node.Name)
-				gpuMetrics = make(map[string]interface{})
-			} else if len(nodemonMetrics) > 0 {
-				gpuMetrics = NodeGPUMetricsFromNodemon(nodemonMetrics)
-			} else {
-				gpuMetrics = make(map[string]interface{})
-			}
-		}
-
-		// Create resource data
-		resourceData := map[string]interface{}{
-			// Node identification
-			"nodeName": node.Name,
-
-			// Resource usage
-			"cpuUsageMillis":         cpuUsage,
-			"memoryUsageBytes":       memoryUsage,
-			"cpuAllocatableMillis":   cpuAllocatable,
-			"memoryAllocatableBytes": memoryAllocatable,
-			"cpuCapacityMillis":      cpuCapacity,
-			"memoryCapacityBytes":    memoryCapacity,
-
-			// Utilization percentages
-			"cpuUtilizationPercent":    cpuUtilizationPercent,
-			"memoryUtilizationPercent": memoryUtilizationPercent,
-
-			// Node properties
-			"labels":                  node.Labels,
-			"taints":                  node.Spec.Taints,
-			"conditions":              node.Status.Conditions,
-			"kubeletVersion":          node.Status.NodeInfo.KubeletVersion,
-			"osImage":                 node.Status.NodeInfo.OSImage,
-			"kernelVersion":           node.Status.NodeInfo.KernelVersion,
-			"containerRuntimeVersion": node.Status.NodeInfo.ContainerRuntimeVersion,
-
-			// Include the full node object for any other needed details
-			"node": node,
-		}
-
-		// Add network metrics if available
-		if len(networkMetrics) > 0 {
-			resourceData["networkReceiveBytes"] = networkMetrics["NetworkReceiveBytes"]
-			resourceData["networkTransmitBytes"] = networkMetrics["NetworkTransmitBytes"]
-			resourceData["networkReceivePackets"] = networkMetrics["NetworkReceivePackets"]
-			resourceData["networkTransmitPackets"] = networkMetrics["NetworkTransmitPackets"]
-			resourceData["networkReceiveErrors"] = networkMetrics["NetworkReceiveErrors"]
-			resourceData["networkTransmitErrors"] = networkMetrics["NetworkTransmitErrors"]
-			resourceData["networkReceiveDropped"] = networkMetrics["NetworkReceiveDropped"]
-			resourceData["networkTransmitDropped"] = networkMetrics["NetworkTransmitDropped"]
-			resourceData["fsReadBytes"] = networkMetrics["FSReadBytes"]
-			resourceData["fsWriteBytes"] = networkMetrics["FSWriteBytes"]
-			resourceData["fsReads"] = networkMetrics["FSReads"]
-			resourceData["fsWrites"] = networkMetrics["FSWrites"]
-		}
-
-		// Add GPU metrics if available
-		if len(gpuMetrics) > 0 {
-			// Basic GPU counts and utilization
-			resourceData["gpuCount"] = gpuMetrics["GPUCount"]
-			resourceData["gpuUtilizationAvg"] = gpuMetrics["GPUUtilizationAvg"]
-			resourceData["gpuUtilizationMax"] = gpuMetrics["GPUUtilizationMax"]
-
-			// GPU memory
-			resourceData["gpuMemoryUsedTotal"] = gpuMetrics["GPUMemoryUsedTotal"]
-			resourceData["gpuMemoryFreeTotal"] = gpuMetrics["GPUMemoryFreeTotal"]
-			resourceData["gpuMemoryTotalMb"] = gpuMetrics["GPUMemoryTotalMb"]
-
-			// GPU power and temperature
-			resourceData["gpuPowerUsageTotal"] = gpuMetrics["GPUPowerUsageTotal"]
-			resourceData["gpuTemperatureAvg"] = gpuMetrics["GPUTemperatureAvg"]
-			resourceData["gpuTemperatureMax"] = gpuMetrics["GPUTemperatureMax"]
-			resourceData["gpuMemoryTemperatureAvg"] = gpuMetrics["GPUMemoryTemperatureAvg"]
-			resourceData["gpuMemoryTemperatureMax"] = gpuMetrics["GPUMemoryTemperatureMax"]
-
-			// GPU utilization details
-			resourceData["gpuTensorUtilizationAvg"] = gpuMetrics["GPUTensorUtilizationAvg"]
-			resourceData["gpuDramUtilizationAvg"] = gpuMetrics["GPUDramUtilizationAvg"]
-			resourceData["gpuPCIeTxBytesTotal"] = gpuMetrics["GPUPCIeTxBytesTotal"]
-			resourceData["gpuPCIeRxBytesTotal"] = gpuMetrics["GPUPCIeRxBytesTotal"]
-
-			// Graphic utilization
-			resourceData["gpuGraphicsUtilizationAvg"] = gpuMetrics["GPUGraphicsUtilizationAvg"]
-
-			// GPU models and identifiers
-			resourceData["gpuModels"] = gpuMetrics["GPUModels"]
-			resourceData["gpuUUIDs"] = gpuMetrics["GPUUUIDs"]
-			resourceData["gpuUsage"] = gpuMetrics["GPUUsage"]
-		}
-
-		workloadResources := c.calculateNodeWorkloadResources(node.Name)
-
-		for k, v := range workloadResources {
-			resourceData[k] = v
-		}
-
-		// Send node resource metrics to the batch channel for batching
-		c.batchChan <- CollectedResource{
-			ResourceType: NodeResource,
-			Object:       resourceData,
-			Timestamp:    time.Now(),
-			EventType:    EventTypeMetrics,
-			Key:          node.Name,
-		}
-	}
 }
 
-// collectNodeNetworkIOMetrics collects network and I/O metrics for a node
-// using the nodemon DaemonSet.
-func (c *NodeCollector) collectNodeNetworkIOMetrics(
-	ctx context.Context,
-	nodeName string,
-) (map[string]float64, error) {
-	m, err := c.nodemonClient.FetchNodeMetricsByNode(ctx, nodeName)
+// collectSingleNodeResources does all the work for one node: resolve its
+// metrics (nodemon, falling back to the kubelet Summary API), fetch GPU
+// metrics, compute utilization, and send the result to the batch channel.
+// Safe to call concurrently for different nodes — it neither mutates nor
+// re-reads the informer cache (node is passed in, already captured by the
+// caller) and every other piece of shared state it touches (NodemonClient's
+// discovery cache, KubeletSummaryClient, calculateNodeWorkloadResources'
+// nodeToPodsMap, the telemetry logger, batchChan) is already safe for
+// concurrent use.
+//
+// Excluded nodes are still fetched (matching prior behavior, so coverage
+// telemetry counts stay comparable) but never enriched or sent.
+func (c *NodeCollector) collectSingleNodeResources(ctx context.Context, node *corev1.Node) nodeCollectionOutcome {
+	outcome := nodeCollectionOutcome{nodeName: node.Name}
+
+	// Fetch node-level metrics from nodemon (includes system process CPU/memory).
+	nodeMetric, err := c.nodemonClient.FetchNodeMetricsByNode(ctx, node.Name)
 	if err != nil {
-		return nil, fmt.Errorf("fetching node metrics from nodemon for %s: %w", nodeName, err)
-	}
-	if m == nil {
-		return nil, fmt.Errorf("no nodemon pod found on node %s", nodeName)
+		c.logger.V(1).Info("Failed to fetch node metrics from nodemon", "node", node.Name, "error", err)
+		nodeMetric = nil
 	}
 
+	fromNodemon := nodeMetric != nil
+	if !fromNodemon {
+		// No nodemon pod on this node — fall back to the kubelet Summary API.
+		if km, kerr := c.kubeletClient.FetchNodeMetricsByNode(ctx, node.Name); kerr != nil {
+			c.logger.V(1).Info("Kubelet node-metrics fallback failed", "node", node.Name, "error", kerr)
+			outcome.coverage = nodeCoverageUncovered
+		} else if km != nil {
+			nodeMetric = km
+			outcome.coverage = nodeCoverageKubeletFallback
+		}
+	} else {
+		outcome.coverage = nodeCoverageNodemon
+	}
+
+	if c.isExcluded(node.Name) {
+		return outcome
+	}
+
+	usage := corev1.ResourceList{}
+	if nodeMetric != nil {
+		cpuMillis := int64(nodeMetric.CPUUsageNanoCores / 1_000_000)
+		usage[corev1.ResourceCPU] = *resource.NewMilliQuantity(cpuMillis, resource.DecimalSI)
+		usage[corev1.ResourceMemory] = *resource.NewQuantity(int64(nodeMetric.MemoryWorkingSet), resource.BinarySI)
+	}
+
+	// Extract CPU/memory usage in millicores/bytes.
+	cpuUsage := usage.Cpu().MilliValue()
+	memoryUsage := usage.Memory().Value()
+
+	// Get allocatable and capacity resources from the node.
+	cpuAllocatable := node.Status.Allocatable.Cpu().MilliValue()
+	memoryAllocatable := node.Status.Allocatable.Memory().Value()
+	cpuCapacity := node.Status.Capacity.Cpu().MilliValue()
+	memoryCapacity := node.Status.Capacity.Memory().Value()
+
+	// Calculate utilization percentages.
+	cpuUtilizationPercent := float64(cpuUsage) / float64(cpuAllocatable) * 100
+	memoryUtilizationPercent := float64(memoryUsage) / float64(memoryAllocatable) * 100
+
+	// Network/IO metrics: derived from the nodemon-sourced nodeMetric already
+	// fetched above instead of a second, redundant nodemon call (the fix for
+	// the other half of #9410 — this used to re-fetch the exact same
+	// /node/metrics data a second time). Only populated when nodemon itself
+	// was the source (kubelet's Summary API doesn't carry network/disk
+	// rates), matching the exact set of fields the old redundant fetch would
+	// have produced for a kubelet-fallback or fully uncovered node: none.
+	var networkMetrics map[string]float64
+	if fromNodemon {
+		networkMetrics = networkIOMetricsFromNodeMetric(nodeMetric)
+	}
+
+	// Fetch GPU metrics from nodemon if enabled.
+	var gpuMetrics map[string]interface{}
+	if !c.config.DisableGPUMetrics && c.nodemonClient != nil {
+		nodemonMetrics, fetchErr := c.nodemonClient.FetchMetricsByNode(ctx, node.Name)
+		if fetchErr != nil {
+			c.logger.Error(fetchErr, "Failed to fetch GPU metrics from nodemon", "node", node.Name)
+			gpuMetrics = make(map[string]interface{})
+		} else if len(nodemonMetrics) > 0 {
+			gpuMetrics = NodeGPUMetricsFromNodemon(nodemonMetrics)
+		} else {
+			gpuMetrics = make(map[string]interface{})
+		}
+	}
+
+	// Create resource data
+	resourceData := map[string]interface{}{
+		// Node identification
+		"nodeName": node.Name,
+
+		// Resource usage
+		"cpuUsageMillis":         cpuUsage,
+		"memoryUsageBytes":       memoryUsage,
+		"cpuAllocatableMillis":   cpuAllocatable,
+		"memoryAllocatableBytes": memoryAllocatable,
+		"cpuCapacityMillis":      cpuCapacity,
+		"memoryCapacityBytes":    memoryCapacity,
+
+		// Utilization percentages
+		"cpuUtilizationPercent":    cpuUtilizationPercent,
+		"memoryUtilizationPercent": memoryUtilizationPercent,
+
+		// Node properties
+		"labels":                  node.Labels,
+		"taints":                  node.Spec.Taints,
+		"conditions":              node.Status.Conditions,
+		"kubeletVersion":          node.Status.NodeInfo.KubeletVersion,
+		"osImage":                 node.Status.NodeInfo.OSImage,
+		"kernelVersion":           node.Status.NodeInfo.KernelVersion,
+		"containerRuntimeVersion": node.Status.NodeInfo.ContainerRuntimeVersion,
+
+		// Include the full node object for any other needed details
+		"node": node,
+	}
+
+	// Add network metrics if available
+	if len(networkMetrics) > 0 {
+		resourceData["networkReceiveBytes"] = networkMetrics["NetworkReceiveBytes"]
+		resourceData["networkTransmitBytes"] = networkMetrics["NetworkTransmitBytes"]
+		resourceData["networkReceivePackets"] = networkMetrics["NetworkReceivePackets"]
+		resourceData["networkTransmitPackets"] = networkMetrics["NetworkTransmitPackets"]
+		resourceData["networkReceiveErrors"] = networkMetrics["NetworkReceiveErrors"]
+		resourceData["networkTransmitErrors"] = networkMetrics["NetworkTransmitErrors"]
+		resourceData["networkReceiveDropped"] = networkMetrics["NetworkReceiveDropped"]
+		resourceData["networkTransmitDropped"] = networkMetrics["NetworkTransmitDropped"]
+		resourceData["fsReadBytes"] = networkMetrics["FSReadBytes"]
+		resourceData["fsWriteBytes"] = networkMetrics["FSWriteBytes"]
+		resourceData["fsReads"] = networkMetrics["FSReads"]
+		resourceData["fsWrites"] = networkMetrics["FSWrites"]
+	}
+
+	// Add GPU metrics if available
+	if len(gpuMetrics) > 0 {
+		// Basic GPU counts and utilization
+		resourceData["gpuCount"] = gpuMetrics["GPUCount"]
+		resourceData["gpuUtilizationAvg"] = gpuMetrics["GPUUtilizationAvg"]
+		resourceData["gpuUtilizationMax"] = gpuMetrics["GPUUtilizationMax"]
+
+		// GPU memory
+		resourceData["gpuMemoryUsedTotal"] = gpuMetrics["GPUMemoryUsedTotal"]
+		resourceData["gpuMemoryFreeTotal"] = gpuMetrics["GPUMemoryFreeTotal"]
+		resourceData["gpuMemoryTotalMb"] = gpuMetrics["GPUMemoryTotalMb"]
+
+		// GPU power and temperature
+		resourceData["gpuPowerUsageTotal"] = gpuMetrics["GPUPowerUsageTotal"]
+		resourceData["gpuTemperatureAvg"] = gpuMetrics["GPUTemperatureAvg"]
+		resourceData["gpuTemperatureMax"] = gpuMetrics["GPUTemperatureMax"]
+		resourceData["gpuMemoryTemperatureAvg"] = gpuMetrics["GPUMemoryTemperatureAvg"]
+		resourceData["gpuMemoryTemperatureMax"] = gpuMetrics["GPUMemoryTemperatureMax"]
+
+		// GPU utilization details
+		resourceData["gpuTensorUtilizationAvg"] = gpuMetrics["GPUTensorUtilizationAvg"]
+		resourceData["gpuDramUtilizationAvg"] = gpuMetrics["GPUDramUtilizationAvg"]
+		resourceData["gpuPCIeTxBytesTotal"] = gpuMetrics["GPUPCIeTxBytesTotal"]
+		resourceData["gpuPCIeRxBytesTotal"] = gpuMetrics["GPUPCIeRxBytesTotal"]
+
+		// Graphic utilization
+		resourceData["gpuGraphicsUtilizationAvg"] = gpuMetrics["GPUGraphicsUtilizationAvg"]
+
+		// GPU models and identifiers
+		resourceData["gpuModels"] = gpuMetrics["GPUModels"]
+		resourceData["gpuUUIDs"] = gpuMetrics["GPUUUIDs"]
+		resourceData["gpuUsage"] = gpuMetrics["GPUUsage"]
+	}
+
+	workloadResources := c.calculateNodeWorkloadResources(node.Name)
+
+	for k, v := range workloadResources {
+		resourceData[k] = v
+	}
+
+	// Send node resource metrics to the batch channel for batching
+	c.batchChan <- CollectedResource{
+		ResourceType: NodeResource,
+		Object:       resourceData,
+		Timestamp:    time.Now(),
+		EventType:    EventTypeMetrics,
+		Key:          node.Name,
+	}
+
+	return outcome
+}
+
+// networkIOMetricsFromNodeMetric converts an already-fetched nodemon
+// UnifiedNodeMetric into the network/IO metrics map collectSingleNodeResources
+// needs. Pure and I/O-free — this replaced a second, redundant HTTP call to
+// the exact same nodemon /node/metrics endpoint (see issue #9410).
+func networkIOMetricsFromNodeMetric(m *UnifiedNodeMetric) map[string]float64 {
 	return map[string]float64{
 		"NetworkReceiveBytes":    m.NetworkRxBytesPerSec,
 		"NetworkTransmitBytes":   m.NetworkTxBytesPerSec,
@@ -754,7 +809,7 @@ func (c *NodeCollector) collectNodeNetworkIOMetrics(
 		"FSWriteBytes":           m.DiskWriteBytesPerSec,
 		"FSReads":                m.DiskReadOpsPerSec,
 		"FSWrites":               m.DiskWriteOpsPerSec,
-	}, nil
+	}
 }
 
 // isExcluded checks if a node should be excluded from collection
@@ -782,6 +837,14 @@ func (c *NodeCollector) Stop() error {
 		close(c.stopCh)
 		c.logger.Info("Closed node collector stop channel")
 	}
+
+	// 2b. Wait for collectNodeResourcesLoop's goroutine to actually return.
+	// Closing stopCh above only stops it from starting another sweep — a
+	// sweep already in flight (with concurrent workers still possibly
+	// blocked on batchChan sends) has to finish and observe stopCh on its
+	// next loop iteration first. Waiting here before closing batchChan below
+	// is what makes that safe.
+	c.loopWG.Wait()
 
 	// 3. Close the batchChan (input to the batcher for metrics).
 	if c.batchChan != nil {

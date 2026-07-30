@@ -17,6 +17,14 @@
 {{- if hasKey (.Values.runtimeMetrics | default dict) "enabled" }}
 {{- $runtimeMetricsEnabled = .Values.runtimeMetrics.enabled }}
 {{- end }}
+{{- /* cgroupMetrics.enabled gates the read-only /sys/fs/cgroup mount + reader.
+       Defaults to true and, unlike runtimeMetrics, needs no hostPID/root/SYS_PTRACE. */}}
+{{- $cgroupMetricsEnabled := dig "enabled" true (.Values.cgroupMetrics | default dict) }}
+{{- /* Bounds how long the scan-heavy /container/jvm-metrics and
+       /container/runtime-metrics handlers may take per request. Empty
+       string means "use the built-in default (2.5s)" — see
+       nodemon.DefaultScanHandlerTimeout. */}}
+{{- $scanHandlerTimeoutMs := dig "scanHandlerTimeoutMs" "" (.Values.runtimeMetrics | default dict) }}
 {{- $base := include "zxporter-nodemon.fullname" . }}
 {{- $gpuName := printf "%s-gpu" ($base | trunc 59 | trimSuffix "-") }}
 {{- $variants := list (dict "name" $base "instance" $base "withDcgm" .Values.dcgmExporter.enabled "gpuAff" "none") }}
@@ -87,8 +95,9 @@ spec:
       {{- end }}
       {{- end }}
       serviceAccountName: {{ include "zxporter-nodemon.serviceAccountName" $ }}
-      {{- if $v.withDcgm }}
+      {{- if or $v.withDcgm $cgroupMetricsEnabled }}
       volumes:
+        {{- if $v.withDcgm }}
         - name: "pod-gpu-resources"
           hostPath:
             path: /var/lib/kubelet/pod-resources
@@ -99,6 +108,12 @@ spec:
         - name: "nvidia-install-dir-host"
           hostPath:
             path: /home/kubernetes/bin/nvidia
+        {{- end }}
+        {{- end }}
+        {{- if $cgroupMetricsEnabled }}
+        - name: cgroup
+          hostPath:
+            path: /sys/fs/cgroup
         {{- end }}
       {{- end }}
       {{- with $.Values.nodeSelector }}
@@ -189,10 +204,22 @@ spec:
                   fieldPath: metadata.namespace
             - name: "RUNTIME_METRICS_ENABLED"
               value: {{ $runtimeMetricsEnabled | quote }}
+            - name: "CGROUP_METRICS_ENABLED"
+              value: {{ $cgroupMetricsEnabled | quote }}
+            {{- if $scanHandlerTimeoutMs }}
+            - name: "SCAN_HANDLER_TIMEOUT_MS"
+              value: {{ $scanHandlerTimeoutMs | quote }}
+            {{- end }}
 
           {{- if $v.withDcgm }}
             - name: "DCGM_HOST"
               value: "localhost"
+          {{- end }}
+          {{- if $cgroupMetricsEnabled }}
+          volumeMounts:
+            - name: cgroup
+              mountPath: /sys/fs/cgroup
+              readOnly: true
           {{- end }}
           resources:
             {{- toYaml $.Values.nodemon.resources | nindent 12 }}

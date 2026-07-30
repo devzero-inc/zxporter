@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -18,6 +19,19 @@ type JVMCollector struct {
 	index    *PodContainerIndex
 	procRoot string
 	log      logr.Logger
+
+	mu sync.RWMutex
+	// cachedMetrics/cachedErr are the result of the last completed Collect —
+	// what QueryJVMMetrics serves. Collection runs on a ticker
+	// (StartCollectionLoop), off the HTTP request path, so a request never
+	// pays for a live /proc walk.
+	cachedMetrics []JVMMetric
+	cachedErr     error
+
+	// discover and build are seams over the package-level functions,
+	// overridable in tests. Production code always uses the real functions.
+	discover func(procRoot string) ([]JavaProcess, error)
+	build    func(ctx context.Context, procs []JavaProcess, index *PodContainerIndex, nodeName string, log logr.Logger) ([]JVMMetric, error)
 }
 
 // NewJVMCollector creates a JVMCollector. index must already be started (or be
@@ -25,23 +39,88 @@ type JVMCollector struct {
 // "/proc".
 func NewJVMCollector(nodeName string, index *PodContainerIndex, log logr.Logger) *JVMCollector {
 	return &JVMCollector{
-		nodeName: nodeName,
-		index:    index,
-		procRoot: "/proc",
-		log:      log.WithName("jvm-collector"),
+		nodeName:  nodeName,
+		index:     index,
+		procRoot:  "/proc",
+		log:       log.WithName("jvm-collector"),
+		cachedErr: errMetricsNotYetCollected,
+		discover:  discoverJavaProcesses,
+		build:     buildJVMMetrics,
 	}
 }
 
-// QueryJVMMetrics returns JVM metrics for all discovered Java containers on this node.
-func (c *JVMCollector) QueryJVMMetrics(ctx context.Context) ([]JVMMetric, error) {
+// QueryJVMMetrics returns the JVM metrics from the last completed background
+// Collect — see StartCollectionLoop. It never does its own /proc walk, so
+// it's safe to call on every HTTP request.
+func (c *JVMCollector) QueryJVMMetrics(_ context.Context) ([]JVMMetric, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.cachedMetrics, c.cachedErr
+}
+
+// StartCollectionLoop runs Collect immediately, then on every tick. Call in a
+// goroutine. ctx is expected to be long-lived (cancelled only at shutdown),
+// so each individual cycle gets its own bounded sub-context — otherwise a
+// slow or stuck cycle (e.g. a wedged hsperfdata read) would run forever,
+// permanently freezing the cache and preventing any future tick from ever
+// running, since the loop is single-threaded.
+func (c *JVMCollector) StartCollectionLoop(ctx context.Context, interval time.Duration) {
+	c.collectOneCycle(ctx, interval)
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			c.collectOneCycle(ctx, interval)
+		}
+	}
+}
+
+// collectOneCycle runs Collect under a deadline derived from parentCtx,
+// bounded by interval, so one cycle can never run longer than the loop's own
+// tick period.
+func (c *JVMCollector) collectOneCycle(parentCtx context.Context, interval time.Duration) {
+	cycleCtx, cancel := context.WithTimeout(parentCtx, interval)
+	defer cancel()
+	c.Collect(cycleCtx)
+}
+
+// Collect performs a single /proc walk, builds JVM metrics, and publishes the
+// result for QueryJVMMetrics to serve. A cycle that produces nothing usable
+// (an error and no metrics) keeps the last good snapshot instead of blanking
+// it — a transient failure would otherwise erase good data for a full
+// refresh interval. The error itself is still published either way, so
+// QueryJVMMetrics reflects that the most recent cycle had a problem.
+func (c *JVMCollector) Collect(ctx context.Context) {
+	metrics, err := c.collect(ctx)
+	if err != nil {
+		c.log.Error(err, "JVM metrics collection cycle failed")
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.cachedErr = err
+	if err != nil && len(metrics) == 0 {
+		return
+	}
+	c.cachedMetrics = metrics
+}
+
+// collect performs the live /proc walk and build. Only Collect should call
+// this — QueryJVMMetrics reads the cache Collect publishes.
+func (c *JVMCollector) collect(ctx context.Context) ([]JVMMetric, error) {
 	start := time.Now()
-	procs, err := discoverJavaProcesses(c.procRoot)
+	procs, err := c.discover(c.procRoot)
 	if err != nil {
 		return nil, fmt.Errorf("discovering java processes: %w", err)
 	}
 	c.log.Info("Discovered java processes", "count", len(procs), "took", time.Since(start).String())
 
-	return buildJVMMetrics(ctx, procs, c.index, c.nodeName, c.log)
+	return c.build(ctx, procs, c.index, c.nodeName, c.log)
 }
 
 // buildJVMMetrics reads hsperfdata for each discovered Java process and builds

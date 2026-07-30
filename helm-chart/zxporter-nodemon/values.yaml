@@ -13,7 +13,7 @@ serviceAccount:
 image:
   repository: public.ecr.aws/devzeroinc/zxporter-nodemon
   pullPolicy: IfNotPresent
-  tag: "v0.1.1"
+  tag: "v0.1.2"
 nodemon:
   # nodemon.affinity -- optional pod affinity/anti-affinity. Leave empty so nodemon schedules on
   # EVERY node (it is the sole source of node/container metrics). Only set this if you intentionally
@@ -49,12 +49,25 @@ nodemon:
 # Node.js detection/version). NOTE: requires hostPID + running nodemon as UID 0 +
 # SYS_PTRACE to read other containers' /proc/<pid>/root overlay.
 # Leave unset to fall back to the deprecated jvmMetrics.enabled below.
+#
+# scanHandlerTimeoutMs -- bounds how long the scan-heavy /container/jvm-metrics
+# and /container/runtime-metrics handlers may take per request (a slow /proc
+# walk or binary version-sniff otherwise stalls the HTTP server / probes).
+# Leave unset to use the built-in default (2500ms).
 runtimeMetrics: {}
 #  enabled: true
+#  scanHandlerTimeoutMs: 2500
 # jvmMetrics.enabled -- Deprecated: renamed to runtimeMetrics.enabled now that this
 # toggle also gates Node.js detection, not just JVM. Kept for backward compatibility
 # with existing overrides; set runtimeMetrics.enabled instead going forward.
 jvmMetrics:
+  enabled: true
+# cgroupMetrics.enabled -- Collect runtime-aware cgroup signals (Plane 0) by reading
+# /sys/fs/cgroup directly: real CFS throttle counters, memory.events:max (the
+# Guaranteed-memory ceiling counter), and PSI (cpu/memory pressure). Mounts
+# /sys/fs/cgroup read-only. Unlike runtimeMetrics this needs NO hostPID / root /
+# SYS_PTRACE — container identities are resolved from the k8s API, not /proc.
+cgroupMetrics:
   enabled: true
 # global values are the single source of truth shared with the parent zxporter
 # chart, which auto-propagates them to this subchart. These defaults apply when

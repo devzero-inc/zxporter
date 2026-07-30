@@ -34,21 +34,24 @@ func (c *NodemonClient) FetchAllRuntimeMetrics(ctx context.Context) (NodemonRunt
 		return NodemonRuntimeMetrics{}, nil
 	}
 
-	var all NodemonRuntimeMetrics
-	for nodeName, podIP := range nodeToIP {
+	results := fetchAllNodesConcurrently(ctx, nodeToIP, func(ctx context.Context, podIP string) (NodemonRuntimeMetrics, error) {
 		url := fmt.Sprintf("http://%s:%d/container/runtime-metrics", podIP, c.port)
-		metrics, fetchErr := c.fetchRuntimeMetrics(ctx, url)
-		if errors.Is(fetchErr, errRuntimeMetricsDisabled) {
+		return c.fetchRuntimeMetrics(ctx, url)
+	})
+
+	var all NodemonRuntimeMetrics
+	for _, r := range results {
+		if errors.Is(r.err, errRuntimeMetricsDisabled) {
 			// Feature is off chart-wide; don't error-spam every node every cycle.
-			c.log.V(1).Info("Runtime metrics disabled on nodemon; skipping fetch", "node", nodeName)
+			c.log.V(1).Info("Runtime metrics disabled on nodemon; skipping fetch", "node", r.nodeName)
 			continue
 		}
-		if fetchErr != nil {
-			c.log.Error(fetchErr, "Failed to fetch runtime metrics from exporter pod", "node", nodeName, "podIP", podIP)
+		if r.err != nil {
+			c.log.Error(r.err, "Failed to fetch runtime metrics from exporter pod", "node", r.nodeName, "podIP", r.podIP)
 			continue
 		}
-		all.JVM = append(all.JVM, metrics.JVM...)
-		all.Runtimes = append(all.Runtimes, metrics.Runtimes...)
+		all.JVM = append(all.JVM, r.value.JVM...)
+		all.Runtimes = append(all.Runtimes, r.value.Runtimes...)
 	}
 	return all, nil
 }

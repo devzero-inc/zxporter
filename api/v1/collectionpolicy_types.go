@@ -471,6 +471,39 @@ type Policies struct {
 	// NodeMetricsInterval is how often to collect node metrics (defaults to 6x regular frequency)
 	NodeMetricsInterval string `json:"nodeMetricsInterval,omitempty"`
 
+	// NodeMetricsConcurrency bounds how many nodes' metrics are collected in
+	// parallel per sweep (defaults to 20). Collecting them serially made a
+	// large, high-churn fleet's sweep time scale with node count instead of
+	// the slowest single network call, smearing a single sweep's node
+	// timestamps across multiple wall-clock minutes — see
+	// https://github.com/devzero-inc/services/issues/9410. The default is a
+	// starting point, not empirically load-tested against very large
+	// fleets; raise it for clusters with hundreds of nodes, but note it
+	// interacts with NodemonRequestTimeout/KubeletFallbackTimeout below —
+	// worst-case sweep time is roughly
+	// ceil(nodeCount/NodeMetricsConcurrency) * (slowest per-node timeout).
+	// A string integer (e.g. "20") rather than a typed number, deliberately
+	// matching NodemonRequestTimeout/KubeletFallbackTimeout's shape below:
+	// parsing is deferred to the controller, which logs a malformed value
+	// instead of silently falling back to the default.
+	// +optional
+	NodeMetricsConcurrency string `json:"nodeMetricsConcurrency,omitempty"`
+
+	// NodemonRequestTimeout bounds each HTTP call from the controller to a
+	// node's nodemon pod (defaults to 15s). A Go duration string (e.g.
+	// "15s", "10s").
+	// +optional
+	NodemonRequestTimeout string `json:"nodemonRequestTimeout,omitempty"`
+
+	// KubeletFallbackTimeout bounds each call to the kubelet Summary API
+	// (via the API server's node-proxy subresource), used as a metrics
+	// fallback for nodes with no nodemon pod (defaults to 15s). This call
+	// had no timeout at all before this field was introduced — a hung
+	// apiserver/kubelet-proxy response could occupy a collection worker
+	// indefinitely. A Go duration string (e.g. "15s", "10s").
+	// +optional
+	KubeletFallbackTimeout string `json:"kubeletFallbackTimeout,omitempty"`
+
 	// ClusterSnapshotInterval is how often to take cluster snapshots (defaults to 3h)
 	ClusterSnapshotInterval string `json:"clusterSnapshotInterval,omitempty"`
 

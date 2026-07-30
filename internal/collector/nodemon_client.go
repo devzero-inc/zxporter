@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	"golang.org/x/sync/errgroup"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 )
@@ -47,6 +48,15 @@ type UnifiedContainerMetric struct {
 	DiskReadOpsPerSec      float64 `json:"disk_read_ops_per_sec"`
 	DiskWriteOpsPerSec     float64 `json:"disk_write_ops_per_sec"`
 	CPUThrottleFraction    float64 `json:"cpu_throttle_fraction"`
+	// Runtime-aware cgroup signals (Plane 0), read directly from /sys/fs/cgroup by
+	// nodemon. Cumulative Int64 kernel counters (window rate = last-first).
+	CfsPeriods             int64 `json:"cfs_periods,omitempty"`
+	CfsThrottledPeriods    int64 `json:"cfs_throttled_periods,omitempty"`
+	CfsThrottledUsec       int64 `json:"cfs_throttled_usec,omitempty"`
+	MemoryEventsMax        int64 `json:"memory_events_max,omitempty"`
+	CPUPressureSomeUsec    int64 `json:"cpu_pressure_some_usec,omitempty"`
+	MemoryPressureSomeUsec int64 `json:"memory_pressure_some_usec,omitempty"`
+	MemoryPressureFullUsec int64 `json:"memory_pressure_full_usec,omitempty"`
 	// GPU (optional)
 	GPUUtilization   float64 `json:"gpu_utilization,omitempty"`
 	GPUMemoryUsedMiB float64 `json:"gpu_memory_used_mib,omitempty"`
@@ -153,7 +163,70 @@ const (
 	nodemonDefaultPort = 6061
 	// How long to cache the node→podIP mapping before re-discovering.
 	nodemonCacheTTL = 30 * time.Second
+	// defaultNodemonRequestTimeout is used when NewNodemonClient is given a
+	// non-positive timeout — preserves prior behavior for callers that
+	// don't (yet) expose this as configurable (see NodeCollectorConfig for
+	// the one that does).
+	defaultNodemonRequestTimeout = 15 * time.Second
+	// maxConcurrentNodemonFetches bounds how many nodemon pods are queried
+	// in parallel per FetchAll* call. These methods used to loop over every
+	// discovered node serially, one blocking HTTP call at a time — see
+	// https://github.com/devzero-inc/services/issues/9417, the same class
+	// of bug NodeCollector had (issues/9410). Not yet exposed as a
+	// CollectionPolicy-configurable knob (unlike NodeCollector's
+	// MaxConcurrentNodeCollections) since this single constant now serves
+	// multiple collectors (ContainerResourceCollector, PVCMetricsCollector)
+	// — a shared knob is a reasonable follow-up once this fix has had time
+	// to prove out in practice.
+	maxConcurrentNodemonFetches = 20
 )
+
+// nodemonNodeFetchResult is one node's outcome from a bounded-concurrency
+// fan-out fetch across all discovered nodemon pods.
+type nodemonNodeFetchResult[T any] struct {
+	nodeName string
+	podIP    string
+	value    T
+	err      error
+}
+
+// fetchAllNodesConcurrently fans out fetch(ctx, podIP) across every node in
+// nodeToIP with bounded concurrency (maxConcurrentNodemonFetches), returning
+// one result per node (order matches no particular sequence). This is the
+// shared parallelization point for every NodemonClient.FetchAll* method —
+// each used to loop over nodeToIP serially, one blocking HTTP call at a
+// time (see maxConcurrentNodemonFetches' doc comment). Per-node
+// success/failure is left to the caller to interpret and log, since each
+// FetchAll* method's failure semantics differ slightly (e.g.
+// FetchAllContainerMetrics tracks failed nodes for the kubelet fallback;
+// FetchAllRuntimeMetrics treats a 404 as "feature disabled", not a
+// failure).
+func fetchAllNodesConcurrently[T any](
+	ctx context.Context,
+	nodeToIP map[string]string,
+	fetch func(ctx context.Context, podIP string) (T, error),
+) []nodemonNodeFetchResult[T] {
+	names := make([]string, 0, len(nodeToIP))
+	ips := make([]string, 0, len(nodeToIP))
+	for n, ip := range nodeToIP {
+		names = append(names, n)
+		ips = append(ips, ip)
+	}
+
+	results := make([]nodemonNodeFetchResult[T], len(names))
+	var g errgroup.Group
+	g.SetLimit(maxConcurrentNodemonFetches)
+	for i := range names {
+		i := i
+		g.Go(func() error {
+			value, err := fetch(ctx, ips[i])
+			results[i] = nodemonNodeFetchResult[T]{nodeName: names[i], podIP: ips[i], value: value, err: err}
+			return nil // per-node failures are for the caller to interpret, never abort the fan-out
+		})
+	}
+	_ = g.Wait()
+	return results
+}
 
 // NodemonClient auto-discovers zxporter-nodemon DaemonSet pods and
 // routes metrics requests to the correct pod based on node name.
@@ -176,18 +249,24 @@ type NodemonClient struct {
 }
 
 // NewNodemonClient creates a client that auto-discovers nodemon pods
-// in the given namespace using well-known labels.
+// in the given namespace using well-known labels. requestTimeout bounds
+// each HTTP call to a nodemon pod; a non-positive value falls back to
+// defaultNodemonRequestTimeout.
 func NewNodemonClient(
 	k8sClient kubernetes.Interface,
 	namespace string,
 	log logr.Logger,
+	requestTimeout time.Duration,
 ) *NodemonClient {
+	if requestTimeout <= 0 {
+		requestTimeout = defaultNodemonRequestTimeout
+	}
 	return &NodemonClient{
 		k8sClient: k8sClient,
 		namespace: namespace,
 		port:      nodemonDefaultPort,
 		httpClient: &http.Client{
-			Timeout: 15 * time.Second,
+			Timeout: requestTimeout,
 		},
 		log: log.WithName("nodemon-client"),
 	}
@@ -274,38 +353,6 @@ func (c *NodemonClient) HasExporters(ctx context.Context) bool {
 		return false
 	}
 	return len(m) > 0
-}
-
-// FetchAllMetrics discovers all nodemon pods and fetches metrics from each,
-// merging the results into a single slice. Used by the container collector.
-func (c *NodemonClient) FetchAllMetrics(ctx context.Context) ([]NodemonMetric, error) {
-	nodeToIP, err := c.refreshCache(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if len(nodeToIP) == 0 {
-		return nil, nil
-	}
-
-	var allMetrics []NodemonMetric
-	for nodeName, podIP := range nodeToIP {
-		url := fmt.Sprintf("http://%s:%d/container/metrics", podIP, c.port)
-		metrics, fetchErr := c.fetchMetrics(ctx, url)
-		if fetchErr != nil {
-			c.log.Error(
-				fetchErr,
-				"Failed to fetch GPU metrics from exporter pod",
-				"node",
-				nodeName,
-				"podIP",
-				podIP,
-			)
-			continue
-		}
-		allMetrics = append(allMetrics, metrics...)
-	}
-
-	return allMetrics, nil
 }
 
 // FetchMetricsByNode fetches GPU metrics from the exporter pod running on the given node.
@@ -400,22 +447,25 @@ func (c *NodemonClient) FetchAllContainerMetrics(ctx context.Context) ([]Unified
 		return nil, nil, nil
 	}
 
+	results := fetchAllNodesConcurrently(ctx, nodeToIP, func(ctx context.Context, podIP string) ([]UnifiedContainerMetric, error) {
+		baseURL := fmt.Sprintf("http://%s:%d", podIP, c.port)
+		return c.fetchContainerMetrics(ctx, baseURL)
+	})
+
 	var allMetrics []UnifiedContainerMetric
 	failedNodes := make(map[string]struct{})
-	for nodeName, podIP := range nodeToIP {
-		baseURL := fmt.Sprintf("http://%s:%d", podIP, c.port)
-		metrics, fetchErr := c.fetchContainerMetrics(ctx, baseURL)
-		if fetchErr != nil {
+	for _, r := range results {
+		if r.err != nil {
 			c.log.Error(
-				fetchErr,
+				r.err,
 				"Failed to fetch container metrics from nodemon pod",
-				"node", nodeName,
-				"podIP", podIP,
+				"node", r.nodeName,
+				"podIP", r.podIP,
 			)
-			failedNodes[nodeName] = struct{}{}
+			failedNodes[r.nodeName] = struct{}{}
 			continue
 		}
-		allMetrics = append(allMetrics, metrics...)
+		allMetrics = append(allMetrics, r.value...)
 	}
 
 	return allMetrics, failedNodes, nil
@@ -508,20 +558,23 @@ func (c *NodemonClient) FetchAllPVCMetrics(ctx context.Context) ([]UnifiedPVCMet
 		return nil, nil
 	}
 
-	var allMetrics []UnifiedPVCMetric
-	for nodeName, podIP := range nodeToIP {
+	results := fetchAllNodesConcurrently(ctx, nodeToIP, func(ctx context.Context, podIP string) ([]UnifiedPVCMetric, error) {
 		baseURL := fmt.Sprintf("http://%s:%d", podIP, c.port)
-		metrics, fetchErr := c.fetchPVCMetrics(ctx, baseURL)
-		if fetchErr != nil {
+		return c.fetchPVCMetrics(ctx, baseURL)
+	})
+
+	var allMetrics []UnifiedPVCMetric
+	for _, r := range results {
+		if r.err != nil {
 			c.log.Error(
-				fetchErr,
+				r.err,
 				"Failed to fetch PVC metrics from nodemon pod",
-				"node", nodeName,
-				"podIP", podIP,
+				"node", r.nodeName,
+				"podIP", r.podIP,
 			)
 			continue
 		}
-		allMetrics = append(allMetrics, metrics...)
+		allMetrics = append(allMetrics, r.value...)
 	}
 
 	return allMetrics, nil

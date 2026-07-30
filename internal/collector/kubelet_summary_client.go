@@ -10,6 +10,14 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
+// defaultKubeletFallbackTimeout is used when NewKubeletSummaryClient is
+// given a non-positive timeout — preserves prior behavior for callers that
+// don't (yet) expose this as configurable (see NodeCollectorConfig for the
+// one that does). This call had no timeout at all before this constant was
+// introduced: a hung apiserver/kubelet-proxy response could block whatever
+// goroutine was waiting on it indefinitely.
+const defaultKubeletFallbackTimeout = 15 * time.Second
+
 // KubeletSummaryClient fetches per-node resource usage directly from the kubelet
 // Summary API (/stats/summary) via the API-server node proxy subresource.
 //
@@ -26,17 +34,23 @@ import (
 // fallback nodes (a deliberate degraded mode, on par with what metrics-server
 // would have provided).
 type KubeletSummaryClient struct {
-	k8sClient kubernetes.Interface
-	log       logr.Logger
+	k8sClient      kubernetes.Interface
+	log            logr.Logger
+	requestTimeout time.Duration
 }
 
 // NewKubeletSummaryClient creates a client that reads kubelet /stats/summary
 // through the API-server node proxy. It requires the `nodes/proxy` (get) RBAC
-// verb on the zxporter ClusterRole.
-func NewKubeletSummaryClient(k8sClient kubernetes.Interface, log logr.Logger) *KubeletSummaryClient {
+// verb on the zxporter ClusterRole. requestTimeout bounds each call; a
+// non-positive value falls back to defaultKubeletFallbackTimeout.
+func NewKubeletSummaryClient(k8sClient kubernetes.Interface, log logr.Logger, requestTimeout time.Duration) *KubeletSummaryClient {
+	if requestTimeout <= 0 {
+		requestTimeout = defaultKubeletFallbackTimeout
+	}
 	return &KubeletSummaryClient{
-		k8sClient: k8sClient,
-		log:       log.WithName("kubelet-summary-client"),
+		k8sClient:      k8sClient,
+		log:            log.WithName("kubelet-summary-client"),
+		requestTimeout: requestTimeout,
 	}
 }
 
@@ -83,6 +97,9 @@ type kubeletMemoryStats struct {
 // fetchSummary retrieves and parses the kubelet Summary API for a single node
 // via GET /api/v1/nodes/<node>/proxy/stats/summary.
 func (c *KubeletSummaryClient) fetchSummary(ctx context.Context, nodeName string) (*kubeletSummary, error) {
+	ctx, cancel := context.WithTimeout(ctx, c.requestTimeout)
+	defer cancel()
+
 	raw, err := c.k8sClient.CoreV1().RESTClient().
 		Get().
 		Resource("nodes").

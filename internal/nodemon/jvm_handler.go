@@ -37,17 +37,32 @@ func (f jvmMetricsFilter) matches(m *JVMMetric) bool {
 	return true
 }
 
+// DefaultScanHandlerTimeout is the fallback per-request time budget for the
+// scan-heavy handlers (JVM and combined runtime metrics), used when a
+// non-positive timeout is passed to their constructors. It exists to avoid
+// a slow /proc walk or binary version-sniff stalling the HTTP server /
+// readiness probes.
+const DefaultScanHandlerTimeout = 2500 * time.Millisecond
+
 type jvmMetricsHandler struct {
 	querier JVMMetricsQuerier
 	log     logr.Logger
+	timeout time.Duration
 }
 
 // NewJVMMetricsHandler creates an HTTP handler for GET /container/jvm-metrics.
-// Supports ?container=, ?pod=, ?namespace=, ?node= query filters.
-func NewJVMMetricsHandler(querier JVMMetricsQuerier, log logr.Logger) http.Handler {
+// Supports ?container=, ?pod=, ?namespace=, ?node= query filters. timeout
+// bounds how long a single request may take before returning whatever
+// partial data is available; a non-positive value falls back to
+// DefaultScanHandlerTimeout.
+func NewJVMMetricsHandler(querier JVMMetricsQuerier, log logr.Logger, timeout time.Duration) http.Handler {
+	if timeout <= 0 {
+		timeout = DefaultScanHandlerTimeout
+	}
 	return &jvmMetricsHandler{
 		querier: querier,
 		log:     log.WithName("jvm-metrics-handler"),
+		timeout: timeout,
 	}
 }
 
@@ -70,22 +85,31 @@ func (h *jvmMetricsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Node:      r.URL.Query().Get("node"),
 	}
 
-	// Hard cap to avoid stalling the HTTP server / probes. We'll make this smarter
-	// (cached snapshots) once we identify the slow path.
-	ctx, cancel := context.WithTimeout(r.Context(), 2500*time.Millisecond)
+	// QueryJVMMetrics now just reads JVMCollector's background-refreshed cache
+	// (see JVMCollector.StartCollectionLoop), so h.timeout is a defensive cap
+	// rather than a bound on live /proc work.
+	ctx, cancel := context.WithTimeout(r.Context(), h.timeout)
 	defer cancel()
 
 	metrics, err := h.querier.QueryJVMMetrics(ctx)
 	if err != nil {
-		if ctx.Err() != nil {
-			h.log.Error(ctx.Err(), "Timed out querying JVM metrics")
-			http.Error(w, "jvm metrics query timed out", http.StatusGatewayTimeout)
+		// Collect deliberately keeps the last good snapshot when a cycle fails
+		// (see JVMCollector.Collect), so a fresh error doesn't imply there's
+		// nothing usable. Only treat this as a hard failure when the cache is
+		// genuinely empty; otherwise log it and serve the retained snapshot.
+		if len(metrics) == 0 {
+			if ctx.Err() != nil {
+				h.log.Error(ctx.Err(), "Timed out querying JVM metrics")
+				http.Error(w, "jvm metrics query timed out", http.StatusGatewayTimeout)
+				return
+			}
+
+			h.log.Error(err, "Failed to query JVM metrics")
+			http.Error(w, "internal server error", http.StatusInternalServerError)
 			return
 		}
 
-		h.log.Error(err, "Failed to query JVM metrics")
-		http.Error(w, "internal server error", http.StatusInternalServerError)
-		return
+		h.log.Error(err, "JVM metrics query partially failed; serving retained snapshot")
 	}
 
 	result := make([]JVMMetric, 0, len(metrics))
@@ -96,9 +120,7 @@ func (h *jvmMetricsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	enc := json.NewEncoder(w)
-	enc.SetIndent("", "  ")
-	if err := enc.Encode(result); err != nil {
+	if err := json.NewEncoder(w).Encode(result); err != nil {
 		h.log.Error(err, "Failed to encode JVM metrics response")
 	}
 }

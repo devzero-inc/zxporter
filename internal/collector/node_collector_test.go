@@ -152,7 +152,7 @@ func TestCollectAllNodeResources_SurvivesNodeDeletedDuringNodemonFetch(t *testin
 	c := &NodeCollector{
 		metricsClient:   &metricsv1.Clientset{},
 		nodemonClient:   nmClient,
-		kubeletClient:   NewKubeletSummaryClient(k8sfake.NewSimpleClientset(), logr.Discard()),
+		kubeletClient:   NewKubeletSummaryClient(k8sfake.NewSimpleClientset(), logr.Discard(), 0),
 		nodeInformer:    informer,
 		batchChan:       make(chan CollectedResource, 10),
 		config:          NodeCollectorConfig{DisableGPUMetrics: true},

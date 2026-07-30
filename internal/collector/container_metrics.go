@@ -27,6 +27,17 @@ type ContainerMetricsSnapshot struct {
 	MemoryActiveCacheBytes   int64 `json:"memoryActiveCacheBytes,omitempty"`
 	MemoryInactiveCacheBytes int64 `json:"memoryInactiveCacheBytes,omitempty"`
 
+	// Runtime-aware cgroup signals (Plane 0), read directly from /sys/fs/cgroup by
+	// zxporter-nodemon. Cumulative Int64 kernel counters (window rate = last-first).
+	// Tags must exactly match dakr's ContainerMetricResponse.
+	CfsPeriods             int64 `json:"cfsPeriods,omitempty"`
+	CfsThrottledPeriods    int64 `json:"cfsThrottledPeriods,omitempty"`
+	CfsThrottledUsec       int64 `json:"cfsThrottledUsec,omitempty"`
+	MemoryEventsMax        int64 `json:"memoryEventsMax,omitempty"`
+	CpuPressureSomeUsec    int64 `json:"cpuPressureSomeUsec,omitempty"`
+	MemoryPressureSomeUsec int64 `json:"memoryPressureSomeUsec,omitempty"`
+	MemoryPressureFullUsec int64 `json:"memoryPressureFullUsec,omitempty"`
+
 	// Resource requests and limits
 	CpuRequestMillis   int64 `json:"cpuRequestMillis"`
 	CpuLimitMillis     int64 `json:"cpuLimitMillis"`

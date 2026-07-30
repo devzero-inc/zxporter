@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"sync"
 	"time"
 
@@ -39,6 +40,13 @@ type versionResolveInfo struct {
 // "process still starting" transient failures.
 const maxVersionResolveAttempts = 5
 
+// errMetricsNotYetCollected is the cachedErr seeded at construction time, so
+// a request that lands before the first background Collect completes (the
+// HTTP server can start accepting connections while StartCollectionLoop's
+// first cycle is still running) gets a clear error instead of a
+// successful-looking empty result.
+var errMetricsNotYetCollected = errors.New("metrics not yet collected")
+
 // RuntimeCollector performs a single /proc walk per query and builds metrics
 // for every discovered runtime. This backs the combined
 // /container/runtime-metrics endpoint, which the zxporter collector polls once
@@ -49,7 +57,7 @@ type RuntimeCollector struct {
 	procRoot string
 	log      logr.Logger
 
-	mu sync.Mutex
+	mu sync.RWMutex
 	// versionCache caches version resolution keyed by containerID+"/"+runtime,
 	// with bounded retries (a container can host processes of more than one
 	// runtime, so containerID alone is not a sufficient key). Rebuilt each
@@ -58,6 +66,18 @@ type RuntimeCollector struct {
 	// probeCache memoizes executable-probe classifications (see newMemoizedProbe)
 	// so long-lived unclassifiable processes aren't re-inspected every cycle.
 	probeCache map[string]probeCacheEntry
+	// cachedMetrics/cachedErr are the result of the last completed Collect —
+	// what QueryRuntimeMetrics serves. Collection runs on a ticker
+	// (StartCollectionLoop), off the HTTP request path, so a request never
+	// pays for a live /proc walk.
+	cachedMetrics RuntimeMetrics
+	cachedErr     error
+
+	// buildJVM and buildRuntime are seams over the package-level build
+	// functions, overridable in tests to prove the two builds run
+	// concurrently. Production code always uses the real functions.
+	buildJVM     func(ctx context.Context, procs []JavaProcess, index *PodContainerIndex, nodeName string, log logr.Logger) ([]JVMMetric, error)
+	buildRuntime func(ctx context.Context, procs []RuntimeProcess, index *PodContainerIndex, nodeName string, cache map[string]versionResolveInfo, log logr.Logger) ([]RuntimeProcessMetric, map[string]versionResolveInfo, error)
 }
 
 // NewRuntimeCollector creates a RuntimeCollector. index must already be started
@@ -71,16 +91,82 @@ func NewRuntimeCollector(nodeName string, index *PodContainerIndex, log logr.Log
 		log:          log.WithName("runtime-collector"),
 		versionCache: make(map[string]versionResolveInfo),
 		probeCache:   make(map[string]probeCacheEntry),
+		cachedErr:    errMetricsNotYetCollected,
+		buildJVM:     buildJVMMetrics,
+		buildRuntime: buildRuntimeProcessMetrics,
 	}
 }
 
-// QueryRuntimeMetrics returns JVM and generic-runtime metrics for all
-// discovered containers on this node, from a single /proc walk.
-func (c *RuntimeCollector) QueryRuntimeMetrics(ctx context.Context) (RuntimeMetrics, error) {
+// QueryRuntimeMetrics returns the JVM and generic-runtime metrics from the
+// last completed background Collect — see StartCollectionLoop. It never does
+// its own /proc walk, so it's safe to call on every HTTP request.
+func (c *RuntimeCollector) QueryRuntimeMetrics(_ context.Context) (RuntimeMetrics, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.cachedMetrics, c.cachedErr
+}
+
+// StartCollectionLoop runs Collect immediately, then on every tick. Call in a
+// goroutine. ctx is expected to be long-lived (cancelled only at shutdown),
+// so each individual cycle gets its own bounded sub-context — otherwise a
+// slow or stuck cycle (e.g. a wedged hsperfdata read) would run forever,
+// permanently freezing the cache and preventing any future tick from ever
+// running, since the loop is single-threaded.
+func (c *RuntimeCollector) StartCollectionLoop(ctx context.Context, interval time.Duration) {
+	c.collectOneCycle(ctx, interval)
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			c.collectOneCycle(ctx, interval)
+		}
+	}
+}
+
+// collectOneCycle runs Collect under a deadline derived from parentCtx,
+// bounded by interval, so one cycle can never run longer than the loop's own
+// tick period.
+func (c *RuntimeCollector) collectOneCycle(parentCtx context.Context, interval time.Duration) {
+	cycleCtx, cancel := context.WithTimeout(parentCtx, interval)
+	defer cancel()
+	c.Collect(cycleCtx)
+}
+
+// Collect performs a single /proc walk, builds JVM and generic-runtime
+// metrics, and publishes the result for QueryRuntimeMetrics to serve. A
+// cycle that produces nothing usable (an error and no metrics of either
+// kind) keeps the last good snapshot instead of blanking it — a transient
+// failure would otherwise erase good data for a full refresh interval. The
+// error itself is still published either way, so QueryRuntimeMetrics
+// reflects that the most recent cycle had a problem.
+func (c *RuntimeCollector) Collect(ctx context.Context) {
+	metrics, err := c.collect(ctx)
+	if err != nil {
+		c.log.Error(err, "Runtime metrics collection cycle failed")
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.cachedErr = err
+	if err != nil && len(metrics.JVM) == 0 && len(metrics.Runtimes) == 0 {
+		return
+	}
+	c.cachedMetrics = metrics
+}
+
+// collect performs the live /proc walk and build. Only Collect should call
+// this — QueryRuntimeMetrics reads the cache Collect publishes.
+func (c *RuntimeCollector) collect(ctx context.Context) (RuntimeMetrics, error) {
 	start := time.Now()
 
 	c.mu.Lock()
 	prevProbeCache := c.probeCache
+	versionCache := c.versionCache
 	c.mu.Unlock()
 	probe, nextProbeCache := newMemoizedProbe(prevProbeCache, probeRuntimeProcess)
 
@@ -92,11 +178,27 @@ func (c *RuntimeCollector) QueryRuntimeMetrics(ctx context.Context) (RuntimeMetr
 		"java", len(javaProcs), "other", len(runtimeProcs),
 		"took", time.Since(start).String())
 
-	// Always attempt both builds, even if one is cancelled/errors — a slow JVM
-	// hsperfdata read (many Java containers) must not starve generic-runtime
-	// visibility for the cycle, and vice versa, even though they share one
-	// /proc walk.
-	jvmMetrics, jvmErr := buildJVMMetrics(ctx, javaProcs, c.index, c.nodeName, c.log)
+	// Run both builds concurrently — they operate on disjoint process sets from
+	// the same walk, so a slow JVM hsperfdata read (many Java containers) must
+	// not serialize behind (or starve) generic-runtime visibility, and vice
+	// versa.
+	var jvmMetrics []JVMMetric
+	var jvmErr error
+	var runtimeMetrics []RuntimeProcessMetric
+	var newCache map[string]versionResolveInfo
+	var runtimeErr error
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		jvmMetrics, jvmErr = c.buildJVM(ctx, javaProcs, c.index, c.nodeName, c.log)
+	}()
+	go func() {
+		defer wg.Done()
+		runtimeMetrics, newCache, runtimeErr = c.buildRuntime(ctx, runtimeProcs, c.index, c.nodeName, versionCache, c.log)
+	}()
+	wg.Wait()
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -113,13 +215,10 @@ func (c *RuntimeCollector) QueryRuntimeMetrics(ctx context.Context) (RuntimeMetr
 	// cycle — on a node where scans routinely exceed the handler budget, the cap
 	// would never be reached and unresolvable binaries would be re-scanned (up
 	// to 64MiB each) every single cycle forever.
-	runtimeMetrics, newCache, runtimeErr := buildRuntimeProcessMetrics(ctx, runtimeProcs, c.index, c.nodeName, c.versionCache, c.log)
 	if runtimeErr == nil {
 		c.versionCache = newCache
 	} else {
-		for k, v := range newCache {
-			c.versionCache[k] = v
-		}
+		maps.Copy(c.versionCache, newCache)
 	}
 
 	return RuntimeMetrics{JVM: jvmMetrics, Runtimes: runtimeMetrics},
