@@ -61,9 +61,7 @@ func TestScraper_Scrape(t *testing.T) {
 	})
 
 	t.Run("partially scrapes metrics when some exporter returns non-200", func(t *testing.T) {
-		callCount := 0
 		httpClient := newMockHTTPClient(func(req *http.Request) (*http.Response, error) {
-			callCount++
 			if req.URL.Host == "localhost:9410" {
 				return &http.Response{
 					StatusCode: http.StatusInternalServerError,

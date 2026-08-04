@@ -13,7 +13,7 @@ serviceAccount:
 image:
   repository: public.ecr.aws/devzeroinc/zxporter-nodemon
   pullPolicy: IfNotPresent
-  tag: "v0.1.4"
+  tag: "v0.1.5"
 nodemon:
   # nodemon.affinity -- optional pod affinity/anti-affinity. Leave empty so nodemon schedules on
   # EVERY node (it is the sole source of node/container metrics). Only set this if you intentionally
@@ -26,6 +26,12 @@ nodemon:
   #   DCGM_HOST: ""
   #   # comma-separated list of labels that the DCGM instances have
   #   DCGM_LABELS: ""
+  # goMaxProcs caps the Go runtime's GOMAXPROCS. nodemon runs without a CPU limit,
+  # so on high-core GPU nodes the runtime would otherwise size itself to the full
+  # node core count, inflating baseline memory (per-P caches, GC workers). Its
+  # workload is light (one DCGM scrape + kubelet polls per interval), so a small
+  # value is plenty.
+  goMaxProcs: 2
   resources:
     limits:
       memory: 256Mi

@@ -282,12 +282,15 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 		}
 	}
 
-	// Fetch container metrics from nodemon ONCE and derive both the
-	// PodMetricsList (CPU/memory) and nodemonContainerMetricsCache
-	// (network/IO/throttle/GPU lookups) from the same result — this used to
-	// be two separate FetchAllContainerMetrics calls hitting the exact same
-	// endpoint on every node for identical data (see #9417).
-	allContainerMetrics, failedNodes, err := c.nodemonClient.FetchAllContainerMetrics(ctx)
+	// Fetch container resource metrics AND runtime (JVM/generic) metrics from
+	// nodemon in a single composite request wave — one /v2/container/snapshot
+	// call per nodemon pod instead of a /v2/container/metrics wave followed by a
+	// /container/runtime-metrics wave. Both sections are served from nodemon's
+	// background caches. The container metrics derive both the PodMetricsList
+	// (CPU/memory) and the nodemonContainerMetricsCache (network/IO/throttle/GPU
+	// lookups) from the same result (see #9417); the runtime section is indexed
+	// further below.
+	snapshot, err := c.nodemonClient.FetchAllContainerSnapshots(ctx)
 	if err != nil {
 		if c.telemetryLogger != nil {
 			c.telemetryLogger.Report(
@@ -306,6 +309,8 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 		c.logger.Error(err, "Failed to get pod metrics", "source", "nodemon")
 		return
 	}
+	allContainerMetrics := snapshot.ContainerMetrics
+	failedNodes := snapshot.FailedContainerNodes
 
 	// Kubelet fallback: for any node that has pods but no nodemon pod — OR where
 	// the nodemon pod is Running but failed to serve metrics — scrape the kubelet
@@ -325,30 +330,46 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 				"pod_count":        fmt.Sprintf("%d", len(podMetricsList.Items)),
 				"namespaces":       fmt.Sprintf("%v", c.namespaces),
 				"source":           "nodemon",
+				"composite_pods":   fmt.Sprintf("%d", snapshot.CompositeCount),
+				"legacy_fallback":  fmt.Sprintf("%d", snapshot.LegacyFallbackCount),
 				"event_type":       "metrics_query_success",
 				"zxporter_version": version.Get().String(),
 			},
 		)
 	}
 
-	// Pre-fetch JVM + Node.js metrics from the nodemon in a single combined request
-	// (one HTTP call per node, backed by one /proc walk on the nodemon side) rather
-	// than issuing two independent per-runtime fetches.
-	var jvmIndex map[gpuContainerKey]NodemonJVMMetrics
-	var runtimeProcessIndex map[gpuContainerKey][]NodemonRuntimeProcessMetrics
-	// Runtime detection is gated node-side by the Helm value
-	// runtimeMetrics.enabled — when disabled, nodemon doesn't register the
-	// route and FetchAllRuntimeMetrics quietly returns nothing. No separate
-	// collector-side flag: one gate, one source of truth.
-	if c.nodemonClient != nil {
-		runtimeMetrics, err := c.nodemonClient.FetchAllRuntimeMetrics(ctx)
-		if err != nil {
-			c.logger.Error(err, "Failed to fetch runtime metrics from nodemon")
-		} else {
-			jvmIndex = IndexJVMMetricsByContainer(runtimeMetrics.JVM)
-			runtimeProcessIndex = IndexRuntimeProcessMetricsByContainer(runtimeMetrics.Runtimes)
+	// Signal when nodemon pods served the legacy /v2/container/metrics +
+	// /container/runtime-metrics endpoints instead of the composite
+	// /v2/container/snapshot — i.e. this sweep paid the old two-request-wave
+	// cost. Expected transiently during a nodemon rolling upgrade; a persistent
+	// nonzero count means the fleet never converged to the composite path.
+	if snapshot.LegacyFallbackCount > 0 {
+		c.logger.Info("Container metrics served via legacy fallback (composite snapshot unavailable)",
+			"legacyFallbackPods", snapshot.LegacyFallbackCount, "compositePods", snapshot.CompositeCount)
+		if c.telemetryLogger != nil {
+			c.telemetryLogger.Report(
+				gen.LogLevel_LOG_LEVEL_WARN,
+				"ContainerResourceCollector",
+				"Container metrics served via legacy fallback instead of composite snapshot",
+				nil,
+				map[string]string{
+					"collector_type":   c.GetType(),
+					"legacy_fallback":  fmt.Sprintf("%d", snapshot.LegacyFallbackCount),
+					"composite_pods":   fmt.Sprintf("%d", snapshot.CompositeCount),
+					"event_type":       "nodemon_legacy_fallback",
+					"zxporter_version": version.Get().String(),
+				},
+			)
 		}
 	}
+
+	// JVM + Node.js metrics arrived in the same composite snapshot fetched above
+	// (the runtime section), so there is no second request wave here. Runtime
+	// detection is still gated node-side by the Helm value runtimeMetrics.enabled
+	// — when disabled, nodemon reports the runtime section as disabled and the
+	// snapshot carries no runtime data, so these indexes are simply empty.
+	jvmIndex := IndexJVMMetricsByContainer(snapshot.RuntimeMetrics.JVM)
+	runtimeProcessIndex := IndexRuntimeProcessMetricsByContainer(snapshot.RuntimeMetrics.Runtimes)
 
 	// Pods nodemon reported metrics for but that aren't in podByKey. This is
 	// an expected race, not a failure: nodemon's /v2/container/metrics cache
@@ -407,20 +428,19 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 			// GPU metrics: requests/limits from pod spec + usage from nodemon
 			gpuMetrics = make(map[string]interface{})
 			if !c.config.DisableGPUMetrics {
-				// GPU requests/limits from the pod spec (nvidia.com/gpu resource)
-				for i := range pod.Spec.Containers {
-					if pod.Spec.Containers[i].Name == containerMetrics.Name {
-						if pod.Spec.Containers[i].Resources.Requests != nil {
-							if gpuReq, ok := pod.Spec.Containers[i].Resources.Requests[corev1.ResourceName("nvidia.com/gpu")]; ok {
-								gpuMetrics["GPURequestCount"] = gpuReq.Value()
-							}
+				// GPU requests/limits from the pod spec (nvidia.com/gpu resource).
+				// Search init containers too so native sidecars requesting GPUs
+				// resolve (see findContainerSpec).
+				if cs := findContainerSpec(pod, containerMetrics.Name); cs != nil {
+					if cs.Resources.Requests != nil {
+						if gpuReq, ok := cs.Resources.Requests[corev1.ResourceName("nvidia.com/gpu")]; ok {
+							gpuMetrics["GPURequestCount"] = gpuReq.Value()
 						}
-						if pod.Spec.Containers[i].Resources.Limits != nil {
-							if gpuLim, ok := pod.Spec.Containers[i].Resources.Limits[corev1.ResourceName("nvidia.com/gpu")]; ok {
-								gpuMetrics["GPULimitCount"] = gpuLim.Value()
-							}
+					}
+					if cs.Resources.Limits != nil {
+						if gpuLim, ok := cs.Resources.Limits[corev1.ResourceName("nvidia.com/gpu")]; ok {
+							gpuMetrics["GPULimitCount"] = gpuLim.Value()
 						}
-						break
 					}
 				}
 
@@ -528,6 +548,29 @@ func (c *ContainerResourceCollector) collectAllContainerResources(ctx context.Co
 	}
 }
 
+// findContainerSpec returns the spec for containerName, searching both regular
+// containers and init containers. Native sidecars (init containers with
+// restartPolicy: Always) and any currently-running init container are reported
+// by the metrics source (nodemon / kubelet Summary API) under their container
+// name, but their specs live in pod.Spec.InitContainers, not
+// pod.Spec.Containers. A Containers-only lookup misses them, which previously
+// dropped their metrics and logged a high-volume ERROR ("Container spec not
+// found") with a stacktrace on every collection cycle. Returns nil only when
+// the name matches neither slice (a transient pod-churn artifact).
+func findContainerSpec(pod *corev1.Pod, containerName string) *corev1.Container {
+	for i := range pod.Spec.Containers {
+		if pod.Spec.Containers[i].Name == containerName {
+			return &pod.Spec.Containers[i]
+		}
+	}
+	for i := range pod.Spec.InitContainers {
+		if pod.Spec.InitContainers[i].Name == containerName {
+			return &pod.Spec.InitContainers[i]
+		}
+	}
+	return nil
+}
+
 // processContainerMetrics processes metrics for a single container
 func (c *ContainerResourceCollector) processContainerMetrics(
 	pod *corev1.Pod,
@@ -539,17 +582,17 @@ func (c *ContainerResourceCollector) processContainerMetrics(
 	runtimeProcesses []ContainerRuntimeProcess,
 	throttleFraction float64,
 ) {
-	// Find the container spec in the pod
-	var containerSpec *corev1.Container
-	for i := range pod.Spec.Containers {
-		if pod.Spec.Containers[i].Name == containerMetrics.Name {
-			containerSpec = &pod.Spec.Containers[i]
-			break
-		}
-	}
-
+	// Find the container spec in the pod, including init containers so native
+	// sidecars and running init containers resolve instead of being dropped
+	// (see findContainerSpec).
+	containerSpec := findContainerSpec(pod, containerMetrics.Name)
 	if containerSpec == nil {
-		c.logger.Error(nil, "Container spec not found",
+		// Expected transient condition (pod churn), not an error: the metrics
+		// source reported a container name that is in neither Containers nor
+		// InitContainers. Logged at V(1)/Debug without a stacktrace to avoid
+		// the ERROR-level, stacktrace-per-line spam this used to produce for
+		// every init/sidecar container on every cycle.
+		c.logger.V(1).Info("Container spec not found; skipping container",
 			"namespace", pod.Namespace,
 			"pod", pod.Name,
 			"container", containerMetrics.Name)
@@ -1017,19 +1060,18 @@ func (c *ContainerResourceCollector) emitCPUThrottleEvent(
 	// Get CPU resources from container spec
 	var cpuUsageMillis, cpuRequestMillis, cpuLimitMillis int64
 	cpuUsageMillis = containerMetrics.Usage.Cpu().MilliValue()
-	for i := range pod.Spec.Containers {
-		if pod.Spec.Containers[i].Name == containerMetrics.Name {
-			if pod.Spec.Containers[i].Resources.Requests != nil {
-				if cpu := pod.Spec.Containers[i].Resources.Requests.Cpu(); cpu != nil {
-					cpuRequestMillis = cpu.MilliValue()
-				}
+	// Search init containers too so native/running sidecars resolve their CPU
+	// requests/limits (see findContainerSpec).
+	if cs := findContainerSpec(pod, containerMetrics.Name); cs != nil {
+		if cs.Resources.Requests != nil {
+			if cpu := cs.Resources.Requests.Cpu(); cpu != nil {
+				cpuRequestMillis = cpu.MilliValue()
 			}
-			if pod.Spec.Containers[i].Resources.Limits != nil {
-				if cpu := pod.Spec.Containers[i].Resources.Limits.Cpu(); cpu != nil {
-					cpuLimitMillis = cpu.MilliValue()
-				}
+		}
+		if cs.Resources.Limits != nil {
+			if cpu := cs.Resources.Limits.Cpu(); cpu != nil {
+				cpuLimitMillis = cpu.MilliValue()
 			}
-			break
 		}
 	}
 

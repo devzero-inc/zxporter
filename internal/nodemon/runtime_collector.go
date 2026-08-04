@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"slices"
 	"sync"
 	"time"
 
@@ -72,6 +73,9 @@ type RuntimeCollector struct {
 	// pays for a live /proc walk.
 	cachedMetrics RuntimeMetrics
 	cachedErr     error
+	cachedAt      time.Time
+	hasPublished  bool
+	cachedStale   bool
 
 	// buildJVM and buildRuntime are seams over the package-level build
 	// functions, overridable in tests to prove the two builds run
@@ -104,6 +108,50 @@ func (c *RuntimeCollector) QueryRuntimeMetrics(_ context.Context) (RuntimeMetric
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.cachedMetrics, c.cachedErr
+}
+
+// QueryRuntimeSnapshot returns the last published runtime payload and its
+// collection state without walking /proc.
+func (c *RuntimeCollector) QueryRuntimeSnapshot() (RuntimeMetrics, SnapshotSectionStatus) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	if !c.hasPublished {
+		return RuntimeMetrics{}, SnapshotSectionStatus{State: SnapshotStateNotReady}
+	}
+
+	state := SnapshotStateReady
+	if c.cachedStale {
+		state = SnapshotStateStale
+	}
+	collectedAt := c.cachedAt
+	return RuntimeMetrics{
+			JVM:      cloneJVMMetrics(c.cachedMetrics.JVM),
+			Runtimes: slices.Clone(c.cachedMetrics.Runtimes),
+		}, SnapshotSectionStatus{
+			State:       state,
+			CollectedAt: &collectedAt,
+		}
+}
+
+func cloneJVMMetrics(metrics []JVMMetric) []JVMMetric {
+	cloned := slices.Clone(metrics)
+	for i := range cloned {
+		cloned[i].GCTimeSecondsTotal = maps.Clone(metrics[i].GCTimeSecondsTotal)
+		cloned[i].FlagsExtracted.XmsBytes = cloneValuePointer(metrics[i].FlagsExtracted.XmsBytes)
+		cloned[i].FlagsExtracted.XmxBytes = cloneValuePointer(metrics[i].FlagsExtracted.XmxBytes)
+		cloned[i].FlagsExtracted.MaxRamPercentage = cloneValuePointer(metrics[i].FlagsExtracted.MaxRamPercentage)
+		cloned[i].FlagsExtracted.UseContainerSupport = cloneValuePointer(metrics[i].FlagsExtracted.UseContainerSupport)
+	}
+	return cloned
+}
+
+func cloneValuePointer[T any](value *T) *T {
+	if value == nil {
+		return nil
+	}
+	cloned := *value
+	return &cloned
 }
 
 // StartCollectionLoop runs Collect immediately, then on every tick. Call in a
@@ -154,9 +202,15 @@ func (c *RuntimeCollector) Collect(ctx context.Context) {
 	defer c.mu.Unlock()
 	c.cachedErr = err
 	if err != nil && len(metrics.JVM) == 0 && len(metrics.Runtimes) == 0 {
+		if c.hasPublished {
+			c.cachedStale = true
+		}
 		return
 	}
 	c.cachedMetrics = metrics
+	c.cachedAt = time.Now()
+	c.hasPublished = true
+	c.cachedStale = false
 }
 
 // collect performs the live /proc walk and build. Only Collect should call
