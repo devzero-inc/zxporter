@@ -582,6 +582,18 @@ YQ ?= $(LOCALBIN)/yq
 HELMIFY ?= helmify
 
 ## Tool Versions
+# Build helper tools with the toolchain this module targets, not whatever `go`
+# the caller happens to resolve. golangci-lint refuses to start when the Go it
+# was built with is older than the target module's go directive:
+#
+#   can't load config: the Go language version (go1.24) used to build
+#   golangci-lint is lower than the targeted Go version (1.26.0)
+#
+# `go install pkg@version` builds in the tool's own module context, so it does
+# not inherit this module's go directive — without the pin, the binary silently
+# takes whatever toolchain the environment resolves and `make lint` breaks on
+# some machines but not others. Derived from go.mod so a Go bump carries it.
+GO_MOD_TOOLCHAIN ?= go$(shell awk '/^go [0-9]/{print $$2; exit}' go.mod)
 KUSTOMIZE_VERSION ?= v5.4.3
 CONTROLLER_TOOLS_VERSION ?= v0.16.5
 ENVTEST_VERSION ?= release-0.19
@@ -629,9 +641,9 @@ define go-install-tool
 @[ -f "$(1)-$(3)" ] || { \
 set -e; \
 package=$(2)@$(3) ;\
-echo "Downloading $${package}" ;\
+echo "Downloading $${package} (toolchain $(GO_MOD_TOOLCHAIN))" ;\
 rm -f $(1) || true ;\
-GOBIN=$(LOCALBIN) go install $${package} ;\
+GOTOOLCHAIN=$(GO_MOD_TOOLCHAIN) GOBIN=$(LOCALBIN) go install $${package} ;\
 mv $(1) $(1)-$(3) ;\
 } ;\
 ln -sf $(1)-$(3) $(1)

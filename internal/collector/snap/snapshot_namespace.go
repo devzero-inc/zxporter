@@ -24,7 +24,7 @@ func (c *ClusterSnapshotter) captureNamespaces(
 			DaemonSets:               make(map[string]*ResourceIdentifier),
 			ReplicaSets:              make(map[string]*ResourceIdentifier),
 			Services:                 make(map[string]*ResourceIdentifier),
-			Secrets:                  make(map[string]*ResourceIdentifier),
+			Secrets:                  make(map[string]*ResourceIdentifier), // Never populated; see uncollectedWireTypes
 			Pvcs:                     make(map[string]*ResourceIdentifier),
 			Jobs:                     make(map[string]*ResourceIdentifier),
 			CronJobs:                 make(map[string]*ResourceIdentifier),
@@ -144,12 +144,11 @@ func (c *ClusterSnapshotter) captureOtherResources(
 		}
 	}
 
-	if secrets, err := c.client.CoreV1().Secrets(namespace).List(ctx, metav1.ListOptions{}); err == nil {
-		for _, secret := range secrets.Items {
-			uid := string(secret.UID)
-			nsData.Secrets[uid] = &ResourceIdentifier{Name: secret.Name}
-		}
-	}
+	// nsData.Secrets is left empty on purpose; secrets are an uncollected wire
+	// type (see uncollectedWireTypes). The list that used to run here was
+	// denied by RBAC on every cycle, and this call site swallowed the 403
+	// rather than reporting it — which is why the gap stayed invisible until
+	// the streaming path began surfacing per-type listing failures.
 
 	if pvcs, err := c.client.CoreV1().PersistentVolumeClaims(namespace).List(ctx, metav1.ListOptions{}); err == nil {
 		for _, pvc := range pvcs.Items {

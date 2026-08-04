@@ -248,6 +248,31 @@ func optionalWalk(walk func(ctx context.Context, emit func([]*gen.SnapshotEntry)
 	}
 }
 
+// uncollectedWireTypes are wire resource types this agent has no collector
+// for; their slots in the collector enum exist only to keep the numbering
+// stable (see collector.Secret, collector.ConfigMap). Listing them in
+// streamSources is always a mistake, for two reasons that hold for every type
+// here:
+//
+//  1. It cannot converge anything. dakr diffs a type only against rows this
+//     agent sent, and no collector ever sends these, so the snapshot can only
+//     report the cluster's entire inventory as "missing" — and
+//     missingResourceHandlerKey has no handler to refresh it with.
+//  2. It starves real work. dakr caps the missing-resources response globally
+//     across all types, so thousands of unrefreshable entries (Helm keeps one
+//     Secret per release revision) would crowd out the types that do have
+//     refresh handlers and appear later in the source order.
+//
+// Secrets additionally cannot be listed at all: the manager ClusterRole grants
+// only resourceName-scoped access to the agent's own token Secret, by design.
+// A list verb cannot be narrowed to metadata — PartialObjectMetadata is a
+// response projection applied after authorization, so listing secret metadata
+// demands the same permission as reading every secret value in the cluster.
+var uncollectedWireTypes = map[gen.ResourceType]string{
+	gen.ResourceType_RESOURCE_TYPE_SECRET:     "secrets",
+	gen.ResourceType_RESOURCE_TYPE_CONFIG_MAP: "configmaps",
+}
+
 // streamSources builds the ordered resource-type table. Owners come before
 // dependents (namespaces, nodes, workload owners, replicasets/jobs, pods)
 // so the receiver's missing-resources response is naturally parent-first,
@@ -287,7 +312,7 @@ func (c *ClusterSnapshotter) streamSources() []snapshotSource {
 
 		// Remaining namespaced types.
 		{rt: gen.ResourceType_RESOURCE_TYPE_SERVICE, name: "services", walk: c.metadataWalk(core("services"), true, nil)},
-		{rt: gen.ResourceType_RESOURCE_TYPE_SECRET, name: "secrets", walk: c.metadataWalk(core("secrets"), true, nil)},
+		// Secrets are deliberately absent here: see uncollectedWireTypes.
 		{rt: gen.ResourceType_RESOURCE_TYPE_PERSISTENT_VOLUME_CLAIM, name: "persistentvolumeclaims", walk: c.metadataWalk(core("persistentvolumeclaims"), true, nil)},
 		{rt: gen.ResourceType_RESOURCE_TYPE_INGRESS, name: "ingresses", walk: c.metadataWalk(schema.GroupVersionResource{Group: "networking.k8s.io", Version: "v1", Resource: "ingresses"}, true, nil)},
 		{rt: gen.ResourceType_RESOURCE_TYPE_NETWORK_POLICY, name: "networkpolicies", walk: c.metadataWalk(schema.GroupVersionResource{Group: "networking.k8s.io", Version: "v1", Resource: "networkpolicies"}, true, nil)},

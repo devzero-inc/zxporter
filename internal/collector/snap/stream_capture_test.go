@@ -217,6 +217,46 @@ func TestStreamSources_EmissionOrderParentsFirst(t *testing.T) {
 	assert.Less(t, pos[gen.ResourceType_RESOURCE_TYPE_POD], pos[gen.ResourceType_RESOURCE_TYPE_SERVICE], "remaining types after pods")
 }
 
+func TestStreamSources_ExcludesUncollectedWireTypes(t *testing.T) {
+	k8s := k8sfake.NewSimpleClientset()
+	md := metadatafake.NewSimpleMetadataClient(testScheme)
+	c := newTestSnapshotter(t, k8s, md, nil, nil, nil)
+
+	for _, s := range c.streamSources() {
+		if name, uncollected := uncollectedWireTypes[s.rt]; uncollected {
+			t.Errorf("streamSources includes %q, which no collector ever sends: dakr "+
+				"can only answer with an unrefreshable missing list that crowds out "+
+				"the types that do have refresh handlers", name)
+		}
+	}
+}
+
+func TestStreamClusterState_NeverListsSecrets(t *testing.T) {
+	k8s := k8sfake.NewSimpleClientset()
+	md := metadatafake.NewSimpleMetadataClient(testScheme,
+		partialMeta(schema.GroupVersionKind{Version: "v1", Kind: "Secret"}, "prod", "example-tls", "s1"),
+		partialMeta(schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "Deployment"}, "prod", "web", "d1"),
+	)
+	c := newTestSnapshotter(t, k8s, md, nil, nil, nil)
+
+	stream := &fakeBatchStream{}
+	_, err := c.streamClusterState(context.Background(), stream)
+	require.NoError(t, err)
+
+	// The API call itself must not happen: RBAC denies it, so issuing it costs
+	// an audit-logged 403 every cycle even though the result is discarded.
+	for _, a := range md.Actions() {
+		assert.NotEqual(t, "secrets", a.GetResource().Resource,
+			"the snapshot must never issue a secrets list")
+	}
+	assert.Empty(t, stream.forType(gen.ResourceType_RESOURCE_TYPE_SECRET),
+		"no secret batch reaches the wire even when secrets exist in the cluster")
+
+	// Guard against the trivial pass where nothing was streamed at all.
+	assert.NotEmpty(t, stream.forType(gen.ResourceType_RESOURCE_TYPE_DEPLOYMENT),
+		"other namespaced metadata types still stream")
+}
+
 func TestStreamClusterState_PodsFlatWithExclusions(t *testing.T) {
 	k8s := k8sfake.NewSimpleClientset(
 		pod("prod", "keep-scheduled", "p1", "node-a"),
