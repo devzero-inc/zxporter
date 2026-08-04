@@ -92,7 +92,7 @@ require (
 	cel.dev/expr v0.25.2 // indirect
 	github.com/expr-lang/expr v1.17.8 // indirect
 	github.com/google/btree v1.1.3 // indirect
-	github.com/kedacore/keda/v2 v2.20.1
+	github.com/kedacore/keda/v2 v2.20.2
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
