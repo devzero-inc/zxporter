@@ -139,7 +139,20 @@ func TestJVMCollector_StartCollectionLoop_RefreshesPeriodically(t *testing.T) {
 		return nil, nil
 	}
 
-	go c.StartCollectionLoop(t.Context(), 10*time.Millisecond)
+	// Join the background loop before the test returns: otherwise it can still
+	// be inside a Collect() → logger.Info() call (writing to the testr logger's
+	// *testing.T) while the framework tears the test down, which the race
+	// detector flags as a write-after-test race on testing internals.
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		c.StartCollectionLoop(ctx, 10*time.Millisecond)
+	}()
+	t.Cleanup(func() {
+		cancel()
+		<-done
+	})
 
 	require.Eventually(t, func() bool {
 		return atomic.LoadInt32(&calls) >= 3
@@ -164,7 +177,19 @@ func TestJVMCollector_StartCollectionLoop_BoundsEachCycle(t *testing.T) {
 		return nil, ctx.Err()
 	}
 
-	go c.StartCollectionLoop(t.Context(), 20*time.Millisecond)
+	// Join the background loop before the test returns (see the sibling
+	// RefreshesPeriodically test for why — avoids a testr write-after-teardown
+	// race).
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		c.StartCollectionLoop(ctx, 20*time.Millisecond)
+	}()
+	t.Cleanup(func() {
+		cancel()
+		<-done
+	})
 
 	require.Eventually(t, func() bool {
 		return atomic.LoadInt32(&calls) >= 2

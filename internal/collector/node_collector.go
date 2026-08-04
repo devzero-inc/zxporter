@@ -487,6 +487,17 @@ const defaultMaxConcurrentNodeCollections = 20
 type nodeCollectionOutcome struct {
 	nodeName string
 	coverage nodeCoverage
+	// usedLegacy is true when the composite /v2/node/snapshot request had to
+	// fall back to the legacy /node/metrics + /container/metrics endpoints for
+	// this node (e.g. a nodemon pod that predates the composite contract). It
+	// means this node paid the old 2-calls-per-node cost instead of 1, and is
+	// aggregated into a per-sweep signal so a stalled rollout is visible.
+	usedLegacy     bool
+	fallbackReason string
+	// gpuStale is true when this node's composite GPU section was stale (nodemon's
+	// DCGM refresh is failing) and therefore dropped. Aggregated per sweep so the
+	// DCGM problem is visible in DAKR telemetry, not only in nodemon's logs.
+	gpuStale bool
 }
 
 type nodeCoverage int
@@ -551,6 +562,16 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 	// fail are true gaps.
 	var nodemonCovered, kubeletFallback int
 	var uncoveredNodes []string
+	// Nodes that fell back from the composite /v2/node/snapshot to the legacy
+	// per-metric endpoints — i.e. paid the old 2-calls-per-node cost. Tracked
+	// per sweep so a mixed-version rollout that never converges to the composite
+	// path is visible instead of silently slow.
+	var legacyFallbackNodes []string
+	legacyReasons := map[string]int{}
+	// Nodes whose GPU section was stale (nodemon's DCGM refresh failing) and thus
+	// dropped — surfaced as a per-sweep signal so a DCGM problem is visible in
+	// DAKR telemetry, not just nodemon logs.
+	var gpuStaleNodes []string
 	for _, o := range outcomes {
 		switch o.coverage {
 		case nodeCoverageNodemon:
@@ -559,6 +580,13 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 			kubeletFallback++
 		case nodeCoverageUncovered:
 			uncoveredNodes = append(uncoveredNodes, o.nodeName)
+		}
+		if o.usedLegacy {
+			legacyFallbackNodes = append(legacyFallbackNodes, o.nodeName)
+			legacyReasons[o.fallbackReason]++
+		}
+		if o.gpuStale {
+			gpuStaleNodes = append(gpuStaleNodes, o.nodeName)
 		}
 	}
 	c.logger.V(1).Info("Built node metrics",
@@ -577,11 +605,75 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 				"node_count":       fmt.Sprintf("%d", len(outcomes)),
 				"nodemon_covered":  fmt.Sprintf("%d", nodemonCovered),
 				"kubelet_fallback": fmt.Sprintf("%d", kubeletFallback),
+				"legacy_fallback":  fmt.Sprintf("%d", len(legacyFallbackNodes)),
 				"excluded_nodes":   fmt.Sprintf("%v", c.excludedNodes),
 				"event_type":       "node_metrics_query_success",
 				"zxporter_version": version.Get().String(),
 			},
 		)
+	}
+
+	// Signal when nodemon pods are serving the legacy per-metric endpoints
+	// instead of the composite /v2/node/snapshot — this node collector is paying
+	// the old 2-calls-per-node cost. Expected transiently during a nodemon
+	// rolling upgrade; a persistent nonzero count means the fleet never
+	// converged to the composite path.
+	if len(legacyFallbackNodes) > 0 {
+		c.logger.Info("Node metrics served via legacy fallback (composite snapshot unavailable)",
+			"count", len(legacyFallbackNodes), "reasons", legacyReasons)
+		if c.telemetryLogger != nil {
+			// Cap the sample list so this one field can't bloat on a large fleet;
+			// legacy_fallback always carries the true total.
+			const maxLegacyNodesSample = 20
+			sample := legacyFallbackNodes
+			suffix := ""
+			if len(sample) > maxLegacyNodesSample {
+				suffix = fmt.Sprintf(" (+%d more)", len(sample)-maxLegacyNodesSample)
+				sample = sample[:maxLegacyNodesSample]
+			}
+			c.telemetryLogger.Report(
+				gen.LogLevel_LOG_LEVEL_WARN,
+				"NodeCollector",
+				"Node metrics served via legacy fallback instead of composite snapshot",
+				nil,
+				map[string]string{
+					"legacy_fallback":  fmt.Sprintf("%d", len(legacyFallbackNodes)),
+					"fallback_reasons": fmt.Sprintf("%v", legacyReasons),
+					"sample_nodes":     fmt.Sprintf("%v", sample) + suffix,
+					"event_type":       "nodemon_legacy_fallback",
+					"zxporter_version": version.Get().String(),
+				},
+			)
+		}
+	}
+
+	// Signal when GPU metrics were dropped because nodemon is serving a stale
+	// DCGM snapshot (its scrape is failing). Without this the DCGM problem is
+	// only visible in nodemon's own logs, never in DAKR telemetry.
+	if len(gpuStaleNodes) > 0 {
+		c.logger.Info("GPU metrics dropped for nodes with a stale nodemon DCGM snapshot",
+			"count", len(gpuStaleNodes))
+		if c.telemetryLogger != nil {
+			const maxGPUStaleSample = 20
+			sample := gpuStaleNodes
+			suffix := ""
+			if len(sample) > maxGPUStaleSample {
+				suffix = fmt.Sprintf(" (+%d more)", len(sample)-maxGPUStaleSample)
+				sample = sample[:maxGPUStaleSample]
+			}
+			c.telemetryLogger.Report(
+				gen.LogLevel_LOG_LEVEL_WARN,
+				"NodeCollector",
+				"GPU metrics dropped: nodemon DCGM snapshot is stale",
+				nil,
+				map[string]string{
+					"gpu_dropped_stale": fmt.Sprintf("%d", len(gpuStaleNodes)),
+					"sample_nodes":      fmt.Sprintf("%v", sample) + suffix,
+					"event_type":        "gpu_dropped_stale",
+					"zxporter_version":  version.Get().String(),
+				},
+			)
+		}
 	}
 
 	// Surface coverage gaps: nodes where neither nodemon nor the kubelet fallback
@@ -621,16 +713,35 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 func (c *NodeCollector) collectSingleNodeResources(ctx context.Context, node *corev1.Node) nodeCollectionOutcome {
 	outcome := nodeCollectionOutcome{nodeName: node.Name}
 
-	// Fetch node-level metrics from nodemon (includes system process CPU/memory).
-	nodeMetric, err := c.nodemonClient.FetchNodeMetricsByNode(ctx, node.Name)
-	if err != nil {
-		c.logger.V(1).Info("Failed to fetch node metrics from nodemon", "node", node.Name, "error", err)
-		nodeMetric = nil
+	// Fetch node-level and GPU metrics from nodemon in a single composite
+	// request (was two: /node/metrics + /container/metrics). The node and GPU
+	// sections are independently usable, and FetchNodeSnapshotByNode falls back
+	// to the legacy endpoints only for a nodemon pod that predates the composite
+	// contract. A non-nil snapshot can accompany a non-nil error when only one
+	// legacy fallback section failed, so we use whatever sections came back.
+	var nodeMetric *UnifiedNodeMetric
+	var gpuMetrics map[string]interface{}
+	if c.nodemonClient != nil {
+		snapshot, err := c.nodemonClient.FetchNodeSnapshotByNode(ctx, node.Name)
+		if err != nil {
+			c.logger.V(1).Info("nodemon node snapshot returned an error", "node", node.Name, "error", err)
+		}
+		if snapshot != nil {
+			nodeMetric = snapshot.NodeMetric
+			// The composite always carries a GPU summary; honor the collector's
+			// opt-out by only attaching it when GPU metrics are enabled.
+			if !c.config.DisableGPUMetrics {
+				gpuMetrics = snapshot.GPUMetrics
+			}
+			outcome.usedLegacy = snapshot.UsedLegacy
+			outcome.fallbackReason = snapshot.FallbackReason
+			outcome.gpuStale = snapshot.GPUStale
+		}
 	}
 
 	fromNodemon := nodeMetric != nil
 	if !fromNodemon {
-		// No nodemon pod on this node — fall back to the kubelet Summary API.
+		// No usable node section from nodemon — fall back to the kubelet Summary API.
 		if km, kerr := c.kubeletClient.FetchNodeMetricsByNode(ctx, node.Name); kerr != nil {
 			c.logger.V(1).Info("Kubelet node-metrics fallback failed", "node", node.Name, "error", kerr)
 			outcome.coverage = nodeCoverageUncovered
@@ -679,19 +790,9 @@ func (c *NodeCollector) collectSingleNodeResources(ctx context.Context, node *co
 		networkMetrics = networkIOMetricsFromNodeMetric(nodeMetric)
 	}
 
-	// Fetch GPU metrics from nodemon if enabled.
-	var gpuMetrics map[string]interface{}
-	if !c.config.DisableGPUMetrics && c.nodemonClient != nil {
-		nodemonMetrics, fetchErr := c.nodemonClient.FetchMetricsByNode(ctx, node.Name)
-		if fetchErr != nil {
-			c.logger.Error(fetchErr, "Failed to fetch GPU metrics from nodemon", "node", node.Name)
-			gpuMetrics = make(map[string]interface{})
-		} else if len(nodemonMetrics) > 0 {
-			gpuMetrics = NodeGPUMetricsFromNodemon(nodemonMetrics)
-		} else {
-			gpuMetrics = make(map[string]interface{})
-		}
-	}
+	// GPU metrics (gpuMetrics) were already populated from the composite node
+	// snapshot above when GPU collection is enabled and the GPU section was
+	// usable; nothing further to fetch here.
 
 	// Create resource data
 	resourceData := map[string]interface{}{

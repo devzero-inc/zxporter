@@ -833,10 +833,10 @@ metadata:
   name: zxporter-nodemon
   namespace: {{.zxporter_namespace}}
   labels:
-    helm.sh/chart: zxporter-nodemon-0.1.4
+    helm.sh/chart: zxporter-nodemon-0.1.5
     app.kubernetes.io/name: zxporter-nodemon
     app.kubernetes.io/instance: zxporter-nodemon
-    app.kubernetes.io/version: "0.1.4"
+    app.kubernetes.io/version: "0.1.5"
     app.kubernetes.io/managed-by: Helm
 ---
 # Source: zxporter-nodemon/templates/dcgm-exporter-configmap.yaml
@@ -909,10 +909,10 @@ kind: ClusterRole
 metadata:
   name: zxporter-nodemon
   labels:
-    helm.sh/chart: zxporter-nodemon-0.1.4
+    helm.sh/chart: zxporter-nodemon-0.1.5
     app.kubernetes.io/name: zxporter-nodemon
     app.kubernetes.io/instance: zxporter-nodemon
-    app.kubernetes.io/version: "0.1.4"
+    app.kubernetes.io/version: "0.1.5"
     app.kubernetes.io/managed-by: Helm
 rules:
   - apiGroups:
@@ -960,10 +960,10 @@ kind: ClusterRoleBinding
 metadata:
   name: zxporter-nodemon
   labels:
-    helm.sh/chart: zxporter-nodemon-0.1.4
+    helm.sh/chart: zxporter-nodemon-0.1.5
     app.kubernetes.io/name: zxporter-nodemon
     app.kubernetes.io/instance: zxporter-nodemon
-    app.kubernetes.io/version: "0.1.4"
+    app.kubernetes.io/version: "0.1.5"
     app.kubernetes.io/managed-by: Helm
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -981,10 +981,10 @@ metadata:
   name: zxporter-nodemon
   namespace: {{.zxporter_namespace}}
   labels:
-    helm.sh/chart: zxporter-nodemon-0.1.4
+    helm.sh/chart: zxporter-nodemon-0.1.5
     app.kubernetes.io/name: zxporter-nodemon
     app.kubernetes.io/instance: zxporter-nodemon
-    app.kubernetes.io/version: "0.1.4"
+    app.kubernetes.io/version: "0.1.5"
     app.kubernetes.io/managed-by: Helm
   annotations:
     ignore-check.kube-linter.io/privileged-container: "This daemon set needs to run DCGM Exporter as privileged to access the GPU metrics."
@@ -1070,6 +1070,11 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
+            # Cap GOMAXPROCS: nodemon has no CPU limit, so on high-core GPU nodes
+            # the Go runtime would otherwise size P's/GC workers to the full node
+            # core count, inflating baseline memory. nodemon's work is light.
+            - name: "GOMAXPROCS"
+              value: "2"
             - name: "RUNTIME_METRICS_ENABLED"
               value: "true"
             - name: "CGROUP_METRICS_ENABLED"
@@ -1128,10 +1133,10 @@ metadata:
   name: zxporter-nodemon-gpu
   namespace: {{.zxporter_namespace}}
   labels:
-    helm.sh/chart: zxporter-nodemon-0.1.4
+    helm.sh/chart: zxporter-nodemon-0.1.5
     app.kubernetes.io/name: zxporter-nodemon
     app.kubernetes.io/instance: zxporter-nodemon-gpu
-    app.kubernetes.io/version: "0.1.4"
+    app.kubernetes.io/version: "0.1.5"
     app.kubernetes.io/managed-by: Helm
   annotations:
     ignore-check.kube-linter.io/privileged-container: "This daemon set needs to run DCGM Exporter as privileged to access the GPU metrics."
@@ -1220,6 +1225,11 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
+            # Cap GOMAXPROCS: nodemon has no CPU limit, so on high-core GPU nodes
+            # the Go runtime would otherwise size P's/GC workers to the full node
+            # core count, inflating baseline memory. nodemon's work is light.
+            - name: "GOMAXPROCS"
+              value: "2"
             - name: "RUNTIME_METRICS_ENABLED"
               value: "true"
             - name: "CGROUP_METRICS_ENABLED"

@@ -62,6 +62,27 @@ func (rt *nodemonRoundTripper) RoundTrip(req *http.Request) (*http.Response, err
 	// its request paths from, so this simulator doesn't drift silently if
 	// that path ever changes shape (e.g. gains a query string).
 	switch {
+	case strings.HasSuffix(req.URL.Path, "v2/node/snapshot"):
+		// Composite endpoint: one cache-only response carrying both the node
+		// and GPU sections. Modelled with a single node-metrics latency since
+		// nodemon serves it from an already-refreshed cache (no per-request
+		// scrape), which is the whole point of the composite path.
+		if err := simSleep(req, sim.nodeMetricsDelay); err != nil {
+			return nil, err
+		}
+		return jsonResponse(http.StatusOK, nodeSnapshotResponse{
+			SchemaVersion: snapshotSchemaVersion,
+			NodeMetrics: &UnifiedNodeMetric{
+				NodeName:          req.URL.Hostname(),
+				Timestamp:         time.Now(),
+				CPUUsageNanoCores: 500_000_000,
+				MemoryWorkingSet:  1024 * 1024 * 1024,
+			},
+			Sections: nodeSnapshotSections{
+				Node: snapshotSectionStatus{State: snapshotStateReady},
+				GPU:  snapshotSectionStatus{State: snapshotStateNotReady},
+			},
+		}), nil
 	case strings.HasSuffix(req.URL.Path, "container/metrics"):
 		if err := simSleep(req, sim.gpuMetricsDelay); err != nil {
 			return nil, err

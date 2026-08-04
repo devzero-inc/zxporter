@@ -57,6 +57,31 @@ func (rt *containerNodemonRoundTripper) RoundTrip(req *http.Request) (*http.Resp
 	}
 
 	switch {
+	case strings.HasSuffix(req.URL.Path, "v2/container/snapshot"):
+		// Composite endpoint: one cache-only response carrying both the
+		// container and runtime sections. Modelled with a single container
+		// latency since nodemon serves it from already-refreshed caches.
+		if err := simSleep(req, sim.containerMetricsDelay); err != nil {
+			return nil, err
+		}
+		return jsonResponse(http.StatusOK, containerSnapshotResponse{
+			SchemaVersion: snapshotSchemaVersion,
+			ContainerMetrics: []UnifiedContainerMetric{
+				{
+					NodeName:          sim.nodeName,
+					Namespace:         "ns1",
+					Pod:               "pod-" + sim.nodeName,
+					Container:         "app",
+					Timestamp:         time.Now(),
+					CPUUsageNanoCores: 250_000_000,
+					MemoryWorkingSet:  512 * 1024 * 1024,
+				},
+			},
+			Sections: containerSnapshotSections{
+				Containers: snapshotSectionStatus{State: snapshotStateReady},
+				Runtime:    snapshotSectionStatus{State: snapshotStateDisabled},
+			},
+		}), nil
 	case strings.HasSuffix(req.URL.Path, "v2/container/metrics"):
 		if err := simSleep(req, sim.containerMetricsDelay); err != nil {
 			return nil, err

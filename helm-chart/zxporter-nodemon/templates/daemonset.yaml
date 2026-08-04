@@ -202,6 +202,11 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
+            # Cap GOMAXPROCS: nodemon has no CPU limit, so on high-core GPU nodes
+            # the Go runtime would otherwise size P's/GC workers to the full node
+            # core count, inflating baseline memory. nodemon's work is light.
+            - name: "GOMAXPROCS"
+              value: {{ $.Values.nodemon.goMaxProcs | default 2 | quote }}
             - name: "RUNTIME_METRICS_ENABLED"
               value: {{ $runtimeMetricsEnabled | quote }}
             - name: "CGROUP_METRICS_ENABLED"

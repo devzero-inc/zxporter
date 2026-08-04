@@ -1,9 +1,11 @@
 package nodemon_test
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -102,6 +104,63 @@ func samplePVCMetrics() []nodemon.PVCMetricsResponse {
 func newTestLogger() logr.Logger {
 	zapLog, _ := zap.NewDevelopment()
 	return zapr.NewLogger(zapLog)
+}
+
+func TestUnifiedExporter_SnapshotState(t *testing.T) {
+	r := require.New(t)
+	var sourceQueries int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		atomic.AddInt32(&sourceQueries, 1)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(fullStatsSummaryJSON))
+	}))
+	defer srv.Close()
+
+	log := newTestLogger()
+	exporter := nodemon.NewUnifiedExporter(
+		nodemon.NewStatsPoller(srv.URL, srv.Client(), log),
+		nil,
+		nil,
+		nil,
+		"node-1",
+		log,
+	)
+
+	node, nodeStatus := exporter.QueryNodeSnapshot()
+	r.Nil(node)
+	r.Equal(nodemon.SnapshotStateNotReady, nodeStatus.State)
+	r.Nil(nodeStatus.CollectedAt)
+
+	containers, containerStatus := exporter.QueryContainerSnapshot()
+	r.Nil(containers)
+	r.Equal(nodemon.SnapshotStateNotReady, containerStatus.State)
+	r.Nil(containerStatus.CollectedAt)
+	r.Equal(int32(0), atomic.LoadInt32(&sourceQueries), "snapshot reads must not poll sources")
+
+	exporter.Collect(context.Background())
+
+	node, nodeStatus = exporter.QueryNodeSnapshot()
+	r.NotNil(node)
+	r.Equal("node-1", node.NodeName)
+	r.Equal(nodemon.SnapshotStateReady, nodeStatus.State)
+	r.NotNil(nodeStatus.CollectedAt)
+
+	containers, containerStatus = exporter.QueryContainerSnapshot()
+	r.Len(containers, 1)
+	r.Equal("my-pod", containers[0].Pod)
+	r.Equal(nodemon.SnapshotStateReady, containerStatus.State)
+	r.NotNil(containerStatus.CollectedAt)
+	r.Equal(*nodeStatus.CollectedAt, *containerStatus.CollectedAt)
+
+	node.NodeName = mutatedMarker
+	containers[0].Pod = mutatedMarker
+
+	node, _ = exporter.QueryNodeSnapshot()
+	containers, _ = exporter.QueryContainerSnapshot()
+	r.Equal("node-1", node.NodeName)
+	r.Equal("my-pod", containers[0].Pod, "snapshot reads must copy mutable container slices")
+	r.Equal(int32(1), atomic.LoadInt32(&sourceQueries), "snapshot reads must not add source queries")
 }
 
 // TestUnifiedContainerHandler_ReturnsJSON verifies the handler encodes ContainerMetricsResponse correctly.

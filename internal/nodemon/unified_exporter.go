@@ -2,6 +2,7 @@ package nodemon
 
 import (
 	"context"
+	"slices"
 	"sync"
 	"time"
 
@@ -13,8 +14,8 @@ import (
 type UnifiedExporter struct {
 	statsPoller     *StatsPoller
 	cadvisorScraper *CAdvisorScraper
-	gpuExporter     *Exporter     // existing GPU exporter, may be nil
-	cgroupReader    *CgroupReader // direct /sys/fs/cgroup reader, may be nil
+	gpuExporter     MetricsQuerier // cached GPU snapshot reader, may be nil
+	cgroupReader    *CgroupReader  // direct /sys/fs/cgroup reader, may be nil
 	nodeName        string
 	log             logr.Logger
 
@@ -31,7 +32,7 @@ type UnifiedExporter struct {
 func NewUnifiedExporter(
 	statsPoller *StatsPoller,
 	cadvisorScraper *CAdvisorScraper,
-	gpuExporter *Exporter,
+	gpuExporter MetricsQuerier,
 	cgroupReader *CgroupReader,
 	nodeName string,
 	log logr.Logger,
@@ -370,4 +371,43 @@ func (u *UnifiedExporter) QueryPVCMetrics() []PVCMetricsResponse {
 	u.mu.RLock()
 	defer u.mu.RUnlock()
 	return u.pvcMetrics
+}
+
+// QueryNodeSnapshot returns the currently published node metrics and
+// collection metadata without polling any source.
+func (u *UnifiedExporter) QueryNodeSnapshot() (*NodeMetricsResponse, SnapshotSectionStatus) {
+	u.mu.RLock()
+	defer u.mu.RUnlock()
+
+	if u.lastCollected.IsZero() {
+		return nil, SnapshotSectionStatus{State: SnapshotStateNotReady}
+	}
+
+	var metrics *NodeMetricsResponse
+	if u.nodeMetrics != nil {
+		cloned := *u.nodeMetrics
+		metrics = &cloned
+	}
+	collectedAt := u.lastCollected
+	return metrics, SnapshotSectionStatus{
+		State:       SnapshotStateReady,
+		CollectedAt: &collectedAt,
+	}
+}
+
+// QueryContainerSnapshot returns the currently published container metrics and
+// collection metadata without polling any source.
+func (u *UnifiedExporter) QueryContainerSnapshot() ([]ContainerMetricsResponse, SnapshotSectionStatus) {
+	u.mu.RLock()
+	defer u.mu.RUnlock()
+
+	if u.lastCollected.IsZero() {
+		return nil, SnapshotSectionStatus{State: SnapshotStateNotReady}
+	}
+
+	collectedAt := u.lastCollected
+	return slices.Clone(u.containerMetrics), SnapshotSectionStatus{
+		State:       SnapshotStateReady,
+		CollectedAt: &collectedAt,
+	}
 }

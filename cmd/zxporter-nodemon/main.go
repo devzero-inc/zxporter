@@ -7,9 +7,16 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"strconv"
 	"syscall"
 	"time"
+
+	// Sets GOMEMLIMIT to 0.9 x the container's cgroup memory limit at startup so
+	// the GC collects aggressively before the kernel OOM-kills the pod. No-ops
+	// safely when no cgroup memory limit is set. Mirrors the controller-manager
+	// (operators/zxporter/cmd/main.go).
+	_ "github.com/KimMachineGun/automemlimit"
 
 	"github.com/devzero-inc/zxporter/internal/health"
 	"github.com/devzero-inc/zxporter/internal/nodemon"
@@ -34,6 +41,11 @@ func main() {
 	logger.Info("Starting zxporter-nodemon",
 		"version", versionInfo.String(),
 		"commit", versionInfo.GitCommit)
+
+	// Read back the GOMEMLIMIT set by the automemlimit side-effect import above.
+	// A value of math.MaxInt64 means no limit is in effect (e.g. no cgroup memory
+	// limit); anything smaller confirms the GC ceiling is active.
+	logger.Info("effective GOMEMLIMIT", "bytes", debug.SetMemoryLimit(-1))
 
 	cfg := nodemon.ExporterConfig{
 		HTTPListenPort:      envInt("HTTP_LISTEN_PORT", 6061),
@@ -84,8 +96,16 @@ func main() {
 	)
 	mapper := nodemon.NewMapper(cfg.NodeName, workloadResolver, logger)
 
-	// Create GPU exporter
+	// Create GPU exporter, wrapped in a cache so DCGM is scraped+parsed exactly
+	// once per interval (shared by the collection loop and every
+	// /container/metrics request) rather than per request. The full DCGM parse
+	// is the nodemon's dominant heap cost on GPU nodes; collapsing overlapping
+	// scrapes is the primary OOM defence.
 	exporter := nodemon.NewExporter(cfg, dynClient, scraper, mapper, logger)
+	gpuRefreshInterval := time.Duration(
+		envInt("GPU_REFRESH_INTERVAL_SECONDS", int(nodemon.DefaultGPURefreshInterval/time.Second)),
+	) * time.Second
+	cachedGPU := nodemon.NewCachedGPUExporter(exporter, gpuRefreshInterval, logger)
 
 	// Create a K8s-authenticated HTTP client for kubelet API proxy access
 	k8sTransport, err := rest.TransportFor(kubeConfig)
@@ -131,18 +151,21 @@ func main() {
 		logger.Info("Cgroup metrics collection disabled (set CGROUP_METRICS_ENABLED=true to enable)")
 	}
 
-	// Create unified exporter that combines all data sources
+	// Create unified exporter that combines all data sources. It reads GPU data
+	// from the shared cache (cachedGPU), not by scraping DCGM itself.
 	unifiedExporter := nodemon.NewUnifiedExporter(
-		statsPoller, cadvisorScraper, exporter, cgroupReader, cfg.NodeName, logger,
+		statsPoller, cadvisorScraper, cachedGPU, cgroupReader, cfg.NodeName, logger,
 	)
 
-	// Start unified collection loop (every 30 seconds)
+	// Start the GPU snapshot refresher and the unified collection loop.
 	collectionCtx, collectionCancel := context.WithCancel(context.Background())
 	defer collectionCancel()
+	go cachedGPU.Start(collectionCtx)
 	go unifiedExporter.StartCollectionLoop(collectionCtx, 30*time.Second)
 
-	// Create HTTP handlers
-	containerMetricsHandler := nodemon.NewContainerMetricsHandler(exporter, logger) // GPU-only (backward compat)
+	// Create HTTP handlers. The legacy GPU-only endpoint serves the shared cached
+	// snapshot instead of scraping DCGM on every request.
+	containerMetricsHandler := nodemon.NewContainerMetricsHandler(cachedGPU, logger) // GPU-only (backward compat)
 
 	// Process-introspection collectors are enabled only via Helm values
 	// (runtimeMetrics.enabled). They require hostPID: true and SYS_PTRACE, granted in
@@ -162,6 +185,7 @@ func main() {
 
 	var jvmMetricsHandler http.Handler
 	var runtimeMetricsHandler http.Handler
+	var runtimeSnapshotSource nodemon.RuntimeSnapshotQuerier
 	switch {
 	case runtimeMetricsEnabled && podContainerIndex != nil:
 		jvmCollector := nodemon.NewJVMCollector(cfg.NodeName, podContainerIndex, logger)
@@ -171,6 +195,7 @@ func main() {
 
 		runtimeCollector := nodemon.NewRuntimeCollector(cfg.NodeName, podContainerIndex, logger)
 		runtimeMetricsHandler = nodemon.NewRuntimeMetricsHandler(runtimeCollector, logger, scanHandlerTimeout)
+		runtimeSnapshotSource = runtimeCollector
 		go runtimeCollector.StartCollectionLoop(collectionCtx, 30*time.Second)
 		logger.Info("Combined runtime metrics collection enabled")
 	case runtimeMetricsEnabled:
@@ -185,6 +210,11 @@ func main() {
 	mux.Handle("/v2/container/metrics", nodemon.NewUnifiedContainerHandler(unifiedExporter, logger))
 	mux.Handle("/node/metrics", nodemon.NewNodeMetricsHandler(unifiedExporter, logger))
 	mux.Handle("/pvc/metrics", nodemon.NewPVCMetricsHandler(unifiedExporter, logger))
+	mux.Handle("/v2/node/snapshot", nodemon.NewNodeSnapshotHandler(unifiedExporter, cachedGPU, logger))
+	mux.Handle(
+		"/v2/container/snapshot",
+		nodemon.NewContainerSnapshotHandler(unifiedExporter, runtimeSnapshotSource, logger),
+	)
 
 	server := &http.Server{
 		Addr:    fmt.Sprintf(":%d", cfg.HTTPListenPort),
