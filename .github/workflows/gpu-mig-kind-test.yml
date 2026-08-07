@@ -1,0 +1,27 @@
+name: gpu-mig-kind
+
+# End-to-end validation of node-level GPU telemetry summarization (MIG and
+# non-MIG) on a real kind cluster. Actual test logic lives in the composite
+# action at .github/actions/gpu-mig-kind so the services monorepo can reuse
+# it via ./operators/zxporter/.github/actions/gpu-mig-kind.
+
+permissions:
+  contents: read
+
+on:
+  pull_request:
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'LICENSE'
+  workflow_dispatch:
+
+jobs:
+  gpu-mig-kind:
+    runs-on: namespace-profile-dz-generic
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run gpu-mig-kind
+        uses: ./.github/actions/gpu-mig-kind

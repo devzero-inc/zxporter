@@ -691,6 +691,16 @@ spec:
                     description: MaskSecretData determines whether to redact secret
                       values
                     type: boolean
+                  migPartedConfigMapName:
+                    description: |-
+                      MigPartedConfigMapName is the name of the NVIDIA mig-parted ConfigMap to
+                      collect (defaults to "default-mig-parted-config")
+                    type: string
+                  migPartedConfigMapNamespace:
+                    description: |-
+                      MigPartedConfigMapNamespace is the namespace of the NVIDIA mig-parted
+                      ConfigMap (defaults to "gpu-operator")
+                    type: string
                   nodeMetricsConcurrency:
                     description: |-
                       NodeMetricsConcurrency bounds how many nodes' metrics are collected in

@@ -391,7 +391,7 @@ func (c *SparkApplicationCollector) IsAvailable(ctx context.Context) bool {
 
 	_, err := c.dynamicClient.Resource(gvr).List(ctx, metav1.ListOptions{Limit: 1})
 	if err != nil {
-		c.logger.Info(
+		c.logger.V(1).Info(
 			"SparkApplication resources not available in the cluster",
 			"error",
 			err.Error(),

@@ -19,49 +19,55 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	K8SService_GetWorkloadsStats_FullMethodName               = "/api.v1.K8SService/GetWorkloadsStats"
-	K8SService_GetClusters_FullMethodName                     = "/api.v1.K8SService/GetClusters"
-	K8SService_ListClusters_FullMethodName                    = "/api.v1.K8SService/ListClusters"
-	K8SService_GetCluster_FullMethodName                      = "/api.v1.K8SService/GetCluster"
-	K8SService_GetClusterMetadata_FullMethodName              = "/api.v1.K8SService/GetClusterMetadata"
-	K8SService_GetAllNamespaces_FullMethodName                = "/api.v1.K8SService/GetAllNamespaces"
-	K8SService_SearchNamespacesByCluster_FullMethodName       = "/api.v1.K8SService/SearchNamespacesByCluster"
-	K8SService_ListNamespacesByCluster_FullMethodName         = "/api.v1.K8SService/ListNamespacesByCluster"
-	K8SService_GetAllWorkloadNames_FullMethodName             = "/api.v1.K8SService/GetAllWorkloadNames"
-	K8SService_GetAllWorkloadLabels_FullMethodName            = "/api.v1.K8SService/GetAllWorkloadLabels"
-	K8SService_GetAllNodeGroupNames_FullMethodName            = "/api.v1.K8SService/GetAllNodeGroupNames"
-	K8SService_MetadataForWorkloads_FullMethodName            = "/api.v1.K8SService/MetadataForWorkloads"
-	K8SService_GetNodeGroups_FullMethodName                   = "/api.v1.K8SService/GetNodeGroups"
-	K8SService_GetAllNodeGroups_FullMethodName                = "/api.v1.K8SService/GetAllNodeGroups"
-	K8SService_GetNodeGroupsUtilization_FullMethodName        = "/api.v1.K8SService/GetNodeGroupsUtilization"
-	K8SService_GetNodeGroup_FullMethodName                    = "/api.v1.K8SService/GetNodeGroup"
-	K8SService_GetNode_FullMethodName                         = "/api.v1.K8SService/GetNode"
-	K8SService_GetWorkloads_FullMethodName                    = "/api.v1.K8SService/GetWorkloads"
-	K8SService_GetWorkload_FullMethodName                     = "/api.v1.K8SService/GetWorkload"
-	K8SService_GetWorkloadContainerPercentiles_FullMethodName = "/api.v1.K8SService/GetWorkloadContainerPercentiles"
-	K8SService_GetWorkloadContainerTimeSeries_FullMethodName  = "/api.v1.K8SService/GetWorkloadContainerTimeSeries"
-	K8SService_GetLatestContainerRequestLimits_FullMethodName = "/api.v1.K8SService/GetLatestContainerRequestLimits"
-	K8SService_GetWorkloadLanguages_FullMethodName            = "/api.v1.K8SService/GetWorkloadLanguages"
-	K8SService_GetForecastWorkloads_FullMethodName            = "/api.v1.K8SService/GetForecastWorkloads"
-	K8SService_GetForecastWorkload_FullMethodName             = "/api.v1.K8SService/GetForecastWorkload"
-	K8SService_GetResources_FullMethodName                    = "/api.v1.K8SService/GetResources"
-	K8SService_GetPods_FullMethodName                         = "/api.v1.K8SService/GetPods"
-	K8SService_GetLatestOperatorVersion_FullMethodName        = "/api.v1.K8SService/GetLatestOperatorVersion"
-	K8SService_GalaxyGetWorkloadPerspective_FullMethodName    = "/api.v1.K8SService/GalaxyGetWorkloadPerspective"
-	K8SService_ListAuditLogs_FullMethodName                   = "/api.v1.K8SService/ListAuditLogs"
-	K8SService_ListAuditLogOriginators_FullMethodName         = "/api.v1.K8SService/ListAuditLogOriginators"
-	K8SService_SendWorkloadEmail_FullMethodName               = "/api.v1.K8SService/SendWorkloadEmail"
-	K8SService_SendWeeklySummaryEmail_FullMethodName          = "/api.v1.K8SService/SendWeeklySummaryEmail"
-	K8SService_GetClustersNodeInfo_FullMethodName             = "/api.v1.K8SService/GetClustersNodeInfo"
-	K8SService_SearchK8SResources_FullMethodName              = "/api.v1.K8SService/SearchK8sResources"
-	K8SService_SearchK8SWorkloads_FullMethodName              = "/api.v1.K8SService/SearchK8sWorkloads"
-	K8SService_GetClusterType_FullMethodName                  = "/api.v1.K8SService/GetClusterType"
-	K8SService_GetRelationsForKind_FullMethodName             = "/api.v1.K8SService/GetRelationsForKind"
-	K8SService_LookupNodeInstance_FullMethodName              = "/api.v1.K8SService/LookupNodeInstance"
-	K8SService_GetWorkloadPodHistory_FullMethodName           = "/api.v1.K8SService/GetWorkloadPodHistory"
-	K8SService_AddClusterTags_FullMethodName                  = "/api.v1.K8SService/AddClusterTags"
-	K8SService_RemoveClusterTags_FullMethodName               = "/api.v1.K8SService/RemoveClusterTags"
-	K8SService_ListTags_FullMethodName                        = "/api.v1.K8SService/ListTags"
+	K8SService_GetWorkloadsStats_FullMethodName                = "/api.v1.K8SService/GetWorkloadsStats"
+	K8SService_GetClusters_FullMethodName                      = "/api.v1.K8SService/GetClusters"
+	K8SService_ListClusters_FullMethodName                     = "/api.v1.K8SService/ListClusters"
+	K8SService_GetCluster_FullMethodName                       = "/api.v1.K8SService/GetCluster"
+	K8SService_GetClusterMetadata_FullMethodName               = "/api.v1.K8SService/GetClusterMetadata"
+	K8SService_GetAllNamespaces_FullMethodName                 = "/api.v1.K8SService/GetAllNamespaces"
+	K8SService_SearchNamespacesByCluster_FullMethodName        = "/api.v1.K8SService/SearchNamespacesByCluster"
+	K8SService_ListNamespacesByCluster_FullMethodName          = "/api.v1.K8SService/ListNamespacesByCluster"
+	K8SService_GetAllWorkloadNames_FullMethodName              = "/api.v1.K8SService/GetAllWorkloadNames"
+	K8SService_GetAllWorkloadLabels_FullMethodName             = "/api.v1.K8SService/GetAllWorkloadLabels"
+	K8SService_GetAllNodeGroupNames_FullMethodName             = "/api.v1.K8SService/GetAllNodeGroupNames"
+	K8SService_MetadataForWorkloads_FullMethodName             = "/api.v1.K8SService/MetadataForWorkloads"
+	K8SService_GetNodeGroups_FullMethodName                    = "/api.v1.K8SService/GetNodeGroups"
+	K8SService_GetAllNodeGroups_FullMethodName                 = "/api.v1.K8SService/GetAllNodeGroups"
+	K8SService_GetNodeGroupsUtilization_FullMethodName         = "/api.v1.K8SService/GetNodeGroupsUtilization"
+	K8SService_GetNodeGroup_FullMethodName                     = "/api.v1.K8SService/GetNodeGroup"
+	K8SService_GetNode_FullMethodName                          = "/api.v1.K8SService/GetNode"
+	K8SService_GetWorkloads_FullMethodName                     = "/api.v1.K8SService/GetWorkloads"
+	K8SService_ListWorkloadsPaginated_FullMethodName           = "/api.v1.K8SService/ListWorkloadsPaginated"
+	K8SService_GetWorkloadsSummary_FullMethodName              = "/api.v1.K8SService/GetWorkloadsSummary"
+	K8SService_GetWorkload_FullMethodName                      = "/api.v1.K8SService/GetWorkload"
+	K8SService_GetWorkloadContainerPercentiles_FullMethodName  = "/api.v1.K8SService/GetWorkloadContainerPercentiles"
+	K8SService_GetWorkloadContainerTimeSeries_FullMethodName   = "/api.v1.K8SService/GetWorkloadContainerTimeSeries"
+	K8SService_GetLatestContainerRequestLimits_FullMethodName  = "/api.v1.K8SService/GetLatestContainerRequestLimits"
+	K8SService_GetNodeGPUMigInstances_FullMethodName           = "/api.v1.K8SService/GetNodeGPUMigInstances"
+	K8SService_GetContainerIndividualGPUMetrics_FullMethodName = "/api.v1.K8SService/GetContainerIndividualGPUMetrics"
+	K8SService_GetWorkloadLanguages_FullMethodName             = "/api.v1.K8SService/GetWorkloadLanguages"
+	K8SService_GetForecastWorkloads_FullMethodName             = "/api.v1.K8SService/GetForecastWorkloads"
+	K8SService_GetForecastWorkload_FullMethodName              = "/api.v1.K8SService/GetForecastWorkload"
+	K8SService_GetResources_FullMethodName                     = "/api.v1.K8SService/GetResources"
+	K8SService_GetResourceFilterOptions_FullMethodName         = "/api.v1.K8SService/GetResourceFilterOptions"
+	K8SService_GetPods_FullMethodName                          = "/api.v1.K8SService/GetPods"
+	K8SService_GetLatestOperatorVersion_FullMethodName         = "/api.v1.K8SService/GetLatestOperatorVersion"
+	K8SService_GalaxyGetWorkloadPerspective_FullMethodName     = "/api.v1.K8SService/GalaxyGetWorkloadPerspective"
+	K8SService_ListAuditLogs_FullMethodName                    = "/api.v1.K8SService/ListAuditLogs"
+	K8SService_ListAuditLogOriginators_FullMethodName          = "/api.v1.K8SService/ListAuditLogOriginators"
+	K8SService_SendWorkloadEmail_FullMethodName                = "/api.v1.K8SService/SendWorkloadEmail"
+	K8SService_SendWeeklySummaryEmail_FullMethodName           = "/api.v1.K8SService/SendWeeklySummaryEmail"
+	K8SService_GetClustersNodeInfo_FullMethodName              = "/api.v1.K8SService/GetClustersNodeInfo"
+	K8SService_SearchK8SResources_FullMethodName               = "/api.v1.K8SService/SearchK8sResources"
+	K8SService_SearchK8SWorkloads_FullMethodName               = "/api.v1.K8SService/SearchK8sWorkloads"
+	K8SService_GetClusterType_FullMethodName                   = "/api.v1.K8SService/GetClusterType"
+	K8SService_GetRelationsForKind_FullMethodName              = "/api.v1.K8SService/GetRelationsForKind"
+	K8SService_LookupNodeInstance_FullMethodName               = "/api.v1.K8SService/LookupNodeInstance"
+	K8SService_GetWorkloadPodHistory_FullMethodName            = "/api.v1.K8SService/GetWorkloadPodHistory"
+	K8SService_AddClusterTags_FullMethodName                   = "/api.v1.K8SService/AddClusterTags"
+	K8SService_RemoveClusterTags_FullMethodName                = "/api.v1.K8SService/RemoveClusterTags"
+	K8SService_ListTags_FullMethodName                         = "/api.v1.K8SService/ListTags"
+	K8SService_GetMigPartedConfig_FullMethodName               = "/api.v1.K8SService/GetMigPartedConfig"
 )
 
 // K8SServiceClient is the client API for K8SService service.
@@ -105,6 +111,13 @@ type K8SServiceClient interface {
 	GetNode(ctx context.Context, in *GetNodeRequest, opts ...grpc.CallOption) (*GetNodeResponse, error)
 	// GetWorkloads retrieves all workloads for a specific cluster.
 	GetWorkloads(ctx context.Context, in *GetWorkloadsRequest, opts ...grpc.CallOption) (*GetWorkloadsResponse, error)
+	// ListWorkloadsPaginated retrieves a single keyset-paginated page of top-level
+	// workloads for a cluster. Additive alternative to GetWorkloads for large clusters.
+	ListWorkloadsPaginated(ctx context.Context, in *ListWorkloadsPaginatedRequest, opts ...grpc.CallOption) (*ListWorkloadsPaginatedResponse, error)
+	// GetWorkloadsSummary computes cluster-wide aggregate breakdowns (cost/cpu/
+	// memory/gpu top-N + other) over the full filtered workload set in one pass.
+	// Companion to ListWorkloadsPaginated for summary cards, top-N lists, treemaps.
+	GetWorkloadsSummary(ctx context.Context, in *GetWorkloadsSummaryRequest, opts ...grpc.CallOption) (*GetWorkloadsSummaryResponse, error)
 	// GetWorkload retrieves detailed information for a specific workload.
 	GetWorkload(ctx context.Context, in *GetWorkloadRequest, opts ...grpc.CallOption) (*GetWorkloadResponse, error)
 	// GetWorkloadContainerPercentiles retrieves per-container percentile metrics for a workload.
@@ -116,6 +129,12 @@ type K8SServiceClient interface {
 	GetWorkloadContainerTimeSeries(ctx context.Context, in *GetWorkloadContainerTimeSeriesRequest, opts ...grpc.CallOption) (*GetWorkloadContainerTimeSeriesResponse, error)
 	// GetLatestContainerRequestLimits retrieves the most recent request/limit values per container for a workload.
 	GetLatestContainerRequestLimits(ctx context.Context, in *GetLatestContainerRequestLimitsRequest, opts ...grpc.CallOption) (*GetLatestContainerRequestLimitsResponse, error)
+	// GetNodeGPUMigInstances retrieves the most recent MIG-instance telemetry for a node.
+	// Returns an empty instances list for nodes with no MIG-partitioned GPUs.
+	GetNodeGPUMigInstances(ctx context.Context, in *GetNodeGPUMigInstancesRequest, opts ...grpc.CallOption) (*GetNodeGPUMigInstancesResponse, error)
+	// GetContainerIndividualGPUMetrics retrieves the most recent per-GPU breakdown for every
+	// container in a workload that has GPU data.
+	GetContainerIndividualGPUMetrics(ctx context.Context, in *GetContainerIndividualGPUMetricsRequest, opts ...grpc.CallOption) (*GetContainerIndividualGPUMetricsResponse, error)
 	// GetWorkloadLanguages retrieves the distinct detected languages/versions across a cluster's workloads.
 	GetWorkloadLanguages(ctx context.Context, in *GetWorkloadLanguagesRequest, opts ...grpc.CallOption) (*GetWorkloadLanguagesResponse, error)
 	// Deprecated: Do not use.
@@ -126,6 +145,8 @@ type K8SServiceClient interface {
 	GetForecastWorkload(ctx context.Context, in *GetForecastWorkloadRequest, opts ...grpc.CallOption) (*GetForecastWorkloadResponse, error)
 	// GetResources retrivers specific resource and their details from db, simulating informer.
 	GetResources(ctx context.Context, in *GetResourcesRequest, opts ...grpc.CallOption) (*GetResourcesResponse, error)
+	// GetResourceFilterOptions returns the distinct filterable field values for a resource kind.
+	GetResourceFilterOptions(ctx context.Context, in *GetResourceFilterOptionsRequest, opts ...grpc.CallOption) (*GetResourceFilterOptionsResponse, error)
 	// GetPods retrieves Pod resources and their details from db.
 	GetPods(ctx context.Context, in *GetPodsRequest, opts ...grpc.CallOption) (*GetPodsResponse, error)
 	GetLatestOperatorVersion(ctx context.Context, in *GetLatestOperatorVersionRequest, opts ...grpc.CallOption) (*GetLatestOperatorVersionResponse, error)
@@ -153,6 +174,10 @@ type K8SServiceClient interface {
 	RemoveClusterTags(ctx context.Context, in *RemoveClusterTagsRequest, opts ...grpc.CallOption) (*RemoveClusterTagsResponse, error)
 	// ListTags lists all tags for a team.
 	ListTags(ctx context.Context, in *ListTagsRequest, opts ...grpc.CallOption) (*ListTagsResponse, error)
+	// GetMigPartedConfig retrieves the NVIDIA mig-parted ConfigMap collected
+	// from a cluster: the declared MIG partitioning profiles. Per-node applied
+	// state rides NodeDetails (mig_config_desired/mig_config_state).
+	GetMigPartedConfig(ctx context.Context, in *GetMigPartedConfigRequest, opts ...grpc.CallOption) (*GetMigPartedConfigResponse, error)
 }
 
 type k8SServiceClient struct {
@@ -326,6 +351,24 @@ func (c *k8SServiceClient) GetWorkloads(ctx context.Context, in *GetWorkloadsReq
 	return out, nil
 }
 
+func (c *k8SServiceClient) ListWorkloadsPaginated(ctx context.Context, in *ListWorkloadsPaginatedRequest, opts ...grpc.CallOption) (*ListWorkloadsPaginatedResponse, error) {
+	out := new(ListWorkloadsPaginatedResponse)
+	err := c.cc.Invoke(ctx, K8SService_ListWorkloadsPaginated_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *k8SServiceClient) GetWorkloadsSummary(ctx context.Context, in *GetWorkloadsSummaryRequest, opts ...grpc.CallOption) (*GetWorkloadsSummaryResponse, error) {
+	out := new(GetWorkloadsSummaryResponse)
+	err := c.cc.Invoke(ctx, K8SService_GetWorkloadsSummary_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *k8SServiceClient) GetWorkload(ctx context.Context, in *GetWorkloadRequest, opts ...grpc.CallOption) (*GetWorkloadResponse, error) {
 	out := new(GetWorkloadResponse)
 	err := c.cc.Invoke(ctx, K8SService_GetWorkload_FullMethodName, in, out, opts...)
@@ -356,6 +399,24 @@ func (c *k8SServiceClient) GetWorkloadContainerTimeSeries(ctx context.Context, i
 func (c *k8SServiceClient) GetLatestContainerRequestLimits(ctx context.Context, in *GetLatestContainerRequestLimitsRequest, opts ...grpc.CallOption) (*GetLatestContainerRequestLimitsResponse, error) {
 	out := new(GetLatestContainerRequestLimitsResponse)
 	err := c.cc.Invoke(ctx, K8SService_GetLatestContainerRequestLimits_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *k8SServiceClient) GetNodeGPUMigInstances(ctx context.Context, in *GetNodeGPUMigInstancesRequest, opts ...grpc.CallOption) (*GetNodeGPUMigInstancesResponse, error) {
+	out := new(GetNodeGPUMigInstancesResponse)
+	err := c.cc.Invoke(ctx, K8SService_GetNodeGPUMigInstances_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *k8SServiceClient) GetContainerIndividualGPUMetrics(ctx context.Context, in *GetContainerIndividualGPUMetricsRequest, opts ...grpc.CallOption) (*GetContainerIndividualGPUMetricsResponse, error) {
+	out := new(GetContainerIndividualGPUMetricsResponse)
+	err := c.cc.Invoke(ctx, K8SService_GetContainerIndividualGPUMetrics_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -394,6 +455,15 @@ func (c *k8SServiceClient) GetForecastWorkload(ctx context.Context, in *GetForec
 func (c *k8SServiceClient) GetResources(ctx context.Context, in *GetResourcesRequest, opts ...grpc.CallOption) (*GetResourcesResponse, error) {
 	out := new(GetResourcesResponse)
 	err := c.cc.Invoke(ctx, K8SService_GetResources_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *k8SServiceClient) GetResourceFilterOptions(ctx context.Context, in *GetResourceFilterOptionsRequest, opts ...grpc.CallOption) (*GetResourceFilterOptionsResponse, error) {
+	out := new(GetResourceFilterOptionsResponse)
+	err := c.cc.Invoke(ctx, K8SService_GetResourceFilterOptions_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -553,6 +623,15 @@ func (c *k8SServiceClient) ListTags(ctx context.Context, in *ListTagsRequest, op
 	return out, nil
 }
 
+func (c *k8SServiceClient) GetMigPartedConfig(ctx context.Context, in *GetMigPartedConfigRequest, opts ...grpc.CallOption) (*GetMigPartedConfigResponse, error) {
+	out := new(GetMigPartedConfigResponse)
+	err := c.cc.Invoke(ctx, K8SService_GetMigPartedConfig_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // K8SServiceServer is the server API for K8SService service.
 // All implementations must embed UnimplementedK8SServiceServer
 // for forward compatibility
@@ -594,6 +673,13 @@ type K8SServiceServer interface {
 	GetNode(context.Context, *GetNodeRequest) (*GetNodeResponse, error)
 	// GetWorkloads retrieves all workloads for a specific cluster.
 	GetWorkloads(context.Context, *GetWorkloadsRequest) (*GetWorkloadsResponse, error)
+	// ListWorkloadsPaginated retrieves a single keyset-paginated page of top-level
+	// workloads for a cluster. Additive alternative to GetWorkloads for large clusters.
+	ListWorkloadsPaginated(context.Context, *ListWorkloadsPaginatedRequest) (*ListWorkloadsPaginatedResponse, error)
+	// GetWorkloadsSummary computes cluster-wide aggregate breakdowns (cost/cpu/
+	// memory/gpu top-N + other) over the full filtered workload set in one pass.
+	// Companion to ListWorkloadsPaginated for summary cards, top-N lists, treemaps.
+	GetWorkloadsSummary(context.Context, *GetWorkloadsSummaryRequest) (*GetWorkloadsSummaryResponse, error)
 	// GetWorkload retrieves detailed information for a specific workload.
 	GetWorkload(context.Context, *GetWorkloadRequest) (*GetWorkloadResponse, error)
 	// GetWorkloadContainerPercentiles retrieves per-container percentile metrics for a workload.
@@ -605,6 +691,12 @@ type K8SServiceServer interface {
 	GetWorkloadContainerTimeSeries(context.Context, *GetWorkloadContainerTimeSeriesRequest) (*GetWorkloadContainerTimeSeriesResponse, error)
 	// GetLatestContainerRequestLimits retrieves the most recent request/limit values per container for a workload.
 	GetLatestContainerRequestLimits(context.Context, *GetLatestContainerRequestLimitsRequest) (*GetLatestContainerRequestLimitsResponse, error)
+	// GetNodeGPUMigInstances retrieves the most recent MIG-instance telemetry for a node.
+	// Returns an empty instances list for nodes with no MIG-partitioned GPUs.
+	GetNodeGPUMigInstances(context.Context, *GetNodeGPUMigInstancesRequest) (*GetNodeGPUMigInstancesResponse, error)
+	// GetContainerIndividualGPUMetrics retrieves the most recent per-GPU breakdown for every
+	// container in a workload that has GPU data.
+	GetContainerIndividualGPUMetrics(context.Context, *GetContainerIndividualGPUMetricsRequest) (*GetContainerIndividualGPUMetricsResponse, error)
 	// GetWorkloadLanguages retrieves the distinct detected languages/versions across a cluster's workloads.
 	GetWorkloadLanguages(context.Context, *GetWorkloadLanguagesRequest) (*GetWorkloadLanguagesResponse, error)
 	// Deprecated: Do not use.
@@ -615,6 +707,8 @@ type K8SServiceServer interface {
 	GetForecastWorkload(context.Context, *GetForecastWorkloadRequest) (*GetForecastWorkloadResponse, error)
 	// GetResources retrivers specific resource and their details from db, simulating informer.
 	GetResources(context.Context, *GetResourcesRequest) (*GetResourcesResponse, error)
+	// GetResourceFilterOptions returns the distinct filterable field values for a resource kind.
+	GetResourceFilterOptions(context.Context, *GetResourceFilterOptionsRequest) (*GetResourceFilterOptionsResponse, error)
 	// GetPods retrieves Pod resources and their details from db.
 	GetPods(context.Context, *GetPodsRequest) (*GetPodsResponse, error)
 	GetLatestOperatorVersion(context.Context, *GetLatestOperatorVersionRequest) (*GetLatestOperatorVersionResponse, error)
@@ -642,6 +736,10 @@ type K8SServiceServer interface {
 	RemoveClusterTags(context.Context, *RemoveClusterTagsRequest) (*RemoveClusterTagsResponse, error)
 	// ListTags lists all tags for a team.
 	ListTags(context.Context, *ListTagsRequest) (*ListTagsResponse, error)
+	// GetMigPartedConfig retrieves the NVIDIA mig-parted ConfigMap collected
+	// from a cluster: the declared MIG partitioning profiles. Per-node applied
+	// state rides NodeDetails (mig_config_desired/mig_config_state).
+	GetMigPartedConfig(context.Context, *GetMigPartedConfigRequest) (*GetMigPartedConfigResponse, error)
 	mustEmbedUnimplementedK8SServiceServer()
 }
 
@@ -703,6 +801,12 @@ func (UnimplementedK8SServiceServer) GetNode(context.Context, *GetNodeRequest) (
 func (UnimplementedK8SServiceServer) GetWorkloads(context.Context, *GetWorkloadsRequest) (*GetWorkloadsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetWorkloads not implemented")
 }
+func (UnimplementedK8SServiceServer) ListWorkloadsPaginated(context.Context, *ListWorkloadsPaginatedRequest) (*ListWorkloadsPaginatedResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListWorkloadsPaginated not implemented")
+}
+func (UnimplementedK8SServiceServer) GetWorkloadsSummary(context.Context, *GetWorkloadsSummaryRequest) (*GetWorkloadsSummaryResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetWorkloadsSummary not implemented")
+}
 func (UnimplementedK8SServiceServer) GetWorkload(context.Context, *GetWorkloadRequest) (*GetWorkloadResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetWorkload not implemented")
 }
@@ -715,6 +819,12 @@ func (UnimplementedK8SServiceServer) GetWorkloadContainerTimeSeries(context.Cont
 func (UnimplementedK8SServiceServer) GetLatestContainerRequestLimits(context.Context, *GetLatestContainerRequestLimitsRequest) (*GetLatestContainerRequestLimitsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetLatestContainerRequestLimits not implemented")
 }
+func (UnimplementedK8SServiceServer) GetNodeGPUMigInstances(context.Context, *GetNodeGPUMigInstancesRequest) (*GetNodeGPUMigInstancesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetNodeGPUMigInstances not implemented")
+}
+func (UnimplementedK8SServiceServer) GetContainerIndividualGPUMetrics(context.Context, *GetContainerIndividualGPUMetricsRequest) (*GetContainerIndividualGPUMetricsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetContainerIndividualGPUMetrics not implemented")
+}
 func (UnimplementedK8SServiceServer) GetWorkloadLanguages(context.Context, *GetWorkloadLanguagesRequest) (*GetWorkloadLanguagesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetWorkloadLanguages not implemented")
 }
@@ -726,6 +836,9 @@ func (UnimplementedK8SServiceServer) GetForecastWorkload(context.Context, *GetFo
 }
 func (UnimplementedK8SServiceServer) GetResources(context.Context, *GetResourcesRequest) (*GetResourcesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetResources not implemented")
+}
+func (UnimplementedK8SServiceServer) GetResourceFilterOptions(context.Context, *GetResourceFilterOptionsRequest) (*GetResourceFilterOptionsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetResourceFilterOptions not implemented")
 }
 func (UnimplementedK8SServiceServer) GetPods(context.Context, *GetPodsRequest) (*GetPodsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetPods not implemented")
@@ -777,6 +890,9 @@ func (UnimplementedK8SServiceServer) RemoveClusterTags(context.Context, *RemoveC
 }
 func (UnimplementedK8SServiceServer) ListTags(context.Context, *ListTagsRequest) (*ListTagsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListTags not implemented")
+}
+func (UnimplementedK8SServiceServer) GetMigPartedConfig(context.Context, *GetMigPartedConfigRequest) (*GetMigPartedConfigResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetMigPartedConfig not implemented")
 }
 func (UnimplementedK8SServiceServer) mustEmbedUnimplementedK8SServiceServer() {}
 
@@ -1115,6 +1231,42 @@ func _K8SService_GetWorkloads_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _K8SService_ListWorkloadsPaginated_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListWorkloadsPaginatedRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(K8SServiceServer).ListWorkloadsPaginated(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: K8SService_ListWorkloadsPaginated_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(K8SServiceServer).ListWorkloadsPaginated(ctx, req.(*ListWorkloadsPaginatedRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _K8SService_GetWorkloadsSummary_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetWorkloadsSummaryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(K8SServiceServer).GetWorkloadsSummary(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: K8SService_GetWorkloadsSummary_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(K8SServiceServer).GetWorkloadsSummary(ctx, req.(*GetWorkloadsSummaryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _K8SService_GetWorkload_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetWorkloadRequest)
 	if err := dec(in); err != nil {
@@ -1187,6 +1339,42 @@ func _K8SService_GetLatestContainerRequestLimits_Handler(srv interface{}, ctx co
 	return interceptor(ctx, in, info, handler)
 }
 
+func _K8SService_GetNodeGPUMigInstances_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetNodeGPUMigInstancesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(K8SServiceServer).GetNodeGPUMigInstances(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: K8SService_GetNodeGPUMigInstances_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(K8SServiceServer).GetNodeGPUMigInstances(ctx, req.(*GetNodeGPUMigInstancesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _K8SService_GetContainerIndividualGPUMetrics_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetContainerIndividualGPUMetricsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(K8SServiceServer).GetContainerIndividualGPUMetrics(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: K8SService_GetContainerIndividualGPUMetrics_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(K8SServiceServer).GetContainerIndividualGPUMetrics(ctx, req.(*GetContainerIndividualGPUMetricsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _K8SService_GetWorkloadLanguages_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetWorkloadLanguagesRequest)
 	if err := dec(in); err != nil {
@@ -1255,6 +1443,24 @@ func _K8SService_GetResources_Handler(srv interface{}, ctx context.Context, dec 
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(K8SServiceServer).GetResources(ctx, req.(*GetResourcesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _K8SService_GetResourceFilterOptions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetResourceFilterOptionsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(K8SServiceServer).GetResourceFilterOptions(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: K8SService_GetResourceFilterOptions_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(K8SServiceServer).GetResourceFilterOptions(ctx, req.(*GetResourceFilterOptionsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1565,6 +1771,24 @@ func _K8SService_ListTags_Handler(srv interface{}, ctx context.Context, dec func
 	return interceptor(ctx, in, info, handler)
 }
 
+func _K8SService_GetMigPartedConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetMigPartedConfigRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(K8SServiceServer).GetMigPartedConfig(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: K8SService_GetMigPartedConfig_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(K8SServiceServer).GetMigPartedConfig(ctx, req.(*GetMigPartedConfigRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // K8SService_ServiceDesc is the grpc.ServiceDesc for K8SService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1645,6 +1869,14 @@ var K8SService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _K8SService_GetWorkloads_Handler,
 		},
 		{
+			MethodName: "ListWorkloadsPaginated",
+			Handler:    _K8SService_ListWorkloadsPaginated_Handler,
+		},
+		{
+			MethodName: "GetWorkloadsSummary",
+			Handler:    _K8SService_GetWorkloadsSummary_Handler,
+		},
+		{
 			MethodName: "GetWorkload",
 			Handler:    _K8SService_GetWorkload_Handler,
 		},
@@ -1661,6 +1893,14 @@ var K8SService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _K8SService_GetLatestContainerRequestLimits_Handler,
 		},
 		{
+			MethodName: "GetNodeGPUMigInstances",
+			Handler:    _K8SService_GetNodeGPUMigInstances_Handler,
+		},
+		{
+			MethodName: "GetContainerIndividualGPUMetrics",
+			Handler:    _K8SService_GetContainerIndividualGPUMetrics_Handler,
+		},
+		{
 			MethodName: "GetWorkloadLanguages",
 			Handler:    _K8SService_GetWorkloadLanguages_Handler,
 		},
@@ -1675,6 +1915,10 @@ var K8SService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetResources",
 			Handler:    _K8SService_GetResources_Handler,
+		},
+		{
+			MethodName: "GetResourceFilterOptions",
+			Handler:    _K8SService_GetResourceFilterOptions_Handler,
 		},
 		{
 			MethodName: "GetPods",
@@ -1743,6 +1987,10 @@ var K8SService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListTags",
 			Handler:    _K8SService_ListTags_Handler,
+		},
+		{
+			MethodName: "GetMigPartedConfig",
+			Handler:    _K8SService_GetMigPartedConfig_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -272,7 +272,7 @@ func (c *WorkloadRuleCollector) IsAvailable(ctx context.Context) bool {
 	}
 
 	if isResourceTypeUnavailableError(err) {
-		c.logger.Info("WorkloadRule CRD not installed in cluster", "error", err.Error())
+		c.logger.V(1).Info("WorkloadRule CRD not installed in cluster", "error", err.Error())
 		return false
 	}
 

@@ -8,6 +8,8 @@ data:
   COLLECTION_FREQUENCY: ""
   DISABLE_GPU_METRICS: "{{ .Values.zxporter.disableGPUMetrics }}"
   DISABLED_COLLECTORS: ""
+  MIG_PARTED_CONFIGMAP_NAME: "{{ .Values.zxporter.migPartedConfigMapName | default "" }}"
+  MIG_PARTED_CONFIGMAP_NAMESPACE: "{{ .Values.zxporter.migPartedConfigMapNamespace | default "" }}"
   EXCLUDED_CLUSTERROLEBINDINGS: ""
   EXCLUDED_CLUSTERROLES: ""
   EXCLUDED_CRDGROUPS: ""

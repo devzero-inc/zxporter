@@ -123,3 +123,26 @@ type GPUMetric struct {
 
 	Timestamp time.Time `json:"timestamp"`
 }
+
+// GPUMigInstance captures per-instance identity and profiling metrics for a
+// single MIG partition, carried through from the GPUMetric row it was built
+// from. DCGM_FI_DEV_GPU_UTIL and SM metrics are excluded since DCGM never
+// populates them on MIG rows; the DCGM_FI_PROF_* family (tensor/DRAM/graphics
+// engine active) and framebuffer used/free ARE reported per instance with
+// real distinct values (confirmed against run-ai/fake-gpu-operator's captured
+// DCGM MIG samples). DCGM_FI_DEV_FB_TOTAL is never reported on MIG rows in
+// those samples, so FramebufferTotal is derived as used+free rather than
+// read from that field.
+type GPUMigInstance struct {
+	DeviceUUID    string `json:"device_uuid"`
+	DeviceID      string `json:"device_id"`
+	MIGProfile    string `json:"mig_profile"`
+	MIGInstanceID string `json:"mig_instance_id"`
+	ModelName     string `json:"model_name"`
+
+	TensorActive         float64 `json:"tensor_active"`
+	DRAMActive           float64 `json:"dram_active"`
+	GraphicsEngineActive float64 `json:"graphics_engine_active"`
+	FramebufferUsed      float64 `json:"framebuffer_used"`
+	FramebufferTotal     float64 `json:"framebuffer_total"`
+}

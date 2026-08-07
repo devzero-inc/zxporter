@@ -43,6 +43,11 @@ zxporter:
   logLevel: "error"
   # Disable GPU metrics collection (set to "true" for clusters without GPUs)
   disableGPUMetrics: ""
+  # NVIDIA mig-parted ConfigMap watched by the MIG config collector.
+  # Empty values fall back to the GPU operator defaults
+  # (default-mig-parted-config in the gpu-operator namespace).
+  migPartedConfigMapName: ""
+  migPartedConfigMapNamespace: ""
   # How many nodes' metrics NodeCollector fetches in parallel per sweep.
   # Raise this for clusters with hundreds of nodes — see the
   # NodeMetricsConcurrency field doc in api/v1/collectionpolicy_types.go for

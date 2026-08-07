@@ -162,6 +162,39 @@ func (c *PodDisruptionBudgetCollector) handlePDBEvent(
 	}
 }
 
+// PDBsInNamespace returns the PDBs the informer currently holds for a namespace.
+//
+// This reads the informer's own indexer — the namespace index every SharedIndexInformer
+// from an informer factory is built with — rather than adding a second cache to keep in
+// sync. The returned pointers are the cached objects themselves and MUST be treated as
+// read-only: mutating one corrupts the informer's store for every other reader.
+//
+// Returns nil before Start (no informer yet) and for an unwatched namespace. A caller
+// cannot distinguish those from "namespace has no PDBs", which is deliberate: all three
+// mean "no PDB is known to block here", and inventing an error for the first two would
+// only push a decision the caller cannot make onto it.
+func (c *PodDisruptionBudgetCollector) PDBsInNamespace(namespace string) []*policyv1.PodDisruptionBudget {
+	if c.pdbInformer == nil {
+		return nil
+	}
+
+	objs, err := c.pdbInformer.GetIndexer().ByIndex(cache.NamespaceIndex, namespace)
+	if err != nil {
+		c.logger.V(5).Info("Failed to look up PDBs by namespace",
+			"namespace", namespace,
+			"error", err)
+		return nil
+	}
+
+	pdbs := make([]*policyv1.PodDisruptionBudget, 0, len(objs))
+	for _, obj := range objs {
+		if pdb, ok := obj.(*policyv1.PodDisruptionBudget); ok {
+			pdbs = append(pdbs, pdb)
+		}
+	}
+	return pdbs
+}
+
 // pdbChanged detects meaningful changes in a PDB
 func (c *PodDisruptionBudgetCollector) pdbChanged(
 	oldPDB, newPDB *policyv1.PodDisruptionBudget,

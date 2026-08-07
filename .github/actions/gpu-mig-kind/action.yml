@@ -1,0 +1,101 @@
+name: "zxporter: gpu-mig-kind"
+description: |
+  End-to-end validation of node-level GPU telemetry summarization
+  (internal/nodemon.SummarizeNodeGPU, exercised via the real
+  internal/nodemon.Exporter.QueryMetrics entry point cmd/zxporter-nodemon
+  wires up) on a real kind cluster, covering both a non-MIG and a
+  MIG-partitioned node:
+
+    - Non-MIG: a real run-ai/fake-gpu-operator status-exporter DaemonSet,
+      live on the cluster, simulating 2 whole GPUs — genuine HTTP scrape of
+      a genuine DCGM-compatible endpoint.
+    - MIG: a static pod serving real DCGM Prometheus exposition text (byte-
+      shaped after run-ai/fake-gpu-operator's own published samples) at
+      :9400/metrics, standing in for the MIG simulation gap in
+      run-ai/fake-gpu-operator v0.2.0's status-exporter (see
+      fake-gpu-operator-values.yaml for why this isn't just chart config).
+
+  Assertions live in a Go/Ginkgo spec (test/e2e/gpu_mig_test.go), including
+  the MIG fixture pod's own deployment — this action only provisions the
+  cluster and the real operator; the spec is otherwise self-contained,
+  mirroring oom-flow-kind's split between infra setup (shell) and test logic
+  (Go).
+
+  Consumed by two callers:
+    - operators/zxporter/.github/workflows/gpu-mig-kind-test.yml
+      (published to devzero-inc/zxporter; uses this via
+      ./.github/actions/gpu-mig-kind)
+    - .github/workflows/zxporter-gpu-mig-kind.yml at services root
+      (uses this via ./operators/zxporter/.github/actions/gpu-mig-kind
+      with working-directory: operators/zxporter)
+
+  Caller checks out the repo; this action assumes cwd contains the
+  zxporter source (or the working-directory input points at it).
+
+inputs:
+  working-directory:
+    description: "Path to the zxporter tree relative to the repo root."
+    required: false
+    default: "."
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version-file: ${{ inputs.working-directory }}/go.mod
+        cache: true
+        cache-dependency-path: ${{ inputs.working-directory }}/go.sum
+
+    - name: Set up Helm
+      uses: azure/setup-helm@v4
+
+    - name: Create kind cluster
+      uses: helm/kind-action@v1
+      with:
+        version: v0.27.0
+        node_image: kindest/node:v1.32.3
+        cluster_name: kind-gpu-mig
+        config: ${{ inputs.working-directory }}/.github/actions/gpu-mig-kind/kind-config.yaml
+        wait: 120s
+
+    - name: Label a worker node for run-ai/fake-gpu-operator's default (non-MIG) pool
+      shell: bash
+      run: |
+        kubectl label node kind-gpu-mig-worker run.ai/simulated-gpu-node-pool=default
+
+    - name: Install run-ai/fake-gpu-operator
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        helm install fake-gpu-operator oci://ghcr.io/run-ai/fake-gpu-operator/fake-gpu-operator \
+          --version 0.2.0 \
+          --namespace fake-gpu-operator --create-namespace \
+          -f .github/actions/gpu-mig-kind/fake-gpu-operator-values.yaml \
+          --timeout 5m --wait
+
+    - name: Wait for the real nvidia-dcgm-exporter pod
+      shell: bash
+      run: |
+        # run-ai/fake-gpu-operator's status-updater labels the node
+        # (nvidia.com/gpu.deploy.dcgm-exporter=true) asynchronously after
+        # helm install returns, which is what actually lets the
+        # nvidia-dcgm-exporter DaemonSet schedule a pod here — so the
+        # selector can easily match zero pods for the first ~30-45s. A bare
+        # `kubectl wait` errors immediately ("no matching resources found")
+        # in that window instead of waiting for the pod to exist, so poll
+        # for at least one match before handing off to `wait`.
+        for i in $(seq 1 30); do
+          count=$(kubectl -n fake-gpu-operator get pod -l app=nvidia-dcgm-exporter,component=status-exporter --no-headers 2>/dev/null | wc -l)
+          [ "$count" -ge 1 ] && break
+          sleep 5
+        done
+        kubectl -n fake-gpu-operator wait --for=condition=Ready pod \
+          -l app=nvidia-dcgm-exporter,component=status-exporter --timeout=120s
+
+    - name: Run GPU node-summary e2e spec (non-MIG and MIG)
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        go test ./test/e2e/... -v -ginkgo.v -ginkgo.label-filter=gpu-mig -timeout 10m

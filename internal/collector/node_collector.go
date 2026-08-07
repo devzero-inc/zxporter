@@ -7,6 +7,7 @@ import (
 	"os"
 	"reflect"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	gpuconst "github.com/NVIDIA/KAI-scheduler/pkg/common/constants"
@@ -80,6 +81,61 @@ type NodeCollector struct {
 	// could close batchChan while a worker is still sending on it, which
 	// panics the whole process.
 	loopWG sync.WaitGroup
+
+	// nodeClaimSources resolves the Karpenter collector's NodeClaim cache through the
+	// CollectionManager, so the lifecycle fallback below can tell a Karpenter-managed
+	// Node (already reported in full by karpenter_collector.go) from one this collector
+	// is the only source for. Set by the reconciler via SetNodeClaimSource; nil-safe.
+	//
+	// Atomic for the same reason the event collector's equivalent is: the reconciler
+	// re-wires a replaced collector after its informer is already dispatching, so the
+	// write genuinely races the read.
+	nodeClaimSources atomic.Pointer[disruptionSources]
+
+	// nodeLifecycle tracks what has already been reported per Node, keyed by node name,
+	// so an informer update storm does not re-report the same transition. Guarded by
+	// lifecycleMu, which is separate from mu so it never contends with the metrics sweep.
+	lifecycleMu   sync.Mutex
+	nodeLifecycle map[string]*nodeLifecycleState
+
+	// chanMu guards the resourceChan send/close race for handleNodeEvent and
+	// sendNodeLifecycleTransition, which send DIRECTLY to resourceChan (bypassing the
+	// batcher) from the Node informer's callback goroutine. loopWG above only tracks the
+	// periodic collectNodeResourcesLoop's workers, which send on batchChan, not this path
+	// — an informer callback racing resourceChan's close (via c.batcher.stop() in Stop())
+	// is a separate, unguarded race. Same pattern as karpenter_collector.go's chanMu:
+	// every sender takes the read lock and checks stopped before sending; Stop() takes the
+	// write lock to flip stopped before triggering the channel's close, so a sender either
+	// completes its send first or observes stopped=true and returns without sending.
+	//
+	// HARD INVARIANT this depends on: a sender holds the read lock for the DURATION of its
+	// (possibly blocking) channel send, so Stop's write-lock acquisition cannot proceed
+	// until that send completes — which requires resourceChan to still have a reader at
+	// that moment. CollectionManager.processCollectorChannel is that reader, and it is
+	// structurally safe: its `for resources := range resourceChan` loop has no independent
+	// exit — the ONLY way it stops is resourceChan closing, which cannot happen before this
+	// write-lock section runs. If that loop is ever changed to exit on some other signal
+	// (e.g. a select against its own stop channel) before Stop is called here, a sender
+	// blocked on a full resourceChan would hold the read lock forever and Stop would
+	// deadlock acquiring the write lock. Flagged by automated review; verified the invariant
+	// holds against the current manager.go rather than just documenting the risk.
+	chanMu  sync.RWMutex
+	stopped bool
+}
+
+// nodeLifecycleState is what the Cluster Autoscaler time-to-Ready fallback remembers
+// about one Node.
+type nodeLifecycleState struct {
+	// launchedEmitted records that the Launched row has gone out. The Node's
+	// creationTimestamp never changes, so it is reported exactly once.
+	launchedEmitted bool
+	// readyEmitted records that the Ready row has gone out.
+	readyEmitted bool
+	// observedNotReady records that this collector watched the Node while it was NOT
+	// Ready. That is what distinguishes a Ready transition we witnessed — where the
+	// timestamp is unambiguously the first one — from a Node that was already Ready when
+	// the informer first listed it. See emitNodeLifecycleFallback.
+	observedNotReady bool
 }
 
 // NewNodeCollector creates a new collector for node resources
@@ -140,7 +196,22 @@ func NewNodeCollector(
 		metrics:         metrics,
 		telemetryLogger: telemetryLogger,
 		nodeToPodsMap:   make(map[string]map[string]*corev1.Pod),
+		nodeLifecycle:   make(map[string]*nodeLifecycleState),
 	}
+}
+
+// SetNodeClaimSource gives the collector its view of the Karpenter collector's NodeClaim
+// cache, which is what lets the time-to-Ready fallback stay out of the way on
+// Karpenter-managed nodes.
+//
+// Optional by design. Left unset — as it is on a cluster with no Karpenter, and in every
+// test that does not exercise it — the fallback relies on the Node's own Karpenter labels
+// instead, which is the check that actually matters (see nodeManagedByKarpenter).
+//
+// Safe to call on a running collector, for the same reason
+// EventCollector.SetDisruptionSources is.
+func (c *NodeCollector) SetNodeClaimSource(registry collectorRegistry) {
+	c.nodeClaimSources.Store(&disruptionSources{registry: registry})
 }
 
 // Start begins the node collection process
@@ -305,6 +376,31 @@ func (c *NodeCollector) removePodFromNode(pod *corev1.Pod) {
 	}
 }
 
+// PodsOnNode returns the pods the collector currently tracks for a node.
+//
+// This reuses nodeToPodsMap — the node→pod correlation this collector already maintains
+// off its pod informer for resource accounting — instead of standing up a second pod
+// cache. The slice is fresh, but the pod pointers are the informer's cached objects and
+// MUST be treated as read-only.
+//
+// Returns nil for an unknown node, which is indistinguishable from "node has no pods".
+// Both mean "no pod here can be blocking", so the distinction has no caller.
+func (c *NodeCollector) PodsOnNode(nodeName string) []*corev1.Pod {
+	c.podMapMutex.RLock()
+	defer c.podMapMutex.RUnlock()
+
+	podMap, exists := c.nodeToPodsMap[nodeName]
+	if !exists {
+		return nil
+	}
+
+	pods := make([]*corev1.Pod, 0, len(podMap))
+	for _, pod := range podMap {
+		pods = append(pods, pod)
+	}
+	return pods
+}
+
 // Calculate resource requests and limits for a node
 func (c *NodeCollector) calculateNodeWorkloadResources(nodeName string) map[string]interface{} {
 	c.podMapMutex.RLock()
@@ -369,6 +465,18 @@ func (c *NodeCollector) calculateNodeWorkloadResources(nodeName string) map[stri
 	return result
 }
 
+// sendResourceEvent puts one batch directly on resourceChan, or drops it silently if Stop
+// has already run. See chanMu's doc comment for why this check-then-send must be atomic
+// with Stop's close.
+func (c *NodeCollector) sendResourceEvent(batch []CollectedResource) {
+	c.chanMu.RLock()
+	defer c.chanMu.RUnlock()
+	if c.stopped {
+		return
+	}
+	c.resourceChan <- batch
+}
+
 // handleNodeEvent processes node add, update, and delete events
 func (c *NodeCollector) handleNodeEvent(node *corev1.Node, eventType EventType) {
 	if c.isExcluded(node.Name) {
@@ -376,7 +484,7 @@ func (c *NodeCollector) handleNodeEvent(node *corev1.Node, eventType EventType) 
 	}
 
 	// Send node events directly to resourceChan as a single-item batch
-	c.resourceChan <- []CollectedResource{
+	c.sendResourceEvent([]CollectedResource{
 		{
 			ResourceType: Node,
 			Object:       node,
@@ -384,7 +492,208 @@ func (c *NodeCollector) handleNodeEvent(node *corev1.Node, eventType EventType) 
 			EventType:    eventType,
 			Key:          node.Name,
 		},
+	})
+
+	// Additionally — never instead of — report the node's lifecycle timings when nothing
+	// else will. The Node resource above is unchanged.
+	c.emitNodeLifecycleFallback(node, eventType)
+}
+
+// Node labels the lifecycle fallback reads.
+const (
+	// karpenterNodePoolLabel is stamped by Karpenter on every Node it registers. Its
+	// presence means karpenter_collector.go is already reporting that node's full
+	// four-phase lifecycle off the NodeClaim, so this fallback must stay away.
+	// Source: sigs.k8s.io/karpenter/pkg/apis/v1/labels.go.
+	karpenterNodePoolLabel = "karpenter.sh/nodepool"
+	// karpenterRegisteredLabel is the other half of that marker, set by the NodeClaim
+	// lifecycle controller once it has claimed the Node.
+	karpenterRegisteredLabel = "karpenter.sh/registered"
+	// instanceTypeLabel is the well-known Kubernetes label every cloud provider's kubelet
+	// sets. Reported alongside the transition because the read path groups by it.
+	// Source: kubernetes.io/docs/reference/labels-annotations-taints.
+	instanceTypeLabel = "node.kubernetes.io/instance-type"
+	// legacyInstanceTypeLabel is its pre-1.17 spelling, still present on older clusters.
+	legacyInstanceTypeLabel = "beta.kubernetes.io/instance-type"
+)
+
+// nodeReadySeedWindow bounds how long after a Node's creation its Ready transition may be
+// and still be taken as the FIRST one, when this collector did not witness the transition
+// itself.
+//
+// Every Node in the cluster arrives already-Ready on the informer's initial list, and for
+// almost all of them the Ready condition's lastTransitionTime is still the original one —
+// which is exactly the number this signal wants, and seeding it is what gives a freshly
+// installed zxporter any history at all. But for a node that has since flapped
+// NotReady→Ready, that timestamp is the flap, not the boot; reporting it as time-to-Ready
+// would fabricate a duration of hours or days that looks entirely legitimate downstream.
+//
+// An hour is far longer than any real node takes to become Ready (seconds to a few
+// minutes) and far shorter than a plausible flap-after-boot gap, so the window separates
+// the two cleanly. Its failure mode is declining to report, never reporting a wrong
+// number.
+const nodeReadySeedWindow = time.Hour
+
+// emitNodeLifecycleFallback reports a Node's own time-to-Ready when no NodeClaim covers
+// it — the Cluster Autoscaler (and unmanaged-node) path.
+//
+// It emits the SAME NodeLifecycleTransition resource Karpenter's collector emits, into the
+// same ClickHouse table, with the Node's name standing in for node_claim_name. That is
+// deliberate: the read path pivots per node_claim_name and derives whichever phase
+// durations it finds, so one query serves both autoscalers and a cluster mid-migration
+// between them, instead of a second table and a union at the call site.
+//
+// Only two of the four phases are reported:
+//
+//   - Launched, from the Node's creationTimestamp. An approximation, and knowingly so: it
+//     is when the kubelet registered with the API server, which is after the instance
+//     actually booted. Cluster Autoscaler exposes nothing earlier — it has no
+//     NodeClaim-equivalent object — so this is the earliest instant that exists.
+//   - Ready, from the Ready condition's lastTransitionTime.
+//
+// Registered and Initialized are left ABSENT, not zero: they are Karpenter NodeClaim
+// concepts (registration with the cluster, startup taints removed, allocatable populated)
+// with no Cluster Autoscaler equivalent, and a fabricated value for either would show up
+// as a real phase duration in the report. dakr's GetTimeToReady already yields NULL phase
+// durations and a correct total for a two-row node.
+func (c *NodeCollector) emitNodeLifecycleFallback(node *corev1.Node, eventType EventType) {
+	if eventType == EventTypeDelete {
+		c.forgetNodeLifecycle(node.Name)
+		return
 	}
+
+	if c.nodeManagedByKarpenter(node) {
+		return
+	}
+
+	created := node.CreationTimestamp.Time
+	if created.IsZero() {
+		// Nothing to measure from. Unreachable through the API server, which always
+		// stamps creationTimestamp.
+		return
+	}
+
+	readyAt, isReady := nodeReadyTransition(node)
+
+	c.lifecycleMu.Lock()
+	state, known := c.nodeLifecycle[node.Name]
+	if !known {
+		state = &nodeLifecycleState{}
+		c.nodeLifecycle[node.Name] = state
+	}
+
+	emitLaunched := !state.launchedEmitted
+	state.launchedEmitted = true
+
+	witnessedTransition := state.observedNotReady
+	if !isReady {
+		state.observedNotReady = true
+	}
+
+	emitReady := isReady && !state.readyEmitted &&
+		(witnessedTransition || readyAt.Sub(created) <= nodeReadySeedWindow)
+	if emitReady {
+		state.readyEmitted = true
+	}
+	c.lifecycleMu.Unlock()
+
+	if emitLaunched {
+		c.sendNodeLifecycleTransition(node, "Launched", created)
+	}
+	if emitReady {
+		c.sendNodeLifecycleTransition(node, "Ready", readyAt)
+	}
+}
+
+// nodeManagedByKarpenter reports whether karpenter_collector.go is already the source of
+// truth for this Node's lifecycle.
+//
+// The Node's own Karpenter labels are checked FIRST and are what the decision really
+// rests on. Consulting the NodeClaim cache alone would be a race: on a Karpenter cluster
+// a Node can reach this handler before the NodeClaim informer has listed the claim that
+// owns it, and the fallback would then emit a duplicate, differently-keyed lifecycle for
+// a node Karpenter is about to report in full. The label is written by Karpenter as part
+// of registering the Node, so it is present on the object from the first time this
+// collector ever sees it.
+//
+// The NodeClaim lookup is still consulted as a backstop for a Node whose labels were
+// stripped or not yet propagated.
+func (c *NodeCollector) nodeManagedByKarpenter(node *corev1.Node) bool {
+	if _, ok := node.Labels[karpenterNodePoolLabel]; ok {
+		return true
+	}
+	if _, ok := node.Labels[karpenterRegisteredLabel]; ok {
+		return true
+	}
+
+	nodeClaims := c.nodeClaimSources.Load().nodeClaims()
+	if nodeClaims == nil {
+		return false
+	}
+	return nodeClaims.NodeClaimForNode(node.Name) != nil
+}
+
+// nodeReadyTransition returns when the Node's Ready condition last became True.
+func nodeReadyTransition(node *corev1.Node) (time.Time, bool) {
+	for _, condition := range node.Status.Conditions {
+		if condition.Type != corev1.NodeReady {
+			continue
+		}
+		if condition.Status != corev1.ConditionTrue {
+			return time.Time{}, false
+		}
+		if condition.LastTransitionTime.IsZero() {
+			return time.Time{}, false
+		}
+		return condition.LastTransitionTime.Time, true
+	}
+	return time.Time{}, false
+}
+
+// sendNodeLifecycleTransition puts one lifecycle row on the wire.
+//
+// The payload matches the Karpenter collector's byte for byte, minus the keys this path
+// has no value for. Absent keys become NULL columns in dakr, which is why they are omitted
+// rather than sent empty: reservation_type in particular is a Karpenter capacity-type
+// label with no portable Cluster Autoscaler equivalent (each cloud spells its
+// spot/on-demand marker differently), and normalising three vendor labels into one value
+// would be a guess.
+func (c *NodeCollector) sendNodeLifecycleTransition(node *corev1.Node, condition string, at time.Time) {
+	object := map[string]interface{}{
+		"node_claim_name":      node.Name,
+		"node_name":            node.Name,
+		"condition":            condition,
+		"status":               "True",
+		"last_transition_time": at.UTC().Format(time.RFC3339Nano),
+	}
+	if instanceType := nodeInstanceType(node); instanceType != "" {
+		object["instance_type"] = instanceType
+	}
+
+	c.sendResourceEvent([]CollectedResource{
+		{
+			ResourceType: NodeLifecycleTransition,
+			Object:       object,
+			Timestamp:    time.Now(),
+			EventType:    EventTypeAdd,
+			Key:          fmt.Sprintf("node-lifecycle/%s/%s", node.Name, condition),
+		},
+	})
+}
+
+func nodeInstanceType(node *corev1.Node) string {
+	if instanceType, ok := node.Labels[instanceTypeLabel]; ok {
+		return instanceType
+	}
+	return node.Labels[legacyInstanceTypeLabel]
+}
+
+// forgetNodeLifecycle drops the tracked state for a deleted Node, so the map cannot grow
+// with cluster churn.
+func (c *NodeCollector) forgetNodeLifecycle(nodeName string) {
+	c.lifecycleMu.Lock()
+	defer c.lifecycleMu.Unlock()
+	delete(c.nodeLifecycle, nodeName)
 }
 
 // nodeStatusChanged checks if there have been meaningful changes to node status
@@ -844,6 +1153,7 @@ func (c *NodeCollector) collectSingleNodeResources(ctx context.Context, node *co
 	if len(gpuMetrics) > 0 {
 		// Basic GPU counts and utilization
 		resourceData["gpuCount"] = gpuMetrics["GPUCount"]
+		resourceData["gpuInstanceCount"] = gpuMetrics["GPUInstanceCount"]
 		resourceData["gpuUtilizationAvg"] = gpuMetrics["GPUUtilizationAvg"]
 		resourceData["gpuUtilizationMax"] = gpuMetrics["GPUUtilizationMax"]
 
@@ -872,6 +1182,7 @@ func (c *NodeCollector) collectSingleNodeResources(ctx context.Context, node *co
 		resourceData["gpuModels"] = gpuMetrics["GPUModels"]
 		resourceData["gpuUUIDs"] = gpuMetrics["GPUUUIDs"]
 		resourceData["gpuUsage"] = gpuMetrics["GPUUsage"]
+		resourceData["gpuMigInstances"] = gpuMetrics["GPUMigInstances"]
 	}
 
 	workloadResources := c.calculateNodeWorkloadResources(node.Name)
@@ -947,6 +1258,21 @@ func (c *NodeCollector) Stop() error {
 	// is what makes that safe.
 	c.loopWG.Wait()
 
+	// 2c. Flip stopped before closing batchChan below — see chanMu's doc comment. This
+	// MUST happen before batchChan closes, not merely before the explicit batcher.stop()
+	// call in step 4: closing batchChan causes the batcher's own goroutine to notice its
+	// input channel closed and close resourceChan from its defer right then, independent
+	// of when batcher.stop() (which signals shutdown a second way, via the batcher's own
+	// stopCh) is called — so gating only around step 4 leaves the batcher's own
+	// close-on-input-closed path to race a direct sender that hasn't seen stopped yet.
+	// Taking the write lock here blocks until any handleNodeEvent /
+	// sendNodeLifecycleTransition call already past its stopped-check has finished its
+	// send, so no direct sender can still be in flight once resourceChan closes, no
+	// matter which of the batcher's two shutdown paths gets there first.
+	c.chanMu.Lock()
+	c.stopped = true
+	c.chanMu.Unlock()
+
 	// 3. Close the batchChan (input to the batcher for metrics).
 	if c.batchChan != nil {
 		close(c.batchChan)
@@ -964,6 +1290,11 @@ func (c *NodeCollector) Stop() error {
 	c.podMapMutex.Lock()
 	c.nodeToPodsMap = make(map[string]map[string]*corev1.Pod)
 	c.podMapMutex.Unlock()
+
+	// 5b. Clear the lifecycle-fallback state for the same reason.
+	c.lifecycleMu.Lock()
+	c.nodeLifecycle = make(map[string]*nodeLifecycleState)
+	c.lifecycleMu.Unlock()
 
 	// resourceChan is closed by the batcher's defer func.
 

@@ -1,20 +1,39 @@
 name: "zxporter: k8s-compat build"
 description: |
   Builds and pushes the four Docker images used by the k8s compatibility
-  test matrix (zxporter, testserver, stress, nodemon) to ttl.sh with
-  uuid-scoped tags. Consumed by both the public repo's build job
-  (./.github/actions/k8s-compat-build) and the services-side mirror
-  (./operators/zxporter/.github/actions/k8s-compat-build).
+  test matrix (zxporter, testserver, stress, nodemon) with uuid-scoped
+  tags. Consumed by both the public repo's build job
+  (./.github/actions/k8s-compat-build, on ubuntu-latest — unauthenticated,
+  so always uses ttl.sh) and the services-side mirror
+  (./operators/zxporter/.github/actions/k8s-compat-build, on Namespace
+  runners — can use registry=nscr.io, see that input).
 
 inputs:
   working-directory:
     description: "Path to the zxporter tree relative to the repo root."
     required: false
     default: "."
+  registry:
+    description: |
+      "ttl.sh" (default) or "nscr.io". ttl.sh needs no auth, so it's the
+      only option that works on the public repo's plain ubuntu-latest
+      runner. nscr.io is only reachable with the credentials Namespace
+      runners auto-provision (NSC_DOCKER_LOGIN) — do not set this to
+      nscr.io on a non-Namespace runner, the push will fail auth.
+      ttl.sh has shown repeated multi-minute hangs pushing from Namespace
+      runners specifically (2 of 3 observed attempts on 2026-08-04); nscr.io
+      pushed the same image in 1.6s in the same environment. Images pushed
+      to nscr.io land in the "zxporter-ci-scratch" repository, which has a
+      4h expiration policy set via `nsc registry policy set --repository
+      zxporter-ci-scratch --default_expiration 4h` (one-time setup, not
+      part of this workflow — see `nsc registry policy get --repository
+      zxporter-ci-scratch` to confirm it's still in place).
+    required: false
+    default: "ttl.sh"
 
 outputs:
   image:
-    description: "zxporter image URL (ttl.sh, 2h TTL)"
+    description: "zxporter image URL (registry per the `registry` input)"
     value: ${{ steps.set-image.outputs.image }}
   testserver_img:
     description: "testserver image URL"
@@ -35,16 +54,38 @@ runs:
     - name: Set Docker image names
       id: set-image
       shell: bash
+      env:
+        REGISTRY: ${{ inputs.registry }}
       run: |
         # /proc/sys/kernel/random/uuid is on every Linux kernel; uuidgen isn't
         # preinstalled on the services `namespace-profile-dz-generic` runner
         # (only on ubuntu-latest, which is what the public repo uses). Reading
         # /proc gives the same v4 UUID shape everywhere.
         gen_uuid() { cat /proc/sys/kernel/random/uuid; }
-        ZXPORTER_IMG="ttl.sh/$(gen_uuid):2h"
-        TESTSERVER_IMG="ttl.sh/$(gen_uuid):2h"
-        STRESS_IMG="ttl.sh/$(gen_uuid):2h"
-        NODEMON_IMG="ttl.sh/$(gen_uuid):2h"
+
+        if [ "$REGISTRY" = "nscr.io" ]; then
+          # NSC_CONTAINER_REGISTRY is injected by the Namespace runner itself
+          # (not something this repo sets) - resolves to this account's own
+          # tenant-scoped registry host, already authenticated via
+          # NSC_DOCKER_LOGIN. One shared repo, purpose+uuid as the tag, so
+          # the one-time `nsc registry policy set --repository
+          # zxporter-ci-scratch` expiration policy covers all 4 images.
+          if [ -z "${NSC_CONTAINER_REGISTRY:-}" ]; then
+            echo "registry input is nscr.io but NSC_CONTAINER_REGISTRY is not set in the environment (not a Namespace runner?)" >&2
+            exit 1
+          fi
+          REPO="${NSC_CONTAINER_REGISTRY}/zxporter-ci-scratch"
+          ZXPORTER_IMG="${REPO}:zxporter-$(gen_uuid)"
+          TESTSERVER_IMG="${REPO}:testserver-$(gen_uuid)"
+          STRESS_IMG="${REPO}:stress-$(gen_uuid)"
+          NODEMON_IMG="${REPO}:nodemon-$(gen_uuid)"
+        else
+          ZXPORTER_IMG="ttl.sh/$(gen_uuid):2h"
+          TESTSERVER_IMG="ttl.sh/$(gen_uuid):2h"
+          STRESS_IMG="ttl.sh/$(gen_uuid):2h"
+          NODEMON_IMG="ttl.sh/$(gen_uuid):2h"
+        fi
+
         MAJOR="0"
         MINOR="0"
         PATCH="1-compatibility-test"

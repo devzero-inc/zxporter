@@ -151,6 +151,19 @@ const (
 	ContainerStartupLifecycle
 	ContainerCPUThrottleEvent
 	KarpenterSettings
+	KyvernoPolicy
+	KyvernoPolicyReport
+	GatekeeperConstraintTemplate
+	GatekeeperConstraint
+	MigPartedConfig
+	NodeLifecycleTransition
+	PodUnschedulableEvent
+	// ClusterAutoscalerStatus identifies the collector that watches the
+	// kube-system/cluster-autoscaler-status ConfigMap. It is a COLLECTOR identity only:
+	// that collector's output rides the ordinary Event resource type (see
+	// cluster_autoscaler_status.go), so this value never reaches the wire and
+	// deliberately has no ProtoType case.
+	ClusterAutoscalerStatus
 )
 
 // String returns the string representation of the ResourceType
@@ -216,6 +229,14 @@ func (r ResourceType) String() string {
 		ContainerStartupLifecycle:    "container_startup_lifecycle",
 		ContainerCPUThrottleEvent:    "container_cpu_throttle_event",
 		KarpenterSettings:            "karpenter-settings",
+		KyvernoPolicy:                "kyverno_policy",
+		KyvernoPolicyReport:          "kyverno_policy_report",
+		GatekeeperConstraintTemplate: "gatekeeper_constraint_template",
+		GatekeeperConstraint:         "gatekeeper_constraint",
+		MigPartedConfig:              "mig_parted_config",
+		NodeLifecycleTransition:      "node_lifecycle_transition",
+		PodUnschedulableEvent:        "pod_unschedulable_event",
+		ClusterAutoscalerStatus:      "cluster_autoscaler_status",
 	}
 
 	if name, ok := names[r]; ok {
@@ -224,132 +245,84 @@ func (r ResourceType) String() string {
 	return "unknown"
 }
 
-// ProtoType returns the string representation of the ResourceType for the protobuf
+// resourceProtoTypes maps ResourceType to its wire enum. Package-level so the
+// map is built once, not per call: ProtoType runs once per resource item in
+// the transport send loop, which is hot on large clusters.
+var resourceProtoTypes = map[ResourceType]gen.ResourceType{
+	Node:                         gen.ResourceType_RESOURCE_TYPE_NODE,
+	Pod:                          gen.ResourceType_RESOURCE_TYPE_POD,
+	Namespace:                    gen.ResourceType_RESOURCE_TYPE_NAMESPACE,
+	Event:                        gen.ResourceType_RESOURCE_TYPE_EVENT,
+	Endpoints:                    gen.ResourceType_RESOURCE_TYPE_ENDPOINTS,
+	ServiceAccount:               gen.ResourceType_RESOURCE_TYPE_SERVICE_ACCOUNT,
+	LimitRange:                   gen.ResourceType_RESOURCE_TYPE_LIMIT_RANGE,
+	ResourceQuota:                gen.ResourceType_RESOURCE_TYPE_RESOURCE_QUOTA,
+	Deployment:                   gen.ResourceType_RESOURCE_TYPE_DEPLOYMENT,
+	StatefulSet:                  gen.ResourceType_RESOURCE_TYPE_STATEFUL_SET,
+	DaemonSet:                    gen.ResourceType_RESOURCE_TYPE_DAEMON_SET,
+	ReplicaSet:                   gen.ResourceType_RESOURCE_TYPE_REPLICA_SET,
+	ReplicationController:        gen.ResourceType_RESOURCE_TYPE_REPLICATION_CONTROLLER,
+	Job:                          gen.ResourceType_RESOURCE_TYPE_JOB,
+	CronJob:                      gen.ResourceType_RESOURCE_TYPE_CRON_JOB,
+	PersistentVolumeClaim:        gen.ResourceType_RESOURCE_TYPE_PERSISTENT_VOLUME_CLAIM,
+	PersistentVolume:             gen.ResourceType_RESOURCE_TYPE_PERSISTENT_VOLUME,
+	PersistentVolumeClaimMetrics: gen.ResourceType_RESOURCE_TYPE_PVC_METRICS,
+	StorageClass:                 gen.ResourceType_RESOURCE_TYPE_STORAGE_CLASS,
+	Service:                      gen.ResourceType_RESOURCE_TYPE_SERVICE,
+	Ingress:                      gen.ResourceType_RESOURCE_TYPE_INGRESS,
+	IngressClass:                 gen.ResourceType_RESOURCE_TYPE_INGRESS_CLASS,
+	NetworkPolicy:                gen.ResourceType_RESOURCE_TYPE_NETWORK_POLICY,
+	Role:                         gen.ResourceType_RESOURCE_TYPE_ROLE,
+	RoleBinding:                  gen.ResourceType_RESOURCE_TYPE_ROLE_BINDING,
+	ClusterRole:                  gen.ResourceType_RESOURCE_TYPE_CLUSTER_ROLE,
+	ClusterRoleBinding:           gen.ResourceType_RESOURCE_TYPE_CLUSTER_ROLE_BINDING,
+	HorizontalPodAutoscaler:      gen.ResourceType_RESOURCE_TYPE_HORIZONTAL_POD_AUTOSCALER,
+	VerticalPodAutoscaler:        gen.ResourceType_RESOURCE_TYPE_VERTICAL_POD_AUTOSCALER,
+	PodDisruptionBudget:          gen.ResourceType_RESOURCE_TYPE_POD_DISRUPTION_BUDGET,
+	PodSecurityPolicy:            gen.ResourceType_RESOURCE_TYPE_POD_SECURITY_POLICY,
+	CustomResourceDefinition:     gen.ResourceType_RESOURCE_TYPE_CUSTOM_RESOURCE_DEFINITION,
+	NodeResource:                 gen.ResourceType_RESOURCE_TYPE_NODE_RESOURCE,
+	Container:                    gen.ResourceType_RESOURCE_TYPE_CONTAINER,
+	ContainerResource:            gen.ResourceType_RESOURCE_TYPE_CONTAINER_RESOURCE,
+	Cluster:                      gen.ResourceType_RESOURCE_TYPE_CLUSTER,
+	CSINode:                      gen.ResourceType_RESOURCE_TYPE_CSI_NODE,
+	Karpenter:                    gen.ResourceType_RESOURCE_TYPE_KARPENTER,
+	Datadog:                      gen.ResourceType_RESOURCE_TYPE_DATADOG,
+	ArgoRollouts:                 gen.ResourceType_RESOURCE_TYPE_ARGO_ROLLOUTS,
+	Keda:                         gen.ResourceType_RESOURCE_TYPE_KEDA,
+	KedaScaledJob:                gen.ResourceType_RESOURCE_TYPE_KEDA_SCALED_JOB,
+	KedaScaledObject:             gen.ResourceType_RESOURCE_TYPE_KEDA_SCALED_OBJECT,
+	ClusterSnapshot:              gen.ResourceType_RESOURCE_TYPE_CLUSTER_SNAPSHOT,
+	CSIDriver:                    gen.ResourceType_RESOURCE_TYPE_CSI_DRIVER,
+	CSIStorageCapacity:           gen.ResourceType_RESOURCE_TYPE_CSI_STORAGE_CAPACITY,
+	VolumeAttachment:             gen.ResourceType_RESOURCE_TYPE_VOLUME_ATTACHMENT,
+	KubeflowNotebook:             gen.ResourceType_RESOURCE_TYPE_KUBEFLOW_NOTEBOOK,
+	VolcanoJob:                   gen.ResourceType_RESOURCE_TYPE_VOLCANO_JOB,
+	SparkApplication:             gen.ResourceType_RESOURCE_TYPE_SPARK_APPLICATION,
+	ScheduledSparkApplication:    gen.ResourceType_RESOURCE_TYPE_SCHEDULED_SPARK_APPLICATION,
+	WorkloadRecommendation:       gen.ResourceType_RESOURCE_TYPE_WORKLOAD_RECOMMENDATION,
+	WorkloadRule:                 gen.ResourceType_RESOURCE_TYPE_WORKLOAD_RULE,
+	CNPGCluster:                  gen.ResourceType_RESOURCE_TYPE_CNPG_CLUSTER,
+	ContainerOOMEvent:            gen.ResourceType_RESOURCE_TYPE_CONTAINER_OOM_EVENT,
+	ContainerCrashLoopEvent:      gen.ResourceType_RESOURCE_TYPE_CONTAINER_CRASHLOOP_EVENT,
+	ContainerStartupLifecycle:    gen.ResourceType_RESOURCE_TYPE_CONTAINER_STARTUP_LIFECYCLE,
+	ContainerCPUThrottleEvent:    gen.ResourceType_RESOURCE_TYPE_CONTAINER_CPU_THROTTLE_EVENT,
+	KarpenterSettings:            gen.ResourceType_RESOURCE_TYPE_KARPENTER_SETTINGS,
+	KyvernoPolicy:                gen.ResourceType_RESOURCE_TYPE_KYVERNO_POLICY,
+	KyvernoPolicyReport:          gen.ResourceType_RESOURCE_TYPE_KYVERNO_POLICY_REPORT,
+	GatekeeperConstraintTemplate: gen.ResourceType_RESOURCE_TYPE_GATEKEEPER_CONSTRAINT_TEMPLATE,
+	GatekeeperConstraint:         gen.ResourceType_RESOURCE_TYPE_GATEKEEPER_CONSTRAINT,
+	MigPartedConfig:              gen.ResourceType_RESOURCE_TYPE_MIG_PARTED_CONFIG,
+	NodeLifecycleTransition:      gen.ResourceType_RESOURCE_TYPE_NODE_LIFECYCLE_TRANSITION,
+	PodUnschedulableEvent:        gen.ResourceType_RESOURCE_TYPE_POD_UNSCHEDULABLE_EVENT,
+}
+
+// ProtoType returns the protobuf wire enum for the ResourceType.
 func (r ResourceType) ProtoType() gen.ResourceType {
-	switch r {
-	case Unknown:
-		return gen.ResourceType_RESOURCE_TYPE_UNSPECIFIED
-	case Node:
-		return gen.ResourceType_RESOURCE_TYPE_NODE
-	case Pod:
-		return gen.ResourceType_RESOURCE_TYPE_POD
-	case Namespace:
-		return gen.ResourceType_RESOURCE_TYPE_NAMESPACE
-	case Event:
-		return gen.ResourceType_RESOURCE_TYPE_EVENT
-	case Endpoints:
-		return gen.ResourceType_RESOURCE_TYPE_ENDPOINTS
-	case ServiceAccount:
-		return gen.ResourceType_RESOURCE_TYPE_SERVICE_ACCOUNT
-	case LimitRange:
-		return gen.ResourceType_RESOURCE_TYPE_LIMIT_RANGE
-	case ResourceQuota:
-		return gen.ResourceType_RESOURCE_TYPE_RESOURCE_QUOTA
-	case Deployment:
-		return gen.ResourceType_RESOURCE_TYPE_DEPLOYMENT
-	case StatefulSet:
-		return gen.ResourceType_RESOURCE_TYPE_STATEFUL_SET
-	case DaemonSet:
-		return gen.ResourceType_RESOURCE_TYPE_DAEMON_SET
-	case ReplicaSet:
-		return gen.ResourceType_RESOURCE_TYPE_REPLICA_SET
-	case ReplicationController:
-		return gen.ResourceType_RESOURCE_TYPE_REPLICATION_CONTROLLER
-	case Job:
-		return gen.ResourceType_RESOURCE_TYPE_JOB
-	case CronJob:
-		return gen.ResourceType_RESOURCE_TYPE_CRON_JOB
-	case PersistentVolumeClaim:
-		return gen.ResourceType_RESOURCE_TYPE_PERSISTENT_VOLUME_CLAIM
-	case PersistentVolume:
-		return gen.ResourceType_RESOURCE_TYPE_PERSISTENT_VOLUME
-	case PersistentVolumeClaimMetrics:
-		return gen.ResourceType_RESOURCE_TYPE_PVC_METRICS
-	case StorageClass:
-		return gen.ResourceType_RESOURCE_TYPE_STORAGE_CLASS
-	case Service:
-		return gen.ResourceType_RESOURCE_TYPE_SERVICE
-	case Ingress:
-		return gen.ResourceType_RESOURCE_TYPE_INGRESS
-	case IngressClass:
-		return gen.ResourceType_RESOURCE_TYPE_INGRESS_CLASS
-	case NetworkPolicy:
-		return gen.ResourceType_RESOURCE_TYPE_NETWORK_POLICY
-	case Role:
-		return gen.ResourceType_RESOURCE_TYPE_ROLE
-	case RoleBinding:
-		return gen.ResourceType_RESOURCE_TYPE_ROLE_BINDING
-	case ClusterRole:
-		return gen.ResourceType_RESOURCE_TYPE_CLUSTER_ROLE
-	case ClusterRoleBinding:
-		return gen.ResourceType_RESOURCE_TYPE_CLUSTER_ROLE_BINDING
-	case HorizontalPodAutoscaler:
-		return gen.ResourceType_RESOURCE_TYPE_HORIZONTAL_POD_AUTOSCALER
-	case VerticalPodAutoscaler:
-		return gen.ResourceType_RESOURCE_TYPE_VERTICAL_POD_AUTOSCALER
-	case PodDisruptionBudget:
-		return gen.ResourceType_RESOURCE_TYPE_POD_DISRUPTION_BUDGET
-	case PodSecurityPolicy:
-		return gen.ResourceType_RESOURCE_TYPE_POD_SECURITY_POLICY
-	case CustomResourceDefinition:
-		return gen.ResourceType_RESOURCE_TYPE_CUSTOM_RESOURCE_DEFINITION
-	case NodeResource:
-		return gen.ResourceType_RESOURCE_TYPE_NODE_RESOURCE
-	case Container:
-		return gen.ResourceType_RESOURCE_TYPE_CONTAINER
-	case ContainerResource:
-		return gen.ResourceType_RESOURCE_TYPE_CONTAINER_RESOURCE
-	case Cluster:
-		return gen.ResourceType_RESOURCE_TYPE_CLUSTER
-	case CSINode:
-		return gen.ResourceType_RESOURCE_TYPE_CSI_NODE
-	case Karpenter:
-		return gen.ResourceType_RESOURCE_TYPE_KARPENTER
-	case Datadog:
-		return gen.ResourceType_RESOURCE_TYPE_DATADOG
-	case ArgoRollouts:
-		return gen.ResourceType_RESOURCE_TYPE_ARGO_ROLLOUTS
-	case Keda:
-		return gen.ResourceType_RESOURCE_TYPE_KEDA
-	case KedaScaledJob:
-		return gen.ResourceType_RESOURCE_TYPE_KEDA_SCALED_JOB
-	case KedaScaledObject:
-		return gen.ResourceType_RESOURCE_TYPE_KEDA_SCALED_OBJECT
-	case ClusterSnapshot:
-		return gen.ResourceType_RESOURCE_TYPE_CLUSTER_SNAPSHOT
-	case CSIDriver:
-		return gen.ResourceType_RESOURCE_TYPE_CSI_DRIVER
-	case CSIStorageCapacity:
-		return gen.ResourceType_RESOURCE_TYPE_CSI_STORAGE_CAPACITY
-	case VolumeAttachment:
-		return gen.ResourceType_RESOURCE_TYPE_VOLUME_ATTACHMENT
-	case KubeflowNotebook:
-		return gen.ResourceType_RESOURCE_TYPE_KUBEFLOW_NOTEBOOK
-	case VolcanoJob:
-		return gen.ResourceType_RESOURCE_TYPE_VOLCANO_JOB
-	case SparkApplication:
-		return gen.ResourceType_RESOURCE_TYPE_SPARK_APPLICATION
-	case ScheduledSparkApplication:
-		return gen.ResourceType_RESOURCE_TYPE_SCHEDULED_SPARK_APPLICATION
-	case WorkloadRecommendation:
-		return gen.ResourceType_RESOURCE_TYPE_WORKLOAD_RECOMMENDATION
-	case WorkloadRule:
-		return gen.ResourceType_RESOURCE_TYPE_WORKLOAD_RULE
-	case CNPGCluster:
-		return gen.ResourceType_RESOURCE_TYPE_CNPG_CLUSTER
-	case ContainerOOMEvent:
-		return gen.ResourceType_RESOURCE_TYPE_CONTAINER_OOM_EVENT
-	case ContainerCrashLoopEvent:
-		return gen.ResourceType_RESOURCE_TYPE_CONTAINER_CRASHLOOP_EVENT
-	case ContainerStartupLifecycle:
-		return gen.ResourceType_RESOURCE_TYPE_CONTAINER_STARTUP_LIFECYCLE
-	case ContainerCPUThrottleEvent:
-		return gen.ResourceType_RESOURCE_TYPE_CONTAINER_CPU_THROTTLE_EVENT
-	case KarpenterSettings:
-		return gen.ResourceType_RESOURCE_TYPE_KARPENTER_SETTINGS
-	default:
-		return gen.ResourceType_RESOURCE_TYPE_UNSPECIFIED
+	if protoType, ok := resourceProtoTypes[r]; ok {
+		return protoType
 	}
+	return gen.ResourceType_RESOURCE_TYPE_UNSPECIFIED
 }
 
 // CollectedResource represents a resource collected from the Kubernetes API

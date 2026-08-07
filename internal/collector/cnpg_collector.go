@@ -289,7 +289,7 @@ func (c *CNPGCollector) GetType() string {
 func (c *CNPGCollector) IsAvailable(ctx context.Context) bool {
 	_, err := c.dynamicClient.Resource(cnpgGVR).List(ctx, metav1.ListOptions{Limit: 1})
 	if err != nil {
-		c.logger.Info("CNPG Cluster resources not available in the cluster", "error", err.Error())
+		c.logger.V(1).Info("CNPG Cluster resources not available in the cluster", "error", err.Error())
 		c.telemetryLogger.Report(gen.LogLevel_LOG_LEVEL_WARN, "CNPGCollector_IsAvailable",
 			"CNPG Cluster resources not available in the cluster", err,
 			map[string]string{"resource": "clusters"})

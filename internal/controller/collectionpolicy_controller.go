@@ -149,6 +149,11 @@ type PolicyConfig struct {
 
 	DisabledCollectors []string
 
+	// MigPartedConfigMapName/Namespace locate the NVIDIA mig-parted ConfigMap;
+	// empty values fall back to the GPU operator defaults.
+	MigPartedConfigMapName      string
+	MigPartedConfigMapNamespace string
+
 	KubeContextName         string
 	DakrURL                 string
 	ClusterToken            string
@@ -294,6 +299,16 @@ type PolicyConfig struct {
 // WorkloadRule CRD for syncing OOM events back to control plane
 // +kubebuilder:rbac:groups=dakr.devzero.io,resources=workloadrules,verbs=get;list;watch
 
+// Kyverno admission policies and policy reports (optional - only if Kyverno installed)
+// +kubebuilder:rbac:groups=kyverno.io,resources=policies;clusterpolicies,verbs=get;list;watch
+// +kubebuilder:rbac:groups=wgpolicyk8s.io,resources=policyreports;clusterpolicyreports,verbs=get;list;watch
+
+// Gatekeeper constraint templates and dynamic constraint kinds (optional - only if Gatekeeper installed).
+// Constraint kinds are generated per ConstraintTemplate, so the constraints group needs a wildcard.
+// +kubebuilder:rbac:groups=templates.gatekeeper.sh,resources=constrainttemplates,verbs=get;list;watch
+// +kubebuilder:rbac:groups=constraints.gatekeeper.sh,resources=*,verbs=get;list;watch
+// +kubebuilder:rbac:groups=status.gatekeeper.sh,resources=*,verbs=get;list;watch
+
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 func (r *CollectionPolicyReconciler) Reconcile(
@@ -414,6 +429,9 @@ func (r *CollectionPolicyReconciler) createNewConfig(
 		MaskSecretData:     envSpec.Policies.MaskSecretData,
 		DisabledCollectors: envSpec.Policies.DisabledCollectors,
 		BufferSize:         envSpec.Policies.BufferSize,
+
+		MigPartedConfigMapName:      envSpec.Policies.MigPartedConfigMapName,
+		MigPartedConfigMapNamespace: envSpec.Policies.MigPartedConfigMapNamespace,
 	}
 
 	if envSpec.Policies.NumResourceProcessors != nil &&
@@ -1631,6 +1649,59 @@ func (r *CollectionPolicyReconciler) restartCollectors(
 				logger,
 				r.TelemetryLogger,
 			)
+		case "kyverno_policy":
+			replacedCollector = collector.NewKyvernoPolicyCollector(
+				r.DynamicClient,
+				newConfig.TargetNamespaces,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+				r.TelemetryLogger,
+			)
+		case "kyverno_policy_report":
+			replacedCollector = collector.NewKyvernoPolicyReportCollector(
+				r.DynamicClient,
+				newConfig.TargetNamespaces,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+				r.TelemetryLogger,
+			)
+		case "gatekeeper_constraint_template":
+			replacedCollector = collector.NewGatekeeperConstraintTemplateCollector(
+				r.DynamicClient,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+				r.TelemetryLogger,
+			)
+		case "gatekeeper_constraint":
+			replacedCollector = collector.NewGatekeeperConstraintCollector(
+				r.DynamicClient,
+				r.DiscoveryClient,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+				r.TelemetryLogger,
+			)
+		case "mig_parted_config":
+			replacedCollector = collector.NewMigPartedConfigCollector(
+				r.K8sClient,
+				newConfig.MigPartedConfigMapName,
+				newConfig.MigPartedConfigMapNamespace,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+				r.TelemetryLogger,
+			)
+		case "cluster_autoscaler_status":
+			replacedCollector = collector.NewClusterAutoscalerStatusCollector(
+				r.K8sClient,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+				r.TelemetryLogger,
+			)
 		case "datadog":
 			replacedCollector = collector.NewDatadogCollector(
 				r.DynamicClient,
@@ -1840,6 +1911,19 @@ func (r *CollectionPolicyReconciler) restartCollectors(
 			if collectorType == "pod" {
 				r.wireMpaPublisherIntoPodCollector()
 				r.wireOOMReconcilerIntoPodCollector()
+			}
+
+			// A replaced EventCollector is a fresh object and has lost its disruption
+			// sources. The PDB / node / Karpenter collectors need no equivalent handling:
+			// the EventCollector resolves those through the CollectionManager on every
+			// event, so replacing one of them is picked up without re-wiring.
+			if collectorType == "event" {
+				r.wireDisruptionSourcesIntoEventCollector()
+			}
+
+			// Same for a replaced NodeCollector and its NodeClaim lookup.
+			if collectorType == "node" {
+				r.wireNodeClaimSourceIntoNodeCollector()
 			}
 		}
 	}
@@ -2115,6 +2199,45 @@ func (r *CollectionPolicyReconciler) wireOOMReconcilerIntoPodCollector() {
 	if pc, ok := rc.(*collector.PodCollector); ok {
 		pc.SetOOMReconciler(r.oomReconciler)
 		r.Log.Info("Wired OOM reconciler into PodCollector for deduplication")
+	}
+}
+
+// wireDisruptionSourcesIntoEventCollector gives the EventCollector a handle on the
+// CollectionManager so it can read the PDB, node and Karpenter collectors' caches when it
+// sees a Karpenter DisruptionBlocked event, and say *why* disruption was blocked instead
+// of just that it was.
+//
+// The handle is the manager rather than the three collectors themselves so that the lookup
+// happens per event: restartCollectors swaps collectors in place, and a direct pointer
+// would keep reading a stopped collector's frozen cache.
+func (r *CollectionPolicyReconciler) wireDisruptionSourcesIntoEventCollector() {
+	if r.CollectionManager == nil {
+		return
+	}
+	rc := r.CollectionManager.GetCollector("event")
+	if rc == nil {
+		return
+	}
+	if ec, ok := rc.(*collector.EventCollector); ok {
+		ec.SetDisruptionSources(r.CollectionManager)
+		r.Log.Info("Wired disruption sources into EventCollector for DisruptionBlocked classification")
+	}
+}
+
+// wireNodeClaimSourceIntoNodeCollector gives the node collector its view of the Karpenter
+// collector's NodeClaim cache, which its Cluster Autoscaler time-to-Ready fallback uses as
+// a backstop for deciding whether a Node is already covered by a NodeClaim.
+func (r *CollectionPolicyReconciler) wireNodeClaimSourceIntoNodeCollector() {
+	if r.CollectionManager == nil {
+		return
+	}
+	rc := r.CollectionManager.GetCollector("node")
+	if rc == nil {
+		return
+	}
+	if nc, ok := rc.(*collector.NodeCollector); ok {
+		nc.SetNodeClaimSource(r.CollectionManager)
+		r.Log.Info("Wired NodeClaim source into NodeCollector for node lifecycle fallback")
 	}
 }
 
@@ -2442,6 +2565,9 @@ func (r *CollectionPolicyReconciler) setupAllCollectors(
 			"zxporter_version": version.Get().String(),
 		},
 	)
+
+	r.wireDisruptionSourcesIntoEventCollector()
+	r.wireNodeClaimSourceIntoNodeCollector()
 
 	// Start the collection manager with all collectors
 	if err := r.CollectionManager.StartAll(ctx); err != nil {
@@ -3218,6 +3344,110 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 			),
 			name: collector.CNPGCluster,
 		},
+		{
+			collector: collector.NewKyvernoPolicyCollector(
+				r.DynamicClient,
+				config.TargetNamespaces,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+				r.TelemetryLogger,
+			),
+			name: collector.KyvernoPolicy,
+			factory: func() collector.ResourceCollector {
+				return collector.NewKyvernoPolicyCollector(
+					r.DynamicClient,
+					config.TargetNamespaces,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+					r.TelemetryLogger,
+				)
+			},
+		},
+		{
+			collector: collector.NewKyvernoPolicyReportCollector(
+				r.DynamicClient,
+				config.TargetNamespaces,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+				r.TelemetryLogger,
+			),
+			name: collector.KyvernoPolicyReport,
+			factory: func() collector.ResourceCollector {
+				return collector.NewKyvernoPolicyReportCollector(
+					r.DynamicClient,
+					config.TargetNamespaces,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+					r.TelemetryLogger,
+				)
+			},
+		},
+		{
+			collector: collector.NewGatekeeperConstraintTemplateCollector(
+				r.DynamicClient,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+				r.TelemetryLogger,
+			),
+			name: collector.GatekeeperConstraintTemplate,
+			factory: func() collector.ResourceCollector {
+				return collector.NewGatekeeperConstraintTemplateCollector(
+					r.DynamicClient,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+					r.TelemetryLogger,
+				)
+			},
+		},
+		{
+			collector: collector.NewGatekeeperConstraintCollector(
+				r.DynamicClient,
+				r.DiscoveryClient,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+				r.TelemetryLogger,
+			),
+			name: collector.GatekeeperConstraint,
+			factory: func() collector.ResourceCollector {
+				return collector.NewGatekeeperConstraintCollector(
+					r.DynamicClient,
+					r.DiscoveryClient,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+					r.TelemetryLogger,
+				)
+			},
+		},
+		{
+			collector: collector.NewMigPartedConfigCollector(
+				r.K8sClient,
+				config.MigPartedConfigMapName,
+				config.MigPartedConfigMapNamespace,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+				r.TelemetryLogger,
+			),
+			name: collector.MigPartedConfig,
+		},
+		{
+			collector: collector.NewClusterAutoscalerStatusCollector(
+				r.K8sClient,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+				r.TelemetryLogger,
+			),
+			name: collector.ClusterAutoscalerStatus,
+		},
 	}
 
 	// Register all collectors
@@ -3793,6 +4023,59 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 			case "karpenter-settings":
 				replacedCollector = collector.NewKarpenterSettingsCollector(
 					r.DynamicClient,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+					r.TelemetryLogger,
+				)
+			case "kyverno_policy":
+				replacedCollector = collector.NewKyvernoPolicyCollector(
+					r.DynamicClient,
+					newConfig.TargetNamespaces,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+					r.TelemetryLogger,
+				)
+			case "kyverno_policy_report":
+				replacedCollector = collector.NewKyvernoPolicyReportCollector(
+					r.DynamicClient,
+					newConfig.TargetNamespaces,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+					r.TelemetryLogger,
+				)
+			case "gatekeeper_constraint_template":
+				replacedCollector = collector.NewGatekeeperConstraintTemplateCollector(
+					r.DynamicClient,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+					r.TelemetryLogger,
+				)
+			case "gatekeeper_constraint":
+				replacedCollector = collector.NewGatekeeperConstraintCollector(
+					r.DynamicClient,
+					r.DiscoveryClient,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+					r.TelemetryLogger,
+				)
+			case "mig_parted_config":
+				replacedCollector = collector.NewMigPartedConfigCollector(
+					r.K8sClient,
+					newConfig.MigPartedConfigMapName,
+					newConfig.MigPartedConfigMapNamespace,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+					r.TelemetryLogger,
+				)
+			case "cluster_autoscaler_status":
+				replacedCollector = collector.NewClusterAutoscalerStatusCollector(
+					r.K8sClient,
 					collector.DefaultMaxBatchSize,
 					collector.DefaultMaxBatchTime,
 					logger,

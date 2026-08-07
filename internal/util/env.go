@@ -101,6 +101,16 @@ const (
 	// Default value: []
 	_ENV_DISABLED_COLLECTORS = "DISABLED_COLLECTORS"
 
+	// MIG_PARTED_CONFIGMAP_NAME is the name of the NVIDIA mig-parted ConfigMap
+	// to collect.
+	// Default value: default-mig-parted-config
+	_ENV_MIG_PARTED_CONFIGMAP_NAME = "MIG_PARTED_CONFIGMAP_NAME"
+
+	// MIG_PARTED_CONFIGMAP_NAMESPACE is the namespace of the NVIDIA mig-parted
+	// ConfigMap.
+	// Default value: gpu-operator
+	_ENV_MIG_PARTED_CONFIGMAP_NAMESPACE = "MIG_PARTED_CONFIGMAP_NAMESPACE"
+
 	// Exclusions for specific resources follow the format:
 	// EXCLUDED_<RESOURCE>_<NAMESPACE>_<n>
 	// Example: EXCLUDED_POD_default_my-pod=true
@@ -582,6 +592,12 @@ func LoadCollectionPolicySpecFromEnv() (v1.CollectionPolicySpec, error) {
 	}
 	if list := splitCSV(_ENV_DISABLED_COLLECTORS); list != nil {
 		newSpec.Policies.DisabledCollectors = list
+	}
+	if v := getEnv(_ENV_MIG_PARTED_CONFIGMAP_NAME); v != "" {
+		newSpec.Policies.MigPartedConfigMapName = v
+	}
+	if v := getEnv(_ENV_MIG_PARTED_CONFIGMAP_NAMESPACE); v != "" {
+		newSpec.Policies.MigPartedConfigMapNamespace = v
 	}
 
 	// Detect any change

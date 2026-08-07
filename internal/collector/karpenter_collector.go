@@ -18,21 +18,41 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
-// karpenterControllerLabelSelector selects the Karpenter controller
-// deployment. DevZero's dzkarp charts set app.kubernetes.io/name to the chart
-// name (e.g. "dzkarp-aws-karpenter"), not "karpenter", so selecting on the
-// name label misses every DevZero-managed install. The Helm release is
-// consistently "karpenter" across providers (and for upstream Karpenter), so
-// the instance label is the stable selector. Note: this collector matches any
-// Karpenter controller (upstream or DevZero-managed); it does not filter by
-// image like the health monitor's discoverDeployment does.
-const karpenterControllerLabelSelector = "app.kubernetes.io/instance=karpenter"
+// karpenterControllerLabelSelector selects the Karpenter controller Deployment.
+// See karpenterLabelName in internal/health/node_operator_monitor.go for why
+// the release-name label is the only usable selector and why both names are
+// accepted — the two constants must stay in sync.
+//
+// Unlike the health monitor, this collector deliberately does not filter by
+// image: it ingests any Karpenter controller, upstream or DevZero-managed.
+const karpenterControllerLabelSelector = "app.kubernetes.io/instance in (karpenter,dzkarp)"
 
 // KarpenterResource defines a Karpenter resource to be watched
 type KarpenterResource struct {
 	GroupVersion schema.GroupVersion
 	Resource     string
 	Kind         string
+}
+
+// nodeClaimLifecycleConditions are the NodeClaim status conditions whose transitions
+// are reported as NodeLifecycleTransition resources. Everything else on the NodeClaim
+// (Drifted, Expired, Disrupted, ...) is left to the generic Karpenter resource path.
+// The names match the Karpenter NodeClaim condition types verbatim, and the dakr-side
+// ClickHouse Enum8 values.
+var nodeClaimLifecycleConditions = map[string]bool{
+	"Launched":    true,
+	"Registered":  true,
+	"Initialized": true,
+	"Ready":       true,
+}
+
+// nodeClaimConditionState is the last-observed (status, lastTransitionTime) pair for a
+// single NodeClaim condition. A transition is "newly observed" when either field
+// differs from what was last seen, which is what keeps informer resyncs — which
+// redeliver an unchanged object — from re-emitting the same transition forever.
+type nodeClaimConditionState struct {
+	status             string
+	lastTransitionTime string
 }
 
 // KarpenterCollector watches for Karpenter resources
@@ -47,8 +67,43 @@ type KarpenterCollector struct {
 	informers         map[string]cache.SharedIndexInformer
 	informerStopChs   map[string]chan struct{}
 	excludedResources map[string]map[string]bool // resourceType -> resourceName -> excluded
-	version           string
-	mu                sync.RWMutex
+	// nodeClaimConditions holds the last-observed lifecycle conditions per NodeClaim,
+	// keyed by NodeClaim name then condition type. Entries are dropped when the
+	// NodeClaim is deleted so the map cannot grow with cluster churn.
+	nodeClaimConditions map[string]map[string]nodeClaimConditionState
+	version             string
+	mu                  sync.RWMutex
+
+	// chanMu guards the batchChan send/close race. Every sender here runs on an informer
+	// callback goroutine — handleKarpenterResourceEvent, emitNodeClaimLifecycleTransitions,
+	// sendInstallationMetric — and Stop() closes batchChan with no wait for those goroutines
+	// to quiesce first (unlike loopWG-style collectors, nothing here polls on a ticker, so
+	// there is no single loop to wait on). Every sender takes the read lock and checks
+	// stopped before sending (concurrent sends don't block each other); Stop() takes the
+	// write lock to flip stopped and close+nil the channel as one atomic step, so a sender
+	// either completes its send before the close or observes stopped=true and returns
+	// without touching the channel. Same pattern as cluster_autoscaler_status_collector.go's
+	// chanMu, applied here for the same reason: a closed-channel send panics, and closing
+	// then nil-ing the field first turns any sender that read the stale non-nil channel
+	// into a permanent block on a nil-channel send instead — a silent goroutine leak.
+	//
+	// HARD INVARIANT this depends on: a sender holds the read lock for as long as its send
+	// blocks, so Stop's write-lock acquisition — and therefore the close — cannot proceed
+	// while a sender is still waiting for batchChan to have room. The batcher goroutine
+	// (started in NewKarpenterCollector) is what drains it, via a `select` with two exit
+	// paths: batchChan closing, or its own internal b.stopCh closing (see batcher.go's
+	// stop()). Only the FIRST matters here, and this method's call order is what keeps it
+	// that way: close(c.batchChan) below runs before c.batcher.stop() (which is what closes
+	// b.stopCh), so the batcher is still selecting on batchChan — draining any buffered
+	// backlog via its ok-checked receive — for the entire time this write-lock section can
+	// possibly be waiting on an in-flight sender. If a future change ever called
+	// c.batcher.stop() (or otherwise closed b.stopCh) BEFORE this section runs, the batcher
+	// could exit while batchChan still had a sender blocked on a full buffer, and that
+	// sender would hold the read lock forever — deadlocking Stop here. Flagged by automated
+	// review; verified against the current call order in Stop and batcher.go rather than
+	// just documenting the risk.
+	chanMu  sync.RWMutex
+	stopped bool
 }
 
 // NewKarpenterCollector creates a new collector for Karpenter resources
@@ -73,17 +128,30 @@ func NewKarpenterCollector(
 	)
 
 	return &KarpenterCollector{
-		dynamicClient:     dynamicClient,
-		batchChan:         batchChan,
-		resourceChan:      resourceChan,
-		batcher:           batcher,
-		stopCh:            make(chan struct{}),
-		logger:            logger.WithName("karpenter-collector"),
-		telemetryLogger:   telemetryLogger,
-		informers:         make(map[string]cache.SharedIndexInformer),
-		informerStopChs:   make(map[string]chan struct{}),
-		excludedResources: make(map[string]map[string]bool),
+		dynamicClient:       dynamicClient,
+		batchChan:           batchChan,
+		resourceChan:        resourceChan,
+		batcher:             batcher,
+		stopCh:              make(chan struct{}),
+		logger:              logger.WithName("karpenter-collector"),
+		telemetryLogger:     telemetryLogger,
+		informers:           make(map[string]cache.SharedIndexInformer),
+		informerStopChs:     make(map[string]chan struct{}),
+		excludedResources:   make(map[string]map[string]bool),
+		nodeClaimConditions: make(map[string]map[string]nodeClaimConditionState),
 	}
+}
+
+// sendBatchResource puts one resource on batchChan, or drops it silently if Stop has
+// already run. See chanMu's doc comment for why this check-then-send must be atomic with
+// Stop's close.
+func (c *KarpenterCollector) sendBatchResource(resource CollectedResource) {
+	c.chanMu.RLock()
+	defer c.chanMu.RUnlock()
+	if c.stopped {
+		return
+	}
+	c.batchChan <- resource
 }
 
 // Start begins the Karpenter resources collection process
@@ -352,10 +420,13 @@ func (c *KarpenterCollector) startResourceInformer(
 
 	// Create a stop channel for this informer
 	stopCh := make(chan struct{})
-	c.informerStopChs[resKey] = stopCh
 
-	// Store the informer
+	// Store the informer under c.mu: NodeClaimForNode reads this map from the event
+	// collector's informer callback, on a different goroutine to this one.
+	c.mu.Lock()
+	c.informerStopChs[resKey] = stopCh
 	c.informers[resKey] = informer
+	c.mu.Unlock()
 
 	// Start the informer
 	go informer.Run(stopCh)
@@ -409,7 +480,7 @@ func (c *KarpenterCollector) handleKarpenterResourceEvent(
 	case "NodePool":
 		processedObj = c.processNodePool(obj)
 	case "NodeClaim":
-		processedObj = c.processNodeClaim(obj)
+		processedObj = c.processNodeClaim(obj, eventType)
 	case "AWSNodeTemplate":
 		processedObj = c.processAWSNodeTemplate(obj)
 	case "EC2NodeClass":
@@ -420,13 +491,13 @@ func (c *KarpenterCollector) handleKarpenterResourceEvent(
 	}
 
 	// Send the Karpenter resource to the batch channel
-	c.batchChan <- CollectedResource{
+	c.sendBatchResource(CollectedResource{
 		ResourceType: Karpenter,
 		Object:       processedObj,
 		Timestamp:    time.Now(),
 		EventType:    eventType,
 		Key:          key,
-	}
+	})
 }
 
 // processProvisioner extracts relevant fields from Provisioner objects
@@ -517,10 +588,22 @@ func (c *KarpenterCollector) processNodePool(
 	return result
 }
 
-// processNodeClaim extracts relevant fields from NodeClaim objects
+// processNodeClaim extracts relevant fields from NodeClaim objects. It also emits one
+// NodeLifecycleTransition per newly-observed lifecycle-condition transition, which is
+// the signal behind the node time-to-Ready report.
 func (c *KarpenterCollector) processNodeClaim(
 	obj *unstructured.Unstructured,
+	eventType EventType,
 ) map[string]interface{} {
+	// A delete carries the object's last-known conditions, which by definition are the
+	// ones already recorded — emitting them again would be duplicate work, so just drop
+	// the tracked state instead.
+	if eventType == EventTypeDelete {
+		c.forgetNodeClaimLifecycle(obj.GetName())
+	} else {
+		c.emitNodeClaimLifecycleTransitions(obj)
+	}
+
 	result := c.extractCommonFields(obj)
 
 	// Extract nodeclaim-specific fields
@@ -553,6 +636,198 @@ func (c *KarpenterCollector) processNodeClaim(
 	}
 
 	return result
+}
+
+// emitNodeClaimLifecycleTransitions sends one NodeLifecycleTransition per NodeClaim
+// lifecycle condition whose status or lastTransitionTime differs from the last value
+// observed for that NodeClaim. The first time a NodeClaim is seen every one of its
+// lifecycle conditions counts as a transition, which is what seeds a node's history on
+// informer startup; dakr's table is keyed on
+// (cluster_id, node_claim_name, condition) so a re-seed after a restart replaces rows
+// rather than duplicating them.
+func (c *KarpenterCollector) emitNodeClaimLifecycleTransitions(obj *unstructured.Unstructured) {
+	conditions, found, err := unstructured.NestedSlice(obj.Object, "status", "conditions")
+	if err != nil || !found {
+		return
+	}
+
+	name := obj.GetName()
+	labels := obj.GetLabels()
+	// Karpenter stamps the resolved instance type and capacity type onto the NodeClaim
+	// as labels once the cloud provider has launched it. Both are absent on an
+	// unlaunched NodeClaim, which is why the dakr-side columns are nullable.
+	instanceType := labels["node.kubernetes.io/instance-type"]
+	reservationType := labels["karpenter.sh/capacity-type"]
+
+	nodeName, _, _ := unstructured.NestedString(obj.Object, "status", "nodeName")
+
+	observedAt := time.Now()
+
+	for _, raw := range conditions {
+		condition, ok := raw.(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		condType, _ := condition["type"].(string)
+		if !nodeClaimLifecycleConditions[condType] {
+			continue
+		}
+
+		status, _ := condition["status"].(string)
+		lastTransitionTime, _ := condition["lastTransitionTime"].(string)
+		// Without a lastTransitionTime there is no timestamp to measure a phase
+		// duration against, so the row would be useless to the read path.
+		if lastTransitionTime == "" {
+			continue
+		}
+
+		if !c.recordNodeClaimCondition(name, condType, nodeClaimConditionState{
+			status:             status,
+			lastTransitionTime: lastTransitionTime,
+		}) {
+			continue
+		}
+
+		object := map[string]interface{}{
+			"node_claim_name":      name,
+			"condition":            condType,
+			"status":               status,
+			"last_transition_time": lastTransitionTime,
+		}
+		// Omit rather than send empty strings: dakr maps a missing key to a NULL
+		// column, and "unknown yet" is meaningfully different from "".
+		if nodeName != "" {
+			object["node_name"] = nodeName
+		}
+		if instanceType != "" {
+			object["instance_type"] = instanceType
+		}
+		if reservationType != "" {
+			object["reservation_type"] = reservationType
+		}
+
+		c.sendBatchResource(CollectedResource{
+			ResourceType: NodeLifecycleTransition,
+			Object:       object,
+			Timestamp:    observedAt,
+			EventType:    EventTypeAdd,
+			Key:          fmt.Sprintf("nodeclaim-lifecycle/%s/%s", name, condType),
+		})
+	}
+}
+
+// recordNodeClaimCondition stores the observed state for one NodeClaim condition and
+// reports whether it changed (and therefore should be emitted). The read and the write
+// are a single critical section so two concurrent informer callbacks for the same
+// NodeClaim cannot both decide to emit the same transition.
+func (c *KarpenterCollector) recordNodeClaimCondition(
+	nodeClaimName, conditionType string,
+	state nodeClaimConditionState,
+) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	conditions, ok := c.nodeClaimConditions[nodeClaimName]
+	if !ok {
+		conditions = make(map[string]nodeClaimConditionState)
+		c.nodeClaimConditions[nodeClaimName] = conditions
+	}
+
+	if previous, seen := conditions[conditionType]; seen && previous == state {
+		return false
+	}
+
+	conditions[conditionType] = state
+	return true
+}
+
+// forgetNodeClaimLifecycle drops the tracked conditions for a deleted NodeClaim.
+func (c *KarpenterCollector) forgetNodeClaimLifecycle(nodeClaimName string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	delete(c.nodeClaimConditions, nodeClaimName)
+}
+
+// nodeClaimInformerKeys are the c.informers keys for the NodeClaim CRD, newest API
+// version first. A cluster only ever has one of them registered — startResourceInformer
+// skips a GVR the API server does not serve — but which one depends on the Karpenter
+// version the customer runs, so both are tried.
+var nodeClaimInformerKeys = []string{
+	"karpenter.sh.v1.nodeclaims",
+	"karpenter.sh.v1beta1.nodeclaims",
+}
+
+// nodeClaimInformer returns the running NodeClaim informer, or nil when the Karpenter
+// CRDs are absent from the cluster or the collector has not started.
+func (c *KarpenterCollector) nodeClaimInformer() cache.SharedIndexInformer {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	for _, key := range nodeClaimInformerKeys {
+		if informer, ok := c.informers[key]; ok {
+			return informer
+		}
+	}
+	return nil
+}
+
+// NodeClaimByName returns a NodeClaim by name, or nil if it is not in the informer's
+// store. NodeClaims are cluster-scoped, so the name is the whole store key.
+//
+// The returned object is the informer's cached object and MUST be treated as read-only.
+func (c *KarpenterCollector) NodeClaimByName(name string) *unstructured.Unstructured {
+	if name == "" {
+		return nil
+	}
+
+	informer := c.nodeClaimInformer()
+	if informer == nil {
+		return nil
+	}
+
+	obj, exists, err := informer.GetStore().GetByKey(name)
+	if err != nil || !exists {
+		return nil
+	}
+	nodeClaim, ok := obj.(*unstructured.Unstructured)
+	if !ok {
+		return nil
+	}
+	return nodeClaim
+}
+
+// NodeClaimForNode returns the NodeClaim currently bound to a Node, or nil if the
+// Karpenter CRDs are absent, the informer has not started, or no NodeClaim claims that
+// Node (an unmanaged node, or one whose NodeClaim has not registered yet).
+//
+// The returned object is the informer's cached object and MUST be treated as read-only.
+//
+// This is a linear scan of the NodeClaim store rather than an index lookup. NodeClaims
+// are per-node objects, so the store is bounded by cluster size, and the only caller
+// runs on Karpenter DisruptionBlocked events — rare enough that adding a status.nodeName
+// indexer would cost more in permanent memory than it saves.
+func (c *KarpenterCollector) NodeClaimForNode(nodeName string) *unstructured.Unstructured {
+	if nodeName == "" {
+		return nil
+	}
+
+	informer := c.nodeClaimInformer()
+	if informer == nil {
+		return nil
+	}
+
+	for _, obj := range informer.GetStore().List() {
+		nodeClaim, ok := obj.(*unstructured.Unstructured)
+		if !ok {
+			continue
+		}
+		if claimed, _, _ := unstructured.NestedString(nodeClaim.Object, "status", "nodeName"); claimed == nodeName {
+			return nodeClaim
+		}
+	}
+	return nil
 }
 
 // processAWSNodeTemplate extracts relevant fields from AWSNodeTemplate objects
@@ -746,15 +1021,16 @@ func (c *KarpenterCollector) ExcludeResource(resourceType, namespace, name strin
 func (c *KarpenterCollector) Stop() error {
 	c.logger.Info("Stopping Karpenter collector")
 
-	// Stop all informers
+	// Stop all informers, then clear the maps. Held under c.mu because NodeClaimForNode
+	// reads c.informers from another goroutine.
+	c.mu.Lock()
 	for key, stopCh := range c.informerStopChs {
 		c.logger.Info("Stopping informer", "resource", key)
 		close(stopCh)
 	}
-
-	// Clear maps
 	c.informers = make(map[string]cache.SharedIndexInformer)
 	c.informerStopChs = make(map[string]chan struct{})
+	c.mu.Unlock()
 
 	// Close the main stop channel (signals informers to stop)
 	select {
@@ -765,12 +1041,18 @@ func (c *KarpenterCollector) Stop() error {
 		c.logger.Info("Closed Karpenter collector stop channel")
 	}
 
-	// Close the batchChan (input to the batcher).
+	// Close the batchChan (input to the batcher) — see chanMu's doc comment. Closing the
+	// informers' stopChs above only stops them from delivering NEW events; a callback
+	// already in flight can still be between sendBatchResource's stopped-check and its
+	// send when this runs, which is exactly what chanMu makes safe.
+	c.chanMu.Lock()
+	c.stopped = true
 	if c.batchChan != nil {
 		close(c.batchChan)
 		c.batchChan = nil
 		c.logger.Info("Closed Karpenter collector batch input channel")
 	}
+	c.chanMu.Unlock()
 
 	// Stop the batcher (waits for completion).
 	if c.batcher != nil {
@@ -859,7 +1141,7 @@ func (c *KarpenterCollector) IsAvailable(ctx context.Context) bool {
 	}
 
 	if len(deployments.Items) == 0 {
-		c.logger.Info("No Karpenter deployment found")
+		c.logger.V(1).Info("No Karpenter deployment found")
 		return false
 	}
 
@@ -875,7 +1157,7 @@ func (c *KarpenterCollector) IsAvailable(ctx context.Context) bool {
 		}
 	}
 
-	c.logger.Info("No ready Karpenter deployment found")
+	c.logger.V(1).Info("No ready Karpenter deployment found")
 	return false
 }
 
@@ -1036,13 +1318,13 @@ func (c *KarpenterCollector) sendInstallationMetric(obj *unstructured.Unstructur
 		installStatus["ownerReferences"] = ownerRefs
 	}
 
-	c.batchChan <- CollectedResource{
+	c.sendBatchResource(CollectedResource{
 		ResourceType: Karpenter,
 		Object:       installStatus,
 		Timestamp:    time.Now(),
 		EventType:    EventTypeAdd,
 		Key:          fmt.Sprintf("karpenter/installation/%s", uid),
-	}
+	})
 
 	c.logger.Info("Sent Karpenter installation metric",
 		"Object", installStatus)

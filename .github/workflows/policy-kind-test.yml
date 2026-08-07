@@ -1,0 +1,28 @@
+name: policy-kind
+
+# End-to-end validation of the policy-domain collectors (Kyverno, Gatekeeper,
+# mig-parted ConfigMap) on a real kind cluster with real policy engines.
+# Actual test logic lives in the composite action at
+# .github/actions/policy-kind so the services monorepo can reuse it via
+# ./operators/zxporter/.github/actions/policy-kind.
+
+permissions:
+  contents: read
+
+on:
+  pull_request:
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'LICENSE'
+  workflow_dispatch:
+
+jobs:
+  policy-kind:
+    runs-on: namespace-profile-dz-generic
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run policy-kind
+        uses: ./.github/actions/policy-kind
