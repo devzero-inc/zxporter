@@ -390,7 +390,7 @@ func (c *VolcanoJobCollector) IsAvailable(ctx context.Context) bool {
 
 	_, err := c.dynamicClient.Resource(gvr).List(ctx, metav1.ListOptions{Limit: 1})
 	if err != nil {
-		c.logger.Info("Volcano Job resources not available in the cluster", "error", err.Error())
+		c.logger.V(1).Info("Volcano Job resources not available in the cluster", "error", err.Error())
 		c.telemetryLogger.Report(
 			gen.LogLevel_LOG_LEVEL_WARN,
 			"VolcanoJobCollector_IsAvailable",

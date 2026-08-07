@@ -514,6 +514,16 @@ type Policies struct {
 	// Valid values include: "pod", "deployment", "statefulset", "daemonset", "service",
 	// "configmap", "secret", "node", "event", etc.
 	DisabledCollectors []string `json:"disabledCollectors,omitempty"`
+
+	// MigPartedConfigMapName is the name of the NVIDIA mig-parted ConfigMap to
+	// collect (defaults to "default-mig-parted-config")
+	// +optional
+	MigPartedConfigMapName string `json:"migPartedConfigMapName,omitempty"`
+
+	// MigPartedConfigMapNamespace is the namespace of the NVIDIA mig-parted
+	// ConfigMap (defaults to "gpu-operator")
+	// +optional
+	MigPartedConfigMapNamespace string `json:"migPartedConfigMapNamespace,omitempty"`
 }
 
 // CollectionPolicyStatus defines the observed state of CollectionPolicy

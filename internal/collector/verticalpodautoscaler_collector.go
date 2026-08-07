@@ -329,7 +329,7 @@ func (c *VerticalPodAutoscalerCollector) IsAvailable(ctx context.Context) bool {
 
 	// For "no matching resource" or other similar errors
 	if isResourceTypeUnavailableError(err) {
-		c.logger.Info("VerticalPodAutoscaler CRD not installed in cluster",
+		c.logger.V(1).Info("VerticalPodAutoscaler CRD not installed in cluster",
 			"error", err.Error())
 		return false
 	}

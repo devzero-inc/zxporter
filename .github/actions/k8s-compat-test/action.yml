@@ -72,6 +72,26 @@ runs:
         cluster_name: kind-${{ inputs.k8s-version }}
         wait: 120s
 
+    - name: Load images into the kind cluster
+      shell: bash
+      run: |
+        # kind's nodes run their own isolated containerd, separate from the
+        # runner host's docker daemon and its registry credentials - a pod
+        # referencing a private image (e.g. nscr.io) fails with "no basic
+        # auth credentials" if kubelet tries to pull it directly inside the
+        # cluster, confirmed empirically. `docker pull` on the host (where
+        # this runner's registry auth actually lives) then `kind load
+        # docker-image` sidesteps that entirely: the image lands in the
+        # node's local containerd store, so kubelet's default
+        # imagePullPolicy (IfNotPresent, since none of these tags are
+        # `:latest`) never attempts a real pull at all. Works the same way
+        # for a public/anonymous registry too, so this isn't conditional
+        # on which registry `k8s-compat-build` used.
+        for img in "$ZXPORTER_IMG" "$TESTSERVER_IMG" "$STRESS_IMG" "$NODEMON_IMG"; do
+          docker pull "$img"
+          kind load docker-image "$img" --name "kind-${{ inputs.k8s-version }}"
+        done
+
     - name: Deploy testserver to Kubernetes
       shell: bash
       working-directory: ${{ inputs.working-directory }}

@@ -22,6 +22,10 @@ data:
   KUBELET_FALLBACK_TIMEOUT: "15s"
   WATCHED_CRDS: ""
   DISABLED_COLLECTORS: ""
+  # NVIDIA mig-parted ConfigMap location; empty = GPU operator defaults
+  # (default-mig-parted-config in gpu-operator)
+  MIG_PARTED_CONFIGMAP_NAME: ""
+  MIG_PARTED_CONFIGMAP_NAMESPACE: ""
   EXCLUDED_PODS: ""
   EXCLUDED_DEPLOYMENTS: ""
   EXCLUDED_STATEFULSETS: ""

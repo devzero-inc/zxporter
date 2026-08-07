@@ -643,6 +643,8 @@ func ContainerGPUMetricsFromNodemon(
 			"UUID":                        gm.DeviceUUID,
 			"ModelName":                   gm.ModelName,
 			"DeviceIndex":                 gm.Device,
+			"MIGProfile":                  gm.MIGProfile,
+			"MIGInstanceID":               gm.MIGInstanceID,
 			"Utilization":                 gm.GPUUtilization,
 			"MemoryUsed":                  gm.FramebufferUsed,
 			"MemoryFree":                  gm.FramebufferFree,
@@ -690,15 +692,20 @@ func ContainerGPUMetricsFromNodemon(
 
 // NodeGPUMetricsFromNodemon converts nodemon metrics for a node into
 // the map[string]interface{} format expected by the node collector.
+//
+// See nodemon.SummarizeNodeGPU for why physical GPU count (deduped by
+// DeviceUUID) and instance count (raw row count) are tracked separately, and
+// why MIG-instance rows are excluded from the utilization average — this is
+// the legacy fallback path used when a nodemon doesn't support the composite
+// snapshot endpoint, so it must apply the same MIG accounting.
 func NodeGPUMetricsFromNodemon(gpuMetrics []NodemonMetric) map[string]interface{} {
 	if len(gpuMetrics) == 0 {
 		return make(map[string]interface{})
 	}
 
 	metrics := make(map[string]interface{})
-	gpuCount := float64(len(gpuMetrics))
+	gpuInstanceCount := float64(len(gpuMetrics))
 
-	var totalUtil, maxUtil float64
 	var totalMemUsed, totalMemFree, totalPower float64
 	var totalTemp, maxTemp, totalMemTemp, maxMemTemp float64
 	var totalTensor, totalDram float64
@@ -707,11 +714,18 @@ func NodeGPUMetricsFromNodemon(gpuMetrics []NodemonMetric) map[string]interface{
 
 	gpuUUIDSet := make(map[string]bool)
 	gpuModels := make(map[string]int)
+	var migInstances []gpuMigInstance
+
+	var totalUtil, maxUtil float64
+	var utilSamples float64
 
 	for i, gm := range gpuMetrics {
-		totalUtil += gm.GPUUtilization
-		if i == 0 || gm.GPUUtilization > maxUtil {
-			maxUtil = gm.GPUUtilization
+		if gm.MIGInstanceID == "" {
+			if utilSamples == 0 || gm.GPUUtilization > maxUtil {
+				maxUtil = gm.GPUUtilization
+			}
+			totalUtil += gm.GPUUtilization
+			utilSamples++
 		}
 
 		totalMemUsed += gm.FramebufferUsed
@@ -740,24 +754,72 @@ func NodeGPUMetricsFromNodemon(gpuMetrics []NodemonMetric) map[string]interface{
 		if gm.ModelName != "" {
 			gpuModels[gm.ModelName]++
 		}
+
+		if gm.MIGInstanceID != "" {
+			migInstances = append(migInstances, gpuMigInstance{
+				DeviceUUID:           gm.DeviceUUID,
+				DeviceID:             gm.DeviceID,
+				MIGProfile:           gm.MIGProfile,
+				MIGInstanceID:        gm.MIGInstanceID,
+				ModelName:            gm.ModelName,
+				TensorActive:         gm.TensorActive,
+				DRAMActive:           gm.DRAMActive,
+				GraphicsEngineActive: gm.GraphicsEngineActive,
+				FramebufferUsed:      gm.FramebufferUsed,
+				FramebufferTotal:     gm.FramebufferUsed + gm.FramebufferFree,
+			})
+		}
 	}
 
+	if utilSamples == 0 {
+		for i, gm := range gpuMetrics {
+			if i == 0 || gm.GPUUtilization > maxUtil {
+				maxUtil = gm.GPUUtilization
+			}
+			totalUtil += gm.GPUUtilization
+		}
+		utilSamples = gpuInstanceCount
+	}
+
+	physicalGPUs := make(map[string]bool)
+	gpuCount := float64(0)
+	for _, gm := range gpuMetrics {
+		if gm.DeviceUUID == "" {
+			gpuCount++
+			continue
+		}
+		if !physicalGPUs[gm.DeviceUUID] {
+			physicalGPUs[gm.DeviceUUID] = true
+			gpuCount++
+		}
+	}
+
+	// Unlike GPU_UTIL, DCGM's profiling metrics (the DCGM_FI_PROF_* family —
+	// tensor/DRAM/graphics-engine-active, temperature) ARE reported per MIG
+	// instance with real values, not omitted: confirmed against real
+	// captured DCGM output for a MIG-partitioned GPU (run-ai/fake-gpu-operator
+	// design/samples/<2.9/mig/metrics/*.ini), where DCGM_FI_PROF_PIPE_TENSOR_ACTIVE,
+	// DCGM_FI_PROF_DRAM_ACTIVE, and DCGM_FI_PROF_GR_ENGINE_ACTIVE all carry
+	// distinct non-zero values per GPU_I_ID. So dividing by gpuInstanceCount
+	// (all rows) here is correct and not subject to the same dilution this
+	// fix addresses for GPUUtilizationAvg above.
 	metrics["GPUCount"] = gpuCount
-	metrics["GPUUtilizationAvg"] = totalUtil / gpuCount
+	metrics["GPUInstanceCount"] = gpuInstanceCount
+	metrics["GPUUtilizationAvg"] = totalUtil / utilSamples
 	metrics["GPUUtilizationMax"] = maxUtil
 	metrics["GPUMemoryUsedTotal"] = totalMemUsed
 	metrics["GPUMemoryFreeTotal"] = totalMemFree
 	metrics["GPUMemoryTotalMb"] = totalMemUsed + totalMemFree
 	metrics["GPUPowerUsageTotal"] = totalPower
-	metrics["GPUTemperatureAvg"] = totalTemp / gpuCount
+	metrics["GPUTemperatureAvg"] = totalTemp / gpuInstanceCount
 	metrics["GPUTemperatureMax"] = maxTemp
-	metrics["GPUMemoryTemperatureAvg"] = totalMemTemp / gpuCount
+	metrics["GPUMemoryTemperatureAvg"] = totalMemTemp / gpuInstanceCount
 	metrics["GPUMemoryTemperatureMax"] = maxMemTemp
-	metrics["GPUTensorUtilizationAvg"] = totalTensor / gpuCount
-	metrics["GPUDramUtilizationAvg"] = totalDram / gpuCount
+	metrics["GPUTensorUtilizationAvg"] = totalTensor / gpuInstanceCount
+	metrics["GPUDramUtilizationAvg"] = totalDram / gpuInstanceCount
 	metrics["GPUPCIeTxBytesTotal"] = totalPCIeTx
 	metrics["GPUPCIeRxBytesTotal"] = totalPCIeRx
-	metrics["GPUGraphicsUtilizationAvg"] = totalGraphics / gpuCount
+	metrics["GPUGraphicsUtilizationAvg"] = totalGraphics / gpuInstanceCount
 	metrics["GPUUsage"] = totalUtil / 100.0
 
 	gpuUUIDs := make([]string, 0, len(gpuUUIDSet))
@@ -771,6 +833,7 @@ func NodeGPUMetricsFromNodemon(gpuMetrics []NodemonMetric) map[string]interface{
 
 	metrics["GPUModels"] = modelSummary
 	metrics["GPUUUIDs"] = gpuUUIDs
+	metrics["GPUMigInstances"] = migInstances
 
 	return metrics
 }

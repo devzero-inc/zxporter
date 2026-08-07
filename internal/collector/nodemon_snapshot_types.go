@@ -30,25 +30,44 @@ type nodeSnapshotSections struct {
 }
 
 type nodeGPUSummary struct {
-	GPUCount                  float64  `json:"gpu_count"`
-	GPUUtilizationAvg         float64  `json:"gpu_utilization_avg"`
-	GPUUtilizationMax         float64  `json:"gpu_utilization_max"`
-	GPUMemoryUsedTotal        float64  `json:"gpu_memory_used_total"`
-	GPUMemoryFreeTotal        float64  `json:"gpu_memory_free_total"`
-	GPUMemoryTotalMb          float64  `json:"gpu_memory_total_mb"`
-	GPUPowerUsageTotal        float64  `json:"gpu_power_usage_total"`
-	GPUTemperatureAvg         float64  `json:"gpu_temperature_avg"`
-	GPUTemperatureMax         float64  `json:"gpu_temperature_max"`
-	GPUMemoryTemperatureAvg   float64  `json:"gpu_memory_temperature_avg"`
-	GPUMemoryTemperatureMax   float64  `json:"gpu_memory_temperature_max"`
-	GPUTensorUtilizationAvg   float64  `json:"gpu_tensor_utilization_avg"`
-	GPUDramUtilizationAvg     float64  `json:"gpu_dram_utilization_avg"`
-	GPUPCIeTxBytesTotal       float64  `json:"gpu_pcie_tx_bytes_total"`
-	GPUPCIeRxBytesTotal       float64  `json:"gpu_pcie_rx_bytes_total"`
-	GPUGraphicsUtilizationAvg float64  `json:"gpu_graphics_utilization_avg"`
-	GPUUsage                  float64  `json:"gpu_usage"`
-	GPUModels                 []string `json:"gpu_models"`
-	GPUUUIDs                  []string `json:"gpu_uuids"`
+	GPUCount                  float64          `json:"gpu_count"`
+	GPUInstanceCount          float64          `json:"gpu_instance_count"`
+	GPUUtilizationAvg         float64          `json:"gpu_utilization_avg"`
+	GPUUtilizationMax         float64          `json:"gpu_utilization_max"`
+	GPUMemoryUsedTotal        float64          `json:"gpu_memory_used_total"`
+	GPUMemoryFreeTotal        float64          `json:"gpu_memory_free_total"`
+	GPUMemoryTotalMb          float64          `json:"gpu_memory_total_mb"`
+	GPUPowerUsageTotal        float64          `json:"gpu_power_usage_total"`
+	GPUTemperatureAvg         float64          `json:"gpu_temperature_avg"`
+	GPUTemperatureMax         float64          `json:"gpu_temperature_max"`
+	GPUMemoryTemperatureAvg   float64          `json:"gpu_memory_temperature_avg"`
+	GPUMemoryTemperatureMax   float64          `json:"gpu_memory_temperature_max"`
+	GPUTensorUtilizationAvg   float64          `json:"gpu_tensor_utilization_avg"`
+	GPUDramUtilizationAvg     float64          `json:"gpu_dram_utilization_avg"`
+	GPUPCIeTxBytesTotal       float64          `json:"gpu_pcie_tx_bytes_total"`
+	GPUPCIeRxBytesTotal       float64          `json:"gpu_pcie_rx_bytes_total"`
+	GPUGraphicsUtilizationAvg float64          `json:"gpu_graphics_utilization_avg"`
+	GPUUsage                  float64          `json:"gpu_usage"`
+	GPUModels                 []string         `json:"gpu_models"`
+	GPUUUIDs                  []string         `json:"gpu_uuids"`
+	GPUMigInstances           []gpuMigInstance `json:"gpu_mig_instances,omitempty"`
+}
+
+// gpuMigInstance mirrors nodemon.GPUMigInstance's JSON shape for decoding the
+// composite /v2/node/snapshot response — this package decodes the wire
+// payload independently rather than importing the nodemon package's types.
+type gpuMigInstance struct {
+	DeviceUUID    string `json:"device_uuid"`
+	DeviceID      string `json:"device_id"`
+	MIGProfile    string `json:"mig_profile"`
+	MIGInstanceID string `json:"mig_instance_id"`
+	ModelName     string `json:"model_name"`
+
+	TensorActive         float64 `json:"tensor_active"`
+	DRAMActive           float64 `json:"dram_active"`
+	GraphicsEngineActive float64 `json:"graphics_engine_active"`
+	FramebufferUsed      float64 `json:"framebuffer_used"`
+	FramebufferTotal     float64 `json:"framebuffer_total"`
 }
 
 type nodeSnapshotResponse struct {
@@ -161,6 +180,7 @@ func (summary *nodeGPUSummary) downstreamMetrics() map[string]interface{} {
 	}
 	return map[string]interface{}{
 		"GPUCount":                  summary.GPUCount,
+		"GPUInstanceCount":          summary.GPUInstanceCount,
 		"GPUUtilizationAvg":         summary.GPUUtilizationAvg,
 		"GPUUtilizationMax":         summary.GPUUtilizationMax,
 		"GPUMemoryUsedTotal":        summary.GPUMemoryUsedTotal,
@@ -179,5 +199,6 @@ func (summary *nodeGPUSummary) downstreamMetrics() map[string]interface{} {
 		"GPUUsage":                  summary.GPUUsage,
 		"GPUModels":                 append([]string(nil), summary.GPUModels...),
 		"GPUUUIDs":                  append([]string(nil), summary.GPUUUIDs...),
+		"GPUMigInstances":           append([]gpuMigInstance(nil), summary.GPUMigInstances...),
 	}
 }

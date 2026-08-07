@@ -326,6 +326,15 @@ rules:
       - list
       - watch
   - apiGroups:
+      - constraints.gatekeeper.sh
+      - status.gatekeeper.sh
+    resources:
+      - '*'
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
       - dakr.devzero.io
     resources:
       - workloadrecommendations
@@ -441,6 +450,15 @@ rules:
       - list
       - watch
   - apiGroups:
+      - kyverno.io
+    resources:
+      - clusterpolicies
+      - policies
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
       - metrics.k8s.io
     resources:
       - nodes
@@ -513,6 +531,23 @@ rules:
       - csistoragecapacities
       - storageclasses
       - volumeattachments
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - templates.gatekeeper.sh
+    resources:
+      - constrainttemplates
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - wgpolicyk8s.io
+    resources:
+      - clusterpolicyreports
+      - policyreports
     verbs:
       - get
       - list

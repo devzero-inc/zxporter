@@ -14,6 +14,8 @@ func AllResourceTypes() []ResourceType {
 		KedaScaledObject, ClusterSnapshot, CSIDriver, CSIStorageCapacity,
 		VolumeAttachment, KubeflowNotebook, VolcanoJob, SparkApplication, ScheduledSparkApplication,
 		CNPGCluster,
+		KyvernoPolicy, KyvernoPolicyReport, GatekeeperConstraintTemplate, GatekeeperConstraint,
+		MigPartedConfig,
 	}
 }
 

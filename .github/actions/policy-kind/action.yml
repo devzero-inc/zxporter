@@ -1,0 +1,98 @@
+name: "zxporter: policy-kind"
+description: |
+  End-to-end validation of the policy-domain collectors (Kyverno policies and
+  policy reports, Gatekeeper constraint templates and constraints, and the
+  NVIDIA mig-parted ConfigMap collector) on a real kind cluster with real
+  Kyverno and Gatekeeper installations:
+
+    - Kyverno: the real kyverno/kyverno chart. The spec creates an Audit
+      ClusterPolicy plus a violating pod and asserts the collectors see the
+      policy and the fail-carrying PolicyReport kyverno generates for it.
+    - Gatekeeper: the real gatekeeper/gatekeeper chart with a fast audit
+      interval. The spec creates a ConstraintTemplate, waits for the
+      generated constraint CRD, creates a warn constraint, and asserts the
+      collectors see the template and the constraint with audit violations.
+    - mig-parted: a plain ConfigMap fixture (the GPU operator itself is not
+      required to validate ConfigMap collection and parsing).
+
+  Assertions live in a Go/Ginkgo spec (test/e2e/policy_collectors_test.go)
+  that drives the real collector implementations in-process — real
+  informers and discovery against the live cluster — mirroring
+  oom-flow-kind's and gpu-mig-kind's split between infra setup (shell) and
+  test logic (Go). This action only provisions the cluster and the two
+  policy engines; the spec is otherwise self-contained.
+
+  Consumed by two callers:
+    - operators/zxporter/.github/workflows/policy-kind-test.yml
+      (published to devzero-inc/zxporter; uses this via
+      ./.github/actions/policy-kind)
+    - .github/workflows/zxporter-policy-kind.yml at services root
+      (uses this via ./operators/zxporter/.github/actions/policy-kind
+      with working-directory: operators/zxporter)
+
+  Caller checks out the repo; this action assumes cwd contains the
+  zxporter source (or the working-directory input points at it).
+
+inputs:
+  working-directory:
+    description: "Path to the zxporter tree relative to the repo root."
+    required: false
+    default: "."
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version-file: ${{ inputs.working-directory }}/go.mod
+        cache: true
+        cache-dependency-path: ${{ inputs.working-directory }}/go.sum
+
+    - name: Set up Helm
+      uses: azure/setup-helm@v4
+
+    - name: Create kind cluster
+      uses: helm/kind-action@v1
+      with:
+        version: v0.27.0
+        node_image: kindest/node:v1.32.3
+        cluster_name: kind-policy
+        wait: 120s
+
+    - name: Install Kyverno
+      shell: bash
+      run: |
+        helm repo add kyverno https://kyverno.github.io/kyverno/
+        helm repo update kyverno
+        # Pinned so kyverno API/report behavior doesn't drift under the spec.
+        # Single replica and no cleanup/reports-server extras: this is a
+        # single-node kind cluster exercising collection, not kyverno HA.
+        helm install kyverno kyverno/kyverno \
+          --version 3.3.7 \
+          --namespace kyverno --create-namespace \
+          --set admissionController.replicas=1 \
+          --set backgroundController.replicas=1 \
+          --set reportsController.replicas=1 \
+          --set cleanupController.enabled=false \
+          --timeout 5m --wait
+
+    - name: Install Gatekeeper
+      shell: bash
+      run: |
+        helm repo add gatekeeper https://open-policy-agent.github.io/gatekeeper/charts
+        helm repo update gatekeeper
+        # auditInterval=10 (default 60s) keeps the constraint-violations
+        # assertion from dominating suite wall-clock time.
+        helm install gatekeeper gatekeeper/gatekeeper \
+          --version 3.18.2 \
+          --namespace gatekeeper-system --create-namespace \
+          --set replicas=1 \
+          --set auditInterval=10 \
+          --timeout 5m --wait
+
+    - name: Run policy collectors e2e spec
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        go test ./test/e2e/... -v -ginkgo.v -ginkgo.label-filter=policy -timeout 20m

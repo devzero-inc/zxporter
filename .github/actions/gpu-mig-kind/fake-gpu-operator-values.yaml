@@ -1,0 +1,27 @@
+# Values for the run-ai/fake-gpu-operator OCI chart, scoped to what this
+# spec needs: a real, live-simulated DCGM-compatible status-exporter for the
+# non-MIG node. Everything below is disabled because it's unrelated to GPU
+# telemetry scraping (device scheduling, DRA, KWOK virtual nodes) and would
+# only add pull time / flakiness to the run.
+#
+# The MIG case is NOT configured here — run-ai/fake-gpu-operator v0.2.0's
+# status-exporter has no MIG-instance emission at all (verified by reading
+# internal/status-exporter/export/metrics/metrics.go and
+# metrics_labels_builder.go: neither declares GPU_I_PROFILE/GPU_I_ID as a
+# label, and no other file in that package references them, despite
+# design/MIG Metrics.md describing the feature). test/e2e/gpu_mig_test.go
+# deploys its own static DCGM-exposition fixture pod for that case instead.
+gpuOperator:
+  enabled: false
+nvidiaDraDriver:
+  enabled: false
+draPlugin:
+  enabled: false
+kwokDraPlugin:
+  enabled: false
+topology:
+  nodePools:
+    default:
+      gpuProduct: Tesla-K80
+      gpuCount: 2
+      gpuMemory: 11441

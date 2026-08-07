@@ -34,7 +34,20 @@ runs:
       working-directory: ${{ inputs.working-directory }}
       run: make generate
 
-    - name: Run golangci-lint
+    # On pull_request events the golangci-lint-action implements
+    # only-new-issues by downloading the PR patch from the GitHub API, which
+    # fails for diffs over 20k lines ("diff exceeded the maximum number of
+    # lines") — and the action then silently lints the WHOLE tree, dumping
+    # every pre-existing issue onto the PR. Feed golangci-lint the base SHA
+    # via --new-from-rev instead (the same git-based filtering the action
+    # itself uses for merge_group events), which works at any diff size.
+    - name: Fetch PR base for incremental lint
+      if: github.event_name == 'pull_request'
+      shell: bash
+      run: git fetch --no-tags --depth=1 origin ${{ github.event.pull_request.base.sha }}
+
+    - name: Run golangci-lint (full, non-PR)
+      if: github.event_name != 'pull_request'
       uses: golangci/golangci-lint-action@v6
       with:
         working-directory: ${{ inputs.working-directory }}
@@ -42,5 +55,17 @@ runs:
         install-mode: goinstall
         version: v1.62.2
         args: --timeout=5m
-        # Show only new issues for PRs
+        # Show only new issues (merge_group/push filter via base rev)
         only-new-issues: true
+
+    - name: Run golangci-lint (PR, new issues vs base)
+      if: github.event_name == 'pull_request'
+      uses: golangci/golangci-lint-action@v6
+      with:
+        working-directory: ${{ inputs.working-directory }}
+        # Install from source to match Go 1.25
+        install-mode: goinstall
+        version: v1.62.2
+        args: --timeout=5m --new-from-rev=${{ github.event.pull_request.base.sha }}
+        # our --new-from-rev replaces the action's API-patch filtering
+        only-new-issues: false

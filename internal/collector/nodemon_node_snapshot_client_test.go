@@ -48,6 +48,7 @@ func TestFetchNodeSnapshotByNode_UsesCompositeResponse(t *testing.T) {
 				},
 				"gpu_summary": map[string]any{
 					"gpu_count":                    2.0,
+					"gpu_instance_count":           2.0,
 					"gpu_utilization_avg":          73.5,
 					"gpu_utilization_max":          91.0,
 					"gpu_memory_used_total":        32_768.0,
@@ -66,6 +67,20 @@ func TestFetchNodeSnapshotByNode_UsesCompositeResponse(t *testing.T) {
 					"gpu_usage":                    1.47,
 					"gpu_models":                   []string{"2x A100"},
 					"gpu_uuids":                    []string{"GPU-1", "GPU-2"},
+					"gpu_mig_instances": []map[string]any{
+						{
+							"device_uuid":            "GPU-2",
+							"device_id":              "nvidia1",
+							"mig_profile":            "1g.5gb",
+							"mig_instance_id":        "8",
+							"model_name":             "NVIDIA A100",
+							"tensor_active":          0.4,
+							"dram_active":            0.3,
+							"graphics_engine_active": 0.2,
+							"framebuffer_used":       6.0,
+							"framebuffer_total":      4_863.0,
+						},
+					},
 				},
 				"sections": map[string]any{
 					"node": map[string]any{"state": "ready", "collected_at": "2026-07-30T12:00:00Z"},
@@ -116,6 +131,7 @@ func TestFetchNodeSnapshotByNode_UsesCompositeResponse(t *testing.T) {
 	}, got.NodeMetric)
 	require.Equal(t, map[string]interface{}{
 		"GPUCount":                  2.0,
+		"GPUInstanceCount":          2.0,
 		"GPUUtilizationAvg":         73.5,
 		"GPUUtilizationMax":         91.0,
 		"GPUMemoryUsedTotal":        32_768.0,
@@ -134,6 +150,13 @@ func TestFetchNodeSnapshotByNode_UsesCompositeResponse(t *testing.T) {
 		"GPUUsage":                  1.47,
 		"GPUModels":                 []string{"2x A100"},
 		"GPUUUIDs":                  []string{"GPU-1", "GPU-2"},
+		"GPUMigInstances": []gpuMigInstance{
+			{
+				DeviceUUID: "GPU-2", DeviceID: "nvidia1", MIGProfile: "1g.5gb", MIGInstanceID: "8",
+				ModelName: "NVIDIA A100", TensorActive: 0.4, DRAMActive: 0.3, GraphicsEngineActive: 0.2,
+				FramebufferUsed: 6.0, FramebufferTotal: 4_863.0,
+			},
+		},
 	}, got.GPUMetrics)
 }
 

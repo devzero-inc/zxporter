@@ -152,6 +152,7 @@ func TestCachedGPUExporter_SnapshotState(t *testing.T) {
 	}}
 	want := &nodemon.NodeGPUSummary{
 		GPUCount:                  1,
+		GPUInstanceCount:          1,
 		GPUUtilizationAvg:         40,
 		GPUUtilizationMax:         40,
 		GPUMemoryUsedTotal:        10_000,
@@ -283,6 +284,7 @@ func TestSummarizeNodeGPUParity(t *testing.T) {
 
 	numericKeys := []string{
 		"GPUCount",
+		"GPUInstanceCount",
 		"GPUUtilizationAvg",
 		"GPUUtilizationMax",
 		"GPUMemoryUsedTotal",
@@ -313,14 +315,25 @@ func TestSummarizeNodeGPUParity(t *testing.T) {
 			}
 
 			downstream := summaryToDownstream(typed)
-			require.Len(t, downstream, len(numericKeys)+2)
-			require.Len(t, legacy, len(numericKeys)+2)
+			require.Len(t, downstream, len(numericKeys)+3)
+			require.Len(t, legacy, len(numericKeys)+3)
 
 			for _, key := range numericKeys {
 				require.Equal(t, legacy[key], downstream[key], key)
 			}
 			require.ElementsMatch(t, legacy["GPUModels"], downstream["GPUModels"], "GPUModels")
 			require.ElementsMatch(t, legacy["GPUUUIDs"], downstream["GPUUUIDs"], "GPUUUIDs")
+
+			// legacy["GPUMigInstances"] is []collector.gpuMigInstance (unexported)
+			// and downstream["GPUMigInstances"] is []nodemon.GPUMigInstance — same
+			// JSON shape by construction, so round-trip both through JSON for a
+			// type-agnostic content comparison instead of reflect.DeepEqual, which
+			// would spuriously fail on the differing concrete types alone.
+			legacyJSON, err := json.Marshal(legacy["GPUMigInstances"])
+			require.NoError(t, err)
+			downstreamJSON, err := json.Marshal(downstream["GPUMigInstances"])
+			require.NoError(t, err)
+			require.JSONEq(t, string(legacyJSON), string(downstreamJSON), "GPUMigInstances")
 		})
 	}
 }
@@ -388,6 +401,7 @@ func toCollectorMetrics(metrics []nodemon.GPUMetric) []collector.NodemonMetric {
 		result = append(result, collector.NodemonMetric{
 			ModelName:            metric.ModelName,
 			DeviceUUID:           metric.DeviceUUID,
+			DeviceID:             metric.DeviceID,
 			MIGProfile:           metric.MIGProfile,
 			MIGInstanceID:        metric.MIGInstanceID,
 			TensorActive:         metric.TensorActive,
@@ -413,6 +427,7 @@ func summaryToDownstream(summary *nodemon.NodeGPUSummary) map[string]interface{}
 
 	return map[string]interface{}{
 		"GPUCount":                  summary.GPUCount,
+		"GPUInstanceCount":          summary.GPUInstanceCount,
 		"GPUUtilizationAvg":         summary.GPUUtilizationAvg,
 		"GPUUtilizationMax":         summary.GPUUtilizationMax,
 		"GPUMemoryUsedTotal":        summary.GPUMemoryUsedTotal,
@@ -431,5 +446,6 @@ func summaryToDownstream(summary *nodemon.NodeGPUSummary) map[string]interface{}
 		"GPUUsage":                  summary.GPUUsage,
 		"GPUModels":                 summary.GPUModels,
 		"GPUUUIDs":                  summary.GPUUUIDs,
+		"GPUMigInstances":           summary.GPUMigInstances,
 	}
 }

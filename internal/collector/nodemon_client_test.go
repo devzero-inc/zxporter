@@ -291,6 +291,65 @@ func TestContainerGPUMetricsFromNodemon_ZeroUtilization(t *testing.T) {
 	assertFloat(t, m, "GPUUsage", 0.0)
 }
 
+// TestNodeGPUMetricsFromNodemon_MIGInstances mirrors
+// nodemon.TestSummarizeNodeGPU_MIGPhysicalGPUDedup's fixture exactly, so the
+// legacy fallback path (this function) and the composite-endpoint path
+// (nodemon.SummarizeNodeGPU) produce identical GPUMigInstances content for
+// the same input — the "twins silently diverge" failure mode the original
+// MIG dedup bug was.
+func TestNodeGPUMetricsFromNodemon_MIGInstances(t *testing.T) {
+	gpus := []NodemonMetric{
+		{ModelName: "NVIDIA A100", DeviceUUID: "GPU-0", GPUUtilization: 80, FramebufferUsed: 30_000, FramebufferFree: 10_000},
+		{ModelName: "NVIDIA A100", DeviceUUID: "GPU-1", GPUUtilization: 60, FramebufferUsed: 20_000, FramebufferFree: 20_000},
+		{ModelName: "NVIDIA A100", DeviceUUID: "GPU-2", GPUUtilization: 0, FramebufferUsed: 0, FramebufferFree: 40_000},
+		{ModelName: "NVIDIA A100", DeviceUUID: "GPU-3", MIGProfile: "1g.5gb", MIGInstanceID: "8", FramebufferUsed: 6, FramebufferFree: 4_857},
+		{ModelName: "NVIDIA A100", DeviceUUID: "GPU-3", MIGProfile: "3g.20gb", MIGInstanceID: "9", FramebufferUsed: 4_384, FramebufferFree: 15_616},
+	}
+
+	m := NodeGPUMetricsFromNodemon(gpus)
+
+	assertFloat(t, m, "GPUCount", 4)
+	assertFloat(t, m, "GPUInstanceCount", 5)
+
+	migInstances, ok := m["GPUMigInstances"].([]gpuMigInstance)
+	if !ok {
+		t.Fatalf("expected GPUMigInstances to be []gpuMigInstance, got %T", m["GPUMigInstances"])
+	}
+	if len(migInstances) != 2 {
+		t.Fatalf("expected 2 MIG instances, got %d", len(migInstances))
+	}
+	if migInstances[0].MIGInstanceID != "8" || migInstances[0].FramebufferUsed != 6 || migInstances[0].FramebufferTotal != 6+4_857 {
+		t.Errorf("unexpected first MIG instance: %+v", migInstances[0])
+	}
+	if migInstances[1].MIGInstanceID != "9" || migInstances[1].FramebufferUsed != 4_384 || migInstances[1].FramebufferTotal != 4_384+15_616 {
+		t.Errorf("unexpected second MIG instance: %+v", migInstances[1])
+	}
+}
+
+// TestContainerGPUMetricsFromNodemon_MIGIdentity guards against MIGProfile/
+// MIGInstanceID being dropped when a container's per-GPU breakdown is built
+// (IndividualGPUs previously discarded this identity even though NodemonMetric
+// already carried it).
+func TestContainerGPUMetricsFromNodemon_MIGIdentity(t *testing.T) {
+	gpus := []NodemonMetric{
+		{ModelName: "NVIDIA A100", DeviceUUID: "GPU-3", MIGProfile: "1g.5gb", MIGInstanceID: "8",
+			Pod: "pod-1", Container: "trainer", Namespace: "ml", FramebufferUsed: 6, FramebufferFree: 4_857},
+	}
+
+	m := ContainerGPUMetricsFromNodemon(gpus, 1, 1)
+
+	indiv := m["IndividualGPUs"].([]map[string]interface{})
+	if len(indiv) != 1 {
+		t.Fatalf("expected 1 individual GPU, got %d", len(indiv))
+	}
+	if indiv[0]["MIGProfile"] != "1g.5gb" {
+		t.Errorf("expected MIGProfile 1g.5gb, got %v", indiv[0]["MIGProfile"])
+	}
+	if indiv[0]["MIGInstanceID"] != "8" {
+		t.Errorf("expected MIGInstanceID 8, got %v", indiv[0]["MIGInstanceID"])
+	}
+}
+
 func TestNodeGPUMetricsFromNodemon_Empty(t *testing.T) {
 	m := NodeGPUMetricsFromNodemon(nil)
 	if len(m) != 0 {
