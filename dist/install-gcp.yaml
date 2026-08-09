@@ -870,10 +870,10 @@ metadata:
   name: zxporter-nodemon
   namespace: devzero-system
   labels:
-    helm.sh/chart: zxporter-nodemon-0.1.6
+    helm.sh/chart: zxporter-nodemon-0.1.7
     app.kubernetes.io/name: zxporter-nodemon
     app.kubernetes.io/instance: zxporter-nodemon
-    app.kubernetes.io/version: "0.1.6"
+    app.kubernetes.io/version: "0.1.7"
     app.kubernetes.io/managed-by: Helm
 ---
 # Source: zxporter-nodemon/templates/dcgm-exporter-configmap.yaml
@@ -946,10 +946,10 @@ kind: ClusterRole
 metadata:
   name: zxporter-nodemon
   labels:
-    helm.sh/chart: zxporter-nodemon-0.1.6
+    helm.sh/chart: zxporter-nodemon-0.1.7
     app.kubernetes.io/name: zxporter-nodemon
     app.kubernetes.io/instance: zxporter-nodemon
-    app.kubernetes.io/version: "0.1.6"
+    app.kubernetes.io/version: "0.1.7"
     app.kubernetes.io/managed-by: Helm
 rules:
 - apiGroups:
@@ -997,10 +997,10 @@ kind: ClusterRoleBinding
 metadata:
   name: zxporter-nodemon
   labels:
-    helm.sh/chart: zxporter-nodemon-0.1.6
+    helm.sh/chart: zxporter-nodemon-0.1.7
     app.kubernetes.io/name: zxporter-nodemon
     app.kubernetes.io/instance: zxporter-nodemon
-    app.kubernetes.io/version: "0.1.6"
+    app.kubernetes.io/version: "0.1.7"
     app.kubernetes.io/managed-by: Helm
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -1018,10 +1018,10 @@ metadata:
   name: zxporter-nodemon
   namespace: devzero-system
   labels:
-    helm.sh/chart: zxporter-nodemon-0.1.6
+    helm.sh/chart: zxporter-nodemon-0.1.7
     app.kubernetes.io/name: zxporter-nodemon
     app.kubernetes.io/instance: zxporter-nodemon
-    app.kubernetes.io/version: "0.1.6"
+    app.kubernetes.io/version: "0.1.7"
     app.kubernetes.io/managed-by: Helm
   annotations:
     ignore-check.kube-linter.io/privileged-container: "This daemon set needs to run DCGM Exporter as privileged to access the GPU metrics."
@@ -1180,10 +1180,10 @@ metadata:
   name: zxporter-nodemon-gpu
   namespace: devzero-system
   labels:
-    helm.sh/chart: zxporter-nodemon-0.1.6
+    helm.sh/chart: zxporter-nodemon-0.1.7
     app.kubernetes.io/name: zxporter-nodemon
     app.kubernetes.io/instance: zxporter-nodemon-gpu
-    app.kubernetes.io/version: "0.1.6"
+    app.kubernetes.io/version: "0.1.7"
     app.kubernetes.io/managed-by: Helm
   annotations:
     ignore-check.kube-linter.io/privileged-container: "This daemon set needs to run DCGM Exporter as privileged to access the GPU metrics."

@@ -72,6 +72,13 @@ type NodeCollector struct {
 	podInformer     cache.SharedIndexInformer
 	podMapMutex     sync.RWMutex
 
+	// nodeToNominatedPodsMap maps a nominated node name -> pod key -> pod object, for pods
+	// the scheduler has provisionally assigned to a node but not yet bound
+	// (pod.Status.NominatedNodeName). Kept separate from nodeToPodsMap, which is keyed by
+	// pod.Spec.NodeName and therefore never contains a pod that is still pending — a
+	// nominated pod has no Spec.NodeName by definition. See addNominatedPod/removeNominatedPod.
+	nodeToNominatedPodsMap map[string]map[string]*corev1.Pod
+
 	// loopWG tracks collectNodeResourcesLoop's goroutine so Stop() can wait
 	// for an in-flight sweep to finish before closing batchChan. Closing
 	// stopCh alone only stops the loop from starting its *next* sweep — a
@@ -197,6 +204,8 @@ func NewNodeCollector(
 		telemetryLogger: telemetryLogger,
 		nodeToPodsMap:   make(map[string]map[string]*corev1.Pod),
 		nodeLifecycle:   make(map[string]*nodeLifecycleState),
+
+		nodeToNominatedPodsMap: make(map[string]map[string]*corev1.Pod),
 	}
 }
 
@@ -242,6 +251,13 @@ func (c *NodeCollector) Start(ctx context.Context) error {
 			// If node assignment changed, handle as delete for old node
 			if oldPod.Spec.NodeName != newPod.Spec.NodeName {
 				c.removePodFromNode(oldPod)
+			}
+
+			// Same for nomination: the scheduler can retarget or retract a
+			// nomination across retries, and handlePodEvent(newPod, ...) only
+			// knows where to add/keep it, not which stale node bucket to clear.
+			if oldPod.Status.NominatedNodeName != newPod.Status.NominatedNodeName {
+				c.removeNominatedPod(oldPod)
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
@@ -328,21 +344,28 @@ func (c *NodeCollector) Start(ctx context.Context) error {
 
 // Add these new methods for pod event handling
 func (c *NodeCollector) handlePodEvent(pod *corev1.Pod, eventType EventType) {
-	// Skip pods not assigned to nodes yet
-	if pod.Spec.NodeName == "" {
-		return
-	}
-
-	// Skip excluded nodes
-	if c.isExcluded(pod.Spec.NodeName) {
-		return
-	}
-
 	switch eventType {
 	case EventTypeAdd, EventTypeUpdate:
-		c.addPodToNode(pod)
+		if pod.Spec.NodeName != "" && !c.isExcluded(pod.Spec.NodeName) {
+			c.addPodToNode(pod)
+		}
+		// A nominated pod has no Spec.NodeName by definition, so this is not gated on
+		// the same exclusion check above — it is its own independent fact about a
+		// different node (the one the scheduler is eyeing, not one this pod is on).
+		if nominated := pod.Status.NominatedNodeName; nominated != "" && !c.isExcluded(nominated) {
+			c.addNominatedPod(pod)
+		} else {
+			// Nomination was never set, or Update just cleared it (bound elsewhere, or
+			// the scheduler retracted it) — this pod must not linger in its own last
+			// nominated bucket. A genuine node change is handled by the UpdateFunc
+			// diff above, which knows the OLD value; this covers "cleared to empty".
+			c.removeNominatedPod(pod)
+		}
 	case EventTypeDelete:
-		c.removePodFromNode(pod)
+		if pod.Spec.NodeName != "" {
+			c.removePodFromNode(pod)
+		}
+		c.removeNominatedPod(pod)
 	}
 }
 
@@ -390,6 +413,63 @@ func (c *NodeCollector) PodsOnNode(nodeName string) []*corev1.Pod {
 	defer c.podMapMutex.RUnlock()
 
 	podMap, exists := c.nodeToPodsMap[nodeName]
+	if !exists {
+		return nil
+	}
+
+	pods := make([]*corev1.Pod, 0, len(podMap))
+	for _, pod := range podMap {
+		pods = append(pods, pod)
+	}
+	return pods
+}
+
+// addNominatedPod adds pod to its nominated node's bucket, mirroring addPodToNode but
+// keyed by pod.Status.NominatedNodeName instead of pod.Spec.NodeName.
+func (c *NodeCollector) addNominatedPod(pod *corev1.Pod) {
+	c.podMapMutex.Lock()
+	defer c.podMapMutex.Unlock()
+
+	nodeName := pod.Status.NominatedNodeName
+	podKey := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
+
+	if _, exists := c.nodeToNominatedPodsMap[nodeName]; !exists {
+		c.nodeToNominatedPodsMap[nodeName] = make(map[string]*corev1.Pod)
+	}
+	c.nodeToNominatedPodsMap[nodeName][podKey] = pod
+}
+
+// removeNominatedPod removes pod from the nominated-node bucket named by its OWN
+// Status.NominatedNodeName. Callers that need to clear a STALE bucket (the nomination
+// changed to a different node, or to empty) must pass the pod object carrying the OLD
+// value — see the pod informer's UpdateFunc, which does this with oldPod.
+func (c *NodeCollector) removeNominatedPod(pod *corev1.Pod) {
+	c.podMapMutex.Lock()
+	defer c.podMapMutex.Unlock()
+
+	nodeName := pod.Status.NominatedNodeName
+	if nodeName == "" {
+		return
+	}
+	podKey := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
+
+	if podMap, exists := c.nodeToNominatedPodsMap[nodeName]; exists {
+		delete(podMap, podKey)
+	}
+}
+
+// PodsNominatedFor returns the pods the scheduler has provisionally assigned to nodeName
+// but not yet bound (pod.Status.NominatedNodeName), the same read-only-pointers contract
+// as PodsOnNode.
+//
+// This is what lets classifyDisruptionBlocked tell "Karpenter won't disrupt this node
+// because a pending pod is about to land on it" apart from the other things its Other
+// bucket papers over — derived from a typed field, not the event's unversioned message.
+func (c *NodeCollector) PodsNominatedFor(nodeName string) []*corev1.Pod {
+	c.podMapMutex.RLock()
+	defer c.podMapMutex.RUnlock()
+
+	podMap, exists := c.nodeToNominatedPodsMap[nodeName]
 	if !exists {
 		return nil
 	}
@@ -1286,9 +1366,10 @@ func (c *NodeCollector) Stop() error {
 		c.logger.Info("Node collector batcher stopped")
 	}
 
-	// 5. Clear nodeToPodsMap
+	// 5. Clear nodeToPodsMap and nodeToNominatedPodsMap
 	c.podMapMutex.Lock()
 	c.nodeToPodsMap = make(map[string]map[string]*corev1.Pod)
+	c.nodeToNominatedPodsMap = make(map[string]map[string]*corev1.Pod)
 	c.podMapMutex.Unlock()
 
 	// 5b. Clear the lifecycle-fallback state for the same reason.
