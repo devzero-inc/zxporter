@@ -508,3 +508,99 @@ func TestCollectAllNodeResources_SurvivesNodeDeletedDuringNodemonFetch(t *testin
 	require.Empty(t, fakeLogger.reportsWithErrorType("node_cache_fail"),
 		"collector should not report a cache miss when the node was captured before the race window")
 }
+
+// newBarePodTrackingCollector builds just enough of a NodeCollector to exercise
+// handlePodEvent/PodsOnNode/PodsNominatedFor, without the nodemon/kubelet/metrics wiring
+// the collection tests above need.
+func newBarePodTrackingCollector() *NodeCollector {
+	return &NodeCollector{
+		excludedNodes:          map[string]bool{},
+		logger:                 logr.Discard(),
+		nodeToPodsMap:          make(map[string]map[string]*corev1.Pod),
+		nodeToNominatedPodsMap: make(map[string]map[string]*corev1.Pod),
+	}
+}
+
+func nominatedPod() *corev1.Pod {
+	return &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "payments", Name: "checkout-9f8b7d"},
+		Status:     corev1.PodStatus{NominatedNodeName: "ip-10-0-1-5"},
+	}
+}
+
+// TestHandlePodEvent_TracksNominatedPods pins the state machine PodsNominatedFor depends
+// on: a pending pod (no Spec.NodeName) is tracked by its nomination, not skipped the way
+// handlePodEvent used to skip every unassigned pod outright.
+func TestHandlePodEvent_TracksNominatedPods(t *testing.T) {
+	t.Run("a pod nominated but not yet bound is tracked", func(t *testing.T) {
+		c := newBarePodTrackingCollector()
+		pod := nominatedPod()
+
+		c.handlePodEvent(pod, EventTypeAdd)
+
+		got := c.PodsNominatedFor("ip-10-0-1-5")
+		require.Len(t, got, 1)
+		require.Equal(t, "checkout-9f8b7d", got[0].Name)
+		require.Empty(t, c.PodsOnNode("ip-10-0-1-5"), "an unbound pod must not appear as ON the node")
+	})
+
+	t.Run("an excluded nominated node is not tracked", func(t *testing.T) {
+		c := newBarePodTrackingCollector()
+		c.excludedNodes["ip-10-0-1-5"] = true
+
+		c.handlePodEvent(nominatedPod(), EventTypeAdd)
+
+		require.Empty(t, c.PodsNominatedFor("ip-10-0-1-5"))
+	})
+
+	// Both cases below reproduce the informer's UpdateFunc exactly: it calls
+	// handlePodEvent(newPod, ...) for the new state, THEN separately diffs
+	// oldPod/newPod to clear a stale bucket handlePodEvent cannot know about on its
+	// own (it only ever sees the new object) — the same two-step shape the pre-existing
+	// nodeToPodsMap cleanup already uses for Spec.NodeName changes.
+	t.Run("binding clears the nomination", func(t *testing.T) {
+		c := newBarePodTrackingCollector()
+		pod := nominatedPod()
+		c.handlePodEvent(pod, EventTypeAdd)
+
+		// The scheduler bound the pod: Spec.NodeName is now set and the nomination field
+		// is cleared, exactly as the real API server does on bind.
+		bound := pod.DeepCopy()
+		bound.Spec.NodeName = "ip-10-0-1-5"
+		bound.Status.NominatedNodeName = ""
+		c.handlePodEvent(bound, EventTypeUpdate)
+		if pod.Status.NominatedNodeName != bound.Status.NominatedNodeName {
+			c.removeNominatedPod(pod)
+		}
+
+		require.Empty(t, c.PodsNominatedFor("ip-10-0-1-5"), "no longer pending, must not linger as nominated")
+		require.Len(t, c.PodsOnNode("ip-10-0-1-5"), 1)
+	})
+
+	t.Run("a changed nomination clears the old node's bucket", func(t *testing.T) {
+		c := newBarePodTrackingCollector()
+		pod := nominatedPod()
+		c.handlePodEvent(pod, EventTypeAdd)
+
+		retargeted := pod.DeepCopy()
+		retargeted.Status.NominatedNodeName = "ip-10-0-1-9"
+		oldPod, newPod := pod, retargeted
+		c.handlePodEvent(newPod, EventTypeUpdate)
+		if oldPod.Status.NominatedNodeName != newPod.Status.NominatedNodeName {
+			c.removeNominatedPod(oldPod)
+		}
+
+		require.Empty(t, c.PodsNominatedFor("ip-10-0-1-5"), "stale bucket under the old node must be cleared")
+		require.Len(t, c.PodsNominatedFor("ip-10-0-1-9"), 1)
+	})
+
+	t.Run("delete clears the nomination", func(t *testing.T) {
+		c := newBarePodTrackingCollector()
+		pod := nominatedPod()
+		c.handlePodEvent(pod, EventTypeAdd)
+
+		c.handlePodEvent(pod, EventTypeDelete)
+
+		require.Empty(t, c.PodsNominatedFor("ip-10-0-1-5"))
+	})
+}

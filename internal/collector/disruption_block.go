@@ -82,7 +82,16 @@ const (
 	// autoscale/clusterautoscaler/simulator/cluster.go) — NOT "NoPlaceToMoveToPods",
 	// which is not a string Cluster Autoscaler uses anywhere.
 	disruptionBlockReasonNoPlaceToMovePods = "NoPlaceToMovePods"
-	disruptionBlockReasonOther             = "Other"
+	// disruptionBlockReasonPodNominated means the scheduler has provisionally assigned a
+	// pending pod to this node (pod.Status.NominatedNodeName) — Karpenter will not disrupt a
+	// node it is about to hand a pod, since that would just make the pod re-pend
+	// immediately. Derived from a typed API field, not the event's message, for the same
+	// reason every other bucket here is: the message's phrasing is unversioned. Shared
+	// bucket in principle (Cluster Autoscaler's drain simulation would hit the same
+	// situation), but only reachable via the Karpenter path today — see
+	// classifyDisruptionBlocked's precedence comment.
+	disruptionBlockReasonPodNominated = "PodNominated"
+	disruptionBlockReasonOther        = "Other"
 )
 
 // pdbSource, podSource and nodeClaimSource are the read-only views the classifier needs
@@ -95,6 +104,9 @@ type pdbSource interface {
 
 type podSource interface {
 	PodsOnNode(nodeName string) []*corev1.Pod
+	// PodsNominatedFor returns pods the scheduler has provisionally assigned to nodeName
+	// but not yet bound. Backs disruptionBlockReasonPodNominated.
+	PodsNominatedFor(nodeName string) []*corev1.Pod
 }
 
 type nodeClaimSource interface {
@@ -148,12 +160,19 @@ func (s *disruptionSources) nodeClaims() nodeClaimSource {
 
 // disruptionBlockClassification is the outcome of classifying one DisruptionBlocked event.
 type disruptionBlockClassification struct {
-	// Reason is always one of the four disruptionBlockReason* values.
+	// Reason is always one of the disruptionBlockReason* values.
 	Reason string
 	// BlockingPDBName is "namespace/name" of the PDB that blocked eviction, set only
 	// alongside PDBViolation. Nil rather than "" so dakr can write a real NULL: "no PDB was
 	// involved" is not the same fact as "a PDB with an empty name".
 	BlockingPDBName *string
+	// RelatedPodName is "namespace/name" of the pod behind the classification, set
+	// alongside DoNotDisruptAnnotation (the pod carrying the annotation) and PodNominated
+	// (the pod nominated for this node). Nil, not "", for the same reason as
+	// BlockingPDBName — and because both of those reasons ARE reachable without a specific
+	// pod identity in hand (nodeClaimBlocked's node-level annotation path has no pod at
+	// all), so nil must mean "not applicable here", not "lookup failed".
+	RelatedPodName *string
 }
 
 // isKarpenterDisruptionBlocked reports whether an event is the Karpenter DisruptionBlocked
@@ -188,11 +207,16 @@ func isKarpenterDisruptionBlocked(event *corev1.Event) bool {
 //     Karpenter itself evaluates them (state.StateNode.ValidatePodsDisruptable checks every
 //     pod's annotation and returns on the first hit, and only then consults PDBs), so a
 //     node with both produces the annotation event upstream too.
-//  4. Other — the node-level blocks that are neither: uninitialized, already deleting,
-//     nominated for a pending pod, missing its NodePool label. Also where an
-//     unresolvable node, an unavailable collector, or a stale cache lands. It is a real
-//     classification, not a failure: the verbatim message survives in k8s_events.message,
-//     which is the only place the detail exists.
+//  4. PodNominated — the scheduler has provisionally assigned a pending pod to this node
+//     (pod.Status.NominatedNodeName). Checked after PDBViolation, not before: if a pod IS
+//     already on the node and blocking eviction, that is the more specific and more
+//     actionable fact, and it is also possible in principle for both to be true at once
+//     (a nominated node that also happens to host a PDB-guarded pod).
+//  5. Other — the node-level blocks that are neither: uninitialized, already deleting,
+//     missing its NodePool label. Also where an unresolvable node, an unavailable
+//     collector, or a stale cache lands. It is a real classification, not a failure: the
+//     verbatim message survives in k8s_events.message, which is the only place that detail
+//     exists.
 //
 // Never returns an empty Reason.
 func classifyDisruptionBlocked(
@@ -229,7 +253,11 @@ func classifyDisruptionBlocked(
 
 	for _, pod := range pods {
 		if podOptedOutOfDisruption(pod) {
-			return disruptionBlockClassification{Reason: disruptionBlockReasonDoNotDisruptAnnotation}
+			podName := pod.Namespace + "/" + pod.Name
+			return disruptionBlockClassification{
+				Reason:         disruptionBlockReasonDoNotDisruptAnnotation,
+				RelatedPodName: &podName,
+			}
 		}
 	}
 	if nodeClaimBlocked {
@@ -240,6 +268,14 @@ func classifyDisruptionBlocked(
 		return disruptionBlockClassification{
 			Reason:          disruptionBlockReasonPDBViolation,
 			BlockingPDBName: &pdbName,
+		}
+	}
+
+	if nominated := podLookup.PodsNominatedFor(nodeName); len(nominated) > 0 {
+		podName := nominated[0].Namespace + "/" + nominated[0].Name
+		return disruptionBlockClassification{
+			Reason:         disruptionBlockReasonPodNominated,
+			RelatedPodName: &podName,
 		}
 	}
 

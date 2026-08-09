@@ -57,11 +57,16 @@ func (s *stubPDBCollector) PDBsInNamespace(namespace string) []*policyv1.PodDisr
 
 type stubNodeCollector struct {
 	stubCollector
-	byNode map[string][]*corev1.Pod
+	byNode      map[string][]*corev1.Pod
+	byNominated map[string][]*corev1.Pod
 }
 
 func (s *stubNodeCollector) PodsOnNode(nodeName string) []*corev1.Pod {
 	return s.byNode[nodeName]
+}
+
+func (s *stubNodeCollector) PodsNominatedFor(nodeName string) []*corev1.Pod {
+	return s.byNominated[nodeName]
 }
 
 type stubKarpenterCollector struct {
@@ -93,9 +98,10 @@ func (r stubRegistry) GetCollector(collectorType string) ResourceCollector {
 // clusterState assembles the three collector caches a DisruptionBlocked event is
 // classified against.
 type clusterState struct {
-	pdbs       map[string][]*policyv1.PodDisruptionBudget
-	podsByNode map[string][]*corev1.Pod
-	nodeClaims map[string]*unstructured.Unstructured
+	pdbs                map[string][]*policyv1.PodDisruptionBudget
+	podsByNode          map[string][]*corev1.Pod
+	podsByNominatedNode map[string][]*corev1.Pod
+	nodeClaims          map[string]*unstructured.Unstructured
 }
 
 func (c clusterState) sources() *disruptionSources {
@@ -106,10 +112,11 @@ func (c clusterState) sources() *disruptionSources {
 			byNamespace:   c.pdbs,
 		}
 	}
-	if c.podsByNode != nil {
+	if c.podsByNode != nil || c.podsByNominatedNode != nil {
 		registry["node"] = &stubNodeCollector{
 			stubCollector: stubCollector{collectorType: "node"},
 			byNode:        c.podsByNode,
+			byNominated:   c.podsByNominatedNode,
 		}
 	}
 	if c.nodeClaims != nil {
@@ -331,6 +338,8 @@ func TestClassifyDisruptionBlocked(t *testing.T) {
 
 		assert.Equal(t, disruptionBlockReasonDoNotDisruptAnnotation, got.Reason)
 		assert.Nil(t, got.BlockingPDBName)
+		require.NotNil(t, got.RelatedPodName)
+		assert.Equal(t, "payments/ledger-0", *got.RelatedPodName)
 	})
 
 	// Only the literal "true" opts out, matching Karpenter's own check — "false" or a
@@ -532,8 +541,10 @@ func TestClassifyDisruptionBlocked(t *testing.T) {
 	})
 
 	// The node-level blocks Karpenter rejects on before it ever looks at pods —
-	// uninitialized, deleting, nominated for a pending pod. Nothing in the caches explains
-	// them, and Other is the honest answer.
+	// uninitialized, deleting, missing its NodePool label. Nothing in the caches explains
+	// them, and Other is the honest answer. The message text is not consulted (it says
+	// "nominated for a pending pod" here) — only PodsNominatedFor returning something
+	// changes that verdict, which this test's cluster state does not provide.
 	t.Run("nothing on the node explains the block", func(t *testing.T) {
 		state := clusterState{
 			podsByNode: map[string][]*corev1.Pod{
@@ -549,6 +560,63 @@ func TestClassifyDisruptionBlocked(t *testing.T) {
 
 		assert.Equal(t, disruptionBlockReasonOther, got.Reason)
 		assert.Nil(t, got.BlockingPDBName)
+	})
+
+	// The structural signal, not the message, is what drives this classification — same
+	// message as the test above, but this time PodsNominatedFor backs it up.
+	t.Run("pod nominated for the node", func(t *testing.T) {
+		state := clusterState{
+			podsByNominatedNode: map[string][]*corev1.Pod{
+				"ip-10-0-1-5": {blockedPod("payments", "checkout-9f8b7d", map[string]string{"app": "checkout"}, nil)},
+			},
+		}
+
+		got := classifyDisruptionBlocked(
+			disruptionBlockedEvent("ip-10-0-1-5", "Cannot disrupt Node: state node is nominated for a pending pod"),
+			state.sources(), now,
+		)
+
+		assert.Equal(t, disruptionBlockReasonPodNominated, got.Reason)
+		require.NotNil(t, got.RelatedPodName)
+		assert.Equal(t, "payments/checkout-9f8b7d", *got.RelatedPodName)
+	})
+
+	// A pod already ON the node and blocking eviction is the more specific, more
+	// actionable fact — it outranks a pending pod merely eyeing the node.
+	t.Run("a blocking pdb outranks a nominated pod on the same node", func(t *testing.T) {
+		state := clusterState{
+			podsByNode: map[string][]*corev1.Pod{
+				"ip-10-0-1-5": {blockedPod("payments", "checkout-7d9f8b", map[string]string{"app": "checkout"}, nil)},
+			},
+			pdbs: map[string][]*policyv1.PodDisruptionBudget{
+				"payments": {blockingPDB("payments", "checkout-pdb", map[string]string{"app": "checkout"}, 0)},
+			},
+			podsByNominatedNode: map[string][]*corev1.Pod{
+				"ip-10-0-1-5": {blockedPod("payments", "queue-9f8b7d", map[string]string{"app": "queue"}, nil)},
+			},
+		}
+
+		got := classifyDisruptionBlocked(disruptionBlockedEvent("ip-10-0-1-5", ""), state.sources(), now)
+
+		assert.Equal(t, disruptionBlockReasonPDBViolation, got.Reason)
+	})
+
+	// do-not-disrupt is checked before the nomination lookup even runs, so it wins too.
+	t.Run("do-not-disrupt outranks a nominated pod on the same node", func(t *testing.T) {
+		state := clusterState{
+			podsByNode: map[string][]*corev1.Pod{
+				"ip-10-0-1-5": {blockedPod("payments", "ledger-0", nil, map[string]string{
+					"karpenter.sh/do-not-disrupt": "true",
+				})},
+			},
+			podsByNominatedNode: map[string][]*corev1.Pod{
+				"ip-10-0-1-5": {blockedPod("payments", "queue-9f8b7d", map[string]string{"app": "queue"}, nil)},
+			},
+		}
+
+		got := classifyDisruptionBlocked(disruptionBlockedEvent("ip-10-0-1-5", ""), state.sources(), now)
+
+		assert.Equal(t, disruptionBlockReasonDoNotDisruptAnnotation, got.Reason)
 	})
 }
 
