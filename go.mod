@@ -17,7 +17,7 @@ require (
 	github.com/Code-Hex/go-generics-cache v1.5.1
 	github.com/KimMachineGun/automemlimit v0.7.5
 	github.com/cilium/cilium v1.17.16
-	github.com/cilium/ebpf v0.17.1
+	github.com/cilium/ebpf v0.22.0
 	github.com/florianl/go-conntrack v0.7.0
 	github.com/google/gopacket v1.1.19
 	github.com/hashicorp/golang-lru/v2 v2.0.7
@@ -57,7 +57,7 @@ require (
 	github.com/mackerelio/go-osstat v0.2.5 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/mdlayher/netlink v1.7.2 // indirect
-	github.com/mdlayher/socket v0.4.1 // indirect
+	github.com/mdlayher/socket v0.5.1 // indirect
 	github.com/mitchellh/go-wordwrap v1.0.1 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/moby/spdystream v0.5.1 // indirect
