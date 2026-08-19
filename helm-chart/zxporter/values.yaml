@@ -11,7 +11,7 @@
 image:
   repository: public.ecr.aws/devzeroinc/zxporter
   pullPolicy: IfNotPresent
-  tag: "v0.1.6"
+  tag: "v0.1.9"
 # ZXPorter configuration
 zxporter:
   dakrUrl: "https://dakr.devzero.io"
@@ -62,6 +62,11 @@ zxporter:
   # API (the metrics fallback for nodes with no nodemon pod) before giving
   # up. Go duration string, e.g. "15s".
   kubeletFallbackTimeout: "15s"
+  # How often the SchedulerMetrics collector scrapes dz-scheduler's /metrics
+  # endpoint. Go duration string, e.g. "60s". Empty uses the collector's
+  # built-in default (60s) -- see DefaultSchedulerMetricsScrapeInterval in
+  # internal/collector/scheduler_metrics_collector.go for the reasoning.
+  schedulerMetricsScrapeInterval: ""
   # Point to a pre-existing Secret that already holds the auth token(s), instead of
   # passing clusterToken/patToken through this values file. This is intended for
   # GitOps/SOPS workflows where you want to encrypt only the Secret, not the whole

@@ -328,21 +328,15 @@ func (c *NodeCollector) Start(ctx context.Context) error {
 
 // Add these new methods for pod event handling
 func (c *NodeCollector) handlePodEvent(pod *corev1.Pod, eventType EventType) {
-	// Skip pods not assigned to nodes yet
-	if pod.Spec.NodeName == "" {
-		return
-	}
-
-	// Skip excluded nodes
-	if c.isExcluded(pod.Spec.NodeName) {
-		return
-	}
-
 	switch eventType {
 	case EventTypeAdd, EventTypeUpdate:
-		c.addPodToNode(pod)
+		if pod.Spec.NodeName != "" && !c.isExcluded(pod.Spec.NodeName) {
+			c.addPodToNode(pod)
+		}
 	case EventTypeDelete:
-		c.removePodFromNode(pod)
+		if pod.Spec.NodeName != "" {
+			c.removePodFromNode(pod)
+		}
 	}
 }
 
@@ -385,6 +379,14 @@ func (c *NodeCollector) removePodFromNode(pod *corev1.Pod) {
 //
 // Returns nil for an unknown node, which is indistinguishable from "node has no pods".
 // Both mean "no pod here can be blocking", so the distinction has no caller.
+//
+// Pods are tracked by pod.Spec.NodeName ONLY, so a pending pod appears here for no node.
+// A second map keyed by pod.Status.NominatedNodeName used to be maintained alongside this
+// one — on every pod add, update and delete cluster-wide — to serve a PodsNominatedFor
+// lookup for the disruption classifier. Both are gone: that field is kube-scheduler
+// preemption state, not Karpenter nomination, so the lookup had no correct consumer and the
+// bookkeeping was pure per-event cost. Do not reintroduce it without reading the
+// PodNominated note on classifyDisruptionBlocked first.
 func (c *NodeCollector) PodsOnNode(nodeName string) []*corev1.Pod {
 	c.podMapMutex.RLock()
 	defer c.podMapMutex.RUnlock()
