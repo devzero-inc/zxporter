@@ -504,6 +504,13 @@ type Policies struct {
 	// +optional
 	KubeletFallbackTimeout string `json:"kubeletFallbackTimeout,omitempty"`
 
+	// SchedulerMetricsScrapeInterval bounds how often the SchedulerMetrics
+	// collector scrapes dz-scheduler's /metrics endpoint (defaults to 60s --
+	// see collector.DefaultSchedulerMetricsScrapeInterval's doc comment for
+	// why). A Go duration string (e.g. "60s", "30s").
+	// +optional
+	SchedulerMetricsScrapeInterval string `json:"schedulerMetricsScrapeInterval,omitempty"`
+
 	// ClusterSnapshotInterval is how often to take cluster snapshots (defaults to 3h)
 	ClusterSnapshotInterval string `json:"clusterSnapshotInterval,omitempty"`
 

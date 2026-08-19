@@ -628,3 +628,23 @@ subjects:
   - kind: ServiceAccount
     name: devzero-zxporter-controller-manager
     namespace: {{ .Release.Namespace }}
+---
+# Binds devzero-zxporter-metrics-reader (nonResourceURLs: ["/metrics"], verb: get)
+# to zxporter's own ServiceAccount so the SchedulerMetrics collector can scrape
+# dz-scheduler's /metrics endpoint. dz-scheduler runs kube-scheduler with
+# delegated authorization to the API server (SubjectAccessReview), and
+# "/metrics" is not in kube-scheduler's default AlwaysAllowPaths -- unlike
+# /healthz and /livez, an authenticated caller still needs an explicit RBAC
+# grant for this nonResourceURL, or every scrape 403s.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: devzero-zxporter-metrics-reader-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: devzero-zxporter-metrics-reader
+subjects:
+  - kind: ServiceAccount
+    name: devzero-zxporter-controller-manager
+    namespace: {{ .Release.Namespace }}

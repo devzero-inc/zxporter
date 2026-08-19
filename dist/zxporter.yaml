@@ -645,6 +645,19 @@ subjects:
   name: devzero-zxporter-controller-manager
   namespace: devzero-system
 ---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: devzero-zxporter-metrics-reader-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: devzero-zxporter-metrics-reader
+subjects:
+- kind: ServiceAccount
+  name: devzero-zxporter-controller-manager
+  namespace: devzero-system
+---
 apiVersion: v1
 data:
   BUFFER_SIZE: ""
@@ -692,6 +705,7 @@ data:
   NODE_METRICS_CONCURRENCY: "20"
   NODE_METRICS_INTERVAL: ""
   NODEMON_REQUEST_TIMEOUT: 15s
+  SCHEDULER_METRICS_SCRAPE_INTERVAL: ""
   TARGET_NAMESPACES: ""
   TOKEN_CONFIGMAP_NAME: devzero-zxporter-env-config
   TOKEN_CREDENTIALS_SECRET_NAME: devzero-zxporter-credentials

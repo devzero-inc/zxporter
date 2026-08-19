@@ -87,6 +87,11 @@ const (
 	// Default value: 15s
 	_ENV_KUBELET_FALLBACK_TIMEOUT = "KUBELET_FALLBACK_TIMEOUT"
 
+	// SCHEDULER_METRICS_SCRAPE_INTERVAL bounds how often the SchedulerMetrics
+	// collector scrapes dz-scheduler's /metrics endpoint.
+	// Default value: 60s
+	_ENV_SCHEDULER_METRICS_SCRAPE_INTERVAL = "SCHEDULER_METRICS_SCRAPE_INTERVAL"
+
 	// CLUSTER_SNAPSHOT_INTERVAL is how often to take cluster snapshots.
 	// Default value: 3h
 	_ENV_CLUSTER_SNAPSHOT_INTERVAL = "CLUSTER_SNAPSHOT_INTERVAL"
@@ -583,6 +588,9 @@ func LoadCollectionPolicySpecFromEnv() (v1.CollectionPolicySpec, error) {
 	}
 	if v := getEnv(_ENV_KUBELET_FALLBACK_TIMEOUT); v != "" {
 		newSpec.Policies.KubeletFallbackTimeout = v
+	}
+	if v := getEnv(_ENV_SCHEDULER_METRICS_SCRAPE_INTERVAL); v != "" {
+		newSpec.Policies.SchedulerMetricsScrapeInterval = v
 	}
 	if v := getEnv(_ENV_CLUSTER_SNAPSHOT_INTERVAL); v != "" {
 		newSpec.Policies.ClusterSnapshotInterval = v

@@ -738,6 +738,13 @@ spec:
                       PATToken is the Personal Access Token used for automatic cluster token exchange
                       If ClusterToken is not provided but PATToken is, the system will exchange it for a cluster token
                     type: string
+                  schedulerMetricsScrapeInterval:
+                    description: |-
+                      SchedulerMetricsScrapeInterval bounds how often the SchedulerMetrics
+                      collector scrapes dz-scheduler's /metrics endpoint (defaults to 60s --
+                      see collector.DefaultSchedulerMetricsScrapeInterval's doc comment for
+                      why). A Go duration string (e.g. "60s", "30s").
+                    type: string
                   watchedCRDs:
                     description: WatchedCRDs is a list of custom resource definitions
                       to explicitly watch
