@@ -44,6 +44,7 @@ const (
 	K8SService_GetWorkloadContainerTimeSeries_FullMethodName   = "/api.v1.K8SService/GetWorkloadContainerTimeSeries"
 	K8SService_GetLatestContainerRequestLimits_FullMethodName  = "/api.v1.K8SService/GetLatestContainerRequestLimits"
 	K8SService_GetNodeGPUMigInstances_FullMethodName           = "/api.v1.K8SService/GetNodeGPUMigInstances"
+	K8SService_GetNodeGPUMigInstanceTimeseries_FullMethodName  = "/api.v1.K8SService/GetNodeGPUMigInstanceTimeseries"
 	K8SService_GetContainerIndividualGPUMetrics_FullMethodName = "/api.v1.K8SService/GetContainerIndividualGPUMetrics"
 	K8SService_GetWorkloadLanguages_FullMethodName             = "/api.v1.K8SService/GetWorkloadLanguages"
 	K8SService_GetForecastWorkloads_FullMethodName             = "/api.v1.K8SService/GetForecastWorkloads"
@@ -132,6 +133,10 @@ type K8SServiceClient interface {
 	// GetNodeGPUMigInstances retrieves the most recent MIG-instance telemetry for a node.
 	// Returns an empty instances list for nodes with no MIG-partitioned GPUs.
 	GetNodeGPUMigInstances(ctx context.Context, in *GetNodeGPUMigInstancesRequest, opts ...grpc.CallOption) (*GetNodeGPUMigInstancesResponse, error)
+	// GetNodeGPUMigInstanceTimeseries retrieves per-MIG-instance utilization as
+	// a time series for a node over a time range. Returns an empty instances
+	// list for nodes with no MIG-partitioned GPUs.
+	GetNodeGPUMigInstanceTimeseries(ctx context.Context, in *GetNodeGPUMigInstanceTimeseriesRequest, opts ...grpc.CallOption) (*GetNodeGPUMigInstanceTimeseriesResponse, error)
 	// GetContainerIndividualGPUMetrics retrieves the most recent per-GPU breakdown for every
 	// container in a workload that has GPU data.
 	GetContainerIndividualGPUMetrics(ctx context.Context, in *GetContainerIndividualGPUMetricsRequest, opts ...grpc.CallOption) (*GetContainerIndividualGPUMetricsResponse, error)
@@ -408,6 +413,15 @@ func (c *k8SServiceClient) GetLatestContainerRequestLimits(ctx context.Context, 
 func (c *k8SServiceClient) GetNodeGPUMigInstances(ctx context.Context, in *GetNodeGPUMigInstancesRequest, opts ...grpc.CallOption) (*GetNodeGPUMigInstancesResponse, error) {
 	out := new(GetNodeGPUMigInstancesResponse)
 	err := c.cc.Invoke(ctx, K8SService_GetNodeGPUMigInstances_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *k8SServiceClient) GetNodeGPUMigInstanceTimeseries(ctx context.Context, in *GetNodeGPUMigInstanceTimeseriesRequest, opts ...grpc.CallOption) (*GetNodeGPUMigInstanceTimeseriesResponse, error) {
+	out := new(GetNodeGPUMigInstanceTimeseriesResponse)
+	err := c.cc.Invoke(ctx, K8SService_GetNodeGPUMigInstanceTimeseries_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -694,6 +708,10 @@ type K8SServiceServer interface {
 	// GetNodeGPUMigInstances retrieves the most recent MIG-instance telemetry for a node.
 	// Returns an empty instances list for nodes with no MIG-partitioned GPUs.
 	GetNodeGPUMigInstances(context.Context, *GetNodeGPUMigInstancesRequest) (*GetNodeGPUMigInstancesResponse, error)
+	// GetNodeGPUMigInstanceTimeseries retrieves per-MIG-instance utilization as
+	// a time series for a node over a time range. Returns an empty instances
+	// list for nodes with no MIG-partitioned GPUs.
+	GetNodeGPUMigInstanceTimeseries(context.Context, *GetNodeGPUMigInstanceTimeseriesRequest) (*GetNodeGPUMigInstanceTimeseriesResponse, error)
 	// GetContainerIndividualGPUMetrics retrieves the most recent per-GPU breakdown for every
 	// container in a workload that has GPU data.
 	GetContainerIndividualGPUMetrics(context.Context, *GetContainerIndividualGPUMetricsRequest) (*GetContainerIndividualGPUMetricsResponse, error)
@@ -821,6 +839,9 @@ func (UnimplementedK8SServiceServer) GetLatestContainerRequestLimits(context.Con
 }
 func (UnimplementedK8SServiceServer) GetNodeGPUMigInstances(context.Context, *GetNodeGPUMigInstancesRequest) (*GetNodeGPUMigInstancesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetNodeGPUMigInstances not implemented")
+}
+func (UnimplementedK8SServiceServer) GetNodeGPUMigInstanceTimeseries(context.Context, *GetNodeGPUMigInstanceTimeseriesRequest) (*GetNodeGPUMigInstanceTimeseriesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetNodeGPUMigInstanceTimeseries not implemented")
 }
 func (UnimplementedK8SServiceServer) GetContainerIndividualGPUMetrics(context.Context, *GetContainerIndividualGPUMetricsRequest) (*GetContainerIndividualGPUMetricsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetContainerIndividualGPUMetrics not implemented")
@@ -1353,6 +1374,24 @@ func _K8SService_GetNodeGPUMigInstances_Handler(srv interface{}, ctx context.Con
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(K8SServiceServer).GetNodeGPUMigInstances(ctx, req.(*GetNodeGPUMigInstancesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _K8SService_GetNodeGPUMigInstanceTimeseries_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetNodeGPUMigInstanceTimeseriesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(K8SServiceServer).GetNodeGPUMigInstanceTimeseries(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: K8SService_GetNodeGPUMigInstanceTimeseries_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(K8SServiceServer).GetNodeGPUMigInstanceTimeseries(ctx, req.(*GetNodeGPUMigInstanceTimeseriesRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1895,6 +1934,10 @@ var K8SService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetNodeGPUMigInstances",
 			Handler:    _K8SService_GetNodeGPUMigInstances_Handler,
+		},
+		{
+			MethodName: "GetNodeGPUMigInstanceTimeseries",
+			Handler:    _K8SService_GetNodeGPUMigInstanceTimeseries_Handler,
 		},
 		{
 			MethodName: "GetContainerIndividualGPUMetrics",

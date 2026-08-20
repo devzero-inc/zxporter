@@ -105,6 +105,9 @@ const (
 	// K8SServiceGetNodeGPUMigInstancesProcedure is the fully-qualified name of the K8SService's
 	// GetNodeGPUMigInstances RPC.
 	K8SServiceGetNodeGPUMigInstancesProcedure = "/api.v1.K8SService/GetNodeGPUMigInstances"
+	// K8SServiceGetNodeGPUMigInstanceTimeseriesProcedure is the fully-qualified name of the
+	// K8SService's GetNodeGPUMigInstanceTimeseries RPC.
+	K8SServiceGetNodeGPUMigInstanceTimeseriesProcedure = "/api.v1.K8SService/GetNodeGPUMigInstanceTimeseries"
 	// K8SServiceGetContainerIndividualGPUMetricsProcedure is the fully-qualified name of the
 	// K8SService's GetContainerIndividualGPUMetrics RPC.
 	K8SServiceGetContainerIndividualGPUMetricsProcedure = "/api.v1.K8SService/GetContainerIndividualGPUMetrics"
@@ -258,6 +261,10 @@ type K8SServiceClient interface {
 	// GetNodeGPUMigInstances retrieves the most recent MIG-instance telemetry for a node.
 	// Returns an empty instances list for nodes with no MIG-partitioned GPUs.
 	GetNodeGPUMigInstances(context.Context, *connect.Request[v1.GetNodeGPUMigInstancesRequest]) (*connect.Response[v1.GetNodeGPUMigInstancesResponse], error)
+	// GetNodeGPUMigInstanceTimeseries retrieves per-MIG-instance utilization as
+	// a time series for a node over a time range. Returns an empty instances
+	// list for nodes with no MIG-partitioned GPUs.
+	GetNodeGPUMigInstanceTimeseries(context.Context, *connect.Request[v1.GetNodeGPUMigInstanceTimeseriesRequest]) (*connect.Response[v1.GetNodeGPUMigInstanceTimeseriesResponse], error)
 	// GetContainerIndividualGPUMetrics retrieves the most recent per-GPU breakdown for every
 	// container in a workload that has GPU data.
 	GetContainerIndividualGPUMetrics(context.Context, *connect.Request[v1.GetContainerIndividualGPUMetricsRequest]) (*connect.Response[v1.GetContainerIndividualGPUMetricsResponse], error)
@@ -443,6 +450,11 @@ func NewK8SServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...
 			baseURL+K8SServiceGetNodeGPUMigInstancesProcedure,
 			opts...,
 		),
+		getNodeGPUMigInstanceTimeseries: connect.NewClient[v1.GetNodeGPUMigInstanceTimeseriesRequest, v1.GetNodeGPUMigInstanceTimeseriesResponse](
+			httpClient,
+			baseURL+K8SServiceGetNodeGPUMigInstanceTimeseriesProcedure,
+			opts...,
+		),
 		getContainerIndividualGPUMetrics: connect.NewClient[v1.GetContainerIndividualGPUMetricsRequest, v1.GetContainerIndividualGPUMetricsResponse](
 			httpClient,
 			baseURL+K8SServiceGetContainerIndividualGPUMetricsProcedure,
@@ -593,6 +605,7 @@ type k8SServiceClient struct {
 	getWorkloadContainerTimeSeries   *connect.Client[v1.GetWorkloadContainerTimeSeriesRequest, v1.GetWorkloadContainerTimeSeriesResponse]
 	getLatestContainerRequestLimits  *connect.Client[v1.GetLatestContainerRequestLimitsRequest, v1.GetLatestContainerRequestLimitsResponse]
 	getNodeGPUMigInstances           *connect.Client[v1.GetNodeGPUMigInstancesRequest, v1.GetNodeGPUMigInstancesResponse]
+	getNodeGPUMigInstanceTimeseries  *connect.Client[v1.GetNodeGPUMigInstanceTimeseriesRequest, v1.GetNodeGPUMigInstanceTimeseriesResponse]
 	getContainerIndividualGPUMetrics *connect.Client[v1.GetContainerIndividualGPUMetricsRequest, v1.GetContainerIndividualGPUMetricsResponse]
 	getWorkloadLanguages             *connect.Client[v1.GetWorkloadLanguagesRequest, v1.GetWorkloadLanguagesResponse]
 	getForecastWorkloads             *connect.Client[v1.GetForecastWorkloadsRequest, v1.GetForecastWorkloadsResponse]
@@ -744,6 +757,11 @@ func (c *k8SServiceClient) GetLatestContainerRequestLimits(ctx context.Context, 
 // GetNodeGPUMigInstances calls api.v1.K8SService.GetNodeGPUMigInstances.
 func (c *k8SServiceClient) GetNodeGPUMigInstances(ctx context.Context, req *connect.Request[v1.GetNodeGPUMigInstancesRequest]) (*connect.Response[v1.GetNodeGPUMigInstancesResponse], error) {
 	return c.getNodeGPUMigInstances.CallUnary(ctx, req)
+}
+
+// GetNodeGPUMigInstanceTimeseries calls api.v1.K8SService.GetNodeGPUMigInstanceTimeseries.
+func (c *k8SServiceClient) GetNodeGPUMigInstanceTimeseries(ctx context.Context, req *connect.Request[v1.GetNodeGPUMigInstanceTimeseriesRequest]) (*connect.Response[v1.GetNodeGPUMigInstanceTimeseriesResponse], error) {
+	return c.getNodeGPUMigInstanceTimeseries.CallUnary(ctx, req)
 }
 
 // GetContainerIndividualGPUMetrics calls api.v1.K8SService.GetContainerIndividualGPUMetrics.
@@ -931,6 +949,10 @@ type K8SServiceHandler interface {
 	// GetNodeGPUMigInstances retrieves the most recent MIG-instance telemetry for a node.
 	// Returns an empty instances list for nodes with no MIG-partitioned GPUs.
 	GetNodeGPUMigInstances(context.Context, *connect.Request[v1.GetNodeGPUMigInstancesRequest]) (*connect.Response[v1.GetNodeGPUMigInstancesResponse], error)
+	// GetNodeGPUMigInstanceTimeseries retrieves per-MIG-instance utilization as
+	// a time series for a node over a time range. Returns an empty instances
+	// list for nodes with no MIG-partitioned GPUs.
+	GetNodeGPUMigInstanceTimeseries(context.Context, *connect.Request[v1.GetNodeGPUMigInstanceTimeseriesRequest]) (*connect.Response[v1.GetNodeGPUMigInstanceTimeseriesResponse], error)
 	// GetContainerIndividualGPUMetrics retrieves the most recent per-GPU breakdown for every
 	// container in a workload that has GPU data.
 	GetContainerIndividualGPUMetrics(context.Context, *connect.Request[v1.GetContainerIndividualGPUMetricsRequest]) (*connect.Response[v1.GetContainerIndividualGPUMetricsResponse], error)
@@ -1112,6 +1134,11 @@ func NewK8SServiceHandler(svc K8SServiceHandler, opts ...connect.HandlerOption) 
 		svc.GetNodeGPUMigInstances,
 		opts...,
 	)
+	k8SServiceGetNodeGPUMigInstanceTimeseriesHandler := connect.NewUnaryHandler(
+		K8SServiceGetNodeGPUMigInstanceTimeseriesProcedure,
+		svc.GetNodeGPUMigInstanceTimeseries,
+		opts...,
+	)
 	k8SServiceGetContainerIndividualGPUMetricsHandler := connect.NewUnaryHandler(
 		K8SServiceGetContainerIndividualGPUMetricsProcedure,
 		svc.GetContainerIndividualGPUMetrics,
@@ -1284,6 +1311,8 @@ func NewK8SServiceHandler(svc K8SServiceHandler, opts ...connect.HandlerOption) 
 			k8SServiceGetLatestContainerRequestLimitsHandler.ServeHTTP(w, r)
 		case K8SServiceGetNodeGPUMigInstancesProcedure:
 			k8SServiceGetNodeGPUMigInstancesHandler.ServeHTTP(w, r)
+		case K8SServiceGetNodeGPUMigInstanceTimeseriesProcedure:
+			k8SServiceGetNodeGPUMigInstanceTimeseriesHandler.ServeHTTP(w, r)
 		case K8SServiceGetContainerIndividualGPUMetricsProcedure:
 			k8SServiceGetContainerIndividualGPUMetricsHandler.ServeHTTP(w, r)
 		case K8SServiceGetWorkloadLanguagesProcedure:
@@ -1439,6 +1468,10 @@ func (UnimplementedK8SServiceHandler) GetLatestContainerRequestLimits(context.Co
 
 func (UnimplementedK8SServiceHandler) GetNodeGPUMigInstances(context.Context, *connect.Request[v1.GetNodeGPUMigInstancesRequest]) (*connect.Response[v1.GetNodeGPUMigInstancesResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.K8SService.GetNodeGPUMigInstances is not implemented"))
+}
+
+func (UnimplementedK8SServiceHandler) GetNodeGPUMigInstanceTimeseries(context.Context, *connect.Request[v1.GetNodeGPUMigInstanceTimeseriesRequest]) (*connect.Response[v1.GetNodeGPUMigInstanceTimeseriesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.K8SService.GetNodeGPUMigInstanceTimeseries is not implemented"))
 }
 
 func (UnimplementedK8SServiceHandler) GetContainerIndividualGPUMetrics(context.Context, *connect.Request[v1.GetContainerIndividualGPUMetricsRequest]) (*connect.Response[v1.GetContainerIndividualGPUMetricsResponse], error) {

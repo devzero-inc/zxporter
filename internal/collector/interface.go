@@ -158,6 +158,10 @@ const (
 	MigPartedConfig
 	NodeLifecycleTransition
 	PodUnschedulableEvent
+	// SchedulerPlacementMetric identifies the collector that scrapes dz-scheduler's
+	// auth-gated /metrics endpoint and emits its allow-listed Prometheus families as
+	// typed rows (see scheduler_metrics_collector.go).
+	SchedulerPlacementMetric
 	// ClusterAutoscalerStatus identifies the collector that watches the
 	// kube-system/cluster-autoscaler-status ConfigMap. It is a COLLECTOR identity only:
 	// that collector's output rides the ordinary Event resource type (see
@@ -236,6 +240,7 @@ func (r ResourceType) String() string {
 		MigPartedConfig:              "mig_parted_config",
 		NodeLifecycleTransition:      "node_lifecycle_transition",
 		PodUnschedulableEvent:        "pod_unschedulable_event",
+		SchedulerPlacementMetric:     "scheduler_placement_metric",
 		ClusterAutoscalerStatus:      "cluster_autoscaler_status",
 	}
 
@@ -315,6 +320,7 @@ var resourceProtoTypes = map[ResourceType]gen.ResourceType{
 	MigPartedConfig:              gen.ResourceType_RESOURCE_TYPE_MIG_PARTED_CONFIG,
 	NodeLifecycleTransition:      gen.ResourceType_RESOURCE_TYPE_NODE_LIFECYCLE_TRANSITION,
 	PodUnschedulableEvent:        gen.ResourceType_RESOURCE_TYPE_POD_UNSCHEDULABLE_EVENT,
+	SchedulerPlacementMetric:     gen.ResourceType_RESOURCE_TYPE_SCHEDULER_PLACEMENT_METRIC,
 }
 
 // ProtoType returns the protobuf wire enum for the ResourceType.
