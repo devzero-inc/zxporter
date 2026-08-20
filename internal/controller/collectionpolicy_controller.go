@@ -167,6 +167,12 @@ type PolicyConfig struct {
 	NodeMetricsConcurrency  int
 	NodemonRequestTimeout   time.Duration
 	KubeletFallbackTimeout  time.Duration
+
+	// SchedulerMetricsScrapeInterval bounds how often the SchedulerMetrics
+	// collector scrapes dz-scheduler's /metrics endpoint. See
+	// collector.DefaultSchedulerMetricsScrapeInterval's doc comment for the
+	// default's reasoning.
+	SchedulerMetricsScrapeInterval time.Duration
 }
 
 // ========================================
@@ -217,6 +223,16 @@ type PolicyConfig struct {
 // +kubebuilder:rbac:groups="",resources=nodes/metrics,verbs=get
 // nodes/proxy: kubelet Summary API fallback (/stats/summary) for nodes without a nodemon pod
 // +kubebuilder:rbac:groups="",resources=nodes/proxy,verbs=get
+
+// SchedulerMetricsCollector (issue #10055): reads the dz-scheduler Lease's holderIdentity
+// to scrape the current leader pod directly instead of the Service VIP, which could
+// otherwise get stuck scraping a standby replica that reports all-zero placement metrics.
+// Restricted to the one named Lease dz-scheduler ships -- this collector never needs any
+// other Lease in the cluster. zxporter's own leader-election Role (config/rbac/leader_election_role.yaml)
+// does NOT cover this: that Role is namespaced to wherever zxporter itself is deployed,
+// which is not always devzero-system (dz-scheduler's namespace) -- see
+// docs/prometheus-migration-guide.md's devzero-zxporter examples.
+// +kubebuilder:rbac:groups=coordination.k8s.io,resources=leases,resourceNames=dz-scheduler,verbs=get
 
 // Core Kubernetes resources (READ-ONLY monitoring and collection)
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch
@@ -511,6 +527,20 @@ func (r *CollectionPolicyReconciler) createNewConfig(
 		}
 	} else {
 		newConfig.KubeletFallbackTimeout = 15 * time.Second // Default
+	}
+
+	// Bound how often the SchedulerMetrics collector scrapes dz-scheduler's
+	// /metrics endpoint.
+	schedulerMetricsScrapeIntervalStr := envSpec.Policies.SchedulerMetricsScrapeInterval
+	if schedulerMetricsScrapeIntervalStr != "" {
+		if interval, err := time.ParseDuration(schedulerMetricsScrapeIntervalStr); err == nil && interval > 0 {
+			newConfig.SchedulerMetricsScrapeInterval = interval
+		} else {
+			logger.Error(err, "Error parsing scheduler metrics scrape interval", "interval", schedulerMetricsScrapeIntervalStr)
+			newConfig.SchedulerMetricsScrapeInterval = collector.DefaultSchedulerMetricsScrapeInterval
+		}
+	} else {
+		newConfig.SchedulerMetricsScrapeInterval = collector.DefaultSchedulerMetricsScrapeInterval
 	}
 
 	// Set cluster snapshot interval (defaults to 3h for reduced network usage)
@@ -1002,6 +1032,10 @@ func (r *CollectionPolicyReconciler) identifyAffectedCollectors(
 
 	if oldConfig.ClusterSnapshotInterval != newConfig.ClusterSnapshotInterval {
 		affectedCollectors["cluster_snapshot"] = true
+	}
+
+	if oldConfig.SchedulerMetricsScrapeInterval != newConfig.SchedulerMetricsScrapeInterval {
+		affectedCollectors["scheduler_placement_metric"] = true
 	}
 
 	if !reflect.DeepEqual(oldConfig.ExcludedCSINodes, newConfig.ExcludedCSINodes) {
@@ -1859,6 +1893,16 @@ func (r *CollectionPolicyReconciler) restartCollectors(
 				newConfig.ExcludedCNPGClusters,
 				collector.DefaultMaxBatchSize,
 				newConfig.UpdateInterval,
+				logger,
+				r.TelemetryLogger,
+			)
+		case "scheduler_placement_metric":
+			replacedCollector = collector.NewSchedulerMetricsCollector(
+				r.K8sClient,
+				collector.NewSchedulerMetricsHTTPClientOrFailing(logger),
+				newConfig.SchedulerMetricsScrapeInterval,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
 				logger,
 				r.TelemetryLogger,
 			)
@@ -3419,6 +3463,29 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				return collector.NewGatekeeperConstraintCollector(
 					r.DynamicClient,
 					r.DiscoveryClient,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+					r.TelemetryLogger,
+				)
+			},
+		},
+		{
+			collector: collector.NewSchedulerMetricsCollector(
+				r.K8sClient,
+				collector.NewSchedulerMetricsHTTPClientOrFailing(logger),
+				config.SchedulerMetricsScrapeInterval,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+				r.TelemetryLogger,
+			),
+			name: collector.SchedulerPlacementMetric,
+			factory: func() collector.ResourceCollector {
+				return collector.NewSchedulerMetricsCollector(
+					r.K8sClient,
+					collector.NewSchedulerMetricsHTTPClientOrFailing(logger),
+					config.SchedulerMetricsScrapeInterval,
 					collector.DefaultMaxBatchSize,
 					collector.DefaultMaxBatchTime,
 					logger,

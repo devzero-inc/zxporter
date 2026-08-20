@@ -17,8 +17,12 @@ data:
     DCGM_FI_DEV_GPU_UTIL, gauge, GPU utilization (in %).
     # DCGM_FI_PROF_SM_ACTIVE, gauge, The ratio of cycles an SM has at least 1 warp assigned
     # DCGM_FI_PROF_SM_OCCUPANCY, gauge, The fraction of resident warps on a multiprocessor
-    # DCGM_FI_PROF_GR_ENGINE_ACTIVE, gauge, Ratio of time the graphics engine is active (in %).
-    # DCGM_FI_PROF_DRAM_ACTIVE, gauge, The ratio of cycles the device memory interface is active sending or receiving data.
+    # Enabled: required for per-MIG-instance profiling data (GPU_I_PROFILE/GPU_I_ID
+    # labels only attach to DCGM_FI_PROF_* fields, never to plain DCGM_FI_DEV_*
+    # ones) and directly consumed by nodemon's GPUMigInstance parsing
+    # (GraphicsEngineActive/DRAMActive/TensorActive below).
+    DCGM_FI_PROF_GR_ENGINE_ACTIVE, gauge, Ratio of time the graphics engine is active (in %).
+    DCGM_FI_PROF_DRAM_ACTIVE, gauge, The ratio of cycles the device memory interface is active sending or receiving data.
 
     # Memory usage,,
     DCGM_FI_DEV_FB_FREE, gauge, Framebuffer memory free (in MiB).
@@ -37,7 +41,9 @@ data:
     # DCGM_FI_PROF_PIPE_FP16_ACTIVE, gauge, Ratio of cycles the fp16 pipe is active.
     # DCGM_FI_PROF_PIPE_FP32_ACTIVE, gauge, Ratio of cycles the fp32 pipe is active.
     # DCGM_FI_PROF_PIPE_FP64_ACTIVE, gauge, Ratio of cycles the fp64 pipe is active.
-    # DCGM_FI_PROF_PIPE_TENSOR_ACTIVE, gauge, The ratio of cycles the tensor (HMMA) pipe is active (off the peak sustained elapsed cycles)
+    # Enabled: see the GR_ENGINE_ACTIVE/DRAM_ACTIVE note above -- this is
+    # GPUMigInstance.TensorActive.
+    DCGM_FI_PROF_PIPE_TENSOR_ACTIVE, gauge, The ratio of cycles the tensor (HMMA) pipe is active (off the peak sustained elapsed cycles)
 
     # Health,,
     # DCGM_FI_DEV_CLOCKS_EVENT_REASONS is not supported by DCGM 3.3.7
