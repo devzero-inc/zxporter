@@ -68,6 +68,13 @@ const (
 // dakr REJECTS an event carrying any other value — k8sconverters gates the field against
 // models.AllDisruptionBlockReasons and drops the whole item on an unknown one — so these
 // strings are exact, case-sensitive contract, not labels.
+//
+// This set is a strict SUBSET of models.AllDisruptionBlockReasons, and that is not a bug.
+// Three of dakr's buckets have no producer here because they cannot be derived from live
+// cluster state at all: DisruptionBudget and PodsWouldNotSchedule have always been
+// read-side-only, and PodNominated joined them when its at-source derivation was removed as
+// unsound (see classifyDisruptionBlocked). The gate is one-directional — dakr accepts the
+// union, so a value this file never emits is still ingested from an older agent that does.
 const (
 	disruptionBlockReasonPDBViolation           = "PDBViolation"
 	disruptionBlockReasonDoNotDisruptAnnotation = "DoNotDisruptAnnotation"
@@ -148,12 +155,23 @@ func (s *disruptionSources) nodeClaims() nodeClaimSource {
 
 // disruptionBlockClassification is the outcome of classifying one DisruptionBlocked event.
 type disruptionBlockClassification struct {
-	// Reason is always one of the four disruptionBlockReason* values.
+	// Reason is always one of the disruptionBlockReason* values.
 	Reason string
 	// BlockingPDBName is "namespace/name" of the PDB that blocked eviction, set only
 	// alongside PDBViolation. Nil rather than "" so dakr can write a real NULL: "no PDB was
 	// involved" is not the same fact as "a PDB with an empty name".
 	BlockingPDBName *string
+	// RelatedPodName is "namespace/name" of the pod behind the classification. Only
+	// DoNotDisruptAnnotation sets it today, naming the pod that carries the annotation.
+	// Nil, not "", for the same reason as BlockingPDBName — and because that reason IS
+	// reachable without a specific pod identity in hand (nodeClaimBlocked's node-level
+	// annotation path has no pod at all), so nil must mean "not applicable here", not
+	// "lookup failed".
+	//
+	// The column it feeds (k8s_events.related_pod_name) is documented for PodNominated too,
+	// which this file no longer produces — see classifyDisruptionBlocked. That is a
+	// forward-compatible column, not a contract this classifier owes.
+	RelatedPodName *string
 }
 
 // isKarpenterDisruptionBlocked reports whether an event is the Karpenter DisruptionBlocked
@@ -189,10 +207,39 @@ func isKarpenterDisruptionBlocked(event *corev1.Event) bool {
 //     pod's annotation and returns on the first hit, and only then consults PDBs), so a
 //     node with both produces the annotation event upstream too.
 //  4. Other — the node-level blocks that are neither: uninitialized, already deleting,
-//     nominated for a pending pod, missing its NodePool label. Also where an
-//     unresolvable node, an unavailable collector, or a stale cache lands. It is a real
-//     classification, not a failure: the verbatim message survives in k8s_events.message,
-//     which is the only place the detail exists.
+//     missing its NodePool label. Also where an unresolvable node, an unavailable
+//     collector, or a stale cache lands. It is a real classification, not a failure: the
+//     verbatim message survives in k8s_events.message, which is the only place that detail
+//     exists.
+//
+// PodNominated is deliberately NOT derived here, and must not be re-added. The obvious
+// signal for it is the wrong one, which is why the check that used to sit at precedence 4
+// was deleted rather than reordered:
+//
+//   - The field it read, pod.Status.NominatedNodeName, is kube-scheduler PREEMPTION state.
+//     Karpenter's own helper for that field is named IsPreempting
+//     (pkg/utils/pod/scheduling.go) and Karpenter never consults it when deciding whether a
+//     node is nominated.
+//   - Karpenter's "node is nominated for a pending pod" block comes from
+//     StateNode.Nominated(clk), which reads nominatedUntil: an unexported, in-memory,
+//     providerID-keyed timestamp the provisioning scheduler stamps for
+//     max(2 x BatchMaxDuration, 10s) — about 20 seconds with the defaults
+//     (scheduling/scheduler.go calls Cluster.NominateNodeForPod, which calls
+//     StateNode.Nominate). Verified identical in sigs.k8s.io/karpenter v1.7.1 and v1.12.1.
+//   - That state is therefore NOT observable through the Kubernetes API at all: no CRD
+//     field, no annotation, no status condition, no event other than the DisruptionBlocked
+//     message itself. No amount of extra cluster state gets this bucket right at the source.
+//
+// So the read-side message parse owns it — disruptionBlockMessageRules in dakr's
+// repositories/event_clickhouse.go — and for this one bucket that parse is exact rather
+// than heuristic: "node is nominated for a pending pod" is a fixed string with no
+// interpolation, so there is nothing version-fragile to hedge against.
+//
+// The deleted derivation had never once fired: across 1,156 preprod rows this classifier
+// actually produced, PodNominated appeared zero times, while roughly 36% of production
+// blocking events (folded per event) carry that message. The nodes that were BOTH
+// preempting and blocked landed in DoNotDisruptAnnotation or PDBViolation, which is also
+// the correct answer, so nothing regressed by removing it.
 //
 // Never returns an empty Reason.
 func classifyDisruptionBlocked(
@@ -229,7 +276,11 @@ func classifyDisruptionBlocked(
 
 	for _, pod := range pods {
 		if podOptedOutOfDisruption(pod) {
-			return disruptionBlockClassification{Reason: disruptionBlockReasonDoNotDisruptAnnotation}
+			podName := pod.Namespace + "/" + pod.Name
+			return disruptionBlockClassification{
+				Reason:         disruptionBlockReasonDoNotDisruptAnnotation,
+				RelatedPodName: &podName,
+			}
 		}
 	}
 	if nodeClaimBlocked {
