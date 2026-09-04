@@ -170,8 +170,8 @@ func (c *DaemonSetCollector) daemonSetChanged(oldDaemonSet, newDaemonSet *appsv1
 		oldDaemonSet.ObjectMeta,
 		newDaemonSet.ObjectMeta,
 	)
-	if changed != IgnoreChanges {
-		return changed == PushChanges
+	if changed == PushChanges {
+		return true
 	}
 
 	// Check for status changes
