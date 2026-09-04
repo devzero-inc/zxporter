@@ -8,7 +8,17 @@ const sampleSummaryJSON = `{
   "node": {
     "nodeName": "node-a",
     "cpu": {"time": "2026-06-17T10:00:00Z", "usageNanoCores": 1500000000},
-    "memory": {"workingSetBytes": 2147483648}
+    "memory": {"workingSetBytes": 2147483648},
+    "fs": {
+      "availableBytes": 94501658624, "capacityBytes": 107294470144, "usedBytes": 12792811520,
+      "inodesFree": 52254168, "inodes": 52422640, "inodesUsed": 168472
+    },
+    "runtime": {
+      "imageFs": {
+        "availableBytes": 94501658624, "capacityBytes": 107294470144, "usedBytes": 6701690880,
+        "inodesFree": 52254168, "inodes": 52422640, "inodesUsed": 78769
+      }
+    }
   },
   "pods": [
     {
@@ -89,6 +99,45 @@ func TestParseKubeletSummary_ContainerMetrics(t *testing.T) {
 	}
 	if side.MemoryUsageBytes != 0 || side.MemoryRSSBytes != 0 {
 		t.Errorf("sidecar expected zero usage/rss, got usage=%d rss=%d", side.MemoryUsageBytes, side.MemoryRSSBytes)
+	}
+}
+
+func TestParseKubeletSummary_NodeStorage(t *testing.T) {
+	summary, err := parseKubeletSummary([]byte(sampleSummaryJSON), "node-a")
+	if err != nil {
+		t.Fatalf("parse failed: %v", err)
+	}
+
+	nm := nodeMetricFromSummary("node-a", summary)
+	if nm.NodefsUsedBytes != 12792811520 {
+		t.Errorf("NodefsUsedBytes = %d, want 12792811520", nm.NodefsUsedBytes)
+	}
+	if nm.NodefsCapacityBytes != 107294470144 {
+		t.Errorf("NodefsCapacityBytes = %d, want 107294470144", nm.NodefsCapacityBytes)
+	}
+	if nm.NodefsInodesTotal != 52422640 {
+		t.Errorf("NodefsInodesTotal = %d, want 52422640", nm.NodefsInodesTotal)
+	}
+	if nm.ImagefsUsedBytes != 6701690880 {
+		t.Errorf("ImagefsUsedBytes = %d, want 6701690880", nm.ImagefsUsedBytes)
+	}
+	if !nm.ImagefsSharedDevice {
+		t.Error("ImagefsSharedDevice = false, want true")
+	}
+}
+
+// The kubelet fallback path must be usable for a node whose summary omits the
+// storage sections entirely — older kubelets, or a runtime that reports none.
+func TestParseKubeletSummary_NodeStorageAbsent(t *testing.T) {
+	const noFS = `{"node": {"nodeName": "node-a", "cpu": {"usageNanoCores": 1}}, "pods": []}`
+	summary, err := parseKubeletSummary([]byte(noFS), "node-a")
+	if err != nil {
+		t.Fatalf("parse failed: %v", err)
+	}
+
+	nm := nodeMetricFromSummary("node-a", summary)
+	if nm.NodefsCapacityBytes != 0 || nm.ImagefsSharedDevice {
+		t.Errorf("expected zeroed storage, got %+v", nm)
 	}
 }
 
