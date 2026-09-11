@@ -278,6 +278,8 @@ rules:
 - apiGroups:
   - argoproj.io
   resources:
+  - applications
+  - applicationsets
   - rollouts
   verbs:
   - get
@@ -325,6 +327,14 @@ rules:
   - get
   - list
   - watch
+- apiGroups:
+  - coordination.k8s.io
+  resourceNames:
+  - dz-scheduler
+  resources:
+  - leases
+  verbs:
+  - get
 - apiGroups:
   - dakr.devzero.io
   resources:
@@ -645,6 +655,19 @@ subjects:
   name: devzero-zxporter-controller-manager
   namespace: devzero-system
 ---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: devzero-zxporter-metrics-reader-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: devzero-zxporter-metrics-reader
+subjects:
+- kind: ServiceAccount
+  name: devzero-zxporter-controller-manager
+  namespace: devzero-system
+---
 apiVersion: v1
 data:
   BUFFER_SIZE: ""
@@ -684,6 +707,7 @@ data:
   EXCLUDED_STORAGECLASSES: ""
   EXCLUDED_VPAS: ""
   K8S_PROVIDER: '{{ .k8s_provider }}'
+  KEDA_METRICS_ENDPOINT: ""
   KUBE_CONTEXT_NAME: '{{ .kube_context_name }}'
   KUBELET_FALLBACK_TIMEOUT: 15s
   MASK_SECRET_DATA: ""
@@ -692,6 +716,7 @@ data:
   NODE_METRICS_CONCURRENCY: "20"
   NODE_METRICS_INTERVAL: ""
   NODEMON_REQUEST_TIMEOUT: 15s
+  SCHEDULER_METRICS_SCRAPE_INTERVAL: ""
   TARGET_NAMESPACES: ""
   TOKEN_CONFIGMAP_NAME: devzero-zxporter-env-config
   TOKEN_CREDENTIALS_SECRET_NAME: devzero-zxporter-credentials

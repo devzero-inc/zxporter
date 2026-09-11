@@ -158,12 +158,27 @@ const (
 	MigPartedConfig
 	NodeLifecycleTransition
 	PodUnschedulableEvent
+	// SchedulerPlacementMetric identifies the collector that scrapes dz-scheduler's
+	// auth-gated /metrics endpoint and emits its allow-listed Prometheus families as
+	// typed rows (see scheduler_metrics_collector.go).
+	SchedulerPlacementMetric
 	// ClusterAutoscalerStatus identifies the collector that watches the
 	// kube-system/cluster-autoscaler-status ConfigMap. It is a COLLECTOR identity only:
 	// that collector's output rides the ordinary Event resource type (see
 	// cluster_autoscaler_status.go), so this value never reaches the wire and
 	// deliberately has no ProtoType case.
 	ClusterAutoscalerStatus
+	// KedaScalerMetrics identifies the collector that scrapes per-trigger scaler
+	// metric samples from the KEDA operator /metrics endpoint.  It is a COLLECTOR
+	// identity only: data is forwarded directly via SendScalerMetrics and never
+	// travels through the combined resource channel, so this value has no
+	// ProtoType case.
+	KedaScalerMetrics
+	// ArgoCDApplication and ArgoCDApplicationSet are Argo CD (argoproj.io
+	// Application / ApplicationSet), NOT Argo Rollouts -- ArgoRollouts above is a
+	// different project that happens to share the argoproj.io group.
+	ArgoCDApplication
+	ArgoCDApplicationSet
 )
 
 // String returns the string representation of the ResourceType
@@ -236,7 +251,11 @@ func (r ResourceType) String() string {
 		MigPartedConfig:              "mig_parted_config",
 		NodeLifecycleTransition:      "node_lifecycle_transition",
 		PodUnschedulableEvent:        "pod_unschedulable_event",
+		SchedulerPlacementMetric:     "scheduler_placement_metric",
 		ClusterAutoscalerStatus:      "cluster_autoscaler_status",
+		KedaScalerMetrics:            "keda_scaler_metrics",
+		ArgoCDApplication:            "argo_cd_application",
+		ArgoCDApplicationSet:         "argo_cd_application_set",
 	}
 
 	if name, ok := names[r]; ok {
@@ -315,6 +334,9 @@ var resourceProtoTypes = map[ResourceType]gen.ResourceType{
 	MigPartedConfig:              gen.ResourceType_RESOURCE_TYPE_MIG_PARTED_CONFIG,
 	NodeLifecycleTransition:      gen.ResourceType_RESOURCE_TYPE_NODE_LIFECYCLE_TRANSITION,
 	PodUnschedulableEvent:        gen.ResourceType_RESOURCE_TYPE_POD_UNSCHEDULABLE_EVENT,
+	SchedulerPlacementMetric:     gen.ResourceType_RESOURCE_TYPE_SCHEDULER_PLACEMENT_METRIC,
+	ArgoCDApplication:            gen.ResourceType_RESOURCE_TYPE_ARGO_APPLICATION,
+	ArgoCDApplicationSet:         gen.ResourceType_RESOURCE_TYPE_ARGO_APPLICATION_SET,
 }
 
 // ProtoType returns the protobuf wire enum for the ResourceType.

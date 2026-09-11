@@ -63,9 +63,26 @@ spec:
               value: {{ .Values.config.exportInterval | quote }}
           args:
             - "-collector-mode={{ .Values.config.collectorMode }}"
+            - "-metrics-bind-address=:{{ .Values.config.containerPort }}"
+            {{- if .Values.config.containerRedMetrics }}
+            - "-container-red-metrics"
+            {{- end }}
+            {{- if .Values.config.pprofBindAddress }}
+            - "-pprof-bind-address={{ .Values.config.pprofBindAddress }}"
+            {{- if .Values.config.pprofMutexFraction }}
+            - "-pprof-mutex-fraction={{ .Values.config.pprofMutexFraction }}"
+            {{- end }}
+            {{- if .Values.config.pprofBlockRate }}
+            - "-pprof-block-rate={{ .Values.config.pprofBlockRate }}"
+            {{- end }}
+            {{- end }}
             # - "-log-level={{ .Values.config.logLevel }}"
           resources:
+            {{- if .Values.config.containerRedMetrics }}
+            {{- toYaml .Values.containerRedMetricsResources | nindent 12 }}
+            {{- else }}
             {{- toYaml .Values.resources | nindent 12 }}
+            {{- end }}
           volumeMounts:
             - name: zxporter-config
               mountPath: /etc/zxporter

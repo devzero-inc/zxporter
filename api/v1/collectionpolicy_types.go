@@ -106,6 +106,10 @@ type Exclusions struct {
 
 	// CloudNativePG Exclusions
 	ExcludedCNPGClusters []ExcludedCNPGCluster `json:"excludedCNPGClusters,omitempty"`
+
+	// Argo CD Exclusions
+	ExcludedArgoCDApplications    []ExcludedArgoCDApplication    `json:"excludedArgoCDApplications,omitempty"`
+	ExcludedArgoCDApplicationSets []ExcludedArgoCDApplicationSet `json:"excludedArgoCDApplicationSets,omitempty"`
 }
 
 // Common exclusion patterns
@@ -434,6 +438,24 @@ type ExcludedCNPGCluster struct {
 	Name string `json:"name"`
 }
 
+// ExcludedArgoCDApplication identifies an Argo CD Application to exclude from collection
+type ExcludedArgoCDApplication struct {
+	// Namespace is the Argo CD Application's namespace
+	Namespace string `json:"namespace"`
+
+	// Name is the Argo CD Application's name
+	Name string `json:"name"`
+}
+
+// ExcludedArgoCDApplicationSet identifies an Argo CD ApplicationSet to exclude from collection
+type ExcludedArgoCDApplicationSet struct {
+	// Namespace is the Argo CD ApplicationSet's namespace
+	Namespace string `json:"namespace"`
+
+	// Name is the Argo CD ApplicationSet's name
+	Name string `json:"name"`
+}
+
 // Policies defines collection behavior
 type Policies struct {
 	// KubeContextName is the name of the current context being used to apply the installation yaml
@@ -503,6 +525,20 @@ type Policies struct {
 	// indefinitely. A Go duration string (e.g. "15s", "10s").
 	// +optional
 	KubeletFallbackTimeout string `json:"kubeletFallbackTimeout,omitempty"`
+
+	// SchedulerMetricsScrapeInterval bounds how often the SchedulerMetrics
+	// collector scrapes dz-scheduler's /metrics endpoint (defaults to 60s --
+	// see collector.DefaultSchedulerMetricsScrapeInterval's doc comment for
+	// why). A Go duration string (e.g. "60s", "30s").
+	// +optional
+	SchedulerMetricsScrapeInterval string `json:"schedulerMetricsScrapeInterval,omitempty"`
+
+	// KEDAMetricsEndpoint is the full URL of the KEDA operator /metrics endpoint
+	// that the KedaScalerMetrics collector scrapes. Defaults to
+	// collector.DefaultKedaMetricsEndpoint (KEDA in the devzero-system namespace).
+	// Override only when KEDA runs in a different namespace or on a different port.
+	// +optional
+	KEDAMetricsEndpoint string `json:"kedaMetricsEndpoint,omitempty"`
 
 	// ClusterSnapshotInterval is how often to take cluster snapshots (defaults to 3h)
 	ClusterSnapshotInterval string `json:"clusterSnapshotInterval,omitempty"`

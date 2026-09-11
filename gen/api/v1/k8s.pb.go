@@ -22,6 +22,119 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type NodeClaimNotDeletableReason int32
+
+const (
+	NodeClaimNotDeletableReason_NODE_CLAIM_NOT_DELETABLE_REASON_UNSPECIFIED      NodeClaimNotDeletableReason = 0 // deletable
+	NodeClaimNotDeletableReason_NODE_CLAIM_NOT_DELETABLE_REASON_NODE_NOT_LIVE    NodeClaimNotDeletableReason = 1 // no node metrics in the liveness window, or node soft-deleted
+	NodeClaimNotDeletableReason_NODE_CLAIM_NOT_DELETABLE_REASON_TERMINATING      NodeClaimNotDeletableReason = 2 // NodeClaim already carries a deletionTimestamp
+	NodeClaimNotDeletableReason_NODE_CLAIM_NOT_DELETABLE_REASON_IN_FLIGHT        NodeClaimNotDeletableReason = 3 // an unresolved request exists (latest_status carries it)
+	NodeClaimNotDeletableReason_NODE_CLAIM_NOT_DELETABLE_REASON_OPERATOR_VERSION NodeClaimNotDeletableReason = 4 // dakr-op absent, not pinging, or older than min_operator_version
+)
+
+// Enum value maps for NodeClaimNotDeletableReason.
+var (
+	NodeClaimNotDeletableReason_name = map[int32]string{
+		0: "NODE_CLAIM_NOT_DELETABLE_REASON_UNSPECIFIED",
+		1: "NODE_CLAIM_NOT_DELETABLE_REASON_NODE_NOT_LIVE",
+		2: "NODE_CLAIM_NOT_DELETABLE_REASON_TERMINATING",
+		3: "NODE_CLAIM_NOT_DELETABLE_REASON_IN_FLIGHT",
+		4: "NODE_CLAIM_NOT_DELETABLE_REASON_OPERATOR_VERSION",
+	}
+	NodeClaimNotDeletableReason_value = map[string]int32{
+		"NODE_CLAIM_NOT_DELETABLE_REASON_UNSPECIFIED":      0,
+		"NODE_CLAIM_NOT_DELETABLE_REASON_NODE_NOT_LIVE":    1,
+		"NODE_CLAIM_NOT_DELETABLE_REASON_TERMINATING":      2,
+		"NODE_CLAIM_NOT_DELETABLE_REASON_IN_FLIGHT":        3,
+		"NODE_CLAIM_NOT_DELETABLE_REASON_OPERATOR_VERSION": 4,
+	}
+)
+
+func (x NodeClaimNotDeletableReason) Enum() *NodeClaimNotDeletableReason {
+	p := new(NodeClaimNotDeletableReason)
+	*p = x
+	return p
+}
+
+func (x NodeClaimNotDeletableReason) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (NodeClaimNotDeletableReason) Descriptor() protoreflect.EnumDescriptor {
+	return file_api_v1_k8s_proto_enumTypes[0].Descriptor()
+}
+
+func (NodeClaimNotDeletableReason) Type() protoreflect.EnumType {
+	return &file_api_v1_k8s_proto_enumTypes[0]
+}
+
+func (x NodeClaimNotDeletableReason) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use NodeClaimNotDeletableReason.Descriptor instead.
+func (NodeClaimNotDeletableReason) EnumDescriptor() ([]byte, []int) {
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{0}
+}
+
+type NodeClaimDeletionState int32
+
+const (
+	NodeClaimDeletionState_NODE_CLAIM_DELETION_STATE_UNSPECIFIED NodeClaimDeletionState = 0
+	NodeClaimDeletionState_NODE_CLAIM_DELETION_STATE_PENDING     NodeClaimDeletionState = 1
+	NodeClaimDeletionState_NODE_CLAIM_DELETION_STATE_SENT        NodeClaimDeletionState = 2
+	NodeClaimDeletionState_NODE_CLAIM_DELETION_STATE_ACCEPTED    NodeClaimDeletionState = 3
+	NodeClaimDeletionState_NODE_CLAIM_DELETION_STATE_DELETED     NodeClaimDeletionState = 4
+	NodeClaimDeletionState_NODE_CLAIM_DELETION_STATE_FAILED      NodeClaimDeletionState = 5
+)
+
+// Enum value maps for NodeClaimDeletionState.
+var (
+	NodeClaimDeletionState_name = map[int32]string{
+		0: "NODE_CLAIM_DELETION_STATE_UNSPECIFIED",
+		1: "NODE_CLAIM_DELETION_STATE_PENDING",
+		2: "NODE_CLAIM_DELETION_STATE_SENT",
+		3: "NODE_CLAIM_DELETION_STATE_ACCEPTED",
+		4: "NODE_CLAIM_DELETION_STATE_DELETED",
+		5: "NODE_CLAIM_DELETION_STATE_FAILED",
+	}
+	NodeClaimDeletionState_value = map[string]int32{
+		"NODE_CLAIM_DELETION_STATE_UNSPECIFIED": 0,
+		"NODE_CLAIM_DELETION_STATE_PENDING":     1,
+		"NODE_CLAIM_DELETION_STATE_SENT":        2,
+		"NODE_CLAIM_DELETION_STATE_ACCEPTED":    3,
+		"NODE_CLAIM_DELETION_STATE_DELETED":     4,
+		"NODE_CLAIM_DELETION_STATE_FAILED":      5,
+	}
+)
+
+func (x NodeClaimDeletionState) Enum() *NodeClaimDeletionState {
+	p := new(NodeClaimDeletionState)
+	*p = x
+	return p
+}
+
+func (x NodeClaimDeletionState) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (NodeClaimDeletionState) Descriptor() protoreflect.EnumDescriptor {
+	return file_api_v1_k8s_proto_enumTypes[1].Descriptor()
+}
+
+func (NodeClaimDeletionState) Type() protoreflect.EnumType {
+	return &file_api_v1_k8s_proto_enumTypes[1]
+}
+
+func (x NodeClaimDeletionState) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use NodeClaimDeletionState.Descriptor instead.
+func (NodeClaimDeletionState) EnumDescriptor() ([]byte, []int) {
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{1}
+}
+
 type GalaxyPOVNodeGroupBy int32
 
 const (
@@ -85,11 +198,11 @@ func (x GalaxyPOVNodeGroupBy) String() string {
 }
 
 func (GalaxyPOVNodeGroupBy) Descriptor() protoreflect.EnumDescriptor {
-	return file_api_v1_k8s_proto_enumTypes[0].Descriptor()
+	return file_api_v1_k8s_proto_enumTypes[2].Descriptor()
 }
 
 func (GalaxyPOVNodeGroupBy) Type() protoreflect.EnumType {
-	return &file_api_v1_k8s_proto_enumTypes[0]
+	return &file_api_v1_k8s_proto_enumTypes[2]
 }
 
 func (x GalaxyPOVNodeGroupBy) Number() protoreflect.EnumNumber {
@@ -98,7 +211,7 @@ func (x GalaxyPOVNodeGroupBy) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use GalaxyPOVNodeGroupBy.Descriptor instead.
 func (GalaxyPOVNodeGroupBy) EnumDescriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{0}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{2}
 }
 
 type GalaxyPOVWorkloadGroupBy int32
@@ -170,11 +283,11 @@ func (x GalaxyPOVWorkloadGroupBy) String() string {
 }
 
 func (GalaxyPOVWorkloadGroupBy) Descriptor() protoreflect.EnumDescriptor {
-	return file_api_v1_k8s_proto_enumTypes[1].Descriptor()
+	return file_api_v1_k8s_proto_enumTypes[3].Descriptor()
 }
 
 func (GalaxyPOVWorkloadGroupBy) Type() protoreflect.EnumType {
-	return &file_api_v1_k8s_proto_enumTypes[1]
+	return &file_api_v1_k8s_proto_enumTypes[3]
 }
 
 func (x GalaxyPOVWorkloadGroupBy) Number() protoreflect.EnumNumber {
@@ -183,7 +296,7 @@ func (x GalaxyPOVWorkloadGroupBy) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use GalaxyPOVWorkloadGroupBy.Descriptor instead.
 func (GalaxyPOVWorkloadGroupBy) EnumDescriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{1}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{3}
 }
 
 // ClusterType represents different Kubernetes distribution types
@@ -223,11 +336,11 @@ func (x ClusterType) String() string {
 }
 
 func (ClusterType) Descriptor() protoreflect.EnumDescriptor {
-	return file_api_v1_k8s_proto_enumTypes[2].Descriptor()
+	return file_api_v1_k8s_proto_enumTypes[4].Descriptor()
 }
 
 func (ClusterType) Type() protoreflect.EnumType {
-	return &file_api_v1_k8s_proto_enumTypes[2]
+	return &file_api_v1_k8s_proto_enumTypes[4]
 }
 
 func (x ClusterType) Number() protoreflect.EnumNumber {
@@ -236,7 +349,7 @@ func (x ClusterType) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use ClusterType.Descriptor instead.
 func (ClusterType) EnumDescriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{2}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{4}
 }
 
 // GetNodeRequest is used to fetch a node in a specific cluster.
@@ -2802,6 +2915,309 @@ func (x *NodeGroupSet) GetNodeGroups() []*NodeGroup {
 	return nil
 }
 
+// GetClusterNodeFilterIndexRequest is used to fetch the filterable node
+// attributes for a specific cluster.
+type GetClusterNodeFilterIndexRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	TeamId    string                 `protobuf:"bytes,1,opt,name=team_id,json=teamId,proto3" json:"team_id,omitempty"`          // Unique identifier for the team.
+	ClusterId string                 `protobuf:"bytes,2,opt,name=cluster_id,json=clusterId,proto3" json:"cluster_id,omitempty"` // Unique identifier for the cluster.
+	StartTime *timestamppb.Timestamp `protobuf:"bytes,11,opt,name=start_time,json=startTime,proto3,oneof" json:"start_time,omitempty"`
+	EndTime   *timestamppb.Timestamp `protobuf:"bytes,12,opt,name=end_time,json=endTime,proto3,oneof" json:"end_time,omitempty"`
+}
+
+func (x *GetClusterNodeFilterIndexRequest) Reset() {
+	*x = GetClusterNodeFilterIndexRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_api_v1_k8s_proto_msgTypes[34]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *GetClusterNodeFilterIndexRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetClusterNodeFilterIndexRequest) ProtoMessage() {}
+
+func (x *GetClusterNodeFilterIndexRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_k8s_proto_msgTypes[34]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetClusterNodeFilterIndexRequest.ProtoReflect.Descriptor instead.
+func (*GetClusterNodeFilterIndexRequest) Descriptor() ([]byte, []int) {
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{34}
+}
+
+func (x *GetClusterNodeFilterIndexRequest) GetTeamId() string {
+	if x != nil {
+		return x.TeamId
+	}
+	return ""
+}
+
+func (x *GetClusterNodeFilterIndexRequest) GetClusterId() string {
+	if x != nil {
+		return x.ClusterId
+	}
+	return ""
+}
+
+func (x *GetClusterNodeFilterIndexRequest) GetStartTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.StartTime
+	}
+	return nil
+}
+
+func (x *GetClusterNodeFilterIndexRequest) GetEndTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.EndTime
+	}
+	return nil
+}
+
+// NodeLabelSet is one distinct node label map, referenced by index from
+// NodeLabelRef. Nodes in a cluster share label maps almost perfectly (the map
+// is a function of instance type, zone, node pool and image), so distinct maps
+// are sent once instead of once per node.
+type NodeLabelSet struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Labels map[string]string `protobuf:"bytes,1,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"` // Kubernetes labels on the node.
+}
+
+func (x *NodeLabelSet) Reset() {
+	*x = NodeLabelSet{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_api_v1_k8s_proto_msgTypes[35]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *NodeLabelSet) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NodeLabelSet) ProtoMessage() {}
+
+func (x *NodeLabelSet) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_k8s_proto_msgTypes[35]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NodeLabelSet.ProtoReflect.Descriptor instead.
+func (*NodeLabelSet) Descriptor() ([]byte, []int) {
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{35}
+}
+
+func (x *NodeLabelSet) GetLabels() map[string]string {
+	if x != nil {
+		return x.Labels
+	}
+	return nil
+}
+
+// NodeLabelRef attributes one node to its label set.
+type NodeLabelRef struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	NodeId        string `protobuf:"bytes,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`                         // k8s_nodes.id, matching Node.id. A node name is not an identity.
+	LabelSetIndex uint32 `protobuf:"varint,2,opt,name=label_set_index,json=labelSetIndex,proto3" json:"label_set_index,omitempty"` // Index into GetClusterNodeFilterIndexResponse.label_sets.
+}
+
+func (x *NodeLabelRef) Reset() {
+	*x = NodeLabelRef{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_api_v1_k8s_proto_msgTypes[36]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *NodeLabelRef) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NodeLabelRef) ProtoMessage() {}
+
+func (x *NodeLabelRef) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_k8s_proto_msgTypes[36]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NodeLabelRef.ProtoReflect.Descriptor instead.
+func (*NodeLabelRef) Descriptor() ([]byte, []int) {
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{36}
+}
+
+func (x *NodeLabelRef) GetNodeId() string {
+	if x != nil {
+		return x.NodeId
+	}
+	return ""
+}
+
+func (x *NodeLabelRef) GetLabelSetIndex() uint32 {
+	if x != nil {
+		return x.LabelSetIndex
+	}
+	return 0
+}
+
+// NodePoolFields carries scalar fields flattened off a Karpenter NodePool spec,
+// keyed by dotted path. Present only for node groups backed by a Karpenter
+// NodePool: a NodePool is one source of a node group, not a synonym for one.
+type NodePoolFields struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	NodeGroupName string            `protobuf:"bytes,1,opt,name=node_group_name,json=nodeGroupName,proto3" json:"node_group_name,omitempty"`                                                    // Node group the NodePool backs, by name.
+	Fields        map[string]string `protobuf:"bytes,2,rep,name=fields,proto3" json:"fields,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"` // Dotted spec path to its scalar value as JSON text.
+}
+
+func (x *NodePoolFields) Reset() {
+	*x = NodePoolFields{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_api_v1_k8s_proto_msgTypes[37]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *NodePoolFields) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NodePoolFields) ProtoMessage() {}
+
+func (x *NodePoolFields) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_k8s_proto_msgTypes[37]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NodePoolFields.ProtoReflect.Descriptor instead.
+func (*NodePoolFields) Descriptor() ([]byte, []int) {
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{37}
+}
+
+func (x *NodePoolFields) GetNodeGroupName() string {
+	if x != nil {
+		return x.NodeGroupName
+	}
+	return ""
+}
+
+func (x *NodePoolFields) GetFields() map[string]string {
+	if x != nil {
+		return x.Fields
+	}
+	return nil
+}
+
+// GetClusterNodeFilterIndexResponse contains the filterable attributes of a
+// cluster's nodes and of the Karpenter NodePools backing their node groups.
+type GetClusterNodeFilterIndexResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	LabelSets []*NodeLabelSet   `protobuf:"bytes,1,rep,name=label_sets,json=labelSets,proto3" json:"label_sets,omitempty"` // Distinct label maps.
+	Nodes     []*NodeLabelRef   `protobuf:"bytes,2,rep,name=nodes,proto3" json:"nodes,omitempty"`                          // Node to label-set attribution.
+	NodePools []*NodePoolFields `protobuf:"bytes,3,rep,name=node_pools,json=nodePools,proto3" json:"node_pools,omitempty"` // Per node group NodePool spec fields.
+}
+
+func (x *GetClusterNodeFilterIndexResponse) Reset() {
+	*x = GetClusterNodeFilterIndexResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_api_v1_k8s_proto_msgTypes[38]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *GetClusterNodeFilterIndexResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetClusterNodeFilterIndexResponse) ProtoMessage() {}
+
+func (x *GetClusterNodeFilterIndexResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_k8s_proto_msgTypes[38]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetClusterNodeFilterIndexResponse.ProtoReflect.Descriptor instead.
+func (*GetClusterNodeFilterIndexResponse) Descriptor() ([]byte, []int) {
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{38}
+}
+
+func (x *GetClusterNodeFilterIndexResponse) GetLabelSets() []*NodeLabelSet {
+	if x != nil {
+		return x.LabelSets
+	}
+	return nil
+}
+
+func (x *GetClusterNodeFilterIndexResponse) GetNodes() []*NodeLabelRef {
+	if x != nil {
+		return x.Nodes
+	}
+	return nil
+}
+
+func (x *GetClusterNodeFilterIndexResponse) GetNodePools() []*NodePoolFields {
+	if x != nil {
+		return x.NodePools
+	}
+	return nil
+}
+
 // GetNodeGroupsUtilizationRequest is used to fetch timeseries utilization data for node groups for a specific cluster.
 type GetNodeGroupsUtilizationRequest struct {
 	state         protoimpl.MessageState
@@ -2818,7 +3234,7 @@ type GetNodeGroupsUtilizationRequest struct {
 func (x *GetNodeGroupsUtilizationRequest) Reset() {
 	*x = GetNodeGroupsUtilizationRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[34]
+		mi := &file_api_v1_k8s_proto_msgTypes[39]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2831,7 +3247,7 @@ func (x *GetNodeGroupsUtilizationRequest) String() string {
 func (*GetNodeGroupsUtilizationRequest) ProtoMessage() {}
 
 func (x *GetNodeGroupsUtilizationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[34]
+	mi := &file_api_v1_k8s_proto_msgTypes[39]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2844,7 +3260,7 @@ func (x *GetNodeGroupsUtilizationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetNodeGroupsUtilizationRequest.ProtoReflect.Descriptor instead.
 func (*GetNodeGroupsUtilizationRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{34}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *GetNodeGroupsUtilizationRequest) GetTeamId() string {
@@ -2897,7 +3313,7 @@ type GetNodeGroupsUtilizationResponse struct {
 func (x *GetNodeGroupsUtilizationResponse) Reset() {
 	*x = GetNodeGroupsUtilizationResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[35]
+		mi := &file_api_v1_k8s_proto_msgTypes[40]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2910,7 +3326,7 @@ func (x *GetNodeGroupsUtilizationResponse) String() string {
 func (*GetNodeGroupsUtilizationResponse) ProtoMessage() {}
 
 func (x *GetNodeGroupsUtilizationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[35]
+	mi := &file_api_v1_k8s_proto_msgTypes[40]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2923,7 +3339,7 @@ func (x *GetNodeGroupsUtilizationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetNodeGroupsUtilizationResponse.ProtoReflect.Descriptor instead.
 func (*GetNodeGroupsUtilizationResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{35}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *GetNodeGroupsUtilizationResponse) GetNodeGroupToUtilMetrics() map[string]*GetNodeGroupsUtilizationResponse_ListNodeGroupMetrics {
@@ -2982,7 +3398,7 @@ type NodeGroupMetric struct {
 func (x *NodeGroupMetric) Reset() {
 	*x = NodeGroupMetric{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[36]
+		mi := &file_api_v1_k8s_proto_msgTypes[41]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2995,7 +3411,7 @@ func (x *NodeGroupMetric) String() string {
 func (*NodeGroupMetric) ProtoMessage() {}
 
 func (x *NodeGroupMetric) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[36]
+	mi := &file_api_v1_k8s_proto_msgTypes[41]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3008,7 +3424,7 @@ func (x *NodeGroupMetric) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NodeGroupMetric.ProtoReflect.Descriptor instead.
 func (*NodeGroupMetric) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{36}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *NodeGroupMetric) GetNodeCount() int32 {
@@ -3149,7 +3565,7 @@ type GetNodeGroupResponse struct {
 func (x *GetNodeGroupResponse) Reset() {
 	*x = GetNodeGroupResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[37]
+		mi := &file_api_v1_k8s_proto_msgTypes[42]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3162,7 +3578,7 @@ func (x *GetNodeGroupResponse) String() string {
 func (*GetNodeGroupResponse) ProtoMessage() {}
 
 func (x *GetNodeGroupResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[37]
+	mi := &file_api_v1_k8s_proto_msgTypes[42]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3175,7 +3591,7 @@ func (x *GetNodeGroupResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetNodeGroupResponse.ProtoReflect.Descriptor instead.
 func (*GetNodeGroupResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{37}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *GetNodeGroupResponse) GetNodeGroup() *NodeGroup {
@@ -3197,7 +3613,7 @@ type GetClusterResponse struct {
 func (x *GetClusterResponse) Reset() {
 	*x = GetClusterResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[38]
+		mi := &file_api_v1_k8s_proto_msgTypes[43]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3210,7 +3626,7 @@ func (x *GetClusterResponse) String() string {
 func (*GetClusterResponse) ProtoMessage() {}
 
 func (x *GetClusterResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[38]
+	mi := &file_api_v1_k8s_proto_msgTypes[43]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3223,7 +3639,7 @@ func (x *GetClusterResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetClusterResponse.ProtoReflect.Descriptor instead.
 func (*GetClusterResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{38}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *GetClusterResponse) GetCluster() *Cluster {
@@ -3250,7 +3666,7 @@ type GetClustersResponse struct {
 func (x *GetClustersResponse) Reset() {
 	*x = GetClustersResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[39]
+		mi := &file_api_v1_k8s_proto_msgTypes[44]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3263,7 +3679,7 @@ func (x *GetClustersResponse) String() string {
 func (*GetClustersResponse) ProtoMessage() {}
 
 func (x *GetClustersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[39]
+	mi := &file_api_v1_k8s_proto_msgTypes[44]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3276,7 +3692,7 @@ func (x *GetClustersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetClustersResponse.ProtoReflect.Descriptor instead.
 func (*GetClustersResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{39}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *GetClustersResponse) GetClusters() []*Cluster {
@@ -3337,7 +3753,7 @@ type ListClustersResponse struct {
 func (x *ListClustersResponse) Reset() {
 	*x = ListClustersResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[40]
+		mi := &file_api_v1_k8s_proto_msgTypes[45]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3350,7 +3766,7 @@ func (x *ListClustersResponse) String() string {
 func (*ListClustersResponse) ProtoMessage() {}
 
 func (x *ListClustersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[40]
+	mi := &file_api_v1_k8s_proto_msgTypes[45]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3363,7 +3779,7 @@ func (x *ListClustersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListClustersResponse.ProtoReflect.Descriptor instead.
 func (*ListClustersResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{40}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *ListClustersResponse) GetClusters() []*Cluster {
@@ -3391,12 +3807,15 @@ type GetNodeResponse struct {
 	CostInfo           *CostInfo            `protobuf:"bytes,3,opt,name=cost_info,json=costInfo,proto3" json:"cost_info,omitempty"`                                 // Cost details for the node.
 	CostDataPoints     []*CostDataPoint     `protobuf:"bytes,4,rep,name=cost_data_points,json=costDataPoints,proto3" json:"cost_data_points,omitempty"`             // Time-series cost data points for the node.
 	ResourceDataPoints []*ResourceDataPoint `protobuf:"bytes,5,rep,name=resource_data_points,json=resourceDataPoints,proto3" json:"resource_data_points,omitempty"` // Time-series resource metrics for the node.
+	// Set only under with_details, and only when the Node ownerReference names a
+	// NodeClaim. Unset for every other node.
+	NodeClaim *NodeClaimRef `protobuf:"bytes,6,opt,name=node_claim,json=nodeClaim,proto3" json:"node_claim,omitempty"`
 }
 
 func (x *GetNodeResponse) Reset() {
 	*x = GetNodeResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[41]
+		mi := &file_api_v1_k8s_proto_msgTypes[46]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3409,7 +3828,7 @@ func (x *GetNodeResponse) String() string {
 func (*GetNodeResponse) ProtoMessage() {}
 
 func (x *GetNodeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[41]
+	mi := &file_api_v1_k8s_proto_msgTypes[46]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3422,7 +3841,7 @@ func (x *GetNodeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetNodeResponse.ProtoReflect.Descriptor instead.
 func (*GetNodeResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{41}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *GetNodeResponse) GetNode() *Node {
@@ -3460,6 +3879,480 @@ func (x *GetNodeResponse) GetResourceDataPoints() []*ResourceDataPoint {
 	return nil
 }
 
+func (x *GetNodeResponse) GetNodeClaim() *NodeClaimRef {
+	if x != nil {
+		return x.NodeClaim
+	}
+	return nil
+}
+
+// NodeClaimRef describes the Karpenter NodeClaim that owns a node and whether a
+// delete may be requested for it right now.
+type NodeClaimRef struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Name               string                      `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`            // Node.ownerReferences[0].name
+	Uid                string                      `protobuf:"bytes,2,opt,name=uid,proto3" json:"uid,omitempty"`              // Node.ownerReferences[0].uid
+	Deletable          bool                        `protobuf:"varint,3,opt,name=deletable,proto3" json:"deletable,omitempty"` // computed server-side; the only gate for the delete button
+	NotDeletableReason NodeClaimNotDeletableReason `protobuf:"varint,4,opt,name=not_deletable_reason,json=notDeletableReason,proto3,enum=api.v1.NodeClaimNotDeletableReason" json:"not_deletable_reason,omitempty"`
+	MinOperatorVersion string                      `protobuf:"bytes,5,opt,name=min_operator_version,json=minOperatorVersion,proto3" json:"min_operator_version,omitempty"` // always set; the dakr-op version this feature needs
+	// Newest request for this node if it is unresolved, or if it resolved within
+	// the last hour; otherwise unset.
+	LatestStatus *NodeClaimDeletionStatus `protobuf:"bytes,6,opt,name=latest_status,json=latestStatus,proto3" json:"latest_status,omitempty"`
+}
+
+func (x *NodeClaimRef) Reset() {
+	*x = NodeClaimRef{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_api_v1_k8s_proto_msgTypes[47]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *NodeClaimRef) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NodeClaimRef) ProtoMessage() {}
+
+func (x *NodeClaimRef) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_k8s_proto_msgTypes[47]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NodeClaimRef.ProtoReflect.Descriptor instead.
+func (*NodeClaimRef) Descriptor() ([]byte, []int) {
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{47}
+}
+
+func (x *NodeClaimRef) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *NodeClaimRef) GetUid() string {
+	if x != nil {
+		return x.Uid
+	}
+	return ""
+}
+
+func (x *NodeClaimRef) GetDeletable() bool {
+	if x != nil {
+		return x.Deletable
+	}
+	return false
+}
+
+func (x *NodeClaimRef) GetNotDeletableReason() NodeClaimNotDeletableReason {
+	if x != nil {
+		return x.NotDeletableReason
+	}
+	return NodeClaimNotDeletableReason_NODE_CLAIM_NOT_DELETABLE_REASON_UNSPECIFIED
+}
+
+func (x *NodeClaimRef) GetMinOperatorVersion() string {
+	if x != nil {
+		return x.MinOperatorVersion
+	}
+	return ""
+}
+
+func (x *NodeClaimRef) GetLatestStatus() *NodeClaimDeletionStatus {
+	if x != nil {
+		return x.LatestStatus
+	}
+	return nil
+}
+
+type RequestNodeClaimDeletionRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	TeamId    string `protobuf:"bytes,1,opt,name=team_id,json=teamId,proto3" json:"team_id,omitempty"`
+	ClusterId string `protobuf:"bytes,2,opt,name=cluster_id,json=clusterId,proto3" json:"cluster_id,omitempty"`
+	// Mirrors GetNodeRequest: either identifies the node.
+	NodeId  *string `protobuf:"bytes,3,opt,name=node_id,json=nodeId,proto3,oneof" json:"node_id,omitempty"`
+	NodeUid *string `protobuf:"bytes,4,opt,name=node_uid,json=nodeUid,proto3,oneof" json:"node_uid,omitempty"`
+	// The NodeClaim UID the client is looking at. dakr compares it with the Node
+	// current owner uid and refuses with FailedPrecondition on mismatch.
+	NodeClaimUid string `protobuf:"bytes,5,opt,name=node_claim_uid,json=nodeClaimUid,proto3" json:"node_claim_uid,omitempty"`
+}
+
+func (x *RequestNodeClaimDeletionRequest) Reset() {
+	*x = RequestNodeClaimDeletionRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_api_v1_k8s_proto_msgTypes[48]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *RequestNodeClaimDeletionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RequestNodeClaimDeletionRequest) ProtoMessage() {}
+
+func (x *RequestNodeClaimDeletionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_k8s_proto_msgTypes[48]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RequestNodeClaimDeletionRequest.ProtoReflect.Descriptor instead.
+func (*RequestNodeClaimDeletionRequest) Descriptor() ([]byte, []int) {
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{48}
+}
+
+func (x *RequestNodeClaimDeletionRequest) GetTeamId() string {
+	if x != nil {
+		return x.TeamId
+	}
+	return ""
+}
+
+func (x *RequestNodeClaimDeletionRequest) GetClusterId() string {
+	if x != nil {
+		return x.ClusterId
+	}
+	return ""
+}
+
+func (x *RequestNodeClaimDeletionRequest) GetNodeId() string {
+	if x != nil && x.NodeId != nil {
+		return *x.NodeId
+	}
+	return ""
+}
+
+func (x *RequestNodeClaimDeletionRequest) GetNodeUid() string {
+	if x != nil && x.NodeUid != nil {
+		return *x.NodeUid
+	}
+	return ""
+}
+
+func (x *RequestNodeClaimDeletionRequest) GetNodeClaimUid() string {
+	if x != nil {
+		return x.NodeClaimUid
+	}
+	return ""
+}
+
+type RequestNodeClaimDeletionResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Status *NodeClaimDeletionStatus `protobuf:"bytes,1,opt,name=status,proto3" json:"status,omitempty"`
+}
+
+func (x *RequestNodeClaimDeletionResponse) Reset() {
+	*x = RequestNodeClaimDeletionResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_api_v1_k8s_proto_msgTypes[49]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *RequestNodeClaimDeletionResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RequestNodeClaimDeletionResponse) ProtoMessage() {}
+
+func (x *RequestNodeClaimDeletionResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_k8s_proto_msgTypes[49]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RequestNodeClaimDeletionResponse.ProtoReflect.Descriptor instead.
+func (*RequestNodeClaimDeletionResponse) Descriptor() ([]byte, []int) {
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{49}
+}
+
+func (x *RequestNodeClaimDeletionResponse) GetStatus() *NodeClaimDeletionStatus {
+	if x != nil {
+		return x.Status
+	}
+	return nil
+}
+
+type GetNodeClaimDeletionStatusRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	TeamId    string  `protobuf:"bytes,1,opt,name=team_id,json=teamId,proto3" json:"team_id,omitempty"`
+	ClusterId string  `protobuf:"bytes,2,opt,name=cluster_id,json=clusterId,proto3" json:"cluster_id,omitempty"`
+	NodeId    *string `protobuf:"bytes,3,opt,name=node_id,json=nodeId,proto3,oneof" json:"node_id,omitempty"`
+	NodeUid   *string `protobuf:"bytes,4,opt,name=node_uid,json=nodeUid,proto3,oneof" json:"node_uid,omitempty"`
+}
+
+func (x *GetNodeClaimDeletionStatusRequest) Reset() {
+	*x = GetNodeClaimDeletionStatusRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_api_v1_k8s_proto_msgTypes[50]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *GetNodeClaimDeletionStatusRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetNodeClaimDeletionStatusRequest) ProtoMessage() {}
+
+func (x *GetNodeClaimDeletionStatusRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_k8s_proto_msgTypes[50]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetNodeClaimDeletionStatusRequest.ProtoReflect.Descriptor instead.
+func (*GetNodeClaimDeletionStatusRequest) Descriptor() ([]byte, []int) {
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{50}
+}
+
+func (x *GetNodeClaimDeletionStatusRequest) GetTeamId() string {
+	if x != nil {
+		return x.TeamId
+	}
+	return ""
+}
+
+func (x *GetNodeClaimDeletionStatusRequest) GetClusterId() string {
+	if x != nil {
+		return x.ClusterId
+	}
+	return ""
+}
+
+func (x *GetNodeClaimDeletionStatusRequest) GetNodeId() string {
+	if x != nil && x.NodeId != nil {
+		return *x.NodeId
+	}
+	return ""
+}
+
+func (x *GetNodeClaimDeletionStatusRequest) GetNodeUid() string {
+	if x != nil && x.NodeUid != nil {
+		return *x.NodeUid
+	}
+	return ""
+}
+
+type GetNodeClaimDeletionStatusResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Status *NodeClaimDeletionStatus `protobuf:"bytes,1,opt,name=status,proto3" json:"status,omitempty"` // unset when no request was ever made for this node
+}
+
+func (x *GetNodeClaimDeletionStatusResponse) Reset() {
+	*x = GetNodeClaimDeletionStatusResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_api_v1_k8s_proto_msgTypes[51]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *GetNodeClaimDeletionStatusResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetNodeClaimDeletionStatusResponse) ProtoMessage() {}
+
+func (x *GetNodeClaimDeletionStatusResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_k8s_proto_msgTypes[51]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetNodeClaimDeletionStatusResponse.ProtoReflect.Descriptor instead.
+func (*GetNodeClaimDeletionStatusResponse) Descriptor() ([]byte, []int) {
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{51}
+}
+
+func (x *GetNodeClaimDeletionStatusResponse) GetStatus() *NodeClaimDeletionStatus {
+	if x != nil {
+		return x.Status
+	}
+	return nil
+}
+
+type NodeClaimDeletionStatus struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	RequestId        string                 `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	NodeClaimName    string                 `protobuf:"bytes,2,opt,name=node_claim_name,json=nodeClaimName,proto3" json:"node_claim_name,omitempty"`
+	NodeClaimUid     string                 `protobuf:"bytes,3,opt,name=node_claim_uid,json=nodeClaimUid,proto3" json:"node_claim_uid,omitempty"`
+	State            NodeClaimDeletionState `protobuf:"varint,4,opt,name=state,proto3,enum=api.v1.NodeClaimDeletionState" json:"state,omitempty"`
+	Error            string                 `protobuf:"bytes,5,opt,name=error,proto3" json:"error,omitempty"`
+	RequestedByEmail string                 `protobuf:"bytes,6,opt,name=requested_by_email,json=requestedByEmail,proto3" json:"requested_by_email,omitempty"`
+	RequestedAt      *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=requested_at,json=requestedAt,proto3" json:"requested_at,omitempty"`
+	FirstSentAt      *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=first_sent_at,json=firstSentAt,proto3" json:"first_sent_at,omitempty"`
+	AcceptedAt       *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=accepted_at,json=acceptedAt,proto3" json:"accepted_at,omitempty"`
+	ResolvedAt       *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=resolved_at,json=resolvedAt,proto3" json:"resolved_at,omitempty"`
+	// Unresolved in pending/sent with no ack 5 minutes after first_sent_at (or
+	// after requested_at when nothing has been sent).
+	StaleUnacked bool `protobuf:"varint,11,opt,name=stale_unacked,json=staleUnacked,proto3" json:"stale_unacked,omitempty"`
+}
+
+func (x *NodeClaimDeletionStatus) Reset() {
+	*x = NodeClaimDeletionStatus{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_api_v1_k8s_proto_msgTypes[52]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *NodeClaimDeletionStatus) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NodeClaimDeletionStatus) ProtoMessage() {}
+
+func (x *NodeClaimDeletionStatus) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_k8s_proto_msgTypes[52]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NodeClaimDeletionStatus.ProtoReflect.Descriptor instead.
+func (*NodeClaimDeletionStatus) Descriptor() ([]byte, []int) {
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{52}
+}
+
+func (x *NodeClaimDeletionStatus) GetRequestId() string {
+	if x != nil {
+		return x.RequestId
+	}
+	return ""
+}
+
+func (x *NodeClaimDeletionStatus) GetNodeClaimName() string {
+	if x != nil {
+		return x.NodeClaimName
+	}
+	return ""
+}
+
+func (x *NodeClaimDeletionStatus) GetNodeClaimUid() string {
+	if x != nil {
+		return x.NodeClaimUid
+	}
+	return ""
+}
+
+func (x *NodeClaimDeletionStatus) GetState() NodeClaimDeletionState {
+	if x != nil {
+		return x.State
+	}
+	return NodeClaimDeletionState_NODE_CLAIM_DELETION_STATE_UNSPECIFIED
+}
+
+func (x *NodeClaimDeletionStatus) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+func (x *NodeClaimDeletionStatus) GetRequestedByEmail() string {
+	if x != nil {
+		return x.RequestedByEmail
+	}
+	return ""
+}
+
+func (x *NodeClaimDeletionStatus) GetRequestedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.RequestedAt
+	}
+	return nil
+}
+
+func (x *NodeClaimDeletionStatus) GetFirstSentAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.FirstSentAt
+	}
+	return nil
+}
+
+func (x *NodeClaimDeletionStatus) GetAcceptedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.AcceptedAt
+	}
+	return nil
+}
+
+func (x *NodeClaimDeletionStatus) GetResolvedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ResolvedAt
+	}
+	return nil
+}
+
+func (x *NodeClaimDeletionStatus) GetStaleUnacked() bool {
+	if x != nil {
+		return x.StaleUnacked
+	}
+	return false
+}
+
 // GetWorkloadsResponse contains a list of workloads and aggregated metrics for a cluster.
 type GetWorkloadsResponse struct {
 	state         protoimpl.MessageState
@@ -3475,7 +4368,7 @@ type GetWorkloadsResponse struct {
 func (x *GetWorkloadsResponse) Reset() {
 	*x = GetWorkloadsResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[42]
+		mi := &file_api_v1_k8s_proto_msgTypes[53]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3488,7 +4381,7 @@ func (x *GetWorkloadsResponse) String() string {
 func (*GetWorkloadsResponse) ProtoMessage() {}
 
 func (x *GetWorkloadsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[42]
+	mi := &file_api_v1_k8s_proto_msgTypes[53]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3501,7 +4394,7 @@ func (x *GetWorkloadsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetWorkloadsResponse.ProtoReflect.Descriptor instead.
 func (*GetWorkloadsResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{42}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{53}
 }
 
 func (x *GetWorkloadsResponse) GetWorkloadItems() []*WorkloadItem {
@@ -3549,7 +4442,7 @@ type GetWorkloadResponse struct {
 func (x *GetWorkloadResponse) Reset() {
 	*x = GetWorkloadResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[43]
+		mi := &file_api_v1_k8s_proto_msgTypes[54]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3562,7 +4455,7 @@ func (x *GetWorkloadResponse) String() string {
 func (*GetWorkloadResponse) ProtoMessage() {}
 
 func (x *GetWorkloadResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[43]
+	mi := &file_api_v1_k8s_proto_msgTypes[54]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3575,7 +4468,7 @@ func (x *GetWorkloadResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetWorkloadResponse.ProtoReflect.Descriptor instead.
 func (*GetWorkloadResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{43}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{54}
 }
 
 func (x *GetWorkloadResponse) GetWorkloadItem() *WorkloadItem {
@@ -3637,7 +4530,7 @@ type GetWorkloadContainerPercentilesRequest struct {
 func (x *GetWorkloadContainerPercentilesRequest) Reset() {
 	*x = GetWorkloadContainerPercentilesRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[44]
+		mi := &file_api_v1_k8s_proto_msgTypes[55]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3650,7 +4543,7 @@ func (x *GetWorkloadContainerPercentilesRequest) String() string {
 func (*GetWorkloadContainerPercentilesRequest) ProtoMessage() {}
 
 func (x *GetWorkloadContainerPercentilesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[44]
+	mi := &file_api_v1_k8s_proto_msgTypes[55]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3663,7 +4556,7 @@ func (x *GetWorkloadContainerPercentilesRequest) ProtoReflect() protoreflect.Mes
 
 // Deprecated: Use GetWorkloadContainerPercentilesRequest.ProtoReflect.Descriptor instead.
 func (*GetWorkloadContainerPercentilesRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{44}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{55}
 }
 
 func (x *GetWorkloadContainerPercentilesRequest) GetTeamId() string {
@@ -3720,7 +4613,7 @@ type GetWorkloadContainerPercentilesResponse struct {
 func (x *GetWorkloadContainerPercentilesResponse) Reset() {
 	*x = GetWorkloadContainerPercentilesResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[45]
+		mi := &file_api_v1_k8s_proto_msgTypes[56]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3733,7 +4626,7 @@ func (x *GetWorkloadContainerPercentilesResponse) String() string {
 func (*GetWorkloadContainerPercentilesResponse) ProtoMessage() {}
 
 func (x *GetWorkloadContainerPercentilesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[45]
+	mi := &file_api_v1_k8s_proto_msgTypes[56]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3746,7 +4639,7 @@ func (x *GetWorkloadContainerPercentilesResponse) ProtoReflect() protoreflect.Me
 
 // Deprecated: Use GetWorkloadContainerPercentilesResponse.ProtoReflect.Descriptor instead.
 func (*GetWorkloadContainerPercentilesResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{45}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{56}
 }
 
 func (x *GetWorkloadContainerPercentilesResponse) GetContainers() []*ContainerPercentileSummary {
@@ -3773,7 +4666,7 @@ type GetWorkloadContainerTimeSeriesRequest struct {
 func (x *GetWorkloadContainerTimeSeriesRequest) Reset() {
 	*x = GetWorkloadContainerTimeSeriesRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[46]
+		mi := &file_api_v1_k8s_proto_msgTypes[57]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3786,7 +4679,7 @@ func (x *GetWorkloadContainerTimeSeriesRequest) String() string {
 func (*GetWorkloadContainerTimeSeriesRequest) ProtoMessage() {}
 
 func (x *GetWorkloadContainerTimeSeriesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[46]
+	mi := &file_api_v1_k8s_proto_msgTypes[57]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3799,7 +4692,7 @@ func (x *GetWorkloadContainerTimeSeriesRequest) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use GetWorkloadContainerTimeSeriesRequest.ProtoReflect.Descriptor instead.
 func (*GetWorkloadContainerTimeSeriesRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{46}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{57}
 }
 
 func (x *GetWorkloadContainerTimeSeriesRequest) GetTeamId() string {
@@ -3856,7 +4749,7 @@ type GetWorkloadContainerTimeSeriesResponse struct {
 func (x *GetWorkloadContainerTimeSeriesResponse) Reset() {
 	*x = GetWorkloadContainerTimeSeriesResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[47]
+		mi := &file_api_v1_k8s_proto_msgTypes[58]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3869,7 +4762,7 @@ func (x *GetWorkloadContainerTimeSeriesResponse) String() string {
 func (*GetWorkloadContainerTimeSeriesResponse) ProtoMessage() {}
 
 func (x *GetWorkloadContainerTimeSeriesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[47]
+	mi := &file_api_v1_k8s_proto_msgTypes[58]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3882,7 +4775,7 @@ func (x *GetWorkloadContainerTimeSeriesResponse) ProtoReflect() protoreflect.Mes
 
 // Deprecated: Use GetWorkloadContainerTimeSeriesResponse.ProtoReflect.Descriptor instead.
 func (*GetWorkloadContainerTimeSeriesResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{47}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{58}
 }
 
 func (x *GetWorkloadContainerTimeSeriesResponse) GetContainers() []*ContainerTimeSeries {
@@ -3906,7 +4799,7 @@ type GetLatestContainerRequestLimitsRequest struct {
 func (x *GetLatestContainerRequestLimitsRequest) Reset() {
 	*x = GetLatestContainerRequestLimitsRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[48]
+		mi := &file_api_v1_k8s_proto_msgTypes[59]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3919,7 +4812,7 @@ func (x *GetLatestContainerRequestLimitsRequest) String() string {
 func (*GetLatestContainerRequestLimitsRequest) ProtoMessage() {}
 
 func (x *GetLatestContainerRequestLimitsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[48]
+	mi := &file_api_v1_k8s_proto_msgTypes[59]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3932,7 +4825,7 @@ func (x *GetLatestContainerRequestLimitsRequest) ProtoReflect() protoreflect.Mes
 
 // Deprecated: Use GetLatestContainerRequestLimitsRequest.ProtoReflect.Descriptor instead.
 func (*GetLatestContainerRequestLimitsRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{48}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{59}
 }
 
 func (x *GetLatestContainerRequestLimitsRequest) GetTeamId() string {
@@ -3968,7 +4861,7 @@ type GetLatestContainerRequestLimitsResponse struct {
 func (x *GetLatestContainerRequestLimitsResponse) Reset() {
 	*x = GetLatestContainerRequestLimitsResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[49]
+		mi := &file_api_v1_k8s_proto_msgTypes[60]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3981,7 +4874,7 @@ func (x *GetLatestContainerRequestLimitsResponse) String() string {
 func (*GetLatestContainerRequestLimitsResponse) ProtoMessage() {}
 
 func (x *GetLatestContainerRequestLimitsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[49]
+	mi := &file_api_v1_k8s_proto_msgTypes[60]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3994,7 +4887,7 @@ func (x *GetLatestContainerRequestLimitsResponse) ProtoReflect() protoreflect.Me
 
 // Deprecated: Use GetLatestContainerRequestLimitsResponse.ProtoReflect.Descriptor instead.
 func (*GetLatestContainerRequestLimitsResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{49}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{60}
 }
 
 func (x *GetLatestContainerRequestLimitsResponse) GetContainers() []*ContainerRequestLimits {
@@ -4019,7 +4912,7 @@ type GetNodeGPUMigInstancesRequest struct {
 func (x *GetNodeGPUMigInstancesRequest) Reset() {
 	*x = GetNodeGPUMigInstancesRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[50]
+		mi := &file_api_v1_k8s_proto_msgTypes[61]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4032,7 +4925,7 @@ func (x *GetNodeGPUMigInstancesRequest) String() string {
 func (*GetNodeGPUMigInstancesRequest) ProtoMessage() {}
 
 func (x *GetNodeGPUMigInstancesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[50]
+	mi := &file_api_v1_k8s_proto_msgTypes[61]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4045,7 +4938,7 @@ func (x *GetNodeGPUMigInstancesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetNodeGPUMigInstancesRequest.ProtoReflect.Descriptor instead.
 func (*GetNodeGPUMigInstancesRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{50}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{61}
 }
 
 func (x *GetNodeGPUMigInstancesRequest) GetTeamId() string {
@@ -4089,7 +4982,7 @@ type GetNodeGPUMigInstancesResponse struct {
 func (x *GetNodeGPUMigInstancesResponse) Reset() {
 	*x = GetNodeGPUMigInstancesResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[51]
+		mi := &file_api_v1_k8s_proto_msgTypes[62]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4102,7 +4995,7 @@ func (x *GetNodeGPUMigInstancesResponse) String() string {
 func (*GetNodeGPUMigInstancesResponse) ProtoMessage() {}
 
 func (x *GetNodeGPUMigInstancesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[51]
+	mi := &file_api_v1_k8s_proto_msgTypes[62]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4115,7 +5008,7 @@ func (x *GetNodeGPUMigInstancesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetNodeGPUMigInstancesResponse.ProtoReflect.Descriptor instead.
 func (*GetNodeGPUMigInstancesResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{51}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{62}
 }
 
 func (x *GetNodeGPUMigInstancesResponse) GetInstances() []*GPUMigInstance {
@@ -4128,6 +5021,314 @@ func (x *GetNodeGPUMigInstancesResponse) GetInstances() []*GPUMigInstance {
 func (x *GetNodeGPUMigInstancesResponse) GetCollectedAt() *timestamppb.Timestamp {
 	if x != nil {
 		return x.CollectedAt
+	}
+	return nil
+}
+
+// GetNodeGPUMigInstanceTimeseriesRequest requests per-MIG-instance
+// utilization as a time series for a node over a time range.
+type GetNodeGPUMigInstanceTimeseriesRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	TeamId    string                 `protobuf:"bytes,1,opt,name=team_id,json=teamId,proto3" json:"team_id,omitempty"`
+	ClusterId string                 `protobuf:"bytes,2,opt,name=cluster_id,json=clusterId,proto3" json:"cluster_id,omitempty"`
+	NodeId    *string                `protobuf:"bytes,3,opt,name=node_id,json=nodeId,proto3,oneof" json:"node_id,omitempty"`
+	NodeUid   *string                `protobuf:"bytes,4,opt,name=node_uid,json=nodeUid,proto3,oneof" json:"node_uid,omitempty"`
+	StartTime *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=start_time,json=startTime,proto3" json:"start_time,omitempty"`
+	EndTime   *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=end_time,json=endTime,proto3" json:"end_time,omitempty"`
+}
+
+func (x *GetNodeGPUMigInstanceTimeseriesRequest) Reset() {
+	*x = GetNodeGPUMigInstanceTimeseriesRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_api_v1_k8s_proto_msgTypes[63]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *GetNodeGPUMigInstanceTimeseriesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetNodeGPUMigInstanceTimeseriesRequest) ProtoMessage() {}
+
+func (x *GetNodeGPUMigInstanceTimeseriesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_k8s_proto_msgTypes[63]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetNodeGPUMigInstanceTimeseriesRequest.ProtoReflect.Descriptor instead.
+func (*GetNodeGPUMigInstanceTimeseriesRequest) Descriptor() ([]byte, []int) {
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{63}
+}
+
+func (x *GetNodeGPUMigInstanceTimeseriesRequest) GetTeamId() string {
+	if x != nil {
+		return x.TeamId
+	}
+	return ""
+}
+
+func (x *GetNodeGPUMigInstanceTimeseriesRequest) GetClusterId() string {
+	if x != nil {
+		return x.ClusterId
+	}
+	return ""
+}
+
+func (x *GetNodeGPUMigInstanceTimeseriesRequest) GetNodeId() string {
+	if x != nil && x.NodeId != nil {
+		return *x.NodeId
+	}
+	return ""
+}
+
+func (x *GetNodeGPUMigInstanceTimeseriesRequest) GetNodeUid() string {
+	if x != nil && x.NodeUid != nil {
+		return *x.NodeUid
+	}
+	return ""
+}
+
+func (x *GetNodeGPUMigInstanceTimeseriesRequest) GetStartTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.StartTime
+	}
+	return nil
+}
+
+func (x *GetNodeGPUMigInstanceTimeseriesRequest) GetEndTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.EndTime
+	}
+	return nil
+}
+
+// GPUMigInstanceDataPoint is one timestamped sample of a single MIG
+// instance's utilization.
+type GPUMigInstanceDataPoint struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Timestamp            *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
+	TensorActive         float64                `protobuf:"fixed64,2,opt,name=tensor_active,json=tensorActive,proto3" json:"tensor_active,omitempty"`
+	DramActive           float64                `protobuf:"fixed64,3,opt,name=dram_active,json=dramActive,proto3" json:"dram_active,omitempty"`
+	GraphicsEngineActive float64                `protobuf:"fixed64,4,opt,name=graphics_engine_active,json=graphicsEngineActive,proto3" json:"graphics_engine_active,omitempty"`
+	FramebufferUsed      float64                `protobuf:"fixed64,5,opt,name=framebuffer_used,json=framebufferUsed,proto3" json:"framebuffer_used,omitempty"`
+	FramebufferTotal     float64                `protobuf:"fixed64,6,opt,name=framebuffer_total,json=framebufferTotal,proto3" json:"framebuffer_total,omitempty"`
+}
+
+func (x *GPUMigInstanceDataPoint) Reset() {
+	*x = GPUMigInstanceDataPoint{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_api_v1_k8s_proto_msgTypes[64]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *GPUMigInstanceDataPoint) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GPUMigInstanceDataPoint) ProtoMessage() {}
+
+func (x *GPUMigInstanceDataPoint) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_k8s_proto_msgTypes[64]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GPUMigInstanceDataPoint.ProtoReflect.Descriptor instead.
+func (*GPUMigInstanceDataPoint) Descriptor() ([]byte, []int) {
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{64}
+}
+
+func (x *GPUMigInstanceDataPoint) GetTimestamp() *timestamppb.Timestamp {
+	if x != nil {
+		return x.Timestamp
+	}
+	return nil
+}
+
+func (x *GPUMigInstanceDataPoint) GetTensorActive() float64 {
+	if x != nil {
+		return x.TensorActive
+	}
+	return 0
+}
+
+func (x *GPUMigInstanceDataPoint) GetDramActive() float64 {
+	if x != nil {
+		return x.DramActive
+	}
+	return 0
+}
+
+func (x *GPUMigInstanceDataPoint) GetGraphicsEngineActive() float64 {
+	if x != nil {
+		return x.GraphicsEngineActive
+	}
+	return 0
+}
+
+func (x *GPUMigInstanceDataPoint) GetFramebufferUsed() float64 {
+	if x != nil {
+		return x.FramebufferUsed
+	}
+	return 0
+}
+
+func (x *GPUMigInstanceDataPoint) GetFramebufferTotal() float64 {
+	if x != nil {
+		return x.FramebufferTotal
+	}
+	return 0
+}
+
+// GPUMigInstanceTimeseries is one MIG instance's identity plus its
+// utilization samples over the requested time range.
+type GPUMigInstanceTimeseries struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	MigInstanceId string                     `protobuf:"bytes,1,opt,name=mig_instance_id,json=migInstanceId,proto3" json:"mig_instance_id,omitempty"`
+	MigProfile    string                     `protobuf:"bytes,2,opt,name=mig_profile,json=migProfile,proto3" json:"mig_profile,omitempty"`
+	DeviceUuid    string                     `protobuf:"bytes,3,opt,name=device_uuid,json=deviceUuid,proto3" json:"device_uuid,omitempty"`
+	ModelName     string                     `protobuf:"bytes,4,opt,name=model_name,json=modelName,proto3" json:"model_name,omitempty"`
+	Points        []*GPUMigInstanceDataPoint `protobuf:"bytes,5,rep,name=points,proto3" json:"points,omitempty"`
+}
+
+func (x *GPUMigInstanceTimeseries) Reset() {
+	*x = GPUMigInstanceTimeseries{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_api_v1_k8s_proto_msgTypes[65]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *GPUMigInstanceTimeseries) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GPUMigInstanceTimeseries) ProtoMessage() {}
+
+func (x *GPUMigInstanceTimeseries) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_k8s_proto_msgTypes[65]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GPUMigInstanceTimeseries.ProtoReflect.Descriptor instead.
+func (*GPUMigInstanceTimeseries) Descriptor() ([]byte, []int) {
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{65}
+}
+
+func (x *GPUMigInstanceTimeseries) GetMigInstanceId() string {
+	if x != nil {
+		return x.MigInstanceId
+	}
+	return ""
+}
+
+func (x *GPUMigInstanceTimeseries) GetMigProfile() string {
+	if x != nil {
+		return x.MigProfile
+	}
+	return ""
+}
+
+func (x *GPUMigInstanceTimeseries) GetDeviceUuid() string {
+	if x != nil {
+		return x.DeviceUuid
+	}
+	return ""
+}
+
+func (x *GPUMigInstanceTimeseries) GetModelName() string {
+	if x != nil {
+		return x.ModelName
+	}
+	return ""
+}
+
+func (x *GPUMigInstanceTimeseries) GetPoints() []*GPUMigInstanceDataPoint {
+	if x != nil {
+		return x.Points
+	}
+	return nil
+}
+
+// GetNodeGPUMigInstanceTimeseriesResponse returns one series per MIG
+// instance present on the node during the requested range.
+type GetNodeGPUMigInstanceTimeseriesResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Instances []*GPUMigInstanceTimeseries `protobuf:"bytes,1,rep,name=instances,proto3" json:"instances,omitempty"`
+}
+
+func (x *GetNodeGPUMigInstanceTimeseriesResponse) Reset() {
+	*x = GetNodeGPUMigInstanceTimeseriesResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_api_v1_k8s_proto_msgTypes[66]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *GetNodeGPUMigInstanceTimeseriesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetNodeGPUMigInstanceTimeseriesResponse) ProtoMessage() {}
+
+func (x *GetNodeGPUMigInstanceTimeseriesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_k8s_proto_msgTypes[66]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetNodeGPUMigInstanceTimeseriesResponse.ProtoReflect.Descriptor instead.
+func (*GetNodeGPUMigInstanceTimeseriesResponse) Descriptor() ([]byte, []int) {
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{66}
+}
+
+func (x *GetNodeGPUMigInstanceTimeseriesResponse) GetInstances() []*GPUMigInstanceTimeseries {
+	if x != nil {
+		return x.Instances
 	}
 	return nil
 }
@@ -4146,7 +5347,7 @@ type GetContainerIndividualGPUMetricsRequest struct {
 func (x *GetContainerIndividualGPUMetricsRequest) Reset() {
 	*x = GetContainerIndividualGPUMetricsRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[52]
+		mi := &file_api_v1_k8s_proto_msgTypes[67]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4159,7 +5360,7 @@ func (x *GetContainerIndividualGPUMetricsRequest) String() string {
 func (*GetContainerIndividualGPUMetricsRequest) ProtoMessage() {}
 
 func (x *GetContainerIndividualGPUMetricsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[52]
+	mi := &file_api_v1_k8s_proto_msgTypes[67]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4172,7 +5373,7 @@ func (x *GetContainerIndividualGPUMetricsRequest) ProtoReflect() protoreflect.Me
 
 // Deprecated: Use GetContainerIndividualGPUMetricsRequest.ProtoReflect.Descriptor instead.
 func (*GetContainerIndividualGPUMetricsRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{52}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{67}
 }
 
 func (x *GetContainerIndividualGPUMetricsRequest) GetTeamId() string {
@@ -4208,7 +5409,7 @@ type GetContainerIndividualGPUMetricsResponse struct {
 func (x *GetContainerIndividualGPUMetricsResponse) Reset() {
 	*x = GetContainerIndividualGPUMetricsResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[53]
+		mi := &file_api_v1_k8s_proto_msgTypes[68]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4221,7 +5422,7 @@ func (x *GetContainerIndividualGPUMetricsResponse) String() string {
 func (*GetContainerIndividualGPUMetricsResponse) ProtoMessage() {}
 
 func (x *GetContainerIndividualGPUMetricsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[53]
+	mi := &file_api_v1_k8s_proto_msgTypes[68]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4234,7 +5435,7 @@ func (x *GetContainerIndividualGPUMetricsResponse) ProtoReflect() protoreflect.M
 
 // Deprecated: Use GetContainerIndividualGPUMetricsResponse.ProtoReflect.Descriptor instead.
 func (*GetContainerIndividualGPUMetricsResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{53}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{68}
 }
 
 func (x *GetContainerIndividualGPUMetricsResponse) GetContainers() []*ContainerIndividualGPUMetrics {
@@ -4258,7 +5459,7 @@ type LanguageVersions struct {
 func (x *LanguageVersions) Reset() {
 	*x = LanguageVersions{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[54]
+		mi := &file_api_v1_k8s_proto_msgTypes[69]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4271,7 +5472,7 @@ func (x *LanguageVersions) String() string {
 func (*LanguageVersions) ProtoMessage() {}
 
 func (x *LanguageVersions) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[54]
+	mi := &file_api_v1_k8s_proto_msgTypes[69]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4284,7 +5485,7 @@ func (x *LanguageVersions) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LanguageVersions.ProtoReflect.Descriptor instead.
 func (*LanguageVersions) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{54}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{69}
 }
 
 func (x *LanguageVersions) GetLanguage() string {
@@ -4315,7 +5516,7 @@ type GetWorkloadLanguagesRequest struct {
 func (x *GetWorkloadLanguagesRequest) Reset() {
 	*x = GetWorkloadLanguagesRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[55]
+		mi := &file_api_v1_k8s_proto_msgTypes[70]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4328,7 +5529,7 @@ func (x *GetWorkloadLanguagesRequest) String() string {
 func (*GetWorkloadLanguagesRequest) ProtoMessage() {}
 
 func (x *GetWorkloadLanguagesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[55]
+	mi := &file_api_v1_k8s_proto_msgTypes[70]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4341,7 +5542,7 @@ func (x *GetWorkloadLanguagesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetWorkloadLanguagesRequest.ProtoReflect.Descriptor instead.
 func (*GetWorkloadLanguagesRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{55}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{70}
 }
 
 func (x *GetWorkloadLanguagesRequest) GetTeamId() string {
@@ -4371,7 +5572,7 @@ type GetWorkloadLanguagesResponse struct {
 func (x *GetWorkloadLanguagesResponse) Reset() {
 	*x = GetWorkloadLanguagesResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[56]
+		mi := &file_api_v1_k8s_proto_msgTypes[71]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4384,7 +5585,7 @@ func (x *GetWorkloadLanguagesResponse) String() string {
 func (*GetWorkloadLanguagesResponse) ProtoMessage() {}
 
 func (x *GetWorkloadLanguagesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[56]
+	mi := &file_api_v1_k8s_proto_msgTypes[71]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4397,7 +5598,7 @@ func (x *GetWorkloadLanguagesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetWorkloadLanguagesResponse.ProtoReflect.Descriptor instead.
 func (*GetWorkloadLanguagesResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{56}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{71}
 }
 
 func (x *GetWorkloadLanguagesResponse) GetLanguages() []*LanguageVersions {
@@ -4423,7 +5624,7 @@ type GetForecastWorkloadsRequest struct {
 func (x *GetForecastWorkloadsRequest) Reset() {
 	*x = GetForecastWorkloadsRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[57]
+		mi := &file_api_v1_k8s_proto_msgTypes[72]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4436,7 +5637,7 @@ func (x *GetForecastWorkloadsRequest) String() string {
 func (*GetForecastWorkloadsRequest) ProtoMessage() {}
 
 func (x *GetForecastWorkloadsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[57]
+	mi := &file_api_v1_k8s_proto_msgTypes[72]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4449,7 +5650,7 @@ func (x *GetForecastWorkloadsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetForecastWorkloadsRequest.ProtoReflect.Descriptor instead.
 func (*GetForecastWorkloadsRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{57}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{72}
 }
 
 func (x *GetForecastWorkloadsRequest) GetTeamId() string {
@@ -4502,7 +5703,7 @@ type GetForecastWorkloadsResponse struct {
 func (x *GetForecastWorkloadsResponse) Reset() {
 	*x = GetForecastWorkloadsResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[58]
+		mi := &file_api_v1_k8s_proto_msgTypes[73]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4515,7 +5716,7 @@ func (x *GetForecastWorkloadsResponse) String() string {
 func (*GetForecastWorkloadsResponse) ProtoMessage() {}
 
 func (x *GetForecastWorkloadsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[58]
+	mi := &file_api_v1_k8s_proto_msgTypes[73]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4528,7 +5729,7 @@ func (x *GetForecastWorkloadsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetForecastWorkloadsResponse.ProtoReflect.Descriptor instead.
 func (*GetForecastWorkloadsResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{58}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{73}
 }
 
 func (x *GetForecastWorkloadsResponse) GetWorkloadItems() []*WorkloadItem {
@@ -4577,7 +5778,7 @@ type GetForecastWorkloadRequest struct {
 func (x *GetForecastWorkloadRequest) Reset() {
 	*x = GetForecastWorkloadRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[59]
+		mi := &file_api_v1_k8s_proto_msgTypes[74]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4590,7 +5791,7 @@ func (x *GetForecastWorkloadRequest) String() string {
 func (*GetForecastWorkloadRequest) ProtoMessage() {}
 
 func (x *GetForecastWorkloadRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[59]
+	mi := &file_api_v1_k8s_proto_msgTypes[74]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4603,7 +5804,7 @@ func (x *GetForecastWorkloadRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetForecastWorkloadRequest.ProtoReflect.Descriptor instead.
 func (*GetForecastWorkloadRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{59}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{74}
 }
 
 func (x *GetForecastWorkloadRequest) GetTeamId() string {
@@ -4672,7 +5873,7 @@ type GetForecastWorkloadResponse struct {
 func (x *GetForecastWorkloadResponse) Reset() {
 	*x = GetForecastWorkloadResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[60]
+		mi := &file_api_v1_k8s_proto_msgTypes[75]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4685,7 +5886,7 @@ func (x *GetForecastWorkloadResponse) String() string {
 func (*GetForecastWorkloadResponse) ProtoMessage() {}
 
 func (x *GetForecastWorkloadResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[60]
+	mi := &file_api_v1_k8s_proto_msgTypes[75]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4698,7 +5899,7 @@ func (x *GetForecastWorkloadResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetForecastWorkloadResponse.ProtoReflect.Descriptor instead.
 func (*GetForecastWorkloadResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{60}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{75}
 }
 
 func (x *GetForecastWorkloadResponse) GetWorkloadItem() *WorkloadItem {
@@ -4755,7 +5956,7 @@ type GetClusterMetadataResponse struct {
 func (x *GetClusterMetadataResponse) Reset() {
 	*x = GetClusterMetadataResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[61]
+		mi := &file_api_v1_k8s_proto_msgTypes[76]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4768,7 +5969,7 @@ func (x *GetClusterMetadataResponse) String() string {
 func (*GetClusterMetadataResponse) ProtoMessage() {}
 
 func (x *GetClusterMetadataResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[61]
+	mi := &file_api_v1_k8s_proto_msgTypes[76]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4781,7 +5982,7 @@ func (x *GetClusterMetadataResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetClusterMetadataResponse.ProtoReflect.Descriptor instead.
 func (*GetClusterMetadataResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{61}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{76}
 }
 
 func (x *GetClusterMetadataResponse) GetClusters() []*Cluster {
@@ -4803,7 +6004,7 @@ type ClusterElement struct {
 func (x *ClusterElement) Reset() {
 	*x = ClusterElement{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[62]
+		mi := &file_api_v1_k8s_proto_msgTypes[77]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4816,7 +6017,7 @@ func (x *ClusterElement) String() string {
 func (*ClusterElement) ProtoMessage() {}
 
 func (x *ClusterElement) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[62]
+	mi := &file_api_v1_k8s_proto_msgTypes[77]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4829,7 +6030,7 @@ func (x *ClusterElement) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClusterElement.ProtoReflect.Descriptor instead.
 func (*ClusterElement) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{62}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{77}
 }
 
 func (x *ClusterElement) GetClusterId() string {
@@ -4860,7 +6061,7 @@ type GetAllNamespacesRequest struct {
 func (x *GetAllNamespacesRequest) Reset() {
 	*x = GetAllNamespacesRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[63]
+		mi := &file_api_v1_k8s_proto_msgTypes[78]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4873,7 +6074,7 @@ func (x *GetAllNamespacesRequest) String() string {
 func (*GetAllNamespacesRequest) ProtoMessage() {}
 
 func (x *GetAllNamespacesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[63]
+	mi := &file_api_v1_k8s_proto_msgTypes[78]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4886,7 +6087,7 @@ func (x *GetAllNamespacesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAllNamespacesRequest.ProtoReflect.Descriptor instead.
 func (*GetAllNamespacesRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{63}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{78}
 }
 
 func (x *GetAllNamespacesRequest) GetTeamId() string {
@@ -4928,7 +6129,7 @@ type GetAllNamespacesResponse struct {
 func (x *GetAllNamespacesResponse) Reset() {
 	*x = GetAllNamespacesResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[64]
+		mi := &file_api_v1_k8s_proto_msgTypes[79]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4941,7 +6142,7 @@ func (x *GetAllNamespacesResponse) String() string {
 func (*GetAllNamespacesResponse) ProtoMessage() {}
 
 func (x *GetAllNamespacesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[64]
+	mi := &file_api_v1_k8s_proto_msgTypes[79]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4954,7 +6155,7 @@ func (x *GetAllNamespacesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAllNamespacesResponse.ProtoReflect.Descriptor instead.
 func (*GetAllNamespacesResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{64}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{79}
 }
 
 func (x *GetAllNamespacesResponse) GetClusterIdWithNamespaces() []*ClusterElement {
@@ -4978,7 +6179,7 @@ type SearchNamespacesByClusterRequest struct {
 func (x *SearchNamespacesByClusterRequest) Reset() {
 	*x = SearchNamespacesByClusterRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[65]
+		mi := &file_api_v1_k8s_proto_msgTypes[80]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4991,7 +6192,7 @@ func (x *SearchNamespacesByClusterRequest) String() string {
 func (*SearchNamespacesByClusterRequest) ProtoMessage() {}
 
 func (x *SearchNamespacesByClusterRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[65]
+	mi := &file_api_v1_k8s_proto_msgTypes[80]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5004,7 +6205,7 @@ func (x *SearchNamespacesByClusterRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchNamespacesByClusterRequest.ProtoReflect.Descriptor instead.
 func (*SearchNamespacesByClusterRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{65}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{80}
 }
 
 func (x *SearchNamespacesByClusterRequest) GetTeamId() string {
@@ -5040,7 +6241,7 @@ type SearchNamespacesByClusterResponse struct {
 func (x *SearchNamespacesByClusterResponse) Reset() {
 	*x = SearchNamespacesByClusterResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[66]
+		mi := &file_api_v1_k8s_proto_msgTypes[81]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5053,7 +6254,7 @@ func (x *SearchNamespacesByClusterResponse) String() string {
 func (*SearchNamespacesByClusterResponse) ProtoMessage() {}
 
 func (x *SearchNamespacesByClusterResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[66]
+	mi := &file_api_v1_k8s_proto_msgTypes[81]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5066,7 +6267,7 @@ func (x *SearchNamespacesByClusterResponse) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use SearchNamespacesByClusterResponse.ProtoReflect.Descriptor instead.
 func (*SearchNamespacesByClusterResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{66}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{81}
 }
 
 func (x *SearchNamespacesByClusterResponse) GetNamespaces() []string {
@@ -5089,7 +6290,7 @@ type ListNamespacesByClusterRequest struct {
 func (x *ListNamespacesByClusterRequest) Reset() {
 	*x = ListNamespacesByClusterRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[67]
+		mi := &file_api_v1_k8s_proto_msgTypes[82]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5102,7 +6303,7 @@ func (x *ListNamespacesByClusterRequest) String() string {
 func (*ListNamespacesByClusterRequest) ProtoMessage() {}
 
 func (x *ListNamespacesByClusterRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[67]
+	mi := &file_api_v1_k8s_proto_msgTypes[82]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5115,7 +6316,7 @@ func (x *ListNamespacesByClusterRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListNamespacesByClusterRequest.ProtoReflect.Descriptor instead.
 func (*ListNamespacesByClusterRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{67}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{82}
 }
 
 func (x *ListNamespacesByClusterRequest) GetTeamId() string {
@@ -5144,7 +6345,7 @@ type ListNamespacesByClusterResponse struct {
 func (x *ListNamespacesByClusterResponse) Reset() {
 	*x = ListNamespacesByClusterResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[68]
+		mi := &file_api_v1_k8s_proto_msgTypes[83]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5157,7 +6358,7 @@ func (x *ListNamespacesByClusterResponse) String() string {
 func (*ListNamespacesByClusterResponse) ProtoMessage() {}
 
 func (x *ListNamespacesByClusterResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[68]
+	mi := &file_api_v1_k8s_proto_msgTypes[83]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5170,7 +6371,7 @@ func (x *ListNamespacesByClusterResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListNamespacesByClusterResponse.ProtoReflect.Descriptor instead.
 func (*ListNamespacesByClusterResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{68}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{83}
 }
 
 func (x *ListNamespacesByClusterResponse) GetNamespaces() []*NamespaceItem {
@@ -5193,7 +6394,7 @@ type NamespaceItem struct {
 func (x *NamespaceItem) Reset() {
 	*x = NamespaceItem{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[69]
+		mi := &file_api_v1_k8s_proto_msgTypes[84]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5206,7 +6407,7 @@ func (x *NamespaceItem) String() string {
 func (*NamespaceItem) ProtoMessage() {}
 
 func (x *NamespaceItem) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[69]
+	mi := &file_api_v1_k8s_proto_msgTypes[84]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5219,7 +6420,7 @@ func (x *NamespaceItem) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NamespaceItem.ProtoReflect.Descriptor instead.
 func (*NamespaceItem) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{69}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{84}
 }
 
 func (x *NamespaceItem) GetId() string {
@@ -5255,7 +6456,7 @@ type GetAllWorkloadNamesRequest struct {
 func (x *GetAllWorkloadNamesRequest) Reset() {
 	*x = GetAllWorkloadNamesRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[70]
+		mi := &file_api_v1_k8s_proto_msgTypes[85]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5268,7 +6469,7 @@ func (x *GetAllWorkloadNamesRequest) String() string {
 func (*GetAllWorkloadNamesRequest) ProtoMessage() {}
 
 func (x *GetAllWorkloadNamesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[70]
+	mi := &file_api_v1_k8s_proto_msgTypes[85]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5281,7 +6482,7 @@ func (x *GetAllWorkloadNamesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAllWorkloadNamesRequest.ProtoReflect.Descriptor instead.
 func (*GetAllWorkloadNamesRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{70}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{85}
 }
 
 func (x *GetAllWorkloadNamesRequest) GetTeamId() string {
@@ -5358,7 +6559,7 @@ type GetAllWorkloadNamesResponse struct {
 func (x *GetAllWorkloadNamesResponse) Reset() {
 	*x = GetAllWorkloadNamesResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[71]
+		mi := &file_api_v1_k8s_proto_msgTypes[86]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5371,7 +6572,7 @@ func (x *GetAllWorkloadNamesResponse) String() string {
 func (*GetAllWorkloadNamesResponse) ProtoMessage() {}
 
 func (x *GetAllWorkloadNamesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[71]
+	mi := &file_api_v1_k8s_proto_msgTypes[86]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5384,7 +6585,7 @@ func (x *GetAllWorkloadNamesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAllWorkloadNamesResponse.ProtoReflect.Descriptor instead.
 func (*GetAllWorkloadNamesResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{71}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{86}
 }
 
 func (x *GetAllWorkloadNamesResponse) GetClusterIdWithWorkloadName() []*ClusterElement {
@@ -5412,7 +6613,7 @@ type GetAllWorkloadLabelsRequest struct {
 func (x *GetAllWorkloadLabelsRequest) Reset() {
 	*x = GetAllWorkloadLabelsRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[72]
+		mi := &file_api_v1_k8s_proto_msgTypes[87]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5425,7 +6626,7 @@ func (x *GetAllWorkloadLabelsRequest) String() string {
 func (*GetAllWorkloadLabelsRequest) ProtoMessage() {}
 
 func (x *GetAllWorkloadLabelsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[72]
+	mi := &file_api_v1_k8s_proto_msgTypes[87]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5438,7 +6639,7 @@ func (x *GetAllWorkloadLabelsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAllWorkloadLabelsRequest.ProtoReflect.Descriptor instead.
 func (*GetAllWorkloadLabelsRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{72}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{87}
 }
 
 func (x *GetAllWorkloadLabelsRequest) GetTeamId() string {
@@ -5508,7 +6709,7 @@ type GetAllWorkloadLabelsResponse struct {
 func (x *GetAllWorkloadLabelsResponse) Reset() {
 	*x = GetAllWorkloadLabelsResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[73]
+		mi := &file_api_v1_k8s_proto_msgTypes[88]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5521,7 +6722,7 @@ func (x *GetAllWorkloadLabelsResponse) String() string {
 func (*GetAllWorkloadLabelsResponse) ProtoMessage() {}
 
 func (x *GetAllWorkloadLabelsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[73]
+	mi := &file_api_v1_k8s_proto_msgTypes[88]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5534,7 +6735,7 @@ func (x *GetAllWorkloadLabelsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAllWorkloadLabelsResponse.ProtoReflect.Descriptor instead.
 func (*GetAllWorkloadLabelsResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{73}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{88}
 }
 
 func (x *GetAllWorkloadLabelsResponse) GetClusterIdWithLabels() []*ClusterElement {
@@ -5559,7 +6760,7 @@ type GetAllNodeGroupNamesRequest struct {
 func (x *GetAllNodeGroupNamesRequest) Reset() {
 	*x = GetAllNodeGroupNamesRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[74]
+		mi := &file_api_v1_k8s_proto_msgTypes[89]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5572,7 +6773,7 @@ func (x *GetAllNodeGroupNamesRequest) String() string {
 func (*GetAllNodeGroupNamesRequest) ProtoMessage() {}
 
 func (x *GetAllNodeGroupNamesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[74]
+	mi := &file_api_v1_k8s_proto_msgTypes[89]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5585,7 +6786,7 @@ func (x *GetAllNodeGroupNamesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAllNodeGroupNamesRequest.ProtoReflect.Descriptor instead.
 func (*GetAllNodeGroupNamesRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{74}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{89}
 }
 
 func (x *GetAllNodeGroupNamesRequest) GetTeamId() string {
@@ -5634,7 +6835,7 @@ type GetAllNodeGroupNamesResponse struct {
 func (x *GetAllNodeGroupNamesResponse) Reset() {
 	*x = GetAllNodeGroupNamesResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[75]
+		mi := &file_api_v1_k8s_proto_msgTypes[90]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5647,7 +6848,7 @@ func (x *GetAllNodeGroupNamesResponse) String() string {
 func (*GetAllNodeGroupNamesResponse) ProtoMessage() {}
 
 func (x *GetAllNodeGroupNamesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[75]
+	mi := &file_api_v1_k8s_proto_msgTypes[90]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5660,7 +6861,7 @@ func (x *GetAllNodeGroupNamesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAllNodeGroupNamesResponse.ProtoReflect.Descriptor instead.
 func (*GetAllNodeGroupNamesResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{75}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{90}
 }
 
 func (x *GetAllNodeGroupNamesResponse) GetClusterIdWithNodeGroupNames() []*ClusterElement {
@@ -5718,7 +6919,7 @@ type Cluster struct {
 func (x *Cluster) Reset() {
 	*x = Cluster{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[76]
+		mi := &file_api_v1_k8s_proto_msgTypes[91]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5731,7 +6932,7 @@ func (x *Cluster) String() string {
 func (*Cluster) ProtoMessage() {}
 
 func (x *Cluster) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[76]
+	mi := &file_api_v1_k8s_proto_msgTypes[91]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5744,7 +6945,7 @@ func (x *Cluster) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Cluster.ProtoReflect.Descriptor instead.
 func (*Cluster) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{76}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{91}
 }
 
 func (x *Cluster) GetId() string {
@@ -6019,7 +7220,7 @@ type OperatorInfo struct {
 func (x *OperatorInfo) Reset() {
 	*x = OperatorInfo{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[77]
+		mi := &file_api_v1_k8s_proto_msgTypes[92]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -6032,7 +7233,7 @@ func (x *OperatorInfo) String() string {
 func (*OperatorInfo) ProtoMessage() {}
 
 func (x *OperatorInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[77]
+	mi := &file_api_v1_k8s_proto_msgTypes[92]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6045,7 +7246,7 @@ func (x *OperatorInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OperatorInfo.ProtoReflect.Descriptor instead.
 func (*OperatorInfo) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{77}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{92}
 }
 
 func (x *OperatorInfo) GetVersion() string {
@@ -6083,7 +7284,7 @@ type Container struct {
 func (x *Container) Reset() {
 	*x = Container{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[78]
+		mi := &file_api_v1_k8s_proto_msgTypes[93]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -6096,7 +7297,7 @@ func (x *Container) String() string {
 func (*Container) ProtoMessage() {}
 
 func (x *Container) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[78]
+	mi := &file_api_v1_k8s_proto_msgTypes[93]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6109,7 +7310,7 @@ func (x *Container) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Container.ProtoReflect.Descriptor instead.
 func (*Container) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{78}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{93}
 }
 
 func (x *Container) GetId() string {
@@ -6142,7 +7343,7 @@ type GetLatestOperatorVersionRequest struct {
 func (x *GetLatestOperatorVersionRequest) Reset() {
 	*x = GetLatestOperatorVersionRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[79]
+		mi := &file_api_v1_k8s_proto_msgTypes[94]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -6155,7 +7356,7 @@ func (x *GetLatestOperatorVersionRequest) String() string {
 func (*GetLatestOperatorVersionRequest) ProtoMessage() {}
 
 func (x *GetLatestOperatorVersionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[79]
+	mi := &file_api_v1_k8s_proto_msgTypes[94]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6168,7 +7369,7 @@ func (x *GetLatestOperatorVersionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetLatestOperatorVersionRequest.ProtoReflect.Descriptor instead.
 func (*GetLatestOperatorVersionRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{79}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{94}
 }
 
 type GetLatestOperatorVersionResponse struct {
@@ -6198,7 +7399,7 @@ type GetLatestOperatorVersionResponse struct {
 func (x *GetLatestOperatorVersionResponse) Reset() {
 	*x = GetLatestOperatorVersionResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[80]
+		mi := &file_api_v1_k8s_proto_msgTypes[95]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -6211,7 +7412,7 @@ func (x *GetLatestOperatorVersionResponse) String() string {
 func (*GetLatestOperatorVersionResponse) ProtoMessage() {}
 
 func (x *GetLatestOperatorVersionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[80]
+	mi := &file_api_v1_k8s_proto_msgTypes[95]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6224,7 +7425,7 @@ func (x *GetLatestOperatorVersionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetLatestOperatorVersionResponse.ProtoReflect.Descriptor instead.
 func (*GetLatestOperatorVersionResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{80}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{95}
 }
 
 func (x *GetLatestOperatorVersionResponse) GetZxpInfo() *OperatorInfo {
@@ -6346,7 +7547,7 @@ type GalaxyGetWorkloadPerspectiveRequest struct {
 func (x *GalaxyGetWorkloadPerspectiveRequest) Reset() {
 	*x = GalaxyGetWorkloadPerspectiveRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[81]
+		mi := &file_api_v1_k8s_proto_msgTypes[96]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -6359,7 +7560,7 @@ func (x *GalaxyGetWorkloadPerspectiveRequest) String() string {
 func (*GalaxyGetWorkloadPerspectiveRequest) ProtoMessage() {}
 
 func (x *GalaxyGetWorkloadPerspectiveRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[81]
+	mi := &file_api_v1_k8s_proto_msgTypes[96]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6372,7 +7573,7 @@ func (x *GalaxyGetWorkloadPerspectiveRequest) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use GalaxyGetWorkloadPerspectiveRequest.ProtoReflect.Descriptor instead.
 func (*GalaxyGetWorkloadPerspectiveRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{81}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{96}
 }
 
 func (x *GalaxyGetWorkloadPerspectiveRequest) GetTeamId() string {
@@ -6416,7 +7617,7 @@ type GalaxyGetWorkloadPerspectiveResponse struct {
 func (x *GalaxyGetWorkloadPerspectiveResponse) Reset() {
 	*x = GalaxyGetWorkloadPerspectiveResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[82]
+		mi := &file_api_v1_k8s_proto_msgTypes[97]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -6429,7 +7630,7 @@ func (x *GalaxyGetWorkloadPerspectiveResponse) String() string {
 func (*GalaxyGetWorkloadPerspectiveResponse) ProtoMessage() {}
 
 func (x *GalaxyGetWorkloadPerspectiveResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[82]
+	mi := &file_api_v1_k8s_proto_msgTypes[97]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6442,7 +7643,7 @@ func (x *GalaxyGetWorkloadPerspectiveResponse) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use GalaxyGetWorkloadPerspectiveResponse.ProtoReflect.Descriptor instead.
 func (*GalaxyGetWorkloadPerspectiveResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{82}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{97}
 }
 
 func (x *GalaxyGetWorkloadPerspectiveResponse) GetGroupings() []*GalaxyWorkloadGroup {
@@ -6484,7 +7685,7 @@ type GalaxyWorkloadGroup struct {
 func (x *GalaxyWorkloadGroup) Reset() {
 	*x = GalaxyWorkloadGroup{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[83]
+		mi := &file_api_v1_k8s_proto_msgTypes[98]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -6497,7 +7698,7 @@ func (x *GalaxyWorkloadGroup) String() string {
 func (*GalaxyWorkloadGroup) ProtoMessage() {}
 
 func (x *GalaxyWorkloadGroup) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[83]
+	mi := &file_api_v1_k8s_proto_msgTypes[98]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6510,7 +7711,7 @@ func (x *GalaxyWorkloadGroup) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GalaxyWorkloadGroup.ProtoReflect.Descriptor instead.
 func (*GalaxyWorkloadGroup) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{83}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{98}
 }
 
 func (x *GalaxyWorkloadGroup) GetGroupKey() string {
@@ -6568,7 +7769,7 @@ type PerspectiveDatapointOpts struct {
 func (x *PerspectiveDatapointOpts) Reset() {
 	*x = PerspectiveDatapointOpts{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[84]
+		mi := &file_api_v1_k8s_proto_msgTypes[99]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -6581,7 +7782,7 @@ func (x *PerspectiveDatapointOpts) String() string {
 func (*PerspectiveDatapointOpts) ProtoMessage() {}
 
 func (x *PerspectiveDatapointOpts) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[84]
+	mi := &file_api_v1_k8s_proto_msgTypes[99]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6594,7 +7795,7 @@ func (x *PerspectiveDatapointOpts) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PerspectiveDatapointOpts.ProtoReflect.Descriptor instead.
 func (*PerspectiveDatapointOpts) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{84}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{99}
 }
 
 func (x *PerspectiveDatapointOpts) GetTimeStart() int64 {
@@ -6645,7 +7846,7 @@ type ListAuditLogsRequest struct {
 func (x *ListAuditLogsRequest) Reset() {
 	*x = ListAuditLogsRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[85]
+		mi := &file_api_v1_k8s_proto_msgTypes[100]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -6658,7 +7859,7 @@ func (x *ListAuditLogsRequest) String() string {
 func (*ListAuditLogsRequest) ProtoMessage() {}
 
 func (x *ListAuditLogsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[85]
+	mi := &file_api_v1_k8s_proto_msgTypes[100]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6671,7 +7872,7 @@ func (x *ListAuditLogsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListAuditLogsRequest.ProtoReflect.Descriptor instead.
 func (*ListAuditLogsRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{85}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{100}
 }
 
 func (x *ListAuditLogsRequest) GetTeamId() string {
@@ -6793,7 +7994,7 @@ type ListAuditLogsResponse struct {
 func (x *ListAuditLogsResponse) Reset() {
 	*x = ListAuditLogsResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[86]
+		mi := &file_api_v1_k8s_proto_msgTypes[101]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -6806,7 +8007,7 @@ func (x *ListAuditLogsResponse) String() string {
 func (*ListAuditLogsResponse) ProtoMessage() {}
 
 func (x *ListAuditLogsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[86]
+	mi := &file_api_v1_k8s_proto_msgTypes[101]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6819,7 +8020,7 @@ func (x *ListAuditLogsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListAuditLogsResponse.ProtoReflect.Descriptor instead.
 func (*ListAuditLogsResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{86}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{101}
 }
 
 func (x *ListAuditLogsResponse) GetLogs() []*AuditLogEntry {
@@ -6861,7 +8062,7 @@ type ListAuditLogOriginatorsRequest struct {
 func (x *ListAuditLogOriginatorsRequest) Reset() {
 	*x = ListAuditLogOriginatorsRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[87]
+		mi := &file_api_v1_k8s_proto_msgTypes[102]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -6874,7 +8075,7 @@ func (x *ListAuditLogOriginatorsRequest) String() string {
 func (*ListAuditLogOriginatorsRequest) ProtoMessage() {}
 
 func (x *ListAuditLogOriginatorsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[87]
+	mi := &file_api_v1_k8s_proto_msgTypes[102]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6887,7 +8088,7 @@ func (x *ListAuditLogOriginatorsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListAuditLogOriginatorsRequest.ProtoReflect.Descriptor instead.
 func (*ListAuditLogOriginatorsRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{87}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{102}
 }
 
 func (x *ListAuditLogOriginatorsRequest) GetTeamId() string {
@@ -6994,7 +8195,7 @@ type ListAuditLogOriginatorsResponse struct {
 func (x *ListAuditLogOriginatorsResponse) Reset() {
 	*x = ListAuditLogOriginatorsResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[88]
+		mi := &file_api_v1_k8s_proto_msgTypes[103]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -7007,7 +8208,7 @@ func (x *ListAuditLogOriginatorsResponse) String() string {
 func (*ListAuditLogOriginatorsResponse) ProtoMessage() {}
 
 func (x *ListAuditLogOriginatorsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[88]
+	mi := &file_api_v1_k8s_proto_msgTypes[103]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7020,7 +8221,7 @@ func (x *ListAuditLogOriginatorsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListAuditLogOriginatorsResponse.ProtoReflect.Descriptor instead.
 func (*ListAuditLogOriginatorsResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{88}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{103}
 }
 
 func (x *ListAuditLogOriginatorsResponse) GetEmailAddresses() []string {
@@ -7046,7 +8247,7 @@ type SendWorkloadEmailRequest struct {
 func (x *SendWorkloadEmailRequest) Reset() {
 	*x = SendWorkloadEmailRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[89]
+		mi := &file_api_v1_k8s_proto_msgTypes[104]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -7059,7 +8260,7 @@ func (x *SendWorkloadEmailRequest) String() string {
 func (*SendWorkloadEmailRequest) ProtoMessage() {}
 
 func (x *SendWorkloadEmailRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[89]
+	mi := &file_api_v1_k8s_proto_msgTypes[104]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7072,7 +8273,7 @@ func (x *SendWorkloadEmailRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SendWorkloadEmailRequest.ProtoReflect.Descriptor instead.
 func (*SendWorkloadEmailRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{89}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{104}
 }
 
 func (x *SendWorkloadEmailRequest) GetTeamId() string {
@@ -7122,7 +8323,7 @@ type SendWorkloadEmailResponse struct {
 func (x *SendWorkloadEmailResponse) Reset() {
 	*x = SendWorkloadEmailResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[90]
+		mi := &file_api_v1_k8s_proto_msgTypes[105]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -7135,7 +8336,7 @@ func (x *SendWorkloadEmailResponse) String() string {
 func (*SendWorkloadEmailResponse) ProtoMessage() {}
 
 func (x *SendWorkloadEmailResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[90]
+	mi := &file_api_v1_k8s_proto_msgTypes[105]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7148,7 +8349,7 @@ func (x *SendWorkloadEmailResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SendWorkloadEmailResponse.ProtoReflect.Descriptor instead.
 func (*SendWorkloadEmailResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{90}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{105}
 }
 
 func (x *SendWorkloadEmailResponse) GetMessage() string {
@@ -7170,7 +8371,7 @@ type SendWeeklySummaryEmailRequest struct {
 func (x *SendWeeklySummaryEmailRequest) Reset() {
 	*x = SendWeeklySummaryEmailRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[91]
+		mi := &file_api_v1_k8s_proto_msgTypes[106]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -7183,7 +8384,7 @@ func (x *SendWeeklySummaryEmailRequest) String() string {
 func (*SendWeeklySummaryEmailRequest) ProtoMessage() {}
 
 func (x *SendWeeklySummaryEmailRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[91]
+	mi := &file_api_v1_k8s_proto_msgTypes[106]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7196,7 +8397,7 @@ func (x *SendWeeklySummaryEmailRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SendWeeklySummaryEmailRequest.ProtoReflect.Descriptor instead.
 func (*SendWeeklySummaryEmailRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{91}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{106}
 }
 
 func (x *SendWeeklySummaryEmailRequest) GetRequest() *SendWeeklySummaryEmailRequestData {
@@ -7219,7 +8420,7 @@ type SendWeeklySummaryEmailRequestData struct {
 func (x *SendWeeklySummaryEmailRequestData) Reset() {
 	*x = SendWeeklySummaryEmailRequestData{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[92]
+		mi := &file_api_v1_k8s_proto_msgTypes[107]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -7232,7 +8433,7 @@ func (x *SendWeeklySummaryEmailRequestData) String() string {
 func (*SendWeeklySummaryEmailRequestData) ProtoMessage() {}
 
 func (x *SendWeeklySummaryEmailRequestData) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[92]
+	mi := &file_api_v1_k8s_proto_msgTypes[107]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7245,7 +8446,7 @@ func (x *SendWeeklySummaryEmailRequestData) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use SendWeeklySummaryEmailRequestData.ProtoReflect.Descriptor instead.
 func (*SendWeeklySummaryEmailRequestData) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{92}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{107}
 }
 
 func (x *SendWeeklySummaryEmailRequestData) GetTeamId() string {
@@ -7274,7 +8475,7 @@ type SendWeeklySummaryEmailResponse struct {
 func (x *SendWeeklySummaryEmailResponse) Reset() {
 	*x = SendWeeklySummaryEmailResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[93]
+		mi := &file_api_v1_k8s_proto_msgTypes[108]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -7287,7 +8488,7 @@ func (x *SendWeeklySummaryEmailResponse) String() string {
 func (*SendWeeklySummaryEmailResponse) ProtoMessage() {}
 
 func (x *SendWeeklySummaryEmailResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[93]
+	mi := &file_api_v1_k8s_proto_msgTypes[108]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7300,7 +8501,7 @@ func (x *SendWeeklySummaryEmailResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SendWeeklySummaryEmailResponse.ProtoReflect.Descriptor instead.
 func (*SendWeeklySummaryEmailResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{93}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{108}
 }
 
 func (x *SendWeeklySummaryEmailResponse) GetMessage() string {
@@ -7328,7 +8529,7 @@ type GetClustersNodeInfoRequest struct {
 func (x *GetClustersNodeInfoRequest) Reset() {
 	*x = GetClustersNodeInfoRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[94]
+		mi := &file_api_v1_k8s_proto_msgTypes[109]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -7341,7 +8542,7 @@ func (x *GetClustersNodeInfoRequest) String() string {
 func (*GetClustersNodeInfoRequest) ProtoMessage() {}
 
 func (x *GetClustersNodeInfoRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[94]
+	mi := &file_api_v1_k8s_proto_msgTypes[109]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7354,7 +8555,7 @@ func (x *GetClustersNodeInfoRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetClustersNodeInfoRequest.ProtoReflect.Descriptor instead.
 func (*GetClustersNodeInfoRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{94}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{109}
 }
 
 func (x *GetClustersNodeInfoRequest) GetTeamId() string {
@@ -7421,7 +8622,7 @@ type GetClustersNodeInfoResponse struct {
 func (x *GetClustersNodeInfoResponse) Reset() {
 	*x = GetClustersNodeInfoResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[95]
+		mi := &file_api_v1_k8s_proto_msgTypes[110]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -7434,7 +8635,7 @@ func (x *GetClustersNodeInfoResponse) String() string {
 func (*GetClustersNodeInfoResponse) ProtoMessage() {}
 
 func (x *GetClustersNodeInfoResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[95]
+	mi := &file_api_v1_k8s_proto_msgTypes[110]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7447,7 +8648,7 @@ func (x *GetClustersNodeInfoResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetClustersNodeInfoResponse.ProtoReflect.Descriptor instead.
 func (*GetClustersNodeInfoResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{95}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{110}
 }
 
 func (x *GetClustersNodeInfoResponse) GetNodeInfo() *NodeInfo {
@@ -7492,7 +8693,7 @@ type SearchK8SResourcesRequest struct {
 func (x *SearchK8SResourcesRequest) Reset() {
 	*x = SearchK8SResourcesRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[96]
+		mi := &file_api_v1_k8s_proto_msgTypes[111]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -7505,7 +8706,7 @@ func (x *SearchK8SResourcesRequest) String() string {
 func (*SearchK8SResourcesRequest) ProtoMessage() {}
 
 func (x *SearchK8SResourcesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[96]
+	mi := &file_api_v1_k8s_proto_msgTypes[111]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7518,7 +8719,7 @@ func (x *SearchK8SResourcesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchK8SResourcesRequest.ProtoReflect.Descriptor instead.
 func (*SearchK8SResourcesRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{96}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{111}
 }
 
 func (x *SearchK8SResourcesRequest) GetTeamId() string {
@@ -7560,7 +8761,7 @@ type SearchK8SResourcesResponse struct {
 func (x *SearchK8SResourcesResponse) Reset() {
 	*x = SearchK8SResourcesResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[97]
+		mi := &file_api_v1_k8s_proto_msgTypes[112]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -7573,7 +8774,7 @@ func (x *SearchK8SResourcesResponse) String() string {
 func (*SearchK8SResourcesResponse) ProtoMessage() {}
 
 func (x *SearchK8SResourcesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[97]
+	mi := &file_api_v1_k8s_proto_msgTypes[112]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7586,7 +8787,7 @@ func (x *SearchK8SResourcesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchK8SResourcesResponse.ProtoReflect.Descriptor instead.
 func (*SearchK8SResourcesResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{97}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{112}
 }
 
 func (x *SearchK8SResourcesResponse) GetResults() []*K8SSearchResult {
@@ -7611,7 +8812,7 @@ type K8SSearchResult struct {
 func (x *K8SSearchResult) Reset() {
 	*x = K8SSearchResult{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[98]
+		mi := &file_api_v1_k8s_proto_msgTypes[113]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -7624,7 +8825,7 @@ func (x *K8SSearchResult) String() string {
 func (*K8SSearchResult) ProtoMessage() {}
 
 func (x *K8SSearchResult) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[98]
+	mi := &file_api_v1_k8s_proto_msgTypes[113]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7637,7 +8838,7 @@ func (x *K8SSearchResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use K8SSearchResult.ProtoReflect.Descriptor instead.
 func (*K8SSearchResult) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{98}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{113}
 }
 
 func (x *K8SSearchResult) GetUid() string {
@@ -7688,7 +8889,7 @@ type SearchK8SWorkloadsRequest struct {
 func (x *SearchK8SWorkloadsRequest) Reset() {
 	*x = SearchK8SWorkloadsRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[99]
+		mi := &file_api_v1_k8s_proto_msgTypes[114]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -7701,7 +8902,7 @@ func (x *SearchK8SWorkloadsRequest) String() string {
 func (*SearchK8SWorkloadsRequest) ProtoMessage() {}
 
 func (x *SearchK8SWorkloadsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[99]
+	mi := &file_api_v1_k8s_proto_msgTypes[114]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7714,7 +8915,7 @@ func (x *SearchK8SWorkloadsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchK8SWorkloadsRequest.ProtoReflect.Descriptor instead.
 func (*SearchK8SWorkloadsRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{99}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{114}
 }
 
 func (x *SearchK8SWorkloadsRequest) GetTeamId() string {
@@ -7749,7 +8950,7 @@ type SearchK8SWorkloadsResponse struct {
 func (x *SearchK8SWorkloadsResponse) Reset() {
 	*x = SearchK8SWorkloadsResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[100]
+		mi := &file_api_v1_k8s_proto_msgTypes[115]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -7762,7 +8963,7 @@ func (x *SearchK8SWorkloadsResponse) String() string {
 func (*SearchK8SWorkloadsResponse) ProtoMessage() {}
 
 func (x *SearchK8SWorkloadsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[100]
+	mi := &file_api_v1_k8s_proto_msgTypes[115]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7775,7 +8976,7 @@ func (x *SearchK8SWorkloadsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchK8SWorkloadsResponse.ProtoReflect.Descriptor instead.
 func (*SearchK8SWorkloadsResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{100}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{115}
 }
 
 func (x *SearchK8SWorkloadsResponse) GetResults() []*K8SWorkloadSearchResult {
@@ -7797,7 +8998,7 @@ type K8SWorkloadSearchResult struct {
 func (x *K8SWorkloadSearchResult) Reset() {
 	*x = K8SWorkloadSearchResult{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[101]
+		mi := &file_api_v1_k8s_proto_msgTypes[116]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -7810,7 +9011,7 @@ func (x *K8SWorkloadSearchResult) String() string {
 func (*K8SWorkloadSearchResult) ProtoMessage() {}
 
 func (x *K8SWorkloadSearchResult) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[101]
+	mi := &file_api_v1_k8s_proto_msgTypes[116]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7823,7 +9024,7 @@ func (x *K8SWorkloadSearchResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use K8SWorkloadSearchResult.ProtoReflect.Descriptor instead.
 func (*K8SWorkloadSearchResult) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{101}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{116}
 }
 
 func (x *K8SWorkloadSearchResult) GetKind() string {
@@ -7854,7 +9055,7 @@ type MetadataForWorkloadsRequest struct {
 func (x *MetadataForWorkloadsRequest) Reset() {
 	*x = MetadataForWorkloadsRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[102]
+		mi := &file_api_v1_k8s_proto_msgTypes[117]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -7867,7 +9068,7 @@ func (x *MetadataForWorkloadsRequest) String() string {
 func (*MetadataForWorkloadsRequest) ProtoMessage() {}
 
 func (x *MetadataForWorkloadsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[102]
+	mi := &file_api_v1_k8s_proto_msgTypes[117]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7880,7 +9081,7 @@ func (x *MetadataForWorkloadsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MetadataForWorkloadsRequest.ProtoReflect.Descriptor instead.
 func (*MetadataForWorkloadsRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{102}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{117}
 }
 
 func (x *MetadataForWorkloadsRequest) GetTeamId() string {
@@ -7922,7 +9123,7 @@ type MetadataForWorkloadsResponse struct {
 func (x *MetadataForWorkloadsResponse) Reset() {
 	*x = MetadataForWorkloadsResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[103]
+		mi := &file_api_v1_k8s_proto_msgTypes[118]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -7935,7 +9136,7 @@ func (x *MetadataForWorkloadsResponse) String() string {
 func (*MetadataForWorkloadsResponse) ProtoMessage() {}
 
 func (x *MetadataForWorkloadsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[103]
+	mi := &file_api_v1_k8s_proto_msgTypes[118]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7948,7 +9149,7 @@ func (x *MetadataForWorkloadsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MetadataForWorkloadsResponse.ProtoReflect.Descriptor instead.
 func (*MetadataForWorkloadsResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{103}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{118}
 }
 
 func (x *MetadataForWorkloadsResponse) GetWorkloadUidToMetadata() map[string]*WorkloadMetadata {
@@ -7971,7 +9172,7 @@ type AddClusterTagsRequest struct {
 func (x *AddClusterTagsRequest) Reset() {
 	*x = AddClusterTagsRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[104]
+		mi := &file_api_v1_k8s_proto_msgTypes[119]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -7984,7 +9185,7 @@ func (x *AddClusterTagsRequest) String() string {
 func (*AddClusterTagsRequest) ProtoMessage() {}
 
 func (x *AddClusterTagsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[104]
+	mi := &file_api_v1_k8s_proto_msgTypes[119]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7997,7 +9198,7 @@ func (x *AddClusterTagsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddClusterTagsRequest.ProtoReflect.Descriptor instead.
 func (*AddClusterTagsRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{104}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{119}
 }
 
 func (x *AddClusterTagsRequest) GetTeamId() string {
@@ -8032,7 +9233,7 @@ type AddClusterTagsResponse struct {
 func (x *AddClusterTagsResponse) Reset() {
 	*x = AddClusterTagsResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[105]
+		mi := &file_api_v1_k8s_proto_msgTypes[120]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -8045,7 +9246,7 @@ func (x *AddClusterTagsResponse) String() string {
 func (*AddClusterTagsResponse) ProtoMessage() {}
 
 func (x *AddClusterTagsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[105]
+	mi := &file_api_v1_k8s_proto_msgTypes[120]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8058,7 +9259,7 @@ func (x *AddClusterTagsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddClusterTagsResponse.ProtoReflect.Descriptor instead.
 func (*AddClusterTagsResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{105}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{120}
 }
 
 func (x *AddClusterTagsResponse) GetCluster() *Cluster {
@@ -8081,7 +9282,7 @@ type RemoveClusterTagsRequest struct {
 func (x *RemoveClusterTagsRequest) Reset() {
 	*x = RemoveClusterTagsRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[106]
+		mi := &file_api_v1_k8s_proto_msgTypes[121]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -8094,7 +9295,7 @@ func (x *RemoveClusterTagsRequest) String() string {
 func (*RemoveClusterTagsRequest) ProtoMessage() {}
 
 func (x *RemoveClusterTagsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[106]
+	mi := &file_api_v1_k8s_proto_msgTypes[121]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8107,7 +9308,7 @@ func (x *RemoveClusterTagsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveClusterTagsRequest.ProtoReflect.Descriptor instead.
 func (*RemoveClusterTagsRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{106}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{121}
 }
 
 func (x *RemoveClusterTagsRequest) GetTeamId() string {
@@ -8142,7 +9343,7 @@ type RemoveClusterTagsResponse struct {
 func (x *RemoveClusterTagsResponse) Reset() {
 	*x = RemoveClusterTagsResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[107]
+		mi := &file_api_v1_k8s_proto_msgTypes[122]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -8155,7 +9356,7 @@ func (x *RemoveClusterTagsResponse) String() string {
 func (*RemoveClusterTagsResponse) ProtoMessage() {}
 
 func (x *RemoveClusterTagsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[107]
+	mi := &file_api_v1_k8s_proto_msgTypes[122]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8168,7 +9369,7 @@ func (x *RemoveClusterTagsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveClusterTagsResponse.ProtoReflect.Descriptor instead.
 func (*RemoveClusterTagsResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{107}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{122}
 }
 
 func (x *RemoveClusterTagsResponse) GetCluster() *Cluster {
@@ -8189,7 +9390,7 @@ type ListTagsRequest struct {
 func (x *ListTagsRequest) Reset() {
 	*x = ListTagsRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[108]
+		mi := &file_api_v1_k8s_proto_msgTypes[123]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -8202,7 +9403,7 @@ func (x *ListTagsRequest) String() string {
 func (*ListTagsRequest) ProtoMessage() {}
 
 func (x *ListTagsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[108]
+	mi := &file_api_v1_k8s_proto_msgTypes[123]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8215,7 +9416,7 @@ func (x *ListTagsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListTagsRequest.ProtoReflect.Descriptor instead.
 func (*ListTagsRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{108}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{123}
 }
 
 func (x *ListTagsRequest) GetTeamId() string {
@@ -8237,7 +9438,7 @@ type TagSummary struct {
 func (x *TagSummary) Reset() {
 	*x = TagSummary{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[109]
+		mi := &file_api_v1_k8s_proto_msgTypes[124]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -8250,7 +9451,7 @@ func (x *TagSummary) String() string {
 func (*TagSummary) ProtoMessage() {}
 
 func (x *TagSummary) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[109]
+	mi := &file_api_v1_k8s_proto_msgTypes[124]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8263,7 +9464,7 @@ func (x *TagSummary) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TagSummary.ProtoReflect.Descriptor instead.
 func (*TagSummary) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{109}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{124}
 }
 
 func (x *TagSummary) GetTag() string {
@@ -8291,7 +9492,7 @@ type ListTagsResponse struct {
 func (x *ListTagsResponse) Reset() {
 	*x = ListTagsResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[110]
+		mi := &file_api_v1_k8s_proto_msgTypes[125]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -8304,7 +9505,7 @@ func (x *ListTagsResponse) String() string {
 func (*ListTagsResponse) ProtoMessage() {}
 
 func (x *ListTagsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[110]
+	mi := &file_api_v1_k8s_proto_msgTypes[125]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8317,7 +9518,7 @@ func (x *ListTagsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListTagsResponse.ProtoReflect.Descriptor instead.
 func (*ListTagsResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{110}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{125}
 }
 
 func (x *ListTagsResponse) GetTags() []*TagSummary {
@@ -8345,7 +9546,7 @@ type WorkloadMetadata struct {
 func (x *WorkloadMetadata) Reset() {
 	*x = WorkloadMetadata{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[111]
+		mi := &file_api_v1_k8s_proto_msgTypes[126]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -8358,7 +9559,7 @@ func (x *WorkloadMetadata) String() string {
 func (*WorkloadMetadata) ProtoMessage() {}
 
 func (x *WorkloadMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[111]
+	mi := &file_api_v1_k8s_proto_msgTypes[126]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8371,7 +9572,7 @@ func (x *WorkloadMetadata) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorkloadMetadata.ProtoReflect.Descriptor instead.
 func (*WorkloadMetadata) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{111}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{126}
 }
 
 func (x *WorkloadMetadata) GetPodUidToNodeMetadata() map[string]*NodeMetadata {
@@ -8446,7 +9647,7 @@ type PodMetadata struct {
 func (x *PodMetadata) Reset() {
 	*x = PodMetadata{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[112]
+		mi := &file_api_v1_k8s_proto_msgTypes[127]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -8459,7 +9660,7 @@ func (x *PodMetadata) String() string {
 func (*PodMetadata) ProtoMessage() {}
 
 func (x *PodMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[112]
+	mi := &file_api_v1_k8s_proto_msgTypes[127]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8472,7 +9673,7 @@ func (x *PodMetadata) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PodMetadata.ProtoReflect.Descriptor instead.
 func (*PodMetadata) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{112}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{127}
 }
 
 func (x *PodMetadata) GetName() string {
@@ -8536,7 +9737,7 @@ type NodeMetadata struct {
 func (x *NodeMetadata) Reset() {
 	*x = NodeMetadata{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[113]
+		mi := &file_api_v1_k8s_proto_msgTypes[128]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -8549,7 +9750,7 @@ func (x *NodeMetadata) String() string {
 func (*NodeMetadata) ProtoMessage() {}
 
 func (x *NodeMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[113]
+	mi := &file_api_v1_k8s_proto_msgTypes[128]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8562,7 +9763,7 @@ func (x *NodeMetadata) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NodeMetadata.ProtoReflect.Descriptor instead.
 func (*NodeMetadata) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{113}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{128}
 }
 
 func (x *NodeMetadata) GetNodeName() string {
@@ -8644,7 +9845,7 @@ type GetRelatedResourcesRequest struct {
 func (x *GetRelatedResourcesRequest) Reset() {
 	*x = GetRelatedResourcesRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[114]
+		mi := &file_api_v1_k8s_proto_msgTypes[129]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -8657,7 +9858,7 @@ func (x *GetRelatedResourcesRequest) String() string {
 func (*GetRelatedResourcesRequest) ProtoMessage() {}
 
 func (x *GetRelatedResourcesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[114]
+	mi := &file_api_v1_k8s_proto_msgTypes[129]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8670,7 +9871,7 @@ func (x *GetRelatedResourcesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetRelatedResourcesRequest.ProtoReflect.Descriptor instead.
 func (*GetRelatedResourcesRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{114}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{129}
 }
 
 func (x *GetRelatedResourcesRequest) GetTeamId() string {
@@ -8722,7 +9923,7 @@ type GetWorkloadPodHistoryResponse struct {
 func (x *GetWorkloadPodHistoryResponse) Reset() {
 	*x = GetWorkloadPodHistoryResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[115]
+		mi := &file_api_v1_k8s_proto_msgTypes[130]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -8735,7 +9936,7 @@ func (x *GetWorkloadPodHistoryResponse) String() string {
 func (*GetWorkloadPodHistoryResponse) ProtoMessage() {}
 
 func (x *GetWorkloadPodHistoryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[115]
+	mi := &file_api_v1_k8s_proto_msgTypes[130]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8748,7 +9949,7 @@ func (x *GetWorkloadPodHistoryResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetWorkloadPodHistoryResponse.ProtoReflect.Descriptor instead.
 func (*GetWorkloadPodHistoryResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{115}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{130}
 }
 
 func (x *GetWorkloadPodHistoryResponse) GetWorkloadUid() string {
@@ -8795,7 +9996,7 @@ type JobHistory struct {
 func (x *JobHistory) Reset() {
 	*x = JobHistory{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[116]
+		mi := &file_api_v1_k8s_proto_msgTypes[131]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -8808,7 +10009,7 @@ func (x *JobHistory) String() string {
 func (*JobHistory) ProtoMessage() {}
 
 func (x *JobHistory) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[116]
+	mi := &file_api_v1_k8s_proto_msgTypes[131]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8821,7 +10022,7 @@ func (x *JobHistory) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JobHistory.ProtoReflect.Descriptor instead.
 func (*JobHistory) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{116}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{131}
 }
 
 func (x *JobHistory) GetUid() string {
@@ -8882,7 +10083,7 @@ type ReplicaSetHistory struct {
 func (x *ReplicaSetHistory) Reset() {
 	*x = ReplicaSetHistory{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[117]
+		mi := &file_api_v1_k8s_proto_msgTypes[132]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -8895,7 +10096,7 @@ func (x *ReplicaSetHistory) String() string {
 func (*ReplicaSetHistory) ProtoMessage() {}
 
 func (x *ReplicaSetHistory) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[117]
+	mi := &file_api_v1_k8s_proto_msgTypes[132]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8908,7 +10109,7 @@ func (x *ReplicaSetHistory) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReplicaSetHistory.ProtoReflect.Descriptor instead.
 func (*ReplicaSetHistory) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{117}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{132}
 }
 
 func (x *ReplicaSetHistory) GetUid() string {
@@ -8970,7 +10171,7 @@ type PodHistory struct {
 func (x *PodHistory) Reset() {
 	*x = PodHistory{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[118]
+		mi := &file_api_v1_k8s_proto_msgTypes[133]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -8983,7 +10184,7 @@ func (x *PodHistory) String() string {
 func (*PodHistory) ProtoMessage() {}
 
 func (x *PodHistory) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[118]
+	mi := &file_api_v1_k8s_proto_msgTypes[133]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8996,7 +10197,7 @@ func (x *PodHistory) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PodHistory.ProtoReflect.Descriptor instead.
 func (*PodHistory) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{118}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{133}
 }
 
 func (x *PodHistory) GetUid() string {
@@ -9061,7 +10262,7 @@ type GetRelatedResourcesResponse struct {
 func (x *GetRelatedResourcesResponse) Reset() {
 	*x = GetRelatedResourcesResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[119]
+		mi := &file_api_v1_k8s_proto_msgTypes[134]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -9074,7 +10275,7 @@ func (x *GetRelatedResourcesResponse) String() string {
 func (*GetRelatedResourcesResponse) ProtoMessage() {}
 
 func (x *GetRelatedResourcesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[119]
+	mi := &file_api_v1_k8s_proto_msgTypes[134]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9087,7 +10288,7 @@ func (x *GetRelatedResourcesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetRelatedResourcesResponse.ProtoReflect.Descriptor instead.
 func (*GetRelatedResourcesResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{119}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{134}
 }
 
 func (x *GetRelatedResourcesResponse) GetRelations() []*K8SRelatedResource {
@@ -9129,7 +10330,7 @@ type K8SRelatedResource struct {
 func (x *K8SRelatedResource) Reset() {
 	*x = K8SRelatedResource{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[120]
+		mi := &file_api_v1_k8s_proto_msgTypes[135]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -9142,7 +10343,7 @@ func (x *K8SRelatedResource) String() string {
 func (*K8SRelatedResource) ProtoMessage() {}
 
 func (x *K8SRelatedResource) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[120]
+	mi := &file_api_v1_k8s_proto_msgTypes[135]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9155,7 +10356,7 @@ func (x *K8SRelatedResource) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use K8SRelatedResource.ProtoReflect.Descriptor instead.
 func (*K8SRelatedResource) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{120}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{135}
 }
 
 func (x *K8SRelatedResource) GetSourceKind() string {
@@ -9221,7 +10422,7 @@ type K8SResourceNode struct {
 func (x *K8SResourceNode) Reset() {
 	*x = K8SResourceNode{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[121]
+		mi := &file_api_v1_k8s_proto_msgTypes[136]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -9234,7 +10435,7 @@ func (x *K8SResourceNode) String() string {
 func (*K8SResourceNode) ProtoMessage() {}
 
 func (x *K8SResourceNode) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[121]
+	mi := &file_api_v1_k8s_proto_msgTypes[136]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9247,7 +10448,7 @@ func (x *K8SResourceNode) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use K8SResourceNode.ProtoReflect.Descriptor instead.
 func (*K8SResourceNode) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{121}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{136}
 }
 
 func (x *K8SResourceNode) GetId() string {
@@ -9286,7 +10487,7 @@ type K8SResourceEdge struct {
 func (x *K8SResourceEdge) Reset() {
 	*x = K8SResourceEdge{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[122]
+		mi := &file_api_v1_k8s_proto_msgTypes[137]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -9299,7 +10500,7 @@ func (x *K8SResourceEdge) String() string {
 func (*K8SResourceEdge) ProtoMessage() {}
 
 func (x *K8SResourceEdge) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[122]
+	mi := &file_api_v1_k8s_proto_msgTypes[137]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9312,7 +10513,7 @@ func (x *K8SResourceEdge) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use K8SResourceEdge.ProtoReflect.Descriptor instead.
 func (*K8SResourceEdge) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{122}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{137}
 }
 
 func (x *K8SResourceEdge) GetId() string {
@@ -9356,7 +10557,7 @@ type GetClusterTypeRequest struct {
 func (x *GetClusterTypeRequest) Reset() {
 	*x = GetClusterTypeRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[123]
+		mi := &file_api_v1_k8s_proto_msgTypes[138]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -9369,7 +10570,7 @@ func (x *GetClusterTypeRequest) String() string {
 func (*GetClusterTypeRequest) ProtoMessage() {}
 
 func (x *GetClusterTypeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[123]
+	mi := &file_api_v1_k8s_proto_msgTypes[138]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9382,7 +10583,7 @@ func (x *GetClusterTypeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetClusterTypeRequest.ProtoReflect.Descriptor instead.
 func (*GetClusterTypeRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{123}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{138}
 }
 
 func (x *GetClusterTypeRequest) GetTeamId() string {
@@ -9412,7 +10613,7 @@ type GetClusterTypeResponse struct {
 func (x *GetClusterTypeResponse) Reset() {
 	*x = GetClusterTypeResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[124]
+		mi := &file_api_v1_k8s_proto_msgTypes[139]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -9425,7 +10626,7 @@ func (x *GetClusterTypeResponse) String() string {
 func (*GetClusterTypeResponse) ProtoMessage() {}
 
 func (x *GetClusterTypeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[124]
+	mi := &file_api_v1_k8s_proto_msgTypes[139]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9438,7 +10639,7 @@ func (x *GetClusterTypeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetClusterTypeResponse.ProtoReflect.Descriptor instead.
 func (*GetClusterTypeResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{124}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{139}
 }
 
 func (x *GetClusterTypeResponse) GetClusterType() ClusterType {
@@ -9467,7 +10668,7 @@ type GetMigPartedConfigRequest struct {
 func (x *GetMigPartedConfigRequest) Reset() {
 	*x = GetMigPartedConfigRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[125]
+		mi := &file_api_v1_k8s_proto_msgTypes[140]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -9480,7 +10681,7 @@ func (x *GetMigPartedConfigRequest) String() string {
 func (*GetMigPartedConfigRequest) ProtoMessage() {}
 
 func (x *GetMigPartedConfigRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[125]
+	mi := &file_api_v1_k8s_proto_msgTypes[140]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9493,7 +10694,7 @@ func (x *GetMigPartedConfigRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetMigPartedConfigRequest.ProtoReflect.Descriptor instead.
 func (*GetMigPartedConfigRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{125}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{140}
 }
 
 func (x *GetMigPartedConfigRequest) GetTeamId() string {
@@ -9533,7 +10734,7 @@ type GetMigPartedConfigResponse struct {
 func (x *GetMigPartedConfigResponse) Reset() {
 	*x = GetMigPartedConfigResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[126]
+		mi := &file_api_v1_k8s_proto_msgTypes[141]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -9546,7 +10747,7 @@ func (x *GetMigPartedConfigResponse) String() string {
 func (*GetMigPartedConfigResponse) ProtoMessage() {}
 
 func (x *GetMigPartedConfigResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[126]
+	mi := &file_api_v1_k8s_proto_msgTypes[141]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9559,7 +10760,7 @@ func (x *GetMigPartedConfigResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetMigPartedConfigResponse.ProtoReflect.Descriptor instead.
 func (*GetMigPartedConfigResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{126}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{141}
 }
 
 func (x *GetMigPartedConfigResponse) GetFound() bool {
@@ -9632,7 +10833,7 @@ type GetWorkloadsStatsRequest struct {
 func (x *GetWorkloadsStatsRequest) Reset() {
 	*x = GetWorkloadsStatsRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[127]
+		mi := &file_api_v1_k8s_proto_msgTypes[142]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -9645,7 +10846,7 @@ func (x *GetWorkloadsStatsRequest) String() string {
 func (*GetWorkloadsStatsRequest) ProtoMessage() {}
 
 func (x *GetWorkloadsStatsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[127]
+	mi := &file_api_v1_k8s_proto_msgTypes[142]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9658,7 +10859,7 @@ func (x *GetWorkloadsStatsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetWorkloadsStatsRequest.ProtoReflect.Descriptor instead.
 func (*GetWorkloadsStatsRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{127}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{142}
 }
 
 func (x *GetWorkloadsStatsRequest) GetTeamId() string {
@@ -9704,7 +10905,7 @@ type GetWorkloadsStatsResponse struct {
 func (x *GetWorkloadsStatsResponse) Reset() {
 	*x = GetWorkloadsStatsResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[128]
+		mi := &file_api_v1_k8s_proto_msgTypes[143]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -9717,7 +10918,7 @@ func (x *GetWorkloadsStatsResponse) String() string {
 func (*GetWorkloadsStatsResponse) ProtoMessage() {}
 
 func (x *GetWorkloadsStatsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[128]
+	mi := &file_api_v1_k8s_proto_msgTypes[143]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9730,7 +10931,7 @@ func (x *GetWorkloadsStatsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetWorkloadsStatsResponse.ProtoReflect.Descriptor instead.
 func (*GetWorkloadsStatsResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{128}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{143}
 }
 
 func (x *GetWorkloadsStatsResponse) GetTotal() int32 {
@@ -9782,7 +10983,7 @@ type DailyUtilizationRequest struct {
 func (x *DailyUtilizationRequest) Reset() {
 	*x = DailyUtilizationRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[129]
+		mi := &file_api_v1_k8s_proto_msgTypes[144]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -9795,7 +10996,7 @@ func (x *DailyUtilizationRequest) String() string {
 func (*DailyUtilizationRequest) ProtoMessage() {}
 
 func (x *DailyUtilizationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[129]
+	mi := &file_api_v1_k8s_proto_msgTypes[144]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9808,7 +11009,7 @@ func (x *DailyUtilizationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DailyUtilizationRequest.ProtoReflect.Descriptor instead.
 func (*DailyUtilizationRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{129}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{144}
 }
 
 func (x *DailyUtilizationRequest) GetTeamId() string {
@@ -9852,7 +11053,7 @@ type DailyUtilizationResponse struct {
 func (x *DailyUtilizationResponse) Reset() {
 	*x = DailyUtilizationResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[130]
+		mi := &file_api_v1_k8s_proto_msgTypes[145]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -9865,7 +11066,7 @@ func (x *DailyUtilizationResponse) String() string {
 func (*DailyUtilizationResponse) ProtoMessage() {}
 
 func (x *DailyUtilizationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[130]
+	mi := &file_api_v1_k8s_proto_msgTypes[145]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9878,7 +11079,7 @@ func (x *DailyUtilizationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DailyUtilizationResponse.ProtoReflect.Descriptor instead.
 func (*DailyUtilizationResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{130}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{145}
 }
 
 func (x *DailyUtilizationResponse) GetClusterIdToDailyTotalCoreMinutes() map[string]*DailyUtilizationResponse_Datapoints {
@@ -9916,7 +11117,7 @@ type DailyUtilizationInstanceTypeRequest struct {
 func (x *DailyUtilizationInstanceTypeRequest) Reset() {
 	*x = DailyUtilizationInstanceTypeRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[131]
+		mi := &file_api_v1_k8s_proto_msgTypes[146]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -9929,7 +11130,7 @@ func (x *DailyUtilizationInstanceTypeRequest) String() string {
 func (*DailyUtilizationInstanceTypeRequest) ProtoMessage() {}
 
 func (x *DailyUtilizationInstanceTypeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[131]
+	mi := &file_api_v1_k8s_proto_msgTypes[146]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9942,7 +11143,7 @@ func (x *DailyUtilizationInstanceTypeRequest) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use DailyUtilizationInstanceTypeRequest.ProtoReflect.Descriptor instead.
 func (*DailyUtilizationInstanceTypeRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{131}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{146}
 }
 
 func (x *DailyUtilizationInstanceTypeRequest) GetTeamId() string {
@@ -9985,7 +11186,7 @@ type DailyUtilizationInstanceTypeResponse struct {
 func (x *DailyUtilizationInstanceTypeResponse) Reset() {
 	*x = DailyUtilizationInstanceTypeResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[132]
+		mi := &file_api_v1_k8s_proto_msgTypes[147]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -9998,7 +11199,7 @@ func (x *DailyUtilizationInstanceTypeResponse) String() string {
 func (*DailyUtilizationInstanceTypeResponse) ProtoMessage() {}
 
 func (x *DailyUtilizationInstanceTypeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[132]
+	mi := &file_api_v1_k8s_proto_msgTypes[147]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10011,7 +11212,7 @@ func (x *DailyUtilizationInstanceTypeResponse) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use DailyUtilizationInstanceTypeResponse.ProtoReflect.Descriptor instead.
 func (*DailyUtilizationInstanceTypeResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{132}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{147}
 }
 
 func (x *DailyUtilizationInstanceTypeResponse) GetClusterIdToDatapoints() map[string]*DailyUtilizationInstanceTypeResponse_Datapoints {
@@ -10042,7 +11243,7 @@ type DailyUtilizationNodeTypeRequest struct {
 func (x *DailyUtilizationNodeTypeRequest) Reset() {
 	*x = DailyUtilizationNodeTypeRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[133]
+		mi := &file_api_v1_k8s_proto_msgTypes[148]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -10055,7 +11256,7 @@ func (x *DailyUtilizationNodeTypeRequest) String() string {
 func (*DailyUtilizationNodeTypeRequest) ProtoMessage() {}
 
 func (x *DailyUtilizationNodeTypeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[133]
+	mi := &file_api_v1_k8s_proto_msgTypes[148]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10068,7 +11269,7 @@ func (x *DailyUtilizationNodeTypeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DailyUtilizationNodeTypeRequest.ProtoReflect.Descriptor instead.
 func (*DailyUtilizationNodeTypeRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{133}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{148}
 }
 
 func (x *DailyUtilizationNodeTypeRequest) GetTeamId() string {
@@ -10111,7 +11312,7 @@ type DailyUtilizationNodeTypeResponse struct {
 func (x *DailyUtilizationNodeTypeResponse) Reset() {
 	*x = DailyUtilizationNodeTypeResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[134]
+		mi := &file_api_v1_k8s_proto_msgTypes[149]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -10124,7 +11325,7 @@ func (x *DailyUtilizationNodeTypeResponse) String() string {
 func (*DailyUtilizationNodeTypeResponse) ProtoMessage() {}
 
 func (x *DailyUtilizationNodeTypeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[134]
+	mi := &file_api_v1_k8s_proto_msgTypes[149]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10137,7 +11338,7 @@ func (x *DailyUtilizationNodeTypeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DailyUtilizationNodeTypeResponse.ProtoReflect.Descriptor instead.
 func (*DailyUtilizationNodeTypeResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{134}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{149}
 }
 
 func (x *DailyUtilizationNodeTypeResponse) GetClusterIdToDatapoints() map[string]*DailyUtilizationNodeTypeResponse_Datapoints {
@@ -10168,7 +11369,7 @@ type LookupNodeInstanceRequest struct {
 func (x *LookupNodeInstanceRequest) Reset() {
 	*x = LookupNodeInstanceRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[135]
+		mi := &file_api_v1_k8s_proto_msgTypes[150]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -10181,7 +11382,7 @@ func (x *LookupNodeInstanceRequest) String() string {
 func (*LookupNodeInstanceRequest) ProtoMessage() {}
 
 func (x *LookupNodeInstanceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[135]
+	mi := &file_api_v1_k8s_proto_msgTypes[150]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10194,7 +11395,7 @@ func (x *LookupNodeInstanceRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LookupNodeInstanceRequest.ProtoReflect.Descriptor instead.
 func (*LookupNodeInstanceRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{135}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{150}
 }
 
 func (x *LookupNodeInstanceRequest) GetTeamId() string {
@@ -10234,7 +11435,7 @@ type InstanceLookupParams struct {
 func (x *InstanceLookupParams) Reset() {
 	*x = InstanceLookupParams{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[136]
+		mi := &file_api_v1_k8s_proto_msgTypes[151]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -10247,7 +11448,7 @@ func (x *InstanceLookupParams) String() string {
 func (*InstanceLookupParams) ProtoMessage() {}
 
 func (x *InstanceLookupParams) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[136]
+	mi := &file_api_v1_k8s_proto_msgTypes[151]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10260,7 +11461,7 @@ func (x *InstanceLookupParams) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InstanceLookupParams.ProtoReflect.Descriptor instead.
 func (*InstanceLookupParams) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{136}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{151}
 }
 
 func (x *InstanceLookupParams) GetCloudProviderId() int64 {
@@ -10314,7 +11515,7 @@ type LookupNodeInstanceResponse struct {
 func (x *LookupNodeInstanceResponse) Reset() {
 	*x = LookupNodeInstanceResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[137]
+		mi := &file_api_v1_k8s_proto_msgTypes[152]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -10327,7 +11528,7 @@ func (x *LookupNodeInstanceResponse) String() string {
 func (*LookupNodeInstanceResponse) ProtoMessage() {}
 
 func (x *LookupNodeInstanceResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[137]
+	mi := &file_api_v1_k8s_proto_msgTypes[152]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10340,7 +11541,7 @@ func (x *LookupNodeInstanceResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LookupNodeInstanceResponse.ProtoReflect.Descriptor instead.
 func (*LookupNodeInstanceResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{137}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{152}
 }
 
 func (x *LookupNodeInstanceResponse) GetDynamicInstance() *Instance {
@@ -10389,7 +11590,7 @@ type GetNodeGroupsUtilizationResponse_ListNodeGroupMetrics struct {
 func (x *GetNodeGroupsUtilizationResponse_ListNodeGroupMetrics) Reset() {
 	*x = GetNodeGroupsUtilizationResponse_ListNodeGroupMetrics{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[139]
+		mi := &file_api_v1_k8s_proto_msgTypes[156]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -10402,7 +11603,7 @@ func (x *GetNodeGroupsUtilizationResponse_ListNodeGroupMetrics) String() string 
 func (*GetNodeGroupsUtilizationResponse_ListNodeGroupMetrics) ProtoMessage() {}
 
 func (x *GetNodeGroupsUtilizationResponse_ListNodeGroupMetrics) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[139]
+	mi := &file_api_v1_k8s_proto_msgTypes[156]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10415,7 +11616,7 @@ func (x *GetNodeGroupsUtilizationResponse_ListNodeGroupMetrics) ProtoReflect() p
 
 // Deprecated: Use GetNodeGroupsUtilizationResponse_ListNodeGroupMetrics.ProtoReflect.Descriptor instead.
 func (*GetNodeGroupsUtilizationResponse_ListNodeGroupMetrics) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{35, 0}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{40, 0}
 }
 
 func (x *GetNodeGroupsUtilizationResponse_ListNodeGroupMetrics) GetNodeGroupMetrics() []*NodeGroupMetric {
@@ -10436,7 +11637,7 @@ type DailyUtilizationResponse_Datapoints struct {
 func (x *DailyUtilizationResponse_Datapoints) Reset() {
 	*x = DailyUtilizationResponse_Datapoints{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[150]
+		mi := &file_api_v1_k8s_proto_msgTypes[167]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -10449,7 +11650,7 @@ func (x *DailyUtilizationResponse_Datapoints) String() string {
 func (*DailyUtilizationResponse_Datapoints) ProtoMessage() {}
 
 func (x *DailyUtilizationResponse_Datapoints) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[150]
+	mi := &file_api_v1_k8s_proto_msgTypes[167]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10462,7 +11663,7 @@ func (x *DailyUtilizationResponse_Datapoints) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use DailyUtilizationResponse_Datapoints.ProtoReflect.Descriptor instead.
 func (*DailyUtilizationResponse_Datapoints) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{130, 0}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{145, 0}
 }
 
 func (x *DailyUtilizationResponse_Datapoints) GetDatapoints() []*DailyUtilizationResponse_Datapoint {
@@ -10484,7 +11685,7 @@ type DailyUtilizationResponse_Datapoint struct {
 func (x *DailyUtilizationResponse_Datapoint) Reset() {
 	*x = DailyUtilizationResponse_Datapoint{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[151]
+		mi := &file_api_v1_k8s_proto_msgTypes[168]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -10497,7 +11698,7 @@ func (x *DailyUtilizationResponse_Datapoint) String() string {
 func (*DailyUtilizationResponse_Datapoint) ProtoMessage() {}
 
 func (x *DailyUtilizationResponse_Datapoint) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[151]
+	mi := &file_api_v1_k8s_proto_msgTypes[168]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10510,7 +11711,7 @@ func (x *DailyUtilizationResponse_Datapoint) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use DailyUtilizationResponse_Datapoint.ProtoReflect.Descriptor instead.
 func (*DailyUtilizationResponse_Datapoint) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{130, 1}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{145, 1}
 }
 
 func (x *DailyUtilizationResponse_Datapoint) GetTimestamp() int64 {
@@ -10538,7 +11739,7 @@ type DailyUtilizationInstanceTypeResponse_Datapoints struct {
 func (x *DailyUtilizationInstanceTypeResponse_Datapoints) Reset() {
 	*x = DailyUtilizationInstanceTypeResponse_Datapoints{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[154]
+		mi := &file_api_v1_k8s_proto_msgTypes[171]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -10551,7 +11752,7 @@ func (x *DailyUtilizationInstanceTypeResponse_Datapoints) String() string {
 func (*DailyUtilizationInstanceTypeResponse_Datapoints) ProtoMessage() {}
 
 func (x *DailyUtilizationInstanceTypeResponse_Datapoints) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[154]
+	mi := &file_api_v1_k8s_proto_msgTypes[171]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10564,7 +11765,7 @@ func (x *DailyUtilizationInstanceTypeResponse_Datapoints) ProtoReflect() protore
 
 // Deprecated: Use DailyUtilizationInstanceTypeResponse_Datapoints.ProtoReflect.Descriptor instead.
 func (*DailyUtilizationInstanceTypeResponse_Datapoints) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{132, 0}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{147, 0}
 }
 
 func (x *DailyUtilizationInstanceTypeResponse_Datapoints) GetDatapoints() []*DailyUtilizationInstanceTypeResponse_Datapoint {
@@ -10586,7 +11787,7 @@ type DailyUtilizationInstanceTypeResponse_Datapoint struct {
 func (x *DailyUtilizationInstanceTypeResponse_Datapoint) Reset() {
 	*x = DailyUtilizationInstanceTypeResponse_Datapoint{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[155]
+		mi := &file_api_v1_k8s_proto_msgTypes[172]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -10599,7 +11800,7 @@ func (x *DailyUtilizationInstanceTypeResponse_Datapoint) String() string {
 func (*DailyUtilizationInstanceTypeResponse_Datapoint) ProtoMessage() {}
 
 func (x *DailyUtilizationInstanceTypeResponse_Datapoint) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[155]
+	mi := &file_api_v1_k8s_proto_msgTypes[172]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10612,7 +11813,7 @@ func (x *DailyUtilizationInstanceTypeResponse_Datapoint) ProtoReflect() protoref
 
 // Deprecated: Use DailyUtilizationInstanceTypeResponse_Datapoint.ProtoReflect.Descriptor instead.
 func (*DailyUtilizationInstanceTypeResponse_Datapoint) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{132, 1}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{147, 1}
 }
 
 func (x *DailyUtilizationInstanceTypeResponse_Datapoint) GetTimestamp() int64 {
@@ -10640,7 +11841,7 @@ type DailyUtilizationNodeTypeResponse_Datapoints struct {
 func (x *DailyUtilizationNodeTypeResponse_Datapoints) Reset() {
 	*x = DailyUtilizationNodeTypeResponse_Datapoints{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[159]
+		mi := &file_api_v1_k8s_proto_msgTypes[176]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -10653,7 +11854,7 @@ func (x *DailyUtilizationNodeTypeResponse_Datapoints) String() string {
 func (*DailyUtilizationNodeTypeResponse_Datapoints) ProtoMessage() {}
 
 func (x *DailyUtilizationNodeTypeResponse_Datapoints) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[159]
+	mi := &file_api_v1_k8s_proto_msgTypes[176]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10666,7 +11867,7 @@ func (x *DailyUtilizationNodeTypeResponse_Datapoints) ProtoReflect() protoreflec
 
 // Deprecated: Use DailyUtilizationNodeTypeResponse_Datapoints.ProtoReflect.Descriptor instead.
 func (*DailyUtilizationNodeTypeResponse_Datapoints) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{134, 0}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{149, 0}
 }
 
 func (x *DailyUtilizationNodeTypeResponse_Datapoints) GetDatapoints() []*DailyUtilizationNodeTypeResponse_Datapoint {
@@ -10688,7 +11889,7 @@ type DailyUtilizationNodeTypeResponse_Datapoint struct {
 func (x *DailyUtilizationNodeTypeResponse_Datapoint) Reset() {
 	*x = DailyUtilizationNodeTypeResponse_Datapoint{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_api_v1_k8s_proto_msgTypes[160]
+		mi := &file_api_v1_k8s_proto_msgTypes[177]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -10701,7 +11902,7 @@ func (x *DailyUtilizationNodeTypeResponse_Datapoint) String() string {
 func (*DailyUtilizationNodeTypeResponse_Datapoint) ProtoMessage() {}
 
 func (x *DailyUtilizationNodeTypeResponse_Datapoint) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_k8s_proto_msgTypes[160]
+	mi := &file_api_v1_k8s_proto_msgTypes[177]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10714,7 +11915,7 @@ func (x *DailyUtilizationNodeTypeResponse_Datapoint) ProtoReflect() protoreflect
 
 // Deprecated: Use DailyUtilizationNodeTypeResponse_Datapoint.ProtoReflect.Descriptor instead.
 func (*DailyUtilizationNodeTypeResponse_Datapoint) Descriptor() ([]byte, []int) {
-	return file_api_v1_k8s_proto_rawDescGZIP(), []int{134, 1}
+	return file_api_v1_k8s_proto_rawDescGZIP(), []int{149, 1}
 }
 
 func (x *DailyUtilizationNodeTypeResponse_Datapoint) GetTimestamp() int64 {
@@ -11223,96 +12424,130 @@ var file_api_v1_k8s_proto_rawDesc = []byte{
 	0x72, 0x6f, 0x75, 0x70, 0x53, 0x65, 0x74, 0x12, 0x32, 0x0a, 0x0b, 0x6e, 0x6f, 0x64, 0x65, 0x5f,
 	0x67, 0x72, 0x6f, 0x75, 0x70, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x11, 0x2e, 0x61,
 	0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x4e, 0x6f, 0x64, 0x65, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x52,
-	0x0a, 0x6e, 0x6f, 0x64, 0x65, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x73, 0x22, 0xa7, 0x02, 0x0a, 0x1f,
-	0x47, 0x65, 0x74, 0x4e, 0x6f, 0x64, 0x65, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x73, 0x55, 0x74, 0x69,
-	0x6c, 0x69, 0x7a, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12,
-	0x17, 0x0a, 0x07, 0x74, 0x65, 0x61, 0x6d, 0x5f, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09,
-	0x52, 0x06, 0x74, 0x65, 0x61, 0x6d, 0x49, 0x64, 0x12, 0x1d, 0x0a, 0x0a, 0x63, 0x6c, 0x75, 0x73,
-	0x74, 0x65, 0x72, 0x5f, 0x69, 0x64, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x09, 0x63, 0x6c,
-	0x75, 0x73, 0x74, 0x65, 0x72, 0x49, 0x64, 0x12, 0x3e, 0x0a, 0x0a, 0x73, 0x74, 0x61, 0x72, 0x74,
-	0x5f, 0x74, 0x69, 0x6d, 0x65, 0x18, 0x0b, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1a, 0x2e, 0x67, 0x6f,
-	0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2e, 0x54, 0x69,
-	0x6d, 0x65, 0x73, 0x74, 0x61, 0x6d, 0x70, 0x48, 0x00, 0x52, 0x09, 0x73, 0x74, 0x61, 0x72, 0x74,
-	0x54, 0x69, 0x6d, 0x65, 0x88, 0x01, 0x01, 0x12, 0x3a, 0x0a, 0x08, 0x65, 0x6e, 0x64, 0x5f, 0x74,
-	0x69, 0x6d, 0x65, 0x18, 0x0c, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1a, 0x2e, 0x67, 0x6f, 0x6f, 0x67,
-	0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2e, 0x54, 0x69, 0x6d, 0x65,
-	0x73, 0x74, 0x61, 0x6d, 0x70, 0x48, 0x01, 0x52, 0x07, 0x65, 0x6e, 0x64, 0x54, 0x69, 0x6d, 0x65,
-	0x88, 0x01, 0x01, 0x12, 0x24, 0x0a, 0x0b, 0x62, 0x75, 0x63, 0x6b, 0x65, 0x74, 0x5f, 0x73, 0x69,
-	0x7a, 0x65, 0x18, 0x0d, 0x20, 0x01, 0x28, 0x05, 0x48, 0x02, 0x52, 0x0a, 0x62, 0x75, 0x63, 0x6b,
-	0x65, 0x74, 0x53, 0x69, 0x7a, 0x65, 0x88, 0x01, 0x01, 0x42, 0x0d, 0x0a, 0x0b, 0x5f, 0x73, 0x74,
-	0x61, 0x72, 0x74, 0x5f, 0x74, 0x69, 0x6d, 0x65, 0x42, 0x0b, 0x0a, 0x09, 0x5f, 0x65, 0x6e, 0x64,
-	0x5f, 0x74, 0x69, 0x6d, 0x65, 0x42, 0x0e, 0x0a, 0x0c, 0x5f, 0x62, 0x75, 0x63, 0x6b, 0x65, 0x74,
-	0x5f, 0x73, 0x69, 0x7a, 0x65, 0x22, 0xdd, 0x09, 0x0a, 0x20, 0x47, 0x65, 0x74, 0x4e, 0x6f, 0x64,
+	0x0a, 0x6e, 0x6f, 0x64, 0x65, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x73, 0x22, 0xf2, 0x01, 0x0a, 0x20,
+	0x47, 0x65, 0x74, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x4e, 0x6f, 0x64, 0x65, 0x46, 0x69,
+	0x6c, 0x74, 0x65, 0x72, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
+	0x12, 0x17, 0x0a, 0x07, 0x74, 0x65, 0x61, 0x6d, 0x5f, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28,
+	0x09, 0x52, 0x06, 0x74, 0x65, 0x61, 0x6d, 0x49, 0x64, 0x12, 0x1d, 0x0a, 0x0a, 0x63, 0x6c, 0x75,
+	0x73, 0x74, 0x65, 0x72, 0x5f, 0x69, 0x64, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x09, 0x63,
+	0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x49, 0x64, 0x12, 0x3e, 0x0a, 0x0a, 0x73, 0x74, 0x61, 0x72,
+	0x74, 0x5f, 0x74, 0x69, 0x6d, 0x65, 0x18, 0x0b, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1a, 0x2e, 0x67,
+	0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2e, 0x54,
+	0x69, 0x6d, 0x65, 0x73, 0x74, 0x61, 0x6d, 0x70, 0x48, 0x00, 0x52, 0x09, 0x73, 0x74, 0x61, 0x72,
+	0x74, 0x54, 0x69, 0x6d, 0x65, 0x88, 0x01, 0x01, 0x12, 0x3a, 0x0a, 0x08, 0x65, 0x6e, 0x64, 0x5f,
+	0x74, 0x69, 0x6d, 0x65, 0x18, 0x0c, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1a, 0x2e, 0x67, 0x6f, 0x6f,
+	0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2e, 0x54, 0x69, 0x6d,
+	0x65, 0x73, 0x74, 0x61, 0x6d, 0x70, 0x48, 0x01, 0x52, 0x07, 0x65, 0x6e, 0x64, 0x54, 0x69, 0x6d,
+	0x65, 0x88, 0x01, 0x01, 0x42, 0x0d, 0x0a, 0x0b, 0x5f, 0x73, 0x74, 0x61, 0x72, 0x74, 0x5f, 0x74,
+	0x69, 0x6d, 0x65, 0x42, 0x0b, 0x0a, 0x09, 0x5f, 0x65, 0x6e, 0x64, 0x5f, 0x74, 0x69, 0x6d, 0x65,
+	0x22, 0x83, 0x01, 0x0a, 0x0c, 0x4e, 0x6f, 0x64, 0x65, 0x4c, 0x61, 0x62, 0x65, 0x6c, 0x53, 0x65,
+	0x74, 0x12, 0x38, 0x0a, 0x06, 0x6c, 0x61, 0x62, 0x65, 0x6c, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28,
+	0x0b, 0x32, 0x20, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x4e, 0x6f, 0x64, 0x65, 0x4c,
+	0x61, 0x62, 0x65, 0x6c, 0x53, 0x65, 0x74, 0x2e, 0x4c, 0x61, 0x62, 0x65, 0x6c, 0x73, 0x45, 0x6e,
+	0x74, 0x72, 0x79, 0x52, 0x06, 0x6c, 0x61, 0x62, 0x65, 0x6c, 0x73, 0x1a, 0x39, 0x0a, 0x0b, 0x4c,
+	0x61, 0x62, 0x65, 0x6c, 0x73, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x12, 0x10, 0x0a, 0x03, 0x6b, 0x65,
+	0x79, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x6b, 0x65, 0x79, 0x12, 0x14, 0x0a, 0x05,
+	0x76, 0x61, 0x6c, 0x75, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x76, 0x61, 0x6c,
+	0x75, 0x65, 0x3a, 0x02, 0x38, 0x01, 0x22, 0x4f, 0x0a, 0x0c, 0x4e, 0x6f, 0x64, 0x65, 0x4c, 0x61,
+	0x62, 0x65, 0x6c, 0x52, 0x65, 0x66, 0x12, 0x17, 0x0a, 0x07, 0x6e, 0x6f, 0x64, 0x65, 0x5f, 0x69,
+	0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x6e, 0x6f, 0x64, 0x65, 0x49, 0x64, 0x12,
+	0x26, 0x0a, 0x0f, 0x6c, 0x61, 0x62, 0x65, 0x6c, 0x5f, 0x73, 0x65, 0x74, 0x5f, 0x69, 0x6e, 0x64,
+	0x65, 0x78, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0d, 0x52, 0x0d, 0x6c, 0x61, 0x62, 0x65, 0x6c, 0x53,
+	0x65, 0x74, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x22, 0xaf, 0x01, 0x0a, 0x0e, 0x4e, 0x6f, 0x64, 0x65,
+	0x50, 0x6f, 0x6f, 0x6c, 0x46, 0x69, 0x65, 0x6c, 0x64, 0x73, 0x12, 0x26, 0x0a, 0x0f, 0x6e, 0x6f,
+	0x64, 0x65, 0x5f, 0x67, 0x72, 0x6f, 0x75, 0x70, 0x5f, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x01, 0x20,
+	0x01, 0x28, 0x09, 0x52, 0x0d, 0x6e, 0x6f, 0x64, 0x65, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x4e, 0x61,
+	0x6d, 0x65, 0x12, 0x3a, 0x0a, 0x06, 0x66, 0x69, 0x65, 0x6c, 0x64, 0x73, 0x18, 0x02, 0x20, 0x03,
+	0x28, 0x0b, 0x32, 0x22, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x4e, 0x6f, 0x64, 0x65,
+	0x50, 0x6f, 0x6f, 0x6c, 0x46, 0x69, 0x65, 0x6c, 0x64, 0x73, 0x2e, 0x46, 0x69, 0x65, 0x6c, 0x64,
+	0x73, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x52, 0x06, 0x66, 0x69, 0x65, 0x6c, 0x64, 0x73, 0x1a, 0x39,
+	0x0a, 0x0b, 0x46, 0x69, 0x65, 0x6c, 0x64, 0x73, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x12, 0x10, 0x0a,
+	0x03, 0x6b, 0x65, 0x79, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x6b, 0x65, 0x79, 0x12,
+	0x14, 0x0a, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05,
+	0x76, 0x61, 0x6c, 0x75, 0x65, 0x3a, 0x02, 0x38, 0x01, 0x22, 0xbb, 0x01, 0x0a, 0x21, 0x47, 0x65,
+	0x74, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x4e, 0x6f, 0x64, 0x65, 0x46, 0x69, 0x6c, 0x74,
+	0x65, 0x72, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12,
+	0x33, 0x0a, 0x0a, 0x6c, 0x61, 0x62, 0x65, 0x6c, 0x5f, 0x73, 0x65, 0x74, 0x73, 0x18, 0x01, 0x20,
+	0x03, 0x28, 0x0b, 0x32, 0x14, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x4e, 0x6f, 0x64,
+	0x65, 0x4c, 0x61, 0x62, 0x65, 0x6c, 0x53, 0x65, 0x74, 0x52, 0x09, 0x6c, 0x61, 0x62, 0x65, 0x6c,
+	0x53, 0x65, 0x74, 0x73, 0x12, 0x2a, 0x0a, 0x05, 0x6e, 0x6f, 0x64, 0x65, 0x73, 0x18, 0x02, 0x20,
+	0x03, 0x28, 0x0b, 0x32, 0x14, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x4e, 0x6f, 0x64,
+	0x65, 0x4c, 0x61, 0x62, 0x65, 0x6c, 0x52, 0x65, 0x66, 0x52, 0x05, 0x6e, 0x6f, 0x64, 0x65, 0x73,
+	0x12, 0x35, 0x0a, 0x0a, 0x6e, 0x6f, 0x64, 0x65, 0x5f, 0x70, 0x6f, 0x6f, 0x6c, 0x73, 0x18, 0x03,
+	0x20, 0x03, 0x28, 0x0b, 0x32, 0x16, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x4e, 0x6f,
+	0x64, 0x65, 0x50, 0x6f, 0x6f, 0x6c, 0x46, 0x69, 0x65, 0x6c, 0x64, 0x73, 0x52, 0x09, 0x6e, 0x6f,
+	0x64, 0x65, 0x50, 0x6f, 0x6f, 0x6c, 0x73, 0x22, 0xa7, 0x02, 0x0a, 0x1f, 0x47, 0x65, 0x74, 0x4e,
+	0x6f, 0x64, 0x65, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x73, 0x55, 0x74, 0x69, 0x6c, 0x69, 0x7a, 0x61,
+	0x74, 0x69, 0x6f, 0x6e, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x17, 0x0a, 0x07, 0x74,
+	0x65, 0x61, 0x6d, 0x5f, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x74, 0x65,
+	0x61, 0x6d, 0x49, 0x64, 0x12, 0x1d, 0x0a, 0x0a, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x5f,
+	0x69, 0x64, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x09, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65,
+	0x72, 0x49, 0x64, 0x12, 0x3e, 0x0a, 0x0a, 0x73, 0x74, 0x61, 0x72, 0x74, 0x5f, 0x74, 0x69, 0x6d,
+	0x65, 0x18, 0x0b, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1a, 0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65,
+	0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2e, 0x54, 0x69, 0x6d, 0x65, 0x73, 0x74,
+	0x61, 0x6d, 0x70, 0x48, 0x00, 0x52, 0x09, 0x73, 0x74, 0x61, 0x72, 0x74, 0x54, 0x69, 0x6d, 0x65,
+	0x88, 0x01, 0x01, 0x12, 0x3a, 0x0a, 0x08, 0x65, 0x6e, 0x64, 0x5f, 0x74, 0x69, 0x6d, 0x65, 0x18,
+	0x0c, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1a, 0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x70,
+	0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2e, 0x54, 0x69, 0x6d, 0x65, 0x73, 0x74, 0x61, 0x6d,
+	0x70, 0x48, 0x01, 0x52, 0x07, 0x65, 0x6e, 0x64, 0x54, 0x69, 0x6d, 0x65, 0x88, 0x01, 0x01, 0x12,
+	0x24, 0x0a, 0x0b, 0x62, 0x75, 0x63, 0x6b, 0x65, 0x74, 0x5f, 0x73, 0x69, 0x7a, 0x65, 0x18, 0x0d,
+	0x20, 0x01, 0x28, 0x05, 0x48, 0x02, 0x52, 0x0a, 0x62, 0x75, 0x63, 0x6b, 0x65, 0x74, 0x53, 0x69,
+	0x7a, 0x65, 0x88, 0x01, 0x01, 0x42, 0x0d, 0x0a, 0x0b, 0x5f, 0x73, 0x74, 0x61, 0x72, 0x74, 0x5f,
+	0x74, 0x69, 0x6d, 0x65, 0x42, 0x0b, 0x0a, 0x09, 0x5f, 0x65, 0x6e, 0x64, 0x5f, 0x74, 0x69, 0x6d,
+	0x65, 0x42, 0x0e, 0x0a, 0x0c, 0x5f, 0x62, 0x75, 0x63, 0x6b, 0x65, 0x74, 0x5f, 0x73, 0x69, 0x7a,
+	0x65, 0x22, 0xdd, 0x09, 0x0a, 0x20, 0x47, 0x65, 0x74, 0x4e, 0x6f, 0x64, 0x65, 0x47, 0x72, 0x6f,
+	0x75, 0x70, 0x73, 0x55, 0x74, 0x69, 0x6c, 0x69, 0x7a, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x52, 0x65,
+	0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x80, 0x01, 0x0a, 0x1a, 0x6e, 0x6f, 0x64, 0x65, 0x5f,
+	0x67, 0x72, 0x6f, 0x75, 0x70, 0x5f, 0x74, 0x6f, 0x5f, 0x75, 0x74, 0x69, 0x6c, 0x5f, 0x6d, 0x65,
+	0x74, 0x72, 0x69, 0x63, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x44, 0x2e, 0x61, 0x70,
+	0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x4e, 0x6f, 0x64, 0x65, 0x47, 0x72, 0x6f, 0x75,
+	0x70, 0x73, 0x55, 0x74, 0x69, 0x6c, 0x69, 0x7a, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x52, 0x65, 0x73,
+	0x70, 0x6f, 0x6e, 0x73, 0x65, 0x2e, 0x4e, 0x6f, 0x64, 0x65, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x54,
+	0x6f, 0x55, 0x74, 0x69, 0x6c, 0x4d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73, 0x45, 0x6e, 0x74, 0x72,
+	0x79, 0x52, 0x16, 0x6e, 0x6f, 0x64, 0x65, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x54, 0x6f, 0x55, 0x74,
+	0x69, 0x6c, 0x4d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73, 0x12, 0x89, 0x01, 0x0a, 0x1d, 0x69, 0x6e,
+	0x73, 0x74, 0x61, 0x6e, 0x63, 0x65, 0x5f, 0x74, 0x79, 0x70, 0x65, 0x5f, 0x74, 0x6f, 0x5f, 0x75,
+	0x74, 0x69, 0x6c, 0x5f, 0x6d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73, 0x18, 0x06, 0x20, 0x03, 0x28,
+	0x0b, 0x32, 0x47, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x4e, 0x6f,
+	0x64, 0x65, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x73, 0x55, 0x74, 0x69, 0x6c, 0x69, 0x7a, 0x61, 0x74,
+	0x69, 0x6f, 0x6e, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x2e, 0x49, 0x6e, 0x73, 0x74,
+	0x61, 0x6e, 0x63, 0x65, 0x54, 0x79, 0x70, 0x65, 0x54, 0x6f, 0x55, 0x74, 0x69, 0x6c, 0x4d, 0x65,
+	0x74, 0x72, 0x69, 0x63, 0x73, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x52, 0x19, 0x69, 0x6e, 0x73, 0x74,
+	0x61, 0x6e, 0x63, 0x65, 0x54, 0x79, 0x70, 0x65, 0x54, 0x6f, 0x55, 0x74, 0x69, 0x6c, 0x4d, 0x65,
+	0x74, 0x72, 0x69, 0x63, 0x73, 0x12, 0x92, 0x01, 0x0a, 0x20, 0x72, 0x65, 0x73, 0x65, 0x72, 0x76,
+	0x61, 0x74, 0x69, 0x6f, 0x6e, 0x5f, 0x74, 0x79, 0x70, 0x65, 0x5f, 0x74, 0x6f, 0x5f, 0x75, 0x74,
+	0x69, 0x6c, 0x5f, 0x6d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73, 0x18, 0x0b, 0x20, 0x03, 0x28, 0x0b,
+	0x32, 0x4a, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x4e, 0x6f, 0x64,
 	0x65, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x73, 0x55, 0x74, 0x69, 0x6c, 0x69, 0x7a, 0x61, 0x74, 0x69,
-	0x6f, 0x6e, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x80, 0x01, 0x0a, 0x1a, 0x6e,
-	0x6f, 0x64, 0x65, 0x5f, 0x67, 0x72, 0x6f, 0x75, 0x70, 0x5f, 0x74, 0x6f, 0x5f, 0x75, 0x74, 0x69,
-	0x6c, 0x5f, 0x6d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32,
+	0x6f, 0x6e, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x2e, 0x52, 0x65, 0x73, 0x65, 0x72,
+	0x76, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x54, 0x79, 0x70, 0x65, 0x54, 0x6f, 0x55, 0x74, 0x69, 0x6c,
+	0x4d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x52, 0x1c, 0x72, 0x65,
+	0x73, 0x65, 0x72, 0x76, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x54, 0x79, 0x70, 0x65, 0x54, 0x6f, 0x55,
+	0x74, 0x69, 0x6c, 0x4d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73, 0x12, 0x80, 0x01, 0x0a, 0x1a, 0x6c,
+	0x6f, 0x67, 0x69, 0x63, 0x61, 0x6c, 0x5f, 0x61, 0x7a, 0x5f, 0x74, 0x6f, 0x5f, 0x75, 0x74, 0x69,
+	0x6c, 0x5f, 0x6d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73, 0x18, 0x10, 0x20, 0x03, 0x28, 0x0b, 0x32,
 	0x44, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x4e, 0x6f, 0x64, 0x65,
 	0x47, 0x72, 0x6f, 0x75, 0x70, 0x73, 0x55, 0x74, 0x69, 0x6c, 0x69, 0x7a, 0x61, 0x74, 0x69, 0x6f,
-	0x6e, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x2e, 0x4e, 0x6f, 0x64, 0x65, 0x47, 0x72,
-	0x6f, 0x75, 0x70, 0x54, 0x6f, 0x55, 0x74, 0x69, 0x6c, 0x4d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73,
-	0x45, 0x6e, 0x74, 0x72, 0x79, 0x52, 0x16, 0x6e, 0x6f, 0x64, 0x65, 0x47, 0x72, 0x6f, 0x75, 0x70,
-	0x54, 0x6f, 0x55, 0x74, 0x69, 0x6c, 0x4d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73, 0x12, 0x89, 0x01,
-	0x0a, 0x1d, 0x69, 0x6e, 0x73, 0x74, 0x61, 0x6e, 0x63, 0x65, 0x5f, 0x74, 0x79, 0x70, 0x65, 0x5f,
-	0x74, 0x6f, 0x5f, 0x75, 0x74, 0x69, 0x6c, 0x5f, 0x6d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73, 0x18,
-	0x06, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x47, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47,
-	0x65, 0x74, 0x4e, 0x6f, 0x64, 0x65, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x73, 0x55, 0x74, 0x69, 0x6c,
-	0x69, 0x7a, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x2e,
-	0x49, 0x6e, 0x73, 0x74, 0x61, 0x6e, 0x63, 0x65, 0x54, 0x79, 0x70, 0x65, 0x54, 0x6f, 0x55, 0x74,
-	0x69, 0x6c, 0x4d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x52, 0x19,
-	0x69, 0x6e, 0x73, 0x74, 0x61, 0x6e, 0x63, 0x65, 0x54, 0x79, 0x70, 0x65, 0x54, 0x6f, 0x55, 0x74,
-	0x69, 0x6c, 0x4d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73, 0x12, 0x92, 0x01, 0x0a, 0x20, 0x72, 0x65,
-	0x73, 0x65, 0x72, 0x76, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x5f, 0x74, 0x79, 0x70, 0x65, 0x5f, 0x74,
-	0x6f, 0x5f, 0x75, 0x74, 0x69, 0x6c, 0x5f, 0x6d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73, 0x18, 0x0b,
-	0x20, 0x03, 0x28, 0x0b, 0x32, 0x4a, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65,
-	0x74, 0x4e, 0x6f, 0x64, 0x65, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x73, 0x55, 0x74, 0x69, 0x6c, 0x69,
-	0x7a, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x2e, 0x52,
-	0x65, 0x73, 0x65, 0x72, 0x76, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x54, 0x79, 0x70, 0x65, 0x54, 0x6f,
-	0x55, 0x74, 0x69, 0x6c, 0x4d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73, 0x45, 0x6e, 0x74, 0x72, 0x79,
-	0x52, 0x1c, 0x72, 0x65, 0x73, 0x65, 0x72, 0x76, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x54, 0x79, 0x70,
-	0x65, 0x54, 0x6f, 0x55, 0x74, 0x69, 0x6c, 0x4d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73, 0x12, 0x80,
-	0x01, 0x0a, 0x1a, 0x6c, 0x6f, 0x67, 0x69, 0x63, 0x61, 0x6c, 0x5f, 0x61, 0x7a, 0x5f, 0x74, 0x6f,
-	0x5f, 0x75, 0x74, 0x69, 0x6c, 0x5f, 0x6d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73, 0x18, 0x10, 0x20,
-	0x03, 0x28, 0x0b, 0x32, 0x44, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74,
-	0x4e, 0x6f, 0x64, 0x65, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x73, 0x55, 0x74, 0x69, 0x6c, 0x69, 0x7a,
-	0x61, 0x74, 0x69, 0x6f, 0x6e, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x2e, 0x4c, 0x6f,
-	0x67, 0x69, 0x63, 0x61, 0x6c, 0x41, 0x7a, 0x54, 0x6f, 0x55, 0x74, 0x69, 0x6c, 0x4d, 0x65, 0x74,
-	0x72, 0x69, 0x63, 0x73, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x52, 0x16, 0x6c, 0x6f, 0x67, 0x69, 0x63,
-	0x61, 0x6c, 0x41, 0x7a, 0x54, 0x6f, 0x55, 0x74, 0x69, 0x6c, 0x4d, 0x65, 0x74, 0x72, 0x69, 0x63,
-	0x73, 0x1a, 0x5d, 0x0a, 0x14, 0x4c, 0x69, 0x73, 0x74, 0x4e, 0x6f, 0x64, 0x65, 0x47, 0x72, 0x6f,
-	0x75, 0x70, 0x4d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73, 0x12, 0x45, 0x0a, 0x12, 0x6e, 0x6f, 0x64,
-	0x65, 0x5f, 0x67, 0x72, 0x6f, 0x75, 0x70, 0x5f, 0x6d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73, 0x18,
-	0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x17, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x4e,
-	0x6f, 0x64, 0x65, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x4d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x52, 0x10,
-	0x6e, 0x6f, 0x64, 0x65, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x4d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73,
-	0x1a, 0x88, 0x01, 0x0a, 0x1b, 0x4e, 0x6f, 0x64, 0x65, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x54, 0x6f,
-	0x55, 0x74, 0x69, 0x6c, 0x4d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73, 0x45, 0x6e, 0x74, 0x72, 0x79,
-	0x12, 0x10, 0x0a, 0x03, 0x6b, 0x65, 0x79, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x6b,
-	0x65, 0x79, 0x12, 0x53, 0x0a, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28,
-	0x0b, 0x32, 0x3d, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x4e, 0x6f,
-	0x64, 0x65, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x73, 0x55, 0x74, 0x69, 0x6c, 0x69, 0x7a, 0x61, 0x74,
-	0x69, 0x6f, 0x6e, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x2e, 0x4c, 0x69, 0x73, 0x74,
-	0x4e, 0x6f, 0x64, 0x65, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x4d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73,
-	0x52, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x3a, 0x02, 0x38, 0x01, 0x1a, 0x8b, 0x01, 0x0a, 0x1e,
-	0x49, 0x6e, 0x73, 0x74, 0x61, 0x6e, 0x63, 0x65, 0x54, 0x79, 0x70, 0x65, 0x54, 0x6f, 0x55, 0x74,
-	0x69, 0x6c, 0x4d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x12, 0x10,
-	0x0a, 0x03, 0x6b, 0x65, 0x79, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x6b, 0x65, 0x79,
-	0x12, 0x53, 0x0a, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b, 0x32,
-	0x3d, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x4e, 0x6f, 0x64, 0x65,
-	0x47, 0x72, 0x6f, 0x75, 0x70, 0x73, 0x55, 0x74, 0x69, 0x6c, 0x69, 0x7a, 0x61, 0x74, 0x69, 0x6f,
-	0x6e, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x2e, 0x4c, 0x69, 0x73, 0x74, 0x4e, 0x6f,
-	0x64, 0x65, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x4d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73, 0x52, 0x05,
-	0x76, 0x61, 0x6c, 0x75, 0x65, 0x3a, 0x02, 0x38, 0x01, 0x1a, 0x8e, 0x01, 0x0a, 0x21, 0x52, 0x65,
-	0x73, 0x65, 0x72, 0x76, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x54, 0x79, 0x70, 0x65, 0x54, 0x6f, 0x55,
-	0x74, 0x69, 0x6c, 0x4d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x12,
-	0x10, 0x0a, 0x03, 0x6b, 0x65, 0x79, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x6b, 0x65,
-	0x79, 0x12, 0x53, 0x0a, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b,
-	0x32, 0x3d, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x4e, 0x6f, 0x64,
-	0x65, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x73, 0x55, 0x74, 0x69, 0x6c, 0x69, 0x7a, 0x61, 0x74, 0x69,
-	0x6f, 0x6e, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x2e, 0x4c, 0x69, 0x73, 0x74, 0x4e,
-	0x6f, 0x64, 0x65, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x4d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73, 0x52,
-	0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x3a, 0x02, 0x38, 0x01, 0x1a, 0x88, 0x01, 0x0a, 0x1b, 0x4c,
-	0x6f, 0x67, 0x69, 0x63, 0x61, 0x6c, 0x41, 0x7a, 0x54, 0x6f, 0x55, 0x74, 0x69, 0x6c, 0x4d, 0x65,
+	0x6e, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x2e, 0x4c, 0x6f, 0x67, 0x69, 0x63, 0x61,
+	0x6c, 0x41, 0x7a, 0x54, 0x6f, 0x55, 0x74, 0x69, 0x6c, 0x4d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73,
+	0x45, 0x6e, 0x74, 0x72, 0x79, 0x52, 0x16, 0x6c, 0x6f, 0x67, 0x69, 0x63, 0x61, 0x6c, 0x41, 0x7a,
+	0x54, 0x6f, 0x55, 0x74, 0x69, 0x6c, 0x4d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73, 0x1a, 0x5d, 0x0a,
+	0x14, 0x4c, 0x69, 0x73, 0x74, 0x4e, 0x6f, 0x64, 0x65, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x4d, 0x65,
+	0x74, 0x72, 0x69, 0x63, 0x73, 0x12, 0x45, 0x0a, 0x12, 0x6e, 0x6f, 0x64, 0x65, 0x5f, 0x67, 0x72,
+	0x6f, 0x75, 0x70, 0x5f, 0x6d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28,
+	0x0b, 0x32, 0x17, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x4e, 0x6f, 0x64, 0x65, 0x47,
+	0x72, 0x6f, 0x75, 0x70, 0x4d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x52, 0x10, 0x6e, 0x6f, 0x64, 0x65,
+	0x47, 0x72, 0x6f, 0x75, 0x70, 0x4d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73, 0x1a, 0x88, 0x01, 0x0a,
+	0x1b, 0x4e, 0x6f, 0x64, 0x65, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x54, 0x6f, 0x55, 0x74, 0x69, 0x6c,
+	0x4d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x12, 0x10, 0x0a, 0x03,
+	0x6b, 0x65, 0x79, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x6b, 0x65, 0x79, 0x12, 0x53,
+	0x0a, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x3d, 0x2e,
+	0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x4e, 0x6f, 0x64, 0x65, 0x47, 0x72,
+	0x6f, 0x75, 0x70, 0x73, 0x55, 0x74, 0x69, 0x6c, 0x69, 0x7a, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x52,
+	0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x2e, 0x4c, 0x69, 0x73, 0x74, 0x4e, 0x6f, 0x64, 0x65,
+	0x47, 0x72, 0x6f, 0x75, 0x70, 0x4d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73, 0x52, 0x05, 0x76, 0x61,
+	0x6c, 0x75, 0x65, 0x3a, 0x02, 0x38, 0x01, 0x1a, 0x8b, 0x01, 0x0a, 0x1e, 0x49, 0x6e, 0x73, 0x74,
+	0x61, 0x6e, 0x63, 0x65, 0x54, 0x79, 0x70, 0x65, 0x54, 0x6f, 0x55, 0x74, 0x69, 0x6c, 0x4d, 0x65,
 	0x74, 0x72, 0x69, 0x63, 0x73, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x12, 0x10, 0x0a, 0x03, 0x6b, 0x65,
 	0x79, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x6b, 0x65, 0x79, 0x12, 0x53, 0x0a, 0x05,
 	0x76, 0x61, 0x6c, 0x75, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x3d, 0x2e, 0x61, 0x70,
@@ -11320,121 +12555,231 @@ var file_api_v1_k8s_proto_rawDesc = []byte{
 	0x70, 0x73, 0x55, 0x74, 0x69, 0x6c, 0x69, 0x7a, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x52, 0x65, 0x73,
 	0x70, 0x6f, 0x6e, 0x73, 0x65, 0x2e, 0x4c, 0x69, 0x73, 0x74, 0x4e, 0x6f, 0x64, 0x65, 0x47, 0x72,
 	0x6f, 0x75, 0x70, 0x4d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73, 0x52, 0x05, 0x76, 0x61, 0x6c, 0x75,
-	0x65, 0x3a, 0x02, 0x38, 0x01, 0x22, 0xeb, 0x06, 0x0a, 0x0f, 0x4e, 0x6f, 0x64, 0x65, 0x47, 0x72,
-	0x6f, 0x75, 0x70, 0x4d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x12, 0x1d, 0x0a, 0x0a, 0x6e, 0x6f, 0x64,
-	0x65, 0x5f, 0x63, 0x6f, 0x75, 0x6e, 0x74, 0x18, 0x01, 0x20, 0x01, 0x28, 0x05, 0x52, 0x09, 0x6e,
-	0x6f, 0x64, 0x65, 0x43, 0x6f, 0x75, 0x6e, 0x74, 0x12, 0x39, 0x0a, 0x19, 0x6d, 0x61, 0x78, 0x5f,
-	0x63, 0x6f, 0x6e, 0x63, 0x75, 0x72, 0x72, 0x65, 0x6e, 0x74, 0x5f, 0x6e, 0x6f, 0x64, 0x65, 0x5f,
-	0x63, 0x6f, 0x75, 0x6e, 0x74, 0x18, 0x02, 0x20, 0x01, 0x28, 0x05, 0x52, 0x16, 0x6d, 0x61, 0x78,
-	0x43, 0x6f, 0x6e, 0x63, 0x75, 0x72, 0x72, 0x65, 0x6e, 0x74, 0x4e, 0x6f, 0x64, 0x65, 0x43, 0x6f,
-	0x75, 0x6e, 0x74, 0x12, 0x21, 0x0a, 0x0c, 0x63, 0x61, 0x70, 0x61, 0x63, 0x69, 0x74, 0x79, 0x5f,
-	0x63, 0x70, 0x75, 0x18, 0x0b, 0x20, 0x01, 0x28, 0x03, 0x52, 0x0b, 0x63, 0x61, 0x70, 0x61, 0x63,
-	0x69, 0x74, 0x79, 0x43, 0x70, 0x75, 0x12, 0x27, 0x0a, 0x0f, 0x63, 0x61, 0x70, 0x61, 0x63, 0x69,
-	0x74, 0x79, 0x5f, 0x6d, 0x65, 0x6d, 0x6f, 0x72, 0x79, 0x18, 0x0c, 0x20, 0x01, 0x28, 0x03, 0x52,
-	0x0e, 0x63, 0x61, 0x70, 0x61, 0x63, 0x69, 0x74, 0x79, 0x4d, 0x65, 0x6d, 0x6f, 0x72, 0x79, 0x12,
-	0x2a, 0x0a, 0x11, 0x63, 0x61, 0x70, 0x61, 0x63, 0x69, 0x74, 0x79, 0x5f, 0x67, 0x70, 0x75, 0x5f,
-	0x76, 0x72, 0x61, 0x6d, 0x18, 0x0d, 0x20, 0x01, 0x28, 0x03, 0x52, 0x0f, 0x63, 0x61, 0x70, 0x61,
-	0x63, 0x69, 0x74, 0x79, 0x47, 0x70, 0x75, 0x56, 0x72, 0x61, 0x6d, 0x12, 0x30, 0x0a, 0x14, 0x63,
-	0x61, 0x70, 0x61, 0x63, 0x69, 0x74, 0x79, 0x5f, 0x67, 0x70, 0x75, 0x5f, 0x64, 0x65, 0x76, 0x69,
-	0x63, 0x65, 0x73, 0x18, 0x0e, 0x20, 0x01, 0x28, 0x03, 0x52, 0x12, 0x63, 0x61, 0x70, 0x61, 0x63,
-	0x69, 0x74, 0x79, 0x47, 0x70, 0x75, 0x44, 0x65, 0x76, 0x69, 0x63, 0x65, 0x73, 0x12, 0x20, 0x0a,
-	0x0c, 0x61, 0x67, 0x67, 0x72, 0x5f, 0x63, 0x70, 0x75, 0x5f, 0x72, 0x65, 0x71, 0x18, 0x15, 0x20,
-	0x01, 0x28, 0x03, 0x52, 0x0a, 0x61, 0x67, 0x67, 0x72, 0x43, 0x70, 0x75, 0x52, 0x65, 0x71, 0x12,
-	0x26, 0x0a, 0x0f, 0x61, 0x67, 0x67, 0x72, 0x5f, 0x6d, 0x65, 0x6d, 0x6f, 0x72, 0x79, 0x5f, 0x72,
-	0x65, 0x71, 0x18, 0x16, 0x20, 0x01, 0x28, 0x03, 0x52, 0x0d, 0x61, 0x67, 0x67, 0x72, 0x4d, 0x65,
-	0x6d, 0x6f, 0x72, 0x79, 0x52, 0x65, 0x71, 0x12, 0x20, 0x0a, 0x0c, 0x61, 0x67, 0x67, 0x72, 0x5f,
-	0x67, 0x70, 0x75, 0x5f, 0x72, 0x65, 0x71, 0x18, 0x17, 0x20, 0x01, 0x28, 0x03, 0x52, 0x0a, 0x61,
-	0x67, 0x67, 0x72, 0x47, 0x70, 0x75, 0x52, 0x65, 0x71, 0x12, 0x2b, 0x0a, 0x12, 0x75, 0x74, 0x69,
-	0x6c, 0x5f, 0x63, 0x70, 0x75, 0x5f, 0x61, 0x76, 0x67, 0x5f, 0x75, 0x73, 0x61, 0x67, 0x65, 0x18,
-	0x1f, 0x20, 0x01, 0x28, 0x02, 0x52, 0x0f, 0x75, 0x74, 0x69, 0x6c, 0x43, 0x70, 0x75, 0x41, 0x76,
-	0x67, 0x55, 0x73, 0x61, 0x67, 0x65, 0x12, 0x31, 0x0a, 0x15, 0x75, 0x74, 0x69, 0x6c, 0x5f, 0x6d,
-	0x65, 0x6d, 0x6f, 0x72, 0x79, 0x5f, 0x61, 0x76, 0x67, 0x5f, 0x75, 0x73, 0x61, 0x67, 0x65, 0x18,
-	0x20, 0x20, 0x01, 0x28, 0x02, 0x52, 0x12, 0x75, 0x74, 0x69, 0x6c, 0x4d, 0x65, 0x6d, 0x6f, 0x72,
-	0x79, 0x41, 0x76, 0x67, 0x55, 0x73, 0x61, 0x67, 0x65, 0x12, 0x34, 0x0a, 0x17, 0x75, 0x74, 0x69,
-	0x6c, 0x5f, 0x67, 0x70, 0x75, 0x5f, 0x76, 0x72, 0x61, 0x6d, 0x5f, 0x61, 0x76, 0x67, 0x5f, 0x75,
-	0x73, 0x61, 0x67, 0x65, 0x18, 0x21, 0x20, 0x01, 0x28, 0x02, 0x52, 0x13, 0x75, 0x74, 0x69, 0x6c,
-	0x47, 0x70, 0x75, 0x56, 0x72, 0x61, 0x6d, 0x41, 0x76, 0x67, 0x55, 0x73, 0x61, 0x67, 0x65, 0x12,
-	0x26, 0x0a, 0x0f, 0x75, 0x74, 0x69, 0x6c, 0x5f, 0x67, 0x70, 0x75, 0x5f, 0x64, 0x65, 0x76, 0x69,
-	0x63, 0x65, 0x18, 0x22, 0x20, 0x01, 0x28, 0x02, 0x52, 0x0d, 0x75, 0x74, 0x69, 0x6c, 0x47, 0x70,
-	0x75, 0x44, 0x65, 0x76, 0x69, 0x63, 0x65, 0x12, 0x33, 0x0a, 0x0b, 0x68, 0x6f, 0x75, 0x72, 0x6c,
-	0x79, 0x5f, 0x63, 0x6f, 0x73, 0x74, 0x18, 0x32, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x12, 0x2e, 0x67,
-	0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x74, 0x79, 0x70, 0x65, 0x2e, 0x4d, 0x6f, 0x6e, 0x65, 0x79,
-	0x52, 0x0a, 0x68, 0x6f, 0x75, 0x72, 0x6c, 0x79, 0x43, 0x6f, 0x73, 0x74, 0x12, 0x3a, 0x0a, 0x0f,
-	0x68, 0x6f, 0x75, 0x72, 0x6c, 0x79, 0x5f, 0x63, 0x70, 0x75, 0x5f, 0x63, 0x6f, 0x73, 0x74, 0x18,
-	0x33, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x12, 0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x74,
-	0x79, 0x70, 0x65, 0x2e, 0x4d, 0x6f, 0x6e, 0x65, 0x79, 0x52, 0x0d, 0x68, 0x6f, 0x75, 0x72, 0x6c,
-	0x79, 0x43, 0x70, 0x75, 0x43, 0x6f, 0x73, 0x74, 0x12, 0x40, 0x0a, 0x12, 0x68, 0x6f, 0x75, 0x72,
-	0x6c, 0x79, 0x5f, 0x6d, 0x65, 0x6d, 0x6f, 0x72, 0x79, 0x5f, 0x63, 0x6f, 0x73, 0x74, 0x18, 0x34,
-	0x20, 0x01, 0x28, 0x0b, 0x32, 0x12, 0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x74, 0x79,
-	0x70, 0x65, 0x2e, 0x4d, 0x6f, 0x6e, 0x65, 0x79, 0x52, 0x10, 0x68, 0x6f, 0x75, 0x72, 0x6c, 0x79,
-	0x4d, 0x65, 0x6d, 0x6f, 0x72, 0x79, 0x43, 0x6f, 0x73, 0x74, 0x12, 0x3a, 0x0a, 0x0f, 0x68, 0x6f,
-	0x75, 0x72, 0x6c, 0x79, 0x5f, 0x67, 0x70, 0x75, 0x5f, 0x63, 0x6f, 0x73, 0x74, 0x18, 0x35, 0x20,
-	0x01, 0x28, 0x0b, 0x32, 0x12, 0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x74, 0x79, 0x70,
-	0x65, 0x2e, 0x4d, 0x6f, 0x6e, 0x65, 0x79, 0x52, 0x0d, 0x68, 0x6f, 0x75, 0x72, 0x6c, 0x79, 0x47,
-	0x70, 0x75, 0x43, 0x6f, 0x73, 0x74, 0x12, 0x3b, 0x0a, 0x0b, 0x62, 0x75, 0x63, 0x6b, 0x65, 0x74,
-	0x5f, 0x74, 0x69, 0x6d, 0x65, 0x18, 0x29, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1a, 0x2e, 0x67, 0x6f,
-	0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2e, 0x54, 0x69,
-	0x6d, 0x65, 0x73, 0x74, 0x61, 0x6d, 0x70, 0x52, 0x0a, 0x62, 0x75, 0x63, 0x6b, 0x65, 0x74, 0x54,
-	0x69, 0x6d, 0x65, 0x22, 0x48, 0x0a, 0x14, 0x47, 0x65, 0x74, 0x4e, 0x6f, 0x64, 0x65, 0x47, 0x72,
-	0x6f, 0x75, 0x70, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x30, 0x0a, 0x0a, 0x6e,
-	0x6f, 0x64, 0x65, 0x5f, 0x67, 0x72, 0x6f, 0x75, 0x70, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32,
-	0x11, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x4e, 0x6f, 0x64, 0x65, 0x47, 0x72, 0x6f,
-	0x75, 0x70, 0x52, 0x09, 0x6e, 0x6f, 0x64, 0x65, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x22, 0x3f, 0x0a,
-	0x12, 0x47, 0x65, 0x74, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x52, 0x65, 0x73, 0x70, 0x6f,
-	0x6e, 0x73, 0x65, 0x12, 0x29, 0x0a, 0x07, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x18, 0x01,
-	0x20, 0x01, 0x28, 0x0b, 0x32, 0x0f, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x43, 0x6c,
-	0x75, 0x73, 0x74, 0x65, 0x72, 0x52, 0x07, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x22, 0xf2,
-	0x02, 0x0a, 0x13, 0x47, 0x65, 0x74, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x73, 0x52, 0x65,
-	0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x2b, 0x0a, 0x08, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65,
-	0x72, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x0f, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76,
-	0x31, 0x2e, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x52, 0x08, 0x63, 0x6c, 0x75, 0x73, 0x74,
-	0x65, 0x72, 0x73, 0x12, 0x42, 0x0a, 0x10, 0x72, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x5f,
-	0x6d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x17, 0x2e,
-	0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x4d,
-	0x65, 0x74, 0x72, 0x69, 0x63, 0x73, 0x52, 0x0f, 0x72, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65,
-	0x4d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73, 0x12, 0x2d, 0x0a, 0x09, 0x63, 0x6f, 0x73, 0x74, 0x5f,
-	0x69, 0x6e, 0x66, 0x6f, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x10, 0x2e, 0x61, 0x70, 0x69,
-	0x2e, 0x76, 0x31, 0x2e, 0x43, 0x6f, 0x73, 0x74, 0x49, 0x6e, 0x66, 0x6f, 0x52, 0x08, 0x63, 0x6f,
-	0x73, 0x74, 0x49, 0x6e, 0x66, 0x6f, 0x12, 0x2d, 0x0a, 0x09, 0x6e, 0x6f, 0x64, 0x65, 0x5f, 0x69,
-	0x6e, 0x66, 0x6f, 0x18, 0x04, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x10, 0x2e, 0x61, 0x70, 0x69, 0x2e,
-	0x76, 0x31, 0x2e, 0x4e, 0x6f, 0x64, 0x65, 0x49, 0x6e, 0x66, 0x6f, 0x52, 0x08, 0x6e, 0x6f, 0x64,
-	0x65, 0x49, 0x6e, 0x66, 0x6f, 0x12, 0x3f, 0x0a, 0x10, 0x63, 0x6f, 0x73, 0x74, 0x5f, 0x64, 0x61,
-	0x74, 0x61, 0x5f, 0x70, 0x6f, 0x69, 0x6e, 0x74, 0x73, 0x18, 0x05, 0x20, 0x03, 0x28, 0x0b, 0x32,
+	0x65, 0x3a, 0x02, 0x38, 0x01, 0x1a, 0x8e, 0x01, 0x0a, 0x21, 0x52, 0x65, 0x73, 0x65, 0x72, 0x76,
+	0x61, 0x74, 0x69, 0x6f, 0x6e, 0x54, 0x79, 0x70, 0x65, 0x54, 0x6f, 0x55, 0x74, 0x69, 0x6c, 0x4d,
+	0x65, 0x74, 0x72, 0x69, 0x63, 0x73, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x12, 0x10, 0x0a, 0x03, 0x6b,
+	0x65, 0x79, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x6b, 0x65, 0x79, 0x12, 0x53, 0x0a,
+	0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x3d, 0x2e, 0x61,
+	0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x4e, 0x6f, 0x64, 0x65, 0x47, 0x72, 0x6f,
+	0x75, 0x70, 0x73, 0x55, 0x74, 0x69, 0x6c, 0x69, 0x7a, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x52, 0x65,
+	0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x2e, 0x4c, 0x69, 0x73, 0x74, 0x4e, 0x6f, 0x64, 0x65, 0x47,
+	0x72, 0x6f, 0x75, 0x70, 0x4d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73, 0x52, 0x05, 0x76, 0x61, 0x6c,
+	0x75, 0x65, 0x3a, 0x02, 0x38, 0x01, 0x1a, 0x88, 0x01, 0x0a, 0x1b, 0x4c, 0x6f, 0x67, 0x69, 0x63,
+	0x61, 0x6c, 0x41, 0x7a, 0x54, 0x6f, 0x55, 0x74, 0x69, 0x6c, 0x4d, 0x65, 0x74, 0x72, 0x69, 0x63,
+	0x73, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x12, 0x10, 0x0a, 0x03, 0x6b, 0x65, 0x79, 0x18, 0x01, 0x20,
+	0x01, 0x28, 0x09, 0x52, 0x03, 0x6b, 0x65, 0x79, 0x12, 0x53, 0x0a, 0x05, 0x76, 0x61, 0x6c, 0x75,
+	0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x3d, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31,
+	0x2e, 0x47, 0x65, 0x74, 0x4e, 0x6f, 0x64, 0x65, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x73, 0x55, 0x74,
+	0x69, 0x6c, 0x69, 0x7a, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73,
+	0x65, 0x2e, 0x4c, 0x69, 0x73, 0x74, 0x4e, 0x6f, 0x64, 0x65, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x4d,
+	0x65, 0x74, 0x72, 0x69, 0x63, 0x73, 0x52, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x3a, 0x02, 0x38,
+	0x01, 0x22, 0xeb, 0x06, 0x0a, 0x0f, 0x4e, 0x6f, 0x64, 0x65, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x4d,
+	0x65, 0x74, 0x72, 0x69, 0x63, 0x12, 0x1d, 0x0a, 0x0a, 0x6e, 0x6f, 0x64, 0x65, 0x5f, 0x63, 0x6f,
+	0x75, 0x6e, 0x74, 0x18, 0x01, 0x20, 0x01, 0x28, 0x05, 0x52, 0x09, 0x6e, 0x6f, 0x64, 0x65, 0x43,
+	0x6f, 0x75, 0x6e, 0x74, 0x12, 0x39, 0x0a, 0x19, 0x6d, 0x61, 0x78, 0x5f, 0x63, 0x6f, 0x6e, 0x63,
+	0x75, 0x72, 0x72, 0x65, 0x6e, 0x74, 0x5f, 0x6e, 0x6f, 0x64, 0x65, 0x5f, 0x63, 0x6f, 0x75, 0x6e,
+	0x74, 0x18, 0x02, 0x20, 0x01, 0x28, 0x05, 0x52, 0x16, 0x6d, 0x61, 0x78, 0x43, 0x6f, 0x6e, 0x63,
+	0x75, 0x72, 0x72, 0x65, 0x6e, 0x74, 0x4e, 0x6f, 0x64, 0x65, 0x43, 0x6f, 0x75, 0x6e, 0x74, 0x12,
+	0x21, 0x0a, 0x0c, 0x63, 0x61, 0x70, 0x61, 0x63, 0x69, 0x74, 0x79, 0x5f, 0x63, 0x70, 0x75, 0x18,
+	0x0b, 0x20, 0x01, 0x28, 0x03, 0x52, 0x0b, 0x63, 0x61, 0x70, 0x61, 0x63, 0x69, 0x74, 0x79, 0x43,
+	0x70, 0x75, 0x12, 0x27, 0x0a, 0x0f, 0x63, 0x61, 0x70, 0x61, 0x63, 0x69, 0x74, 0x79, 0x5f, 0x6d,
+	0x65, 0x6d, 0x6f, 0x72, 0x79, 0x18, 0x0c, 0x20, 0x01, 0x28, 0x03, 0x52, 0x0e, 0x63, 0x61, 0x70,
+	0x61, 0x63, 0x69, 0x74, 0x79, 0x4d, 0x65, 0x6d, 0x6f, 0x72, 0x79, 0x12, 0x2a, 0x0a, 0x11, 0x63,
+	0x61, 0x70, 0x61, 0x63, 0x69, 0x74, 0x79, 0x5f, 0x67, 0x70, 0x75, 0x5f, 0x76, 0x72, 0x61, 0x6d,
+	0x18, 0x0d, 0x20, 0x01, 0x28, 0x03, 0x52, 0x0f, 0x63, 0x61, 0x70, 0x61, 0x63, 0x69, 0x74, 0x79,
+	0x47, 0x70, 0x75, 0x56, 0x72, 0x61, 0x6d, 0x12, 0x30, 0x0a, 0x14, 0x63, 0x61, 0x70, 0x61, 0x63,
+	0x69, 0x74, 0x79, 0x5f, 0x67, 0x70, 0x75, 0x5f, 0x64, 0x65, 0x76, 0x69, 0x63, 0x65, 0x73, 0x18,
+	0x0e, 0x20, 0x01, 0x28, 0x03, 0x52, 0x12, 0x63, 0x61, 0x70, 0x61, 0x63, 0x69, 0x74, 0x79, 0x47,
+	0x70, 0x75, 0x44, 0x65, 0x76, 0x69, 0x63, 0x65, 0x73, 0x12, 0x20, 0x0a, 0x0c, 0x61, 0x67, 0x67,
+	0x72, 0x5f, 0x63, 0x70, 0x75, 0x5f, 0x72, 0x65, 0x71, 0x18, 0x15, 0x20, 0x01, 0x28, 0x03, 0x52,
+	0x0a, 0x61, 0x67, 0x67, 0x72, 0x43, 0x70, 0x75, 0x52, 0x65, 0x71, 0x12, 0x26, 0x0a, 0x0f, 0x61,
+	0x67, 0x67, 0x72, 0x5f, 0x6d, 0x65, 0x6d, 0x6f, 0x72, 0x79, 0x5f, 0x72, 0x65, 0x71, 0x18, 0x16,
+	0x20, 0x01, 0x28, 0x03, 0x52, 0x0d, 0x61, 0x67, 0x67, 0x72, 0x4d, 0x65, 0x6d, 0x6f, 0x72, 0x79,
+	0x52, 0x65, 0x71, 0x12, 0x20, 0x0a, 0x0c, 0x61, 0x67, 0x67, 0x72, 0x5f, 0x67, 0x70, 0x75, 0x5f,
+	0x72, 0x65, 0x71, 0x18, 0x17, 0x20, 0x01, 0x28, 0x03, 0x52, 0x0a, 0x61, 0x67, 0x67, 0x72, 0x47,
+	0x70, 0x75, 0x52, 0x65, 0x71, 0x12, 0x2b, 0x0a, 0x12, 0x75, 0x74, 0x69, 0x6c, 0x5f, 0x63, 0x70,
+	0x75, 0x5f, 0x61, 0x76, 0x67, 0x5f, 0x75, 0x73, 0x61, 0x67, 0x65, 0x18, 0x1f, 0x20, 0x01, 0x28,
+	0x02, 0x52, 0x0f, 0x75, 0x74, 0x69, 0x6c, 0x43, 0x70, 0x75, 0x41, 0x76, 0x67, 0x55, 0x73, 0x61,
+	0x67, 0x65, 0x12, 0x31, 0x0a, 0x15, 0x75, 0x74, 0x69, 0x6c, 0x5f, 0x6d, 0x65, 0x6d, 0x6f, 0x72,
+	0x79, 0x5f, 0x61, 0x76, 0x67, 0x5f, 0x75, 0x73, 0x61, 0x67, 0x65, 0x18, 0x20, 0x20, 0x01, 0x28,
+	0x02, 0x52, 0x12, 0x75, 0x74, 0x69, 0x6c, 0x4d, 0x65, 0x6d, 0x6f, 0x72, 0x79, 0x41, 0x76, 0x67,
+	0x55, 0x73, 0x61, 0x67, 0x65, 0x12, 0x34, 0x0a, 0x17, 0x75, 0x74, 0x69, 0x6c, 0x5f, 0x67, 0x70,
+	0x75, 0x5f, 0x76, 0x72, 0x61, 0x6d, 0x5f, 0x61, 0x76, 0x67, 0x5f, 0x75, 0x73, 0x61, 0x67, 0x65,
+	0x18, 0x21, 0x20, 0x01, 0x28, 0x02, 0x52, 0x13, 0x75, 0x74, 0x69, 0x6c, 0x47, 0x70, 0x75, 0x56,
+	0x72, 0x61, 0x6d, 0x41, 0x76, 0x67, 0x55, 0x73, 0x61, 0x67, 0x65, 0x12, 0x26, 0x0a, 0x0f, 0x75,
+	0x74, 0x69, 0x6c, 0x5f, 0x67, 0x70, 0x75, 0x5f, 0x64, 0x65, 0x76, 0x69, 0x63, 0x65, 0x18, 0x22,
+	0x20, 0x01, 0x28, 0x02, 0x52, 0x0d, 0x75, 0x74, 0x69, 0x6c, 0x47, 0x70, 0x75, 0x44, 0x65, 0x76,
+	0x69, 0x63, 0x65, 0x12, 0x33, 0x0a, 0x0b, 0x68, 0x6f, 0x75, 0x72, 0x6c, 0x79, 0x5f, 0x63, 0x6f,
+	0x73, 0x74, 0x18, 0x32, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x12, 0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c,
+	0x65, 0x2e, 0x74, 0x79, 0x70, 0x65, 0x2e, 0x4d, 0x6f, 0x6e, 0x65, 0x79, 0x52, 0x0a, 0x68, 0x6f,
+	0x75, 0x72, 0x6c, 0x79, 0x43, 0x6f, 0x73, 0x74, 0x12, 0x3a, 0x0a, 0x0f, 0x68, 0x6f, 0x75, 0x72,
+	0x6c, 0x79, 0x5f, 0x63, 0x70, 0x75, 0x5f, 0x63, 0x6f, 0x73, 0x74, 0x18, 0x33, 0x20, 0x01, 0x28,
+	0x0b, 0x32, 0x12, 0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x74, 0x79, 0x70, 0x65, 0x2e,
+	0x4d, 0x6f, 0x6e, 0x65, 0x79, 0x52, 0x0d, 0x68, 0x6f, 0x75, 0x72, 0x6c, 0x79, 0x43, 0x70, 0x75,
+	0x43, 0x6f, 0x73, 0x74, 0x12, 0x40, 0x0a, 0x12, 0x68, 0x6f, 0x75, 0x72, 0x6c, 0x79, 0x5f, 0x6d,
+	0x65, 0x6d, 0x6f, 0x72, 0x79, 0x5f, 0x63, 0x6f, 0x73, 0x74, 0x18, 0x34, 0x20, 0x01, 0x28, 0x0b,
+	0x32, 0x12, 0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x74, 0x79, 0x70, 0x65, 0x2e, 0x4d,
+	0x6f, 0x6e, 0x65, 0x79, 0x52, 0x10, 0x68, 0x6f, 0x75, 0x72, 0x6c, 0x79, 0x4d, 0x65, 0x6d, 0x6f,
+	0x72, 0x79, 0x43, 0x6f, 0x73, 0x74, 0x12, 0x3a, 0x0a, 0x0f, 0x68, 0x6f, 0x75, 0x72, 0x6c, 0x79,
+	0x5f, 0x67, 0x70, 0x75, 0x5f, 0x63, 0x6f, 0x73, 0x74, 0x18, 0x35, 0x20, 0x01, 0x28, 0x0b, 0x32,
+	0x12, 0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x74, 0x79, 0x70, 0x65, 0x2e, 0x4d, 0x6f,
+	0x6e, 0x65, 0x79, 0x52, 0x0d, 0x68, 0x6f, 0x75, 0x72, 0x6c, 0x79, 0x47, 0x70, 0x75, 0x43, 0x6f,
+	0x73, 0x74, 0x12, 0x3b, 0x0a, 0x0b, 0x62, 0x75, 0x63, 0x6b, 0x65, 0x74, 0x5f, 0x74, 0x69, 0x6d,
+	0x65, 0x18, 0x29, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1a, 0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65,
+	0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2e, 0x54, 0x69, 0x6d, 0x65, 0x73, 0x74,
+	0x61, 0x6d, 0x70, 0x52, 0x0a, 0x62, 0x75, 0x63, 0x6b, 0x65, 0x74, 0x54, 0x69, 0x6d, 0x65, 0x22,
+	0x48, 0x0a, 0x14, 0x47, 0x65, 0x74, 0x4e, 0x6f, 0x64, 0x65, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x52,
+	0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x30, 0x0a, 0x0a, 0x6e, 0x6f, 0x64, 0x65, 0x5f,
+	0x67, 0x72, 0x6f, 0x75, 0x70, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x11, 0x2e, 0x61, 0x70,
+	0x69, 0x2e, 0x76, 0x31, 0x2e, 0x4e, 0x6f, 0x64, 0x65, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x52, 0x09,
+	0x6e, 0x6f, 0x64, 0x65, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x22, 0x3f, 0x0a, 0x12, 0x47, 0x65, 0x74,
+	0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12,
+	0x29, 0x0a, 0x07, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b,
+	0x32, 0x0f, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65,
+	0x72, 0x52, 0x07, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x22, 0xf2, 0x02, 0x0a, 0x13, 0x47,
+	0x65, 0x74, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e,
+	0x73, 0x65, 0x12, 0x2b, 0x0a, 0x08, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x73, 0x18, 0x01,
+	0x20, 0x03, 0x28, 0x0b, 0x32, 0x0f, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x43, 0x6c,
+	0x75, 0x73, 0x74, 0x65, 0x72, 0x52, 0x08, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x73, 0x12,
+	0x42, 0x0a, 0x10, 0x72, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x5f, 0x6d, 0x65, 0x74, 0x72,
+	0x69, 0x63, 0x73, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x17, 0x2e, 0x61, 0x70, 0x69, 0x2e,
+	0x76, 0x31, 0x2e, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x4d, 0x65, 0x74, 0x72, 0x69,
+	0x63, 0x73, 0x52, 0x0f, 0x72, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x4d, 0x65, 0x74, 0x72,
+	0x69, 0x63, 0x73, 0x12, 0x2d, 0x0a, 0x09, 0x63, 0x6f, 0x73, 0x74, 0x5f, 0x69, 0x6e, 0x66, 0x6f,
+	0x18, 0x03, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x10, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e,
+	0x43, 0x6f, 0x73, 0x74, 0x49, 0x6e, 0x66, 0x6f, 0x52, 0x08, 0x63, 0x6f, 0x73, 0x74, 0x49, 0x6e,
+	0x66, 0x6f, 0x12, 0x2d, 0x0a, 0x09, 0x6e, 0x6f, 0x64, 0x65, 0x5f, 0x69, 0x6e, 0x66, 0x6f, 0x18,
+	0x04, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x10, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x4e,
+	0x6f, 0x64, 0x65, 0x49, 0x6e, 0x66, 0x6f, 0x52, 0x08, 0x6e, 0x6f, 0x64, 0x65, 0x49, 0x6e, 0x66,
+	0x6f, 0x12, 0x3f, 0x0a, 0x10, 0x63, 0x6f, 0x73, 0x74, 0x5f, 0x64, 0x61, 0x74, 0x61, 0x5f, 0x70,
+	0x6f, 0x69, 0x6e, 0x74, 0x73, 0x18, 0x05, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x15, 0x2e, 0x61, 0x70,
+	0x69, 0x2e, 0x76, 0x31, 0x2e, 0x43, 0x6f, 0x73, 0x74, 0x44, 0x61, 0x74, 0x61, 0x50, 0x6f, 0x69,
+	0x6e, 0x74, 0x52, 0x0e, 0x63, 0x6f, 0x73, 0x74, 0x44, 0x61, 0x74, 0x61, 0x50, 0x6f, 0x69, 0x6e,
+	0x74, 0x73, 0x12, 0x4b, 0x0a, 0x14, 0x72, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x5f, 0x64,
+	0x61, 0x74, 0x61, 0x5f, 0x70, 0x6f, 0x69, 0x6e, 0x74, 0x73, 0x18, 0x06, 0x20, 0x03, 0x28, 0x0b,
+	0x32, 0x19, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72,
+	0x63, 0x65, 0x44, 0x61, 0x74, 0x61, 0x50, 0x6f, 0x69, 0x6e, 0x74, 0x52, 0x12, 0x72, 0x65, 0x73,
+	0x6f, 0x75, 0x72, 0x63, 0x65, 0x44, 0x61, 0x74, 0x61, 0x50, 0x6f, 0x69, 0x6e, 0x74, 0x73, 0x22,
+	0x7b, 0x0a, 0x14, 0x4c, 0x69, 0x73, 0x74, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x73, 0x52,
+	0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x2b, 0x0a, 0x08, 0x63, 0x6c, 0x75, 0x73, 0x74,
+	0x65, 0x72, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x0f, 0x2e, 0x61, 0x70, 0x69, 0x2e,
+	0x76, 0x31, 0x2e, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x52, 0x08, 0x63, 0x6c, 0x75, 0x73,
+	0x74, 0x65, 0x72, 0x73, 0x12, 0x32, 0x0a, 0x0a, 0x70, 0x61, 0x67, 0x69, 0x6e, 0x61, 0x74, 0x69,
+	0x6f, 0x6e, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x12, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76,
+	0x31, 0x2e, 0x50, 0x61, 0x67, 0x69, 0x6e, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x52, 0x0a, 0x70, 0x61,
+	0x67, 0x69, 0x6e, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x3a, 0x02, 0x18, 0x01, 0x22, 0xe9, 0x02, 0x0a,
+	0x0f, 0x47, 0x65, 0x74, 0x4e, 0x6f, 0x64, 0x65, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65,
+	0x12, 0x20, 0x0a, 0x04, 0x6e, 0x6f, 0x64, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x0c,
+	0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x4e, 0x6f, 0x64, 0x65, 0x52, 0x04, 0x6e, 0x6f,
+	0x64, 0x65, 0x12, 0x42, 0x0a, 0x10, 0x72, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x5f, 0x6d,
+	0x65, 0x74, 0x72, 0x69, 0x63, 0x73, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x17, 0x2e, 0x61,
+	0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x4d, 0x65,
+	0x74, 0x72, 0x69, 0x63, 0x73, 0x52, 0x0f, 0x72, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x4d,
+	0x65, 0x74, 0x72, 0x69, 0x63, 0x73, 0x12, 0x2d, 0x0a, 0x09, 0x63, 0x6f, 0x73, 0x74, 0x5f, 0x69,
+	0x6e, 0x66, 0x6f, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x10, 0x2e, 0x61, 0x70, 0x69, 0x2e,
+	0x76, 0x31, 0x2e, 0x43, 0x6f, 0x73, 0x74, 0x49, 0x6e, 0x66, 0x6f, 0x52, 0x08, 0x63, 0x6f, 0x73,
+	0x74, 0x49, 0x6e, 0x66, 0x6f, 0x12, 0x3f, 0x0a, 0x10, 0x63, 0x6f, 0x73, 0x74, 0x5f, 0x64, 0x61,
+	0x74, 0x61, 0x5f, 0x70, 0x6f, 0x69, 0x6e, 0x74, 0x73, 0x18, 0x04, 0x20, 0x03, 0x28, 0x0b, 0x32,
 	0x15, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x43, 0x6f, 0x73, 0x74, 0x44, 0x61, 0x74,
 	0x61, 0x50, 0x6f, 0x69, 0x6e, 0x74, 0x52, 0x0e, 0x63, 0x6f, 0x73, 0x74, 0x44, 0x61, 0x74, 0x61,
 	0x50, 0x6f, 0x69, 0x6e, 0x74, 0x73, 0x12, 0x4b, 0x0a, 0x14, 0x72, 0x65, 0x73, 0x6f, 0x75, 0x72,
-	0x63, 0x65, 0x5f, 0x64, 0x61, 0x74, 0x61, 0x5f, 0x70, 0x6f, 0x69, 0x6e, 0x74, 0x73, 0x18, 0x06,
+	0x63, 0x65, 0x5f, 0x64, 0x61, 0x74, 0x61, 0x5f, 0x70, 0x6f, 0x69, 0x6e, 0x74, 0x73, 0x18, 0x05,
 	0x20, 0x03, 0x28, 0x0b, 0x32, 0x19, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x52, 0x65,
 	0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x44, 0x61, 0x74, 0x61, 0x50, 0x6f, 0x69, 0x6e, 0x74, 0x52,
 	0x12, 0x72, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x44, 0x61, 0x74, 0x61, 0x50, 0x6f, 0x69,
-	0x6e, 0x74, 0x73, 0x22, 0x7b, 0x0a, 0x14, 0x4c, 0x69, 0x73, 0x74, 0x43, 0x6c, 0x75, 0x73, 0x74,
-	0x65, 0x72, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x2b, 0x0a, 0x08, 0x63,
-	0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x0f, 0x2e,
-	0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x52, 0x08,
-	0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x73, 0x12, 0x32, 0x0a, 0x0a, 0x70, 0x61, 0x67, 0x69,
-	0x6e, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x12, 0x2e, 0x61,
-	0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x50, 0x61, 0x67, 0x69, 0x6e, 0x61, 0x74, 0x69, 0x6f, 0x6e,
-	0x52, 0x0a, 0x70, 0x61, 0x67, 0x69, 0x6e, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x3a, 0x02, 0x18, 0x01,
-	0x22, 0xb4, 0x02, 0x0a, 0x0f, 0x47, 0x65, 0x74, 0x4e, 0x6f, 0x64, 0x65, 0x52, 0x65, 0x73, 0x70,
-	0x6f, 0x6e, 0x73, 0x65, 0x12, 0x20, 0x0a, 0x04, 0x6e, 0x6f, 0x64, 0x65, 0x18, 0x01, 0x20, 0x01,
-	0x28, 0x0b, 0x32, 0x0c, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x4e, 0x6f, 0x64, 0x65,
-	0x52, 0x04, 0x6e, 0x6f, 0x64, 0x65, 0x12, 0x42, 0x0a, 0x10, 0x72, 0x65, 0x73, 0x6f, 0x75, 0x72,
-	0x63, 0x65, 0x5f, 0x6d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b,
-	0x32, 0x17, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72,
-	0x63, 0x65, 0x4d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73, 0x52, 0x0f, 0x72, 0x65, 0x73, 0x6f, 0x75,
-	0x72, 0x63, 0x65, 0x4d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73, 0x12, 0x2d, 0x0a, 0x09, 0x63, 0x6f,
-	0x73, 0x74, 0x5f, 0x69, 0x6e, 0x66, 0x6f, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x10, 0x2e,
-	0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x43, 0x6f, 0x73, 0x74, 0x49, 0x6e, 0x66, 0x6f, 0x52,
-	0x08, 0x63, 0x6f, 0x73, 0x74, 0x49, 0x6e, 0x66, 0x6f, 0x12, 0x3f, 0x0a, 0x10, 0x63, 0x6f, 0x73,
-	0x74, 0x5f, 0x64, 0x61, 0x74, 0x61, 0x5f, 0x70, 0x6f, 0x69, 0x6e, 0x74, 0x73, 0x18, 0x04, 0x20,
-	0x03, 0x28, 0x0b, 0x32, 0x15, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x43, 0x6f, 0x73,
-	0x74, 0x44, 0x61, 0x74, 0x61, 0x50, 0x6f, 0x69, 0x6e, 0x74, 0x52, 0x0e, 0x63, 0x6f, 0x73, 0x74,
-	0x44, 0x61, 0x74, 0x61, 0x50, 0x6f, 0x69, 0x6e, 0x74, 0x73, 0x12, 0x4b, 0x0a, 0x14, 0x72, 0x65,
-	0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x5f, 0x64, 0x61, 0x74, 0x61, 0x5f, 0x70, 0x6f, 0x69, 0x6e,
-	0x74, 0x73, 0x18, 0x05, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x19, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76,
-	0x31, 0x2e, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x44, 0x61, 0x74, 0x61, 0x50, 0x6f,
-	0x69, 0x6e, 0x74, 0x52, 0x12, 0x72, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x44, 0x61, 0x74,
-	0x61, 0x50, 0x6f, 0x69, 0x6e, 0x74, 0x73, 0x22, 0x8a, 0x02, 0x0a, 0x14, 0x47, 0x65, 0x74, 0x57,
+	0x6e, 0x74, 0x73, 0x12, 0x33, 0x0a, 0x0a, 0x6e, 0x6f, 0x64, 0x65, 0x5f, 0x63, 0x6c, 0x61, 0x69,
+	0x6d, 0x18, 0x06, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x14, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31,
+	0x2e, 0x4e, 0x6f, 0x64, 0x65, 0x43, 0x6c, 0x61, 0x69, 0x6d, 0x52, 0x65, 0x66, 0x52, 0x09, 0x6e,
+	0x6f, 0x64, 0x65, 0x43, 0x6c, 0x61, 0x69, 0x6d, 0x22, 0xa1, 0x02, 0x0a, 0x0c, 0x4e, 0x6f, 0x64,
+	0x65, 0x43, 0x6c, 0x61, 0x69, 0x6d, 0x52, 0x65, 0x66, 0x12, 0x12, 0x0a, 0x04, 0x6e, 0x61, 0x6d,
+	0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x12, 0x10, 0x0a,
+	0x03, 0x75, 0x69, 0x64, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x75, 0x69, 0x64, 0x12,
+	0x1c, 0x0a, 0x09, 0x64, 0x65, 0x6c, 0x65, 0x74, 0x61, 0x62, 0x6c, 0x65, 0x18, 0x03, 0x20, 0x01,
+	0x28, 0x08, 0x52, 0x09, 0x64, 0x65, 0x6c, 0x65, 0x74, 0x61, 0x62, 0x6c, 0x65, 0x12, 0x55, 0x0a,
+	0x14, 0x6e, 0x6f, 0x74, 0x5f, 0x64, 0x65, 0x6c, 0x65, 0x74, 0x61, 0x62, 0x6c, 0x65, 0x5f, 0x72,
+	0x65, 0x61, 0x73, 0x6f, 0x6e, 0x18, 0x04, 0x20, 0x01, 0x28, 0x0e, 0x32, 0x23, 0x2e, 0x61, 0x70,
+	0x69, 0x2e, 0x76, 0x31, 0x2e, 0x4e, 0x6f, 0x64, 0x65, 0x43, 0x6c, 0x61, 0x69, 0x6d, 0x4e, 0x6f,
+	0x74, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x61, 0x62, 0x6c, 0x65, 0x52, 0x65, 0x61, 0x73, 0x6f, 0x6e,
+	0x52, 0x12, 0x6e, 0x6f, 0x74, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x61, 0x62, 0x6c, 0x65, 0x52, 0x65,
+	0x61, 0x73, 0x6f, 0x6e, 0x12, 0x30, 0x0a, 0x14, 0x6d, 0x69, 0x6e, 0x5f, 0x6f, 0x70, 0x65, 0x72,
+	0x61, 0x74, 0x6f, 0x72, 0x5f, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x18, 0x05, 0x20, 0x01,
+	0x28, 0x09, 0x52, 0x12, 0x6d, 0x69, 0x6e, 0x4f, 0x70, 0x65, 0x72, 0x61, 0x74, 0x6f, 0x72, 0x56,
+	0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x12, 0x44, 0x0a, 0x0d, 0x6c, 0x61, 0x74, 0x65, 0x73, 0x74,
+	0x5f, 0x73, 0x74, 0x61, 0x74, 0x75, 0x73, 0x18, 0x06, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1f, 0x2e,
+	0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x4e, 0x6f, 0x64, 0x65, 0x43, 0x6c, 0x61, 0x69, 0x6d,
+	0x44, 0x65, 0x6c, 0x65, 0x74, 0x69, 0x6f, 0x6e, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x52, 0x0c,
+	0x6c, 0x61, 0x74, 0x65, 0x73, 0x74, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x22, 0xd6, 0x01, 0x0a,
+	0x1f, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x4e, 0x6f, 0x64, 0x65, 0x43, 0x6c, 0x61, 0x69,
+	0x6d, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x69, 0x6f, 0x6e, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
+	0x12, 0x17, 0x0a, 0x07, 0x74, 0x65, 0x61, 0x6d, 0x5f, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28,
+	0x09, 0x52, 0x06, 0x74, 0x65, 0x61, 0x6d, 0x49, 0x64, 0x12, 0x1d, 0x0a, 0x0a, 0x63, 0x6c, 0x75,
+	0x73, 0x74, 0x65, 0x72, 0x5f, 0x69, 0x64, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x09, 0x63,
+	0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x49, 0x64, 0x12, 0x1c, 0x0a, 0x07, 0x6e, 0x6f, 0x64, 0x65,
+	0x5f, 0x69, 0x64, 0x18, 0x03, 0x20, 0x01, 0x28, 0x09, 0x48, 0x00, 0x52, 0x06, 0x6e, 0x6f, 0x64,
+	0x65, 0x49, 0x64, 0x88, 0x01, 0x01, 0x12, 0x1e, 0x0a, 0x08, 0x6e, 0x6f, 0x64, 0x65, 0x5f, 0x75,
+	0x69, 0x64, 0x18, 0x04, 0x20, 0x01, 0x28, 0x09, 0x48, 0x01, 0x52, 0x07, 0x6e, 0x6f, 0x64, 0x65,
+	0x55, 0x69, 0x64, 0x88, 0x01, 0x01, 0x12, 0x24, 0x0a, 0x0e, 0x6e, 0x6f, 0x64, 0x65, 0x5f, 0x63,
+	0x6c, 0x61, 0x69, 0x6d, 0x5f, 0x75, 0x69, 0x64, 0x18, 0x05, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0c,
+	0x6e, 0x6f, 0x64, 0x65, 0x43, 0x6c, 0x61, 0x69, 0x6d, 0x55, 0x69, 0x64, 0x42, 0x0a, 0x0a, 0x08,
+	0x5f, 0x6e, 0x6f, 0x64, 0x65, 0x5f, 0x69, 0x64, 0x42, 0x0b, 0x0a, 0x09, 0x5f, 0x6e, 0x6f, 0x64,
+	0x65, 0x5f, 0x75, 0x69, 0x64, 0x22, 0x5b, 0x0a, 0x20, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
+	0x4e, 0x6f, 0x64, 0x65, 0x43, 0x6c, 0x61, 0x69, 0x6d, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x69, 0x6f,
+	0x6e, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x37, 0x0a, 0x06, 0x73, 0x74, 0x61,
+	0x74, 0x75, 0x73, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1f, 0x2e, 0x61, 0x70, 0x69, 0x2e,
+	0x76, 0x31, 0x2e, 0x4e, 0x6f, 0x64, 0x65, 0x43, 0x6c, 0x61, 0x69, 0x6d, 0x44, 0x65, 0x6c, 0x65,
+	0x74, 0x69, 0x6f, 0x6e, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x52, 0x06, 0x73, 0x74, 0x61, 0x74,
+	0x75, 0x73, 0x22, 0xb2, 0x01, 0x0a, 0x21, 0x47, 0x65, 0x74, 0x4e, 0x6f, 0x64, 0x65, 0x43, 0x6c,
+	0x61, 0x69, 0x6d, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x69, 0x6f, 0x6e, 0x53, 0x74, 0x61, 0x74, 0x75,
+	0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x17, 0x0a, 0x07, 0x74, 0x65, 0x61, 0x6d,
+	0x5f, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x74, 0x65, 0x61, 0x6d, 0x49,
+	0x64, 0x12, 0x1d, 0x0a, 0x0a, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x5f, 0x69, 0x64, 0x18,
+	0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x09, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x49, 0x64,
+	0x12, 0x1c, 0x0a, 0x07, 0x6e, 0x6f, 0x64, 0x65, 0x5f, 0x69, 0x64, 0x18, 0x03, 0x20, 0x01, 0x28,
+	0x09, 0x48, 0x00, 0x52, 0x06, 0x6e, 0x6f, 0x64, 0x65, 0x49, 0x64, 0x88, 0x01, 0x01, 0x12, 0x1e,
+	0x0a, 0x08, 0x6e, 0x6f, 0x64, 0x65, 0x5f, 0x75, 0x69, 0x64, 0x18, 0x04, 0x20, 0x01, 0x28, 0x09,
+	0x48, 0x01, 0x52, 0x07, 0x6e, 0x6f, 0x64, 0x65, 0x55, 0x69, 0x64, 0x88, 0x01, 0x01, 0x42, 0x0a,
+	0x0a, 0x08, 0x5f, 0x6e, 0x6f, 0x64, 0x65, 0x5f, 0x69, 0x64, 0x42, 0x0b, 0x0a, 0x09, 0x5f, 0x6e,
+	0x6f, 0x64, 0x65, 0x5f, 0x75, 0x69, 0x64, 0x22, 0x5d, 0x0a, 0x22, 0x47, 0x65, 0x74, 0x4e, 0x6f,
+	0x64, 0x65, 0x43, 0x6c, 0x61, 0x69, 0x6d, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x69, 0x6f, 0x6e, 0x53,
+	0x74, 0x61, 0x74, 0x75, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x37, 0x0a,
+	0x06, 0x73, 0x74, 0x61, 0x74, 0x75, 0x73, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1f, 0x2e,
+	0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x4e, 0x6f, 0x64, 0x65, 0x43, 0x6c, 0x61, 0x69, 0x6d,
+	0x44, 0x65, 0x6c, 0x65, 0x74, 0x69, 0x6f, 0x6e, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x52, 0x06,
+	0x73, 0x74, 0x61, 0x74, 0x75, 0x73, 0x22, 0x9e, 0x04, 0x0a, 0x17, 0x4e, 0x6f, 0x64, 0x65, 0x43,
+	0x6c, 0x61, 0x69, 0x6d, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x69, 0x6f, 0x6e, 0x53, 0x74, 0x61, 0x74,
+	0x75, 0x73, 0x12, 0x1d, 0x0a, 0x0a, 0x72, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x5f, 0x69, 0x64,
+	0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x09, 0x72, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x49,
+	0x64, 0x12, 0x26, 0x0a, 0x0f, 0x6e, 0x6f, 0x64, 0x65, 0x5f, 0x63, 0x6c, 0x61, 0x69, 0x6d, 0x5f,
+	0x6e, 0x61, 0x6d, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0d, 0x6e, 0x6f, 0x64, 0x65,
+	0x43, 0x6c, 0x61, 0x69, 0x6d, 0x4e, 0x61, 0x6d, 0x65, 0x12, 0x24, 0x0a, 0x0e, 0x6e, 0x6f, 0x64,
+	0x65, 0x5f, 0x63, 0x6c, 0x61, 0x69, 0x6d, 0x5f, 0x75, 0x69, 0x64, 0x18, 0x03, 0x20, 0x01, 0x28,
+	0x09, 0x52, 0x0c, 0x6e, 0x6f, 0x64, 0x65, 0x43, 0x6c, 0x61, 0x69, 0x6d, 0x55, 0x69, 0x64, 0x12,
+	0x34, 0x0a, 0x05, 0x73, 0x74, 0x61, 0x74, 0x65, 0x18, 0x04, 0x20, 0x01, 0x28, 0x0e, 0x32, 0x1e,
+	0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x4e, 0x6f, 0x64, 0x65, 0x43, 0x6c, 0x61, 0x69,
+	0x6d, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x69, 0x6f, 0x6e, 0x53, 0x74, 0x61, 0x74, 0x65, 0x52, 0x05,
+	0x73, 0x74, 0x61, 0x74, 0x65, 0x12, 0x14, 0x0a, 0x05, 0x65, 0x72, 0x72, 0x6f, 0x72, 0x18, 0x05,
+	0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x65, 0x72, 0x72, 0x6f, 0x72, 0x12, 0x2c, 0x0a, 0x12, 0x72,
+	0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x65, 0x64, 0x5f, 0x62, 0x79, 0x5f, 0x65, 0x6d, 0x61, 0x69,
+	0x6c, 0x18, 0x06, 0x20, 0x01, 0x28, 0x09, 0x52, 0x10, 0x72, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
+	0x65, 0x64, 0x42, 0x79, 0x45, 0x6d, 0x61, 0x69, 0x6c, 0x12, 0x3d, 0x0a, 0x0c, 0x72, 0x65, 0x71,
+	0x75, 0x65, 0x73, 0x74, 0x65, 0x64, 0x5f, 0x61, 0x74, 0x18, 0x07, 0x20, 0x01, 0x28, 0x0b, 0x32,
+	0x1a, 0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75,
+	0x66, 0x2e, 0x54, 0x69, 0x6d, 0x65, 0x73, 0x74, 0x61, 0x6d, 0x70, 0x52, 0x0b, 0x72, 0x65, 0x71,
+	0x75, 0x65, 0x73, 0x74, 0x65, 0x64, 0x41, 0x74, 0x12, 0x3e, 0x0a, 0x0d, 0x66, 0x69, 0x72, 0x73,
+	0x74, 0x5f, 0x73, 0x65, 0x6e, 0x74, 0x5f, 0x61, 0x74, 0x18, 0x08, 0x20, 0x01, 0x28, 0x0b, 0x32,
+	0x1a, 0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75,
+	0x66, 0x2e, 0x54, 0x69, 0x6d, 0x65, 0x73, 0x74, 0x61, 0x6d, 0x70, 0x52, 0x0b, 0x66, 0x69, 0x72,
+	0x73, 0x74, 0x53, 0x65, 0x6e, 0x74, 0x41, 0x74, 0x12, 0x3b, 0x0a, 0x0b, 0x61, 0x63, 0x63, 0x65,
+	0x70, 0x74, 0x65, 0x64, 0x5f, 0x61, 0x74, 0x18, 0x09, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1a, 0x2e,
+	0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2e,
+	0x54, 0x69, 0x6d, 0x65, 0x73, 0x74, 0x61, 0x6d, 0x70, 0x52, 0x0a, 0x61, 0x63, 0x63, 0x65, 0x70,
+	0x74, 0x65, 0x64, 0x41, 0x74, 0x12, 0x3b, 0x0a, 0x0b, 0x72, 0x65, 0x73, 0x6f, 0x6c, 0x76, 0x65,
+	0x64, 0x5f, 0x61, 0x74, 0x18, 0x0a, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1a, 0x2e, 0x67, 0x6f, 0x6f,
+	0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2e, 0x54, 0x69, 0x6d,
+	0x65, 0x73, 0x74, 0x61, 0x6d, 0x70, 0x52, 0x0a, 0x72, 0x65, 0x73, 0x6f, 0x6c, 0x76, 0x65, 0x64,
+	0x41, 0x74, 0x12, 0x23, 0x0a, 0x0d, 0x73, 0x74, 0x61, 0x6c, 0x65, 0x5f, 0x75, 0x6e, 0x61, 0x63,
+	0x6b, 0x65, 0x64, 0x18, 0x0b, 0x20, 0x01, 0x28, 0x08, 0x52, 0x0c, 0x73, 0x74, 0x61, 0x6c, 0x65,
+	0x55, 0x6e, 0x61, 0x63, 0x6b, 0x65, 0x64, 0x22, 0x8a, 0x02, 0x0a, 0x14, 0x47, 0x65, 0x74, 0x57,
 	0x6f, 0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65,
 	0x12, 0x3b, 0x0a, 0x0e, 0x77, 0x6f, 0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64, 0x5f, 0x69, 0x74, 0x65,
 	0x6d, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x14, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76,
@@ -11562,7 +12907,65 @@ var file_api_v1_k8s_proto_rawDesc = []byte{
 	0x6f, 0x62, 0x75, 0x66, 0x2e, 0x54, 0x69, 0x6d, 0x65, 0x73, 0x74, 0x61, 0x6d, 0x70, 0x48, 0x00,
 	0x52, 0x0b, 0x63, 0x6f, 0x6c, 0x6c, 0x65, 0x63, 0x74, 0x65, 0x64, 0x41, 0x74, 0x88, 0x01, 0x01,
 	0x42, 0x0f, 0x0a, 0x0d, 0x5f, 0x63, 0x6f, 0x6c, 0x6c, 0x65, 0x63, 0x74, 0x65, 0x64, 0x5f, 0x61,
-	0x74, 0x22, 0x73, 0x0a, 0x27, 0x47, 0x65, 0x74, 0x43, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65,
+	0x74, 0x22, 0xa9, 0x02, 0x0a, 0x26, 0x47, 0x65, 0x74, 0x4e, 0x6f, 0x64, 0x65, 0x47, 0x50, 0x55,
+	0x4d, 0x69, 0x67, 0x49, 0x6e, 0x73, 0x74, 0x61, 0x6e, 0x63, 0x65, 0x54, 0x69, 0x6d, 0x65, 0x73,
+	0x65, 0x72, 0x69, 0x65, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x17, 0x0a, 0x07,
+	0x74, 0x65, 0x61, 0x6d, 0x5f, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x74,
+	0x65, 0x61, 0x6d, 0x49, 0x64, 0x12, 0x1d, 0x0a, 0x0a, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72,
+	0x5f, 0x69, 0x64, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x09, 0x63, 0x6c, 0x75, 0x73, 0x74,
+	0x65, 0x72, 0x49, 0x64, 0x12, 0x1c, 0x0a, 0x07, 0x6e, 0x6f, 0x64, 0x65, 0x5f, 0x69, 0x64, 0x18,
+	0x03, 0x20, 0x01, 0x28, 0x09, 0x48, 0x00, 0x52, 0x06, 0x6e, 0x6f, 0x64, 0x65, 0x49, 0x64, 0x88,
+	0x01, 0x01, 0x12, 0x1e, 0x0a, 0x08, 0x6e, 0x6f, 0x64, 0x65, 0x5f, 0x75, 0x69, 0x64, 0x18, 0x04,
+	0x20, 0x01, 0x28, 0x09, 0x48, 0x01, 0x52, 0x07, 0x6e, 0x6f, 0x64, 0x65, 0x55, 0x69, 0x64, 0x88,
+	0x01, 0x01, 0x12, 0x39, 0x0a, 0x0a, 0x73, 0x74, 0x61, 0x72, 0x74, 0x5f, 0x74, 0x69, 0x6d, 0x65,
+	0x18, 0x05, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1a, 0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e,
+	0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2e, 0x54, 0x69, 0x6d, 0x65, 0x73, 0x74, 0x61,
+	0x6d, 0x70, 0x52, 0x09, 0x73, 0x74, 0x61, 0x72, 0x74, 0x54, 0x69, 0x6d, 0x65, 0x12, 0x35, 0x0a,
+	0x08, 0x65, 0x6e, 0x64, 0x5f, 0x74, 0x69, 0x6d, 0x65, 0x18, 0x06, 0x20, 0x01, 0x28, 0x0b, 0x32,
+	0x1a, 0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75,
+	0x66, 0x2e, 0x54, 0x69, 0x6d, 0x65, 0x73, 0x74, 0x61, 0x6d, 0x70, 0x52, 0x07, 0x65, 0x6e, 0x64,
+	0x54, 0x69, 0x6d, 0x65, 0x42, 0x0a, 0x0a, 0x08, 0x5f, 0x6e, 0x6f, 0x64, 0x65, 0x5f, 0x69, 0x64,
+	0x42, 0x0b, 0x0a, 0x09, 0x5f, 0x6e, 0x6f, 0x64, 0x65, 0x5f, 0x75, 0x69, 0x64, 0x22, 0xa7, 0x02,
+	0x0a, 0x17, 0x47, 0x50, 0x55, 0x4d, 0x69, 0x67, 0x49, 0x6e, 0x73, 0x74, 0x61, 0x6e, 0x63, 0x65,
+	0x44, 0x61, 0x74, 0x61, 0x50, 0x6f, 0x69, 0x6e, 0x74, 0x12, 0x38, 0x0a, 0x09, 0x74, 0x69, 0x6d,
+	0x65, 0x73, 0x74, 0x61, 0x6d, 0x70, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1a, 0x2e, 0x67,
+	0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2e, 0x54,
+	0x69, 0x6d, 0x65, 0x73, 0x74, 0x61, 0x6d, 0x70, 0x52, 0x09, 0x74, 0x69, 0x6d, 0x65, 0x73, 0x74,
+	0x61, 0x6d, 0x70, 0x12, 0x23, 0x0a, 0x0d, 0x74, 0x65, 0x6e, 0x73, 0x6f, 0x72, 0x5f, 0x61, 0x63,
+	0x74, 0x69, 0x76, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x01, 0x52, 0x0c, 0x74, 0x65, 0x6e, 0x73,
+	0x6f, 0x72, 0x41, 0x63, 0x74, 0x69, 0x76, 0x65, 0x12, 0x1f, 0x0a, 0x0b, 0x64, 0x72, 0x61, 0x6d,
+	0x5f, 0x61, 0x63, 0x74, 0x69, 0x76, 0x65, 0x18, 0x03, 0x20, 0x01, 0x28, 0x01, 0x52, 0x0a, 0x64,
+	0x72, 0x61, 0x6d, 0x41, 0x63, 0x74, 0x69, 0x76, 0x65, 0x12, 0x34, 0x0a, 0x16, 0x67, 0x72, 0x61,
+	0x70, 0x68, 0x69, 0x63, 0x73, 0x5f, 0x65, 0x6e, 0x67, 0x69, 0x6e, 0x65, 0x5f, 0x61, 0x63, 0x74,
+	0x69, 0x76, 0x65, 0x18, 0x04, 0x20, 0x01, 0x28, 0x01, 0x52, 0x14, 0x67, 0x72, 0x61, 0x70, 0x68,
+	0x69, 0x63, 0x73, 0x45, 0x6e, 0x67, 0x69, 0x6e, 0x65, 0x41, 0x63, 0x74, 0x69, 0x76, 0x65, 0x12,
+	0x29, 0x0a, 0x10, 0x66, 0x72, 0x61, 0x6d, 0x65, 0x62, 0x75, 0x66, 0x66, 0x65, 0x72, 0x5f, 0x75,
+	0x73, 0x65, 0x64, 0x18, 0x05, 0x20, 0x01, 0x28, 0x01, 0x52, 0x0f, 0x66, 0x72, 0x61, 0x6d, 0x65,
+	0x62, 0x75, 0x66, 0x66, 0x65, 0x72, 0x55, 0x73, 0x65, 0x64, 0x12, 0x2b, 0x0a, 0x11, 0x66, 0x72,
+	0x61, 0x6d, 0x65, 0x62, 0x75, 0x66, 0x66, 0x65, 0x72, 0x5f, 0x74, 0x6f, 0x74, 0x61, 0x6c, 0x18,
+	0x06, 0x20, 0x01, 0x28, 0x01, 0x52, 0x10, 0x66, 0x72, 0x61, 0x6d, 0x65, 0x62, 0x75, 0x66, 0x66,
+	0x65, 0x72, 0x54, 0x6f, 0x74, 0x61, 0x6c, 0x22, 0xdc, 0x01, 0x0a, 0x18, 0x47, 0x50, 0x55, 0x4d,
+	0x69, 0x67, 0x49, 0x6e, 0x73, 0x74, 0x61, 0x6e, 0x63, 0x65, 0x54, 0x69, 0x6d, 0x65, 0x73, 0x65,
+	0x72, 0x69, 0x65, 0x73, 0x12, 0x26, 0x0a, 0x0f, 0x6d, 0x69, 0x67, 0x5f, 0x69, 0x6e, 0x73, 0x74,
+	0x61, 0x6e, 0x63, 0x65, 0x5f, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0d, 0x6d,
+	0x69, 0x67, 0x49, 0x6e, 0x73, 0x74, 0x61, 0x6e, 0x63, 0x65, 0x49, 0x64, 0x12, 0x1f, 0x0a, 0x0b,
+	0x6d, 0x69, 0x67, 0x5f, 0x70, 0x72, 0x6f, 0x66, 0x69, 0x6c, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28,
+	0x09, 0x52, 0x0a, 0x6d, 0x69, 0x67, 0x50, 0x72, 0x6f, 0x66, 0x69, 0x6c, 0x65, 0x12, 0x1f, 0x0a,
+	0x0b, 0x64, 0x65, 0x76, 0x69, 0x63, 0x65, 0x5f, 0x75, 0x75, 0x69, 0x64, 0x18, 0x03, 0x20, 0x01,
+	0x28, 0x09, 0x52, 0x0a, 0x64, 0x65, 0x76, 0x69, 0x63, 0x65, 0x55, 0x75, 0x69, 0x64, 0x12, 0x1d,
+	0x0a, 0x0a, 0x6d, 0x6f, 0x64, 0x65, 0x6c, 0x5f, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x04, 0x20, 0x01,
+	0x28, 0x09, 0x52, 0x09, 0x6d, 0x6f, 0x64, 0x65, 0x6c, 0x4e, 0x61, 0x6d, 0x65, 0x12, 0x37, 0x0a,
+	0x06, 0x70, 0x6f, 0x69, 0x6e, 0x74, 0x73, 0x18, 0x05, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x1f, 0x2e,
+	0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x50, 0x55, 0x4d, 0x69, 0x67, 0x49, 0x6e, 0x73,
+	0x74, 0x61, 0x6e, 0x63, 0x65, 0x44, 0x61, 0x74, 0x61, 0x50, 0x6f, 0x69, 0x6e, 0x74, 0x52, 0x06,
+	0x70, 0x6f, 0x69, 0x6e, 0x74, 0x73, 0x22, 0x69, 0x0a, 0x27, 0x47, 0x65, 0x74, 0x4e, 0x6f, 0x64,
+	0x65, 0x47, 0x50, 0x55, 0x4d, 0x69, 0x67, 0x49, 0x6e, 0x73, 0x74, 0x61, 0x6e, 0x63, 0x65, 0x54,
+	0x69, 0x6d, 0x65, 0x73, 0x65, 0x72, 0x69, 0x65, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73,
+	0x65, 0x12, 0x3e, 0x0a, 0x09, 0x69, 0x6e, 0x73, 0x74, 0x61, 0x6e, 0x63, 0x65, 0x73, 0x18, 0x01,
+	0x20, 0x03, 0x28, 0x0b, 0x32, 0x20, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x50,
+	0x55, 0x4d, 0x69, 0x67, 0x49, 0x6e, 0x73, 0x74, 0x61, 0x6e, 0x63, 0x65, 0x54, 0x69, 0x6d, 0x65,
+	0x73, 0x65, 0x72, 0x69, 0x65, 0x73, 0x52, 0x09, 0x69, 0x6e, 0x73, 0x74, 0x61, 0x6e, 0x63, 0x65,
+	0x73, 0x22, 0x73, 0x0a, 0x27, 0x47, 0x65, 0x74, 0x43, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65,
 	0x72, 0x49, 0x6e, 0x64, 0x69, 0x76, 0x69, 0x64, 0x75, 0x61, 0x6c, 0x47, 0x50, 0x55, 0x4d, 0x65,
 	0x74, 0x72, 0x69, 0x63, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x17, 0x0a, 0x07,
 	0x74, 0x65, 0x61, 0x6d, 0x5f, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x74,
@@ -12810,7 +14213,41 @@ var file_api_v1_k8s_proto_rawDesc = []byte{
 	0x64, 0x12, 0x32, 0x0a, 0x15, 0x63, 0x61, 0x63, 0x68, 0x65, 0x64, 0x5f, 0x69, 0x6e, 0x73, 0x74,
 	0x61, 0x6e, 0x63, 0x65, 0x5f, 0x66, 0x6f, 0x75, 0x6e, 0x64, 0x18, 0x05, 0x20, 0x01, 0x28, 0x08,
 	0x52, 0x13, 0x63, 0x61, 0x63, 0x68, 0x65, 0x64, 0x49, 0x6e, 0x73, 0x74, 0x61, 0x6e, 0x63, 0x65,
-	0x46, 0x6f, 0x75, 0x6e, 0x64, 0x2a, 0xb3, 0x04, 0x0a, 0x14, 0x47, 0x61, 0x6c, 0x61, 0x78, 0x79,
+	0x46, 0x6f, 0x75, 0x6e, 0x64, 0x2a, 0x97, 0x02, 0x0a, 0x1b, 0x4e, 0x6f, 0x64, 0x65, 0x43, 0x6c,
+	0x61, 0x69, 0x6d, 0x4e, 0x6f, 0x74, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x61, 0x62, 0x6c, 0x65, 0x52,
+	0x65, 0x61, 0x73, 0x6f, 0x6e, 0x12, 0x2f, 0x0a, 0x2b, 0x4e, 0x4f, 0x44, 0x45, 0x5f, 0x43, 0x4c,
+	0x41, 0x49, 0x4d, 0x5f, 0x4e, 0x4f, 0x54, 0x5f, 0x44, 0x45, 0x4c, 0x45, 0x54, 0x41, 0x42, 0x4c,
+	0x45, 0x5f, 0x52, 0x45, 0x41, 0x53, 0x4f, 0x4e, 0x5f, 0x55, 0x4e, 0x53, 0x50, 0x45, 0x43, 0x49,
+	0x46, 0x49, 0x45, 0x44, 0x10, 0x00, 0x12, 0x31, 0x0a, 0x2d, 0x4e, 0x4f, 0x44, 0x45, 0x5f, 0x43,
+	0x4c, 0x41, 0x49, 0x4d, 0x5f, 0x4e, 0x4f, 0x54, 0x5f, 0x44, 0x45, 0x4c, 0x45, 0x54, 0x41, 0x42,
+	0x4c, 0x45, 0x5f, 0x52, 0x45, 0x41, 0x53, 0x4f, 0x4e, 0x5f, 0x4e, 0x4f, 0x44, 0x45, 0x5f, 0x4e,
+	0x4f, 0x54, 0x5f, 0x4c, 0x49, 0x56, 0x45, 0x10, 0x01, 0x12, 0x2f, 0x0a, 0x2b, 0x4e, 0x4f, 0x44,
+	0x45, 0x5f, 0x43, 0x4c, 0x41, 0x49, 0x4d, 0x5f, 0x4e, 0x4f, 0x54, 0x5f, 0x44, 0x45, 0x4c, 0x45,
+	0x54, 0x41, 0x42, 0x4c, 0x45, 0x5f, 0x52, 0x45, 0x41, 0x53, 0x4f, 0x4e, 0x5f, 0x54, 0x45, 0x52,
+	0x4d, 0x49, 0x4e, 0x41, 0x54, 0x49, 0x4e, 0x47, 0x10, 0x02, 0x12, 0x2d, 0x0a, 0x29, 0x4e, 0x4f,
+	0x44, 0x45, 0x5f, 0x43, 0x4c, 0x41, 0x49, 0x4d, 0x5f, 0x4e, 0x4f, 0x54, 0x5f, 0x44, 0x45, 0x4c,
+	0x45, 0x54, 0x41, 0x42, 0x4c, 0x45, 0x5f, 0x52, 0x45, 0x41, 0x53, 0x4f, 0x4e, 0x5f, 0x49, 0x4e,
+	0x5f, 0x46, 0x4c, 0x49, 0x47, 0x48, 0x54, 0x10, 0x03, 0x12, 0x34, 0x0a, 0x30, 0x4e, 0x4f, 0x44,
+	0x45, 0x5f, 0x43, 0x4c, 0x41, 0x49, 0x4d, 0x5f, 0x4e, 0x4f, 0x54, 0x5f, 0x44, 0x45, 0x4c, 0x45,
+	0x54, 0x41, 0x42, 0x4c, 0x45, 0x5f, 0x52, 0x45, 0x41, 0x53, 0x4f, 0x4e, 0x5f, 0x4f, 0x50, 0x45,
+	0x52, 0x41, 0x54, 0x4f, 0x52, 0x5f, 0x56, 0x45, 0x52, 0x53, 0x49, 0x4f, 0x4e, 0x10, 0x04, 0x2a,
+	0x83, 0x02, 0x0a, 0x16, 0x4e, 0x6f, 0x64, 0x65, 0x43, 0x6c, 0x61, 0x69, 0x6d, 0x44, 0x65, 0x6c,
+	0x65, 0x74, 0x69, 0x6f, 0x6e, 0x53, 0x74, 0x61, 0x74, 0x65, 0x12, 0x29, 0x0a, 0x25, 0x4e, 0x4f,
+	0x44, 0x45, 0x5f, 0x43, 0x4c, 0x41, 0x49, 0x4d, 0x5f, 0x44, 0x45, 0x4c, 0x45, 0x54, 0x49, 0x4f,
+	0x4e, 0x5f, 0x53, 0x54, 0x41, 0x54, 0x45, 0x5f, 0x55, 0x4e, 0x53, 0x50, 0x45, 0x43, 0x49, 0x46,
+	0x49, 0x45, 0x44, 0x10, 0x00, 0x12, 0x25, 0x0a, 0x21, 0x4e, 0x4f, 0x44, 0x45, 0x5f, 0x43, 0x4c,
+	0x41, 0x49, 0x4d, 0x5f, 0x44, 0x45, 0x4c, 0x45, 0x54, 0x49, 0x4f, 0x4e, 0x5f, 0x53, 0x54, 0x41,
+	0x54, 0x45, 0x5f, 0x50, 0x45, 0x4e, 0x44, 0x49, 0x4e, 0x47, 0x10, 0x01, 0x12, 0x22, 0x0a, 0x1e,
+	0x4e, 0x4f, 0x44, 0x45, 0x5f, 0x43, 0x4c, 0x41, 0x49, 0x4d, 0x5f, 0x44, 0x45, 0x4c, 0x45, 0x54,
+	0x49, 0x4f, 0x4e, 0x5f, 0x53, 0x54, 0x41, 0x54, 0x45, 0x5f, 0x53, 0x45, 0x4e, 0x54, 0x10, 0x02,
+	0x12, 0x26, 0x0a, 0x22, 0x4e, 0x4f, 0x44, 0x45, 0x5f, 0x43, 0x4c, 0x41, 0x49, 0x4d, 0x5f, 0x44,
+	0x45, 0x4c, 0x45, 0x54, 0x49, 0x4f, 0x4e, 0x5f, 0x53, 0x54, 0x41, 0x54, 0x45, 0x5f, 0x41, 0x43,
+	0x43, 0x45, 0x50, 0x54, 0x45, 0x44, 0x10, 0x03, 0x12, 0x25, 0x0a, 0x21, 0x4e, 0x4f, 0x44, 0x45,
+	0x5f, 0x43, 0x4c, 0x41, 0x49, 0x4d, 0x5f, 0x44, 0x45, 0x4c, 0x45, 0x54, 0x49, 0x4f, 0x4e, 0x5f,
+	0x53, 0x54, 0x41, 0x54, 0x45, 0x5f, 0x44, 0x45, 0x4c, 0x45, 0x54, 0x45, 0x44, 0x10, 0x04, 0x12,
+	0x24, 0x0a, 0x20, 0x4e, 0x4f, 0x44, 0x45, 0x5f, 0x43, 0x4c, 0x41, 0x49, 0x4d, 0x5f, 0x44, 0x45,
+	0x4c, 0x45, 0x54, 0x49, 0x4f, 0x4e, 0x5f, 0x53, 0x54, 0x41, 0x54, 0x45, 0x5f, 0x46, 0x41, 0x49,
+	0x4c, 0x45, 0x44, 0x10, 0x05, 0x2a, 0xb3, 0x04, 0x0a, 0x14, 0x47, 0x61, 0x6c, 0x61, 0x78, 0x79,
 	0x50, 0x4f, 0x56, 0x4e, 0x6f, 0x64, 0x65, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x42, 0x79, 0x12, 0x28,
 	0x0a, 0x24, 0x47, 0x41, 0x4c, 0x41, 0x58, 0x59, 0x5f, 0x50, 0x4f, 0x56, 0x5f, 0x4e, 0x4f, 0x44,
 	0x45, 0x5f, 0x47, 0x52, 0x4f, 0x55, 0x50, 0x5f, 0x42, 0x59, 0x5f, 0x55, 0x4e, 0x53, 0x50, 0x45,
@@ -12898,7 +14335,7 @@ var file_api_v1_k8s_proto_rawDesc = []byte{
 	0x4c, 0x55, 0x53, 0x54, 0x45, 0x52, 0x5f, 0x54, 0x59, 0x50, 0x45, 0x5f, 0x52, 0x4b, 0x45, 0x32,
 	0x10, 0x02, 0x12, 0x1b, 0x0a, 0x17, 0x43, 0x4c, 0x55, 0x53, 0x54, 0x45, 0x52, 0x5f, 0x54, 0x59,
 	0x50, 0x45, 0x5f, 0x43, 0x4f, 0x4e, 0x54, 0x41, 0x49, 0x4e, 0x45, 0x52, 0x44, 0x10, 0x03, 0x32,
-	0xb3, 0x24, 0x0a, 0x0a, 0x4b, 0x38, 0x53, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x12, 0x58,
+	0x8e, 0x28, 0x0a, 0x0a, 0x4b, 0x38, 0x53, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x12, 0x58,
 	0x0a, 0x11, 0x47, 0x65, 0x74, 0x57, 0x6f, 0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64, 0x73, 0x53, 0x74,
 	0x61, 0x74, 0x73, 0x12, 0x20, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74,
 	0x57, 0x6f, 0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64, 0x73, 0x53, 0x74, 0x61, 0x74, 0x73, 0x52, 0x65,
@@ -12985,263 +14422,293 @@ var file_api_v1_k8s_proto_rawDesc = []byte{
 	0x69, 0x6f, 0x6e, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x28, 0x2e, 0x61, 0x70, 0x69,
 	0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x4e, 0x6f, 0x64, 0x65, 0x47, 0x72, 0x6f, 0x75, 0x70,
 	0x73, 0x55, 0x74, 0x69, 0x6c, 0x69, 0x7a, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x52, 0x65, 0x73, 0x70,
-	0x6f, 0x6e, 0x73, 0x65, 0x12, 0x49, 0x0a, 0x0c, 0x47, 0x65, 0x74, 0x4e, 0x6f, 0x64, 0x65, 0x47,
-	0x72, 0x6f, 0x75, 0x70, 0x12, 0x1b, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65,
-	0x74, 0x4e, 0x6f, 0x64, 0x65, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73,
-	0x74, 0x1a, 0x1c, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x4e, 0x6f,
-	0x64, 0x65, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12,
-	0x3a, 0x0a, 0x07, 0x47, 0x65, 0x74, 0x4e, 0x6f, 0x64, 0x65, 0x12, 0x16, 0x2e, 0x61, 0x70, 0x69,
-	0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x4e, 0x6f, 0x64, 0x65, 0x52, 0x65, 0x71, 0x75, 0x65,
-	0x73, 0x74, 0x1a, 0x17, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x4e,
-	0x6f, 0x64, 0x65, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x49, 0x0a, 0x0c, 0x47,
-	0x65, 0x74, 0x57, 0x6f, 0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64, 0x73, 0x12, 0x1b, 0x2e, 0x61, 0x70,
-	0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x57, 0x6f, 0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64,
-	0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1c, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76,
-	0x31, 0x2e, 0x47, 0x65, 0x74, 0x57, 0x6f, 0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64, 0x73, 0x52, 0x65,
-	0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x67, 0x0a, 0x16, 0x4c, 0x69, 0x73, 0x74, 0x57, 0x6f,
-	0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64, 0x73, 0x50, 0x61, 0x67, 0x69, 0x6e, 0x61, 0x74, 0x65, 0x64,
-	0x12, 0x25, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x4c, 0x69, 0x73, 0x74, 0x57, 0x6f,
-	0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64, 0x73, 0x50, 0x61, 0x67, 0x69, 0x6e, 0x61, 0x74, 0x65, 0x64,
-	0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x26, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31,
-	0x2e, 0x4c, 0x69, 0x73, 0x74, 0x57, 0x6f, 0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64, 0x73, 0x50, 0x61,
-	0x67, 0x69, 0x6e, 0x61, 0x74, 0x65, 0x64, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12,
-	0x5e, 0x0a, 0x13, 0x47, 0x65, 0x74, 0x57, 0x6f, 0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64, 0x73, 0x53,
-	0x75, 0x6d, 0x6d, 0x61, 0x72, 0x79, 0x12, 0x22, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e,
-	0x47, 0x65, 0x74, 0x57, 0x6f, 0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64, 0x73, 0x53, 0x75, 0x6d, 0x6d,
-	0x61, 0x72, 0x79, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x23, 0x2e, 0x61, 0x70, 0x69,
-	0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x57, 0x6f, 0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64, 0x73,
-	0x53, 0x75, 0x6d, 0x6d, 0x61, 0x72, 0x79, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12,
-	0x46, 0x0a, 0x0b, 0x47, 0x65, 0x74, 0x57, 0x6f, 0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64, 0x12, 0x1a,
+	0x6f, 0x6e, 0x73, 0x65, 0x12, 0x70, 0x0a, 0x19, 0x47, 0x65, 0x74, 0x43, 0x6c, 0x75, 0x73, 0x74,
+	0x65, 0x72, 0x4e, 0x6f, 0x64, 0x65, 0x46, 0x69, 0x6c, 0x74, 0x65, 0x72, 0x49, 0x6e, 0x64, 0x65,
+	0x78, 0x12, 0x28, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x43, 0x6c,
+	0x75, 0x73, 0x74, 0x65, 0x72, 0x4e, 0x6f, 0x64, 0x65, 0x46, 0x69, 0x6c, 0x74, 0x65, 0x72, 0x49,
+	0x6e, 0x64, 0x65, 0x78, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x29, 0x2e, 0x61, 0x70,
+	0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x4e,
+	0x6f, 0x64, 0x65, 0x46, 0x69, 0x6c, 0x74, 0x65, 0x72, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x52, 0x65,
+	0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x49, 0x0a, 0x0c, 0x47, 0x65, 0x74, 0x4e, 0x6f, 0x64,
+	0x65, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x12, 0x1b, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e,
+	0x47, 0x65, 0x74, 0x4e, 0x6f, 0x64, 0x65, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x52, 0x65, 0x71, 0x75,
+	0x65, 0x73, 0x74, 0x1a, 0x1c, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74,
+	0x4e, 0x6f, 0x64, 0x65, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73,
+	0x65, 0x12, 0x3a, 0x0a, 0x07, 0x47, 0x65, 0x74, 0x4e, 0x6f, 0x64, 0x65, 0x12, 0x16, 0x2e, 0x61,
+	0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x4e, 0x6f, 0x64, 0x65, 0x52, 0x65, 0x71,
+	0x75, 0x65, 0x73, 0x74, 0x1a, 0x17, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65,
+	0x74, 0x4e, 0x6f, 0x64, 0x65, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x6d, 0x0a,
+	0x18, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x4e, 0x6f, 0x64, 0x65, 0x43, 0x6c, 0x61, 0x69,
+	0x6d, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x69, 0x6f, 0x6e, 0x12, 0x27, 0x2e, 0x61, 0x70, 0x69, 0x2e,
+	0x76, 0x31, 0x2e, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x4e, 0x6f, 0x64, 0x65, 0x43, 0x6c,
+	0x61, 0x69, 0x6d, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x69, 0x6f, 0x6e, 0x52, 0x65, 0x71, 0x75, 0x65,
+	0x73, 0x74, 0x1a, 0x28, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x52, 0x65, 0x71, 0x75,
+	0x65, 0x73, 0x74, 0x4e, 0x6f, 0x64, 0x65, 0x43, 0x6c, 0x61, 0x69, 0x6d, 0x44, 0x65, 0x6c, 0x65,
+	0x74, 0x69, 0x6f, 0x6e, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x73, 0x0a, 0x1a,
+	0x47, 0x65, 0x74, 0x4e, 0x6f, 0x64, 0x65, 0x43, 0x6c, 0x61, 0x69, 0x6d, 0x44, 0x65, 0x6c, 0x65,
+	0x74, 0x69, 0x6f, 0x6e, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x12, 0x29, 0x2e, 0x61, 0x70, 0x69,
+	0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x4e, 0x6f, 0x64, 0x65, 0x43, 0x6c, 0x61, 0x69, 0x6d,
+	0x44, 0x65, 0x6c, 0x65, 0x74, 0x69, 0x6f, 0x6e, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x52, 0x65,
+	0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x2a, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47,
+	0x65, 0x74, 0x4e, 0x6f, 0x64, 0x65, 0x43, 0x6c, 0x61, 0x69, 0x6d, 0x44, 0x65, 0x6c, 0x65, 0x74,
+	0x69, 0x6f, 0x6e, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73,
+	0x65, 0x12, 0x49, 0x0a, 0x0c, 0x47, 0x65, 0x74, 0x57, 0x6f, 0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64,
+	0x73, 0x12, 0x1b, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x57, 0x6f,
+	0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1c,
 	0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x57, 0x6f, 0x72, 0x6b, 0x6c,
-	0x6f, 0x61, 0x64, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1b, 0x2e, 0x61, 0x70, 0x69,
-	0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x57, 0x6f, 0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64, 0x52,
-	0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x82, 0x01, 0x0a, 0x1f, 0x47, 0x65, 0x74, 0x57,
-	0x6f, 0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64, 0x43, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65, 0x72,
-	0x50, 0x65, 0x72, 0x63, 0x65, 0x6e, 0x74, 0x69, 0x6c, 0x65, 0x73, 0x12, 0x2e, 0x2e, 0x61, 0x70,
-	0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x57, 0x6f, 0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64,
-	0x43, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65, 0x72, 0x50, 0x65, 0x72, 0x63, 0x65, 0x6e, 0x74,
-	0x69, 0x6c, 0x65, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x2f, 0x2e, 0x61, 0x70,
-	0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x57, 0x6f, 0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64,
-	0x43, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65, 0x72, 0x50, 0x65, 0x72, 0x63, 0x65, 0x6e, 0x74,
-	0x69, 0x6c, 0x65, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x7f, 0x0a, 0x1e,
-	0x47, 0x65, 0x74, 0x57, 0x6f, 0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64, 0x43, 0x6f, 0x6e, 0x74, 0x61,
-	0x69, 0x6e, 0x65, 0x72, 0x54, 0x69, 0x6d, 0x65, 0x53, 0x65, 0x72, 0x69, 0x65, 0x73, 0x12, 0x2d,
-	0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x57, 0x6f, 0x72, 0x6b, 0x6c,
-	0x6f, 0x61, 0x64, 0x43, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65, 0x72, 0x54, 0x69, 0x6d, 0x65,
-	0x53, 0x65, 0x72, 0x69, 0x65, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x2e, 0x2e,
-	0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x57, 0x6f, 0x72, 0x6b, 0x6c, 0x6f,
-	0x61, 0x64, 0x43, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65, 0x72, 0x54, 0x69, 0x6d, 0x65, 0x53,
-	0x65, 0x72, 0x69, 0x65, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x82, 0x01,
-	0x0a, 0x1f, 0x47, 0x65, 0x74, 0x4c, 0x61, 0x74, 0x65, 0x73, 0x74, 0x43, 0x6f, 0x6e, 0x74, 0x61,
-	0x69, 0x6e, 0x65, 0x72, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x4c, 0x69, 0x6d, 0x69, 0x74,
-	0x73, 0x12, 0x2e, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x4c, 0x61,
-	0x74, 0x65, 0x73, 0x74, 0x43, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65, 0x72, 0x52, 0x65, 0x71,
-	0x75, 0x65, 0x73, 0x74, 0x4c, 0x69, 0x6d, 0x69, 0x74, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73,
-	0x74, 0x1a, 0x2f, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x4c, 0x61,
-	0x74, 0x65, 0x73, 0x74, 0x43, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65, 0x72, 0x52, 0x65, 0x71,
-	0x75, 0x65, 0x73, 0x74, 0x4c, 0x69, 0x6d, 0x69, 0x74, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e,
-	0x73, 0x65, 0x12, 0x67, 0x0a, 0x16, 0x47, 0x65, 0x74, 0x4e, 0x6f, 0x64, 0x65, 0x47, 0x50, 0x55,
-	0x4d, 0x69, 0x67, 0x49, 0x6e, 0x73, 0x74, 0x61, 0x6e, 0x63, 0x65, 0x73, 0x12, 0x25, 0x2e, 0x61,
-	0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x4e, 0x6f, 0x64, 0x65, 0x47, 0x50, 0x55,
-	0x4d, 0x69, 0x67, 0x49, 0x6e, 0x73, 0x74, 0x61, 0x6e, 0x63, 0x65, 0x73, 0x52, 0x65, 0x71, 0x75,
-	0x65, 0x73, 0x74, 0x1a, 0x26, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74,
-	0x4e, 0x6f, 0x64, 0x65, 0x47, 0x50, 0x55, 0x4d, 0x69, 0x67, 0x49, 0x6e, 0x73, 0x74, 0x61, 0x6e,
-	0x63, 0x65, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x85, 0x01, 0x0a, 0x20,
-	0x47, 0x65, 0x74, 0x43, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65, 0x72, 0x49, 0x6e, 0x64, 0x69,
-	0x76, 0x69, 0x64, 0x75, 0x61, 0x6c, 0x47, 0x50, 0x55, 0x4d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73,
-	0x12, 0x2f, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x43, 0x6f, 0x6e,
-	0x74, 0x61, 0x69, 0x6e, 0x65, 0x72, 0x49, 0x6e, 0x64, 0x69, 0x76, 0x69, 0x64, 0x75, 0x61, 0x6c,
-	0x47, 0x50, 0x55, 0x4d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73,
-	0x74, 0x1a, 0x30, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x43, 0x6f,
+	0x6f, 0x61, 0x64, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x67, 0x0a, 0x16,
+	0x4c, 0x69, 0x73, 0x74, 0x57, 0x6f, 0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64, 0x73, 0x50, 0x61, 0x67,
+	0x69, 0x6e, 0x61, 0x74, 0x65, 0x64, 0x12, 0x25, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e,
+	0x4c, 0x69, 0x73, 0x74, 0x57, 0x6f, 0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64, 0x73, 0x50, 0x61, 0x67,
+	0x69, 0x6e, 0x61, 0x74, 0x65, 0x64, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x26, 0x2e,
+	0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x4c, 0x69, 0x73, 0x74, 0x57, 0x6f, 0x72, 0x6b, 0x6c,
+	0x6f, 0x61, 0x64, 0x73, 0x50, 0x61, 0x67, 0x69, 0x6e, 0x61, 0x74, 0x65, 0x64, 0x52, 0x65, 0x73,
+	0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x5e, 0x0a, 0x13, 0x47, 0x65, 0x74, 0x57, 0x6f, 0x72, 0x6b,
+	0x6c, 0x6f, 0x61, 0x64, 0x73, 0x53, 0x75, 0x6d, 0x6d, 0x61, 0x72, 0x79, 0x12, 0x22, 0x2e, 0x61,
+	0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x57, 0x6f, 0x72, 0x6b, 0x6c, 0x6f, 0x61,
+	0x64, 0x73, 0x53, 0x75, 0x6d, 0x6d, 0x61, 0x72, 0x79, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
+	0x1a, 0x23, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x57, 0x6f, 0x72,
+	0x6b, 0x6c, 0x6f, 0x61, 0x64, 0x73, 0x53, 0x75, 0x6d, 0x6d, 0x61, 0x72, 0x79, 0x52, 0x65, 0x73,
+	0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x46, 0x0a, 0x0b, 0x47, 0x65, 0x74, 0x57, 0x6f, 0x72, 0x6b,
+	0x6c, 0x6f, 0x61, 0x64, 0x12, 0x1a, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65,
+	0x74, 0x57, 0x6f, 0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
+	0x1a, 0x1b, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x57, 0x6f, 0x72,
+	0x6b, 0x6c, 0x6f, 0x61, 0x64, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x82, 0x01,
+	0x0a, 0x1f, 0x47, 0x65, 0x74, 0x57, 0x6f, 0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64, 0x43, 0x6f, 0x6e,
+	0x74, 0x61, 0x69, 0x6e, 0x65, 0x72, 0x50, 0x65, 0x72, 0x63, 0x65, 0x6e, 0x74, 0x69, 0x6c, 0x65,
+	0x73, 0x12, 0x2e, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x57, 0x6f,
+	0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64, 0x43, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65, 0x72, 0x50,
+	0x65, 0x72, 0x63, 0x65, 0x6e, 0x74, 0x69, 0x6c, 0x65, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73,
+	0x74, 0x1a, 0x2f, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x57, 0x6f,
+	0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64, 0x43, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65, 0x72, 0x50,
+	0x65, 0x72, 0x63, 0x65, 0x6e, 0x74, 0x69, 0x6c, 0x65, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e,
+	0x73, 0x65, 0x12, 0x7f, 0x0a, 0x1e, 0x47, 0x65, 0x74, 0x57, 0x6f, 0x72, 0x6b, 0x6c, 0x6f, 0x61,
+	0x64, 0x43, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65, 0x72, 0x54, 0x69, 0x6d, 0x65, 0x53, 0x65,
+	0x72, 0x69, 0x65, 0x73, 0x12, 0x2d, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65,
+	0x74, 0x57, 0x6f, 0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64, 0x43, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e,
+	0x65, 0x72, 0x54, 0x69, 0x6d, 0x65, 0x53, 0x65, 0x72, 0x69, 0x65, 0x73, 0x52, 0x65, 0x71, 0x75,
+	0x65, 0x73, 0x74, 0x1a, 0x2e, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74,
+	0x57, 0x6f, 0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64, 0x43, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65,
+	0x72, 0x54, 0x69, 0x6d, 0x65, 0x53, 0x65, 0x72, 0x69, 0x65, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f,
+	0x6e, 0x73, 0x65, 0x12, 0x82, 0x01, 0x0a, 0x1f, 0x47, 0x65, 0x74, 0x4c, 0x61, 0x74, 0x65, 0x73,
+	0x74, 0x43, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65, 0x72, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73,
+	0x74, 0x4c, 0x69, 0x6d, 0x69, 0x74, 0x73, 0x12, 0x2e, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31,
+	0x2e, 0x47, 0x65, 0x74, 0x4c, 0x61, 0x74, 0x65, 0x73, 0x74, 0x43, 0x6f, 0x6e, 0x74, 0x61, 0x69,
+	0x6e, 0x65, 0x72, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x4c, 0x69, 0x6d, 0x69, 0x74, 0x73,
+	0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x2f, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31,
+	0x2e, 0x47, 0x65, 0x74, 0x4c, 0x61, 0x74, 0x65, 0x73, 0x74, 0x43, 0x6f, 0x6e, 0x74, 0x61, 0x69,
+	0x6e, 0x65, 0x72, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x4c, 0x69, 0x6d, 0x69, 0x74, 0x73,
+	0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x67, 0x0a, 0x16, 0x47, 0x65, 0x74, 0x4e,
+	0x6f, 0x64, 0x65, 0x47, 0x50, 0x55, 0x4d, 0x69, 0x67, 0x49, 0x6e, 0x73, 0x74, 0x61, 0x6e, 0x63,
+	0x65, 0x73, 0x12, 0x25, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x4e,
+	0x6f, 0x64, 0x65, 0x47, 0x50, 0x55, 0x4d, 0x69, 0x67, 0x49, 0x6e, 0x73, 0x74, 0x61, 0x6e, 0x63,
+	0x65, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x26, 0x2e, 0x61, 0x70, 0x69, 0x2e,
+	0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x4e, 0x6f, 0x64, 0x65, 0x47, 0x50, 0x55, 0x4d, 0x69, 0x67,
+	0x49, 0x6e, 0x73, 0x74, 0x61, 0x6e, 0x63, 0x65, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73,
+	0x65, 0x12, 0x82, 0x01, 0x0a, 0x1f, 0x47, 0x65, 0x74, 0x4e, 0x6f, 0x64, 0x65, 0x47, 0x50, 0x55,
+	0x4d, 0x69, 0x67, 0x49, 0x6e, 0x73, 0x74, 0x61, 0x6e, 0x63, 0x65, 0x54, 0x69, 0x6d, 0x65, 0x73,
+	0x65, 0x72, 0x69, 0x65, 0x73, 0x12, 0x2e, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47,
+	0x65, 0x74, 0x4e, 0x6f, 0x64, 0x65, 0x47, 0x50, 0x55, 0x4d, 0x69, 0x67, 0x49, 0x6e, 0x73, 0x74,
+	0x61, 0x6e, 0x63, 0x65, 0x54, 0x69, 0x6d, 0x65, 0x73, 0x65, 0x72, 0x69, 0x65, 0x73, 0x52, 0x65,
+	0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x2f, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47,
+	0x65, 0x74, 0x4e, 0x6f, 0x64, 0x65, 0x47, 0x50, 0x55, 0x4d, 0x69, 0x67, 0x49, 0x6e, 0x73, 0x74,
+	0x61, 0x6e, 0x63, 0x65, 0x54, 0x69, 0x6d, 0x65, 0x73, 0x65, 0x72, 0x69, 0x65, 0x73, 0x52, 0x65,
+	0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x85, 0x01, 0x0a, 0x20, 0x47, 0x65, 0x74, 0x43, 0x6f,
 	0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65, 0x72, 0x49, 0x6e, 0x64, 0x69, 0x76, 0x69, 0x64, 0x75, 0x61,
-	0x6c, 0x47, 0x50, 0x55, 0x4d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f,
-	0x6e, 0x73, 0x65, 0x12, 0x61, 0x0a, 0x14, 0x47, 0x65, 0x74, 0x57, 0x6f, 0x72, 0x6b, 0x6c, 0x6f,
-	0x61, 0x64, 0x4c, 0x61, 0x6e, 0x67, 0x75, 0x61, 0x67, 0x65, 0x73, 0x12, 0x23, 0x2e, 0x61, 0x70,
+	0x6c, 0x47, 0x50, 0x55, 0x4d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73, 0x12, 0x2f, 0x2e, 0x61, 0x70,
+	0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x43, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65,
+	0x72, 0x49, 0x6e, 0x64, 0x69, 0x76, 0x69, 0x64, 0x75, 0x61, 0x6c, 0x47, 0x50, 0x55, 0x4d, 0x65,
+	0x74, 0x72, 0x69, 0x63, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x30, 0x2e, 0x61,
+	0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x43, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e,
+	0x65, 0x72, 0x49, 0x6e, 0x64, 0x69, 0x76, 0x69, 0x64, 0x75, 0x61, 0x6c, 0x47, 0x50, 0x55, 0x4d,
+	0x65, 0x74, 0x72, 0x69, 0x63, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x61,
+	0x0a, 0x14, 0x47, 0x65, 0x74, 0x57, 0x6f, 0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64, 0x4c, 0x61, 0x6e,
+	0x67, 0x75, 0x61, 0x67, 0x65, 0x73, 0x12, 0x23, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e,
+	0x47, 0x65, 0x74, 0x57, 0x6f, 0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64, 0x4c, 0x61, 0x6e, 0x67, 0x75,
+	0x61, 0x67, 0x65, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x24, 0x2e, 0x61, 0x70,
 	0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x57, 0x6f, 0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64,
-	0x4c, 0x61, 0x6e, 0x67, 0x75, 0x61, 0x67, 0x65, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
-	0x1a, 0x24, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x57, 0x6f, 0x72,
-	0x6b, 0x6c, 0x6f, 0x61, 0x64, 0x4c, 0x61, 0x6e, 0x67, 0x75, 0x61, 0x67, 0x65, 0x73, 0x52, 0x65,
-	0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x66, 0x0a, 0x14, 0x47, 0x65, 0x74, 0x46, 0x6f, 0x72,
-	0x65, 0x63, 0x61, 0x73, 0x74, 0x57, 0x6f, 0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64, 0x73, 0x12, 0x23,
-	0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x46, 0x6f, 0x72, 0x65, 0x63,
-	0x61, 0x73, 0x74, 0x57, 0x6f, 0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64, 0x73, 0x52, 0x65, 0x71, 0x75,
-	0x65, 0x73, 0x74, 0x1a, 0x24, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74,
-	0x46, 0x6f, 0x72, 0x65, 0x63, 0x61, 0x73, 0x74, 0x57, 0x6f, 0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64,
-	0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x03, 0x88, 0x02, 0x01, 0x12, 0x63,
-	0x0a, 0x13, 0x47, 0x65, 0x74, 0x46, 0x6f, 0x72, 0x65, 0x63, 0x61, 0x73, 0x74, 0x57, 0x6f, 0x72,
-	0x6b, 0x6c, 0x6f, 0x61, 0x64, 0x12, 0x22, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47,
-	0x65, 0x74, 0x46, 0x6f, 0x72, 0x65, 0x63, 0x61, 0x73, 0x74, 0x57, 0x6f, 0x72, 0x6b, 0x6c, 0x6f,
-	0x61, 0x64, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x23, 0x2e, 0x61, 0x70, 0x69, 0x2e,
+	0x4c, 0x61, 0x6e, 0x67, 0x75, 0x61, 0x67, 0x65, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73,
+	0x65, 0x12, 0x66, 0x0a, 0x14, 0x47, 0x65, 0x74, 0x46, 0x6f, 0x72, 0x65, 0x63, 0x61, 0x73, 0x74,
+	0x57, 0x6f, 0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64, 0x73, 0x12, 0x23, 0x2e, 0x61, 0x70, 0x69, 0x2e,
 	0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x46, 0x6f, 0x72, 0x65, 0x63, 0x61, 0x73, 0x74, 0x57, 0x6f,
-	0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x03,
-	0x88, 0x02, 0x01, 0x12, 0x49, 0x0a, 0x0c, 0x47, 0x65, 0x74, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72,
-	0x63, 0x65, 0x73, 0x12, 0x1b, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74,
-	0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
-	0x1a, 0x1c, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x52, 0x65, 0x73,
-	0x6f, 0x75, 0x72, 0x63, 0x65, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x6d,
-	0x0a, 0x18, 0x47, 0x65, 0x74, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x46, 0x69, 0x6c,
-	0x74, 0x65, 0x72, 0x4f, 0x70, 0x74, 0x69, 0x6f, 0x6e, 0x73, 0x12, 0x27, 0x2e, 0x61, 0x70, 0x69,
-	0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x46,
-	0x69, 0x6c, 0x74, 0x65, 0x72, 0x4f, 0x70, 0x74, 0x69, 0x6f, 0x6e, 0x73, 0x52, 0x65, 0x71, 0x75,
-	0x65, 0x73, 0x74, 0x1a, 0x28, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74,
-	0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x46, 0x69, 0x6c, 0x74, 0x65, 0x72, 0x4f, 0x70,
-	0x74, 0x69, 0x6f, 0x6e, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x3a, 0x0a,
-	0x07, 0x47, 0x65, 0x74, 0x50, 0x6f, 0x64, 0x73, 0x12, 0x16, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76,
-	0x31, 0x2e, 0x47, 0x65, 0x74, 0x50, 0x6f, 0x64, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
-	0x1a, 0x17, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x50, 0x6f, 0x64,
+	0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x24,
+	0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x46, 0x6f, 0x72, 0x65, 0x63,
+	0x61, 0x73, 0x74, 0x57, 0x6f, 0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64, 0x73, 0x52, 0x65, 0x73, 0x70,
+	0x6f, 0x6e, 0x73, 0x65, 0x22, 0x03, 0x88, 0x02, 0x01, 0x12, 0x63, 0x0a, 0x13, 0x47, 0x65, 0x74,
+	0x46, 0x6f, 0x72, 0x65, 0x63, 0x61, 0x73, 0x74, 0x57, 0x6f, 0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64,
+	0x12, 0x22, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x46, 0x6f, 0x72,
+	0x65, 0x63, 0x61, 0x73, 0x74, 0x57, 0x6f, 0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64, 0x52, 0x65, 0x71,
+	0x75, 0x65, 0x73, 0x74, 0x1a, 0x23, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65,
+	0x74, 0x46, 0x6f, 0x72, 0x65, 0x63, 0x61, 0x73, 0x74, 0x57, 0x6f, 0x72, 0x6b, 0x6c, 0x6f, 0x61,
+	0x64, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x03, 0x88, 0x02, 0x01, 0x12, 0x49,
+	0x0a, 0x0c, 0x47, 0x65, 0x74, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x73, 0x12, 0x1b,
+	0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x52, 0x65, 0x73, 0x6f, 0x75,
+	0x72, 0x63, 0x65, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1c, 0x2e, 0x61, 0x70,
+	0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65,
 	0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x6d, 0x0a, 0x18, 0x47, 0x65, 0x74,
-	0x4c, 0x61, 0x74, 0x65, 0x73, 0x74, 0x4f, 0x70, 0x65, 0x72, 0x61, 0x74, 0x6f, 0x72, 0x56, 0x65,
-	0x72, 0x73, 0x69, 0x6f, 0x6e, 0x12, 0x27, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47,
-	0x65, 0x74, 0x4c, 0x61, 0x74, 0x65, 0x73, 0x74, 0x4f, 0x70, 0x65, 0x72, 0x61, 0x74, 0x6f, 0x72,
-	0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x28,
-	0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x4c, 0x61, 0x74, 0x65, 0x73,
+	0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x46, 0x69, 0x6c, 0x74, 0x65, 0x72, 0x4f, 0x70,
+	0x74, 0x69, 0x6f, 0x6e, 0x73, 0x12, 0x27, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47,
+	0x65, 0x74, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x46, 0x69, 0x6c, 0x74, 0x65, 0x72,
+	0x4f, 0x70, 0x74, 0x69, 0x6f, 0x6e, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x28,
+	0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x52, 0x65, 0x73, 0x6f, 0x75,
+	0x72, 0x63, 0x65, 0x46, 0x69, 0x6c, 0x74, 0x65, 0x72, 0x4f, 0x70, 0x74, 0x69, 0x6f, 0x6e, 0x73,
+	0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x3a, 0x0a, 0x07, 0x47, 0x65, 0x74, 0x50,
+	0x6f, 0x64, 0x73, 0x12, 0x16, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74,
+	0x50, 0x6f, 0x64, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x17, 0x2e, 0x61, 0x70,
+	0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x50, 0x6f, 0x64, 0x73, 0x52, 0x65, 0x73, 0x70,
+	0x6f, 0x6e, 0x73, 0x65, 0x12, 0x6d, 0x0a, 0x18, 0x47, 0x65, 0x74, 0x4c, 0x61, 0x74, 0x65, 0x73,
 	0x74, 0x4f, 0x70, 0x65, 0x72, 0x61, 0x74, 0x6f, 0x72, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e,
-	0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x79, 0x0a, 0x1c, 0x47, 0x61, 0x6c, 0x61,
-	0x78, 0x79, 0x47, 0x65, 0x74, 0x57, 0x6f, 0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64, 0x50, 0x65, 0x72,
-	0x73, 0x70, 0x65, 0x63, 0x74, 0x69, 0x76, 0x65, 0x12, 0x2b, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76,
-	0x31, 0x2e, 0x47, 0x61, 0x6c, 0x61, 0x78, 0x79, 0x47, 0x65, 0x74, 0x57, 0x6f, 0x72, 0x6b, 0x6c,
-	0x6f, 0x61, 0x64, 0x50, 0x65, 0x72, 0x73, 0x70, 0x65, 0x63, 0x74, 0x69, 0x76, 0x65, 0x52, 0x65,
-	0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x2c, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47,
-	0x61, 0x6c, 0x61, 0x78, 0x79, 0x47, 0x65, 0x74, 0x57, 0x6f, 0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64,
-	0x50, 0x65, 0x72, 0x73, 0x70, 0x65, 0x63, 0x74, 0x69, 0x76, 0x65, 0x52, 0x65, 0x73, 0x70, 0x6f,
-	0x6e, 0x73, 0x65, 0x12, 0x4c, 0x0a, 0x0d, 0x4c, 0x69, 0x73, 0x74, 0x41, 0x75, 0x64, 0x69, 0x74,
-	0x4c, 0x6f, 0x67, 0x73, 0x12, 0x1c, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x4c, 0x69,
-	0x73, 0x74, 0x41, 0x75, 0x64, 0x69, 0x74, 0x4c, 0x6f, 0x67, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65,
-	0x73, 0x74, 0x1a, 0x1d, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x4c, 0x69, 0x73, 0x74,
-	0x41, 0x75, 0x64, 0x69, 0x74, 0x4c, 0x6f, 0x67, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73,
-	0x65, 0x12, 0x6a, 0x0a, 0x17, 0x4c, 0x69, 0x73, 0x74, 0x41, 0x75, 0x64, 0x69, 0x74, 0x4c, 0x6f,
-	0x67, 0x4f, 0x72, 0x69, 0x67, 0x69, 0x6e, 0x61, 0x74, 0x6f, 0x72, 0x73, 0x12, 0x26, 0x2e, 0x61,
-	0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x4c, 0x69, 0x73, 0x74, 0x41, 0x75, 0x64, 0x69, 0x74, 0x4c,
-	0x6f, 0x67, 0x4f, 0x72, 0x69, 0x67, 0x69, 0x6e, 0x61, 0x74, 0x6f, 0x72, 0x73, 0x52, 0x65, 0x71,
-	0x75, 0x65, 0x73, 0x74, 0x1a, 0x27, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x4c, 0x69,
-	0x73, 0x74, 0x41, 0x75, 0x64, 0x69, 0x74, 0x4c, 0x6f, 0x67, 0x4f, 0x72, 0x69, 0x67, 0x69, 0x6e,
-	0x61, 0x74, 0x6f, 0x72, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x58, 0x0a,
-	0x11, 0x53, 0x65, 0x6e, 0x64, 0x57, 0x6f, 0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64, 0x45, 0x6d, 0x61,
-	0x69, 0x6c, 0x12, 0x20, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x53, 0x65, 0x6e, 0x64,
-	0x57, 0x6f, 0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64, 0x45, 0x6d, 0x61, 0x69, 0x6c, 0x52, 0x65, 0x71,
-	0x75, 0x65, 0x73, 0x74, 0x1a, 0x21, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x53, 0x65,
-	0x6e, 0x64, 0x57, 0x6f, 0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64, 0x45, 0x6d, 0x61, 0x69, 0x6c, 0x52,
-	0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x67, 0x0a, 0x16, 0x53, 0x65, 0x6e, 0x64, 0x57,
-	0x65, 0x65, 0x6b, 0x6c, 0x79, 0x53, 0x75, 0x6d, 0x6d, 0x61, 0x72, 0x79, 0x45, 0x6d, 0x61, 0x69,
-	0x6c, 0x12, 0x25, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x53, 0x65, 0x6e, 0x64, 0x57,
-	0x65, 0x65, 0x6b, 0x6c, 0x79, 0x53, 0x75, 0x6d, 0x6d, 0x61, 0x72, 0x79, 0x45, 0x6d, 0x61, 0x69,
-	0x6c, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x26, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76,
-	0x31, 0x2e, 0x53, 0x65, 0x6e, 0x64, 0x57, 0x65, 0x65, 0x6b, 0x6c, 0x79, 0x53, 0x75, 0x6d, 0x6d,
-	0x61, 0x72, 0x79, 0x45, 0x6d, 0x61, 0x69, 0x6c, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65,
-	0x12, 0x5e, 0x0a, 0x13, 0x47, 0x65, 0x74, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x73, 0x4e,
-	0x6f, 0x64, 0x65, 0x49, 0x6e, 0x66, 0x6f, 0x12, 0x22, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31,
-	0x2e, 0x47, 0x65, 0x74, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x73, 0x4e, 0x6f, 0x64, 0x65,
-	0x49, 0x6e, 0x66, 0x6f, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x23, 0x2e, 0x61, 0x70,
-	0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x73,
-	0x4e, 0x6f, 0x64, 0x65, 0x49, 0x6e, 0x66, 0x6f, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65,
-	0x12, 0x5b, 0x0a, 0x12, 0x53, 0x65, 0x61, 0x72, 0x63, 0x68, 0x4b, 0x38, 0x73, 0x52, 0x65, 0x73,
-	0x6f, 0x75, 0x72, 0x63, 0x65, 0x73, 0x12, 0x21, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e,
-	0x53, 0x65, 0x61, 0x72, 0x63, 0x68, 0x4b, 0x38, 0x73, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63,
-	0x65, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x22, 0x2e, 0x61, 0x70, 0x69, 0x2e,
-	0x76, 0x31, 0x2e, 0x53, 0x65, 0x61, 0x72, 0x63, 0x68, 0x4b, 0x38, 0x73, 0x52, 0x65, 0x73, 0x6f,
-	0x75, 0x72, 0x63, 0x65, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x5b, 0x0a,
-	0x12, 0x53, 0x65, 0x61, 0x72, 0x63, 0x68, 0x4b, 0x38, 0x73, 0x57, 0x6f, 0x72, 0x6b, 0x6c, 0x6f,
-	0x61, 0x64, 0x73, 0x12, 0x21, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x53, 0x65, 0x61,
-	0x72, 0x63, 0x68, 0x4b, 0x38, 0x73, 0x57, 0x6f, 0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64, 0x73, 0x52,
-	0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x22, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e,
-	0x53, 0x65, 0x61, 0x72, 0x63, 0x68, 0x4b, 0x38, 0x73, 0x57, 0x6f, 0x72, 0x6b, 0x6c, 0x6f, 0x61,
-	0x64, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x4f, 0x0a, 0x0e, 0x47, 0x65,
-	0x74, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x54, 0x79, 0x70, 0x65, 0x12, 0x1d, 0x2e, 0x61,
-	0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72,
-	0x54, 0x79, 0x70, 0x65, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1e, 0x2e, 0x61, 0x70,
-	0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x54,
-	0x79, 0x70, 0x65, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x5e, 0x0a, 0x13, 0x47,
-	0x65, 0x74, 0x52, 0x65, 0x6c, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x73, 0x46, 0x6f, 0x72, 0x4b, 0x69,
-	0x6e, 0x64, 0x12, 0x22, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x52,
-	0x65, 0x6c, 0x61, 0x74, 0x65, 0x64, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x73, 0x52,
+	0x12, 0x27, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x4c, 0x61, 0x74,
+	0x65, 0x73, 0x74, 0x4f, 0x70, 0x65, 0x72, 0x61, 0x74, 0x6f, 0x72, 0x56, 0x65, 0x72, 0x73, 0x69,
+	0x6f, 0x6e, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x28, 0x2e, 0x61, 0x70, 0x69, 0x2e,
+	0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x4c, 0x61, 0x74, 0x65, 0x73, 0x74, 0x4f, 0x70, 0x65, 0x72,
+	0x61, 0x74, 0x6f, 0x72, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x52, 0x65, 0x73, 0x70, 0x6f,
+	0x6e, 0x73, 0x65, 0x12, 0x79, 0x0a, 0x1c, 0x47, 0x61, 0x6c, 0x61, 0x78, 0x79, 0x47, 0x65, 0x74,
+	0x57, 0x6f, 0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64, 0x50, 0x65, 0x72, 0x73, 0x70, 0x65, 0x63, 0x74,
+	0x69, 0x76, 0x65, 0x12, 0x2b, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x61, 0x6c,
+	0x61, 0x78, 0x79, 0x47, 0x65, 0x74, 0x57, 0x6f, 0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64, 0x50, 0x65,
+	0x72, 0x73, 0x70, 0x65, 0x63, 0x74, 0x69, 0x76, 0x65, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
+	0x1a, 0x2c, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x61, 0x6c, 0x61, 0x78, 0x79,
+	0x47, 0x65, 0x74, 0x57, 0x6f, 0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64, 0x50, 0x65, 0x72, 0x73, 0x70,
+	0x65, 0x63, 0x74, 0x69, 0x76, 0x65, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x4c,
+	0x0a, 0x0d, 0x4c, 0x69, 0x73, 0x74, 0x41, 0x75, 0x64, 0x69, 0x74, 0x4c, 0x6f, 0x67, 0x73, 0x12,
+	0x1c, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x4c, 0x69, 0x73, 0x74, 0x41, 0x75, 0x64,
+	0x69, 0x74, 0x4c, 0x6f, 0x67, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1d, 0x2e,
+	0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x4c, 0x69, 0x73, 0x74, 0x41, 0x75, 0x64, 0x69, 0x74,
+	0x4c, 0x6f, 0x67, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x6a, 0x0a, 0x17,
+	0x4c, 0x69, 0x73, 0x74, 0x41, 0x75, 0x64, 0x69, 0x74, 0x4c, 0x6f, 0x67, 0x4f, 0x72, 0x69, 0x67,
+	0x69, 0x6e, 0x61, 0x74, 0x6f, 0x72, 0x73, 0x12, 0x26, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31,
+	0x2e, 0x4c, 0x69, 0x73, 0x74, 0x41, 0x75, 0x64, 0x69, 0x74, 0x4c, 0x6f, 0x67, 0x4f, 0x72, 0x69,
+	0x67, 0x69, 0x6e, 0x61, 0x74, 0x6f, 0x72, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a,
+	0x27, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x4c, 0x69, 0x73, 0x74, 0x41, 0x75, 0x64,
+	0x69, 0x74, 0x4c, 0x6f, 0x67, 0x4f, 0x72, 0x69, 0x67, 0x69, 0x6e, 0x61, 0x74, 0x6f, 0x72, 0x73,
+	0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x58, 0x0a, 0x11, 0x53, 0x65, 0x6e, 0x64,
+	0x57, 0x6f, 0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64, 0x45, 0x6d, 0x61, 0x69, 0x6c, 0x12, 0x20, 0x2e,
+	0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x53, 0x65, 0x6e, 0x64, 0x57, 0x6f, 0x72, 0x6b, 0x6c,
+	0x6f, 0x61, 0x64, 0x45, 0x6d, 0x61, 0x69, 0x6c, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a,
+	0x21, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x53, 0x65, 0x6e, 0x64, 0x57, 0x6f, 0x72,
+	0x6b, 0x6c, 0x6f, 0x61, 0x64, 0x45, 0x6d, 0x61, 0x69, 0x6c, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e,
+	0x73, 0x65, 0x12, 0x67, 0x0a, 0x16, 0x53, 0x65, 0x6e, 0x64, 0x57, 0x65, 0x65, 0x6b, 0x6c, 0x79,
+	0x53, 0x75, 0x6d, 0x6d, 0x61, 0x72, 0x79, 0x45, 0x6d, 0x61, 0x69, 0x6c, 0x12, 0x25, 0x2e, 0x61,
+	0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x53, 0x65, 0x6e, 0x64, 0x57, 0x65, 0x65, 0x6b, 0x6c, 0x79,
+	0x53, 0x75, 0x6d, 0x6d, 0x61, 0x72, 0x79, 0x45, 0x6d, 0x61, 0x69, 0x6c, 0x52, 0x65, 0x71, 0x75,
+	0x65, 0x73, 0x74, 0x1a, 0x26, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x53, 0x65, 0x6e,
+	0x64, 0x57, 0x65, 0x65, 0x6b, 0x6c, 0x79, 0x53, 0x75, 0x6d, 0x6d, 0x61, 0x72, 0x79, 0x45, 0x6d,
+	0x61, 0x69, 0x6c, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x5e, 0x0a, 0x13, 0x47,
+	0x65, 0x74, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x73, 0x4e, 0x6f, 0x64, 0x65, 0x49, 0x6e,
+	0x66, 0x6f, 0x12, 0x22, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x43,
+	0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x73, 0x4e, 0x6f, 0x64, 0x65, 0x49, 0x6e, 0x66, 0x6f, 0x52,
 	0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x23, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e,
-	0x47, 0x65, 0x74, 0x52, 0x65, 0x6c, 0x61, 0x74, 0x65, 0x64, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72,
-	0x63, 0x65, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x5b, 0x0a, 0x12, 0x4c,
-	0x6f, 0x6f, 0x6b, 0x75, 0x70, 0x4e, 0x6f, 0x64, 0x65, 0x49, 0x6e, 0x73, 0x74, 0x61, 0x6e, 0x63,
-	0x65, 0x12, 0x21, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x4c, 0x6f, 0x6f, 0x6b, 0x75,
-	0x70, 0x4e, 0x6f, 0x64, 0x65, 0x49, 0x6e, 0x73, 0x74, 0x61, 0x6e, 0x63, 0x65, 0x52, 0x65, 0x71,
-	0x75, 0x65, 0x73, 0x74, 0x1a, 0x22, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x4c, 0x6f,
-	0x6f, 0x6b, 0x75, 0x70, 0x4e, 0x6f, 0x64, 0x65, 0x49, 0x6e, 0x73, 0x74, 0x61, 0x6e, 0x63, 0x65,
-	0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x64, 0x0a, 0x15, 0x47, 0x65, 0x74, 0x57,
+	0x47, 0x65, 0x74, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x73, 0x4e, 0x6f, 0x64, 0x65, 0x49,
+	0x6e, 0x66, 0x6f, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x5b, 0x0a, 0x12, 0x53,
+	0x65, 0x61, 0x72, 0x63, 0x68, 0x4b, 0x38, 0x73, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65,
+	0x73, 0x12, 0x21, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x53, 0x65, 0x61, 0x72, 0x63,
+	0x68, 0x4b, 0x38, 0x73, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x73, 0x52, 0x65, 0x71,
+	0x75, 0x65, 0x73, 0x74, 0x1a, 0x22, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x53, 0x65,
+	0x61, 0x72, 0x63, 0x68, 0x4b, 0x38, 0x73, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x73,
+	0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x5b, 0x0a, 0x12, 0x53, 0x65, 0x61, 0x72,
+	0x63, 0x68, 0x4b, 0x38, 0x73, 0x57, 0x6f, 0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64, 0x73, 0x12, 0x21,
+	0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x53, 0x65, 0x61, 0x72, 0x63, 0x68, 0x4b, 0x38,
+	0x73, 0x57, 0x6f, 0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73,
+	0x74, 0x1a, 0x22, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x53, 0x65, 0x61, 0x72, 0x63,
+	0x68, 0x4b, 0x38, 0x73, 0x57, 0x6f, 0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64, 0x73, 0x52, 0x65, 0x73,
+	0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x4f, 0x0a, 0x0e, 0x47, 0x65, 0x74, 0x43, 0x6c, 0x75, 0x73,
+	0x74, 0x65, 0x72, 0x54, 0x79, 0x70, 0x65, 0x12, 0x1d, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31,
+	0x2e, 0x47, 0x65, 0x74, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x54, 0x79, 0x70, 0x65, 0x52,
+	0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1e, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e,
+	0x47, 0x65, 0x74, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x54, 0x79, 0x70, 0x65, 0x52, 0x65,
+	0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x5e, 0x0a, 0x13, 0x47, 0x65, 0x74, 0x52, 0x65, 0x6c,
+	0x61, 0x74, 0x69, 0x6f, 0x6e, 0x73, 0x46, 0x6f, 0x72, 0x4b, 0x69, 0x6e, 0x64, 0x12, 0x22, 0x2e,
+	0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x52, 0x65, 0x6c, 0x61, 0x74, 0x65,
+	0x64, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73,
+	0x74, 0x1a, 0x23, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x52, 0x65,
+	0x6c, 0x61, 0x74, 0x65, 0x64, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x73, 0x52, 0x65,
+	0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x5b, 0x0a, 0x12, 0x4c, 0x6f, 0x6f, 0x6b, 0x75, 0x70,
+	0x4e, 0x6f, 0x64, 0x65, 0x49, 0x6e, 0x73, 0x74, 0x61, 0x6e, 0x63, 0x65, 0x12, 0x21, 0x2e, 0x61,
+	0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x4c, 0x6f, 0x6f, 0x6b, 0x75, 0x70, 0x4e, 0x6f, 0x64, 0x65,
+	0x49, 0x6e, 0x73, 0x74, 0x61, 0x6e, 0x63, 0x65, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a,
+	0x22, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x4c, 0x6f, 0x6f, 0x6b, 0x75, 0x70, 0x4e,
+	0x6f, 0x64, 0x65, 0x49, 0x6e, 0x73, 0x74, 0x61, 0x6e, 0x63, 0x65, 0x52, 0x65, 0x73, 0x70, 0x6f,
+	0x6e, 0x73, 0x65, 0x12, 0x64, 0x0a, 0x15, 0x47, 0x65, 0x74, 0x57, 0x6f, 0x72, 0x6b, 0x6c, 0x6f,
+	0x61, 0x64, 0x50, 0x6f, 0x64, 0x48, 0x69, 0x73, 0x74, 0x6f, 0x72, 0x79, 0x12, 0x24, 0x2e, 0x61,
+	0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x57, 0x6f, 0x72, 0x6b, 0x6c, 0x6f, 0x61,
+	0x64, 0x50, 0x6f, 0x64, 0x48, 0x69, 0x73, 0x74, 0x6f, 0x72, 0x79, 0x52, 0x65, 0x71, 0x75, 0x65,
+	0x73, 0x74, 0x1a, 0x25, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x57,
 	0x6f, 0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64, 0x50, 0x6f, 0x64, 0x48, 0x69, 0x73, 0x74, 0x6f, 0x72,
-	0x79, 0x12, 0x24, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x57, 0x6f,
-	0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64, 0x50, 0x6f, 0x64, 0x48, 0x69, 0x73, 0x74, 0x6f, 0x72, 0x79,
-	0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x25, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31,
-	0x2e, 0x47, 0x65, 0x74, 0x57, 0x6f, 0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64, 0x50, 0x6f, 0x64, 0x48,
-	0x69, 0x73, 0x74, 0x6f, 0x72, 0x79, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x4f,
-	0x0a, 0x0e, 0x41, 0x64, 0x64, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x54, 0x61, 0x67, 0x73,
-	0x12, 0x1d, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x41, 0x64, 0x64, 0x43, 0x6c, 0x75,
-	0x73, 0x74, 0x65, 0x72, 0x54, 0x61, 0x67, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a,
-	0x1e, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x41, 0x64, 0x64, 0x43, 0x6c, 0x75, 0x73,
-	0x74, 0x65, 0x72, 0x54, 0x61, 0x67, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12,
-	0x58, 0x0a, 0x11, 0x52, 0x65, 0x6d, 0x6f, 0x76, 0x65, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72,
-	0x54, 0x61, 0x67, 0x73, 0x12, 0x20, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x52, 0x65,
-	0x6d, 0x6f, 0x76, 0x65, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x54, 0x61, 0x67, 0x73, 0x52,
-	0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x21, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e,
-	0x52, 0x65, 0x6d, 0x6f, 0x76, 0x65, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x54, 0x61, 0x67,
-	0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x3d, 0x0a, 0x08, 0x4c, 0x69, 0x73,
-	0x74, 0x54, 0x61, 0x67, 0x73, 0x12, 0x17, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x4c,
-	0x69, 0x73, 0x74, 0x54, 0x61, 0x67, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x18,
-	0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x4c, 0x69, 0x73, 0x74, 0x54, 0x61, 0x67, 0x73,
-	0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x5b, 0x0a, 0x12, 0x47, 0x65, 0x74, 0x4d,
-	0x69, 0x67, 0x50, 0x61, 0x72, 0x74, 0x65, 0x64, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x12, 0x21,
-	0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x4d, 0x69, 0x67, 0x50, 0x61,
-	0x72, 0x74, 0x65, 0x64, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73,
-	0x74, 0x1a, 0x22, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x4d, 0x69,
-	0x67, 0x50, 0x61, 0x72, 0x74, 0x65, 0x64, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x52, 0x65, 0x73,
-	0x70, 0x6f, 0x6e, 0x73, 0x65, 0x32, 0xdc, 0x02, 0x0a, 0x16, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65,
-	0x72, 0x4d, 0x75, 0x74, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65,
-	0x12, 0x4c, 0x0a, 0x0d, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65,
-	0x72, 0x12, 0x1c, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x43, 0x72, 0x65, 0x61, 0x74,
-	0x65, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a,
-	0x1d, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x43,
-	0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x4c,
-	0x0a, 0x0d, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x12,
-	0x1c, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x43,
-	0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1d, 0x2e,
-	0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x43, 0x6c, 0x75,
-	0x73, 0x74, 0x65, 0x72, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x4c, 0x0a, 0x0d,
-	0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x12, 0x1c, 0x2e,
-	0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x43, 0x6c, 0x75,
-	0x73, 0x74, 0x65, 0x72, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1d, 0x2e, 0x61, 0x70,
-	0x69, 0x2e, 0x76, 0x31, 0x2e, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x43, 0x6c, 0x75, 0x73, 0x74,
-	0x65, 0x72, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x58, 0x0a, 0x11, 0x52, 0x65,
-	0x73, 0x65, 0x74, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x54, 0x6f, 0x6b, 0x65, 0x6e, 0x12,
-	0x20, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x52, 0x65, 0x73, 0x65, 0x74, 0x43, 0x6c,
-	0x75, 0x73, 0x74, 0x65, 0x72, 0x54, 0x6f, 0x6b, 0x65, 0x6e, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73,
-	0x74, 0x1a, 0x21, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x52, 0x65, 0x73, 0x65, 0x74,
-	0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x54, 0x6f, 0x6b, 0x65, 0x6e, 0x52, 0x65, 0x73, 0x70,
-	0x6f, 0x6e, 0x73, 0x65, 0x32, 0xd5, 0x02, 0x0a, 0x12, 0x55, 0x74, 0x69, 0x6c, 0x69, 0x7a, 0x61,
-	0x74, 0x69, 0x6f, 0x6e, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x12, 0x55, 0x0a, 0x10, 0x44,
-	0x61, 0x69, 0x6c, 0x79, 0x55, 0x74, 0x69, 0x6c, 0x69, 0x7a, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x12,
-	0x1f, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x44, 0x61, 0x69, 0x6c, 0x79, 0x55, 0x74,
-	0x69, 0x6c, 0x69, 0x7a, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
-	0x1a, 0x20, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x44, 0x61, 0x69, 0x6c, 0x79, 0x55,
-	0x74, 0x69, 0x6c, 0x69, 0x7a, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e,
-	0x73, 0x65, 0x12, 0x79, 0x0a, 0x1c, 0x44, 0x61, 0x69, 0x6c, 0x79, 0x55, 0x74, 0x69, 0x6c, 0x69,
-	0x7a, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x49, 0x6e, 0x73, 0x74, 0x61, 0x6e, 0x63, 0x65, 0x54, 0x79,
-	0x70, 0x65, 0x12, 0x2b, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x44, 0x61, 0x69, 0x6c,
-	0x79, 0x55, 0x74, 0x69, 0x6c, 0x69, 0x7a, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x49, 0x6e, 0x73, 0x74,
-	0x61, 0x6e, 0x63, 0x65, 0x54, 0x79, 0x70, 0x65, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a,
-	0x2c, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x44, 0x61, 0x69, 0x6c, 0x79, 0x55, 0x74,
-	0x69, 0x6c, 0x69, 0x7a, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x49, 0x6e, 0x73, 0x74, 0x61, 0x6e, 0x63,
-	0x65, 0x54, 0x79, 0x70, 0x65, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x6d, 0x0a,
-	0x18, 0x44, 0x61, 0x69, 0x6c, 0x79, 0x55, 0x74, 0x69, 0x6c, 0x69, 0x7a, 0x61, 0x74, 0x69, 0x6f,
-	0x6e, 0x4e, 0x6f, 0x64, 0x65, 0x54, 0x79, 0x70, 0x65, 0x12, 0x27, 0x2e, 0x61, 0x70, 0x69, 0x2e,
-	0x76, 0x31, 0x2e, 0x44, 0x61, 0x69, 0x6c, 0x79, 0x55, 0x74, 0x69, 0x6c, 0x69, 0x7a, 0x61, 0x74,
-	0x69, 0x6f, 0x6e, 0x4e, 0x6f, 0x64, 0x65, 0x54, 0x79, 0x70, 0x65, 0x52, 0x65, 0x71, 0x75, 0x65,
-	0x73, 0x74, 0x1a, 0x28, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x44, 0x61, 0x69, 0x6c,
+	0x79, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x4f, 0x0a, 0x0e, 0x41, 0x64, 0x64,
+	0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x54, 0x61, 0x67, 0x73, 0x12, 0x1d, 0x2e, 0x61, 0x70,
+	0x69, 0x2e, 0x76, 0x31, 0x2e, 0x41, 0x64, 0x64, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x54,
+	0x61, 0x67, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1e, 0x2e, 0x61, 0x70, 0x69,
+	0x2e, 0x76, 0x31, 0x2e, 0x41, 0x64, 0x64, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x54, 0x61,
+	0x67, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x58, 0x0a, 0x11, 0x52, 0x65,
+	0x6d, 0x6f, 0x76, 0x65, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x54, 0x61, 0x67, 0x73, 0x12,
+	0x20, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x52, 0x65, 0x6d, 0x6f, 0x76, 0x65, 0x43,
+	0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x54, 0x61, 0x67, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73,
+	0x74, 0x1a, 0x21, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x52, 0x65, 0x6d, 0x6f, 0x76,
+	0x65, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x54, 0x61, 0x67, 0x73, 0x52, 0x65, 0x73, 0x70,
+	0x6f, 0x6e, 0x73, 0x65, 0x12, 0x3d, 0x0a, 0x08, 0x4c, 0x69, 0x73, 0x74, 0x54, 0x61, 0x67, 0x73,
+	0x12, 0x17, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x4c, 0x69, 0x73, 0x74, 0x54, 0x61,
+	0x67, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x18, 0x2e, 0x61, 0x70, 0x69, 0x2e,
+	0x76, 0x31, 0x2e, 0x4c, 0x69, 0x73, 0x74, 0x54, 0x61, 0x67, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f,
+	0x6e, 0x73, 0x65, 0x12, 0x5b, 0x0a, 0x12, 0x47, 0x65, 0x74, 0x4d, 0x69, 0x67, 0x50, 0x61, 0x72,
+	0x74, 0x65, 0x64, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x12, 0x21, 0x2e, 0x61, 0x70, 0x69, 0x2e,
+	0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x4d, 0x69, 0x67, 0x50, 0x61, 0x72, 0x74, 0x65, 0x64, 0x43,
+	0x6f, 0x6e, 0x66, 0x69, 0x67, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x22, 0x2e, 0x61,
+	0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x4d, 0x69, 0x67, 0x50, 0x61, 0x72, 0x74,
+	0x65, 0x64, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65,
+	0x32, 0xdc, 0x02, 0x0a, 0x16, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x4d, 0x75, 0x74, 0x61,
+	0x74, 0x69, 0x6f, 0x6e, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x12, 0x4c, 0x0a, 0x0d, 0x43,
+	0x72, 0x65, 0x61, 0x74, 0x65, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x12, 0x1c, 0x2e, 0x61,
+	0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x43, 0x6c, 0x75, 0x73,
+	0x74, 0x65, 0x72, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1d, 0x2e, 0x61, 0x70, 0x69,
+	0x2e, 0x76, 0x31, 0x2e, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65,
+	0x72, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x4c, 0x0a, 0x0d, 0x44, 0x65, 0x6c,
+	0x65, 0x74, 0x65, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x12, 0x1c, 0x2e, 0x61, 0x70, 0x69,
+	0x2e, 0x76, 0x31, 0x2e, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65,
+	0x72, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1d, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76,
+	0x31, 0x2e, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x52,
+	0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x4c, 0x0a, 0x0d, 0x55, 0x70, 0x64, 0x61, 0x74,
+	0x65, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x12, 0x1c, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76,
+	0x31, 0x2e, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x52,
+	0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1d, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e,
+	0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x52, 0x65, 0x73,
+	0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x58, 0x0a, 0x11, 0x52, 0x65, 0x73, 0x65, 0x74, 0x43, 0x6c,
+	0x75, 0x73, 0x74, 0x65, 0x72, 0x54, 0x6f, 0x6b, 0x65, 0x6e, 0x12, 0x20, 0x2e, 0x61, 0x70, 0x69,
+	0x2e, 0x76, 0x31, 0x2e, 0x52, 0x65, 0x73, 0x65, 0x74, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72,
+	0x54, 0x6f, 0x6b, 0x65, 0x6e, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x21, 0x2e, 0x61,
+	0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x52, 0x65, 0x73, 0x65, 0x74, 0x43, 0x6c, 0x75, 0x73, 0x74,
+	0x65, 0x72, 0x54, 0x6f, 0x6b, 0x65, 0x6e, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x32,
+	0xd5, 0x02, 0x0a, 0x12, 0x55, 0x74, 0x69, 0x6c, 0x69, 0x7a, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x53,
+	0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x12, 0x55, 0x0a, 0x10, 0x44, 0x61, 0x69, 0x6c, 0x79, 0x55,
+	0x74, 0x69, 0x6c, 0x69, 0x7a, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x12, 0x1f, 0x2e, 0x61, 0x70, 0x69,
+	0x2e, 0x76, 0x31, 0x2e, 0x44, 0x61, 0x69, 0x6c, 0x79, 0x55, 0x74, 0x69, 0x6c, 0x69, 0x7a, 0x61,
+	0x74, 0x69, 0x6f, 0x6e, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x20, 0x2e, 0x61, 0x70,
+	0x69, 0x2e, 0x76, 0x31, 0x2e, 0x44, 0x61, 0x69, 0x6c, 0x79, 0x55, 0x74, 0x69, 0x6c, 0x69, 0x7a,
+	0x61, 0x74, 0x69, 0x6f, 0x6e, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x79, 0x0a,
+	0x1c, 0x44, 0x61, 0x69, 0x6c, 0x79, 0x55, 0x74, 0x69, 0x6c, 0x69, 0x7a, 0x61, 0x74, 0x69, 0x6f,
+	0x6e, 0x49, 0x6e, 0x73, 0x74, 0x61, 0x6e, 0x63, 0x65, 0x54, 0x79, 0x70, 0x65, 0x12, 0x2b, 0x2e,
+	0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x44, 0x61, 0x69, 0x6c, 0x79, 0x55, 0x74, 0x69, 0x6c,
+	0x69, 0x7a, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x49, 0x6e, 0x73, 0x74, 0x61, 0x6e, 0x63, 0x65, 0x54,
+	0x79, 0x70, 0x65, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x2c, 0x2e, 0x61, 0x70, 0x69,
+	0x2e, 0x76, 0x31, 0x2e, 0x44, 0x61, 0x69, 0x6c, 0x79, 0x55, 0x74, 0x69, 0x6c, 0x69, 0x7a, 0x61,
+	0x74, 0x69, 0x6f, 0x6e, 0x49, 0x6e, 0x73, 0x74, 0x61, 0x6e, 0x63, 0x65, 0x54, 0x79, 0x70, 0x65,
+	0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x6d, 0x0a, 0x18, 0x44, 0x61, 0x69, 0x6c,
 	0x79, 0x55, 0x74, 0x69, 0x6c, 0x69, 0x7a, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x4e, 0x6f, 0x64, 0x65,
-	0x54, 0x79, 0x70, 0x65, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x42, 0x81, 0x01, 0x0a,
-	0x0a, 0x63, 0x6f, 0x6d, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x42, 0x08, 0x4b, 0x38, 0x73,
-	0x50, 0x72, 0x6f, 0x74, 0x6f, 0x50, 0x01, 0x5a, 0x30, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e,
-	0x63, 0x6f, 0x6d, 0x2f, 0x64, 0x65, 0x76, 0x7a, 0x65, 0x72, 0x6f, 0x2d, 0x69, 0x6e, 0x63, 0x2f,
-	0x7a, 0x78, 0x70, 0x6f, 0x72, 0x74, 0x65, 0x72, 0x2f, 0x67, 0x65, 0x6e, 0x2f, 0x61, 0x70, 0x69,
-	0x2f, 0x76, 0x31, 0x3b, 0x61, 0x70, 0x69, 0x76, 0x31, 0xa2, 0x02, 0x03, 0x41, 0x58, 0x58, 0xaa,
-	0x02, 0x06, 0x41, 0x70, 0x69, 0x2e, 0x56, 0x31, 0xca, 0x02, 0x06, 0x41, 0x70, 0x69, 0x5c, 0x56,
-	0x31, 0xe2, 0x02, 0x12, 0x41, 0x70, 0x69, 0x5c, 0x56, 0x31, 0x5c, 0x47, 0x50, 0x42, 0x4d, 0x65,
-	0x74, 0x61, 0x64, 0x61, 0x74, 0x61, 0xea, 0x02, 0x07, 0x41, 0x70, 0x69, 0x3a, 0x3a, 0x56, 0x31,
-	0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x54, 0x79, 0x70, 0x65, 0x12, 0x27, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x44, 0x61,
+	0x69, 0x6c, 0x79, 0x55, 0x74, 0x69, 0x6c, 0x69, 0x7a, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x4e, 0x6f,
+	0x64, 0x65, 0x54, 0x79, 0x70, 0x65, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x28, 0x2e,
+	0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x2e, 0x44, 0x61, 0x69, 0x6c, 0x79, 0x55, 0x74, 0x69, 0x6c,
+	0x69, 0x7a, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x4e, 0x6f, 0x64, 0x65, 0x54, 0x79, 0x70, 0x65, 0x52,
+	0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x42, 0x81, 0x01, 0x0a, 0x0a, 0x63, 0x6f, 0x6d, 0x2e,
+	0x61, 0x70, 0x69, 0x2e, 0x76, 0x31, 0x42, 0x08, 0x4b, 0x38, 0x73, 0x50, 0x72, 0x6f, 0x74, 0x6f,
+	0x50, 0x01, 0x5a, 0x30, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x64,
+	0x65, 0x76, 0x7a, 0x65, 0x72, 0x6f, 0x2d, 0x69, 0x6e, 0x63, 0x2f, 0x7a, 0x78, 0x70, 0x6f, 0x72,
+	0x74, 0x65, 0x72, 0x2f, 0x67, 0x65, 0x6e, 0x2f, 0x61, 0x70, 0x69, 0x2f, 0x76, 0x31, 0x3b, 0x61,
+	0x70, 0x69, 0x76, 0x31, 0xa2, 0x02, 0x03, 0x41, 0x58, 0x58, 0xaa, 0x02, 0x06, 0x41, 0x70, 0x69,
+	0x2e, 0x56, 0x31, 0xca, 0x02, 0x06, 0x41, 0x70, 0x69, 0x5c, 0x56, 0x31, 0xe2, 0x02, 0x12, 0x41,
+	0x70, 0x69, 0x5c, 0x56, 0x31, 0x5c, 0x47, 0x50, 0x42, 0x4d, 0x65, 0x74, 0x61, 0x64, 0x61, 0x74,
+	0x61, 0xea, 0x02, 0x07, 0x41, 0x70, 0x69, 0x3a, 0x3a, 0x56, 0x31, 0x62, 0x06, 0x70, 0x72, 0x6f,
+	0x74, 0x6f, 0x33,
 }
 
 var (
@@ -13256,561 +14723,610 @@ func file_api_v1_k8s_proto_rawDescGZIP() []byte {
 	return file_api_v1_k8s_proto_rawDescData
 }
 
-var file_api_v1_k8s_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_api_v1_k8s_proto_msgTypes = make([]protoimpl.MessageInfo, 164)
+var file_api_v1_k8s_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
+var file_api_v1_k8s_proto_msgTypes = make([]protoimpl.MessageInfo, 181)
 var file_api_v1_k8s_proto_goTypes = []interface{}{
-	(GalaxyPOVNodeGroupBy)(0),                                     // 0: api.v1.GalaxyPOVNodeGroupBy
-	(GalaxyPOVWorkloadGroupBy)(0),                                 // 1: api.v1.GalaxyPOVWorkloadGroupBy
-	(ClusterType)(0),                                              // 2: api.v1.ClusterType
-	(*GetNodeRequest)(nil),                                        // 3: api.v1.GetNodeRequest
-	(*GetWorkloadPodHistoryRequest)(nil),                          // 4: api.v1.GetWorkloadPodHistoryRequest
-	(*GetClusterMetadataRequest)(nil),                             // 5: api.v1.GetClusterMetadataRequest
-	(*GetNodeGroupRequest)(nil),                                   // 6: api.v1.GetNodeGroupRequest
-	(*GetWorkloadsRequest)(nil),                                   // 7: api.v1.GetWorkloadsRequest
-	(*ListWorkloadsPaginatedRequest)(nil),                         // 8: api.v1.ListWorkloadsPaginatedRequest
-	(*GetWorkloadsSummaryRequest)(nil),                            // 9: api.v1.GetWorkloadsSummaryRequest
-	(*WorkloadMetricEntry)(nil),                                   // 10: api.v1.WorkloadMetricEntry
-	(*WorkloadMetricBreakdown)(nil),                               // 11: api.v1.WorkloadMetricBreakdown
-	(*GetWorkloadsSummaryResponse)(nil),                           // 12: api.v1.GetWorkloadsSummaryResponse
-	(*ListWorkloadsPaginatedResponse)(nil),                        // 13: api.v1.ListWorkloadsPaginatedResponse
-	(*GetResourcesRequest)(nil),                                   // 14: api.v1.GetResourcesRequest
-	(*GetPodsRequest)(nil),                                        // 15: api.v1.GetPodsRequest
-	(*GetPodsResponse)(nil),                                       // 16: api.v1.GetPodsResponse
-	(*GetWorkloadRequest)(nil),                                    // 17: api.v1.GetWorkloadRequest
-	(*GetClustersRequest)(nil),                                    // 18: api.v1.GetClustersRequest
-	(*ListClustersRequest)(nil),                                   // 19: api.v1.ListClustersRequest
-	(*GetClusterRequest)(nil),                                     // 20: api.v1.GetClusterRequest
-	(*DeleteClusterRequest)(nil),                                  // 21: api.v1.DeleteClusterRequest
-	(*DeleteClusterResponse)(nil),                                 // 22: api.v1.DeleteClusterResponse
-	(*UpdateClusterRequest)(nil),                                  // 23: api.v1.UpdateClusterRequest
-	(*UpdateClusterResponse)(nil),                                 // 24: api.v1.UpdateClusterResponse
-	(*GetResourcesResponse)(nil),                                  // 25: api.v1.GetResourcesResponse
-	(*GetResourceFilterOptionsRequest)(nil),                       // 26: api.v1.GetResourceFilterOptionsRequest
-	(*GetResourceFilterOptionsResponse)(nil),                      // 27: api.v1.GetResourceFilterOptionsResponse
-	(*CreateClusterRequest)(nil),                                  // 28: api.v1.CreateClusterRequest
-	(*CreateClusterResponse)(nil),                                 // 29: api.v1.CreateClusterResponse
-	(*ResetClusterTokenRequest)(nil),                              // 30: api.v1.ResetClusterTokenRequest
-	(*ResetClusterTokenResponse)(nil),                             // 31: api.v1.ResetClusterTokenResponse
-	(*GetNodeGroupsRequest)(nil),                                  // 32: api.v1.GetNodeGroupsRequest
-	(*GetAllNodeGroupsRequest)(nil),                               // 33: api.v1.GetAllNodeGroupsRequest
-	(*GetNodeGroupsResponse)(nil),                                 // 34: api.v1.GetNodeGroupsResponse
-	(*GetAllNodeGroupsResponse)(nil),                              // 35: api.v1.GetAllNodeGroupsResponse
-	(*NodeGroupSet)(nil),                                          // 36: api.v1.NodeGroupSet
-	(*GetNodeGroupsUtilizationRequest)(nil),                       // 37: api.v1.GetNodeGroupsUtilizationRequest
-	(*GetNodeGroupsUtilizationResponse)(nil),                      // 38: api.v1.GetNodeGroupsUtilizationResponse
-	(*NodeGroupMetric)(nil),                                       // 39: api.v1.NodeGroupMetric
-	(*GetNodeGroupResponse)(nil),                                  // 40: api.v1.GetNodeGroupResponse
-	(*GetClusterResponse)(nil),                                    // 41: api.v1.GetClusterResponse
-	(*GetClustersResponse)(nil),                                   // 42: api.v1.GetClustersResponse
-	(*ListClustersResponse)(nil),                                  // 43: api.v1.ListClustersResponse
-	(*GetNodeResponse)(nil),                                       // 44: api.v1.GetNodeResponse
-	(*GetWorkloadsResponse)(nil),                                  // 45: api.v1.GetWorkloadsResponse
-	(*GetWorkloadResponse)(nil),                                   // 46: api.v1.GetWorkloadResponse
-	(*GetWorkloadContainerPercentilesRequest)(nil),                // 47: api.v1.GetWorkloadContainerPercentilesRequest
-	(*GetWorkloadContainerPercentilesResponse)(nil),               // 48: api.v1.GetWorkloadContainerPercentilesResponse
-	(*GetWorkloadContainerTimeSeriesRequest)(nil),                 // 49: api.v1.GetWorkloadContainerTimeSeriesRequest
-	(*GetWorkloadContainerTimeSeriesResponse)(nil),                // 50: api.v1.GetWorkloadContainerTimeSeriesResponse
-	(*GetLatestContainerRequestLimitsRequest)(nil),                // 51: api.v1.GetLatestContainerRequestLimitsRequest
-	(*GetLatestContainerRequestLimitsResponse)(nil),               // 52: api.v1.GetLatestContainerRequestLimitsResponse
-	(*GetNodeGPUMigInstancesRequest)(nil),                         // 53: api.v1.GetNodeGPUMigInstancesRequest
-	(*GetNodeGPUMigInstancesResponse)(nil),                        // 54: api.v1.GetNodeGPUMigInstancesResponse
-	(*GetContainerIndividualGPUMetricsRequest)(nil),               // 55: api.v1.GetContainerIndividualGPUMetricsRequest
-	(*GetContainerIndividualGPUMetricsResponse)(nil),              // 56: api.v1.GetContainerIndividualGPUMetricsResponse
-	(*LanguageVersions)(nil),                                      // 57: api.v1.LanguageVersions
-	(*GetWorkloadLanguagesRequest)(nil),                           // 58: api.v1.GetWorkloadLanguagesRequest
-	(*GetWorkloadLanguagesResponse)(nil),                          // 59: api.v1.GetWorkloadLanguagesResponse
-	(*GetForecastWorkloadsRequest)(nil),                           // 60: api.v1.GetForecastWorkloadsRequest
-	(*GetForecastWorkloadsResponse)(nil),                          // 61: api.v1.GetForecastWorkloadsResponse
-	(*GetForecastWorkloadRequest)(nil),                            // 62: api.v1.GetForecastWorkloadRequest
-	(*GetForecastWorkloadResponse)(nil),                           // 63: api.v1.GetForecastWorkloadResponse
-	(*GetClusterMetadataResponse)(nil),                            // 64: api.v1.GetClusterMetadataResponse
-	(*ClusterElement)(nil),                                        // 65: api.v1.ClusterElement
-	(*GetAllNamespacesRequest)(nil),                               // 66: api.v1.GetAllNamespacesRequest
-	(*GetAllNamespacesResponse)(nil),                              // 67: api.v1.GetAllNamespacesResponse
-	(*SearchNamespacesByClusterRequest)(nil),                      // 68: api.v1.SearchNamespacesByClusterRequest
-	(*SearchNamespacesByClusterResponse)(nil),                     // 69: api.v1.SearchNamespacesByClusterResponse
-	(*ListNamespacesByClusterRequest)(nil),                        // 70: api.v1.ListNamespacesByClusterRequest
-	(*ListNamespacesByClusterResponse)(nil),                       // 71: api.v1.ListNamespacesByClusterResponse
-	(*NamespaceItem)(nil),                                         // 72: api.v1.NamespaceItem
-	(*GetAllWorkloadNamesRequest)(nil),                            // 73: api.v1.GetAllWorkloadNamesRequest
-	(*GetAllWorkloadNamesResponse)(nil),                           // 74: api.v1.GetAllWorkloadNamesResponse
-	(*GetAllWorkloadLabelsRequest)(nil),                           // 75: api.v1.GetAllWorkloadLabelsRequest
-	(*GetAllWorkloadLabelsResponse)(nil),                          // 76: api.v1.GetAllWorkloadLabelsResponse
-	(*GetAllNodeGroupNamesRequest)(nil),                           // 77: api.v1.GetAllNodeGroupNamesRequest
-	(*GetAllNodeGroupNamesResponse)(nil),                          // 78: api.v1.GetAllNodeGroupNamesResponse
-	(*Cluster)(nil),                                               // 79: api.v1.Cluster
-	(*OperatorInfo)(nil),                                          // 80: api.v1.OperatorInfo
-	(*Container)(nil),                                             // 81: api.v1.Container
-	(*GetLatestOperatorVersionRequest)(nil),                       // 82: api.v1.GetLatestOperatorVersionRequest
-	(*GetLatestOperatorVersionResponse)(nil),                      // 83: api.v1.GetLatestOperatorVersionResponse
-	(*GalaxyGetWorkloadPerspectiveRequest)(nil),                   // 84: api.v1.GalaxyGetWorkloadPerspectiveRequest
-	(*GalaxyGetWorkloadPerspectiveResponse)(nil),                  // 85: api.v1.GalaxyGetWorkloadPerspectiveResponse
-	(*GalaxyWorkloadGroup)(nil),                                   // 86: api.v1.GalaxyWorkloadGroup
-	(*PerspectiveDatapointOpts)(nil),                              // 87: api.v1.PerspectiveDatapointOpts
-	(*ListAuditLogsRequest)(nil),                                  // 88: api.v1.ListAuditLogsRequest
-	(*ListAuditLogsResponse)(nil),                                 // 89: api.v1.ListAuditLogsResponse
-	(*ListAuditLogOriginatorsRequest)(nil),                        // 90: api.v1.ListAuditLogOriginatorsRequest
-	(*ListAuditLogOriginatorsResponse)(nil),                       // 91: api.v1.ListAuditLogOriginatorsResponse
-	(*SendWorkloadEmailRequest)(nil),                              // 92: api.v1.SendWorkloadEmailRequest
-	(*SendWorkloadEmailResponse)(nil),                             // 93: api.v1.SendWorkloadEmailResponse
-	(*SendWeeklySummaryEmailRequest)(nil),                         // 94: api.v1.SendWeeklySummaryEmailRequest
-	(*SendWeeklySummaryEmailRequestData)(nil),                     // 95: api.v1.SendWeeklySummaryEmailRequestData
-	(*SendWeeklySummaryEmailResponse)(nil),                        // 96: api.v1.SendWeeklySummaryEmailResponse
-	(*GetClustersNodeInfoRequest)(nil),                            // 97: api.v1.GetClustersNodeInfoRequest
-	(*GetClustersNodeInfoResponse)(nil),                           // 98: api.v1.GetClustersNodeInfoResponse
-	(*SearchK8SResourcesRequest)(nil),                             // 99: api.v1.SearchK8sResourcesRequest
-	(*SearchK8SResourcesResponse)(nil),                            // 100: api.v1.SearchK8sResourcesResponse
-	(*K8SSearchResult)(nil),                                       // 101: api.v1.K8sSearchResult
-	(*SearchK8SWorkloadsRequest)(nil),                             // 102: api.v1.SearchK8sWorkloadsRequest
-	(*SearchK8SWorkloadsResponse)(nil),                            // 103: api.v1.SearchK8sWorkloadsResponse
-	(*K8SWorkloadSearchResult)(nil),                               // 104: api.v1.K8sWorkloadSearchResult
-	(*MetadataForWorkloadsRequest)(nil),                           // 105: api.v1.MetadataForWorkloadsRequest
-	(*MetadataForWorkloadsResponse)(nil),                          // 106: api.v1.MetadataForWorkloadsResponse
-	(*AddClusterTagsRequest)(nil),                                 // 107: api.v1.AddClusterTagsRequest
-	(*AddClusterTagsResponse)(nil),                                // 108: api.v1.AddClusterTagsResponse
-	(*RemoveClusterTagsRequest)(nil),                              // 109: api.v1.RemoveClusterTagsRequest
-	(*RemoveClusterTagsResponse)(nil),                             // 110: api.v1.RemoveClusterTagsResponse
-	(*ListTagsRequest)(nil),                                       // 111: api.v1.ListTagsRequest
-	(*TagSummary)(nil),                                            // 112: api.v1.TagSummary
-	(*ListTagsResponse)(nil),                                      // 113: api.v1.ListTagsResponse
-	(*WorkloadMetadata)(nil),                                      // 114: api.v1.WorkloadMetadata
-	(*PodMetadata)(nil),                                           // 115: api.v1.PodMetadata
-	(*NodeMetadata)(nil),                                          // 116: api.v1.NodeMetadata
-	(*GetRelatedResourcesRequest)(nil),                            // 117: api.v1.GetRelatedResourcesRequest
-	(*GetWorkloadPodHistoryResponse)(nil),                         // 118: api.v1.GetWorkloadPodHistoryResponse
-	(*JobHistory)(nil),                                            // 119: api.v1.JobHistory
-	(*ReplicaSetHistory)(nil),                                     // 120: api.v1.ReplicaSetHistory
-	(*PodHistory)(nil),                                            // 121: api.v1.PodHistory
-	(*GetRelatedResourcesResponse)(nil),                           // 122: api.v1.GetRelatedResourcesResponse
-	(*K8SRelatedResource)(nil),                                    // 123: api.v1.K8sRelatedResource
-	(*K8SResourceNode)(nil),                                       // 124: api.v1.K8sResourceNode
-	(*K8SResourceEdge)(nil),                                       // 125: api.v1.K8sResourceEdge
-	(*GetClusterTypeRequest)(nil),                                 // 126: api.v1.GetClusterTypeRequest
-	(*GetClusterTypeResponse)(nil),                                // 127: api.v1.GetClusterTypeResponse
-	(*GetMigPartedConfigRequest)(nil),                             // 128: api.v1.GetMigPartedConfigRequest
-	(*GetMigPartedConfigResponse)(nil),                            // 129: api.v1.GetMigPartedConfigResponse
-	(*GetWorkloadsStatsRequest)(nil),                              // 130: api.v1.GetWorkloadsStatsRequest
-	(*GetWorkloadsStatsResponse)(nil),                             // 131: api.v1.GetWorkloadsStatsResponse
-	(*DailyUtilizationRequest)(nil),                               // 132: api.v1.DailyUtilizationRequest
-	(*DailyUtilizationResponse)(nil),                              // 133: api.v1.DailyUtilizationResponse
-	(*DailyUtilizationInstanceTypeRequest)(nil),                   // 134: api.v1.DailyUtilizationInstanceTypeRequest
-	(*DailyUtilizationInstanceTypeResponse)(nil),                  // 135: api.v1.DailyUtilizationInstanceTypeResponse
-	(*DailyUtilizationNodeTypeRequest)(nil),                       // 136: api.v1.DailyUtilizationNodeTypeRequest
-	(*DailyUtilizationNodeTypeResponse)(nil),                      // 137: api.v1.DailyUtilizationNodeTypeResponse
-	(*LookupNodeInstanceRequest)(nil),                             // 138: api.v1.LookupNodeInstanceRequest
-	(*InstanceLookupParams)(nil),                                  // 139: api.v1.InstanceLookupParams
-	(*LookupNodeInstanceResponse)(nil),                            // 140: api.v1.LookupNodeInstanceResponse
-	nil,                                                           // 141: api.v1.GetAllNodeGroupsResponse.NodeGroupMapEntry
-	(*GetNodeGroupsUtilizationResponse_ListNodeGroupMetrics)(nil), // 142: api.v1.GetNodeGroupsUtilizationResponse.ListNodeGroupMetrics
-	nil, // 143: api.v1.GetNodeGroupsUtilizationResponse.NodeGroupToUtilMetricsEntry
-	nil, // 144: api.v1.GetNodeGroupsUtilizationResponse.InstanceTypeToUtilMetricsEntry
-	nil, // 145: api.v1.GetNodeGroupsUtilizationResponse.ReservationTypeToUtilMetricsEntry
-	nil, // 146: api.v1.GetNodeGroupsUtilizationResponse.LogicalAzToUtilMetricsEntry
-	nil, // 147: api.v1.GalaxyGetWorkloadPerspectiveResponse.ClustersEntry
-	nil, // 148: api.v1.GalaxyGetWorkloadPerspectiveResponse.WorkloadsEntry
-	nil, // 149: api.v1.MetadataForWorkloadsRequest.WorkloadUidToKindEntry
-	nil, // 150: api.v1.MetadataForWorkloadsResponse.WorkloadUidToMetadataEntry
-	nil, // 151: api.v1.WorkloadMetadata.PodUidToNodeMetadataEntry
-	nil, // 152: api.v1.WorkloadMetadata.PodUidToPodMetadataEntry
-	(*DailyUtilizationResponse_Datapoints)(nil), // 153: api.v1.DailyUtilizationResponse.Datapoints
-	(*DailyUtilizationResponse_Datapoint)(nil),  // 154: api.v1.DailyUtilizationResponse.Datapoint
-	nil, // 155: api.v1.DailyUtilizationResponse.ClusterIdToDailyTotalCoreMinutesEntry
-	nil, // 156: api.v1.DailyUtilizationResponse.ClusterIdToMetaEntry
-	(*DailyUtilizationInstanceTypeResponse_Datapoints)(nil), // 157: api.v1.DailyUtilizationInstanceTypeResponse.Datapoints
-	(*DailyUtilizationInstanceTypeResponse_Datapoint)(nil),  // 158: api.v1.DailyUtilizationInstanceTypeResponse.Datapoint
-	nil, // 159: api.v1.DailyUtilizationInstanceTypeResponse.ClusterIdToDatapointsEntry
-	nil, // 160: api.v1.DailyUtilizationInstanceTypeResponse.ClusterIdToMetaEntry
-	nil, // 161: api.v1.DailyUtilizationInstanceTypeResponse.Datapoint.InstanceTypeToDailyTotalCoreMinutesEntry
-	(*DailyUtilizationNodeTypeResponse_Datapoints)(nil), // 162: api.v1.DailyUtilizationNodeTypeResponse.Datapoints
-	(*DailyUtilizationNodeTypeResponse_Datapoint)(nil),  // 163: api.v1.DailyUtilizationNodeTypeResponse.Datapoint
-	nil,                                   // 164: api.v1.DailyUtilizationNodeTypeResponse.ClusterIdToDatapointsEntry
-	nil,                                   // 165: api.v1.DailyUtilizationNodeTypeResponse.ClusterIdToMetaEntry
-	nil,                                   // 166: api.v1.DailyUtilizationNodeTypeResponse.Datapoint.NodeTypeToDailyTotalCoreMinutesEntry
-	(*timestamppb.Timestamp)(nil),         // 167: google.protobuf.Timestamp
-	(*WorkloadFilters)(nil),               // 168: api.v1.WorkloadFilters
-	(*WorkloadItem)(nil),                  // 169: api.v1.WorkloadItem
-	(K8SObjectKind)(0),                    // 170: api.v1.K8sObjectKind
-	(*Pagination)(nil),                    // 171: api.v1.Pagination
-	(*ResourceFieldFilter)(nil),           // 172: api.v1.ResourceFieldFilter
-	(*ResourceFilterFieldOptions)(nil),    // 173: api.v1.ResourceFilterFieldOptions
-	(*NodeGroup)(nil),                     // 174: api.v1.NodeGroup
-	(*money.Money)(nil),                   // 175: google.type.Money
-	(*ResourceMetrics)(nil),               // 176: api.v1.ResourceMetrics
-	(*CostInfo)(nil),                      // 177: api.v1.CostInfo
-	(*NodeInfo)(nil),                      // 178: api.v1.NodeInfo
-	(*CostDataPoint)(nil),                 // 179: api.v1.CostDataPoint
-	(*ResourceDataPoint)(nil),             // 180: api.v1.ResourceDataPoint
-	(*Node)(nil),                          // 181: api.v1.Node
-	(*ResourceSummary)(nil),               // 182: api.v1.ResourceSummary
-	(*ContainerPercentileSummary)(nil),    // 183: api.v1.ContainerPercentileSummary
-	(*ContainerTimeSeries)(nil),           // 184: api.v1.ContainerTimeSeries
-	(*ContainerRequestLimits)(nil),        // 185: api.v1.ContainerRequestLimits
-	(*GPUMigInstance)(nil),                // 186: api.v1.GPUMigInstance
-	(*ContainerIndividualGPUMetrics)(nil), // 187: api.v1.ContainerIndividualGPUMetrics
-	(*ForecastResourceMetrics)(nil),       // 188: api.v1.ForecastResourceMetrics
-	(*AuditLogEntry)(nil),                 // 189: api.v1.AuditLogEntry
-	(*Instance)(nil),                      // 190: api.v1.Instance
+	(NodeClaimNotDeletableReason)(0),                              // 0: api.v1.NodeClaimNotDeletableReason
+	(NodeClaimDeletionState)(0),                                   // 1: api.v1.NodeClaimDeletionState
+	(GalaxyPOVNodeGroupBy)(0),                                     // 2: api.v1.GalaxyPOVNodeGroupBy
+	(GalaxyPOVWorkloadGroupBy)(0),                                 // 3: api.v1.GalaxyPOVWorkloadGroupBy
+	(ClusterType)(0),                                              // 4: api.v1.ClusterType
+	(*GetNodeRequest)(nil),                                        // 5: api.v1.GetNodeRequest
+	(*GetWorkloadPodHistoryRequest)(nil),                          // 6: api.v1.GetWorkloadPodHistoryRequest
+	(*GetClusterMetadataRequest)(nil),                             // 7: api.v1.GetClusterMetadataRequest
+	(*GetNodeGroupRequest)(nil),                                   // 8: api.v1.GetNodeGroupRequest
+	(*GetWorkloadsRequest)(nil),                                   // 9: api.v1.GetWorkloadsRequest
+	(*ListWorkloadsPaginatedRequest)(nil),                         // 10: api.v1.ListWorkloadsPaginatedRequest
+	(*GetWorkloadsSummaryRequest)(nil),                            // 11: api.v1.GetWorkloadsSummaryRequest
+	(*WorkloadMetricEntry)(nil),                                   // 12: api.v1.WorkloadMetricEntry
+	(*WorkloadMetricBreakdown)(nil),                               // 13: api.v1.WorkloadMetricBreakdown
+	(*GetWorkloadsSummaryResponse)(nil),                           // 14: api.v1.GetWorkloadsSummaryResponse
+	(*ListWorkloadsPaginatedResponse)(nil),                        // 15: api.v1.ListWorkloadsPaginatedResponse
+	(*GetResourcesRequest)(nil),                                   // 16: api.v1.GetResourcesRequest
+	(*GetPodsRequest)(nil),                                        // 17: api.v1.GetPodsRequest
+	(*GetPodsResponse)(nil),                                       // 18: api.v1.GetPodsResponse
+	(*GetWorkloadRequest)(nil),                                    // 19: api.v1.GetWorkloadRequest
+	(*GetClustersRequest)(nil),                                    // 20: api.v1.GetClustersRequest
+	(*ListClustersRequest)(nil),                                   // 21: api.v1.ListClustersRequest
+	(*GetClusterRequest)(nil),                                     // 22: api.v1.GetClusterRequest
+	(*DeleteClusterRequest)(nil),                                  // 23: api.v1.DeleteClusterRequest
+	(*DeleteClusterResponse)(nil),                                 // 24: api.v1.DeleteClusterResponse
+	(*UpdateClusterRequest)(nil),                                  // 25: api.v1.UpdateClusterRequest
+	(*UpdateClusterResponse)(nil),                                 // 26: api.v1.UpdateClusterResponse
+	(*GetResourcesResponse)(nil),                                  // 27: api.v1.GetResourcesResponse
+	(*GetResourceFilterOptionsRequest)(nil),                       // 28: api.v1.GetResourceFilterOptionsRequest
+	(*GetResourceFilterOptionsResponse)(nil),                      // 29: api.v1.GetResourceFilterOptionsResponse
+	(*CreateClusterRequest)(nil),                                  // 30: api.v1.CreateClusterRequest
+	(*CreateClusterResponse)(nil),                                 // 31: api.v1.CreateClusterResponse
+	(*ResetClusterTokenRequest)(nil),                              // 32: api.v1.ResetClusterTokenRequest
+	(*ResetClusterTokenResponse)(nil),                             // 33: api.v1.ResetClusterTokenResponse
+	(*GetNodeGroupsRequest)(nil),                                  // 34: api.v1.GetNodeGroupsRequest
+	(*GetAllNodeGroupsRequest)(nil),                               // 35: api.v1.GetAllNodeGroupsRequest
+	(*GetNodeGroupsResponse)(nil),                                 // 36: api.v1.GetNodeGroupsResponse
+	(*GetAllNodeGroupsResponse)(nil),                              // 37: api.v1.GetAllNodeGroupsResponse
+	(*NodeGroupSet)(nil),                                          // 38: api.v1.NodeGroupSet
+	(*GetClusterNodeFilterIndexRequest)(nil),                      // 39: api.v1.GetClusterNodeFilterIndexRequest
+	(*NodeLabelSet)(nil),                                          // 40: api.v1.NodeLabelSet
+	(*NodeLabelRef)(nil),                                          // 41: api.v1.NodeLabelRef
+	(*NodePoolFields)(nil),                                        // 42: api.v1.NodePoolFields
+	(*GetClusterNodeFilterIndexResponse)(nil),                     // 43: api.v1.GetClusterNodeFilterIndexResponse
+	(*GetNodeGroupsUtilizationRequest)(nil),                       // 44: api.v1.GetNodeGroupsUtilizationRequest
+	(*GetNodeGroupsUtilizationResponse)(nil),                      // 45: api.v1.GetNodeGroupsUtilizationResponse
+	(*NodeGroupMetric)(nil),                                       // 46: api.v1.NodeGroupMetric
+	(*GetNodeGroupResponse)(nil),                                  // 47: api.v1.GetNodeGroupResponse
+	(*GetClusterResponse)(nil),                                    // 48: api.v1.GetClusterResponse
+	(*GetClustersResponse)(nil),                                   // 49: api.v1.GetClustersResponse
+	(*ListClustersResponse)(nil),                                  // 50: api.v1.ListClustersResponse
+	(*GetNodeResponse)(nil),                                       // 51: api.v1.GetNodeResponse
+	(*NodeClaimRef)(nil),                                          // 52: api.v1.NodeClaimRef
+	(*RequestNodeClaimDeletionRequest)(nil),                       // 53: api.v1.RequestNodeClaimDeletionRequest
+	(*RequestNodeClaimDeletionResponse)(nil),                      // 54: api.v1.RequestNodeClaimDeletionResponse
+	(*GetNodeClaimDeletionStatusRequest)(nil),                     // 55: api.v1.GetNodeClaimDeletionStatusRequest
+	(*GetNodeClaimDeletionStatusResponse)(nil),                    // 56: api.v1.GetNodeClaimDeletionStatusResponse
+	(*NodeClaimDeletionStatus)(nil),                               // 57: api.v1.NodeClaimDeletionStatus
+	(*GetWorkloadsResponse)(nil),                                  // 58: api.v1.GetWorkloadsResponse
+	(*GetWorkloadResponse)(nil),                                   // 59: api.v1.GetWorkloadResponse
+	(*GetWorkloadContainerPercentilesRequest)(nil),                // 60: api.v1.GetWorkloadContainerPercentilesRequest
+	(*GetWorkloadContainerPercentilesResponse)(nil),               // 61: api.v1.GetWorkloadContainerPercentilesResponse
+	(*GetWorkloadContainerTimeSeriesRequest)(nil),                 // 62: api.v1.GetWorkloadContainerTimeSeriesRequest
+	(*GetWorkloadContainerTimeSeriesResponse)(nil),                // 63: api.v1.GetWorkloadContainerTimeSeriesResponse
+	(*GetLatestContainerRequestLimitsRequest)(nil),                // 64: api.v1.GetLatestContainerRequestLimitsRequest
+	(*GetLatestContainerRequestLimitsResponse)(nil),               // 65: api.v1.GetLatestContainerRequestLimitsResponse
+	(*GetNodeGPUMigInstancesRequest)(nil),                         // 66: api.v1.GetNodeGPUMigInstancesRequest
+	(*GetNodeGPUMigInstancesResponse)(nil),                        // 67: api.v1.GetNodeGPUMigInstancesResponse
+	(*GetNodeGPUMigInstanceTimeseriesRequest)(nil),                // 68: api.v1.GetNodeGPUMigInstanceTimeseriesRequest
+	(*GPUMigInstanceDataPoint)(nil),                               // 69: api.v1.GPUMigInstanceDataPoint
+	(*GPUMigInstanceTimeseries)(nil),                              // 70: api.v1.GPUMigInstanceTimeseries
+	(*GetNodeGPUMigInstanceTimeseriesResponse)(nil),               // 71: api.v1.GetNodeGPUMigInstanceTimeseriesResponse
+	(*GetContainerIndividualGPUMetricsRequest)(nil),               // 72: api.v1.GetContainerIndividualGPUMetricsRequest
+	(*GetContainerIndividualGPUMetricsResponse)(nil),              // 73: api.v1.GetContainerIndividualGPUMetricsResponse
+	(*LanguageVersions)(nil),                                      // 74: api.v1.LanguageVersions
+	(*GetWorkloadLanguagesRequest)(nil),                           // 75: api.v1.GetWorkloadLanguagesRequest
+	(*GetWorkloadLanguagesResponse)(nil),                          // 76: api.v1.GetWorkloadLanguagesResponse
+	(*GetForecastWorkloadsRequest)(nil),                           // 77: api.v1.GetForecastWorkloadsRequest
+	(*GetForecastWorkloadsResponse)(nil),                          // 78: api.v1.GetForecastWorkloadsResponse
+	(*GetForecastWorkloadRequest)(nil),                            // 79: api.v1.GetForecastWorkloadRequest
+	(*GetForecastWorkloadResponse)(nil),                           // 80: api.v1.GetForecastWorkloadResponse
+	(*GetClusterMetadataResponse)(nil),                            // 81: api.v1.GetClusterMetadataResponse
+	(*ClusterElement)(nil),                                        // 82: api.v1.ClusterElement
+	(*GetAllNamespacesRequest)(nil),                               // 83: api.v1.GetAllNamespacesRequest
+	(*GetAllNamespacesResponse)(nil),                              // 84: api.v1.GetAllNamespacesResponse
+	(*SearchNamespacesByClusterRequest)(nil),                      // 85: api.v1.SearchNamespacesByClusterRequest
+	(*SearchNamespacesByClusterResponse)(nil),                     // 86: api.v1.SearchNamespacesByClusterResponse
+	(*ListNamespacesByClusterRequest)(nil),                        // 87: api.v1.ListNamespacesByClusterRequest
+	(*ListNamespacesByClusterResponse)(nil),                       // 88: api.v1.ListNamespacesByClusterResponse
+	(*NamespaceItem)(nil),                                         // 89: api.v1.NamespaceItem
+	(*GetAllWorkloadNamesRequest)(nil),                            // 90: api.v1.GetAllWorkloadNamesRequest
+	(*GetAllWorkloadNamesResponse)(nil),                           // 91: api.v1.GetAllWorkloadNamesResponse
+	(*GetAllWorkloadLabelsRequest)(nil),                           // 92: api.v1.GetAllWorkloadLabelsRequest
+	(*GetAllWorkloadLabelsResponse)(nil),                          // 93: api.v1.GetAllWorkloadLabelsResponse
+	(*GetAllNodeGroupNamesRequest)(nil),                           // 94: api.v1.GetAllNodeGroupNamesRequest
+	(*GetAllNodeGroupNamesResponse)(nil),                          // 95: api.v1.GetAllNodeGroupNamesResponse
+	(*Cluster)(nil),                                               // 96: api.v1.Cluster
+	(*OperatorInfo)(nil),                                          // 97: api.v1.OperatorInfo
+	(*Container)(nil),                                             // 98: api.v1.Container
+	(*GetLatestOperatorVersionRequest)(nil),                       // 99: api.v1.GetLatestOperatorVersionRequest
+	(*GetLatestOperatorVersionResponse)(nil),                      // 100: api.v1.GetLatestOperatorVersionResponse
+	(*GalaxyGetWorkloadPerspectiveRequest)(nil),                   // 101: api.v1.GalaxyGetWorkloadPerspectiveRequest
+	(*GalaxyGetWorkloadPerspectiveResponse)(nil),                  // 102: api.v1.GalaxyGetWorkloadPerspectiveResponse
+	(*GalaxyWorkloadGroup)(nil),                                   // 103: api.v1.GalaxyWorkloadGroup
+	(*PerspectiveDatapointOpts)(nil),                              // 104: api.v1.PerspectiveDatapointOpts
+	(*ListAuditLogsRequest)(nil),                                  // 105: api.v1.ListAuditLogsRequest
+	(*ListAuditLogsResponse)(nil),                                 // 106: api.v1.ListAuditLogsResponse
+	(*ListAuditLogOriginatorsRequest)(nil),                        // 107: api.v1.ListAuditLogOriginatorsRequest
+	(*ListAuditLogOriginatorsResponse)(nil),                       // 108: api.v1.ListAuditLogOriginatorsResponse
+	(*SendWorkloadEmailRequest)(nil),                              // 109: api.v1.SendWorkloadEmailRequest
+	(*SendWorkloadEmailResponse)(nil),                             // 110: api.v1.SendWorkloadEmailResponse
+	(*SendWeeklySummaryEmailRequest)(nil),                         // 111: api.v1.SendWeeklySummaryEmailRequest
+	(*SendWeeklySummaryEmailRequestData)(nil),                     // 112: api.v1.SendWeeklySummaryEmailRequestData
+	(*SendWeeklySummaryEmailResponse)(nil),                        // 113: api.v1.SendWeeklySummaryEmailResponse
+	(*GetClustersNodeInfoRequest)(nil),                            // 114: api.v1.GetClustersNodeInfoRequest
+	(*GetClustersNodeInfoResponse)(nil),                           // 115: api.v1.GetClustersNodeInfoResponse
+	(*SearchK8SResourcesRequest)(nil),                             // 116: api.v1.SearchK8sResourcesRequest
+	(*SearchK8SResourcesResponse)(nil),                            // 117: api.v1.SearchK8sResourcesResponse
+	(*K8SSearchResult)(nil),                                       // 118: api.v1.K8sSearchResult
+	(*SearchK8SWorkloadsRequest)(nil),                             // 119: api.v1.SearchK8sWorkloadsRequest
+	(*SearchK8SWorkloadsResponse)(nil),                            // 120: api.v1.SearchK8sWorkloadsResponse
+	(*K8SWorkloadSearchResult)(nil),                               // 121: api.v1.K8sWorkloadSearchResult
+	(*MetadataForWorkloadsRequest)(nil),                           // 122: api.v1.MetadataForWorkloadsRequest
+	(*MetadataForWorkloadsResponse)(nil),                          // 123: api.v1.MetadataForWorkloadsResponse
+	(*AddClusterTagsRequest)(nil),                                 // 124: api.v1.AddClusterTagsRequest
+	(*AddClusterTagsResponse)(nil),                                // 125: api.v1.AddClusterTagsResponse
+	(*RemoveClusterTagsRequest)(nil),                              // 126: api.v1.RemoveClusterTagsRequest
+	(*RemoveClusterTagsResponse)(nil),                             // 127: api.v1.RemoveClusterTagsResponse
+	(*ListTagsRequest)(nil),                                       // 128: api.v1.ListTagsRequest
+	(*TagSummary)(nil),                                            // 129: api.v1.TagSummary
+	(*ListTagsResponse)(nil),                                      // 130: api.v1.ListTagsResponse
+	(*WorkloadMetadata)(nil),                                      // 131: api.v1.WorkloadMetadata
+	(*PodMetadata)(nil),                                           // 132: api.v1.PodMetadata
+	(*NodeMetadata)(nil),                                          // 133: api.v1.NodeMetadata
+	(*GetRelatedResourcesRequest)(nil),                            // 134: api.v1.GetRelatedResourcesRequest
+	(*GetWorkloadPodHistoryResponse)(nil),                         // 135: api.v1.GetWorkloadPodHistoryResponse
+	(*JobHistory)(nil),                                            // 136: api.v1.JobHistory
+	(*ReplicaSetHistory)(nil),                                     // 137: api.v1.ReplicaSetHistory
+	(*PodHistory)(nil),                                            // 138: api.v1.PodHistory
+	(*GetRelatedResourcesResponse)(nil),                           // 139: api.v1.GetRelatedResourcesResponse
+	(*K8SRelatedResource)(nil),                                    // 140: api.v1.K8sRelatedResource
+	(*K8SResourceNode)(nil),                                       // 141: api.v1.K8sResourceNode
+	(*K8SResourceEdge)(nil),                                       // 142: api.v1.K8sResourceEdge
+	(*GetClusterTypeRequest)(nil),                                 // 143: api.v1.GetClusterTypeRequest
+	(*GetClusterTypeResponse)(nil),                                // 144: api.v1.GetClusterTypeResponse
+	(*GetMigPartedConfigRequest)(nil),                             // 145: api.v1.GetMigPartedConfigRequest
+	(*GetMigPartedConfigResponse)(nil),                            // 146: api.v1.GetMigPartedConfigResponse
+	(*GetWorkloadsStatsRequest)(nil),                              // 147: api.v1.GetWorkloadsStatsRequest
+	(*GetWorkloadsStatsResponse)(nil),                             // 148: api.v1.GetWorkloadsStatsResponse
+	(*DailyUtilizationRequest)(nil),                               // 149: api.v1.DailyUtilizationRequest
+	(*DailyUtilizationResponse)(nil),                              // 150: api.v1.DailyUtilizationResponse
+	(*DailyUtilizationInstanceTypeRequest)(nil),                   // 151: api.v1.DailyUtilizationInstanceTypeRequest
+	(*DailyUtilizationInstanceTypeResponse)(nil),                  // 152: api.v1.DailyUtilizationInstanceTypeResponse
+	(*DailyUtilizationNodeTypeRequest)(nil),                       // 153: api.v1.DailyUtilizationNodeTypeRequest
+	(*DailyUtilizationNodeTypeResponse)(nil),                      // 154: api.v1.DailyUtilizationNodeTypeResponse
+	(*LookupNodeInstanceRequest)(nil),                             // 155: api.v1.LookupNodeInstanceRequest
+	(*InstanceLookupParams)(nil),                                  // 156: api.v1.InstanceLookupParams
+	(*LookupNodeInstanceResponse)(nil),                            // 157: api.v1.LookupNodeInstanceResponse
+	nil,                                                           // 158: api.v1.GetAllNodeGroupsResponse.NodeGroupMapEntry
+	nil,                                                           // 159: api.v1.NodeLabelSet.LabelsEntry
+	nil,                                                           // 160: api.v1.NodePoolFields.FieldsEntry
+	(*GetNodeGroupsUtilizationResponse_ListNodeGroupMetrics)(nil), // 161: api.v1.GetNodeGroupsUtilizationResponse.ListNodeGroupMetrics
+	nil, // 162: api.v1.GetNodeGroupsUtilizationResponse.NodeGroupToUtilMetricsEntry
+	nil, // 163: api.v1.GetNodeGroupsUtilizationResponse.InstanceTypeToUtilMetricsEntry
+	nil, // 164: api.v1.GetNodeGroupsUtilizationResponse.ReservationTypeToUtilMetricsEntry
+	nil, // 165: api.v1.GetNodeGroupsUtilizationResponse.LogicalAzToUtilMetricsEntry
+	nil, // 166: api.v1.GalaxyGetWorkloadPerspectiveResponse.ClustersEntry
+	nil, // 167: api.v1.GalaxyGetWorkloadPerspectiveResponse.WorkloadsEntry
+	nil, // 168: api.v1.MetadataForWorkloadsRequest.WorkloadUidToKindEntry
+	nil, // 169: api.v1.MetadataForWorkloadsResponse.WorkloadUidToMetadataEntry
+	nil, // 170: api.v1.WorkloadMetadata.PodUidToNodeMetadataEntry
+	nil, // 171: api.v1.WorkloadMetadata.PodUidToPodMetadataEntry
+	(*DailyUtilizationResponse_Datapoints)(nil), // 172: api.v1.DailyUtilizationResponse.Datapoints
+	(*DailyUtilizationResponse_Datapoint)(nil),  // 173: api.v1.DailyUtilizationResponse.Datapoint
+	nil, // 174: api.v1.DailyUtilizationResponse.ClusterIdToDailyTotalCoreMinutesEntry
+	nil, // 175: api.v1.DailyUtilizationResponse.ClusterIdToMetaEntry
+	(*DailyUtilizationInstanceTypeResponse_Datapoints)(nil), // 176: api.v1.DailyUtilizationInstanceTypeResponse.Datapoints
+	(*DailyUtilizationInstanceTypeResponse_Datapoint)(nil),  // 177: api.v1.DailyUtilizationInstanceTypeResponse.Datapoint
+	nil, // 178: api.v1.DailyUtilizationInstanceTypeResponse.ClusterIdToDatapointsEntry
+	nil, // 179: api.v1.DailyUtilizationInstanceTypeResponse.ClusterIdToMetaEntry
+	nil, // 180: api.v1.DailyUtilizationInstanceTypeResponse.Datapoint.InstanceTypeToDailyTotalCoreMinutesEntry
+	(*DailyUtilizationNodeTypeResponse_Datapoints)(nil), // 181: api.v1.DailyUtilizationNodeTypeResponse.Datapoints
+	(*DailyUtilizationNodeTypeResponse_Datapoint)(nil),  // 182: api.v1.DailyUtilizationNodeTypeResponse.Datapoint
+	nil,                                   // 183: api.v1.DailyUtilizationNodeTypeResponse.ClusterIdToDatapointsEntry
+	nil,                                   // 184: api.v1.DailyUtilizationNodeTypeResponse.ClusterIdToMetaEntry
+	nil,                                   // 185: api.v1.DailyUtilizationNodeTypeResponse.Datapoint.NodeTypeToDailyTotalCoreMinutesEntry
+	(*timestamppb.Timestamp)(nil),         // 186: google.protobuf.Timestamp
+	(*WorkloadFilters)(nil),               // 187: api.v1.WorkloadFilters
+	(*WorkloadItem)(nil),                  // 188: api.v1.WorkloadItem
+	(K8SObjectKind)(0),                    // 189: api.v1.K8sObjectKind
+	(*Pagination)(nil),                    // 190: api.v1.Pagination
+	(*ResourceFieldFilter)(nil),           // 191: api.v1.ResourceFieldFilter
+	(*ResourceFilterFieldOptions)(nil),    // 192: api.v1.ResourceFilterFieldOptions
+	(*NodeGroup)(nil),                     // 193: api.v1.NodeGroup
+	(*money.Money)(nil),                   // 194: google.type.Money
+	(*ResourceMetrics)(nil),               // 195: api.v1.ResourceMetrics
+	(*CostInfo)(nil),                      // 196: api.v1.CostInfo
+	(*NodeInfo)(nil),                      // 197: api.v1.NodeInfo
+	(*CostDataPoint)(nil),                 // 198: api.v1.CostDataPoint
+	(*ResourceDataPoint)(nil),             // 199: api.v1.ResourceDataPoint
+	(*Node)(nil),                          // 200: api.v1.Node
+	(*ResourceSummary)(nil),               // 201: api.v1.ResourceSummary
+	(*ContainerPercentileSummary)(nil),    // 202: api.v1.ContainerPercentileSummary
+	(*ContainerTimeSeries)(nil),           // 203: api.v1.ContainerTimeSeries
+	(*ContainerRequestLimits)(nil),        // 204: api.v1.ContainerRequestLimits
+	(*GPUMigInstance)(nil),                // 205: api.v1.GPUMigInstance
+	(*ContainerIndividualGPUMetrics)(nil), // 206: api.v1.ContainerIndividualGPUMetrics
+	(*ForecastResourceMetrics)(nil),       // 207: api.v1.ForecastResourceMetrics
+	(*AuditLogEntry)(nil),                 // 208: api.v1.AuditLogEntry
+	(*Instance)(nil),                      // 209: api.v1.Instance
 }
 var file_api_v1_k8s_proto_depIdxs = []int32{
-	167, // 0: api.v1.GetNodeRequest.start_time:type_name -> google.protobuf.Timestamp
-	167, // 1: api.v1.GetNodeRequest.end_time:type_name -> google.protobuf.Timestamp
-	167, // 2: api.v1.GetWorkloadPodHistoryRequest.start_time:type_name -> google.protobuf.Timestamp
-	167, // 3: api.v1.GetWorkloadPodHistoryRequest.end_time:type_name -> google.protobuf.Timestamp
-	167, // 4: api.v1.GetNodeGroupRequest.start_time:type_name -> google.protobuf.Timestamp
-	167, // 5: api.v1.GetNodeGroupRequest.end_time:type_name -> google.protobuf.Timestamp
-	167, // 6: api.v1.GetWorkloadsRequest.start_time:type_name -> google.protobuf.Timestamp
-	167, // 7: api.v1.GetWorkloadsRequest.end_time:type_name -> google.protobuf.Timestamp
-	168, // 8: api.v1.GetWorkloadsRequest.filters:type_name -> api.v1.WorkloadFilters
-	167, // 9: api.v1.ListWorkloadsPaginatedRequest.start_time:type_name -> google.protobuf.Timestamp
-	167, // 10: api.v1.ListWorkloadsPaginatedRequest.end_time:type_name -> google.protobuf.Timestamp
-	168, // 11: api.v1.ListWorkloadsPaginatedRequest.filters:type_name -> api.v1.WorkloadFilters
-	167, // 12: api.v1.GetWorkloadsSummaryRequest.start_time:type_name -> google.protobuf.Timestamp
-	167, // 13: api.v1.GetWorkloadsSummaryRequest.end_time:type_name -> google.protobuf.Timestamp
-	168, // 14: api.v1.GetWorkloadsSummaryRequest.filters:type_name -> api.v1.WorkloadFilters
-	10,  // 15: api.v1.WorkloadMetricBreakdown.top_entries:type_name -> api.v1.WorkloadMetricEntry
-	11,  // 16: api.v1.GetWorkloadsSummaryResponse.cost:type_name -> api.v1.WorkloadMetricBreakdown
-	11,  // 17: api.v1.GetWorkloadsSummaryResponse.cpu_usage:type_name -> api.v1.WorkloadMetricBreakdown
-	11,  // 18: api.v1.GetWorkloadsSummaryResponse.memory_usage:type_name -> api.v1.WorkloadMetricBreakdown
-	11,  // 19: api.v1.GetWorkloadsSummaryResponse.gpu_usage:type_name -> api.v1.WorkloadMetricBreakdown
-	11,  // 20: api.v1.GetWorkloadsSummaryResponse.optimization_potential_cost:type_name -> api.v1.WorkloadMetricBreakdown
-	11,  // 21: api.v1.GetWorkloadsSummaryResponse.optimization_potential_cpu:type_name -> api.v1.WorkloadMetricBreakdown
-	11,  // 22: api.v1.GetWorkloadsSummaryResponse.optimization_potential_memory:type_name -> api.v1.WorkloadMetricBreakdown
-	11,  // 23: api.v1.GetWorkloadsSummaryResponse.optimization_potential_gpu:type_name -> api.v1.WorkloadMetricBreakdown
-	169, // 24: api.v1.ListWorkloadsPaginatedResponse.workload_items:type_name -> api.v1.WorkloadItem
-	170, // 25: api.v1.GetResourcesRequest.kind:type_name -> api.v1.K8sObjectKind
-	171, // 26: api.v1.GetResourcesRequest.pagination:type_name -> api.v1.Pagination
-	172, // 27: api.v1.GetResourcesRequest.filters:type_name -> api.v1.ResourceFieldFilter
-	171, // 28: api.v1.GetPodsRequest.pagination:type_name -> api.v1.Pagination
-	167, // 29: api.v1.GetPodsRequest.start_time:type_name -> google.protobuf.Timestamp
-	167, // 30: api.v1.GetPodsRequest.end_time:type_name -> google.protobuf.Timestamp
-	169, // 31: api.v1.GetPodsResponse.workload_items:type_name -> api.v1.WorkloadItem
-	171, // 32: api.v1.GetPodsResponse.pagination:type_name -> api.v1.Pagination
-	167, // 33: api.v1.GetWorkloadRequest.start_time:type_name -> google.protobuf.Timestamp
-	167, // 34: api.v1.GetWorkloadRequest.end_time:type_name -> google.protobuf.Timestamp
-	167, // 35: api.v1.GetClustersRequest.start_time:type_name -> google.protobuf.Timestamp
-	167, // 36: api.v1.GetClustersRequest.end_time:type_name -> google.protobuf.Timestamp
-	171, // 37: api.v1.ListClustersRequest.pagination:type_name -> api.v1.Pagination
-	167, // 38: api.v1.GetClusterRequest.start_time:type_name -> google.protobuf.Timestamp
-	167, // 39: api.v1.GetClusterRequest.end_time:type_name -> google.protobuf.Timestamp
-	79,  // 40: api.v1.UpdateClusterResponse.cluster:type_name -> api.v1.Cluster
-	169, // 41: api.v1.GetResourcesResponse.workload_items:type_name -> api.v1.WorkloadItem
-	171, // 42: api.v1.GetResourcesResponse.pagination:type_name -> api.v1.Pagination
-	170, // 43: api.v1.GetResourceFilterOptionsRequest.kind:type_name -> api.v1.K8sObjectKind
-	173, // 44: api.v1.GetResourceFilterOptionsResponse.options:type_name -> api.v1.ResourceFilterFieldOptions
-	79,  // 45: api.v1.CreateClusterResponse.cluster:type_name -> api.v1.Cluster
-	167, // 46: api.v1.GetNodeGroupsRequest.start_time:type_name -> google.protobuf.Timestamp
-	167, // 47: api.v1.GetNodeGroupsRequest.end_time:type_name -> google.protobuf.Timestamp
-	174, // 48: api.v1.GetNodeGroupsResponse.node_groups:type_name -> api.v1.NodeGroup
-	141, // 49: api.v1.GetAllNodeGroupsResponse.node_group_map:type_name -> api.v1.GetAllNodeGroupsResponse.NodeGroupMapEntry
-	174, // 50: api.v1.NodeGroupSet.node_groups:type_name -> api.v1.NodeGroup
-	167, // 51: api.v1.GetNodeGroupsUtilizationRequest.start_time:type_name -> google.protobuf.Timestamp
-	167, // 52: api.v1.GetNodeGroupsUtilizationRequest.end_time:type_name -> google.protobuf.Timestamp
-	143, // 53: api.v1.GetNodeGroupsUtilizationResponse.node_group_to_util_metrics:type_name -> api.v1.GetNodeGroupsUtilizationResponse.NodeGroupToUtilMetricsEntry
-	144, // 54: api.v1.GetNodeGroupsUtilizationResponse.instance_type_to_util_metrics:type_name -> api.v1.GetNodeGroupsUtilizationResponse.InstanceTypeToUtilMetricsEntry
-	145, // 55: api.v1.GetNodeGroupsUtilizationResponse.reservation_type_to_util_metrics:type_name -> api.v1.GetNodeGroupsUtilizationResponse.ReservationTypeToUtilMetricsEntry
-	146, // 56: api.v1.GetNodeGroupsUtilizationResponse.logical_az_to_util_metrics:type_name -> api.v1.GetNodeGroupsUtilizationResponse.LogicalAzToUtilMetricsEntry
-	175, // 57: api.v1.NodeGroupMetric.hourly_cost:type_name -> google.type.Money
-	175, // 58: api.v1.NodeGroupMetric.hourly_cpu_cost:type_name -> google.type.Money
-	175, // 59: api.v1.NodeGroupMetric.hourly_memory_cost:type_name -> google.type.Money
-	175, // 60: api.v1.NodeGroupMetric.hourly_gpu_cost:type_name -> google.type.Money
-	167, // 61: api.v1.NodeGroupMetric.bucket_time:type_name -> google.protobuf.Timestamp
-	174, // 62: api.v1.GetNodeGroupResponse.node_group:type_name -> api.v1.NodeGroup
-	79,  // 63: api.v1.GetClusterResponse.cluster:type_name -> api.v1.Cluster
-	79,  // 64: api.v1.GetClustersResponse.clusters:type_name -> api.v1.Cluster
-	176, // 65: api.v1.GetClustersResponse.resource_metrics:type_name -> api.v1.ResourceMetrics
-	177, // 66: api.v1.GetClustersResponse.cost_info:type_name -> api.v1.CostInfo
-	178, // 67: api.v1.GetClustersResponse.node_info:type_name -> api.v1.NodeInfo
-	179, // 68: api.v1.GetClustersResponse.cost_data_points:type_name -> api.v1.CostDataPoint
-	180, // 69: api.v1.GetClustersResponse.resource_data_points:type_name -> api.v1.ResourceDataPoint
-	79,  // 70: api.v1.ListClustersResponse.clusters:type_name -> api.v1.Cluster
-	171, // 71: api.v1.ListClustersResponse.pagination:type_name -> api.v1.Pagination
-	181, // 72: api.v1.GetNodeResponse.node:type_name -> api.v1.Node
-	176, // 73: api.v1.GetNodeResponse.resource_metrics:type_name -> api.v1.ResourceMetrics
-	177, // 74: api.v1.GetNodeResponse.cost_info:type_name -> api.v1.CostInfo
-	179, // 75: api.v1.GetNodeResponse.cost_data_points:type_name -> api.v1.CostDataPoint
-	180, // 76: api.v1.GetNodeResponse.resource_data_points:type_name -> api.v1.ResourceDataPoint
-	169, // 77: api.v1.GetWorkloadsResponse.workload_items:type_name -> api.v1.WorkloadItem
-	177, // 78: api.v1.GetWorkloadsResponse.cost_info:type_name -> api.v1.CostInfo
-	176, // 79: api.v1.GetWorkloadsResponse.resource_metrics:type_name -> api.v1.ResourceMetrics
-	182, // 80: api.v1.GetWorkloadsResponse.resource_summary:type_name -> api.v1.ResourceSummary
-	169, // 81: api.v1.GetWorkloadResponse.workload_item:type_name -> api.v1.WorkloadItem
-	177, // 82: api.v1.GetWorkloadResponse.cost_info:type_name -> api.v1.CostInfo
-	176, // 83: api.v1.GetWorkloadResponse.resource_metrics:type_name -> api.v1.ResourceMetrics
-	182, // 84: api.v1.GetWorkloadResponse.resource_summary:type_name -> api.v1.ResourceSummary
-	179, // 85: api.v1.GetWorkloadResponse.cost_data_points:type_name -> api.v1.CostDataPoint
-	180, // 86: api.v1.GetWorkloadResponse.resource_data_points:type_name -> api.v1.ResourceDataPoint
-	167, // 87: api.v1.GetWorkloadContainerPercentilesRequest.start_time:type_name -> google.protobuf.Timestamp
-	167, // 88: api.v1.GetWorkloadContainerPercentilesRequest.end_time:type_name -> google.protobuf.Timestamp
-	183, // 89: api.v1.GetWorkloadContainerPercentilesResponse.containers:type_name -> api.v1.ContainerPercentileSummary
-	167, // 90: api.v1.GetWorkloadContainerTimeSeriesRequest.start_time:type_name -> google.protobuf.Timestamp
-	167, // 91: api.v1.GetWorkloadContainerTimeSeriesRequest.end_time:type_name -> google.protobuf.Timestamp
-	184, // 92: api.v1.GetWorkloadContainerTimeSeriesResponse.containers:type_name -> api.v1.ContainerTimeSeries
-	185, // 93: api.v1.GetLatestContainerRequestLimitsResponse.containers:type_name -> api.v1.ContainerRequestLimits
-	186, // 94: api.v1.GetNodeGPUMigInstancesResponse.instances:type_name -> api.v1.GPUMigInstance
-	167, // 95: api.v1.GetNodeGPUMigInstancesResponse.collected_at:type_name -> google.protobuf.Timestamp
-	187, // 96: api.v1.GetContainerIndividualGPUMetricsResponse.containers:type_name -> api.v1.ContainerIndividualGPUMetrics
-	57,  // 97: api.v1.GetWorkloadLanguagesResponse.languages:type_name -> api.v1.LanguageVersions
-	167, // 98: api.v1.GetForecastWorkloadsRequest.start_time:type_name -> google.protobuf.Timestamp
-	167, // 99: api.v1.GetForecastWorkloadsRequest.end_time:type_name -> google.protobuf.Timestamp
-	169, // 100: api.v1.GetForecastWorkloadsResponse.workload_items:type_name -> api.v1.WorkloadItem
-	177, // 101: api.v1.GetForecastWorkloadsResponse.cost_info:type_name -> api.v1.CostInfo
-	188, // 102: api.v1.GetForecastWorkloadsResponse.resource_metrics:type_name -> api.v1.ForecastResourceMetrics
-	182, // 103: api.v1.GetForecastWorkloadsResponse.resource_summary:type_name -> api.v1.ResourceSummary
-	167, // 104: api.v1.GetForecastWorkloadRequest.start_time:type_name -> google.protobuf.Timestamp
-	167, // 105: api.v1.GetForecastWorkloadRequest.end_time:type_name -> google.protobuf.Timestamp
-	169, // 106: api.v1.GetForecastWorkloadResponse.workload_item:type_name -> api.v1.WorkloadItem
-	177, // 107: api.v1.GetForecastWorkloadResponse.cost_info:type_name -> api.v1.CostInfo
-	188, // 108: api.v1.GetForecastWorkloadResponse.resource_metrics:type_name -> api.v1.ForecastResourceMetrics
-	182, // 109: api.v1.GetForecastWorkloadResponse.resource_summary:type_name -> api.v1.ResourceSummary
-	179, // 110: api.v1.GetForecastWorkloadResponse.cost_data_points:type_name -> api.v1.CostDataPoint
-	180, // 111: api.v1.GetForecastWorkloadResponse.resource_data_points:type_name -> api.v1.ResourceDataPoint
-	79,  // 112: api.v1.GetClusterMetadataResponse.clusters:type_name -> api.v1.Cluster
-	65,  // 113: api.v1.GetAllNamespacesResponse.cluster_id_with_namespaces:type_name -> api.v1.ClusterElement
-	72,  // 114: api.v1.ListNamespacesByClusterResponse.namespaces:type_name -> api.v1.NamespaceItem
-	170, // 115: api.v1.GetAllWorkloadNamesRequest.kinds:type_name -> api.v1.K8sObjectKind
-	65,  // 116: api.v1.GetAllWorkloadNamesResponse.cluster_id_with_workload_name:type_name -> api.v1.ClusterElement
-	170, // 117: api.v1.GetAllWorkloadLabelsRequest.kinds:type_name -> api.v1.K8sObjectKind
-	65,  // 118: api.v1.GetAllWorkloadLabelsResponse.cluster_id_with_labels:type_name -> api.v1.ClusterElement
-	65,  // 119: api.v1.GetAllNodeGroupNamesResponse.cluster_id_with_node_group_names:type_name -> api.v1.ClusterElement
-	176, // 120: api.v1.Cluster.resource_metrics:type_name -> api.v1.ResourceMetrics
-	177, // 121: api.v1.Cluster.cost_info:type_name -> api.v1.CostInfo
-	178, // 122: api.v1.Cluster.node_info:type_name -> api.v1.NodeInfo
-	179, // 123: api.v1.Cluster.cost_data_points:type_name -> api.v1.CostDataPoint
-	180, // 124: api.v1.Cluster.resource_data_points:type_name -> api.v1.ResourceDataPoint
-	181, // 125: api.v1.Cluster.most_expensive_node:type_name -> api.v1.Node
-	181, // 126: api.v1.Cluster.least_expensive_node:type_name -> api.v1.Node
-	181, // 127: api.v1.Cluster.most_underutilized_node:type_name -> api.v1.Node
-	81,  // 128: api.v1.Cluster.most_underutilized_container:type_name -> api.v1.Container
-	80,  // 129: api.v1.Cluster.zxp_info:type_name -> api.v1.OperatorInfo
-	80,  // 130: api.v1.Cluster.zxp_helm_info:type_name -> api.v1.OperatorInfo
-	80,  // 131: api.v1.Cluster.dakr_op_info:type_name -> api.v1.OperatorInfo
-	80,  // 132: api.v1.Cluster.node_op_info:type_name -> api.v1.OperatorInfo
-	80,  // 133: api.v1.Cluster.security_op_info:type_name -> api.v1.OperatorInfo
-	80,  // 134: api.v1.Cluster.network_op_info:type_name -> api.v1.OperatorInfo
-	176, // 135: api.v1.Container.resource_metrics:type_name -> api.v1.ResourceMetrics
-	80,  // 136: api.v1.GetLatestOperatorVersionResponse.zxp_info:type_name -> api.v1.OperatorInfo
-	80,  // 137: api.v1.GetLatestOperatorVersionResponse.zxp_helm_info:type_name -> api.v1.OperatorInfo
-	80,  // 138: api.v1.GetLatestOperatorVersionResponse.zxp_netmon_info:type_name -> api.v1.OperatorInfo
-	80,  // 139: api.v1.GetLatestOperatorVersionResponse.zxp_netmon_helm_info:type_name -> api.v1.OperatorInfo
-	80,  // 140: api.v1.GetLatestOperatorVersionResponse.dakr_op_info:type_name -> api.v1.OperatorInfo
-	80,  // 141: api.v1.GetLatestOperatorVersionResponse.dakr_op_helm_info:type_name -> api.v1.OperatorInfo
-	80,  // 142: api.v1.GetLatestOperatorVersionResponse.node_op_info_aws:type_name -> api.v1.OperatorInfo
-	80,  // 143: api.v1.GetLatestOperatorVersionResponse.node_op_info_azure:type_name -> api.v1.OperatorInfo
-	80,  // 144: api.v1.GetLatestOperatorVersionResponse.node_op_info_gcp:type_name -> api.v1.OperatorInfo
-	80,  // 145: api.v1.GetLatestOperatorVersionResponse.node_op_info_oci:type_name -> api.v1.OperatorInfo
-	80,  // 146: api.v1.GetLatestOperatorVersionResponse.security_op_info:type_name -> api.v1.OperatorInfo
-	80,  // 147: api.v1.GetLatestOperatorVersionResponse.security_op_helm_info:type_name -> api.v1.OperatorInfo
-	80,  // 148: api.v1.GetLatestOperatorVersionResponse.trezr_info:type_name -> api.v1.OperatorInfo
-	80,  // 149: api.v1.GetLatestOperatorVersionResponse.trezr_helm_info:type_name -> api.v1.OperatorInfo
-	80,  // 150: api.v1.GetLatestOperatorVersionResponse.snapshot_helm_info:type_name -> api.v1.OperatorInfo
-	1,   // 151: api.v1.GalaxyGetWorkloadPerspectiveRequest.group_by:type_name -> api.v1.GalaxyPOVWorkloadGroupBy
-	87,  // 152: api.v1.GalaxyGetWorkloadPerspectiveRequest.datapoint_opts:type_name -> api.v1.PerspectiveDatapointOpts
-	86,  // 153: api.v1.GalaxyGetWorkloadPerspectiveResponse.groupings:type_name -> api.v1.GalaxyWorkloadGroup
-	147, // 154: api.v1.GalaxyGetWorkloadPerspectiveResponse.clusters:type_name -> api.v1.GalaxyGetWorkloadPerspectiveResponse.ClustersEntry
-	148, // 155: api.v1.GalaxyGetWorkloadPerspectiveResponse.workloads:type_name -> api.v1.GalaxyGetWorkloadPerspectiveResponse.WorkloadsEntry
-	177, // 156: api.v1.GalaxyWorkloadGroup.cost_info:type_name -> api.v1.CostInfo
-	176, // 157: api.v1.GalaxyWorkloadGroup.resource_metrics:type_name -> api.v1.ResourceMetrics
-	182, // 158: api.v1.GalaxyWorkloadGroup.resource_summary:type_name -> api.v1.ResourceSummary
-	170, // 159: api.v1.ListAuditLogsRequest.workload_type:type_name -> api.v1.K8sObjectKind
-	167, // 160: api.v1.ListAuditLogsRequest.start_time:type_name -> google.protobuf.Timestamp
-	167, // 161: api.v1.ListAuditLogsRequest.end_time:type_name -> google.protobuf.Timestamp
-	171, // 162: api.v1.ListAuditLogsRequest.pagination:type_name -> api.v1.Pagination
-	189, // 163: api.v1.ListAuditLogsResponse.logs:type_name -> api.v1.AuditLogEntry
-	171, // 164: api.v1.ListAuditLogsResponse.pagination:type_name -> api.v1.Pagination
-	170, // 165: api.v1.ListAuditLogOriginatorsRequest.workload_type:type_name -> api.v1.K8sObjectKind
-	167, // 166: api.v1.ListAuditLogOriginatorsRequest.start_time:type_name -> google.protobuf.Timestamp
-	167, // 167: api.v1.ListAuditLogOriginatorsRequest.end_time:type_name -> google.protobuf.Timestamp
-	95,  // 168: api.v1.SendWeeklySummaryEmailRequest.request:type_name -> api.v1.SendWeeklySummaryEmailRequestData
-	167, // 169: api.v1.GetClustersNodeInfoRequest.start_time:type_name -> google.protobuf.Timestamp
-	167, // 170: api.v1.GetClustersNodeInfoRequest.end_time:type_name -> google.protobuf.Timestamp
-	178, // 171: api.v1.GetClustersNodeInfoResponse.node_info:type_name -> api.v1.NodeInfo
-	181, // 172: api.v1.GetClustersNodeInfoResponse.most_expensive_node:type_name -> api.v1.Node
-	181, // 173: api.v1.GetClustersNodeInfoResponse.least_expensive_node:type_name -> api.v1.Node
-	181, // 174: api.v1.GetClustersNodeInfoResponse.most_underutilized_node:type_name -> api.v1.Node
-	101, // 175: api.v1.SearchK8sResourcesResponse.results:type_name -> api.v1.K8sSearchResult
-	104, // 176: api.v1.SearchK8sWorkloadsResponse.results:type_name -> api.v1.K8sWorkloadSearchResult
-	149, // 177: api.v1.MetadataForWorkloadsRequest.workload_uid_to_kind:type_name -> api.v1.MetadataForWorkloadsRequest.WorkloadUidToKindEntry
-	150, // 178: api.v1.MetadataForWorkloadsResponse.workload_uid_to_metadata:type_name -> api.v1.MetadataForWorkloadsResponse.WorkloadUidToMetadataEntry
-	79,  // 179: api.v1.AddClusterTagsResponse.cluster:type_name -> api.v1.Cluster
-	79,  // 180: api.v1.RemoveClusterTagsResponse.cluster:type_name -> api.v1.Cluster
-	112, // 181: api.v1.ListTagsResponse.tags:type_name -> api.v1.TagSummary
-	151, // 182: api.v1.WorkloadMetadata.pod_uid_to_node_metadata:type_name -> api.v1.WorkloadMetadata.PodUidToNodeMetadataEntry
-	152, // 183: api.v1.WorkloadMetadata.pod_uid_to_pod_metadata:type_name -> api.v1.WorkloadMetadata.PodUidToPodMetadataEntry
-	170, // 184: api.v1.WorkloadMetadata.kind:type_name -> api.v1.K8sObjectKind
-	170, // 185: api.v1.GetRelatedResourcesRequest.kind:type_name -> api.v1.K8sObjectKind
-	120, // 186: api.v1.GetWorkloadPodHistoryResponse.replica_sets:type_name -> api.v1.ReplicaSetHistory
-	121, // 187: api.v1.GetWorkloadPodHistoryResponse.direct_pods:type_name -> api.v1.PodHistory
-	119, // 188: api.v1.GetWorkloadPodHistoryResponse.jobs:type_name -> api.v1.JobHistory
-	167, // 189: api.v1.JobHistory.created_at:type_name -> google.protobuf.Timestamp
-	167, // 190: api.v1.JobHistory.deleted_at:type_name -> google.protobuf.Timestamp
-	121, // 191: api.v1.JobHistory.pods:type_name -> api.v1.PodHistory
-	167, // 192: api.v1.ReplicaSetHistory.created_at:type_name -> google.protobuf.Timestamp
-	167, // 193: api.v1.ReplicaSetHistory.deleted_at:type_name -> google.protobuf.Timestamp
-	121, // 194: api.v1.ReplicaSetHistory.pods:type_name -> api.v1.PodHistory
-	167, // 195: api.v1.PodHistory.created_at:type_name -> google.protobuf.Timestamp
-	167, // 196: api.v1.PodHistory.deleted_at:type_name -> google.protobuf.Timestamp
-	123, // 197: api.v1.GetRelatedResourcesResponse.relations:type_name -> api.v1.K8sRelatedResource
-	124, // 198: api.v1.GetRelatedResourcesResponse.nodes:type_name -> api.v1.K8sResourceNode
-	125, // 199: api.v1.GetRelatedResourcesResponse.edges:type_name -> api.v1.K8sResourceEdge
-	2,   // 200: api.v1.GetClusterTypeResponse.cluster_type:type_name -> api.v1.ClusterType
-	167, // 201: api.v1.GetMigPartedConfigResponse.last_seen:type_name -> google.protobuf.Timestamp
-	167, // 202: api.v1.GetWorkloadsStatsRequest.start_time:type_name -> google.protobuf.Timestamp
-	167, // 203: api.v1.GetWorkloadsStatsRequest.end_time:type_name -> google.protobuf.Timestamp
-	167, // 204: api.v1.DailyUtilizationRequest.start_time:type_name -> google.protobuf.Timestamp
-	167, // 205: api.v1.DailyUtilizationRequest.end_time:type_name -> google.protobuf.Timestamp
-	155, // 206: api.v1.DailyUtilizationResponse.cluster_id_to_daily_total_core_minutes:type_name -> api.v1.DailyUtilizationResponse.ClusterIdToDailyTotalCoreMinutesEntry
-	156, // 207: api.v1.DailyUtilizationResponse.cluster_id_to_meta:type_name -> api.v1.DailyUtilizationResponse.ClusterIdToMetaEntry
-	167, // 208: api.v1.DailyUtilizationInstanceTypeRequest.start_time:type_name -> google.protobuf.Timestamp
-	167, // 209: api.v1.DailyUtilizationInstanceTypeRequest.end_time:type_name -> google.protobuf.Timestamp
-	159, // 210: api.v1.DailyUtilizationInstanceTypeResponse.cluster_id_to_datapoints:type_name -> api.v1.DailyUtilizationInstanceTypeResponse.ClusterIdToDatapointsEntry
-	160, // 211: api.v1.DailyUtilizationInstanceTypeResponse.cluster_id_to_meta:type_name -> api.v1.DailyUtilizationInstanceTypeResponse.ClusterIdToMetaEntry
-	167, // 212: api.v1.DailyUtilizationNodeTypeRequest.start_time:type_name -> google.protobuf.Timestamp
-	167, // 213: api.v1.DailyUtilizationNodeTypeRequest.end_time:type_name -> google.protobuf.Timestamp
-	164, // 214: api.v1.DailyUtilizationNodeTypeResponse.cluster_id_to_datapoints:type_name -> api.v1.DailyUtilizationNodeTypeResponse.ClusterIdToDatapointsEntry
-	165, // 215: api.v1.DailyUtilizationNodeTypeResponse.cluster_id_to_meta:type_name -> api.v1.DailyUtilizationNodeTypeResponse.ClusterIdToMetaEntry
-	190, // 216: api.v1.LookupNodeInstanceResponse.dynamic_instance:type_name -> api.v1.Instance
-	190, // 217: api.v1.LookupNodeInstanceResponse.cached_instance:type_name -> api.v1.Instance
-	139, // 218: api.v1.LookupNodeInstanceResponse.lookup_params:type_name -> api.v1.InstanceLookupParams
-	174, // 219: api.v1.GetAllNodeGroupsResponse.NodeGroupMapEntry.value:type_name -> api.v1.NodeGroup
-	39,  // 220: api.v1.GetNodeGroupsUtilizationResponse.ListNodeGroupMetrics.node_group_metrics:type_name -> api.v1.NodeGroupMetric
-	142, // 221: api.v1.GetNodeGroupsUtilizationResponse.NodeGroupToUtilMetricsEntry.value:type_name -> api.v1.GetNodeGroupsUtilizationResponse.ListNodeGroupMetrics
-	142, // 222: api.v1.GetNodeGroupsUtilizationResponse.InstanceTypeToUtilMetricsEntry.value:type_name -> api.v1.GetNodeGroupsUtilizationResponse.ListNodeGroupMetrics
-	142, // 223: api.v1.GetNodeGroupsUtilizationResponse.ReservationTypeToUtilMetricsEntry.value:type_name -> api.v1.GetNodeGroupsUtilizationResponse.ListNodeGroupMetrics
-	142, // 224: api.v1.GetNodeGroupsUtilizationResponse.LogicalAzToUtilMetricsEntry.value:type_name -> api.v1.GetNodeGroupsUtilizationResponse.ListNodeGroupMetrics
-	79,  // 225: api.v1.GalaxyGetWorkloadPerspectiveResponse.ClustersEntry.value:type_name -> api.v1.Cluster
-	169, // 226: api.v1.GalaxyGetWorkloadPerspectiveResponse.WorkloadsEntry.value:type_name -> api.v1.WorkloadItem
-	170, // 227: api.v1.MetadataForWorkloadsRequest.WorkloadUidToKindEntry.value:type_name -> api.v1.K8sObjectKind
-	114, // 228: api.v1.MetadataForWorkloadsResponse.WorkloadUidToMetadataEntry.value:type_name -> api.v1.WorkloadMetadata
-	116, // 229: api.v1.WorkloadMetadata.PodUidToNodeMetadataEntry.value:type_name -> api.v1.NodeMetadata
-	115, // 230: api.v1.WorkloadMetadata.PodUidToPodMetadataEntry.value:type_name -> api.v1.PodMetadata
-	154, // 231: api.v1.DailyUtilizationResponse.Datapoints.datapoints:type_name -> api.v1.DailyUtilizationResponse.Datapoint
-	153, // 232: api.v1.DailyUtilizationResponse.ClusterIdToDailyTotalCoreMinutesEntry.value:type_name -> api.v1.DailyUtilizationResponse.Datapoints
-	79,  // 233: api.v1.DailyUtilizationResponse.ClusterIdToMetaEntry.value:type_name -> api.v1.Cluster
-	158, // 234: api.v1.DailyUtilizationInstanceTypeResponse.Datapoints.datapoints:type_name -> api.v1.DailyUtilizationInstanceTypeResponse.Datapoint
-	161, // 235: api.v1.DailyUtilizationInstanceTypeResponse.Datapoint.instance_type_to_daily_total_core_minutes:type_name -> api.v1.DailyUtilizationInstanceTypeResponse.Datapoint.InstanceTypeToDailyTotalCoreMinutesEntry
-	157, // 236: api.v1.DailyUtilizationInstanceTypeResponse.ClusterIdToDatapointsEntry.value:type_name -> api.v1.DailyUtilizationInstanceTypeResponse.Datapoints
-	79,  // 237: api.v1.DailyUtilizationInstanceTypeResponse.ClusterIdToMetaEntry.value:type_name -> api.v1.Cluster
-	163, // 238: api.v1.DailyUtilizationNodeTypeResponse.Datapoints.datapoints:type_name -> api.v1.DailyUtilizationNodeTypeResponse.Datapoint
-	166, // 239: api.v1.DailyUtilizationNodeTypeResponse.Datapoint.node_type_to_daily_total_core_minutes:type_name -> api.v1.DailyUtilizationNodeTypeResponse.Datapoint.NodeTypeToDailyTotalCoreMinutesEntry
-	162, // 240: api.v1.DailyUtilizationNodeTypeResponse.ClusterIdToDatapointsEntry.value:type_name -> api.v1.DailyUtilizationNodeTypeResponse.Datapoints
-	79,  // 241: api.v1.DailyUtilizationNodeTypeResponse.ClusterIdToMetaEntry.value:type_name -> api.v1.Cluster
-	130, // 242: api.v1.K8SService.GetWorkloadsStats:input_type -> api.v1.GetWorkloadsStatsRequest
-	18,  // 243: api.v1.K8SService.GetClusters:input_type -> api.v1.GetClustersRequest
-	19,  // 244: api.v1.K8SService.ListClusters:input_type -> api.v1.ListClustersRequest
-	20,  // 245: api.v1.K8SService.GetCluster:input_type -> api.v1.GetClusterRequest
-	5,   // 246: api.v1.K8SService.GetClusterMetadata:input_type -> api.v1.GetClusterMetadataRequest
-	66,  // 247: api.v1.K8SService.GetAllNamespaces:input_type -> api.v1.GetAllNamespacesRequest
-	68,  // 248: api.v1.K8SService.SearchNamespacesByCluster:input_type -> api.v1.SearchNamespacesByClusterRequest
-	70,  // 249: api.v1.K8SService.ListNamespacesByCluster:input_type -> api.v1.ListNamespacesByClusterRequest
-	73,  // 250: api.v1.K8SService.GetAllWorkloadNames:input_type -> api.v1.GetAllWorkloadNamesRequest
-	75,  // 251: api.v1.K8SService.GetAllWorkloadLabels:input_type -> api.v1.GetAllWorkloadLabelsRequest
-	77,  // 252: api.v1.K8SService.GetAllNodeGroupNames:input_type -> api.v1.GetAllNodeGroupNamesRequest
-	105, // 253: api.v1.K8SService.MetadataForWorkloads:input_type -> api.v1.MetadataForWorkloadsRequest
-	32,  // 254: api.v1.K8SService.GetNodeGroups:input_type -> api.v1.GetNodeGroupsRequest
-	33,  // 255: api.v1.K8SService.GetAllNodeGroups:input_type -> api.v1.GetAllNodeGroupsRequest
-	37,  // 256: api.v1.K8SService.GetNodeGroupsUtilization:input_type -> api.v1.GetNodeGroupsUtilizationRequest
-	6,   // 257: api.v1.K8SService.GetNodeGroup:input_type -> api.v1.GetNodeGroupRequest
-	3,   // 258: api.v1.K8SService.GetNode:input_type -> api.v1.GetNodeRequest
-	7,   // 259: api.v1.K8SService.GetWorkloads:input_type -> api.v1.GetWorkloadsRequest
-	8,   // 260: api.v1.K8SService.ListWorkloadsPaginated:input_type -> api.v1.ListWorkloadsPaginatedRequest
-	9,   // 261: api.v1.K8SService.GetWorkloadsSummary:input_type -> api.v1.GetWorkloadsSummaryRequest
-	17,  // 262: api.v1.K8SService.GetWorkload:input_type -> api.v1.GetWorkloadRequest
-	47,  // 263: api.v1.K8SService.GetWorkloadContainerPercentiles:input_type -> api.v1.GetWorkloadContainerPercentilesRequest
-	49,  // 264: api.v1.K8SService.GetWorkloadContainerTimeSeries:input_type -> api.v1.GetWorkloadContainerTimeSeriesRequest
-	51,  // 265: api.v1.K8SService.GetLatestContainerRequestLimits:input_type -> api.v1.GetLatestContainerRequestLimitsRequest
-	53,  // 266: api.v1.K8SService.GetNodeGPUMigInstances:input_type -> api.v1.GetNodeGPUMigInstancesRequest
-	55,  // 267: api.v1.K8SService.GetContainerIndividualGPUMetrics:input_type -> api.v1.GetContainerIndividualGPUMetricsRequest
-	58,  // 268: api.v1.K8SService.GetWorkloadLanguages:input_type -> api.v1.GetWorkloadLanguagesRequest
-	60,  // 269: api.v1.K8SService.GetForecastWorkloads:input_type -> api.v1.GetForecastWorkloadsRequest
-	62,  // 270: api.v1.K8SService.GetForecastWorkload:input_type -> api.v1.GetForecastWorkloadRequest
-	14,  // 271: api.v1.K8SService.GetResources:input_type -> api.v1.GetResourcesRequest
-	26,  // 272: api.v1.K8SService.GetResourceFilterOptions:input_type -> api.v1.GetResourceFilterOptionsRequest
-	15,  // 273: api.v1.K8SService.GetPods:input_type -> api.v1.GetPodsRequest
-	82,  // 274: api.v1.K8SService.GetLatestOperatorVersion:input_type -> api.v1.GetLatestOperatorVersionRequest
-	84,  // 275: api.v1.K8SService.GalaxyGetWorkloadPerspective:input_type -> api.v1.GalaxyGetWorkloadPerspectiveRequest
-	88,  // 276: api.v1.K8SService.ListAuditLogs:input_type -> api.v1.ListAuditLogsRequest
-	90,  // 277: api.v1.K8SService.ListAuditLogOriginators:input_type -> api.v1.ListAuditLogOriginatorsRequest
-	92,  // 278: api.v1.K8SService.SendWorkloadEmail:input_type -> api.v1.SendWorkloadEmailRequest
-	94,  // 279: api.v1.K8SService.SendWeeklySummaryEmail:input_type -> api.v1.SendWeeklySummaryEmailRequest
-	97,  // 280: api.v1.K8SService.GetClustersNodeInfo:input_type -> api.v1.GetClustersNodeInfoRequest
-	99,  // 281: api.v1.K8SService.SearchK8sResources:input_type -> api.v1.SearchK8sResourcesRequest
-	102, // 282: api.v1.K8SService.SearchK8sWorkloads:input_type -> api.v1.SearchK8sWorkloadsRequest
-	126, // 283: api.v1.K8SService.GetClusterType:input_type -> api.v1.GetClusterTypeRequest
-	117, // 284: api.v1.K8SService.GetRelationsForKind:input_type -> api.v1.GetRelatedResourcesRequest
-	138, // 285: api.v1.K8SService.LookupNodeInstance:input_type -> api.v1.LookupNodeInstanceRequest
-	4,   // 286: api.v1.K8SService.GetWorkloadPodHistory:input_type -> api.v1.GetWorkloadPodHistoryRequest
-	107, // 287: api.v1.K8SService.AddClusterTags:input_type -> api.v1.AddClusterTagsRequest
-	109, // 288: api.v1.K8SService.RemoveClusterTags:input_type -> api.v1.RemoveClusterTagsRequest
-	111, // 289: api.v1.K8SService.ListTags:input_type -> api.v1.ListTagsRequest
-	128, // 290: api.v1.K8SService.GetMigPartedConfig:input_type -> api.v1.GetMigPartedConfigRequest
-	28,  // 291: api.v1.ClusterMutationService.CreateCluster:input_type -> api.v1.CreateClusterRequest
-	21,  // 292: api.v1.ClusterMutationService.DeleteCluster:input_type -> api.v1.DeleteClusterRequest
-	23,  // 293: api.v1.ClusterMutationService.UpdateCluster:input_type -> api.v1.UpdateClusterRequest
-	30,  // 294: api.v1.ClusterMutationService.ResetClusterToken:input_type -> api.v1.ResetClusterTokenRequest
-	132, // 295: api.v1.UtilizationService.DailyUtilization:input_type -> api.v1.DailyUtilizationRequest
-	134, // 296: api.v1.UtilizationService.DailyUtilizationInstanceType:input_type -> api.v1.DailyUtilizationInstanceTypeRequest
-	136, // 297: api.v1.UtilizationService.DailyUtilizationNodeType:input_type -> api.v1.DailyUtilizationNodeTypeRequest
-	131, // 298: api.v1.K8SService.GetWorkloadsStats:output_type -> api.v1.GetWorkloadsStatsResponse
-	42,  // 299: api.v1.K8SService.GetClusters:output_type -> api.v1.GetClustersResponse
-	43,  // 300: api.v1.K8SService.ListClusters:output_type -> api.v1.ListClustersResponse
-	41,  // 301: api.v1.K8SService.GetCluster:output_type -> api.v1.GetClusterResponse
-	64,  // 302: api.v1.K8SService.GetClusterMetadata:output_type -> api.v1.GetClusterMetadataResponse
-	67,  // 303: api.v1.K8SService.GetAllNamespaces:output_type -> api.v1.GetAllNamespacesResponse
-	69,  // 304: api.v1.K8SService.SearchNamespacesByCluster:output_type -> api.v1.SearchNamespacesByClusterResponse
-	71,  // 305: api.v1.K8SService.ListNamespacesByCluster:output_type -> api.v1.ListNamespacesByClusterResponse
-	74,  // 306: api.v1.K8SService.GetAllWorkloadNames:output_type -> api.v1.GetAllWorkloadNamesResponse
-	76,  // 307: api.v1.K8SService.GetAllWorkloadLabels:output_type -> api.v1.GetAllWorkloadLabelsResponse
-	78,  // 308: api.v1.K8SService.GetAllNodeGroupNames:output_type -> api.v1.GetAllNodeGroupNamesResponse
-	106, // 309: api.v1.K8SService.MetadataForWorkloads:output_type -> api.v1.MetadataForWorkloadsResponse
-	34,  // 310: api.v1.K8SService.GetNodeGroups:output_type -> api.v1.GetNodeGroupsResponse
-	35,  // 311: api.v1.K8SService.GetAllNodeGroups:output_type -> api.v1.GetAllNodeGroupsResponse
-	38,  // 312: api.v1.K8SService.GetNodeGroupsUtilization:output_type -> api.v1.GetNodeGroupsUtilizationResponse
-	40,  // 313: api.v1.K8SService.GetNodeGroup:output_type -> api.v1.GetNodeGroupResponse
-	44,  // 314: api.v1.K8SService.GetNode:output_type -> api.v1.GetNodeResponse
-	45,  // 315: api.v1.K8SService.GetWorkloads:output_type -> api.v1.GetWorkloadsResponse
-	13,  // 316: api.v1.K8SService.ListWorkloadsPaginated:output_type -> api.v1.ListWorkloadsPaginatedResponse
-	12,  // 317: api.v1.K8SService.GetWorkloadsSummary:output_type -> api.v1.GetWorkloadsSummaryResponse
-	46,  // 318: api.v1.K8SService.GetWorkload:output_type -> api.v1.GetWorkloadResponse
-	48,  // 319: api.v1.K8SService.GetWorkloadContainerPercentiles:output_type -> api.v1.GetWorkloadContainerPercentilesResponse
-	50,  // 320: api.v1.K8SService.GetWorkloadContainerTimeSeries:output_type -> api.v1.GetWorkloadContainerTimeSeriesResponse
-	52,  // 321: api.v1.K8SService.GetLatestContainerRequestLimits:output_type -> api.v1.GetLatestContainerRequestLimitsResponse
-	54,  // 322: api.v1.K8SService.GetNodeGPUMigInstances:output_type -> api.v1.GetNodeGPUMigInstancesResponse
-	56,  // 323: api.v1.K8SService.GetContainerIndividualGPUMetrics:output_type -> api.v1.GetContainerIndividualGPUMetricsResponse
-	59,  // 324: api.v1.K8SService.GetWorkloadLanguages:output_type -> api.v1.GetWorkloadLanguagesResponse
-	61,  // 325: api.v1.K8SService.GetForecastWorkloads:output_type -> api.v1.GetForecastWorkloadsResponse
-	63,  // 326: api.v1.K8SService.GetForecastWorkload:output_type -> api.v1.GetForecastWorkloadResponse
-	25,  // 327: api.v1.K8SService.GetResources:output_type -> api.v1.GetResourcesResponse
-	27,  // 328: api.v1.K8SService.GetResourceFilterOptions:output_type -> api.v1.GetResourceFilterOptionsResponse
-	16,  // 329: api.v1.K8SService.GetPods:output_type -> api.v1.GetPodsResponse
-	83,  // 330: api.v1.K8SService.GetLatestOperatorVersion:output_type -> api.v1.GetLatestOperatorVersionResponse
-	85,  // 331: api.v1.K8SService.GalaxyGetWorkloadPerspective:output_type -> api.v1.GalaxyGetWorkloadPerspectiveResponse
-	89,  // 332: api.v1.K8SService.ListAuditLogs:output_type -> api.v1.ListAuditLogsResponse
-	91,  // 333: api.v1.K8SService.ListAuditLogOriginators:output_type -> api.v1.ListAuditLogOriginatorsResponse
-	93,  // 334: api.v1.K8SService.SendWorkloadEmail:output_type -> api.v1.SendWorkloadEmailResponse
-	96,  // 335: api.v1.K8SService.SendWeeklySummaryEmail:output_type -> api.v1.SendWeeklySummaryEmailResponse
-	98,  // 336: api.v1.K8SService.GetClustersNodeInfo:output_type -> api.v1.GetClustersNodeInfoResponse
-	100, // 337: api.v1.K8SService.SearchK8sResources:output_type -> api.v1.SearchK8sResourcesResponse
-	103, // 338: api.v1.K8SService.SearchK8sWorkloads:output_type -> api.v1.SearchK8sWorkloadsResponse
-	127, // 339: api.v1.K8SService.GetClusterType:output_type -> api.v1.GetClusterTypeResponse
-	122, // 340: api.v1.K8SService.GetRelationsForKind:output_type -> api.v1.GetRelatedResourcesResponse
-	140, // 341: api.v1.K8SService.LookupNodeInstance:output_type -> api.v1.LookupNodeInstanceResponse
-	118, // 342: api.v1.K8SService.GetWorkloadPodHistory:output_type -> api.v1.GetWorkloadPodHistoryResponse
-	108, // 343: api.v1.K8SService.AddClusterTags:output_type -> api.v1.AddClusterTagsResponse
-	110, // 344: api.v1.K8SService.RemoveClusterTags:output_type -> api.v1.RemoveClusterTagsResponse
-	113, // 345: api.v1.K8SService.ListTags:output_type -> api.v1.ListTagsResponse
-	129, // 346: api.v1.K8SService.GetMigPartedConfig:output_type -> api.v1.GetMigPartedConfigResponse
-	29,  // 347: api.v1.ClusterMutationService.CreateCluster:output_type -> api.v1.CreateClusterResponse
-	22,  // 348: api.v1.ClusterMutationService.DeleteCluster:output_type -> api.v1.DeleteClusterResponse
-	24,  // 349: api.v1.ClusterMutationService.UpdateCluster:output_type -> api.v1.UpdateClusterResponse
-	31,  // 350: api.v1.ClusterMutationService.ResetClusterToken:output_type -> api.v1.ResetClusterTokenResponse
-	133, // 351: api.v1.UtilizationService.DailyUtilization:output_type -> api.v1.DailyUtilizationResponse
-	135, // 352: api.v1.UtilizationService.DailyUtilizationInstanceType:output_type -> api.v1.DailyUtilizationInstanceTypeResponse
-	137, // 353: api.v1.UtilizationService.DailyUtilizationNodeType:output_type -> api.v1.DailyUtilizationNodeTypeResponse
-	298, // [298:354] is the sub-list for method output_type
-	242, // [242:298] is the sub-list for method input_type
-	242, // [242:242] is the sub-list for extension type_name
-	242, // [242:242] is the sub-list for extension extendee
-	0,   // [0:242] is the sub-list for field type_name
+	186, // 0: api.v1.GetNodeRequest.start_time:type_name -> google.protobuf.Timestamp
+	186, // 1: api.v1.GetNodeRequest.end_time:type_name -> google.protobuf.Timestamp
+	186, // 2: api.v1.GetWorkloadPodHistoryRequest.start_time:type_name -> google.protobuf.Timestamp
+	186, // 3: api.v1.GetWorkloadPodHistoryRequest.end_time:type_name -> google.protobuf.Timestamp
+	186, // 4: api.v1.GetNodeGroupRequest.start_time:type_name -> google.protobuf.Timestamp
+	186, // 5: api.v1.GetNodeGroupRequest.end_time:type_name -> google.protobuf.Timestamp
+	186, // 6: api.v1.GetWorkloadsRequest.start_time:type_name -> google.protobuf.Timestamp
+	186, // 7: api.v1.GetWorkloadsRequest.end_time:type_name -> google.protobuf.Timestamp
+	187, // 8: api.v1.GetWorkloadsRequest.filters:type_name -> api.v1.WorkloadFilters
+	186, // 9: api.v1.ListWorkloadsPaginatedRequest.start_time:type_name -> google.protobuf.Timestamp
+	186, // 10: api.v1.ListWorkloadsPaginatedRequest.end_time:type_name -> google.protobuf.Timestamp
+	187, // 11: api.v1.ListWorkloadsPaginatedRequest.filters:type_name -> api.v1.WorkloadFilters
+	186, // 12: api.v1.GetWorkloadsSummaryRequest.start_time:type_name -> google.protobuf.Timestamp
+	186, // 13: api.v1.GetWorkloadsSummaryRequest.end_time:type_name -> google.protobuf.Timestamp
+	187, // 14: api.v1.GetWorkloadsSummaryRequest.filters:type_name -> api.v1.WorkloadFilters
+	12,  // 15: api.v1.WorkloadMetricBreakdown.top_entries:type_name -> api.v1.WorkloadMetricEntry
+	13,  // 16: api.v1.GetWorkloadsSummaryResponse.cost:type_name -> api.v1.WorkloadMetricBreakdown
+	13,  // 17: api.v1.GetWorkloadsSummaryResponse.cpu_usage:type_name -> api.v1.WorkloadMetricBreakdown
+	13,  // 18: api.v1.GetWorkloadsSummaryResponse.memory_usage:type_name -> api.v1.WorkloadMetricBreakdown
+	13,  // 19: api.v1.GetWorkloadsSummaryResponse.gpu_usage:type_name -> api.v1.WorkloadMetricBreakdown
+	13,  // 20: api.v1.GetWorkloadsSummaryResponse.optimization_potential_cost:type_name -> api.v1.WorkloadMetricBreakdown
+	13,  // 21: api.v1.GetWorkloadsSummaryResponse.optimization_potential_cpu:type_name -> api.v1.WorkloadMetricBreakdown
+	13,  // 22: api.v1.GetWorkloadsSummaryResponse.optimization_potential_memory:type_name -> api.v1.WorkloadMetricBreakdown
+	13,  // 23: api.v1.GetWorkloadsSummaryResponse.optimization_potential_gpu:type_name -> api.v1.WorkloadMetricBreakdown
+	188, // 24: api.v1.ListWorkloadsPaginatedResponse.workload_items:type_name -> api.v1.WorkloadItem
+	189, // 25: api.v1.GetResourcesRequest.kind:type_name -> api.v1.K8sObjectKind
+	190, // 26: api.v1.GetResourcesRequest.pagination:type_name -> api.v1.Pagination
+	191, // 27: api.v1.GetResourcesRequest.filters:type_name -> api.v1.ResourceFieldFilter
+	190, // 28: api.v1.GetPodsRequest.pagination:type_name -> api.v1.Pagination
+	186, // 29: api.v1.GetPodsRequest.start_time:type_name -> google.protobuf.Timestamp
+	186, // 30: api.v1.GetPodsRequest.end_time:type_name -> google.protobuf.Timestamp
+	188, // 31: api.v1.GetPodsResponse.workload_items:type_name -> api.v1.WorkloadItem
+	190, // 32: api.v1.GetPodsResponse.pagination:type_name -> api.v1.Pagination
+	186, // 33: api.v1.GetWorkloadRequest.start_time:type_name -> google.protobuf.Timestamp
+	186, // 34: api.v1.GetWorkloadRequest.end_time:type_name -> google.protobuf.Timestamp
+	186, // 35: api.v1.GetClustersRequest.start_time:type_name -> google.protobuf.Timestamp
+	186, // 36: api.v1.GetClustersRequest.end_time:type_name -> google.protobuf.Timestamp
+	190, // 37: api.v1.ListClustersRequest.pagination:type_name -> api.v1.Pagination
+	186, // 38: api.v1.GetClusterRequest.start_time:type_name -> google.protobuf.Timestamp
+	186, // 39: api.v1.GetClusterRequest.end_time:type_name -> google.protobuf.Timestamp
+	96,  // 40: api.v1.UpdateClusterResponse.cluster:type_name -> api.v1.Cluster
+	188, // 41: api.v1.GetResourcesResponse.workload_items:type_name -> api.v1.WorkloadItem
+	190, // 42: api.v1.GetResourcesResponse.pagination:type_name -> api.v1.Pagination
+	189, // 43: api.v1.GetResourceFilterOptionsRequest.kind:type_name -> api.v1.K8sObjectKind
+	192, // 44: api.v1.GetResourceFilterOptionsResponse.options:type_name -> api.v1.ResourceFilterFieldOptions
+	96,  // 45: api.v1.CreateClusterResponse.cluster:type_name -> api.v1.Cluster
+	186, // 46: api.v1.GetNodeGroupsRequest.start_time:type_name -> google.protobuf.Timestamp
+	186, // 47: api.v1.GetNodeGroupsRequest.end_time:type_name -> google.protobuf.Timestamp
+	193, // 48: api.v1.GetNodeGroupsResponse.node_groups:type_name -> api.v1.NodeGroup
+	158, // 49: api.v1.GetAllNodeGroupsResponse.node_group_map:type_name -> api.v1.GetAllNodeGroupsResponse.NodeGroupMapEntry
+	193, // 50: api.v1.NodeGroupSet.node_groups:type_name -> api.v1.NodeGroup
+	186, // 51: api.v1.GetClusterNodeFilterIndexRequest.start_time:type_name -> google.protobuf.Timestamp
+	186, // 52: api.v1.GetClusterNodeFilterIndexRequest.end_time:type_name -> google.protobuf.Timestamp
+	159, // 53: api.v1.NodeLabelSet.labels:type_name -> api.v1.NodeLabelSet.LabelsEntry
+	160, // 54: api.v1.NodePoolFields.fields:type_name -> api.v1.NodePoolFields.FieldsEntry
+	40,  // 55: api.v1.GetClusterNodeFilterIndexResponse.label_sets:type_name -> api.v1.NodeLabelSet
+	41,  // 56: api.v1.GetClusterNodeFilterIndexResponse.nodes:type_name -> api.v1.NodeLabelRef
+	42,  // 57: api.v1.GetClusterNodeFilterIndexResponse.node_pools:type_name -> api.v1.NodePoolFields
+	186, // 58: api.v1.GetNodeGroupsUtilizationRequest.start_time:type_name -> google.protobuf.Timestamp
+	186, // 59: api.v1.GetNodeGroupsUtilizationRequest.end_time:type_name -> google.protobuf.Timestamp
+	162, // 60: api.v1.GetNodeGroupsUtilizationResponse.node_group_to_util_metrics:type_name -> api.v1.GetNodeGroupsUtilizationResponse.NodeGroupToUtilMetricsEntry
+	163, // 61: api.v1.GetNodeGroupsUtilizationResponse.instance_type_to_util_metrics:type_name -> api.v1.GetNodeGroupsUtilizationResponse.InstanceTypeToUtilMetricsEntry
+	164, // 62: api.v1.GetNodeGroupsUtilizationResponse.reservation_type_to_util_metrics:type_name -> api.v1.GetNodeGroupsUtilizationResponse.ReservationTypeToUtilMetricsEntry
+	165, // 63: api.v1.GetNodeGroupsUtilizationResponse.logical_az_to_util_metrics:type_name -> api.v1.GetNodeGroupsUtilizationResponse.LogicalAzToUtilMetricsEntry
+	194, // 64: api.v1.NodeGroupMetric.hourly_cost:type_name -> google.type.Money
+	194, // 65: api.v1.NodeGroupMetric.hourly_cpu_cost:type_name -> google.type.Money
+	194, // 66: api.v1.NodeGroupMetric.hourly_memory_cost:type_name -> google.type.Money
+	194, // 67: api.v1.NodeGroupMetric.hourly_gpu_cost:type_name -> google.type.Money
+	186, // 68: api.v1.NodeGroupMetric.bucket_time:type_name -> google.protobuf.Timestamp
+	193, // 69: api.v1.GetNodeGroupResponse.node_group:type_name -> api.v1.NodeGroup
+	96,  // 70: api.v1.GetClusterResponse.cluster:type_name -> api.v1.Cluster
+	96,  // 71: api.v1.GetClustersResponse.clusters:type_name -> api.v1.Cluster
+	195, // 72: api.v1.GetClustersResponse.resource_metrics:type_name -> api.v1.ResourceMetrics
+	196, // 73: api.v1.GetClustersResponse.cost_info:type_name -> api.v1.CostInfo
+	197, // 74: api.v1.GetClustersResponse.node_info:type_name -> api.v1.NodeInfo
+	198, // 75: api.v1.GetClustersResponse.cost_data_points:type_name -> api.v1.CostDataPoint
+	199, // 76: api.v1.GetClustersResponse.resource_data_points:type_name -> api.v1.ResourceDataPoint
+	96,  // 77: api.v1.ListClustersResponse.clusters:type_name -> api.v1.Cluster
+	190, // 78: api.v1.ListClustersResponse.pagination:type_name -> api.v1.Pagination
+	200, // 79: api.v1.GetNodeResponse.node:type_name -> api.v1.Node
+	195, // 80: api.v1.GetNodeResponse.resource_metrics:type_name -> api.v1.ResourceMetrics
+	196, // 81: api.v1.GetNodeResponse.cost_info:type_name -> api.v1.CostInfo
+	198, // 82: api.v1.GetNodeResponse.cost_data_points:type_name -> api.v1.CostDataPoint
+	199, // 83: api.v1.GetNodeResponse.resource_data_points:type_name -> api.v1.ResourceDataPoint
+	52,  // 84: api.v1.GetNodeResponse.node_claim:type_name -> api.v1.NodeClaimRef
+	0,   // 85: api.v1.NodeClaimRef.not_deletable_reason:type_name -> api.v1.NodeClaimNotDeletableReason
+	57,  // 86: api.v1.NodeClaimRef.latest_status:type_name -> api.v1.NodeClaimDeletionStatus
+	57,  // 87: api.v1.RequestNodeClaimDeletionResponse.status:type_name -> api.v1.NodeClaimDeletionStatus
+	57,  // 88: api.v1.GetNodeClaimDeletionStatusResponse.status:type_name -> api.v1.NodeClaimDeletionStatus
+	1,   // 89: api.v1.NodeClaimDeletionStatus.state:type_name -> api.v1.NodeClaimDeletionState
+	186, // 90: api.v1.NodeClaimDeletionStatus.requested_at:type_name -> google.protobuf.Timestamp
+	186, // 91: api.v1.NodeClaimDeletionStatus.first_sent_at:type_name -> google.protobuf.Timestamp
+	186, // 92: api.v1.NodeClaimDeletionStatus.accepted_at:type_name -> google.protobuf.Timestamp
+	186, // 93: api.v1.NodeClaimDeletionStatus.resolved_at:type_name -> google.protobuf.Timestamp
+	188, // 94: api.v1.GetWorkloadsResponse.workload_items:type_name -> api.v1.WorkloadItem
+	196, // 95: api.v1.GetWorkloadsResponse.cost_info:type_name -> api.v1.CostInfo
+	195, // 96: api.v1.GetWorkloadsResponse.resource_metrics:type_name -> api.v1.ResourceMetrics
+	201, // 97: api.v1.GetWorkloadsResponse.resource_summary:type_name -> api.v1.ResourceSummary
+	188, // 98: api.v1.GetWorkloadResponse.workload_item:type_name -> api.v1.WorkloadItem
+	196, // 99: api.v1.GetWorkloadResponse.cost_info:type_name -> api.v1.CostInfo
+	195, // 100: api.v1.GetWorkloadResponse.resource_metrics:type_name -> api.v1.ResourceMetrics
+	201, // 101: api.v1.GetWorkloadResponse.resource_summary:type_name -> api.v1.ResourceSummary
+	198, // 102: api.v1.GetWorkloadResponse.cost_data_points:type_name -> api.v1.CostDataPoint
+	199, // 103: api.v1.GetWorkloadResponse.resource_data_points:type_name -> api.v1.ResourceDataPoint
+	186, // 104: api.v1.GetWorkloadContainerPercentilesRequest.start_time:type_name -> google.protobuf.Timestamp
+	186, // 105: api.v1.GetWorkloadContainerPercentilesRequest.end_time:type_name -> google.protobuf.Timestamp
+	202, // 106: api.v1.GetWorkloadContainerPercentilesResponse.containers:type_name -> api.v1.ContainerPercentileSummary
+	186, // 107: api.v1.GetWorkloadContainerTimeSeriesRequest.start_time:type_name -> google.protobuf.Timestamp
+	186, // 108: api.v1.GetWorkloadContainerTimeSeriesRequest.end_time:type_name -> google.protobuf.Timestamp
+	203, // 109: api.v1.GetWorkloadContainerTimeSeriesResponse.containers:type_name -> api.v1.ContainerTimeSeries
+	204, // 110: api.v1.GetLatestContainerRequestLimitsResponse.containers:type_name -> api.v1.ContainerRequestLimits
+	205, // 111: api.v1.GetNodeGPUMigInstancesResponse.instances:type_name -> api.v1.GPUMigInstance
+	186, // 112: api.v1.GetNodeGPUMigInstancesResponse.collected_at:type_name -> google.protobuf.Timestamp
+	186, // 113: api.v1.GetNodeGPUMigInstanceTimeseriesRequest.start_time:type_name -> google.protobuf.Timestamp
+	186, // 114: api.v1.GetNodeGPUMigInstanceTimeseriesRequest.end_time:type_name -> google.protobuf.Timestamp
+	186, // 115: api.v1.GPUMigInstanceDataPoint.timestamp:type_name -> google.protobuf.Timestamp
+	69,  // 116: api.v1.GPUMigInstanceTimeseries.points:type_name -> api.v1.GPUMigInstanceDataPoint
+	70,  // 117: api.v1.GetNodeGPUMigInstanceTimeseriesResponse.instances:type_name -> api.v1.GPUMigInstanceTimeseries
+	206, // 118: api.v1.GetContainerIndividualGPUMetricsResponse.containers:type_name -> api.v1.ContainerIndividualGPUMetrics
+	74,  // 119: api.v1.GetWorkloadLanguagesResponse.languages:type_name -> api.v1.LanguageVersions
+	186, // 120: api.v1.GetForecastWorkloadsRequest.start_time:type_name -> google.protobuf.Timestamp
+	186, // 121: api.v1.GetForecastWorkloadsRequest.end_time:type_name -> google.protobuf.Timestamp
+	188, // 122: api.v1.GetForecastWorkloadsResponse.workload_items:type_name -> api.v1.WorkloadItem
+	196, // 123: api.v1.GetForecastWorkloadsResponse.cost_info:type_name -> api.v1.CostInfo
+	207, // 124: api.v1.GetForecastWorkloadsResponse.resource_metrics:type_name -> api.v1.ForecastResourceMetrics
+	201, // 125: api.v1.GetForecastWorkloadsResponse.resource_summary:type_name -> api.v1.ResourceSummary
+	186, // 126: api.v1.GetForecastWorkloadRequest.start_time:type_name -> google.protobuf.Timestamp
+	186, // 127: api.v1.GetForecastWorkloadRequest.end_time:type_name -> google.protobuf.Timestamp
+	188, // 128: api.v1.GetForecastWorkloadResponse.workload_item:type_name -> api.v1.WorkloadItem
+	196, // 129: api.v1.GetForecastWorkloadResponse.cost_info:type_name -> api.v1.CostInfo
+	207, // 130: api.v1.GetForecastWorkloadResponse.resource_metrics:type_name -> api.v1.ForecastResourceMetrics
+	201, // 131: api.v1.GetForecastWorkloadResponse.resource_summary:type_name -> api.v1.ResourceSummary
+	198, // 132: api.v1.GetForecastWorkloadResponse.cost_data_points:type_name -> api.v1.CostDataPoint
+	199, // 133: api.v1.GetForecastWorkloadResponse.resource_data_points:type_name -> api.v1.ResourceDataPoint
+	96,  // 134: api.v1.GetClusterMetadataResponse.clusters:type_name -> api.v1.Cluster
+	82,  // 135: api.v1.GetAllNamespacesResponse.cluster_id_with_namespaces:type_name -> api.v1.ClusterElement
+	89,  // 136: api.v1.ListNamespacesByClusterResponse.namespaces:type_name -> api.v1.NamespaceItem
+	189, // 137: api.v1.GetAllWorkloadNamesRequest.kinds:type_name -> api.v1.K8sObjectKind
+	82,  // 138: api.v1.GetAllWorkloadNamesResponse.cluster_id_with_workload_name:type_name -> api.v1.ClusterElement
+	189, // 139: api.v1.GetAllWorkloadLabelsRequest.kinds:type_name -> api.v1.K8sObjectKind
+	82,  // 140: api.v1.GetAllWorkloadLabelsResponse.cluster_id_with_labels:type_name -> api.v1.ClusterElement
+	82,  // 141: api.v1.GetAllNodeGroupNamesResponse.cluster_id_with_node_group_names:type_name -> api.v1.ClusterElement
+	195, // 142: api.v1.Cluster.resource_metrics:type_name -> api.v1.ResourceMetrics
+	196, // 143: api.v1.Cluster.cost_info:type_name -> api.v1.CostInfo
+	197, // 144: api.v1.Cluster.node_info:type_name -> api.v1.NodeInfo
+	198, // 145: api.v1.Cluster.cost_data_points:type_name -> api.v1.CostDataPoint
+	199, // 146: api.v1.Cluster.resource_data_points:type_name -> api.v1.ResourceDataPoint
+	200, // 147: api.v1.Cluster.most_expensive_node:type_name -> api.v1.Node
+	200, // 148: api.v1.Cluster.least_expensive_node:type_name -> api.v1.Node
+	200, // 149: api.v1.Cluster.most_underutilized_node:type_name -> api.v1.Node
+	98,  // 150: api.v1.Cluster.most_underutilized_container:type_name -> api.v1.Container
+	97,  // 151: api.v1.Cluster.zxp_info:type_name -> api.v1.OperatorInfo
+	97,  // 152: api.v1.Cluster.zxp_helm_info:type_name -> api.v1.OperatorInfo
+	97,  // 153: api.v1.Cluster.dakr_op_info:type_name -> api.v1.OperatorInfo
+	97,  // 154: api.v1.Cluster.node_op_info:type_name -> api.v1.OperatorInfo
+	97,  // 155: api.v1.Cluster.security_op_info:type_name -> api.v1.OperatorInfo
+	97,  // 156: api.v1.Cluster.network_op_info:type_name -> api.v1.OperatorInfo
+	195, // 157: api.v1.Container.resource_metrics:type_name -> api.v1.ResourceMetrics
+	97,  // 158: api.v1.GetLatestOperatorVersionResponse.zxp_info:type_name -> api.v1.OperatorInfo
+	97,  // 159: api.v1.GetLatestOperatorVersionResponse.zxp_helm_info:type_name -> api.v1.OperatorInfo
+	97,  // 160: api.v1.GetLatestOperatorVersionResponse.zxp_netmon_info:type_name -> api.v1.OperatorInfo
+	97,  // 161: api.v1.GetLatestOperatorVersionResponse.zxp_netmon_helm_info:type_name -> api.v1.OperatorInfo
+	97,  // 162: api.v1.GetLatestOperatorVersionResponse.dakr_op_info:type_name -> api.v1.OperatorInfo
+	97,  // 163: api.v1.GetLatestOperatorVersionResponse.dakr_op_helm_info:type_name -> api.v1.OperatorInfo
+	97,  // 164: api.v1.GetLatestOperatorVersionResponse.node_op_info_aws:type_name -> api.v1.OperatorInfo
+	97,  // 165: api.v1.GetLatestOperatorVersionResponse.node_op_info_azure:type_name -> api.v1.OperatorInfo
+	97,  // 166: api.v1.GetLatestOperatorVersionResponse.node_op_info_gcp:type_name -> api.v1.OperatorInfo
+	97,  // 167: api.v1.GetLatestOperatorVersionResponse.node_op_info_oci:type_name -> api.v1.OperatorInfo
+	97,  // 168: api.v1.GetLatestOperatorVersionResponse.security_op_info:type_name -> api.v1.OperatorInfo
+	97,  // 169: api.v1.GetLatestOperatorVersionResponse.security_op_helm_info:type_name -> api.v1.OperatorInfo
+	97,  // 170: api.v1.GetLatestOperatorVersionResponse.trezr_info:type_name -> api.v1.OperatorInfo
+	97,  // 171: api.v1.GetLatestOperatorVersionResponse.trezr_helm_info:type_name -> api.v1.OperatorInfo
+	97,  // 172: api.v1.GetLatestOperatorVersionResponse.snapshot_helm_info:type_name -> api.v1.OperatorInfo
+	3,   // 173: api.v1.GalaxyGetWorkloadPerspectiveRequest.group_by:type_name -> api.v1.GalaxyPOVWorkloadGroupBy
+	104, // 174: api.v1.GalaxyGetWorkloadPerspectiveRequest.datapoint_opts:type_name -> api.v1.PerspectiveDatapointOpts
+	103, // 175: api.v1.GalaxyGetWorkloadPerspectiveResponse.groupings:type_name -> api.v1.GalaxyWorkloadGroup
+	166, // 176: api.v1.GalaxyGetWorkloadPerspectiveResponse.clusters:type_name -> api.v1.GalaxyGetWorkloadPerspectiveResponse.ClustersEntry
+	167, // 177: api.v1.GalaxyGetWorkloadPerspectiveResponse.workloads:type_name -> api.v1.GalaxyGetWorkloadPerspectiveResponse.WorkloadsEntry
+	196, // 178: api.v1.GalaxyWorkloadGroup.cost_info:type_name -> api.v1.CostInfo
+	195, // 179: api.v1.GalaxyWorkloadGroup.resource_metrics:type_name -> api.v1.ResourceMetrics
+	201, // 180: api.v1.GalaxyWorkloadGroup.resource_summary:type_name -> api.v1.ResourceSummary
+	189, // 181: api.v1.ListAuditLogsRequest.workload_type:type_name -> api.v1.K8sObjectKind
+	186, // 182: api.v1.ListAuditLogsRequest.start_time:type_name -> google.protobuf.Timestamp
+	186, // 183: api.v1.ListAuditLogsRequest.end_time:type_name -> google.protobuf.Timestamp
+	190, // 184: api.v1.ListAuditLogsRequest.pagination:type_name -> api.v1.Pagination
+	208, // 185: api.v1.ListAuditLogsResponse.logs:type_name -> api.v1.AuditLogEntry
+	190, // 186: api.v1.ListAuditLogsResponse.pagination:type_name -> api.v1.Pagination
+	189, // 187: api.v1.ListAuditLogOriginatorsRequest.workload_type:type_name -> api.v1.K8sObjectKind
+	186, // 188: api.v1.ListAuditLogOriginatorsRequest.start_time:type_name -> google.protobuf.Timestamp
+	186, // 189: api.v1.ListAuditLogOriginatorsRequest.end_time:type_name -> google.protobuf.Timestamp
+	112, // 190: api.v1.SendWeeklySummaryEmailRequest.request:type_name -> api.v1.SendWeeklySummaryEmailRequestData
+	186, // 191: api.v1.GetClustersNodeInfoRequest.start_time:type_name -> google.protobuf.Timestamp
+	186, // 192: api.v1.GetClustersNodeInfoRequest.end_time:type_name -> google.protobuf.Timestamp
+	197, // 193: api.v1.GetClustersNodeInfoResponse.node_info:type_name -> api.v1.NodeInfo
+	200, // 194: api.v1.GetClustersNodeInfoResponse.most_expensive_node:type_name -> api.v1.Node
+	200, // 195: api.v1.GetClustersNodeInfoResponse.least_expensive_node:type_name -> api.v1.Node
+	200, // 196: api.v1.GetClustersNodeInfoResponse.most_underutilized_node:type_name -> api.v1.Node
+	118, // 197: api.v1.SearchK8sResourcesResponse.results:type_name -> api.v1.K8sSearchResult
+	121, // 198: api.v1.SearchK8sWorkloadsResponse.results:type_name -> api.v1.K8sWorkloadSearchResult
+	168, // 199: api.v1.MetadataForWorkloadsRequest.workload_uid_to_kind:type_name -> api.v1.MetadataForWorkloadsRequest.WorkloadUidToKindEntry
+	169, // 200: api.v1.MetadataForWorkloadsResponse.workload_uid_to_metadata:type_name -> api.v1.MetadataForWorkloadsResponse.WorkloadUidToMetadataEntry
+	96,  // 201: api.v1.AddClusterTagsResponse.cluster:type_name -> api.v1.Cluster
+	96,  // 202: api.v1.RemoveClusterTagsResponse.cluster:type_name -> api.v1.Cluster
+	129, // 203: api.v1.ListTagsResponse.tags:type_name -> api.v1.TagSummary
+	170, // 204: api.v1.WorkloadMetadata.pod_uid_to_node_metadata:type_name -> api.v1.WorkloadMetadata.PodUidToNodeMetadataEntry
+	171, // 205: api.v1.WorkloadMetadata.pod_uid_to_pod_metadata:type_name -> api.v1.WorkloadMetadata.PodUidToPodMetadataEntry
+	189, // 206: api.v1.WorkloadMetadata.kind:type_name -> api.v1.K8sObjectKind
+	189, // 207: api.v1.GetRelatedResourcesRequest.kind:type_name -> api.v1.K8sObjectKind
+	137, // 208: api.v1.GetWorkloadPodHistoryResponse.replica_sets:type_name -> api.v1.ReplicaSetHistory
+	138, // 209: api.v1.GetWorkloadPodHistoryResponse.direct_pods:type_name -> api.v1.PodHistory
+	136, // 210: api.v1.GetWorkloadPodHistoryResponse.jobs:type_name -> api.v1.JobHistory
+	186, // 211: api.v1.JobHistory.created_at:type_name -> google.protobuf.Timestamp
+	186, // 212: api.v1.JobHistory.deleted_at:type_name -> google.protobuf.Timestamp
+	138, // 213: api.v1.JobHistory.pods:type_name -> api.v1.PodHistory
+	186, // 214: api.v1.ReplicaSetHistory.created_at:type_name -> google.protobuf.Timestamp
+	186, // 215: api.v1.ReplicaSetHistory.deleted_at:type_name -> google.protobuf.Timestamp
+	138, // 216: api.v1.ReplicaSetHistory.pods:type_name -> api.v1.PodHistory
+	186, // 217: api.v1.PodHistory.created_at:type_name -> google.protobuf.Timestamp
+	186, // 218: api.v1.PodHistory.deleted_at:type_name -> google.protobuf.Timestamp
+	140, // 219: api.v1.GetRelatedResourcesResponse.relations:type_name -> api.v1.K8sRelatedResource
+	141, // 220: api.v1.GetRelatedResourcesResponse.nodes:type_name -> api.v1.K8sResourceNode
+	142, // 221: api.v1.GetRelatedResourcesResponse.edges:type_name -> api.v1.K8sResourceEdge
+	4,   // 222: api.v1.GetClusterTypeResponse.cluster_type:type_name -> api.v1.ClusterType
+	186, // 223: api.v1.GetMigPartedConfigResponse.last_seen:type_name -> google.protobuf.Timestamp
+	186, // 224: api.v1.GetWorkloadsStatsRequest.start_time:type_name -> google.protobuf.Timestamp
+	186, // 225: api.v1.GetWorkloadsStatsRequest.end_time:type_name -> google.protobuf.Timestamp
+	186, // 226: api.v1.DailyUtilizationRequest.start_time:type_name -> google.protobuf.Timestamp
+	186, // 227: api.v1.DailyUtilizationRequest.end_time:type_name -> google.protobuf.Timestamp
+	174, // 228: api.v1.DailyUtilizationResponse.cluster_id_to_daily_total_core_minutes:type_name -> api.v1.DailyUtilizationResponse.ClusterIdToDailyTotalCoreMinutesEntry
+	175, // 229: api.v1.DailyUtilizationResponse.cluster_id_to_meta:type_name -> api.v1.DailyUtilizationResponse.ClusterIdToMetaEntry
+	186, // 230: api.v1.DailyUtilizationInstanceTypeRequest.start_time:type_name -> google.protobuf.Timestamp
+	186, // 231: api.v1.DailyUtilizationInstanceTypeRequest.end_time:type_name -> google.protobuf.Timestamp
+	178, // 232: api.v1.DailyUtilizationInstanceTypeResponse.cluster_id_to_datapoints:type_name -> api.v1.DailyUtilizationInstanceTypeResponse.ClusterIdToDatapointsEntry
+	179, // 233: api.v1.DailyUtilizationInstanceTypeResponse.cluster_id_to_meta:type_name -> api.v1.DailyUtilizationInstanceTypeResponse.ClusterIdToMetaEntry
+	186, // 234: api.v1.DailyUtilizationNodeTypeRequest.start_time:type_name -> google.protobuf.Timestamp
+	186, // 235: api.v1.DailyUtilizationNodeTypeRequest.end_time:type_name -> google.protobuf.Timestamp
+	183, // 236: api.v1.DailyUtilizationNodeTypeResponse.cluster_id_to_datapoints:type_name -> api.v1.DailyUtilizationNodeTypeResponse.ClusterIdToDatapointsEntry
+	184, // 237: api.v1.DailyUtilizationNodeTypeResponse.cluster_id_to_meta:type_name -> api.v1.DailyUtilizationNodeTypeResponse.ClusterIdToMetaEntry
+	209, // 238: api.v1.LookupNodeInstanceResponse.dynamic_instance:type_name -> api.v1.Instance
+	209, // 239: api.v1.LookupNodeInstanceResponse.cached_instance:type_name -> api.v1.Instance
+	156, // 240: api.v1.LookupNodeInstanceResponse.lookup_params:type_name -> api.v1.InstanceLookupParams
+	193, // 241: api.v1.GetAllNodeGroupsResponse.NodeGroupMapEntry.value:type_name -> api.v1.NodeGroup
+	46,  // 242: api.v1.GetNodeGroupsUtilizationResponse.ListNodeGroupMetrics.node_group_metrics:type_name -> api.v1.NodeGroupMetric
+	161, // 243: api.v1.GetNodeGroupsUtilizationResponse.NodeGroupToUtilMetricsEntry.value:type_name -> api.v1.GetNodeGroupsUtilizationResponse.ListNodeGroupMetrics
+	161, // 244: api.v1.GetNodeGroupsUtilizationResponse.InstanceTypeToUtilMetricsEntry.value:type_name -> api.v1.GetNodeGroupsUtilizationResponse.ListNodeGroupMetrics
+	161, // 245: api.v1.GetNodeGroupsUtilizationResponse.ReservationTypeToUtilMetricsEntry.value:type_name -> api.v1.GetNodeGroupsUtilizationResponse.ListNodeGroupMetrics
+	161, // 246: api.v1.GetNodeGroupsUtilizationResponse.LogicalAzToUtilMetricsEntry.value:type_name -> api.v1.GetNodeGroupsUtilizationResponse.ListNodeGroupMetrics
+	96,  // 247: api.v1.GalaxyGetWorkloadPerspectiveResponse.ClustersEntry.value:type_name -> api.v1.Cluster
+	188, // 248: api.v1.GalaxyGetWorkloadPerspectiveResponse.WorkloadsEntry.value:type_name -> api.v1.WorkloadItem
+	189, // 249: api.v1.MetadataForWorkloadsRequest.WorkloadUidToKindEntry.value:type_name -> api.v1.K8sObjectKind
+	131, // 250: api.v1.MetadataForWorkloadsResponse.WorkloadUidToMetadataEntry.value:type_name -> api.v1.WorkloadMetadata
+	133, // 251: api.v1.WorkloadMetadata.PodUidToNodeMetadataEntry.value:type_name -> api.v1.NodeMetadata
+	132, // 252: api.v1.WorkloadMetadata.PodUidToPodMetadataEntry.value:type_name -> api.v1.PodMetadata
+	173, // 253: api.v1.DailyUtilizationResponse.Datapoints.datapoints:type_name -> api.v1.DailyUtilizationResponse.Datapoint
+	172, // 254: api.v1.DailyUtilizationResponse.ClusterIdToDailyTotalCoreMinutesEntry.value:type_name -> api.v1.DailyUtilizationResponse.Datapoints
+	96,  // 255: api.v1.DailyUtilizationResponse.ClusterIdToMetaEntry.value:type_name -> api.v1.Cluster
+	177, // 256: api.v1.DailyUtilizationInstanceTypeResponse.Datapoints.datapoints:type_name -> api.v1.DailyUtilizationInstanceTypeResponse.Datapoint
+	180, // 257: api.v1.DailyUtilizationInstanceTypeResponse.Datapoint.instance_type_to_daily_total_core_minutes:type_name -> api.v1.DailyUtilizationInstanceTypeResponse.Datapoint.InstanceTypeToDailyTotalCoreMinutesEntry
+	176, // 258: api.v1.DailyUtilizationInstanceTypeResponse.ClusterIdToDatapointsEntry.value:type_name -> api.v1.DailyUtilizationInstanceTypeResponse.Datapoints
+	96,  // 259: api.v1.DailyUtilizationInstanceTypeResponse.ClusterIdToMetaEntry.value:type_name -> api.v1.Cluster
+	182, // 260: api.v1.DailyUtilizationNodeTypeResponse.Datapoints.datapoints:type_name -> api.v1.DailyUtilizationNodeTypeResponse.Datapoint
+	185, // 261: api.v1.DailyUtilizationNodeTypeResponse.Datapoint.node_type_to_daily_total_core_minutes:type_name -> api.v1.DailyUtilizationNodeTypeResponse.Datapoint.NodeTypeToDailyTotalCoreMinutesEntry
+	181, // 262: api.v1.DailyUtilizationNodeTypeResponse.ClusterIdToDatapointsEntry.value:type_name -> api.v1.DailyUtilizationNodeTypeResponse.Datapoints
+	96,  // 263: api.v1.DailyUtilizationNodeTypeResponse.ClusterIdToMetaEntry.value:type_name -> api.v1.Cluster
+	147, // 264: api.v1.K8SService.GetWorkloadsStats:input_type -> api.v1.GetWorkloadsStatsRequest
+	20,  // 265: api.v1.K8SService.GetClusters:input_type -> api.v1.GetClustersRequest
+	21,  // 266: api.v1.K8SService.ListClusters:input_type -> api.v1.ListClustersRequest
+	22,  // 267: api.v1.K8SService.GetCluster:input_type -> api.v1.GetClusterRequest
+	7,   // 268: api.v1.K8SService.GetClusterMetadata:input_type -> api.v1.GetClusterMetadataRequest
+	83,  // 269: api.v1.K8SService.GetAllNamespaces:input_type -> api.v1.GetAllNamespacesRequest
+	85,  // 270: api.v1.K8SService.SearchNamespacesByCluster:input_type -> api.v1.SearchNamespacesByClusterRequest
+	87,  // 271: api.v1.K8SService.ListNamespacesByCluster:input_type -> api.v1.ListNamespacesByClusterRequest
+	90,  // 272: api.v1.K8SService.GetAllWorkloadNames:input_type -> api.v1.GetAllWorkloadNamesRequest
+	92,  // 273: api.v1.K8SService.GetAllWorkloadLabels:input_type -> api.v1.GetAllWorkloadLabelsRequest
+	94,  // 274: api.v1.K8SService.GetAllNodeGroupNames:input_type -> api.v1.GetAllNodeGroupNamesRequest
+	122, // 275: api.v1.K8SService.MetadataForWorkloads:input_type -> api.v1.MetadataForWorkloadsRequest
+	34,  // 276: api.v1.K8SService.GetNodeGroups:input_type -> api.v1.GetNodeGroupsRequest
+	35,  // 277: api.v1.K8SService.GetAllNodeGroups:input_type -> api.v1.GetAllNodeGroupsRequest
+	44,  // 278: api.v1.K8SService.GetNodeGroupsUtilization:input_type -> api.v1.GetNodeGroupsUtilizationRequest
+	39,  // 279: api.v1.K8SService.GetClusterNodeFilterIndex:input_type -> api.v1.GetClusterNodeFilterIndexRequest
+	8,   // 280: api.v1.K8SService.GetNodeGroup:input_type -> api.v1.GetNodeGroupRequest
+	5,   // 281: api.v1.K8SService.GetNode:input_type -> api.v1.GetNodeRequest
+	53,  // 282: api.v1.K8SService.RequestNodeClaimDeletion:input_type -> api.v1.RequestNodeClaimDeletionRequest
+	55,  // 283: api.v1.K8SService.GetNodeClaimDeletionStatus:input_type -> api.v1.GetNodeClaimDeletionStatusRequest
+	9,   // 284: api.v1.K8SService.GetWorkloads:input_type -> api.v1.GetWorkloadsRequest
+	10,  // 285: api.v1.K8SService.ListWorkloadsPaginated:input_type -> api.v1.ListWorkloadsPaginatedRequest
+	11,  // 286: api.v1.K8SService.GetWorkloadsSummary:input_type -> api.v1.GetWorkloadsSummaryRequest
+	19,  // 287: api.v1.K8SService.GetWorkload:input_type -> api.v1.GetWorkloadRequest
+	60,  // 288: api.v1.K8SService.GetWorkloadContainerPercentiles:input_type -> api.v1.GetWorkloadContainerPercentilesRequest
+	62,  // 289: api.v1.K8SService.GetWorkloadContainerTimeSeries:input_type -> api.v1.GetWorkloadContainerTimeSeriesRequest
+	64,  // 290: api.v1.K8SService.GetLatestContainerRequestLimits:input_type -> api.v1.GetLatestContainerRequestLimitsRequest
+	66,  // 291: api.v1.K8SService.GetNodeGPUMigInstances:input_type -> api.v1.GetNodeGPUMigInstancesRequest
+	68,  // 292: api.v1.K8SService.GetNodeGPUMigInstanceTimeseries:input_type -> api.v1.GetNodeGPUMigInstanceTimeseriesRequest
+	72,  // 293: api.v1.K8SService.GetContainerIndividualGPUMetrics:input_type -> api.v1.GetContainerIndividualGPUMetricsRequest
+	75,  // 294: api.v1.K8SService.GetWorkloadLanguages:input_type -> api.v1.GetWorkloadLanguagesRequest
+	77,  // 295: api.v1.K8SService.GetForecastWorkloads:input_type -> api.v1.GetForecastWorkloadsRequest
+	79,  // 296: api.v1.K8SService.GetForecastWorkload:input_type -> api.v1.GetForecastWorkloadRequest
+	16,  // 297: api.v1.K8SService.GetResources:input_type -> api.v1.GetResourcesRequest
+	28,  // 298: api.v1.K8SService.GetResourceFilterOptions:input_type -> api.v1.GetResourceFilterOptionsRequest
+	17,  // 299: api.v1.K8SService.GetPods:input_type -> api.v1.GetPodsRequest
+	99,  // 300: api.v1.K8SService.GetLatestOperatorVersion:input_type -> api.v1.GetLatestOperatorVersionRequest
+	101, // 301: api.v1.K8SService.GalaxyGetWorkloadPerspective:input_type -> api.v1.GalaxyGetWorkloadPerspectiveRequest
+	105, // 302: api.v1.K8SService.ListAuditLogs:input_type -> api.v1.ListAuditLogsRequest
+	107, // 303: api.v1.K8SService.ListAuditLogOriginators:input_type -> api.v1.ListAuditLogOriginatorsRequest
+	109, // 304: api.v1.K8SService.SendWorkloadEmail:input_type -> api.v1.SendWorkloadEmailRequest
+	111, // 305: api.v1.K8SService.SendWeeklySummaryEmail:input_type -> api.v1.SendWeeklySummaryEmailRequest
+	114, // 306: api.v1.K8SService.GetClustersNodeInfo:input_type -> api.v1.GetClustersNodeInfoRequest
+	116, // 307: api.v1.K8SService.SearchK8sResources:input_type -> api.v1.SearchK8sResourcesRequest
+	119, // 308: api.v1.K8SService.SearchK8sWorkloads:input_type -> api.v1.SearchK8sWorkloadsRequest
+	143, // 309: api.v1.K8SService.GetClusterType:input_type -> api.v1.GetClusterTypeRequest
+	134, // 310: api.v1.K8SService.GetRelationsForKind:input_type -> api.v1.GetRelatedResourcesRequest
+	155, // 311: api.v1.K8SService.LookupNodeInstance:input_type -> api.v1.LookupNodeInstanceRequest
+	6,   // 312: api.v1.K8SService.GetWorkloadPodHistory:input_type -> api.v1.GetWorkloadPodHistoryRequest
+	124, // 313: api.v1.K8SService.AddClusterTags:input_type -> api.v1.AddClusterTagsRequest
+	126, // 314: api.v1.K8SService.RemoveClusterTags:input_type -> api.v1.RemoveClusterTagsRequest
+	128, // 315: api.v1.K8SService.ListTags:input_type -> api.v1.ListTagsRequest
+	145, // 316: api.v1.K8SService.GetMigPartedConfig:input_type -> api.v1.GetMigPartedConfigRequest
+	30,  // 317: api.v1.ClusterMutationService.CreateCluster:input_type -> api.v1.CreateClusterRequest
+	23,  // 318: api.v1.ClusterMutationService.DeleteCluster:input_type -> api.v1.DeleteClusterRequest
+	25,  // 319: api.v1.ClusterMutationService.UpdateCluster:input_type -> api.v1.UpdateClusterRequest
+	32,  // 320: api.v1.ClusterMutationService.ResetClusterToken:input_type -> api.v1.ResetClusterTokenRequest
+	149, // 321: api.v1.UtilizationService.DailyUtilization:input_type -> api.v1.DailyUtilizationRequest
+	151, // 322: api.v1.UtilizationService.DailyUtilizationInstanceType:input_type -> api.v1.DailyUtilizationInstanceTypeRequest
+	153, // 323: api.v1.UtilizationService.DailyUtilizationNodeType:input_type -> api.v1.DailyUtilizationNodeTypeRequest
+	148, // 324: api.v1.K8SService.GetWorkloadsStats:output_type -> api.v1.GetWorkloadsStatsResponse
+	49,  // 325: api.v1.K8SService.GetClusters:output_type -> api.v1.GetClustersResponse
+	50,  // 326: api.v1.K8SService.ListClusters:output_type -> api.v1.ListClustersResponse
+	48,  // 327: api.v1.K8SService.GetCluster:output_type -> api.v1.GetClusterResponse
+	81,  // 328: api.v1.K8SService.GetClusterMetadata:output_type -> api.v1.GetClusterMetadataResponse
+	84,  // 329: api.v1.K8SService.GetAllNamespaces:output_type -> api.v1.GetAllNamespacesResponse
+	86,  // 330: api.v1.K8SService.SearchNamespacesByCluster:output_type -> api.v1.SearchNamespacesByClusterResponse
+	88,  // 331: api.v1.K8SService.ListNamespacesByCluster:output_type -> api.v1.ListNamespacesByClusterResponse
+	91,  // 332: api.v1.K8SService.GetAllWorkloadNames:output_type -> api.v1.GetAllWorkloadNamesResponse
+	93,  // 333: api.v1.K8SService.GetAllWorkloadLabels:output_type -> api.v1.GetAllWorkloadLabelsResponse
+	95,  // 334: api.v1.K8SService.GetAllNodeGroupNames:output_type -> api.v1.GetAllNodeGroupNamesResponse
+	123, // 335: api.v1.K8SService.MetadataForWorkloads:output_type -> api.v1.MetadataForWorkloadsResponse
+	36,  // 336: api.v1.K8SService.GetNodeGroups:output_type -> api.v1.GetNodeGroupsResponse
+	37,  // 337: api.v1.K8SService.GetAllNodeGroups:output_type -> api.v1.GetAllNodeGroupsResponse
+	45,  // 338: api.v1.K8SService.GetNodeGroupsUtilization:output_type -> api.v1.GetNodeGroupsUtilizationResponse
+	43,  // 339: api.v1.K8SService.GetClusterNodeFilterIndex:output_type -> api.v1.GetClusterNodeFilterIndexResponse
+	47,  // 340: api.v1.K8SService.GetNodeGroup:output_type -> api.v1.GetNodeGroupResponse
+	51,  // 341: api.v1.K8SService.GetNode:output_type -> api.v1.GetNodeResponse
+	54,  // 342: api.v1.K8SService.RequestNodeClaimDeletion:output_type -> api.v1.RequestNodeClaimDeletionResponse
+	56,  // 343: api.v1.K8SService.GetNodeClaimDeletionStatus:output_type -> api.v1.GetNodeClaimDeletionStatusResponse
+	58,  // 344: api.v1.K8SService.GetWorkloads:output_type -> api.v1.GetWorkloadsResponse
+	15,  // 345: api.v1.K8SService.ListWorkloadsPaginated:output_type -> api.v1.ListWorkloadsPaginatedResponse
+	14,  // 346: api.v1.K8SService.GetWorkloadsSummary:output_type -> api.v1.GetWorkloadsSummaryResponse
+	59,  // 347: api.v1.K8SService.GetWorkload:output_type -> api.v1.GetWorkloadResponse
+	61,  // 348: api.v1.K8SService.GetWorkloadContainerPercentiles:output_type -> api.v1.GetWorkloadContainerPercentilesResponse
+	63,  // 349: api.v1.K8SService.GetWorkloadContainerTimeSeries:output_type -> api.v1.GetWorkloadContainerTimeSeriesResponse
+	65,  // 350: api.v1.K8SService.GetLatestContainerRequestLimits:output_type -> api.v1.GetLatestContainerRequestLimitsResponse
+	67,  // 351: api.v1.K8SService.GetNodeGPUMigInstances:output_type -> api.v1.GetNodeGPUMigInstancesResponse
+	71,  // 352: api.v1.K8SService.GetNodeGPUMigInstanceTimeseries:output_type -> api.v1.GetNodeGPUMigInstanceTimeseriesResponse
+	73,  // 353: api.v1.K8SService.GetContainerIndividualGPUMetrics:output_type -> api.v1.GetContainerIndividualGPUMetricsResponse
+	76,  // 354: api.v1.K8SService.GetWorkloadLanguages:output_type -> api.v1.GetWorkloadLanguagesResponse
+	78,  // 355: api.v1.K8SService.GetForecastWorkloads:output_type -> api.v1.GetForecastWorkloadsResponse
+	80,  // 356: api.v1.K8SService.GetForecastWorkload:output_type -> api.v1.GetForecastWorkloadResponse
+	27,  // 357: api.v1.K8SService.GetResources:output_type -> api.v1.GetResourcesResponse
+	29,  // 358: api.v1.K8SService.GetResourceFilterOptions:output_type -> api.v1.GetResourceFilterOptionsResponse
+	18,  // 359: api.v1.K8SService.GetPods:output_type -> api.v1.GetPodsResponse
+	100, // 360: api.v1.K8SService.GetLatestOperatorVersion:output_type -> api.v1.GetLatestOperatorVersionResponse
+	102, // 361: api.v1.K8SService.GalaxyGetWorkloadPerspective:output_type -> api.v1.GalaxyGetWorkloadPerspectiveResponse
+	106, // 362: api.v1.K8SService.ListAuditLogs:output_type -> api.v1.ListAuditLogsResponse
+	108, // 363: api.v1.K8SService.ListAuditLogOriginators:output_type -> api.v1.ListAuditLogOriginatorsResponse
+	110, // 364: api.v1.K8SService.SendWorkloadEmail:output_type -> api.v1.SendWorkloadEmailResponse
+	113, // 365: api.v1.K8SService.SendWeeklySummaryEmail:output_type -> api.v1.SendWeeklySummaryEmailResponse
+	115, // 366: api.v1.K8SService.GetClustersNodeInfo:output_type -> api.v1.GetClustersNodeInfoResponse
+	117, // 367: api.v1.K8SService.SearchK8sResources:output_type -> api.v1.SearchK8sResourcesResponse
+	120, // 368: api.v1.K8SService.SearchK8sWorkloads:output_type -> api.v1.SearchK8sWorkloadsResponse
+	144, // 369: api.v1.K8SService.GetClusterType:output_type -> api.v1.GetClusterTypeResponse
+	139, // 370: api.v1.K8SService.GetRelationsForKind:output_type -> api.v1.GetRelatedResourcesResponse
+	157, // 371: api.v1.K8SService.LookupNodeInstance:output_type -> api.v1.LookupNodeInstanceResponse
+	135, // 372: api.v1.K8SService.GetWorkloadPodHistory:output_type -> api.v1.GetWorkloadPodHistoryResponse
+	125, // 373: api.v1.K8SService.AddClusterTags:output_type -> api.v1.AddClusterTagsResponse
+	127, // 374: api.v1.K8SService.RemoveClusterTags:output_type -> api.v1.RemoveClusterTagsResponse
+	130, // 375: api.v1.K8SService.ListTags:output_type -> api.v1.ListTagsResponse
+	146, // 376: api.v1.K8SService.GetMigPartedConfig:output_type -> api.v1.GetMigPartedConfigResponse
+	31,  // 377: api.v1.ClusterMutationService.CreateCluster:output_type -> api.v1.CreateClusterResponse
+	24,  // 378: api.v1.ClusterMutationService.DeleteCluster:output_type -> api.v1.DeleteClusterResponse
+	26,  // 379: api.v1.ClusterMutationService.UpdateCluster:output_type -> api.v1.UpdateClusterResponse
+	33,  // 380: api.v1.ClusterMutationService.ResetClusterToken:output_type -> api.v1.ResetClusterTokenResponse
+	150, // 381: api.v1.UtilizationService.DailyUtilization:output_type -> api.v1.DailyUtilizationResponse
+	152, // 382: api.v1.UtilizationService.DailyUtilizationInstanceType:output_type -> api.v1.DailyUtilizationInstanceTypeResponse
+	154, // 383: api.v1.UtilizationService.DailyUtilizationNodeType:output_type -> api.v1.DailyUtilizationNodeTypeResponse
+	324, // [324:384] is the sub-list for method output_type
+	264, // [264:324] is the sub-list for method input_type
+	264, // [264:264] is the sub-list for extension type_name
+	264, // [264:264] is the sub-list for extension extendee
+	0,   // [0:264] is the sub-list for field type_name
 }
 
 func init() { file_api_v1_k8s_proto_init() }
@@ -14230,7 +15746,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[34].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetNodeGroupsUtilizationRequest); i {
+			switch v := v.(*GetClusterNodeFilterIndexRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14242,7 +15758,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[35].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetNodeGroupsUtilizationResponse); i {
+			switch v := v.(*NodeLabelSet); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14254,7 +15770,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[36].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*NodeGroupMetric); i {
+			switch v := v.(*NodeLabelRef); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14266,7 +15782,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[37].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetNodeGroupResponse); i {
+			switch v := v.(*NodePoolFields); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14278,7 +15794,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[38].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetClusterResponse); i {
+			switch v := v.(*GetClusterNodeFilterIndexResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14290,7 +15806,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[39].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetClustersResponse); i {
+			switch v := v.(*GetNodeGroupsUtilizationRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14302,7 +15818,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[40].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ListClustersResponse); i {
+			switch v := v.(*GetNodeGroupsUtilizationResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14314,7 +15830,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[41].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetNodeResponse); i {
+			switch v := v.(*NodeGroupMetric); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14326,7 +15842,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[42].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetWorkloadsResponse); i {
+			switch v := v.(*GetNodeGroupResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14338,7 +15854,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[43].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetWorkloadResponse); i {
+			switch v := v.(*GetClusterResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14350,7 +15866,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[44].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetWorkloadContainerPercentilesRequest); i {
+			switch v := v.(*GetClustersResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14362,7 +15878,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[45].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetWorkloadContainerPercentilesResponse); i {
+			switch v := v.(*ListClustersResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14374,7 +15890,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[46].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetWorkloadContainerTimeSeriesRequest); i {
+			switch v := v.(*GetNodeResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14386,7 +15902,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[47].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetWorkloadContainerTimeSeriesResponse); i {
+			switch v := v.(*NodeClaimRef); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14398,7 +15914,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[48].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetLatestContainerRequestLimitsRequest); i {
+			switch v := v.(*RequestNodeClaimDeletionRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14410,7 +15926,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[49].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetLatestContainerRequestLimitsResponse); i {
+			switch v := v.(*RequestNodeClaimDeletionResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14422,7 +15938,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[50].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetNodeGPUMigInstancesRequest); i {
+			switch v := v.(*GetNodeClaimDeletionStatusRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14434,7 +15950,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[51].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetNodeGPUMigInstancesResponse); i {
+			switch v := v.(*GetNodeClaimDeletionStatusResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14446,7 +15962,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[52].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetContainerIndividualGPUMetricsRequest); i {
+			switch v := v.(*NodeClaimDeletionStatus); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14458,7 +15974,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[53].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetContainerIndividualGPUMetricsResponse); i {
+			switch v := v.(*GetWorkloadsResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14470,7 +15986,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[54].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*LanguageVersions); i {
+			switch v := v.(*GetWorkloadResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14482,7 +15998,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[55].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetWorkloadLanguagesRequest); i {
+			switch v := v.(*GetWorkloadContainerPercentilesRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14494,7 +16010,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[56].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetWorkloadLanguagesResponse); i {
+			switch v := v.(*GetWorkloadContainerPercentilesResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14506,7 +16022,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[57].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetForecastWorkloadsRequest); i {
+			switch v := v.(*GetWorkloadContainerTimeSeriesRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14518,7 +16034,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[58].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetForecastWorkloadsResponse); i {
+			switch v := v.(*GetWorkloadContainerTimeSeriesResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14530,7 +16046,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[59].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetForecastWorkloadRequest); i {
+			switch v := v.(*GetLatestContainerRequestLimitsRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14542,7 +16058,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[60].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetForecastWorkloadResponse); i {
+			switch v := v.(*GetLatestContainerRequestLimitsResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14554,7 +16070,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[61].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetClusterMetadataResponse); i {
+			switch v := v.(*GetNodeGPUMigInstancesRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14566,7 +16082,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[62].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ClusterElement); i {
+			switch v := v.(*GetNodeGPUMigInstancesResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14578,7 +16094,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[63].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetAllNamespacesRequest); i {
+			switch v := v.(*GetNodeGPUMigInstanceTimeseriesRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14590,7 +16106,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[64].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetAllNamespacesResponse); i {
+			switch v := v.(*GPUMigInstanceDataPoint); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14602,7 +16118,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[65].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*SearchNamespacesByClusterRequest); i {
+			switch v := v.(*GPUMigInstanceTimeseries); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14614,7 +16130,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[66].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*SearchNamespacesByClusterResponse); i {
+			switch v := v.(*GetNodeGPUMigInstanceTimeseriesResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14626,7 +16142,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[67].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ListNamespacesByClusterRequest); i {
+			switch v := v.(*GetContainerIndividualGPUMetricsRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14638,7 +16154,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[68].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ListNamespacesByClusterResponse); i {
+			switch v := v.(*GetContainerIndividualGPUMetricsResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14650,7 +16166,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[69].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*NamespaceItem); i {
+			switch v := v.(*LanguageVersions); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14662,7 +16178,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[70].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetAllWorkloadNamesRequest); i {
+			switch v := v.(*GetWorkloadLanguagesRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14674,7 +16190,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[71].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetAllWorkloadNamesResponse); i {
+			switch v := v.(*GetWorkloadLanguagesResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14686,7 +16202,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[72].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetAllWorkloadLabelsRequest); i {
+			switch v := v.(*GetForecastWorkloadsRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14698,7 +16214,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[73].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetAllWorkloadLabelsResponse); i {
+			switch v := v.(*GetForecastWorkloadsResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14710,7 +16226,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[74].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetAllNodeGroupNamesRequest); i {
+			switch v := v.(*GetForecastWorkloadRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14722,7 +16238,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[75].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetAllNodeGroupNamesResponse); i {
+			switch v := v.(*GetForecastWorkloadResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14734,7 +16250,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[76].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*Cluster); i {
+			switch v := v.(*GetClusterMetadataResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14746,7 +16262,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[77].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*OperatorInfo); i {
+			switch v := v.(*ClusterElement); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14758,7 +16274,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[78].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*Container); i {
+			switch v := v.(*GetAllNamespacesRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14770,7 +16286,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[79].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetLatestOperatorVersionRequest); i {
+			switch v := v.(*GetAllNamespacesResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14782,7 +16298,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[80].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetLatestOperatorVersionResponse); i {
+			switch v := v.(*SearchNamespacesByClusterRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14794,7 +16310,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[81].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GalaxyGetWorkloadPerspectiveRequest); i {
+			switch v := v.(*SearchNamespacesByClusterResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14806,7 +16322,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[82].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GalaxyGetWorkloadPerspectiveResponse); i {
+			switch v := v.(*ListNamespacesByClusterRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14818,7 +16334,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[83].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GalaxyWorkloadGroup); i {
+			switch v := v.(*ListNamespacesByClusterResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14830,7 +16346,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[84].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*PerspectiveDatapointOpts); i {
+			switch v := v.(*NamespaceItem); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14842,7 +16358,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[85].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ListAuditLogsRequest); i {
+			switch v := v.(*GetAllWorkloadNamesRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14854,7 +16370,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[86].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ListAuditLogsResponse); i {
+			switch v := v.(*GetAllWorkloadNamesResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14866,7 +16382,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[87].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ListAuditLogOriginatorsRequest); i {
+			switch v := v.(*GetAllWorkloadLabelsRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14878,7 +16394,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[88].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ListAuditLogOriginatorsResponse); i {
+			switch v := v.(*GetAllWorkloadLabelsResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14890,7 +16406,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[89].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*SendWorkloadEmailRequest); i {
+			switch v := v.(*GetAllNodeGroupNamesRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14902,7 +16418,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[90].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*SendWorkloadEmailResponse); i {
+			switch v := v.(*GetAllNodeGroupNamesResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14914,7 +16430,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[91].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*SendWeeklySummaryEmailRequest); i {
+			switch v := v.(*Cluster); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14926,7 +16442,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[92].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*SendWeeklySummaryEmailRequestData); i {
+			switch v := v.(*OperatorInfo); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14938,7 +16454,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[93].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*SendWeeklySummaryEmailResponse); i {
+			switch v := v.(*Container); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14950,7 +16466,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[94].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetClustersNodeInfoRequest); i {
+			switch v := v.(*GetLatestOperatorVersionRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14962,7 +16478,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[95].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetClustersNodeInfoResponse); i {
+			switch v := v.(*GetLatestOperatorVersionResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14974,7 +16490,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[96].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*SearchK8SResourcesRequest); i {
+			switch v := v.(*GalaxyGetWorkloadPerspectiveRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14986,7 +16502,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[97].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*SearchK8SResourcesResponse); i {
+			switch v := v.(*GalaxyGetWorkloadPerspectiveResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14998,7 +16514,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[98].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*K8SSearchResult); i {
+			switch v := v.(*GalaxyWorkloadGroup); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -15010,7 +16526,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[99].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*SearchK8SWorkloadsRequest); i {
+			switch v := v.(*PerspectiveDatapointOpts); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -15022,7 +16538,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[100].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*SearchK8SWorkloadsResponse); i {
+			switch v := v.(*ListAuditLogsRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -15034,7 +16550,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[101].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*K8SWorkloadSearchResult); i {
+			switch v := v.(*ListAuditLogsResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -15046,7 +16562,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[102].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*MetadataForWorkloadsRequest); i {
+			switch v := v.(*ListAuditLogOriginatorsRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -15058,7 +16574,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[103].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*MetadataForWorkloadsResponse); i {
+			switch v := v.(*ListAuditLogOriginatorsResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -15070,7 +16586,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[104].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*AddClusterTagsRequest); i {
+			switch v := v.(*SendWorkloadEmailRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -15082,7 +16598,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[105].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*AddClusterTagsResponse); i {
+			switch v := v.(*SendWorkloadEmailResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -15094,7 +16610,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[106].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*RemoveClusterTagsRequest); i {
+			switch v := v.(*SendWeeklySummaryEmailRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -15106,7 +16622,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[107].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*RemoveClusterTagsResponse); i {
+			switch v := v.(*SendWeeklySummaryEmailRequestData); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -15118,7 +16634,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[108].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ListTagsRequest); i {
+			switch v := v.(*SendWeeklySummaryEmailResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -15130,7 +16646,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[109].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TagSummary); i {
+			switch v := v.(*GetClustersNodeInfoRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -15142,7 +16658,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[110].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ListTagsResponse); i {
+			switch v := v.(*GetClustersNodeInfoResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -15154,7 +16670,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[111].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*WorkloadMetadata); i {
+			switch v := v.(*SearchK8SResourcesRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -15166,7 +16682,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[112].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*PodMetadata); i {
+			switch v := v.(*SearchK8SResourcesResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -15178,7 +16694,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[113].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*NodeMetadata); i {
+			switch v := v.(*K8SSearchResult); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -15190,7 +16706,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[114].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetRelatedResourcesRequest); i {
+			switch v := v.(*SearchK8SWorkloadsRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -15202,7 +16718,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[115].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetWorkloadPodHistoryResponse); i {
+			switch v := v.(*SearchK8SWorkloadsResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -15214,7 +16730,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[116].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*JobHistory); i {
+			switch v := v.(*K8SWorkloadSearchResult); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -15226,7 +16742,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[117].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ReplicaSetHistory); i {
+			switch v := v.(*MetadataForWorkloadsRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -15238,7 +16754,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[118].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*PodHistory); i {
+			switch v := v.(*MetadataForWorkloadsResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -15250,7 +16766,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[119].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetRelatedResourcesResponse); i {
+			switch v := v.(*AddClusterTagsRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -15262,7 +16778,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[120].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*K8SRelatedResource); i {
+			switch v := v.(*AddClusterTagsResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -15274,7 +16790,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[121].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*K8SResourceNode); i {
+			switch v := v.(*RemoveClusterTagsRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -15286,7 +16802,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[122].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*K8SResourceEdge); i {
+			switch v := v.(*RemoveClusterTagsResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -15298,7 +16814,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[123].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetClusterTypeRequest); i {
+			switch v := v.(*ListTagsRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -15310,7 +16826,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[124].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetClusterTypeResponse); i {
+			switch v := v.(*TagSummary); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -15322,7 +16838,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[125].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetMigPartedConfigRequest); i {
+			switch v := v.(*ListTagsResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -15334,7 +16850,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[126].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetMigPartedConfigResponse); i {
+			switch v := v.(*WorkloadMetadata); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -15346,7 +16862,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[127].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetWorkloadsStatsRequest); i {
+			switch v := v.(*PodMetadata); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -15358,7 +16874,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[128].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetWorkloadsStatsResponse); i {
+			switch v := v.(*NodeMetadata); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -15370,7 +16886,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[129].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*DailyUtilizationRequest); i {
+			switch v := v.(*GetRelatedResourcesRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -15382,7 +16898,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[130].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*DailyUtilizationResponse); i {
+			switch v := v.(*GetWorkloadPodHistoryResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -15394,7 +16910,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[131].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*DailyUtilizationInstanceTypeRequest); i {
+			switch v := v.(*JobHistory); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -15406,7 +16922,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[132].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*DailyUtilizationInstanceTypeResponse); i {
+			switch v := v.(*ReplicaSetHistory); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -15418,7 +16934,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[133].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*DailyUtilizationNodeTypeRequest); i {
+			switch v := v.(*PodHistory); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -15430,7 +16946,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[134].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*DailyUtilizationNodeTypeResponse); i {
+			switch v := v.(*GetRelatedResourcesResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -15442,7 +16958,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[135].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*LookupNodeInstanceRequest); i {
+			switch v := v.(*K8SRelatedResource); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -15454,7 +16970,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[136].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*InstanceLookupParams); i {
+			switch v := v.(*K8SResourceNode); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -15466,7 +16982,19 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[137].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*LookupNodeInstanceResponse); i {
+			switch v := v.(*K8SResourceEdge); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_api_v1_k8s_proto_msgTypes[138].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*GetClusterTypeRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -15478,7 +17006,127 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[139].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetNodeGroupsUtilizationResponse_ListNodeGroupMetrics); i {
+			switch v := v.(*GetClusterTypeResponse); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_api_v1_k8s_proto_msgTypes[140].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*GetMigPartedConfigRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_api_v1_k8s_proto_msgTypes[141].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*GetMigPartedConfigResponse); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_api_v1_k8s_proto_msgTypes[142].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*GetWorkloadsStatsRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_api_v1_k8s_proto_msgTypes[143].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*GetWorkloadsStatsResponse); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_api_v1_k8s_proto_msgTypes[144].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*DailyUtilizationRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_api_v1_k8s_proto_msgTypes[145].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*DailyUtilizationResponse); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_api_v1_k8s_proto_msgTypes[146].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*DailyUtilizationInstanceTypeRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_api_v1_k8s_proto_msgTypes[147].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*DailyUtilizationInstanceTypeResponse); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_api_v1_k8s_proto_msgTypes[148].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*DailyUtilizationNodeTypeRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_api_v1_k8s_proto_msgTypes[149].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*DailyUtilizationNodeTypeResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -15490,7 +17138,7 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[150].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*DailyUtilizationResponse_Datapoints); i {
+			switch v := v.(*LookupNodeInstanceRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -15502,6 +17150,54 @@ func file_api_v1_k8s_proto_init() {
 			}
 		}
 		file_api_v1_k8s_proto_msgTypes[151].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*InstanceLookupParams); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_api_v1_k8s_proto_msgTypes[152].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*LookupNodeInstanceResponse); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_api_v1_k8s_proto_msgTypes[156].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*GetNodeGroupsUtilizationResponse_ListNodeGroupMetrics); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_api_v1_k8s_proto_msgTypes[167].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*DailyUtilizationResponse_Datapoints); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_api_v1_k8s_proto_msgTypes[168].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*DailyUtilizationResponse_Datapoint); i {
 			case 0:
 				return &v.state
@@ -15513,7 +17209,7 @@ func file_api_v1_k8s_proto_init() {
 				return nil
 			}
 		}
-		file_api_v1_k8s_proto_msgTypes[154].Exporter = func(v interface{}, i int) interface{} {
+		file_api_v1_k8s_proto_msgTypes[171].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*DailyUtilizationInstanceTypeResponse_Datapoints); i {
 			case 0:
 				return &v.state
@@ -15525,7 +17221,7 @@ func file_api_v1_k8s_proto_init() {
 				return nil
 			}
 		}
-		file_api_v1_k8s_proto_msgTypes[155].Exporter = func(v interface{}, i int) interface{} {
+		file_api_v1_k8s_proto_msgTypes[172].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*DailyUtilizationInstanceTypeResponse_Datapoint); i {
 			case 0:
 				return &v.state
@@ -15537,7 +17233,7 @@ func file_api_v1_k8s_proto_init() {
 				return nil
 			}
 		}
-		file_api_v1_k8s_proto_msgTypes[159].Exporter = func(v interface{}, i int) interface{} {
+		file_api_v1_k8s_proto_msgTypes[176].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*DailyUtilizationNodeTypeResponse_Datapoints); i {
 			case 0:
 				return &v.state
@@ -15549,7 +17245,7 @@ func file_api_v1_k8s_proto_init() {
 				return nil
 			}
 		}
-		file_api_v1_k8s_proto_msgTypes[160].Exporter = func(v interface{}, i int) interface{} {
+		file_api_v1_k8s_proto_msgTypes[177].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*DailyUtilizationNodeTypeResponse_Datapoint); i {
 			case 0:
 				return &v.state
@@ -15577,25 +17273,29 @@ func file_api_v1_k8s_proto_init() {
 	file_api_v1_k8s_proto_msgTypes[23].OneofWrappers = []interface{}{}
 	file_api_v1_k8s_proto_msgTypes[29].OneofWrappers = []interface{}{}
 	file_api_v1_k8s_proto_msgTypes[34].OneofWrappers = []interface{}{}
-	file_api_v1_k8s_proto_msgTypes[44].OneofWrappers = []interface{}{}
-	file_api_v1_k8s_proto_msgTypes[46].OneofWrappers = []interface{}{}
+	file_api_v1_k8s_proto_msgTypes[39].OneofWrappers = []interface{}{}
+	file_api_v1_k8s_proto_msgTypes[48].OneofWrappers = []interface{}{}
 	file_api_v1_k8s_proto_msgTypes[50].OneofWrappers = []interface{}{}
-	file_api_v1_k8s_proto_msgTypes[51].OneofWrappers = []interface{}{}
+	file_api_v1_k8s_proto_msgTypes[55].OneofWrappers = []interface{}{}
 	file_api_v1_k8s_proto_msgTypes[57].OneofWrappers = []interface{}{}
-	file_api_v1_k8s_proto_msgTypes[59].OneofWrappers = []interface{}{}
-	file_api_v1_k8s_proto_msgTypes[76].OneofWrappers = []interface{}{}
-	file_api_v1_k8s_proto_msgTypes[85].OneofWrappers = []interface{}{}
-	file_api_v1_k8s_proto_msgTypes[87].OneofWrappers = []interface{}{}
-	file_api_v1_k8s_proto_msgTypes[94].OneofWrappers = []interface{}{}
-	file_api_v1_k8s_proto_msgTypes[114].OneofWrappers = []interface{}{}
-	file_api_v1_k8s_proto_msgTypes[127].OneofWrappers = []interface{}{}
+	file_api_v1_k8s_proto_msgTypes[61].OneofWrappers = []interface{}{}
+	file_api_v1_k8s_proto_msgTypes[62].OneofWrappers = []interface{}{}
+	file_api_v1_k8s_proto_msgTypes[63].OneofWrappers = []interface{}{}
+	file_api_v1_k8s_proto_msgTypes[72].OneofWrappers = []interface{}{}
+	file_api_v1_k8s_proto_msgTypes[74].OneofWrappers = []interface{}{}
+	file_api_v1_k8s_proto_msgTypes[91].OneofWrappers = []interface{}{}
+	file_api_v1_k8s_proto_msgTypes[100].OneofWrappers = []interface{}{}
+	file_api_v1_k8s_proto_msgTypes[102].OneofWrappers = []interface{}{}
+	file_api_v1_k8s_proto_msgTypes[109].OneofWrappers = []interface{}{}
+	file_api_v1_k8s_proto_msgTypes[129].OneofWrappers = []interface{}{}
+	file_api_v1_k8s_proto_msgTypes[142].OneofWrappers = []interface{}{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_api_v1_k8s_proto_rawDesc,
-			NumEnums:      3,
-			NumMessages:   164,
+			NumEnums:      5,
+			NumMessages:   181,
 			NumExtensions: 0,
 			NumServices:   3,
 		},

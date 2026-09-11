@@ -54,6 +54,12 @@ const (
 	// MetricsCollectorServiceSendNetworkTrafficMetricsProcedure is the fully-qualified name of the
 	// MetricsCollectorService's SendNetworkTrafficMetrics RPC.
 	MetricsCollectorServiceSendNetworkTrafficMetricsProcedure = "/api.v1.MetricsCollectorService/SendNetworkTrafficMetrics"
+	// MetricsCollectorServiceSendScalerMetricsProcedure is the fully-qualified name of the
+	// MetricsCollectorService's SendScalerMetrics RPC.
+	MetricsCollectorServiceSendScalerMetricsProcedure = "/api.v1.MetricsCollectorService/SendScalerMetrics"
+	// MetricsCollectorServiceSendContainerRedMetricsProcedure is the fully-qualified name of the
+	// MetricsCollectorService's SendContainerRedMetrics RPC.
+	MetricsCollectorServiceSendContainerRedMetricsProcedure = "/api.v1.MetricsCollectorService/SendContainerRedMetrics"
 	// MetricsCollectorServiceNodeMetadataProcedure is the fully-qualified name of the
 	// MetricsCollectorService's NodeMetadata RPC.
 	MetricsCollectorServiceNodeMetadataProcedure = "/api.v1.MetricsCollectorService/NodeMetadata"
@@ -77,6 +83,10 @@ type MetricsCollectorServiceClient interface {
 	SendTelemetryLogs(context.Context, *connect.Request[v1.SendTelemetryLogsRequest]) (*connect.Response[v1.SendTelemetryLogsResponse], error)
 	// SendNetworkTrafficMetrics pushes network traffic metrics from a node.
 	SendNetworkTrafficMetrics(context.Context, *connect.Request[v1.SendNetworkTrafficMetricsRequest]) (*connect.Response[v1.SendNetworkTrafficMetricsResponse], error)
+	// SendScalerMetrics pushes a batch of KEDA scaler metric samples from a cluster.
+	SendScalerMetrics(context.Context, *connect.Request[v1.SendScalerMetricsRequest]) (*connect.Response[v1.SendScalerMetricsResponse], error)
+	// SendContainerRedMetrics pushes per-container inbound RED metrics from a node.
+	SendContainerRedMetrics(context.Context, *connect.Request[v1.SendContainerRedMetricsRequest]) (*connect.Response[v1.SendContainerRedMetricsResponse], error)
 	NodeMetadata(context.Context, *connect.Request[v1.NodeMetadataRequest]) (*connect.Response[v1.NodeMetadataResponse], error)
 }
 
@@ -125,6 +135,16 @@ func NewMetricsCollectorServiceClient(httpClient connect.HTTPClient, baseURL str
 			baseURL+MetricsCollectorServiceSendNetworkTrafficMetricsProcedure,
 			opts...,
 		),
+		sendScalerMetrics: connect.NewClient[v1.SendScalerMetricsRequest, v1.SendScalerMetricsResponse](
+			httpClient,
+			baseURL+MetricsCollectorServiceSendScalerMetricsProcedure,
+			opts...,
+		),
+		sendContainerRedMetrics: connect.NewClient[v1.SendContainerRedMetricsRequest, v1.SendContainerRedMetricsResponse](
+			httpClient,
+			baseURL+MetricsCollectorServiceSendContainerRedMetricsProcedure,
+			opts...,
+		),
 		nodeMetadata: connect.NewClient[v1.NodeMetadataRequest, v1.NodeMetadataResponse](
 			httpClient,
 			baseURL+MetricsCollectorServiceNodeMetadataProcedure,
@@ -142,6 +162,8 @@ type metricsCollectorServiceClient struct {
 	sendClusterSnapshotBatched *connect.Client[v1.ClusterSnapshotBatch, v1.SendClusterSnapshotBatchedResponse]
 	sendTelemetryLogs          *connect.Client[v1.SendTelemetryLogsRequest, v1.SendTelemetryLogsResponse]
 	sendNetworkTrafficMetrics  *connect.Client[v1.SendNetworkTrafficMetricsRequest, v1.SendNetworkTrafficMetricsResponse]
+	sendScalerMetrics          *connect.Client[v1.SendScalerMetricsRequest, v1.SendScalerMetricsResponse]
+	sendContainerRedMetrics    *connect.Client[v1.SendContainerRedMetricsRequest, v1.SendContainerRedMetricsResponse]
 	nodeMetadata               *connect.Client[v1.NodeMetadataRequest, v1.NodeMetadataResponse]
 }
 
@@ -180,6 +202,16 @@ func (c *metricsCollectorServiceClient) SendNetworkTrafficMetrics(ctx context.Co
 	return c.sendNetworkTrafficMetrics.CallUnary(ctx, req)
 }
 
+// SendScalerMetrics calls api.v1.MetricsCollectorService.SendScalerMetrics.
+func (c *metricsCollectorServiceClient) SendScalerMetrics(ctx context.Context, req *connect.Request[v1.SendScalerMetricsRequest]) (*connect.Response[v1.SendScalerMetricsResponse], error) {
+	return c.sendScalerMetrics.CallUnary(ctx, req)
+}
+
+// SendContainerRedMetrics calls api.v1.MetricsCollectorService.SendContainerRedMetrics.
+func (c *metricsCollectorServiceClient) SendContainerRedMetrics(ctx context.Context, req *connect.Request[v1.SendContainerRedMetricsRequest]) (*connect.Response[v1.SendContainerRedMetricsResponse], error) {
+	return c.sendContainerRedMetrics.CallUnary(ctx, req)
+}
+
 // NodeMetadata calls api.v1.MetricsCollectorService.NodeMetadata.
 func (c *metricsCollectorServiceClient) NodeMetadata(ctx context.Context, req *connect.Request[v1.NodeMetadataRequest]) (*connect.Response[v1.NodeMetadataResponse], error) {
 	return c.nodeMetadata.CallUnary(ctx, req)
@@ -204,6 +236,10 @@ type MetricsCollectorServiceHandler interface {
 	SendTelemetryLogs(context.Context, *connect.Request[v1.SendTelemetryLogsRequest]) (*connect.Response[v1.SendTelemetryLogsResponse], error)
 	// SendNetworkTrafficMetrics pushes network traffic metrics from a node.
 	SendNetworkTrafficMetrics(context.Context, *connect.Request[v1.SendNetworkTrafficMetricsRequest]) (*connect.Response[v1.SendNetworkTrafficMetricsResponse], error)
+	// SendScalerMetrics pushes a batch of KEDA scaler metric samples from a cluster.
+	SendScalerMetrics(context.Context, *connect.Request[v1.SendScalerMetricsRequest]) (*connect.Response[v1.SendScalerMetricsResponse], error)
+	// SendContainerRedMetrics pushes per-container inbound RED metrics from a node.
+	SendContainerRedMetrics(context.Context, *connect.Request[v1.SendContainerRedMetricsRequest]) (*connect.Response[v1.SendContainerRedMetricsResponse], error)
 	NodeMetadata(context.Context, *connect.Request[v1.NodeMetadataRequest]) (*connect.Response[v1.NodeMetadataResponse], error)
 }
 
@@ -248,6 +284,16 @@ func NewMetricsCollectorServiceHandler(svc MetricsCollectorServiceHandler, opts 
 		svc.SendNetworkTrafficMetrics,
 		opts...,
 	)
+	metricsCollectorServiceSendScalerMetricsHandler := connect.NewUnaryHandler(
+		MetricsCollectorServiceSendScalerMetricsProcedure,
+		svc.SendScalerMetrics,
+		opts...,
+	)
+	metricsCollectorServiceSendContainerRedMetricsHandler := connect.NewUnaryHandler(
+		MetricsCollectorServiceSendContainerRedMetricsProcedure,
+		svc.SendContainerRedMetrics,
+		opts...,
+	)
 	metricsCollectorServiceNodeMetadataHandler := connect.NewUnaryHandler(
 		MetricsCollectorServiceNodeMetadataProcedure,
 		svc.NodeMetadata,
@@ -269,6 +315,10 @@ func NewMetricsCollectorServiceHandler(svc MetricsCollectorServiceHandler, opts 
 			metricsCollectorServiceSendTelemetryLogsHandler.ServeHTTP(w, r)
 		case MetricsCollectorServiceSendNetworkTrafficMetricsProcedure:
 			metricsCollectorServiceSendNetworkTrafficMetricsHandler.ServeHTTP(w, r)
+		case MetricsCollectorServiceSendScalerMetricsProcedure:
+			metricsCollectorServiceSendScalerMetricsHandler.ServeHTTP(w, r)
+		case MetricsCollectorServiceSendContainerRedMetricsProcedure:
+			metricsCollectorServiceSendContainerRedMetricsHandler.ServeHTTP(w, r)
 		case MetricsCollectorServiceNodeMetadataProcedure:
 			metricsCollectorServiceNodeMetadataHandler.ServeHTTP(w, r)
 		default:
@@ -306,6 +356,14 @@ func (UnimplementedMetricsCollectorServiceHandler) SendTelemetryLogs(context.Con
 
 func (UnimplementedMetricsCollectorServiceHandler) SendNetworkTrafficMetrics(context.Context, *connect.Request[v1.SendNetworkTrafficMetricsRequest]) (*connect.Response[v1.SendNetworkTrafficMetricsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.MetricsCollectorService.SendNetworkTrafficMetrics is not implemented"))
+}
+
+func (UnimplementedMetricsCollectorServiceHandler) SendScalerMetrics(context.Context, *connect.Request[v1.SendScalerMetricsRequest]) (*connect.Response[v1.SendScalerMetricsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.MetricsCollectorService.SendScalerMetrics is not implemented"))
+}
+
+func (UnimplementedMetricsCollectorServiceHandler) SendContainerRedMetrics(context.Context, *connect.Request[v1.SendContainerRedMetricsRequest]) (*connect.Response[v1.SendContainerRedMetricsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.MetricsCollectorService.SendContainerRedMetrics is not implemented"))
 }
 
 func (UnimplementedMetricsCollectorServiceHandler) NodeMetadata(context.Context, *connect.Request[v1.NodeMetadataRequest]) (*connect.Response[v1.NodeMetadataResponse], error) {
