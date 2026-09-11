@@ -237,6 +237,7 @@ type enrichedEvent struct {
 
 	DisruptionBlockReason string  `json:"disruptionBlockReason,omitempty"`
 	BlockingPDBName       *string `json:"blockingPdbName,omitempty"`
+	RelatedPodName        *string `json:"relatedPodName,omitempty"`
 }
 
 // eventPayload returns what to put on the wire for an event.
@@ -258,6 +259,7 @@ func (c *EventCollector) eventPayload(event *corev1.Event) interface{} {
 		Event:                 event,
 		DisruptionBlockReason: classification.Reason,
 		BlockingPDBName:       classification.BlockingPDBName,
+		RelatedPodName:        classification.RelatedPodName,
 	}
 }
 
@@ -608,8 +610,8 @@ func (c *EventCollector) eventChanged(oldEvent, newEvent *corev1.Event) bool {
 		oldEvent.ObjectMeta,
 		newEvent.ObjectMeta,
 	)
-	if changed != IgnoreChanges {
-		return changed == PushChanges
+	if changed == PushChanges {
+		return true
 	}
 
 	// Check for count changes

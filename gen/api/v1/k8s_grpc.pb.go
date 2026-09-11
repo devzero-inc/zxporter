@@ -34,8 +34,11 @@ const (
 	K8SService_GetNodeGroups_FullMethodName                    = "/api.v1.K8SService/GetNodeGroups"
 	K8SService_GetAllNodeGroups_FullMethodName                 = "/api.v1.K8SService/GetAllNodeGroups"
 	K8SService_GetNodeGroupsUtilization_FullMethodName         = "/api.v1.K8SService/GetNodeGroupsUtilization"
+	K8SService_GetClusterNodeFilterIndex_FullMethodName        = "/api.v1.K8SService/GetClusterNodeFilterIndex"
 	K8SService_GetNodeGroup_FullMethodName                     = "/api.v1.K8SService/GetNodeGroup"
 	K8SService_GetNode_FullMethodName                          = "/api.v1.K8SService/GetNode"
+	K8SService_RequestNodeClaimDeletion_FullMethodName         = "/api.v1.K8SService/RequestNodeClaimDeletion"
+	K8SService_GetNodeClaimDeletionStatus_FullMethodName       = "/api.v1.K8SService/GetNodeClaimDeletionStatus"
 	K8SService_GetWorkloads_FullMethodName                     = "/api.v1.K8SService/GetWorkloads"
 	K8SService_ListWorkloadsPaginated_FullMethodName           = "/api.v1.K8SService/ListWorkloadsPaginated"
 	K8SService_GetWorkloadsSummary_FullMethodName              = "/api.v1.K8SService/GetWorkloadsSummary"
@@ -44,6 +47,7 @@ const (
 	K8SService_GetWorkloadContainerTimeSeries_FullMethodName   = "/api.v1.K8SService/GetWorkloadContainerTimeSeries"
 	K8SService_GetLatestContainerRequestLimits_FullMethodName  = "/api.v1.K8SService/GetLatestContainerRequestLimits"
 	K8SService_GetNodeGPUMigInstances_FullMethodName           = "/api.v1.K8SService/GetNodeGPUMigInstances"
+	K8SService_GetNodeGPUMigInstanceTimeseries_FullMethodName  = "/api.v1.K8SService/GetNodeGPUMigInstanceTimeseries"
 	K8SService_GetContainerIndividualGPUMetrics_FullMethodName = "/api.v1.K8SService/GetContainerIndividualGPUMetrics"
 	K8SService_GetWorkloadLanguages_FullMethodName             = "/api.v1.K8SService/GetWorkloadLanguages"
 	K8SService_GetForecastWorkloads_FullMethodName             = "/api.v1.K8SService/GetForecastWorkloads"
@@ -105,10 +109,20 @@ type K8SServiceClient interface {
 	GetAllNodeGroups(ctx context.Context, in *GetAllNodeGroupsRequest, opts ...grpc.CallOption) (*GetAllNodeGroupsResponse, error)
 	// GetNodeGroupsUtilization retrieves utilization data for node groups in a specific cluster.
 	GetNodeGroupsUtilization(ctx context.Context, in *GetNodeGroupsUtilizationRequest, opts ...grpc.CallOption) (*GetNodeGroupsUtilizationResponse, error)
+	// GetClusterNodeFilterIndex retrieves the filterable node attributes for a
+	// cluster: distinct node label sets with their per-node attribution, and the
+	// scalar spec fields of the Karpenter NodePools backing its node groups.
+	GetClusterNodeFilterIndex(ctx context.Context, in *GetClusterNodeFilterIndexRequest, opts ...grpc.CallOption) (*GetClusterNodeFilterIndexResponse, error)
 	// GetNodeGroup retrieves node group for a specific cluster.
 	GetNodeGroup(ctx context.Context, in *GetNodeGroupRequest, opts ...grpc.CallOption) (*GetNodeGroupResponse, error)
 	// GetNode retrieves detailed information for a specific node.
 	GetNode(ctx context.Context, in *GetNodeRequest, opts ...grpc.CallOption) (*GetNodeResponse, error)
+	// RequestNodeClaimDeletion queues a delete of the Karpenter NodeClaim that
+	// owns a live node. The operator performs the delete; poll
+	// GetNodeClaimDeletionStatus for progress.
+	RequestNodeClaimDeletion(ctx context.Context, in *RequestNodeClaimDeletionRequest, opts ...grpc.CallOption) (*RequestNodeClaimDeletionResponse, error)
+	// GetNodeClaimDeletionStatus returns the newest deletion request for a node.
+	GetNodeClaimDeletionStatus(ctx context.Context, in *GetNodeClaimDeletionStatusRequest, opts ...grpc.CallOption) (*GetNodeClaimDeletionStatusResponse, error)
 	// GetWorkloads retrieves all workloads for a specific cluster.
 	GetWorkloads(ctx context.Context, in *GetWorkloadsRequest, opts ...grpc.CallOption) (*GetWorkloadsResponse, error)
 	// ListWorkloadsPaginated retrieves a single keyset-paginated page of top-level
@@ -132,6 +146,10 @@ type K8SServiceClient interface {
 	// GetNodeGPUMigInstances retrieves the most recent MIG-instance telemetry for a node.
 	// Returns an empty instances list for nodes with no MIG-partitioned GPUs.
 	GetNodeGPUMigInstances(ctx context.Context, in *GetNodeGPUMigInstancesRequest, opts ...grpc.CallOption) (*GetNodeGPUMigInstancesResponse, error)
+	// GetNodeGPUMigInstanceTimeseries retrieves per-MIG-instance utilization as
+	// a time series for a node over a time range. Returns an empty instances
+	// list for nodes with no MIG-partitioned GPUs.
+	GetNodeGPUMigInstanceTimeseries(ctx context.Context, in *GetNodeGPUMigInstanceTimeseriesRequest, opts ...grpc.CallOption) (*GetNodeGPUMigInstanceTimeseriesResponse, error)
 	// GetContainerIndividualGPUMetrics retrieves the most recent per-GPU breakdown for every
 	// container in a workload that has GPU data.
 	GetContainerIndividualGPUMetrics(ctx context.Context, in *GetContainerIndividualGPUMetricsRequest, opts ...grpc.CallOption) (*GetContainerIndividualGPUMetricsResponse, error)
@@ -324,6 +342,15 @@ func (c *k8SServiceClient) GetNodeGroupsUtilization(ctx context.Context, in *Get
 	return out, nil
 }
 
+func (c *k8SServiceClient) GetClusterNodeFilterIndex(ctx context.Context, in *GetClusterNodeFilterIndexRequest, opts ...grpc.CallOption) (*GetClusterNodeFilterIndexResponse, error) {
+	out := new(GetClusterNodeFilterIndexResponse)
+	err := c.cc.Invoke(ctx, K8SService_GetClusterNodeFilterIndex_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *k8SServiceClient) GetNodeGroup(ctx context.Context, in *GetNodeGroupRequest, opts ...grpc.CallOption) (*GetNodeGroupResponse, error) {
 	out := new(GetNodeGroupResponse)
 	err := c.cc.Invoke(ctx, K8SService_GetNodeGroup_FullMethodName, in, out, opts...)
@@ -336,6 +363,24 @@ func (c *k8SServiceClient) GetNodeGroup(ctx context.Context, in *GetNodeGroupReq
 func (c *k8SServiceClient) GetNode(ctx context.Context, in *GetNodeRequest, opts ...grpc.CallOption) (*GetNodeResponse, error) {
 	out := new(GetNodeResponse)
 	err := c.cc.Invoke(ctx, K8SService_GetNode_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *k8SServiceClient) RequestNodeClaimDeletion(ctx context.Context, in *RequestNodeClaimDeletionRequest, opts ...grpc.CallOption) (*RequestNodeClaimDeletionResponse, error) {
+	out := new(RequestNodeClaimDeletionResponse)
+	err := c.cc.Invoke(ctx, K8SService_RequestNodeClaimDeletion_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *k8SServiceClient) GetNodeClaimDeletionStatus(ctx context.Context, in *GetNodeClaimDeletionStatusRequest, opts ...grpc.CallOption) (*GetNodeClaimDeletionStatusResponse, error) {
+	out := new(GetNodeClaimDeletionStatusResponse)
+	err := c.cc.Invoke(ctx, K8SService_GetNodeClaimDeletionStatus_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -408,6 +453,15 @@ func (c *k8SServiceClient) GetLatestContainerRequestLimits(ctx context.Context, 
 func (c *k8SServiceClient) GetNodeGPUMigInstances(ctx context.Context, in *GetNodeGPUMigInstancesRequest, opts ...grpc.CallOption) (*GetNodeGPUMigInstancesResponse, error) {
 	out := new(GetNodeGPUMigInstancesResponse)
 	err := c.cc.Invoke(ctx, K8SService_GetNodeGPUMigInstances_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *k8SServiceClient) GetNodeGPUMigInstanceTimeseries(ctx context.Context, in *GetNodeGPUMigInstanceTimeseriesRequest, opts ...grpc.CallOption) (*GetNodeGPUMigInstanceTimeseriesResponse, error) {
+	out := new(GetNodeGPUMigInstanceTimeseriesResponse)
+	err := c.cc.Invoke(ctx, K8SService_GetNodeGPUMigInstanceTimeseries_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -667,10 +721,20 @@ type K8SServiceServer interface {
 	GetAllNodeGroups(context.Context, *GetAllNodeGroupsRequest) (*GetAllNodeGroupsResponse, error)
 	// GetNodeGroupsUtilization retrieves utilization data for node groups in a specific cluster.
 	GetNodeGroupsUtilization(context.Context, *GetNodeGroupsUtilizationRequest) (*GetNodeGroupsUtilizationResponse, error)
+	// GetClusterNodeFilterIndex retrieves the filterable node attributes for a
+	// cluster: distinct node label sets with their per-node attribution, and the
+	// scalar spec fields of the Karpenter NodePools backing its node groups.
+	GetClusterNodeFilterIndex(context.Context, *GetClusterNodeFilterIndexRequest) (*GetClusterNodeFilterIndexResponse, error)
 	// GetNodeGroup retrieves node group for a specific cluster.
 	GetNodeGroup(context.Context, *GetNodeGroupRequest) (*GetNodeGroupResponse, error)
 	// GetNode retrieves detailed information for a specific node.
 	GetNode(context.Context, *GetNodeRequest) (*GetNodeResponse, error)
+	// RequestNodeClaimDeletion queues a delete of the Karpenter NodeClaim that
+	// owns a live node. The operator performs the delete; poll
+	// GetNodeClaimDeletionStatus for progress.
+	RequestNodeClaimDeletion(context.Context, *RequestNodeClaimDeletionRequest) (*RequestNodeClaimDeletionResponse, error)
+	// GetNodeClaimDeletionStatus returns the newest deletion request for a node.
+	GetNodeClaimDeletionStatus(context.Context, *GetNodeClaimDeletionStatusRequest) (*GetNodeClaimDeletionStatusResponse, error)
 	// GetWorkloads retrieves all workloads for a specific cluster.
 	GetWorkloads(context.Context, *GetWorkloadsRequest) (*GetWorkloadsResponse, error)
 	// ListWorkloadsPaginated retrieves a single keyset-paginated page of top-level
@@ -694,6 +758,10 @@ type K8SServiceServer interface {
 	// GetNodeGPUMigInstances retrieves the most recent MIG-instance telemetry for a node.
 	// Returns an empty instances list for nodes with no MIG-partitioned GPUs.
 	GetNodeGPUMigInstances(context.Context, *GetNodeGPUMigInstancesRequest) (*GetNodeGPUMigInstancesResponse, error)
+	// GetNodeGPUMigInstanceTimeseries retrieves per-MIG-instance utilization as
+	// a time series for a node over a time range. Returns an empty instances
+	// list for nodes with no MIG-partitioned GPUs.
+	GetNodeGPUMigInstanceTimeseries(context.Context, *GetNodeGPUMigInstanceTimeseriesRequest) (*GetNodeGPUMigInstanceTimeseriesResponse, error)
 	// GetContainerIndividualGPUMetrics retrieves the most recent per-GPU breakdown for every
 	// container in a workload that has GPU data.
 	GetContainerIndividualGPUMetrics(context.Context, *GetContainerIndividualGPUMetricsRequest) (*GetContainerIndividualGPUMetricsResponse, error)
@@ -792,11 +860,20 @@ func (UnimplementedK8SServiceServer) GetAllNodeGroups(context.Context, *GetAllNo
 func (UnimplementedK8SServiceServer) GetNodeGroupsUtilization(context.Context, *GetNodeGroupsUtilizationRequest) (*GetNodeGroupsUtilizationResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetNodeGroupsUtilization not implemented")
 }
+func (UnimplementedK8SServiceServer) GetClusterNodeFilterIndex(context.Context, *GetClusterNodeFilterIndexRequest) (*GetClusterNodeFilterIndexResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetClusterNodeFilterIndex not implemented")
+}
 func (UnimplementedK8SServiceServer) GetNodeGroup(context.Context, *GetNodeGroupRequest) (*GetNodeGroupResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetNodeGroup not implemented")
 }
 func (UnimplementedK8SServiceServer) GetNode(context.Context, *GetNodeRequest) (*GetNodeResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetNode not implemented")
+}
+func (UnimplementedK8SServiceServer) RequestNodeClaimDeletion(context.Context, *RequestNodeClaimDeletionRequest) (*RequestNodeClaimDeletionResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RequestNodeClaimDeletion not implemented")
+}
+func (UnimplementedK8SServiceServer) GetNodeClaimDeletionStatus(context.Context, *GetNodeClaimDeletionStatusRequest) (*GetNodeClaimDeletionStatusResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetNodeClaimDeletionStatus not implemented")
 }
 func (UnimplementedK8SServiceServer) GetWorkloads(context.Context, *GetWorkloadsRequest) (*GetWorkloadsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetWorkloads not implemented")
@@ -821,6 +898,9 @@ func (UnimplementedK8SServiceServer) GetLatestContainerRequestLimits(context.Con
 }
 func (UnimplementedK8SServiceServer) GetNodeGPUMigInstances(context.Context, *GetNodeGPUMigInstancesRequest) (*GetNodeGPUMigInstancesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetNodeGPUMigInstances not implemented")
+}
+func (UnimplementedK8SServiceServer) GetNodeGPUMigInstanceTimeseries(context.Context, *GetNodeGPUMigInstanceTimeseriesRequest) (*GetNodeGPUMigInstanceTimeseriesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetNodeGPUMigInstanceTimeseries not implemented")
 }
 func (UnimplementedK8SServiceServer) GetContainerIndividualGPUMetrics(context.Context, *GetContainerIndividualGPUMetricsRequest) (*GetContainerIndividualGPUMetricsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetContainerIndividualGPUMetrics not implemented")
@@ -1177,6 +1257,24 @@ func _K8SService_GetNodeGroupsUtilization_Handler(srv interface{}, ctx context.C
 	return interceptor(ctx, in, info, handler)
 }
 
+func _K8SService_GetClusterNodeFilterIndex_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetClusterNodeFilterIndexRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(K8SServiceServer).GetClusterNodeFilterIndex(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: K8SService_GetClusterNodeFilterIndex_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(K8SServiceServer).GetClusterNodeFilterIndex(ctx, req.(*GetClusterNodeFilterIndexRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _K8SService_GetNodeGroup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetNodeGroupRequest)
 	if err := dec(in); err != nil {
@@ -1209,6 +1307,42 @@ func _K8SService_GetNode_Handler(srv interface{}, ctx context.Context, dec func(
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(K8SServiceServer).GetNode(ctx, req.(*GetNodeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _K8SService_RequestNodeClaimDeletion_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RequestNodeClaimDeletionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(K8SServiceServer).RequestNodeClaimDeletion(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: K8SService_RequestNodeClaimDeletion_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(K8SServiceServer).RequestNodeClaimDeletion(ctx, req.(*RequestNodeClaimDeletionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _K8SService_GetNodeClaimDeletionStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetNodeClaimDeletionStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(K8SServiceServer).GetNodeClaimDeletionStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: K8SService_GetNodeClaimDeletionStatus_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(K8SServiceServer).GetNodeClaimDeletionStatus(ctx, req.(*GetNodeClaimDeletionStatusRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1353,6 +1487,24 @@ func _K8SService_GetNodeGPUMigInstances_Handler(srv interface{}, ctx context.Con
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(K8SServiceServer).GetNodeGPUMigInstances(ctx, req.(*GetNodeGPUMigInstancesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _K8SService_GetNodeGPUMigInstanceTimeseries_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetNodeGPUMigInstanceTimeseriesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(K8SServiceServer).GetNodeGPUMigInstanceTimeseries(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: K8SService_GetNodeGPUMigInstanceTimeseries_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(K8SServiceServer).GetNodeGPUMigInstanceTimeseries(ctx, req.(*GetNodeGPUMigInstanceTimeseriesRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1857,12 +2009,24 @@ var K8SService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _K8SService_GetNodeGroupsUtilization_Handler,
 		},
 		{
+			MethodName: "GetClusterNodeFilterIndex",
+			Handler:    _K8SService_GetClusterNodeFilterIndex_Handler,
+		},
+		{
 			MethodName: "GetNodeGroup",
 			Handler:    _K8SService_GetNodeGroup_Handler,
 		},
 		{
 			MethodName: "GetNode",
 			Handler:    _K8SService_GetNode_Handler,
+		},
+		{
+			MethodName: "RequestNodeClaimDeletion",
+			Handler:    _K8SService_RequestNodeClaimDeletion_Handler,
+		},
+		{
+			MethodName: "GetNodeClaimDeletionStatus",
+			Handler:    _K8SService_GetNodeClaimDeletionStatus_Handler,
 		},
 		{
 			MethodName: "GetWorkloads",
@@ -1895,6 +2059,10 @@ var K8SService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetNodeGPUMigInstances",
 			Handler:    _K8SService_GetNodeGPUMigInstances_Handler,
+		},
+		{
+			MethodName: "GetNodeGPUMigInstanceTimeseries",
+			Handler:    _K8SService_GetNodeGPUMigInstanceTimeseries_Handler,
 		},
 		{
 			MethodName: "GetContainerIndividualGPUMetrics",

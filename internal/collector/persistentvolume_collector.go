@@ -163,8 +163,8 @@ func (c *PersistentVolumeCollector) pvChanged(oldPV, newPV *corev1.PersistentVol
 		oldPV.ObjectMeta,
 		newPV.ObjectMeta,
 	)
-	if changed != IgnoreChanges {
-		return changed == PushChanges
+	if changed == PushChanges {
+		return true
 	}
 
 	// Check for phase changes

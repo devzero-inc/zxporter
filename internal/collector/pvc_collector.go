@@ -172,8 +172,8 @@ func (c *PersistentVolumeClaimCollector) pvcChanged(
 		oldPVC.ObjectMeta,
 		newPVC.ObjectMeta,
 	)
-	if changed != IgnoreChanges {
-		return changed == PushChanges
+	if changed == PushChanges {
+		return true
 	}
 
 	// Check for status phase changes

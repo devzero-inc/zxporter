@@ -264,6 +264,30 @@ func (c *SimpleDakrClient) SendNetworkTrafficMetrics(
 	return &gen.SendNetworkTrafficMetricsResponse{ProcessedCount: int32(len(req.Items))}, nil
 }
 
+// SendScalerMetrics implements SimpleDakrClient (no-op).
+func (c *SimpleDakrClient) SendScalerMetrics(
+	ctx context.Context,
+	clusterID string,
+	teamID string,
+	samples []*gen.ScalerMetricSample,
+) error {
+	c.logger.Info("Would send KEDA scaler metrics to Dakr",
+		"clusterID", clusterID,
+		"samplesCount", len(samples))
+	return nil
+}
+
+// SendContainerRedMetrics implements SimpleDakrClient.
+func (c *SimpleDakrClient) SendContainerRedMetrics(
+	ctx context.Context,
+	req *gen.SendContainerRedMetricsRequest,
+) (*gen.SendContainerRedMetricsResponse, error) {
+	c.logger.Info("Would send container RED metrics to Dakr",
+		"nodeName", req.NodeName,
+		"itemsCount", len(req.Items))
+	return &gen.SendContainerRedMetricsResponse{ProcessedCount: int32(len(req.Items))}, nil
+}
+
 // ReportHealth implements SimpleDakrClient.
 func (c *SimpleDakrClient) ReportHealth(ctx context.Context, req *gen.ReportHealthRequest) error {
 	c.logger.Info(

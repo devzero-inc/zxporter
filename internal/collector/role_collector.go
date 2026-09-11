@@ -167,8 +167,8 @@ func (c *RoleCollector) roleChanged(oldRole, newRole *rbacv1.Role) bool {
 		oldRole.ObjectMeta,
 		newRole.ObjectMeta,
 	)
-	if changed != IgnoreChanges {
-		return changed == PushChanges
+	if changed == PushChanges {
+		return true
 	}
 
 	// Check for rules changes

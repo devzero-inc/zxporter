@@ -110,6 +110,8 @@ rules:
 - apiGroups:
   - argoproj.io
   resources:
+  - applications
+  - applicationsets
   - rollouts
   verbs:
   - get
@@ -157,6 +159,14 @@ rules:
   - get
   - list
   - watch
+- apiGroups:
+  - coordination.k8s.io
+  resourceNames:
+  - dz-scheduler
+  resources:
+  - leases
+  verbs:
+  - get
 - apiGroups:
   - dakr.devzero.io
   resources:

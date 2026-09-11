@@ -167,8 +167,8 @@ func (c *ServiceCollector) serviceChanged(oldService, newService *corev1.Service
 		oldService.ObjectMeta,
 		newService.ObjectMeta,
 	)
-	if changed != IgnoreChanges {
-		return changed == PushChanges
+	if changed == PushChanges {
+		return true
 	}
 
 	// Check for spec changes

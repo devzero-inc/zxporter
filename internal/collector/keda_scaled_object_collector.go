@@ -194,8 +194,8 @@ func (c *ScaledObjectCollector) scaledObjectChanged(
 		oldScaledObject.ObjectMeta,
 		newScaledObject.ObjectMeta,
 	)
-	if changed != IgnoreChanges {
-		return changed == PushChanges
+	if changed == PushChanges {
+		return true
 	}
 
 	// Check for spec changes (most important for KEDA)

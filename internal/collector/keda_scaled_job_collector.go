@@ -194,8 +194,8 @@ func (c *ScaledJobCollector) scaledJobChanged(
 		oldScaledJob.ObjectMeta,
 		newScaledJob.ObjectMeta,
 	)
-	if changed != IgnoreChanges {
-		return changed == PushChanges
+	if changed == PushChanges {
+		return true
 	}
 
 	// Check for spec changes (most important for KEDA jobs)

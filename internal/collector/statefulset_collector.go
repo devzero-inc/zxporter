@@ -172,8 +172,8 @@ func (c *StatefulSetCollector) statefulSetChanged(
 		oldStatefulSet.ObjectMeta,
 		newStatefulSet.ObjectMeta,
 	)
-	if changed != IgnoreChanges {
-		return changed == PushChanges
+	if changed == PushChanges {
+		return true
 	}
 
 	// Check for spec changes

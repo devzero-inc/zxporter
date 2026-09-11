@@ -16,6 +16,7 @@ func AllResourceTypes() []ResourceType {
 		CNPGCluster,
 		KyvernoPolicy, KyvernoPolicyReport, GatekeeperConstraintTemplate, GatekeeperConstraint,
 		MigPartedConfig,
+		ArgoCDApplication, ArgoCDApplicationSet,
 	}
 }
 
@@ -194,6 +195,24 @@ type ExcludedScheduledSparkApplication struct {
 	Namespace string `json:"namespace"`
 
 	// Name is the Scheduled Spark Application's name
+	Name string `json:"name"`
+}
+
+// ExcludedArgoCDApplication identifies an Argo CD Application to exclude
+type ExcludedArgoCDApplication struct {
+	// Namespace is the Argo CD Application's namespace
+	Namespace string `json:"namespace"`
+
+	// Name is the Argo CD Application's name
+	Name string `json:"name"`
+}
+
+// ExcludedArgoCDApplicationSet identifies an Argo CD ApplicationSet to exclude
+type ExcludedArgoCDApplicationSet struct {
+	// Namespace is the Argo CD ApplicationSet's namespace
+	Namespace string `json:"namespace"`
+
+	// Name is the Argo CD ApplicationSet's name
 	Name string `json:"name"`
 }
 

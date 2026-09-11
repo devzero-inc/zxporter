@@ -52,6 +52,39 @@ spec:
               exclusions:
                 description: Exclusions specifies resources to exclude from collection
                 properties:
+                  excludedArgoCDApplicationSets:
+                    items:
+                      description: ExcludedArgoCDApplicationSet identifies an Argo
+                        CD ApplicationSet to exclude from collection
+                      properties:
+                        name:
+                          description: Name is the Argo CD ApplicationSet's name
+                          type: string
+                        namespace:
+                          description: Namespace is the Argo CD ApplicationSet's namespace
+                          type: string
+                      required:
+                      - name
+                      - namespace
+                      type: object
+                    type: array
+                  excludedArgoCDApplications:
+                    description: Argo CD Exclusions
+                    items:
+                      description: ExcludedArgoCDApplication identifies an Argo CD
+                        Application to exclude from collection
+                      properties:
+                        name:
+                          description: Name is the Argo CD Application's name
+                          type: string
+                        namespace:
+                          description: Namespace is the Argo CD Application's namespace
+                          type: string
+                      required:
+                      - name
+                      - namespace
+                      type: object
+                    type: array
                   excludedCNPGClusters:
                     description: CloudNativePG Exclusions
                     items:
@@ -674,6 +707,13 @@ spec:
                     description: Frequency is how often to collect resource usage
                       metrics
                     type: string
+                  kedaMetricsEndpoint:
+                    description: |-
+                      KEDAMetricsEndpoint is the full URL of the KEDA operator /metrics endpoint
+                      that the KedaScalerMetrics collector scrapes. Defaults to
+                      collector.DefaultKedaMetricsEndpoint (KEDA in the devzero-system namespace).
+                      Override only when KEDA runs in a different namespace or on a different port.
+                    type: string
                   kubeContextName:
                     description: KubeContextName is the name of the current context
                       being used to apply the installation yaml
@@ -737,6 +777,13 @@ spec:
                     description: |-
                       PATToken is the Personal Access Token used for automatic cluster token exchange
                       If ClusterToken is not provided but PATToken is, the system will exchange it for a cluster token
+                    type: string
+                  schedulerMetricsScrapeInterval:
+                    description: |-
+                      SchedulerMetricsScrapeInterval bounds how often the SchedulerMetrics
+                      collector scrapes dz-scheduler's /metrics endpoint (defaults to 60s --
+                      see collector.DefaultSchedulerMetricsScrapeInterval's doc comment for
+                      why). A Go duration string (e.g. "60s", "30s").
                     type: string
                   watchedCRDs:
                     description: WatchedCRDs is a list of custom resource definitions
