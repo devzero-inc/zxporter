@@ -158,12 +158,49 @@ const (
 	MigPartedConfig
 	NodeLifecycleTransition
 	PodUnschedulableEvent
+	// SchedulerPlacementMetric identifies the collector that scrapes dz-scheduler's
+	// auth-gated /metrics endpoint and emits its allow-listed Prometheus families as
+	// typed rows (see scheduler_metrics_collector.go).
+	SchedulerPlacementMetric
 	// ClusterAutoscalerStatus identifies the collector that watches the
 	// kube-system/cluster-autoscaler-status ConfigMap. It is a COLLECTOR identity only:
 	// that collector's output rides the ordinary Event resource type (see
 	// cluster_autoscaler_status.go), so this value never reaches the wire and
 	// deliberately has no ProtoType case.
 	ClusterAutoscalerStatus
+	// KedaScalerMetrics identifies the collector that scrapes per-trigger scaler
+	// metric samples from the KEDA operator /metrics endpoint.  It is a COLLECTOR
+	// identity only: data is forwarded directly via SendScalerMetrics and never
+	// travels through the combined resource channel, so this value has no
+	// ProtoType case.
+	KedaScalerMetrics
+	// ArgoCDApplication and ArgoCDApplicationSet are Argo CD (argoproj.io
+	// Application / ApplicationSet), NOT Argo Rollouts -- ArgoRollouts above is a
+	// different project that happens to share the argoproj.io group.
+	ArgoCDApplication
+	ArgoCDApplicationSet
+	// FluxCD GitOps kinds. The first seven get full explorer support; the
+	// remaining eleven (ExternalArtifact through ImageUpdateAutomation) are
+	// collector-only -- collected and stored so nothing is silently
+	// uncollected, but without a bespoke explorer detail panel yet.
+	FluxGitRepository
+	FluxOCIRepository
+	FluxHelmRepository
+	FluxHelmChart
+	FluxBucket
+	FluxKustomization
+	FluxHelmRelease
+	FluxExternalArtifact
+	FluxAlert
+	FluxProvider
+	FluxReceiver
+	FluxInstance
+	FluxReport
+	FluxResourceSetInputProvider
+	FluxResourceSet
+	FluxImageRepository
+	FluxImagePolicy
+	FluxImageUpdateAutomation
 )
 
 // String returns the string representation of the ResourceType
@@ -236,7 +273,29 @@ func (r ResourceType) String() string {
 		MigPartedConfig:              "mig_parted_config",
 		NodeLifecycleTransition:      "node_lifecycle_transition",
 		PodUnschedulableEvent:        "pod_unschedulable_event",
+		SchedulerPlacementMetric:     "scheduler_placement_metric",
 		ClusterAutoscalerStatus:      "cluster_autoscaler_status",
+		KedaScalerMetrics:            "keda_scaler_metrics",
+		ArgoCDApplication:            "argo_cd_application",
+		ArgoCDApplicationSet:         "argo_cd_application_set",
+		FluxGitRepository:            "flux_git_repository",
+		FluxOCIRepository:            "flux_oci_repository",
+		FluxHelmRepository:           "flux_helm_repository",
+		FluxHelmChart:                "flux_helm_chart",
+		FluxBucket:                   "flux_bucket",
+		FluxKustomization:            "flux_kustomization",
+		FluxHelmRelease:              "flux_helm_release",
+		FluxExternalArtifact:         "flux_external_artifact",
+		FluxAlert:                    "flux_alert",
+		FluxProvider:                 "flux_provider",
+		FluxReceiver:                 "flux_receiver",
+		FluxInstance:                 "flux_instance",
+		FluxReport:                   "flux_report",
+		FluxResourceSetInputProvider: "flux_resource_set_input_provider",
+		FluxResourceSet:              "flux_resource_set",
+		FluxImageRepository:          "flux_image_repository",
+		FluxImagePolicy:              "flux_image_policy",
+		FluxImageUpdateAutomation:    "flux_image_update_automation",
 	}
 
 	if name, ok := names[r]; ok {
@@ -315,6 +374,27 @@ var resourceProtoTypes = map[ResourceType]gen.ResourceType{
 	MigPartedConfig:              gen.ResourceType_RESOURCE_TYPE_MIG_PARTED_CONFIG,
 	NodeLifecycleTransition:      gen.ResourceType_RESOURCE_TYPE_NODE_LIFECYCLE_TRANSITION,
 	PodUnschedulableEvent:        gen.ResourceType_RESOURCE_TYPE_POD_UNSCHEDULABLE_EVENT,
+	SchedulerPlacementMetric:     gen.ResourceType_RESOURCE_TYPE_SCHEDULER_PLACEMENT_METRIC,
+	ArgoCDApplication:            gen.ResourceType_RESOURCE_TYPE_ARGO_APPLICATION,
+	ArgoCDApplicationSet:         gen.ResourceType_RESOURCE_TYPE_ARGO_APPLICATION_SET,
+	FluxGitRepository:            gen.ResourceType_RESOURCE_TYPE_FLUX_GIT_REPOSITORY,
+	FluxOCIRepository:            gen.ResourceType_RESOURCE_TYPE_FLUX_OCI_REPOSITORY,
+	FluxHelmRepository:           gen.ResourceType_RESOURCE_TYPE_FLUX_HELM_REPOSITORY,
+	FluxHelmChart:                gen.ResourceType_RESOURCE_TYPE_FLUX_HELM_CHART,
+	FluxBucket:                   gen.ResourceType_RESOURCE_TYPE_FLUX_BUCKET,
+	FluxKustomization:            gen.ResourceType_RESOURCE_TYPE_FLUX_KUSTOMIZATION,
+	FluxHelmRelease:              gen.ResourceType_RESOURCE_TYPE_FLUX_HELM_RELEASE,
+	FluxExternalArtifact:         gen.ResourceType_RESOURCE_TYPE_FLUX_EXTERNAL_ARTIFACT,
+	FluxAlert:                    gen.ResourceType_RESOURCE_TYPE_FLUX_ALERT,
+	FluxProvider:                 gen.ResourceType_RESOURCE_TYPE_FLUX_PROVIDER,
+	FluxReceiver:                 gen.ResourceType_RESOURCE_TYPE_FLUX_RECEIVER,
+	FluxInstance:                 gen.ResourceType_RESOURCE_TYPE_FLUX_INSTANCE,
+	FluxReport:                   gen.ResourceType_RESOURCE_TYPE_FLUX_REPORT,
+	FluxResourceSetInputProvider: gen.ResourceType_RESOURCE_TYPE_FLUX_RESOURCE_SET_INPUT_PROVIDER,
+	FluxResourceSet:              gen.ResourceType_RESOURCE_TYPE_FLUX_RESOURCE_SET,
+	FluxImageRepository:          gen.ResourceType_RESOURCE_TYPE_FLUX_IMAGE_REPOSITORY,
+	FluxImagePolicy:              gen.ResourceType_RESOURCE_TYPE_FLUX_IMAGE_POLICY,
+	FluxImageUpdateAutomation:    gen.ResourceType_RESOURCE_TYPE_FLUX_IMAGE_UPDATE_AUTOMATION,
 }
 
 // ProtoType returns the protobuf wire enum for the ResourceType.

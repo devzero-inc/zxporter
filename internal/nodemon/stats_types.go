@@ -71,10 +71,32 @@ type PVCRef struct {
 	Namespace string `json:"namespace"`
 }
 
+// FsStats holds filesystem usage for one filesystem, as reported by the kubelet
+// Summary API. Pointer fields are omitted by kubelet when unavailable, matching
+// the convention used by CPUStats and MemStats above.
+type FsStats struct {
+	Time           time.Time `json:"time"`
+	AvailableBytes *uint64   `json:"availableBytes"`
+	CapacityBytes  *uint64   `json:"capacityBytes"`
+	UsedBytes      *uint64   `json:"usedBytes"`
+	Inodes         *uint64   `json:"inodes"`
+	InodesFree     *uint64   `json:"inodesFree"`
+	InodesUsed     *uint64   `json:"inodesUsed"`
+}
+
+// RuntimeStats holds the container runtime's filesystem stats. containerFs is
+// deliberately not modeled: it equals imageFs on every runtime configuration
+// except split-disk containerd, which we have not observed in the fleet.
+type RuntimeStats struct {
+	ImageFs *FsStats `json:"imageFs"`
+}
+
 // NodeStats holds node-level metrics from kubelet stats/summary.
 type NodeStats struct {
-	NodeName string       `json:"nodeName"`
-	CPU      CPUStats     `json:"cpu"`
-	Memory   MemStats     `json:"memory"`
-	Network  NetworkStats `json:"network"`
+	NodeName string        `json:"nodeName"`
+	CPU      CPUStats      `json:"cpu"`
+	Memory   MemStats      `json:"memory"`
+	Network  NetworkStats  `json:"network"`
+	Fs       *FsStats      `json:"fs"`
+	Runtime  *RuntimeStats `json:"runtime"`
 }

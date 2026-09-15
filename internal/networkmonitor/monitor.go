@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"hash/maphash"
 	"net/http"
 	"sync"
@@ -16,6 +17,7 @@ import (
 	"github.com/devzero-inc/zxporter/internal/health"
 	"github.com/devzero-inc/zxporter/internal/networkmonitor/dns"
 	"github.com/devzero-inc/zxporter/internal/networkmonitor/ebpf"
+	"github.com/devzero-inc/zxporter/internal/networkmonitor/redmetrics"
 	"github.com/devzero-inc/zxporter/internal/transport"
 
 	gen "github.com/devzero-inc/zxporter/gen/api/v1"
@@ -81,6 +83,11 @@ type Monitor struct {
 	dakrClient    transport.DakrClient
 	healthManager *health.HealthManager
 
+	// redMetrics is nil unless container RED metrics were explicitly enabled. The
+	// feature ships off, so the nil case is the normal one and every use of this
+	// field is guarded.
+	redMetrics *redmetrics.Aggregator
+
 	mu sync.RWMutex
 
 	// Cache of previous conntrack entries for delta calculation
@@ -106,6 +113,18 @@ func NewMonitor(cfg Config, log logr.Logger, podCache *PodCache, ct Client, trac
 		entriesCache:  make(map[uint64]*Entry),
 		podMetrics:    make(map[uint64]*NetworkFlow),
 	}, nil
+}
+
+// EnableContainerRedMetrics attaches a container RED metrics aggregator, whose
+// closed minute buckets are drained on every flush.
+//
+// It is a setter rather than a NewMonitor parameter because the feature is off by
+// default: a nil aggregator has to remain an ordinary, well-tested state, and
+// threading a nil through the constructor invites the opposite.
+func (m *Monitor) EnableContainerRedMetrics(agg *redmetrics.Aggregator) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.redMetrics = agg
 }
 
 func (m *Monitor) updateHealth(component string, status health.HealthStatus, message string) {
@@ -430,6 +449,11 @@ func (m *Monitor) flush(ctx context.Context) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	// Drained before the client check, not after. A minute bucket closes when the
+	// wall clock passes it whether or not anyone is listening, and an aggregate
+	// nobody drains would grow for as long as the process runs.
+	redItems := m.flushContainerRedMetricsLocked()
+
 	if m.dakrClient == nil {
 		return nil
 	}
@@ -530,7 +554,7 @@ func (m *Monitor) flush(ctx context.Context) error {
 	}
 
 	if len(items) == 0 && len(dnsLookupItems) == 0 {
-		return nil
+		return m.sendContainerRedMetricsLocked(ctx, redItems)
 	}
 
 	// 4. Send Request
@@ -544,5 +568,38 @@ func (m *Monitor) flush(ctx context.Context) error {
 	}
 
 	_, err := m.dakrClient.SendNetworkTrafficMetrics(ctx, req)
+
+	// Both sends are attempted and both errors are reported. They carry different
+	// grains to different tables, so letting one failure skip the other would
+	// discard data that was ready to go for a reason unrelated to it.
+	return errors.Join(err, m.sendContainerRedMetricsLocked(ctx, redItems))
+}
+
+// flushContainerRedMetricsLocked drains the aggregator's closed minute buckets,
+// returning nil when the feature is off. The caller holds the lock.
+func (m *Monitor) flushContainerRedMetricsLocked() []*gen.ContainerRedMetricsItem {
+	if m.redMetrics == nil {
+		return nil
+	}
+	return m.redMetrics.Flush()
+}
+
+// sendContainerRedMetricsLocked ships one batch of closed minute buckets.
+//
+// There is no retry and no buffering of a failed batch. The items are per-minute
+// deltas destined for a SummingMergeTree, so a re-sent batch adds to whatever
+// already landed and reads as real extra traffic. A lost minute is visible as a
+// gap; a doubled one is invisible and wrong.
+func (m *Monitor) sendContainerRedMetricsLocked(ctx context.Context, items []*gen.ContainerRedMetricsItem) error {
+	if len(items) == 0 || m.dakrClient == nil {
+		return nil
+	}
+
+	_, err := m.dakrClient.SendContainerRedMetrics(ctx, &gen.SendContainerRedMetricsRequest{
+		NodeName:        m.cfg.NodeName,
+		Items:           items,
+		OperatorVersion: &m.cfg.OperatorVersion,
+		OperatorCommit:  &m.cfg.OperatorCommit,
+	})
 	return err
 }
