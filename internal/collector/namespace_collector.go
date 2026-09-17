@@ -163,8 +163,8 @@ func (c *NamespaceCollector) namespaceChanged(oldNamespace, newNamespace *corev1
 		oldNamespace.ObjectMeta,
 		newNamespace.ObjectMeta,
 	)
-	if changed != IgnoreChanges {
-		return changed == PushChanges
+	if changed == PushChanges {
+		return true
 	}
 
 	// Check for status phase changes

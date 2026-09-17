@@ -231,6 +231,14 @@ spec:
         {{- if $v.withDcgm }}
         - name: dcgm-exporter
           securityContext:
+            # SYS_ADMIN alone is not enough: enumerating MIG Compute Instance
+            # profiles via NVML needs broader host access than that one
+            # capability grants (confirmed live -- SYS_ADMIN-only reproduces
+            # "CacheManager Init Failed. Error: -17" the instant any MIG
+            # instance exists on the node; switching to privileged fixes it
+            # with zero other changes). This is a generic NVML/driver
+            # requirement, not provider-specific, so unlike the hostPath/
+            # LD_LIBRARY_PATH blocks below it must not be gated on gcp only.
             capabilities:
               add:
                 - SYS_ADMIN
@@ -238,9 +246,7 @@ spec:
                 - NET_RAW
             runAsNonRoot: false
             runAsUser: 0
-            {{- if eq $.Values.global.k8sProvider "gcp"}}
             privileged: true
-            {{- end }}
           image: "{{ $.Values.dcgmExporter.image.repository }}:{{ $.Values.dcgmExporter.image.tag }}"
           imagePullPolicy: {{ $.Values.dcgmExporter.image.pullPolicy }}
           command: [ "/bin/bash", "-c" ]
@@ -270,6 +276,24 @@ spec:
                 fieldRef:
                   fieldPath: status.hostIP
             {{- end }}
+            {{- $hasCustomVisibleDevices := false }}
+            {{- range $.Values.dcgmExporter.extraEnv }}
+            {{- if eq .name "NVIDIA_VISIBLE_DEVICES" }}
+            {{- $hasCustomVisibleDevices = true }}
+            {{- end }}
+            {{- end }}
+            {{- if not $hasCustomVisibleDevices }}
+            # Without this, nvidia-container-runtime's "auto" mode only exposes
+            # whole/non-MIG GPUs to a non-privileged container with no explicit
+            # device-plugin resource request (which this sidecar deliberately
+            # doesn't make, since it must see every GPU on the node, not just
+            # one). MIG-partitioned GPUs stay invisible without it -- confirmed
+            # by direct comparison against GPU Operator's own dcgm-exporter,
+            # which gets the same visibility via privileged:true instead; this
+            # is the minimal fix that doesn't need the broader grant.
+            - name: "NVIDIA_VISIBLE_DEVICES"
+              value: "all"
+            {{- end }}
             {{- $hasCustomLDLibraryPath := false }}
             {{- range $.Values.dcgmExporter.extraEnv }}
             {{- if eq .name "LD_LIBRARY_PATH" }}
@@ -297,5 +321,9 @@ spec:
             {{- end }}
             - name: {{- include "dcgm-exporter.config-map" $ | indent 1 }}
               mountPath: "/etc/dcgm-exporter"
+          {{- with $.Values.dcgmExporter.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
         {{- end }}
 {{- end }}

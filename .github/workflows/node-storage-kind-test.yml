@@ -1,0 +1,27 @@
+name: node-storage-kind
+
+# End-to-end validation of node storage occupancy against a real kubelet on a
+# real kind cluster. Actual test logic lives in the composite action at
+# .github/actions/node-storage-kind so the services monorepo can reuse it via
+# ./operators/zxporter/.github/actions/node-storage-kind.
+
+permissions:
+  contents: read
+
+on:
+  pull_request:
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'LICENSE'
+  workflow_dispatch:
+
+jobs:
+  node-storage-kind:
+    runs-on: namespace-profile-dz-generic
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run node-storage-kind
+        uses: ./.github/actions/node-storage-kind

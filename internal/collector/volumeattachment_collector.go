@@ -164,8 +164,8 @@ func (c *VolumeAttachmentCollector) volumeAttachmentChanged(
 		oldVA.ObjectMeta,
 		newVA.ObjectMeta,
 	)
-	if changed != IgnoreChanges {
-		return changed == PushChanges
+	if changed == PushChanges {
+		return true
 	}
 
 	// Check for spec changes
