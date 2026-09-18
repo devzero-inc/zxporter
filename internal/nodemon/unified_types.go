@@ -78,6 +78,24 @@ type NodeMetricsResponse struct {
 	DiskReadOpsPerSec    float64 `json:"disk_read_ops_per_sec"`
 	DiskWriteOpsPerSec   float64 `json:"disk_write_ops_per_sec"`
 
+	// Node filesystem occupancy (gauges, from kubelet stats/summary). Distinct
+	// from the Disk I/O rates above: these answer "is the disk full", not
+	// "is the disk busy".
+	NodefsUsedBytes       uint64 `json:"nodefs_used_bytes,omitempty"`
+	NodefsCapacityBytes   uint64 `json:"nodefs_capacity_bytes,omitempty"`
+	NodefsAvailableBytes  uint64 `json:"nodefs_available_bytes,omitempty"`
+	NodefsInodesUsed      uint64 `json:"nodefs_inodes_used,omitempty"`
+	NodefsInodesTotal     uint64 `json:"nodefs_inodes_total,omitempty"`
+	ImagefsUsedBytes      uint64 `json:"imagefs_used_bytes,omitempty"`
+	ImagefsCapacityBytes  uint64 `json:"imagefs_capacity_bytes,omitempty"`
+	ImagefsAvailableBytes uint64 `json:"imagefs_available_bytes,omitempty"`
+	// ImagefsSharedDevice reports that imagefs and nodefs are the same
+	// underlying filesystem, in which case ImagefsUsedBytes is a SUBSET of
+	// NodefsUsedBytes and the two must never be added together. The kubelet
+	// does not expose the device, so this is inferred; see
+	// imagefsSharesDeviceWithNodefs.
+	ImagefsSharedDevice bool `json:"imagefs_shared_device,omitempty"`
+
 	// GPU aggregates (optional)
 	GPUUtilizationAvg   float64 `json:"gpu_utilization_avg,omitempty"`
 	GPUMemoryUsedMiBSum float64 `json:"gpu_memory_used_mib_sum,omitempty"`

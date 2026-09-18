@@ -347,9 +347,66 @@ func (u *UnifiedExporter) buildNodeMetrics(
 		}
 		nodeResult.NetworkRxBytesPerSec = u.nodeNetRates.Rate(u.nodeName, "rx_bytes", float64(nodeRxBytes), now)
 		nodeResult.NetworkTxBytesPerSec = u.nodeNetRates.Rate(u.nodeName, "tx_bytes", float64(nodeTxBytes), now)
+
+		// Filesystem occupancy comes straight from stats/summary — unlike the
+		// network and disk-I/O fields above, there is no cAdvisor aggregation
+		// and no per-second rate to derive. These are gauges, stored as read.
+		if fs := stats.Node.Fs; fs != nil {
+			nodeResult.NodefsUsedBytes = derefU64(fs.UsedBytes)
+			nodeResult.NodefsCapacityBytes = derefU64(fs.CapacityBytes)
+			nodeResult.NodefsAvailableBytes = derefU64(fs.AvailableBytes)
+			nodeResult.NodefsInodesUsed = derefU64(fs.InodesUsed)
+			nodeResult.NodefsInodesTotal = derefU64(fs.Inodes)
+		}
+		if rt := stats.Node.Runtime; rt != nil && rt.ImageFs != nil {
+			nodeResult.ImagefsUsedBytes = derefU64(rt.ImageFs.UsedBytes)
+			nodeResult.ImagefsCapacityBytes = derefU64(rt.ImageFs.CapacityBytes)
+			nodeResult.ImagefsAvailableBytes = derefU64(rt.ImageFs.AvailableBytes)
+			nodeResult.ImagefsSharedDevice = imagefsSharesDeviceWithNodefs(stats.Node.Fs, rt.ImageFs)
+		}
 	}
 
 	return nodeResult
+}
+
+// derefU64 reads an optional kubelet counter, treating absent as zero.
+func derefU64(v *uint64) uint64 {
+	if v == nil {
+		return 0
+	}
+	return *v
+}
+
+// imagefsSharesDeviceWithNodefs reports whether the container runtime's image
+// filesystem is the same physical filesystem as nodefs.
+//
+// This matters because when they are shared, imagefs usage is a SUBSET of
+// nodefs usage — on a stock EKS/GKE/AKS node imagefs reports the image layers
+// that already count toward nodefs's used bytes. Summing them would
+// double-count, which is why the two are stored separately and never combined
+// upstream of this flag.
+//
+// The kubelet Summary API does not name the device, so this is inferred from
+// total capacity AND total inode count both matching. Capacity alone is too
+// weak — two volumes provisioned at the same size are common. availableBytes
+// cannot be used at all: the fs and imageFs sections carry different sample
+// timestamps and drift by a few blocks between them.
+//
+// Zero capacity means the kubelet reported nothing useful, which is not
+// evidence of sharing, so it returns false.
+//
+// internal/collector carries a deliberate twin of this heuristic (it does not
+// import internal/nodemon by design) — if you change this, change that one too.
+func imagefsSharesDeviceWithNodefs(nodefs, imagefs *FsStats) bool {
+	if nodefs == nil || imagefs == nil {
+		return false
+	}
+	capacity := derefU64(nodefs.CapacityBytes)
+	inodes := derefU64(nodefs.Inodes)
+	if capacity == 0 || inodes == 0 {
+		return false
+	}
+	return capacity == derefU64(imagefs.CapacityBytes) && inodes == derefU64(imagefs.Inodes)
 }
 
 // QueryContainerMetrics implements UnifiedQuerier.
