@@ -135,6 +135,23 @@ func (c *MockMetricsServer) SendNetworkTrafficMetrics(
 	return connect.NewResponse(&gen.SendNetworkTrafficMetricsResponse{}), nil
 }
 
+// SendScalerMetrics sends KEDA scaler metric samples to Dakr
+func (c *MockMetricsServer) SendScalerMetrics(
+	ctx context.Context,
+	req *connect.Request[gen.SendScalerMetricsRequest],
+) (*connect.Response[gen.SendScalerMetricsResponse], error) {
+	return connect.NewResponse(&gen.SendScalerMetricsResponse{}), nil
+}
+
+// SendContainerRedMetrics sends per-container RED metrics to Dakr
+func (c *MockMetricsServer) SendContainerRedMetrics(
+	ctx context.Context,
+	req *connect.Request[gen.SendContainerRedMetricsRequest],
+) (*connect.Response[gen.SendContainerRedMetricsResponse], error) {
+	// Return an empty response for the mock implementation
+	return connect.NewResponse(&gen.SendContainerRedMetricsResponse{}), nil
+}
+
 func TestConnectRPCCompressionIntegration(t *testing.T) {
 	// Create mock server
 	mockServer := &MockMetricsServer{}

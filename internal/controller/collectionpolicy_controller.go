@@ -146,6 +146,8 @@ type PolicyConfig struct {
 	ExcludedSparkApplications          []collector.ExcludedSparkApplication
 	ExcludedScheduledSparkApplications []collector.ExcludedScheduledSparkApplication
 	ExcludedCNPGClusters               []collector.ExcludedCNPGCluster
+	ExcludedArgoCDApplications         []collector.ExcludedArgoCDApplication
+	ExcludedArgoCDApplicationSets      []collector.ExcludedArgoCDApplicationSet
 
 	DisabledCollectors []string
 
@@ -167,6 +169,17 @@ type PolicyConfig struct {
 	NodeMetricsConcurrency  int
 	NodemonRequestTimeout   time.Duration
 	KubeletFallbackTimeout  time.Duration
+
+	// SchedulerMetricsScrapeInterval bounds how often the SchedulerMetrics
+	// collector scrapes dz-scheduler's /metrics endpoint. See
+	// collector.DefaultSchedulerMetricsScrapeInterval's doc comment for the
+	// default's reasoning.
+	SchedulerMetricsScrapeInterval time.Duration
+
+	// KEDAMetricsEndpoint is the full URL of the KEDA operator /metrics endpoint
+	// scraped by the KedaScalerMetrics collector. Empty means the collector
+	// applies collector.DefaultKedaMetricsEndpoint (KEDA in devzero-system).
+	KEDAMetricsEndpoint string
 }
 
 // ========================================
@@ -217,6 +230,16 @@ type PolicyConfig struct {
 // +kubebuilder:rbac:groups="",resources=nodes/metrics,verbs=get
 // nodes/proxy: kubelet Summary API fallback (/stats/summary) for nodes without a nodemon pod
 // +kubebuilder:rbac:groups="",resources=nodes/proxy,verbs=get
+
+// SchedulerMetricsCollector (issue #10055): reads the dz-scheduler Lease's holderIdentity
+// to scrape the current leader pod directly instead of the Service VIP, which could
+// otherwise get stuck scraping a standby replica that reports all-zero placement metrics.
+// Restricted to the one named Lease dz-scheduler ships -- this collector never needs any
+// other Lease in the cluster. zxporter's own leader-election Role (config/rbac/leader_election_role.yaml)
+// does NOT cover this: that Role is namespaced to wherever zxporter itself is deployed,
+// which is not always devzero-system (dz-scheduler's namespace) -- see
+// docs/prometheus-migration-guide.md's devzero-zxporter examples.
+// +kubebuilder:rbac:groups=coordination.k8s.io,resources=leases,resourceNames=dz-scheduler,verbs=get
 
 // Core Kubernetes resources (READ-ONLY monitoring and collection)
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch
@@ -287,6 +310,9 @@ type PolicyConfig struct {
 // Optional third-party monitoring integrations
 // +kubebuilder:rbac:groups=datadoghq.com,resources=extendeddaemonsetreplicasets,verbs=get;list;watch
 // +kubebuilder:rbac:groups=argoproj.io,resources=rollouts,verbs=get;list;watch
+// applications and applicationsets are Argo CD, a different project from the
+// Argo Rollouts rollouts above that happens to share the argoproj.io group.
+// +kubebuilder:rbac:groups=argoproj.io,resources=applications;applicationsets,verbs=get;list;watch
 // +kubebuilder:rbac:groups=keda.sh,resources=scaledobjects;scaledjobs;triggerauthentications;clustertriggerauthentications,verbs=get;list;watch
 // +kubebuilder:rbac:groups=kubeflow.org,resources=notebooks,verbs=get;list;watch
 // +kubebuilder:rbac:groups=batch.volcano.sh,resources=jobs,verbs=get;list;watch
@@ -308,6 +334,16 @@ type PolicyConfig struct {
 // +kubebuilder:rbac:groups=templates.gatekeeper.sh,resources=constrainttemplates,verbs=get;list;watch
 // +kubebuilder:rbac:groups=constraints.gatekeeper.sh,resources=*,verbs=get;list;watch
 // +kubebuilder:rbac:groups=status.gatekeeper.sh,resources=*,verbs=get;list;watch
+
+// FluxCD GitOps sources, reconcilers and notification kinds (optional - only
+// if Flux installed). image.toolkit.fluxcd.io is the image-reflector/
+// image-automation controllers, an optional add-on even on Flux clusters.
+// +kubebuilder:rbac:groups=source.toolkit.fluxcd.io,resources=gitrepositories;ocirepositories;helmrepositories;helmcharts;buckets;externalartifacts,verbs=get;list;watch
+// +kubebuilder:rbac:groups=kustomize.toolkit.fluxcd.io,resources=kustomizations,verbs=get;list;watch
+// +kubebuilder:rbac:groups=helm.toolkit.fluxcd.io,resources=helmreleases,verbs=get;list;watch
+// +kubebuilder:rbac:groups=notification.toolkit.fluxcd.io,resources=alerts;providers;receivers,verbs=get;list;watch
+// +kubebuilder:rbac:groups=fluxcd.controlplane.io,resources=fluxinstances;fluxreports;resourcesetinputproviders;resourcesets,verbs=get;list;watch
+// +kubebuilder:rbac:groups=image.toolkit.fluxcd.io,resources=imagerepositories;imagepolicies;imageupdateautomations,verbs=get;list;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -512,6 +548,25 @@ func (r *CollectionPolicyReconciler) createNewConfig(
 	} else {
 		newConfig.KubeletFallbackTimeout = 15 * time.Second // Default
 	}
+
+	// Bound how often the SchedulerMetrics collector scrapes dz-scheduler's
+	// /metrics endpoint.
+	schedulerMetricsScrapeIntervalStr := envSpec.Policies.SchedulerMetricsScrapeInterval
+	if schedulerMetricsScrapeIntervalStr != "" {
+		if interval, err := time.ParseDuration(schedulerMetricsScrapeIntervalStr); err == nil && interval > 0 {
+			newConfig.SchedulerMetricsScrapeInterval = interval
+		} else {
+			logger.Error(err, "Error parsing scheduler metrics scrape interval", "interval", schedulerMetricsScrapeIntervalStr)
+			newConfig.SchedulerMetricsScrapeInterval = collector.DefaultSchedulerMetricsScrapeInterval
+		}
+	} else {
+		newConfig.SchedulerMetricsScrapeInterval = collector.DefaultSchedulerMetricsScrapeInterval
+	}
+
+	// KEDA operator /metrics endpoint for the KedaScalerMetrics collector.
+	// Passed through verbatim; empty lets the collector apply its default
+	// (collector.DefaultKedaMetricsEndpoint, KEDA in devzero-system).
+	newConfig.KEDAMetricsEndpoint = envSpec.Policies.KEDAMetricsEndpoint
 
 	// Set cluster snapshot interval (defaults to 3h for reduced network usage)
 	clusterSnapshotIntervalStr := envSpec.Policies.ClusterSnapshotInterval
@@ -828,6 +883,28 @@ func (r *CollectionPolicyReconciler) createNewConfig(
 		})
 	}
 
+	// Argo CD Applications
+	for _, app := range envSpec.Exclusions.ExcludedArgoCDApplications {
+		newConfig.ExcludedArgoCDApplications = append(
+			newConfig.ExcludedArgoCDApplications,
+			collector.ExcludedArgoCDApplication{
+				Namespace: app.Namespace,
+				Name:      app.Name,
+			},
+		)
+	}
+
+	// Argo CD ApplicationSets
+	for _, appSet := range envSpec.Exclusions.ExcludedArgoCDApplicationSets {
+		newConfig.ExcludedArgoCDApplicationSets = append(
+			newConfig.ExcludedArgoCDApplicationSets,
+			collector.ExcludedArgoCDApplicationSet{
+				Namespace: appSet.Namespace,
+				Name:      appSet.Name,
+			},
+		)
+	}
+
 	// Events - these are special with more fields
 	for _, event := range envSpec.Exclusions.ExcludedEvents {
 		newConfig.ExcludedEvents = append(newConfig.ExcludedEvents, collector.ExcludedEvent{
@@ -1004,6 +1081,14 @@ func (r *CollectionPolicyReconciler) identifyAffectedCollectors(
 		affectedCollectors["cluster_snapshot"] = true
 	}
 
+	if oldConfig.SchedulerMetricsScrapeInterval != newConfig.SchedulerMetricsScrapeInterval {
+		affectedCollectors["scheduler_placement_metric"] = true
+	}
+
+	if oldConfig.KEDAMetricsEndpoint != newConfig.KEDAMetricsEndpoint {
+		affectedCollectors[collector.KedaScalerMetrics.String()] = true
+	}
+
 	if !reflect.DeepEqual(oldConfig.ExcludedCSINodes, newConfig.ExcludedCSINodes) {
 		affectedCollectors["csi_node"] = true
 	}
@@ -1064,6 +1149,20 @@ func (r *CollectionPolicyReconciler) identifyAffectedCollectors(
 
 	if !reflect.DeepEqual(oldConfig.ExcludedCNPGClusters, newConfig.ExcludedCNPGClusters) {
 		affectedCollectors["cnpg_cluster"] = true
+	}
+
+	if !reflect.DeepEqual(
+		oldConfig.ExcludedArgoCDApplications,
+		newConfig.ExcludedArgoCDApplications,
+	) {
+		affectedCollectors[collector.ArgoCDApplication.String()] = true
+	}
+
+	if !reflect.DeepEqual(
+		oldConfig.ExcludedArgoCDApplicationSets,
+		newConfig.ExcludedArgoCDApplicationSets,
+	) {
+		affectedCollectors[collector.ArgoCDApplicationSet.String()] = true
 	}
 
 	// Check if the special node collectors are affected by the update interval change
@@ -1859,6 +1958,47 @@ func (r *CollectionPolicyReconciler) restartCollectors(
 				newConfig.ExcludedCNPGClusters,
 				collector.DefaultMaxBatchSize,
 				newConfig.UpdateInterval,
+				logger,
+				r.TelemetryLogger,
+			)
+		case collector.ArgoCDApplication.String():
+			replacedCollector = collector.NewArgoCDApplicationCollector(
+				r.DynamicClient,
+				newConfig.TargetNamespaces,
+				newConfig.ExcludedArgoCDApplications,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+				r.TelemetryLogger,
+			)
+		case collector.ArgoCDApplicationSet.String():
+			replacedCollector = collector.NewArgoCDApplicationSetCollector(
+				r.DynamicClient,
+				newConfig.TargetNamespaces,
+				newConfig.ExcludedArgoCDApplicationSets,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+				r.TelemetryLogger,
+			)
+		case "scheduler_placement_metric":
+			replacedCollector = collector.NewSchedulerMetricsCollector(
+				r.K8sClient,
+				collector.NewSchedulerMetricsHTTPClientOrFailing(logger),
+				newConfig.SchedulerMetricsScrapeInterval,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+				r.TelemetryLogger,
+			)
+		case collector.KedaScalerMetrics.String():
+			// Rebuild with the (possibly changed) KEDA metrics endpoint so a
+			// KEDA_METRICS_ENDPOINT change actually takes effect. Without this
+			// case the collector is stopped above but never recreated.
+			replacedCollector = collector.NewKedaScalerMetricsCollector(
+				collector.KedaScalerMetricsConfig{Endpoint: newConfig.KEDAMetricsEndpoint},
+				r.KEDAClient,
+				r.DakrClient,
 				logger,
 				r.TelemetryLogger,
 			)
@@ -3147,6 +3287,29 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 			},
 		},
 		{
+			// KedaScalerMetrics scrapes the KEDA operator /metrics endpoint and
+			// forwards per-trigger scaler values directly to dakr via
+			// SendScalerMetrics.  IsAvailable returns false when the endpoint is
+			// unreachable so the collector is silently skipped on non-KEDA clusters.
+			collector: collector.NewKedaScalerMetricsCollector(
+				collector.KedaScalerMetricsConfig{Endpoint: config.KEDAMetricsEndpoint},
+				r.KEDAClient,
+				r.DakrClient,
+				logger,
+				r.TelemetryLogger,
+			),
+			name: collector.KedaScalerMetrics,
+			factory: func() collector.ResourceCollector {
+				return collector.NewKedaScalerMetricsCollector(
+					collector.KedaScalerMetricsConfig{Endpoint: config.KEDAMetricsEndpoint},
+					r.KEDAClient,
+					r.DakrClient,
+					logger,
+					r.TelemetryLogger,
+				)
+			},
+		},
+		{
 			collector: snap.NewClusterSnapshotter(
 				r.K8sClient,
 				r.KEDAClient,
@@ -3345,6 +3508,186 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 			name: collector.CNPGCluster,
 		},
 		{
+			// factory is set: Argo CD is frequently installed after zxporter, so
+			// the CRD can be absent at startup and appear later.
+			collector: collector.NewArgoCDApplicationCollector(
+				r.DynamicClient,
+				config.TargetNamespaces,
+				config.ExcludedArgoCDApplications,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+				r.TelemetryLogger,
+			),
+			name: collector.ArgoCDApplication,
+			factory: func() collector.ResourceCollector {
+				return collector.NewArgoCDApplicationCollector(
+					r.DynamicClient,
+					config.TargetNamespaces,
+					config.ExcludedArgoCDApplications,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+					r.TelemetryLogger,
+				)
+			},
+		},
+		{
+			collector: collector.NewArgoCDApplicationSetCollector(
+				r.DynamicClient,
+				config.TargetNamespaces,
+				config.ExcludedArgoCDApplicationSets,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+				r.TelemetryLogger,
+			),
+			name: collector.ArgoCDApplicationSet,
+			factory: func() collector.ResourceCollector {
+				return collector.NewArgoCDApplicationSetCollector(
+					r.DynamicClient,
+					config.TargetNamespaces,
+					config.ExcludedArgoCDApplicationSets,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+					r.TelemetryLogger,
+				)
+			},
+		},
+		// FluxCD GitOps kinds. factory is set for every one of them: like Argo
+		// CD, Flux (and especially the Flux Operator and image automation
+		// controllers, which are optional add-ons) is frequently installed
+		// after zxporter, so the CRD can be absent at startup and appear
+		// later. All eighteen share FluxResourceCollector -- see its doc
+		// comment for why a generic collector replaces per-kind files here.
+		{
+			collector: collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxGitRepositoryGVR, collector.FluxGitRepository, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger),
+			name:      collector.FluxGitRepository,
+			factory: func() collector.ResourceCollector {
+				return collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxGitRepositoryGVR, collector.FluxGitRepository, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger)
+			},
+		},
+		{
+			collector: collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxOCIRepositoryGVR, collector.FluxOCIRepository, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger),
+			name:      collector.FluxOCIRepository,
+			factory: func() collector.ResourceCollector {
+				return collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxOCIRepositoryGVR, collector.FluxOCIRepository, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger)
+			},
+		},
+		{
+			collector: collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxHelmRepositoryGVR, collector.FluxHelmRepository, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger),
+			name:      collector.FluxHelmRepository,
+			factory: func() collector.ResourceCollector {
+				return collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxHelmRepositoryGVR, collector.FluxHelmRepository, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger)
+			},
+		},
+		{
+			collector: collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxHelmChartGVR, collector.FluxHelmChart, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger),
+			name:      collector.FluxHelmChart,
+			factory: func() collector.ResourceCollector {
+				return collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxHelmChartGVR, collector.FluxHelmChart, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger)
+			},
+		},
+		{
+			collector: collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxBucketGVR, collector.FluxBucket, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger),
+			name:      collector.FluxBucket,
+			factory: func() collector.ResourceCollector {
+				return collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxBucketGVR, collector.FluxBucket, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger)
+			},
+		},
+		{
+			collector: collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxKustomizationGVR, collector.FluxKustomization, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger),
+			name:      collector.FluxKustomization,
+			factory: func() collector.ResourceCollector {
+				return collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxKustomizationGVR, collector.FluxKustomization, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger)
+			},
+		},
+		{
+			collector: collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxHelmReleaseGVR, collector.FluxHelmRelease, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger),
+			name:      collector.FluxHelmRelease,
+			factory: func() collector.ResourceCollector {
+				return collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxHelmReleaseGVR, collector.FluxHelmRelease, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger)
+			},
+		},
+		{
+			collector: collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxExternalArtifactGVR, collector.FluxExternalArtifact, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger),
+			name:      collector.FluxExternalArtifact,
+			factory: func() collector.ResourceCollector {
+				return collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxExternalArtifactGVR, collector.FluxExternalArtifact, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger)
+			},
+		},
+		{
+			collector: collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxAlertGVR, collector.FluxAlert, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger),
+			name:      collector.FluxAlert,
+			factory: func() collector.ResourceCollector {
+				return collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxAlertGVR, collector.FluxAlert, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger)
+			},
+		},
+		{
+			collector: collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxProviderGVR, collector.FluxProvider, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger),
+			name:      collector.FluxProvider,
+			factory: func() collector.ResourceCollector {
+				return collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxProviderGVR, collector.FluxProvider, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger)
+			},
+		},
+		{
+			collector: collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxReceiverGVR, collector.FluxReceiver, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger),
+			name:      collector.FluxReceiver,
+			factory: func() collector.ResourceCollector {
+				return collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxReceiverGVR, collector.FluxReceiver, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger)
+			},
+		},
+		{
+			collector: collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxInstanceGVR, collector.FluxInstance, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger),
+			name:      collector.FluxInstance,
+			factory: func() collector.ResourceCollector {
+				return collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxInstanceGVR, collector.FluxInstance, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger)
+			},
+		},
+		{
+			collector: collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxReportGVR, collector.FluxReport, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger),
+			name:      collector.FluxReport,
+			factory: func() collector.ResourceCollector {
+				return collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxReportGVR, collector.FluxReport, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger)
+			},
+		},
+		{
+			collector: collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxResourceSetInputProviderGVR, collector.FluxResourceSetInputProvider, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger),
+			name:      collector.FluxResourceSetInputProvider,
+			factory: func() collector.ResourceCollector {
+				return collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxResourceSetInputProviderGVR, collector.FluxResourceSetInputProvider, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger)
+			},
+		},
+		{
+			collector: collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxResourceSetGVR, collector.FluxResourceSet, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger),
+			name:      collector.FluxResourceSet,
+			factory: func() collector.ResourceCollector {
+				return collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxResourceSetGVR, collector.FluxResourceSet, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger)
+			},
+		},
+		{
+			collector: collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxImageRepositoryGVR, collector.FluxImageRepository, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger),
+			name:      collector.FluxImageRepository,
+			factory: func() collector.ResourceCollector {
+				return collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxImageRepositoryGVR, collector.FluxImageRepository, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger)
+			},
+		},
+		{
+			collector: collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxImagePolicyGVR, collector.FluxImagePolicy, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger),
+			name:      collector.FluxImagePolicy,
+			factory: func() collector.ResourceCollector {
+				return collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxImagePolicyGVR, collector.FluxImagePolicy, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger)
+			},
+		},
+		{
+			collector: collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxImageUpdateAutomationGVR, collector.FluxImageUpdateAutomation, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger),
+			name:      collector.FluxImageUpdateAutomation,
+			factory: func() collector.ResourceCollector {
+				return collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxImageUpdateAutomationGVR, collector.FluxImageUpdateAutomation, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger)
+			},
+		},
+		{
 			collector: collector.NewKyvernoPolicyCollector(
 				r.DynamicClient,
 				config.TargetNamespaces,
@@ -3419,6 +3762,29 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				return collector.NewGatekeeperConstraintCollector(
 					r.DynamicClient,
 					r.DiscoveryClient,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+					r.TelemetryLogger,
+				)
+			},
+		},
+		{
+			collector: collector.NewSchedulerMetricsCollector(
+				r.K8sClient,
+				collector.NewSchedulerMetricsHTTPClientOrFailing(logger),
+				config.SchedulerMetricsScrapeInterval,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+				r.TelemetryLogger,
+			),
+			name: collector.SchedulerPlacementMetric,
+			factory: func() collector.ResourceCollector {
+				return collector.NewSchedulerMetricsCollector(
+					r.K8sClient,
+					collector.NewSchedulerMetricsHTTPClientOrFailing(logger),
+					config.SchedulerMetricsScrapeInterval,
 					collector.DefaultMaxBatchSize,
 					collector.DefaultMaxBatchTime,
 					logger,
@@ -4198,6 +4564,26 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					newConfig.ExcludedCNPGClusters,
 					collector.DefaultMaxBatchSize,
 					newConfig.UpdateInterval,
+					logger,
+					r.TelemetryLogger,
+				)
+			case collector.ArgoCDApplication.String():
+				replacedCollector = collector.NewArgoCDApplicationCollector(
+					r.DynamicClient,
+					newConfig.TargetNamespaces,
+					newConfig.ExcludedArgoCDApplications,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+					r.TelemetryLogger,
+				)
+			case collector.ArgoCDApplicationSet.String():
+				replacedCollector = collector.NewArgoCDApplicationSetCollector(
+					r.DynamicClient,
+					newConfig.TargetNamespaces,
+					newConfig.ExcludedArgoCDApplicationSets,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
 					logger,
 					r.TelemetryLogger,
 				)

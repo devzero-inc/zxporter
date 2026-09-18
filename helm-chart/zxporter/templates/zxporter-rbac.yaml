@@ -248,6 +248,19 @@ rules:
   - pods/status
   verbs:
   - get
+# SchedulerMetricsCollector (issue #10055): read-only access to the single named
+# dz-scheduler Lease, so this collector can resolve the current leader pod directly
+# instead of scraping the dz-scheduler Service VIP, which could otherwise get stuck
+# scraping a standby replica and reporting all-zero placement metrics. Restricted to
+# this one Lease -- this collector never needs any other Lease in the cluster.
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  resourceNames:
+  - dz-scheduler
+  verbs:
+  - get
 - apiGroups:
   - apiextensions.k8s.io
   resources:
@@ -280,6 +293,8 @@ rules:
 - apiGroups:
   - argoproj.io
   resources:
+  - applications
+  - applicationsets
   - rollouts
   verbs:
   - get
@@ -290,6 +305,66 @@ rules:
   resources:
   - clusterpolicies
   - policies
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - source.toolkit.fluxcd.io
+  resources:
+  - buckets
+  - externalartifacts
+  - gitrepositories
+  - helmcharts
+  - helmrepositories
+  - ocirepositories
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - kustomize.toolkit.fluxcd.io
+  resources:
+  - kustomizations
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - helm.toolkit.fluxcd.io
+  resources:
+  - helmreleases
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - notification.toolkit.fluxcd.io
+  resources:
+  - alerts
+  - providers
+  - receivers
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - fluxcd.controlplane.io
+  resources:
+  - fluxinstances
+  - fluxreports
+  - resourcesetinputproviders
+  - resourcesets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - image.toolkit.fluxcd.io
+  resources:
+  - imagepolicies
+  - imagerepositories
+  - imageupdateautomations
   verbs:
   - get
   - list
@@ -624,6 +699,26 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
   name: devzero-zxporter-metrics-auth-role
+subjects:
+  - kind: ServiceAccount
+    name: devzero-zxporter-controller-manager
+    namespace: {{ .Release.Namespace }}
+---
+# Binds devzero-zxporter-metrics-reader (nonResourceURLs: ["/metrics"], verb: get)
+# to zxporter's own ServiceAccount so the SchedulerMetrics collector can scrape
+# dz-scheduler's /metrics endpoint. dz-scheduler runs kube-scheduler with
+# delegated authorization to the API server (SubjectAccessReview), and
+# "/metrics" is not in kube-scheduler's default AlwaysAllowPaths -- unlike
+# /healthz and /livez, an authenticated caller still needs an explicit RBAC
+# grant for this nonResourceURL, or every scrape 403s.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: devzero-zxporter-metrics-reader-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: devzero-zxporter-metrics-reader
 subjects:
   - kind: ServiceAccount
     name: devzero-zxporter-controller-manager
