@@ -52,6 +52,39 @@ spec:
               exclusions:
                 description: Exclusions specifies resources to exclude from collection
                 properties:
+                  excludedArgoCDApplicationSets:
+                    items:
+                      description: ExcludedArgoCDApplicationSet identifies an Argo
+                        CD ApplicationSet to exclude from collection
+                      properties:
+                        name:
+                          description: Name is the Argo CD ApplicationSet's name
+                          type: string
+                        namespace:
+                          description: Namespace is the Argo CD ApplicationSet's namespace
+                          type: string
+                      required:
+                      - name
+                      - namespace
+                      type: object
+                    type: array
+                  excludedArgoCDApplications:
+                    description: Argo CD Exclusions
+                    items:
+                      description: ExcludedArgoCDApplication identifies an Argo CD
+                        Application to exclude from collection
+                      properties:
+                        name:
+                          description: Name is the Argo CD Application's name
+                          type: string
+                        namespace:
+                          description: Namespace is the Argo CD Application's namespace
+                          type: string
+                      required:
+                      - name
+                      - namespace
+                      type: object
+                    type: array
                   excludedCNPGClusters:
                     description: CloudNativePG Exclusions
                     items:
@@ -221,6 +254,303 @@ spec:
                           type: string
                         namespace:
                           description: Namespace is the event's namespace
+                          type: string
+                      required:
+                      - name
+                      - namespace
+                      type: object
+                    type: array
+                  excludedFlaggerAlertProviders:
+                    items:
+                      description: ExcludedFlaggerAlertProvider identifies a Flagger
+                        AlertProvider to exclude from collection
+                      properties:
+                        name:
+                          type: string
+                        namespace:
+                          type: string
+                      required:
+                      - name
+                      - namespace
+                      type: object
+                    type: array
+                  excludedFlaggerCanaries:
+                    description: Flagger Exclusions
+                    items:
+                      description: ExcludedFlaggerCanary identifies a Flagger Canary
+                        to exclude from collection
+                      properties:
+                        name:
+                          type: string
+                        namespace:
+                          type: string
+                      required:
+                      - name
+                      - namespace
+                      type: object
+                    type: array
+                  excludedFlaggerMetricTemplates:
+                    items:
+                      description: ExcludedFlaggerMetricTemplate identifies a Flagger
+                        MetricTemplate to exclude from collection
+                      properties:
+                        name:
+                          type: string
+                        namespace:
+                          type: string
+                      required:
+                      - name
+                      - namespace
+                      type: object
+                    type: array
+                  excludedFluxAlerts:
+                    items:
+                      description: ExcludedFluxAlert identifies a FluxCD Alert to
+                        exclude from collection
+                      properties:
+                        name:
+                          type: string
+                        namespace:
+                          type: string
+                      required:
+                      - name
+                      - namespace
+                      type: object
+                    type: array
+                  excludedFluxBuckets:
+                    items:
+                      description: ExcludedFluxBucket identifies a FluxCD Bucket to
+                        exclude from collection
+                      properties:
+                        name:
+                          type: string
+                        namespace:
+                          type: string
+                      required:
+                      - name
+                      - namespace
+                      type: object
+                    type: array
+                  excludedFluxExternalArtifacts:
+                    description: FluxCD Exclusions -- collector-only kinds
+                    items:
+                      description: ExcludedFluxExternalArtifact identifies a FluxCD
+                        ExternalArtifact to exclude from collection
+                      properties:
+                        name:
+                          type: string
+                        namespace:
+                          type: string
+                      required:
+                      - name
+                      - namespace
+                      type: object
+                    type: array
+                  excludedFluxGitRepositories:
+                    description: FluxCD Exclusions -- full-explorer kinds
+                    items:
+                      description: ExcludedFluxGitRepository identifies a FluxCD GitRepository
+                        to exclude from collection
+                      properties:
+                        name:
+                          type: string
+                        namespace:
+                          type: string
+                      required:
+                      - name
+                      - namespace
+                      type: object
+                    type: array
+                  excludedFluxHelmCharts:
+                    items:
+                      description: ExcludedFluxHelmChart identifies a FluxCD HelmChart
+                        to exclude from collection
+                      properties:
+                        name:
+                          type: string
+                        namespace:
+                          type: string
+                      required:
+                      - name
+                      - namespace
+                      type: object
+                    type: array
+                  excludedFluxHelmReleases:
+                    items:
+                      description: ExcludedFluxHelmRelease identifies a FluxCD HelmRelease
+                        to exclude from collection
+                      properties:
+                        name:
+                          type: string
+                        namespace:
+                          type: string
+                      required:
+                      - name
+                      - namespace
+                      type: object
+                    type: array
+                  excludedFluxHelmRepositories:
+                    items:
+                      description: ExcludedFluxHelmRepository identifies a FluxCD
+                        HelmRepository to exclude from collection
+                      properties:
+                        name:
+                          type: string
+                        namespace:
+                          type: string
+                      required:
+                      - name
+                      - namespace
+                      type: object
+                    type: array
+                  excludedFluxImagePolicies:
+                    items:
+                      description: ExcludedFluxImagePolicy identifies a FluxCD ImagePolicy
+                        to exclude from collection
+                      properties:
+                        name:
+                          type: string
+                        namespace:
+                          type: string
+                      required:
+                      - name
+                      - namespace
+                      type: object
+                    type: array
+                  excludedFluxImageRepositories:
+                    items:
+                      description: ExcludedFluxImageRepository identifies a FluxCD
+                        ImageRepository to exclude from collection
+                      properties:
+                        name:
+                          type: string
+                        namespace:
+                          type: string
+                      required:
+                      - name
+                      - namespace
+                      type: object
+                    type: array
+                  excludedFluxImageUpdateAutomations:
+                    items:
+                      description: ExcludedFluxImageUpdateAutomation identifies a
+                        FluxCD ImageUpdateAutomation to exclude from collection
+                      properties:
+                        name:
+                          type: string
+                        namespace:
+                          type: string
+                      required:
+                      - name
+                      - namespace
+                      type: object
+                    type: array
+                  excludedFluxInstances:
+                    items:
+                      description: ExcludedFluxInstance identifies a Flux Operator
+                        FluxInstance to exclude from collection
+                      properties:
+                        name:
+                          type: string
+                        namespace:
+                          type: string
+                      required:
+                      - name
+                      - namespace
+                      type: object
+                    type: array
+                  excludedFluxKustomizations:
+                    items:
+                      description: ExcludedFluxKustomization identifies a FluxCD Kustomization
+                        to exclude from collection
+                      properties:
+                        name:
+                          type: string
+                        namespace:
+                          type: string
+                      required:
+                      - name
+                      - namespace
+                      type: object
+                    type: array
+                  excludedFluxOCIRepositories:
+                    items:
+                      description: ExcludedFluxOCIRepository identifies a FluxCD OCIRepository
+                        to exclude from collection
+                      properties:
+                        name:
+                          type: string
+                        namespace:
+                          type: string
+                      required:
+                      - name
+                      - namespace
+                      type: object
+                    type: array
+                  excludedFluxProviders:
+                    items:
+                      description: ExcludedFluxProvider identifies a FluxCD Provider
+                        to exclude from collection
+                      properties:
+                        name:
+                          type: string
+                        namespace:
+                          type: string
+                      required:
+                      - name
+                      - namespace
+                      type: object
+                    type: array
+                  excludedFluxReceivers:
+                    items:
+                      description: ExcludedFluxReceiver identifies a FluxCD Receiver
+                        to exclude from collection
+                      properties:
+                        name:
+                          type: string
+                        namespace:
+                          type: string
+                      required:
+                      - name
+                      - namespace
+                      type: object
+                    type: array
+                  excludedFluxReports:
+                    items:
+                      description: ExcludedFluxReport identifies a Flux Operator FluxReport
+                        to exclude from collection
+                      properties:
+                        name:
+                          type: string
+                        namespace:
+                          type: string
+                      required:
+                      - name
+                      - namespace
+                      type: object
+                    type: array
+                  excludedFluxResourceSetInputProviders:
+                    items:
+                      description: ExcludedFluxResourceSetInputProvider identifies
+                        a Flux Operator ResourceSetInputProvider to exclude from collection
+                      properties:
+                        name:
+                          type: string
+                        namespace:
+                          type: string
+                      required:
+                      - name
+                      - namespace
+                      type: object
+                    type: array
+                  excludedFluxResourceSets:
+                    items:
+                      description: ExcludedFluxResourceSet identifies a Flux Operator
+                        ResourceSet to exclude from collection
+                      properties:
+                        name:
+                          type: string
+                        namespace:
                           type: string
                       required:
                       - name
@@ -674,6 +1004,13 @@ spec:
                     description: Frequency is how often to collect resource usage
                       metrics
                     type: string
+                  kedaMetricsEndpoint:
+                    description: |-
+                      KEDAMetricsEndpoint is the full URL of the KEDA operator /metrics endpoint
+                      that the KedaScalerMetrics collector scrapes. Defaults to
+                      collector.DefaultKedaMetricsEndpoint (KEDA in the devzero-system namespace).
+                      Override only when KEDA runs in a different namespace or on a different port.
+                    type: string
                   kubeContextName:
                     description: KubeContextName is the name of the current context
                       being used to apply the installation yaml
@@ -737,6 +1074,13 @@ spec:
                     description: |-
                       PATToken is the Personal Access Token used for automatic cluster token exchange
                       If ClusterToken is not provided but PATToken is, the system will exchange it for a cluster token
+                    type: string
+                  schedulerMetricsScrapeInterval:
+                    description: |-
+                      SchedulerMetricsScrapeInterval bounds how often the SchedulerMetrics
+                      collector scrapes dz-scheduler's /metrics endpoint (defaults to 60s --
+                      see collector.DefaultSchedulerMetricsScrapeInterval's doc comment for
+                      why). A Go duration string (e.g. "60s", "30s").
                     type: string
                   watchedCRDs:
                     description: WatchedCRDs is a list of custom resource definitions

@@ -2,6 +2,10 @@
 apiVersion: scheduling.k8s.io/v1
 kind: PriorityClass
 metadata:
+  {{- with (include "zxporter.commonAnnotations" $) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
   {{- /* Hardcoded (not release-derived) to match the kustomize-generated dist/ bundles, which
          double-apply the "devzero-zxporter-" namePrefix (config/manager/priorityclass.yaml is
          already named devzero-zxporter-critical, then namePrefix adds it again). Keeping the exact

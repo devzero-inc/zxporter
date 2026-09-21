@@ -10,7 +10,12 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "zxporter-nodemon.labels" . | nindent 4 }}
-  {{- with .Values.serviceAccount.annotations }}
+  {{- /* serviceAccount.annotations wins over commonAnnotations on a key
+         collision. Merged here rather than emitted as two blocks because
+         `with` rebinds the dot, which would hand the helper the annotation
+         map instead of the root context. */}}
+  {{- $saAnnotations := merge (deepCopy (.Values.serviceAccount.annotations | default dict)) (fromYaml (include "zxporter-nodemon.commonAnnotations" $)) }}
+  {{- with $saAnnotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
   {{- end }}
@@ -19,6 +24,10 @@ metadata:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: {{ if .Values.nodemon.rbac.clusterWide }}ClusterRole{{ else }}Role{{ end }}
 metadata:
+  {{- with (include "zxporter-nodemon.commonAnnotations" $) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
   name: {{ include "zxporter-nodemon.fullname" . }}
   labels:
     {{- include "zxporter-nodemon.labels" . | nindent 4 }}
@@ -70,6 +79,10 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: {{ if .Values.nodemon.rbac.clusterWide }}ClusterRoleBinding{{ else }}RoleBinding{{ end }}
 metadata:
+  {{- with (include "zxporter-nodemon.commonAnnotations" $) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
   name: {{ include "zxporter-nodemon.fullname" . }}
   labels:
     {{- include "zxporter-nodemon.labels" . | nindent 4 }}
