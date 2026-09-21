@@ -1,0 +1,9 @@
+# Two nodes on purpose. The node-storage spec walks every node in the cluster,
+# so a multi-node cluster exercises the per-node loop rather than a single-node
+# special case -- and it means the shared-device assertion has to hold on more
+# than one kubelet before the suite goes green.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+  - role: control-plane
+  - role: worker

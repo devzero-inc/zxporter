@@ -116,6 +116,23 @@ func (h *ClientHeaders) AttachToRequest(header http.Header) {
 	}
 }
 
+// noRetryProcedures lists the RPCs that must never be retried by the client, no
+// matter what the retry policy says is retryable.
+//
+// A retry is only safe when the server can tell a duplicate from a new fact.
+// SendContainerRedMetrics cannot: the items are per-minute counter deltas written
+// into a SummingMergeTree, so a batch that reached the server, wrote its rows and
+// lost only its response is added to the one already stored. The result is a minute
+// that looks busier than it was, with no error and nothing to detect it. Losing a
+// minute is recoverable by reading the next one; inflating one is not recoverable at
+// all. See docs/features/red-metrics/INVARIANTS.md, "Never retry a flush batch".
+//
+// Interceptors in connect-go are per-client, not per-method, so opting a single
+// procedure out has to happen here rather than at the call site.
+var noRetryProcedures = map[string]struct{}{
+	genconnect.MetricsCollectorServiceSendContainerRedMetricsProcedure: {},
+}
+
 // RealDakrClient implements communication with Dakr service
 type RealDakrClient struct {
 	logger               logr.Logger
@@ -152,6 +169,10 @@ func NewDakrClient(dakrBaseURL string, clusterToken string, logger logr.Logger) 
 		func(next connect.UnaryFunc) connect.UnaryFunc {
 			return connect.UnaryFunc(
 				func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
+					if _, exempt := noRetryProcedures[req.Spec().Procedure]; exempt {
+						return next(ctx, req)
+					}
+
 					var lastErr error
 					for currentAttempt := 0; currentAttempt < retryPolicy.MaxAttempts; currentAttempt++ {
 						if currentAttempt > 0 { // Backoff only for retries
@@ -713,6 +734,95 @@ func (c *RealDakrClient) SendNetworkTrafficMetrics(
 	}
 
 	c.logger.Info("Successfully sent network traffic metrics", "status", "ok")
+
+	return resp.Msg, nil
+}
+
+// SendScalerMetrics pushes a batch of KEDA scaler metric samples to Dakr.
+// If clusterID or teamID are empty the values are resolved from the context
+// ("cluster_id" / "team_id" keys) so callers that don't carry them at
+// construction time can still pass "" and rely on context injection.
+//
+// Note: in production the manager starts collectors with a bare context, so
+// the context path above is rarely populated. The authoritative cluster_id and
+// team_id are set server-side by dakr's ClusterTokenAuth middleware from the
+// Bearer token — the same pattern used by SendNetworkTrafficMetrics. Do not
+// rely on the context values being present; they are a convenience fallback
+// only.
+func (c *RealDakrClient) SendScalerMetrics(
+	ctx context.Context,
+	clusterID string,
+	teamID string,
+	samples []*gen.ScalerMetricSample,
+) error {
+	if clusterID == "" {
+		if v, ok := ctx.Value("cluster_id").(string); ok {
+			clusterID = v
+		}
+	}
+	if teamID == "" {
+		if v, ok := ctx.Value("team_id").(string); ok {
+			teamID = v
+		}
+	}
+
+	req := &gen.SendScalerMetricsRequest{
+		ClusterId: clusterID,
+		TeamId:    teamID,
+		Samples:   samples,
+	}
+
+	connectReq := connect.NewRequest(req)
+
+	c.logger.Info("Sending KEDA scaler metrics to Dakr",
+		"samples", len(samples),
+		"cluster_id", clusterID)
+
+	_, err := c.client.SendScalerMetrics(ctx, connectReq)
+	if err != nil {
+		c.logger.Error(err, "Failed to send KEDA scaler metrics to Dakr")
+		return fmt.Errorf("failed to send KEDA scaler metrics to Dakr: %w", err)
+	}
+
+	c.logger.Info("Successfully sent KEDA scaler metrics")
+	return nil
+}
+
+// SendContainerRedMetrics pushes per-container inbound RED metrics from a node.
+//
+// There is no retry here, and there must not be one. The items are per-minute
+// deltas destined for a SummingMergeTree, so a re-sent batch is added to the one
+// that already landed and is indistinguishable from real extra traffic. Losing a
+// minute is recoverable by looking at the next one; double counting one is not
+// recoverable at all.
+//
+// That is enforced by noRetryProcedures rather than by this comment: the client's
+// retry interceptor applies to every procedure it wraps, so the exemption has to be
+// registered there. TestSendContainerRedMetricsIsNeverRetried is what fails if the
+// registration is dropped.
+func (c *RealDakrClient) SendContainerRedMetrics(
+	ctx context.Context,
+	req *gen.SendContainerRedMetricsRequest,
+) (*gen.SendContainerRedMetricsResponse, error) {
+	connectReq := connect.NewRequest(req)
+
+	// Pass through context values if needed (e.g. cluster_id)
+	if ctx.Value("cluster_id") != nil {
+		clusterString, _ := ctx.Value("cluster_id").(string)
+		connectReq.Header().Set("cluster_id", clusterString)
+	}
+
+	c.logger.Info("Sending container RED metrics to Dakr",
+		"items", len(req.Items),
+		"node", req.NodeName)
+
+	resp, err := c.client.SendContainerRedMetrics(ctx, connectReq)
+	if err != nil {
+		c.logger.Error(err, "Failed to send container RED metrics to Dakr")
+		return nil, fmt.Errorf("failed to send container RED metrics to Dakr: %w", err)
+	}
+
+	c.logger.Info("Successfully sent container RED metrics", "status", "ok")
 
 	return resp.Msg, nil
 }

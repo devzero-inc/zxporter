@@ -26,6 +26,8 @@ const (
 	MetricsCollectorService_SendClusterSnapshotBatched_FullMethodName = "/api.v1.MetricsCollectorService/SendClusterSnapshotBatched"
 	MetricsCollectorService_SendTelemetryLogs_FullMethodName          = "/api.v1.MetricsCollectorService/SendTelemetryLogs"
 	MetricsCollectorService_SendNetworkTrafficMetrics_FullMethodName  = "/api.v1.MetricsCollectorService/SendNetworkTrafficMetrics"
+	MetricsCollectorService_SendScalerMetrics_FullMethodName          = "/api.v1.MetricsCollectorService/SendScalerMetrics"
+	MetricsCollectorService_SendContainerRedMetrics_FullMethodName    = "/api.v1.MetricsCollectorService/SendContainerRedMetrics"
 	MetricsCollectorService_NodeMetadata_FullMethodName               = "/api.v1.MetricsCollectorService/NodeMetadata"
 )
 
@@ -49,6 +51,10 @@ type MetricsCollectorServiceClient interface {
 	SendTelemetryLogs(ctx context.Context, in *SendTelemetryLogsRequest, opts ...grpc.CallOption) (*SendTelemetryLogsResponse, error)
 	// SendNetworkTrafficMetrics pushes network traffic metrics from a node.
 	SendNetworkTrafficMetrics(ctx context.Context, in *SendNetworkTrafficMetricsRequest, opts ...grpc.CallOption) (*SendNetworkTrafficMetricsResponse, error)
+	// SendScalerMetrics pushes a batch of KEDA scaler metric samples from a cluster.
+	SendScalerMetrics(ctx context.Context, in *SendScalerMetricsRequest, opts ...grpc.CallOption) (*SendScalerMetricsResponse, error)
+	// SendContainerRedMetrics pushes per-container inbound RED metrics from a node.
+	SendContainerRedMetrics(ctx context.Context, in *SendContainerRedMetricsRequest, opts ...grpc.CallOption) (*SendContainerRedMetricsResponse, error)
 	NodeMetadata(ctx context.Context, in *NodeMetadataRequest, opts ...grpc.CallOption) (*NodeMetadataResponse, error)
 }
 
@@ -173,6 +179,24 @@ func (c *metricsCollectorServiceClient) SendNetworkTrafficMetrics(ctx context.Co
 	return out, nil
 }
 
+func (c *metricsCollectorServiceClient) SendScalerMetrics(ctx context.Context, in *SendScalerMetricsRequest, opts ...grpc.CallOption) (*SendScalerMetricsResponse, error) {
+	out := new(SendScalerMetricsResponse)
+	err := c.cc.Invoke(ctx, MetricsCollectorService_SendScalerMetrics_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *metricsCollectorServiceClient) SendContainerRedMetrics(ctx context.Context, in *SendContainerRedMetricsRequest, opts ...grpc.CallOption) (*SendContainerRedMetricsResponse, error) {
+	out := new(SendContainerRedMetricsResponse)
+	err := c.cc.Invoke(ctx, MetricsCollectorService_SendContainerRedMetrics_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *metricsCollectorServiceClient) NodeMetadata(ctx context.Context, in *NodeMetadataRequest, opts ...grpc.CallOption) (*NodeMetadataResponse, error) {
 	out := new(NodeMetadataResponse)
 	err := c.cc.Invoke(ctx, MetricsCollectorService_NodeMetadata_FullMethodName, in, out, opts...)
@@ -202,6 +226,10 @@ type MetricsCollectorServiceServer interface {
 	SendTelemetryLogs(context.Context, *SendTelemetryLogsRequest) (*SendTelemetryLogsResponse, error)
 	// SendNetworkTrafficMetrics pushes network traffic metrics from a node.
 	SendNetworkTrafficMetrics(context.Context, *SendNetworkTrafficMetricsRequest) (*SendNetworkTrafficMetricsResponse, error)
+	// SendScalerMetrics pushes a batch of KEDA scaler metric samples from a cluster.
+	SendScalerMetrics(context.Context, *SendScalerMetricsRequest) (*SendScalerMetricsResponse, error)
+	// SendContainerRedMetrics pushes per-container inbound RED metrics from a node.
+	SendContainerRedMetrics(context.Context, *SendContainerRedMetricsRequest) (*SendContainerRedMetricsResponse, error)
 	NodeMetadata(context.Context, *NodeMetadataRequest) (*NodeMetadataResponse, error)
 	mustEmbedUnimplementedMetricsCollectorServiceServer()
 }
@@ -230,6 +258,12 @@ func (UnimplementedMetricsCollectorServiceServer) SendTelemetryLogs(context.Cont
 }
 func (UnimplementedMetricsCollectorServiceServer) SendNetworkTrafficMetrics(context.Context, *SendNetworkTrafficMetricsRequest) (*SendNetworkTrafficMetricsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SendNetworkTrafficMetrics not implemented")
+}
+func (UnimplementedMetricsCollectorServiceServer) SendScalerMetrics(context.Context, *SendScalerMetricsRequest) (*SendScalerMetricsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SendScalerMetrics not implemented")
+}
+func (UnimplementedMetricsCollectorServiceServer) SendContainerRedMetrics(context.Context, *SendContainerRedMetricsRequest) (*SendContainerRedMetricsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SendContainerRedMetrics not implemented")
 }
 func (UnimplementedMetricsCollectorServiceServer) NodeMetadata(context.Context, *NodeMetadataRequest) (*NodeMetadataResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method NodeMetadata not implemented")
@@ -390,6 +424,42 @@ func _MetricsCollectorService_SendNetworkTrafficMetrics_Handler(srv interface{},
 	return interceptor(ctx, in, info, handler)
 }
 
+func _MetricsCollectorService_SendScalerMetrics_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SendScalerMetricsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MetricsCollectorServiceServer).SendScalerMetrics(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MetricsCollectorService_SendScalerMetrics_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MetricsCollectorServiceServer).SendScalerMetrics(ctx, req.(*SendScalerMetricsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MetricsCollectorService_SendContainerRedMetrics_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SendContainerRedMetricsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MetricsCollectorServiceServer).SendContainerRedMetrics(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MetricsCollectorService_SendContainerRedMetrics_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MetricsCollectorServiceServer).SendContainerRedMetrics(ctx, req.(*SendContainerRedMetricsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _MetricsCollectorService_NodeMetadata_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(NodeMetadataRequest)
 	if err := dec(in); err != nil {
@@ -434,6 +504,14 @@ var MetricsCollectorService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SendNetworkTrafficMetrics",
 			Handler:    _MetricsCollectorService_SendNetworkTrafficMetrics_Handler,
+		},
+		{
+			MethodName: "SendScalerMetrics",
+			Handler:    _MetricsCollectorService_SendScalerMetrics_Handler,
+		},
+		{
+			MethodName: "SendContainerRedMetrics",
+			Handler:    _MetricsCollectorService_SendContainerRedMetrics_Handler,
 		},
 		{
 			MethodName: "NodeMetadata",
