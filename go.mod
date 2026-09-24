@@ -16,7 +16,7 @@ require (
 require (
 	github.com/Code-Hex/go-generics-cache v1.5.1
 	github.com/KimMachineGun/automemlimit v0.7.5
-	github.com/cilium/cilium v1.17.16
+	github.com/cilium/cilium v1.17.17
 	github.com/cilium/ebpf v0.17.1
 	github.com/florianl/go-conntrack v0.7.0
 	github.com/google/gopacket v1.1.19
@@ -171,7 +171,7 @@ require (
 	k8s.io/klog/v2 v2.140.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20260427204847-8949caaa1199 // indirect
 	k8s.io/metrics v0.36.3
-	k8s.io/utils v0.0.0-20260319190234-28399d86e0b5
+	k8s.io/utils v0.0.0-20260507154919-ff6756f316d2
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.34.0 // indirect
 	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
 	sigs.k8s.io/yaml v1.6.0
