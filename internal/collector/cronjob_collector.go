@@ -169,8 +169,8 @@ func (c *CronJobCollector) cronJobChanged(oldCronJob, newCronJob *batchv1.CronJo
 		oldCronJob.ObjectMeta,
 		newCronJob.ObjectMeta,
 	)
-	if changed != IgnoreChanges {
-		return changed == PushChanges
+	if changed == PushChanges {
+		return true
 	}
 
 	// Check for schedule changes
