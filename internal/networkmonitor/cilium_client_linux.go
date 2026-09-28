@@ -63,6 +63,13 @@ func listRecords(
 			srcIP := k.DestAddr.IP() // Addresses are swapped due to cilium issue #21346.
 			dstIP := k.SourceAddr.IP()
 			val := v.(*ctmap.CtEntry)
+			// No DstTranslated on this path. A Cilium CT entry's key holds one
+			// tuple and no reference to the backend a service connection was
+			// load-balanced to -- that mapping lives in the separate lb4 backend
+			// and SNAT maps this collector does not read. DNAT'd flows collected
+			// here therefore report only the address the client dialed, and the
+			// control plane cannot attribute them to the pod that answered.
+			// See NetworkTrafficItem.dst_ip_translated.
 			expireSeconds := timeDiff(int64(val.Lifetime))
 			record := &Entry{
 				Src: netaddr.IPPortFrom(

@@ -175,8 +175,8 @@ func (c *ReplicationControllerCollector) replicationControllerChanged(
 		oldRC.ObjectMeta,
 		newRC.ObjectMeta,
 	)
-	if changed != IgnoreChanges {
-		return changed == PushChanges
+	if changed == PushChanges {
+		return true
 	}
 
 	// Check if replicas changed
