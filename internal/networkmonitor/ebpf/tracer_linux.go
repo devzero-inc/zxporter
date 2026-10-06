@@ -10,6 +10,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/btf"
@@ -161,19 +162,74 @@ func (t *Tracer) Run(ctx context.Context) error {
 	}
 	defer reader.Close()
 
+	return t.readDNS(ctx, reader)
+}
+
+// dnsFlushInterval bounds how long a partly-filled batch waits. It only has to be
+// short relative to how often the consumer's output is read, which is on the order of
+// seconds.
+const dnsFlushInterval = 10 * time.Millisecond
+
+// readDNS drains the perf ring, decodes the DNS packets on it and hands them to the
+// consumer in batches.
+//
+// Batching is the point. Sending one event per packet meant a channel operation and a
+// consumer wakeup for every DNS packet crossing the node, and on a busy node that was
+// 9% of this agent's CPU in the send itself plus the larger part of another 13% spent
+// in the scheduler waking the reader back up. Nothing downstream needs an event the
+// instant it is decoded -- the consumer's output is polled on a much slower cycle --
+// so the wakeups were pure overhead.
+func (t *Tracer) readDNS(ctx context.Context, reader *perf.Reader) error {
+	dec := newDNSDecoder()
+	batch := make([]DNSEvent, 0, dnsBatchSize)
+
+	flush := func() {
+		if len(batch) == 0 {
+			return
+		}
+		select {
+		case t.events <- batch:
+			// The consumer owns that slice now, so the next batch needs its own
+			// backing array. One allocation per dnsBatchSize packets.
+			batch = make([]DNSEvent, 0, dnsBatchSize)
+		default:
+			t.log.V(1).Info("dropping events, queue is full", "count", len(batch))
+			batch = batch[:0]
+		}
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
+			// A batch filled during the last iteration is still pending here, and
+			// this is the last chance to hand it over. flush is non-blocking, so a
+			// consumer that has already stopped reading costs nothing.
+			flush()
 			return ctx.Err()
 		default:
 		}
 
+		// The deadline is armed only when something is waiting to be sent. An idle
+		// node should sit blocked in Read, not wake a hundred times a second to
+		// discover it has nothing to flush.
+		if len(batch) > 0 {
+			reader.SetDeadline(time.Now().Add(dnsFlushInterval))
+		} else {
+			reader.SetDeadline(time.Time{})
+		}
+
 		record, err := reader.Read()
 		if err != nil {
-			if errors.Is(err, perf.ErrClosed) {
+			switch {
+			case errors.Is(err, os.ErrDeadlineExceeded):
+				flush()
+				continue
+			case errors.Is(err, perf.ErrClosed):
+				flush()
 				return nil
+			default:
+				return err
 			}
-			return err
 		}
 
 		if len(record.RawSample) < 1 {
@@ -181,18 +237,26 @@ func (t *Tracer) Run(ctx context.Context) error {
 			continue
 		}
 
-		// Parse the full raw packet captured from eBPF
-		event, err := parseEvent(record.RawSample)
-		if err != nil {
+		if err := dec.decode(record.RawSample); err != nil {
 			t.log.V(1).Info("skipping non-DNS event", "err", err)
 			continue
 		}
 
-		select {
-		case t.events <- event:
-		default:
-			t.log.V(1).Info("dropping event, queue is full")
+		// Queries, NXDOMAIN and anything else that resolved nothing are dropped here
+		// rather than sent and ignored. Kubernetes resolution is amplified by the
+		// ndots:5 search path -- a single hostname fans out into several queries, most
+		// of which answer nothing -- so the packets that carry an answer are a small
+		// fraction of the packets that arrive, and the rest cost a decode into reused
+		// memory and nothing else. This is not a narrowing of what the consumer sees:
+		// an event with no answers resolves no IPs, and an event that resolves no IPs
+		// is discarded on arrival (see dns.IP2DNS.Start).
+		if !dec.hasAnswers() {
 			continue
+		}
+
+		batch = append(batch, dec.event())
+		if len(batch) >= dnsBatchSize {
+			flush()
 		}
 	}
 }
@@ -282,7 +346,7 @@ func (t *Tracer) CollectNetworkSummary() (map[NetworkTrafficKey]TrafficSummary, 
 	return result, nil
 }
 
-func (t *Tracer) Events() <-chan DNSEvent {
+func (t *Tracer) Events() <-chan []DNSEvent {
 	return t.events
 }
 
@@ -302,64 +366,134 @@ func InitCgroupv2(log logr.Logger) error {
 	return nil
 }
 
-func parseEvent(data []byte) (DNSEvent, error) {
-	if len(data) == 0 {
-		return DNSEvent{}, errors.New("empty data")
-	}
+// dnsDecoder decodes DNS packets off the perf ring without allocating per packet.
+//
+// What it replaced was gopacket.NewPacket with gopacket.Default, which copies the
+// payload and eagerly decodes every layer into freshly allocated structures. That one
+// call was the most expensive thing this agent did: 16% of its CPU and 54% of every
+// byte it allocated, on a node carrying nothing but ordinary Kubernetes traffic. The
+// shape of a DNS packet is known in advance -- IP, UDP, DNS, and the kernel side
+// already filters to UDP/53 -- so there is nothing for a general packet decoder to
+// discover.
+//
+// A DecodingLayerParser over preallocated layer structs is gopacket's answer to that.
+// layers.DNS is written for it: it truncates its record slices rather than
+// reallocating them and decodes names into a scratch buffer it keeps, so a steady
+// stream of packets settles into allocating nothing at all.
+//
+// The price is that everything reachable from the decoded layers is invalidated by the
+// next call to decode. A decoder therefore belongs to exactly one goroutine, and
+// anything that outlives the call is copied out by event().
+type dnsDecoder struct {
+	ip4 layers.IPv4
+	ip6 layers.IPv6
+	udp layers.UDP
+	dns layers.DNS
 
-	// Detect IP version
-	var layerType gopacket.LayerType
-	version := data[0] >> 4
-	if version == 6 {
-		layerType = layers.LayerTypeIPv6
-	} else {
-		layerType = layers.LayerTypeIPv4
-	}
+	v4      *gopacket.DecodingLayerParser
+	v6      *gopacket.DecodingLayerParser
+	decoded []gopacket.LayerType
 
-	packet := gopacket.NewPacket(
-		data,
-		layerType,
-		gopacket.Default,
-	)
-
-	var res DNSEvent
-	if packet == nil {
-		return res, errors.New("parsing packet")
-	}
-
-	ipLayer := packet.NetworkLayer()
-	if ipLayer == nil {
-		return res, errors.New("layer L3 is missing")
-	}
-
-	appLayer := packet.ApplicationLayer()
-	if appLayer == nil {
-		return res, errors.New("layer L7 is missing")
-	}
-
-	dns, ok := appLayer.(*layers.DNS)
-	if !ok {
-		return res, fmt.Errorf("expected dns layer, actual type %T", appLayer)
-	}
-
-	srcIP, dstIP := getIPs(ipLayer)
-
-	return DNSEvent{
-		SrcIP:     srcIP,
-		DstIP:     dstIP,
-		Questions: dns.Questions,
-		Answers:   dns.Answers,
-	}, nil
+	srcIP net.IP
+	dstIP net.IP
 }
 
-func getIPs(l gopacket.NetworkLayer) (net.IP, net.IP) {
-	if ipv4, ok := l.(*layers.IPv4); ok {
-		return ipv4.SrcIP, ipv4.DstIP
+func newDNSDecoder() *dnsDecoder {
+	d := &dnsDecoder{decoded: make([]gopacket.LayerType, 0, 4)}
+
+	// Two parsers, because a DecodingLayerParser is fixed at construction to the layer
+	// type it starts from and the version is only known once the packet is in hand.
+	// They share the layer structs, so the second one costs nothing per packet.
+	d.v4 = gopacket.NewDecodingLayerParser(layers.LayerTypeIPv4, &d.ip4, &d.udp, &d.dns)
+	d.v6 = gopacket.NewDecodingLayerParser(layers.LayerTypeIPv6, &d.ip6, &d.udp, &d.dns)
+
+	// A packet whose next layer has no decoder registered -- a fragment, an unexpected
+	// protocol -- stops the parse rather than failing it. It is then caught below by
+	// the absence of a DNS layer, which is the condition actually being tested.
+	d.v4.IgnoreUnsupported = true
+	d.v6.IgnoreUnsupported = true
+
+	return d
+}
+
+// decode parses one raw packet into the decoder's layer structs. The decoded values
+// are valid until the next call to decode and no longer.
+func (d *dnsDecoder) decode(data []byte) error {
+	d.srcIP, d.dstIP = nil, nil
+
+	if len(data) == 0 {
+		return errors.New("empty data")
 	}
-	if ipv6, ok := l.(*layers.IPv6); ok {
-		return ipv6.SrcIP, ipv6.DstIP
+
+	parser := d.v4
+	if data[0]>>4 == 6 {
+		parser = d.v6
 	}
-	return nil, nil
+
+	d.decoded = d.decoded[:0]
+	if err := parser.DecodeLayers(data, &d.decoded); err != nil {
+		return fmt.Errorf("decoding packet: %w", err)
+	}
+
+	var haveDNS bool
+	for _, layerType := range d.decoded {
+		switch layerType {
+		case layers.LayerTypeIPv4:
+			d.srcIP, d.dstIP = d.ip4.SrcIP, d.ip4.DstIP
+		case layers.LayerTypeIPv6:
+			d.srcIP, d.dstIP = d.ip6.SrcIP, d.ip6.DstIP
+		case layers.LayerTypeDNS:
+			haveDNS = true
+		}
+	}
+
+	if d.srcIP == nil {
+		return errors.New("layer L3 is missing")
+	}
+	if !haveDNS {
+		return errors.New("layer L7 is missing")
+	}
+	return nil
+}
+
+// hasAnswers reports whether the last decoded packet resolved anything.
+func (d *dnsDecoder) hasAnswers() bool { return len(d.dns.Answers) > 0 }
+
+// event copies the last decoded packet into a DNSEvent that owns its own memory and is
+// therefore safe to send to another goroutine.
+func (d *dnsDecoder) event() DNSEvent {
+	ev := DNSEvent{
+		SrcIP:     cloneIP(d.srcIP),
+		DstIP:     cloneIP(d.dstIP),
+		Questions: make([]DNSQuestion, 0, len(d.dns.Questions)),
+		Answers:   make([]DNSAnswer, 0, len(d.dns.Answers)),
+	}
+	for i := range d.dns.Questions {
+		q := &d.dns.Questions[i]
+		ev.Questions = append(ev.Questions, DNSQuestion{
+			Name:  string(q.Name),
+			Type:  q.Type,
+			Class: q.Class,
+		})
+	}
+	for i := range d.dns.Answers {
+		a := &d.dns.Answers[i]
+		ev.Answers = append(ev.Answers, DNSAnswer{
+			Name:  string(a.Name),
+			Type:  a.Type,
+			Class: a.Class,
+			IP:    cloneIP(a.IP),
+			CNAME: string(a.CNAME),
+		})
+	}
+	return ev
+}
+
+func cloneIP(ip net.IP) net.IP {
+	if ip == nil {
+		return nil
+	}
+	return append(net.IP(nil), ip...)
 }
 
 func detectCgroupPath() (string, error) {

@@ -1,3 +1,28 @@
+# Labels and annotations added to every object this chart creates, for clusters
+# whose admission policy (OPA Gatekeeper, Kyverno) requires site-specific
+# metadata before it will admit a resource. Without these, such a cluster
+# rejects the chart's objects and the install fails.
+#
+#   commonLabels:
+#     example.com/cost-center: platform
+#     example.com/tier: infra
+#
+# commonLabels/commonAnnotations land on both the object and its pod template --
+# Gatekeeper evaluates constraints against the Pod a workload would create, so
+# metadata on the DaemonSet alone is not enough. podLabels/podAnnotations add
+# pod-only metadata on top.
+#
+# Set these under `global:` to cover subcharts as well; a chart-local
+# value applies only to this chart and wins on a collision.
+#
+# Keys this chart owns win over these and are dropped from the values:
+# app.kubernetes.io/*, helm.sh/*, selector labels, and config checksums.
+# Selector labels are never modified, so setting these on an existing release is
+# a safe upgrade.
+commonLabels: {}
+commonAnnotations: {}
+podLabels: {}
+podAnnotations: {}
 # fullnameOverride pins all nodemon resource names to a stable value, independent of the Helm
 # release name. It MUST stay "zxporter-nodemon" so that:
 #   1. the zxporter controller can discover nodemon pods via the fixed label selector
@@ -13,7 +38,7 @@ serviceAccount:
 image:
   repository: public.ecr.aws/devzeroinc/zxporter-nodemon
   pullPolicy: IfNotPresent
-  tag: "v0.1.6"
+  tag: "v0.1.20"
 nodemon:
   # nodemon.affinity -- optional pod affinity/anti-affinity. Leave empty so nodemon schedules on
   # EVERY node (it is the sole source of node/container metrics). Only set this if you intentionally
@@ -126,6 +151,23 @@ dcgmExporter:
     repository: public.ecr.aws/devzeroinc/dcgm-exporter
     pullPolicy: IfNotPresent
     tag: 4.5.2-4.8.1-ubuntu22.04
+  # resources -- requests/limits for the dcgm-exporter sidecar. This block
+  # replaces the container's whole `resources` field, so set requests and
+  # limits together; set it to null to render no resources block at all.
+  #
+  # Requests are set by default because a namespace ResourceQuota, or a
+  # LimitRange with no default, rejects the entire pod when any one container
+  # omits them -- one unsized sidecar would take the whole DaemonSet down.
+  #
+  # No memory limit by default, unlike nodemon.resources above: this sidecar's
+  # footprint grows with the number of GPUs and MIG compute instances on the
+  # node, so a fleet-wide limit picked here would OOMKill exactly the dense
+  # nodes it matters most on. Set one explicitly if your namespace quota
+  # requires limits, sizing it against your densest GPU node.
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
   useExternalHostEngine: false
   # extraEnv -- extra env vars for the dcgm-exporter sidecar, e.g. LD_LIBRARY_PATH
   # when the driver lives outside the provider=gcp default (/usr/local/nvidia/lib64).
