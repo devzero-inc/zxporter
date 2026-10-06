@@ -87,6 +87,16 @@ const (
 	// Default value: 15s
 	_ENV_KUBELET_FALLBACK_TIMEOUT = "KUBELET_FALLBACK_TIMEOUT"
 
+	// SCHEDULER_METRICS_SCRAPE_INTERVAL bounds how often the SchedulerMetrics
+	// collector scrapes dz-scheduler's /metrics endpoint.
+	// Default value: 60s
+	_ENV_SCHEDULER_METRICS_SCRAPE_INTERVAL = "SCHEDULER_METRICS_SCRAPE_INTERVAL"
+
+	// KEDA_METRICS_ENDPOINT is the full URL of the KEDA operator /metrics endpoint
+	// scraped by the KedaScalerMetrics collector.
+	// Default value: http://dzkeda-operator.devzero-system.svc.cluster.local:8080/metrics
+	_ENV_KEDA_METRICS_ENDPOINT = "KEDA_METRICS_ENDPOINT"
+
 	// CLUSTER_SNAPSHOT_INTERVAL is how often to take cluster snapshots.
 	// Default value: 3h
 	_ENV_CLUSTER_SNAPSHOT_INTERVAL = "CLUSTER_SNAPSHOT_INTERVAL"
@@ -97,7 +107,8 @@ const (
 	_ENV_WATCHED_CRDS = "WATCHED_CRDS"
 
 	// DISABLED_COLLECTORS is a list of collector types to completely disable.
-	// This is a comma-separated list.
+	// This is a comma-separated list. It takes the same names as a CollectionPolicy's
+	// disabledCollectors, legacy spellings included (see collector.CanonicalCollectorType).
 	// Default value: []
 	_ENV_DISABLED_COLLECTORS = "DISABLED_COLLECTORS"
 
@@ -583,6 +594,12 @@ func LoadCollectionPolicySpecFromEnv() (v1.CollectionPolicySpec, error) {
 	}
 	if v := getEnv(_ENV_KUBELET_FALLBACK_TIMEOUT); v != "" {
 		newSpec.Policies.KubeletFallbackTimeout = v
+	}
+	if v := getEnv(_ENV_SCHEDULER_METRICS_SCRAPE_INTERVAL); v != "" {
+		newSpec.Policies.SchedulerMetricsScrapeInterval = v
+	}
+	if v := getEnv(_ENV_KEDA_METRICS_ENDPOINT); v != "" {
+		newSpec.Policies.KEDAMetricsEndpoint = v
 	}
 	if v := getEnv(_ENV_CLUSTER_SNAPSHOT_INTERVAL); v != "" {
 		newSpec.Policies.ClusterSnapshotInterval = v

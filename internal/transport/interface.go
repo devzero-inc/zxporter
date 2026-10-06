@@ -52,6 +52,24 @@ type DakrClient interface {
 		req *gen.SendNetworkTrafficMetricsRequest,
 	) (*gen.SendNetworkTrafficMetricsResponse, error)
 
+	// SendScalerMetrics pushes a batch of KEDA scaler metric samples from a cluster.
+	SendScalerMetrics(
+		ctx context.Context,
+		clusterID string,
+		teamID string,
+		samples []*gen.ScalerMetricSample,
+	) error
+
+	// SendContainerRedMetrics pushes per-container inbound RED metrics from a node.
+	// It is a separate call from SendNetworkTrafficMetrics rather than a field on it
+	// because the two carry different grains -- flows between endpoints versus
+	// per-container per-minute aggregates -- and because a failure to deliver one
+	// must not discard the other.
+	SendContainerRedMetrics(
+		ctx context.Context,
+		req *gen.SendContainerRedMetricsRequest,
+	) (*gen.SendContainerRedMetricsResponse, error)
+
 	// ReportHealth
 	ReportHealth(ctx context.Context, req *gen.ReportHealthRequest) error
 

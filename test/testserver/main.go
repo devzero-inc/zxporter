@@ -480,6 +480,58 @@ func (s *MetricsServer) SendNetworkTrafficMetrics(
 	}), nil
 }
 
+// SendScalerMetrics implements apiv1connect.MetricsCollectorServiceHandler.
+func (s *MetricsServer) SendScalerMetrics(
+	ctx context.Context,
+	req *connect.Request[apiv1.SendScalerMetricsRequest],
+) (*connect.Response[apiv1.SendScalerMetricsResponse], error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.stats.TotalMessages++
+	if s.stats.MessagesByType == nil {
+		s.stats.MessagesByType = make(map[string]int)
+	}
+	s.stats.MessagesByType["KEDA_SCALER_METRICS"]++
+
+	fmt.Fprintf(os.Stderr, "Received %d KEDA scaler metric samples for cluster %s\n",
+		len(req.Msg.Samples), req.Msg.ClusterId)
+
+	return connect.NewResponse(&apiv1.SendScalerMetricsResponse{}), nil
+}
+
+// SendContainerRedMetrics accepts per-container RED metrics.
+//
+// It records the message but keeps no per-item stats: the items are per-minute
+// deltas whose only useful reading is a sum over a time range, which is what the
+// real ClickHouse destination is for and what a counter in this process would
+// only imitate badly.
+func (s *MetricsServer) SendContainerRedMetrics(
+	ctx context.Context,
+	req *connect.Request[apiv1.SendContainerRedMetricsRequest],
+) (*connect.Response[apiv1.SendContainerRedMetricsResponse], error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.stats.TotalMessages++
+	if s.stats.MessagesByType == nil {
+		s.stats.MessagesByType = make(map[string]int)
+	}
+	s.stats.MessagesByType["CONTAINER_RED_METRICS"]++
+
+	if s.stats.FirstMessageTime == nil {
+		now := time.Now()
+		s.stats.FirstMessageTime = &now
+	}
+
+	fmt.Fprintf(os.Stderr, "Received %d container RED metrics items from node %s\n",
+		len(req.Msg.Items), req.Msg.NodeName)
+
+	return connect.NewResponse(&apiv1.SendContainerRedMetricsResponse{
+		ProcessedCount: int32(len(req.Msg.Items)),
+	}), nil
+}
+
 // StatsHandler handles the /stats HTTP endpoint
 func (s *MetricsServer) StatsHandler(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
