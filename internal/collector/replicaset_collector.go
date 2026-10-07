@@ -172,8 +172,8 @@ func (c *ReplicaSetCollector) replicaSetChanged(
 		oldReplicaSet.ObjectMeta,
 		newReplicaSet.ObjectMeta,
 	)
-	if changed != IgnoreChanges {
-		return changed == PushChanges
+	if changed == PushChanges {
+		return true
 	}
 
 	// Check if replicas changed
