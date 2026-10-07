@@ -8,7 +8,13 @@ import "time"
 // and payload-shape reasons. Scoped to existence + version, same as Node.js.
 type RuntimeProcessMetric struct {
 	// Runtime is the detected runtime name: "dotnet" | "go" |
-	// "graalvm-native-image" | "python" | "ruby" | "deno" | "bun".
+	// "graalvm-native-image" | "python" | "ruby" | "deno" | "bun" | "java".
+	//
+	// "java" appears here only for a JVM with no hsperfdata file (it cannot
+	// write /tmp/hsperfdata_<user>/<pid> — readOnlyRootFilesystem with no
+	// writable /tmp, or -XX:-UsePerfData). Such a process has no heap metrics
+	// to report, so it is surfaced as a plain runtime detection rather than
+	// dropped; every other JVM goes to JVMMetric instead and never appears here.
 	Runtime string `json:"runtime"`
 
 	NodeName    string `json:"node_name"`

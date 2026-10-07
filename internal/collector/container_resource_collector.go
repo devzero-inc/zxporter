@@ -658,15 +658,9 @@ func (c *ContainerResourceCollector) processContainerMetrics(
 		}
 	}
 
-	// For OOM-killed containers, the post-restart memory usage from metrics-server
-	// reflects the NEW container (e.g. 12MB), not the pre-OOM usage (~limit).
-	// This would cause the operator's fast-path to multiply the wrong base value,
-	// potentially recommending LESS memory than before. Use the memory limit as the
-	// usage proxy for OOM events, consistent with BuildOOMSnapshot.
-	effectiveMemoryUsage := memoryUsage
-	if lastTerminationReason == ReasonOOMKilled && memoryLimitBytes > 0 && memoryUsage < memoryLimitBytes {
-		effectiveMemoryUsage = memoryLimitBytes
-	}
+	effectiveMemoryUsage := oomAdjustedMemoryUsage(
+		memoryUsage, memoryLimitBytes, lastTerminationReason, containerStatus, time.Now(),
+	)
 
 	// Create resource data with both metrics and pod info
 	containerKey := fmt.Sprintf("%s/%s/%s", pod.Namespace, pod.Name, containerMetrics.Name)
@@ -1189,6 +1183,63 @@ func (c *ContainerResourceCollector) IsAvailable(ctx context.Context) bool {
 func (c *ContainerResourceCollector) AddResource(resource interface{}) error {
 	// Container resources are collected automatically via metrics scraping, not via individual resource refresh
 	return nil
+}
+
+// oomUsageProxyWindow bounds how long after an OOM kill (or the restart that
+// followed it) the memory limit stands in for the container's measured usage.
+// It spans many collection cycles, so the kill is still reported, but is far
+// shorter than any recommendation cycle.
+const oomUsageProxyWindow = 5 * time.Minute
+
+// oomUsageProxyClockSkew is how far in the future a kubelet-reported timestamp
+// may be and still count. The timestamps come from another node's clock; a
+// larger skew would otherwise keep the proxy alive for as long as that clock
+// runs ahead, which is the stuck signal the window exists to prevent.
+const oomUsageProxyClockSkew = time.Minute
+
+// oomAdjustedMemoryUsage returns the memory usage to report for a container.
+//
+// Right after an OOM kill, metrics-server measures the NEW container (e.g.
+// 12MB), not the pre-OOM usage (~limit). Reporting that would let a consumer
+// multiply the wrong base and recommend LESS memory than before, so the memory
+// limit stands in for usage, consistent with BuildOOMSnapshot.
+//
+// That stand-in applies only while the kill is recent. LastTerminationState
+// keeps saying OOMKilled until the container terminates again, which with
+// in-place resize can be days, and a container that has run for that long is
+// measured correctly. Substituting the limit for the whole time made usage
+// track every new limit exactly, which control-plane OOM detection ("usage at
+// >= 95% of the limit") read as a fresh OOM on every cycle: one prod pod was
+// resized 164 MiB -> 31 GiB in 1.5x steps while its RSS stayed under 80 MiB.
+func oomAdjustedMemoryUsage(
+	usage, limit int64,
+	lastTerminationReason string,
+	status *corev1.ContainerStatus,
+	now time.Time,
+) int64 {
+	if lastTerminationReason != ReasonOOMKilled || limit <= 0 || usage >= limit {
+		return usage
+	}
+	// A StartError normalized to OOMKilled also lands here; either way the kill
+	// time is FinishedAt. Without one there is no evidence the kill is recent.
+	if status == nil || status.LastTerminationState.Terminated == nil {
+		return usage
+	}
+	// Measure from the later of the kill and the current run's start. Under
+	// CrashLoopBackOff the restart can come up to five minutes after the kill,
+	// and the low post-restart reading the proxy hides only exists from then on.
+	// An in-place resize does not restart the container, so neither moves.
+	ref := status.LastTerminationState.Terminated.FinishedAt.Time
+	if running := status.State.Running; running != nil && running.StartedAt.After(ref) {
+		ref = running.StartedAt.Time
+	}
+	if ref.IsZero() {
+		return usage
+	}
+	if age := now.Sub(ref); age > oomUsageProxyWindow || age < -oomUsageProxyClockSkew {
+		return usage
+	}
+	return limit
 }
 
 // containerMemoryBreakdown holds the raw nodemon-sourced memory values needed to
