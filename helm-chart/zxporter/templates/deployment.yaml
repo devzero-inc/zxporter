@@ -2,7 +2,14 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  {{- with (include "zxporter.commonAnnotations" $) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
   labels:
+    {{- with (include "zxporter.commonLabels" $) }}
+    {{- . | nindent 4 }}
+    {{- end }}
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/name: devzero-zxporter
     control-plane: controller-manager
@@ -16,11 +23,20 @@ spec:
   template:
     metadata:
       annotations:
+        {{- with (include "zxporter.podExtraAnnotations" $) }}
+        {{- . | nindent 8 }}
+        {{- end }}
         kubectl.kubernetes.io/default-container: manager
       labels:
+        {{- with (include "zxporter.podExtraLabels" $) }}
+        {{- . | nindent 8 }}
+        {{- end }}
         control-plane: controller-manager
         {{- include "zxporter.selectorLabels" . | nindent 8 }}
     spec:
+      {{- with include "zxporter.imagePullSecrets" . }}
+      {{- . | nindent 6 }}
+      {{- end }}
       {{- if .Values.global.priorityClass.enabled }}
       {{- /* Must equal the PriorityClass name in templates/priorityclass.yaml, which is hardcoded
              to the (double-prefixed) dist/ bundle name so helm + installer_updater stay in sync. */}}
@@ -38,6 +54,12 @@ spec:
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      {{- $selector := include "zxporter.selectorLabels" $ | fromYaml }}
+      {{- $_ := set $selector "control-plane" "controller-manager" }}
+      topologySpreadConstraints:
+        {{- include "zxporter.topologySpreadConstraints" (dict "constraints" . "selector" $selector) | nindent 8 }}
+      {{- end }}
       containers:
         - args:
             - --metrics-bind-address=:8443
@@ -45,7 +67,7 @@ spec:
             - --mpa-server-port={{ .Values.mpaServer.port }}
             - --health-probe-bind-address=:8081
             - --zap-log-level={{ .Values.zxporter.logLevel }}
-          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+          image: {{ include "zxporter.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - name: http-metrics

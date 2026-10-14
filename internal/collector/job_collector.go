@@ -167,8 +167,8 @@ func (c *JobCollector) jobChanged(oldJob, newJob *batchv1.Job) bool {
 		oldJob.ObjectMeta,
 		newJob.ObjectMeta,
 	)
-	if changed != IgnoreChanges {
-		return changed == PushChanges
+	if changed == PushChanges {
+		return true
 	}
 
 	// Check for status changes

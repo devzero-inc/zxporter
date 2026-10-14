@@ -177,8 +177,8 @@ func (c *NetworkPolicyCollector) networkPolicyChanged(
 		oldNetworkPolicy.ObjectMeta,
 		newNetworkPolicy.ObjectMeta,
 	)
-	if changed != IgnoreChanges {
-		return changed == PushChanges
+	if changed == PushChanges {
+		return true
 	}
 
 	// Check for pod selector changes

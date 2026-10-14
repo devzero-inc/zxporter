@@ -287,6 +287,8 @@ rules:
   - apiGroups:
       - argoproj.io
     resources:
+      - applications
+      - applicationsets
       - rollouts
     verbs:
       - get
@@ -335,6 +337,14 @@ rules:
       - list
       - watch
   - apiGroups:
+      - coordination.k8s.io
+    resourceNames:
+      - dz-scheduler
+    resources:
+      - leases
+    verbs:
+      - get
+  - apiGroups:
       - dakr.devzero.io
     resources:
       - workloadrecommendations
@@ -381,6 +391,45 @@ rules:
       - devzero.karpenter.sh
     resources:
       - karpentersettings
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - flagger.app
+    resources:
+      - alertproviders
+      - canaries
+      - metrictemplates
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - fluxcd.controlplane.io
+    resources:
+      - fluxinstances
+      - fluxreports
+      - resourcesetinputproviders
+      - resourcesets
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - helm.toolkit.fluxcd.io
+    resources:
+      - helmreleases
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - image.toolkit.fluxcd.io
+    resources:
+      - imagepolicies
+      - imagerepositories
+      - imageupdateautomations
     verbs:
       - get
       - list
@@ -450,6 +499,14 @@ rules:
       - list
       - watch
   - apiGroups:
+      - kustomize.toolkit.fluxcd.io
+    resources:
+      - kustomizations
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
       - kyverno.io
     resources:
       - clusterpolicies
@@ -473,6 +530,16 @@ rules:
       - ingressclasses
       - ingresses
       - networkpolicies
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - notification.toolkit.fluxcd.io
+    resources:
+      - alerts
+      - providers
+      - receivers
     verbs:
       - get
       - list
@@ -510,6 +577,19 @@ rules:
       - rbac.authorization.k8s.io
     resources:
       - roles
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - source.toolkit.fluxcd.io
+    resources:
+      - buckets
+      - externalartifacts
+      - gitrepositories
+      - helmcharts
+      - helmrepositories
+      - ocirepositories
     verbs:
       - get
       - list
@@ -654,6 +734,19 @@ subjects:
     name: devzero-zxporter-controller-manager
     namespace: {{.zxporter_namespace}}
 ---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: devzero-zxporter-metrics-reader-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: devzero-zxporter-metrics-reader
+subjects:
+  - kind: ServiceAccount
+    name: devzero-zxporter-controller-manager
+    namespace: {{.zxporter_namespace}}
+---
 apiVersion: v1
 data:
   BUFFER_SIZE: ""
@@ -693,6 +786,7 @@ data:
   EXCLUDED_STORAGECLASSES: ""
   EXCLUDED_VPAS: ""
   K8S_PROVIDER: '{{ .k8s_provider }}'
+  KEDA_METRICS_ENDPOINT: ""
   KUBE_CONTEXT_NAME: '{{ .kube_context_name }}'
   KUBELET_FALLBACK_TIMEOUT: 15s
   MASK_SECRET_DATA: ""
@@ -701,6 +795,7 @@ data:
   NODE_METRICS_CONCURRENCY: "20"
   NODE_METRICS_INTERVAL: ""
   NODEMON_REQUEST_TIMEOUT: 15s
+  SCHEDULER_METRICS_SCRAPE_INTERVAL: ""
   TARGET_NAMESPACES: ""
   TOKEN_CONFIGMAP_NAME: devzero-zxporter-env-config
   TOKEN_CREDENTIALS_SECRET_NAME: devzero-zxporter-credentials
@@ -870,16 +965,21 @@ metadata:
   name: zxporter-nodemon
   namespace: {{.zxporter_namespace}}
   labels:
-    helm.sh/chart: zxporter-nodemon-0.1.6
+    helm.sh/chart: zxporter-nodemon-0.1.22
     app.kubernetes.io/name: zxporter-nodemon
     app.kubernetes.io/instance: zxporter-nodemon
-    app.kubernetes.io/version: "0.1.6"
+    app.kubernetes.io/version: "0.1.22"
     app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: dz-platform
+    devzero.io/component: zxporter-nodemon
 ---
 # Source: zxporter-nodemon/templates/dcgm-exporter-configmap.yaml
 apiVersion: v1
 kind: ConfigMap
 metadata:
+  labels:
+    app.kubernetes.io/part-of: dz-platform
+    devzero.io/component: zxporter-nodemon
   name: zxporter-nodemon-dcgm-metrics
   namespace: {{.zxporter_namespace}}
 data:
@@ -895,8 +995,12 @@ data:
     DCGM_FI_DEV_GPU_UTIL, gauge, GPU utilization (in %).
     # DCGM_FI_PROF_SM_ACTIVE, gauge, The ratio of cycles an SM has at least 1 warp assigned
     # DCGM_FI_PROF_SM_OCCUPANCY, gauge, The fraction of resident warps on a multiprocessor
-    # DCGM_FI_PROF_GR_ENGINE_ACTIVE, gauge, Ratio of time the graphics engine is active (in %).
-    # DCGM_FI_PROF_DRAM_ACTIVE, gauge, The ratio of cycles the device memory interface is active sending or receiving data.
+    # Enabled: required for per-MIG-instance profiling data (GPU_I_PROFILE/GPU_I_ID
+    # labels only attach to DCGM_FI_PROF_* fields, never to plain DCGM_FI_DEV_*
+    # ones) and directly consumed by nodemon's GPUMigInstance parsing
+    # (GraphicsEngineActive/DRAMActive/TensorActive below).
+    DCGM_FI_PROF_GR_ENGINE_ACTIVE, gauge, Ratio of time the graphics engine is active (in %).
+    DCGM_FI_PROF_DRAM_ACTIVE, gauge, The ratio of cycles the device memory interface is active sending or receiving data.
 
     # Memory usage,,
     DCGM_FI_DEV_FB_FREE, gauge, Framebuffer memory free (in MiB).
@@ -915,7 +1019,9 @@ data:
     # DCGM_FI_PROF_PIPE_FP16_ACTIVE, gauge, Ratio of cycles the fp16 pipe is active.
     # DCGM_FI_PROF_PIPE_FP32_ACTIVE, gauge, Ratio of cycles the fp32 pipe is active.
     # DCGM_FI_PROF_PIPE_FP64_ACTIVE, gauge, Ratio of cycles the fp64 pipe is active.
-    # DCGM_FI_PROF_PIPE_TENSOR_ACTIVE, gauge, The ratio of cycles the tensor (HMMA) pipe is active (off the peak sustained elapsed cycles)
+    # Enabled: see the GR_ENGINE_ACTIVE/DRAM_ACTIVE note above -- this is
+    # GPUMigInstance.TensorActive.
+    DCGM_FI_PROF_PIPE_TENSOR_ACTIVE, gauge, The ratio of cycles the tensor (HMMA) pipe is active (off the peak sustained elapsed cycles)
 
     # Health,,
     # DCGM_FI_DEV_CLOCKS_EVENT_REASONS is not supported by DCGM 3.3.7
@@ -936,6 +1042,9 @@ data:
 apiVersion: v1
 kind: ConfigMap
 metadata:
+  labels:
+    app.kubernetes.io/part-of: dz-platform
+    devzero.io/component: zxporter-nodemon
   name: zxporter-nodemon-zxporter-nodemon
   namespace: {{.zxporter_namespace}}
 data:
@@ -946,11 +1055,13 @@ kind: ClusterRole
 metadata:
   name: zxporter-nodemon
   labels:
-    helm.sh/chart: zxporter-nodemon-0.1.6
+    helm.sh/chart: zxporter-nodemon-0.1.22
     app.kubernetes.io/name: zxporter-nodemon
     app.kubernetes.io/instance: zxporter-nodemon
-    app.kubernetes.io/version: "0.1.6"
+    app.kubernetes.io/version: "0.1.22"
     app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: dz-platform
+    devzero.io/component: zxporter-nodemon
 rules:
   - apiGroups:
       - ""
@@ -959,6 +1070,7 @@ rules:
     verbs:
       - get
       - list
+      - watch
   - apiGroups:
       - apps
     resources:
@@ -996,11 +1108,13 @@ kind: ClusterRoleBinding
 metadata:
   name: zxporter-nodemon
   labels:
-    helm.sh/chart: zxporter-nodemon-0.1.6
+    helm.sh/chart: zxporter-nodemon-0.1.22
     app.kubernetes.io/name: zxporter-nodemon
     app.kubernetes.io/instance: zxporter-nodemon
-    app.kubernetes.io/version: "0.1.6"
+    app.kubernetes.io/version: "0.1.22"
     app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: dz-platform
+    devzero.io/component: zxporter-nodemon
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
@@ -1017,10 +1131,12 @@ metadata:
   name: zxporter-nodemon
   namespace: {{.zxporter_namespace}}
   labels:
-    helm.sh/chart: zxporter-nodemon-0.1.6
+    app.kubernetes.io/part-of: dz-platform
+    devzero.io/component: zxporter-nodemon
+    helm.sh/chart: zxporter-nodemon-0.1.22
     app.kubernetes.io/name: zxporter-nodemon
     app.kubernetes.io/instance: zxporter-nodemon
-    app.kubernetes.io/version: "0.1.6"
+    app.kubernetes.io/version: "0.1.22"
     app.kubernetes.io/managed-by: Helm
   annotations:
     ignore-check.kube-linter.io/privileged-container: "This daemon set needs to run DCGM Exporter as privileged to access the GPU metrics."
@@ -1124,6 +1240,14 @@ spec:
               memory: 256Mi
         - name: dcgm-exporter
           securityContext:
+            # SYS_ADMIN alone is not enough: enumerating MIG Compute Instance
+            # profiles via NVML needs broader host access than that one
+            # capability grants (confirmed live -- SYS_ADMIN-only reproduces
+            # "CacheManager Init Failed. Error: -17" the instant any MIG
+            # instance exists on the node; switching to privileged fixes it
+            # with zero other changes). This is a generic NVML/driver
+            # requirement, not provider-specific, so unlike the hostPath/
+            # LD_LIBRARY_PATH blocks below it must not be gated on gcp only.
             capabilities:
               add:
                 - SYS_ADMIN
@@ -1131,6 +1255,7 @@ spec:
                 - NET_RAW
             runAsNonRoot: false
             runAsUser: 0
+            privileged: true
           image: "public.ecr.aws/devzeroinc/dcgm-exporter:4.5.2-4.8.1-ubuntu22.04"
           imagePullPolicy: IfNotPresent
           command: ["/bin/bash", "-c"]
@@ -1150,12 +1275,26 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+            # Without this, nvidia-container-runtime's "auto" mode only exposes
+            # whole/non-MIG GPUs to a non-privileged container with no explicit
+            # device-plugin resource request (which this sidecar deliberately
+            # doesn't make, since it must see every GPU on the node, not just
+            # one). MIG-partitioned GPUs stay invisible without it -- confirmed
+            # by direct comparison against GPU Operator's own dcgm-exporter,
+            # which gets the same visibility via privileged:true instead; this
+            # is the minimal fix that doesn't need the broader grant.
+            - name: "NVIDIA_VISIBLE_DEVICES"
+              value: "all"
           volumeMounts:
             - name: "pod-gpu-resources"
               readOnly: true
               mountPath: "/var/lib/kubelet/pod-resources"
             - name: zxporter-nodemon-dcgm-metrics
               mountPath: "/etc/dcgm-exporter"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
 ---
 # Source: zxporter-nodemon/templates/daemonset.yaml
 apiVersion: apps/v1
@@ -1164,10 +1303,12 @@ metadata:
   name: zxporter-nodemon-gpu
   namespace: {{.zxporter_namespace}}
   labels:
-    helm.sh/chart: zxporter-nodemon-0.1.6
+    app.kubernetes.io/part-of: dz-platform
+    devzero.io/component: zxporter-nodemon
+    helm.sh/chart: zxporter-nodemon-0.1.22
     app.kubernetes.io/name: zxporter-nodemon
     app.kubernetes.io/instance: zxporter-nodemon-gpu
-    app.kubernetes.io/version: "0.1.6"
+    app.kubernetes.io/version: "0.1.22"
     app.kubernetes.io/managed-by: Helm
   annotations:
     ignore-check.kube-linter.io/privileged-container: "This daemon set needs to run DCGM Exporter as privileged to access the GPU metrics."
@@ -1274,6 +1415,14 @@ spec:
               memory: 256Mi
         - name: dcgm-exporter
           securityContext:
+            # SYS_ADMIN alone is not enough: enumerating MIG Compute Instance
+            # profiles via NVML needs broader host access than that one
+            # capability grants (confirmed live -- SYS_ADMIN-only reproduces
+            # "CacheManager Init Failed. Error: -17" the instant any MIG
+            # instance exists on the node; switching to privileged fixes it
+            # with zero other changes). This is a generic NVML/driver
+            # requirement, not provider-specific, so unlike the hostPath/
+            # LD_LIBRARY_PATH blocks below it must not be gated on gcp only.
             capabilities:
               add:
                 - SYS_ADMIN
@@ -1281,6 +1430,7 @@ spec:
                 - NET_RAW
             runAsNonRoot: false
             runAsUser: 0
+            privileged: true
           image: "public.ecr.aws/devzeroinc/dcgm-exporter:4.5.2-4.8.1-ubuntu22.04"
           imagePullPolicy: IfNotPresent
           command: ["/bin/bash", "-c"]
@@ -1300,9 +1450,23 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+            # Without this, nvidia-container-runtime's "auto" mode only exposes
+            # whole/non-MIG GPUs to a non-privileged container with no explicit
+            # device-plugin resource request (which this sidecar deliberately
+            # doesn't make, since it must see every GPU on the node, not just
+            # one). MIG-partitioned GPUs stay invisible without it -- confirmed
+            # by direct comparison against GPU Operator's own dcgm-exporter,
+            # which gets the same visibility via privileged:true instead; this
+            # is the minimal fix that doesn't need the broader grant.
+            - name: "NVIDIA_VISIBLE_DEVICES"
+              value: "all"
           volumeMounts:
             - name: "pod-gpu-resources"
               readOnly: true
               mountPath: "/var/lib/kubelet/pod-resources"
             - name: zxporter-nodemon-dcgm-metrics
               mountPath: "/etc/dcgm-exporter"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi

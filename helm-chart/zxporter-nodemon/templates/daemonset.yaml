@@ -41,6 +41,9 @@ metadata:
   name: {{ $v.name }}
   namespace: {{ $.Release.Namespace }}
   labels:
+    {{- with (include "zxporter-nodemon.commonLabels" $) }}
+    {{- . | nindent 4 }}
+    {{- end }}
     helm.sh/chart: {{ include "zxporter-nodemon.chart" $ }}
     app.kubernetes.io/name: {{ include "zxporter-nodemon.name" $ }}
     app.kubernetes.io/instance: {{ $v.instance }}
@@ -48,8 +51,16 @@ metadata:
     app.kubernetes.io/version: {{ $.Chart.AppVersion | quote }}
     {{- end }}
     app.kubernetes.io/managed-by: {{ $.Release.Service }}
-  {{- if $v.withDcgm }}
+  {{- /* The kube-linter and gpu-runtime annotations belong to the DCGM variant,
+         but commonAnnotations must reach this object either way: gating the
+         whole block on withDcgm dropped them from every non-GPU install. */}}
+  {{- $commonAnnotations := include "zxporter-nodemon.commonAnnotations" $ }}
+  {{- if or $v.withDcgm $commonAnnotations }}
   annotations:
+    {{- with $commonAnnotations }}
+    {{- . | nindent 4 }}
+    {{- end }}
+    {{- if $v.withDcgm }}
     ignore-check.kube-linter.io/privileged-container: "This daemon set needs to run DCGM Exporter as privileged to access the GPU metrics."
     ignore-check.kube-linter.io/run-as-non-root: "This daemon set needs to run DCGM Exporter as root to access the GPU metrics."
     ignore-check.kube-linter.io/privilege-escalation-container: "This daemon set needs escalate privileges for DCGM Exporter."
@@ -57,6 +68,7 @@ metadata:
     {{- if eq $v.gpuAff "include" }}
     devzero.io/gpu-runtime-mode: {{ $gpuMode | quote }}
     devzero.io/gpu-runtime-class: {{ $gpuRuntime | quote }}
+    {{- end }}
     {{- end }}
   {{- end }}
 spec:
@@ -70,7 +82,14 @@ spec:
       app.kubernetes.io/instance: {{ $v.instance }}
   template:
     metadata:
+      {{- with (include "zxporter-nodemon.podExtraAnnotations" $) }}
+      annotations:
+        {{- . | nindent 8 }}
+      {{- end }}
       labels:
+        {{- with (include "zxporter-nodemon.podExtraLabels" $) }}
+        {{- . | nindent 8 }}
+        {{- end }}
         app.kubernetes.io/name: {{ include "zxporter-nodemon.name" $ }}
         app.kubernetes.io/instance: {{ $v.instance }}
     spec:
@@ -85,9 +104,8 @@ spec:
       {{- if $runtimeMetricsEnabled }}
       hostPID: true
       {{- end }}
-      {{- with $.Values.imagePullSecrets }}
-      imagePullSecrets:
-        {{- toYaml . | nindent 8 }}
+      {{- with include "zxporter-nodemon.imagePullSecrets" $ }}
+      {{- . | nindent 6 }}
       {{- end }}
       {{- if eq $v.gpuAff "include" }}
       {{- if ne $gpuRuntime "" }}
@@ -172,7 +190,7 @@ spec:
           {{- else }}
           {{- toYaml $.Values.nodemon.securityContext | nindent 12 }}
           {{- end }}
-          image: "{{ $.Values.image.repository }}:{{ $.Values.image.tag | default $.Chart.AppVersion }}"
+          image: {{ include "zxporter-nodemon.image" (dict "image" $.Values.image "defaultTag" $.Chart.AppVersion "global" $.Values.global) | quote }}
           imagePullPolicy: {{ $.Values.image.pullPolicy }}
           ports:
             - name: http
@@ -231,6 +249,14 @@ spec:
         {{- if $v.withDcgm }}
         - name: dcgm-exporter
           securityContext:
+            # SYS_ADMIN alone is not enough: enumerating MIG Compute Instance
+            # profiles via NVML needs broader host access than that one
+            # capability grants (confirmed live -- SYS_ADMIN-only reproduces
+            # "CacheManager Init Failed. Error: -17" the instant any MIG
+            # instance exists on the node; switching to privileged fixes it
+            # with zero other changes). This is a generic NVML/driver
+            # requirement, not provider-specific, so unlike the hostPath/
+            # LD_LIBRARY_PATH blocks below it must not be gated on gcp only.
             capabilities:
               add:
                 - SYS_ADMIN
@@ -238,10 +264,8 @@ spec:
                 - NET_RAW
             runAsNonRoot: false
             runAsUser: 0
-            {{- if eq $.Values.global.k8sProvider "gcp"}}
             privileged: true
-            {{- end }}
-          image: "{{ $.Values.dcgmExporter.image.repository }}:{{ $.Values.dcgmExporter.image.tag }}"
+          image: {{ include "zxporter-nodemon.image" (dict "image" $.Values.dcgmExporter.image "global" $.Values.global) | quote }}
           imagePullPolicy: {{ $.Values.dcgmExporter.image.pullPolicy }}
           command: [ "/bin/bash", "-c" ]
           args:
@@ -270,6 +294,24 @@ spec:
                 fieldRef:
                   fieldPath: status.hostIP
             {{- end }}
+            {{- $hasCustomVisibleDevices := false }}
+            {{- range $.Values.dcgmExporter.extraEnv }}
+            {{- if eq .name "NVIDIA_VISIBLE_DEVICES" }}
+            {{- $hasCustomVisibleDevices = true }}
+            {{- end }}
+            {{- end }}
+            {{- if not $hasCustomVisibleDevices }}
+            # Without this, nvidia-container-runtime's "auto" mode only exposes
+            # whole/non-MIG GPUs to a non-privileged container with no explicit
+            # device-plugin resource request (which this sidecar deliberately
+            # doesn't make, since it must see every GPU on the node, not just
+            # one). MIG-partitioned GPUs stay invisible without it -- confirmed
+            # by direct comparison against GPU Operator's own dcgm-exporter,
+            # which gets the same visibility via privileged:true instead; this
+            # is the minimal fix that doesn't need the broader grant.
+            - name: "NVIDIA_VISIBLE_DEVICES"
+              value: "all"
+            {{- end }}
             {{- $hasCustomLDLibraryPath := false }}
             {{- range $.Values.dcgmExporter.extraEnv }}
             {{- if eq .name "LD_LIBRARY_PATH" }}
@@ -297,5 +339,9 @@ spec:
             {{- end }}
             - name: {{- include "dcgm-exporter.config-map" $ | indent 1 }}
               mountPath: "/etc/dcgm-exporter"
+          {{- with $.Values.dcgmExporter.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
         {{- end }}
 {{- end }}

@@ -72,8 +72,17 @@ The ZXporter Operator is a comprehensive Kubernetes monitoring and data collecti
 | `keda.sh` | `triggerauthentications` | ✓ | ✓ | ✓ | | | | | KEDA installed |
 | `keda.sh` | `clustertriggerauthentications` | ✓ | ✓ | ✓ | | | | | KEDA installed |
 | `argoproj.io` | `rollouts` | ✓ | ✓ | ✓ | | | | | Argo Rollouts installed |
+| `argoproj.io` | `applications` | ✓ | ✓ | ✓ | | | | | Argo CD installed |
+| `argoproj.io` | `applicationsets` | ✓ | ✓ | ✓ | | | | | Argo CD installed |
 | `datadoghq.com` | `extendeddaemonsetreplicasets` | ✓ | ✓ | ✓ | | | | | Datadog operator installed |
 | `kubeflow.org` | `notebooks` | ✓ | ✓ | ✓ | | | | | Kubeflow installed |
+| `source.toolkit.fluxcd.io` | `gitrepositories`, `ocirepositories`, `helmrepositories`, `helmcharts`, `buckets`, `externalartifacts` | ✓ | ✓ | ✓ | | | | | Flux installed |
+| `kustomize.toolkit.fluxcd.io` | `kustomizations` | ✓ | ✓ | ✓ | | | | | Flux installed |
+| `helm.toolkit.fluxcd.io` | `helmreleases` | ✓ | ✓ | ✓ | | | | | Flux installed |
+| `notification.toolkit.fluxcd.io` | `alerts`, `providers`, `receivers` | ✓ | ✓ | ✓ | | | | | Flux installed |
+| `fluxcd.controlplane.io` | `fluxinstances`, `fluxreports`, `resourcesetinputproviders`, `resourcesets` | ✓ | ✓ | ✓ | | | | | Flux Operator installed |
+| `image.toolkit.fluxcd.io` | `imagerepositories`, `imagepolicies`, `imageupdateautomations` | ✓ | ✓ | ✓ | | | | | Flux image automation controllers installed (optional add-on) |
+| `flagger.app` | `canaries`, `metrictemplates`, `alertproviders` | ✓ | ✓ | ✓ | | | | | Flagger installed |
 
 ### Leader Election Role
 | API Group | Resource | get | list | watch | create | update | patch | delete |
@@ -238,6 +247,23 @@ metadata:
   - **Code**: `internal/collector/argo_rollouts_collector.go`
   - **Condition**: Only when Argo Rollouts CRDs detected
 
+#### Argo CD Integration
+**Purpose**: GitOps inventory -- which Applications exist, what they sync from,
+and what they manage
+
+Argo CD and Argo Rollouts are separate projects that share the `argoproj.io`
+group, so these rules are additive to the `rollouts` rule above.
+
+- **`applications`** (`get`, `list`, `watch`)
+  - Tracks sync and health status, source coordinates, sync policy, and the
+    resources each Application manages
+  - **Code**: `internal/collector/argo_cd_collector.go`
+  - **Condition**: Only when Argo CD CRDs detected
+- **`applicationsets`** (`get`, `list`, `watch`)
+  - Tracks generators, templates, and generated-Application counts
+  - **Code**: `internal/collector/argo_cd_collector.go`
+  - **Condition**: Only when Argo CD CRDs detected
+
 #### Datadog Integration
 **Purpose**: Datadog operator monitoring
 
@@ -316,6 +342,8 @@ spec:
       - "karpenter"
       - "keda_scaled_job"
       - "argo_rollouts"
+      - "argo_cd_application"
+      - "argo_cd_application_set"
       - "datadog"
       - "kubeflow_notebook"
 ```

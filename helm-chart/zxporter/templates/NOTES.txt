@@ -27,10 +27,10 @@ Ensure it exists in namespace {{ .Release.Namespace }} and contains at least one
 
 {{- end }}
 
-{{- if not .Values.zxporter.kubeContextName }}
+{{- if not (include "devzero-common.clusterName" (list . .Values.zxporter.kubeContextName)) }}
 
 NOTE: No cluster context name configured.
-Please set zxporter.kubeContextName to a unique identifier for your cluster.
+Please set zxporter.kubeContextName (or global.clusterName) to a unique identifier for your cluster.
 
 {{- end }}
 
