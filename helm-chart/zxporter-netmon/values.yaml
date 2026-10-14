@@ -1,8 +1,38 @@
+# Labels and annotations added to every object this chart creates, for clusters
+# whose admission policy (OPA Gatekeeper, Kyverno) requires site-specific
+# metadata before it will admit a resource. Without these, such a cluster
+# rejects the chart's objects and the install fails.
+#
+#   commonLabels:
+#     example.com/cost-center: platform
+#     example.com/tier: infra
+#
+# commonLabels/commonAnnotations land on both the object and its pod template --
+# Gatekeeper evaluates constraints against the Pod a workload would create, so
+# metadata on the DaemonSet alone is not enough. podLabels/podAnnotations add
+# pod-only metadata on top.
+#
+# Set these under `global:` to cover subcharts as well; a chart-local
+# value applies only to this chart and wins on a collision.
+#
+# Keys this chart owns win over these and are dropped from the values:
+# app.kubernetes.io/*, helm.sh/*, selector labels, and config checksums.
+# Selector labels are never modified, so setting these on an existing release is
+# a safe upgrade.
+commonLabels: {}
+commonAnnotations: {}
+podLabels: {}
+# podAnnotations is defined below with this chart's apparmor default; the
+# site-metadata helpers merge it with commonAnnotations rather than replacing it.
+
 image:
   repository: devzeroinc/zxporter-netmon
   pullPolicy: IfNotPresent
-  # Overrides the image tag whose default is the chart appVersion.
-  tag: "v0.1.6"
+  # -- Image tag. The release sets it to the version being released.
+  # @default -- the released version, v-prefixed
+  tag: "v0.1.22"
+# -- Pull secrets for the netmon pods, merged with `global.imagePullSecrets`
+# and deduplicated. Entries are secret names or `{name: ...}` objects.
 imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
@@ -34,6 +64,36 @@ resources:
   requests:
     cpu: 50m
     memory: 64Mi
+# Used instead of the block above when config.containerRedMetrics is true. The
+# socket probes add an 8Mi ring buffer, a connection table and a decode loop on
+# every socket call, so the defaults are too tight to run them under: with the
+# feature on, netmon idles at ~98MiB working set / ~66MiB anon RSS before serving
+# any traffic, and the first decodable load on the node OOM-killed it within 26s
+# of a 128Mi limit.
+#
+# The binary sets GOMEMLIMIT to 0.9 x the memory limit at startup (automemlimit,
+# see cmd/zxporter-netmon/main.go), so the limit is the GC's target and not only
+# the kernel's kill threshold -- which is why raising it was not optional. At
+# 128Mi that target is 115MiB against a ~66MiB idle heap, putting the GC in a
+# permanent collect cycle; at cpu: 100m that throttles the ring-buffer reader
+# into silent kernel-side event drops rather than an OOM kill.
+#
+# 384Mi/300m is headroom over the measured idle footprint plus the ~9MiB of BPF
+# maps (which sit outside GOMEMLIMIT), not a measured working set under load.
+# Tighten it once there is load data from a node running the feature.
+#
+# The memory request moves too, unlike in earlier revisions of this chart. A
+# request of 64Mi against a ~98MiB steady-state working set makes netmon the
+# kubelet's first eviction candidate under node memory pressure, since ranking is
+# by usage above request -- so the feature would be reserving nothing and paying
+# for it in restarts.
+containerRedMetricsResources:
+  limits:
+    cpu: 300m
+    memory: 384Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
 nodeSelector: {}
 tolerations:
   - operator: Exists
@@ -43,15 +103,46 @@ hostNetwork: true
 dnsPolicy: ClusterFirstWithHostNet
 # Config for collection
 config:
-  containerPort: 8081
+  # Serves /metrics, /healthz and /readyz. hostNetwork is true, so Kubernetes defaults
+  # hostPort to this containerPort and the value becomes a reservation on the node's
+  # real port. Do NOT move it back to 8081: dakr-operator is also hostNetwork and binds
+  # :8081 for its health probe, so the two pods cannot be scheduled onto the same node.
+  # Wired to -metrics-bind-address in the daemonset, so changing it here moves both the
+  # reservation and the listener together.
+  containerPort: 9101
   logLevel: "info"
   mainConfigMapName: "devzero-zxporter-env-config"
   # Default scrape interval 5s
   exportInterval: "60s"
   # Collector mode: 'netfilter' or 'ebpf'
   collectorMode: "netfilter"
+  # Sets DAKR_URL; empty reads it from mainConfigMapName. global.dakrUrl, when
+  # set (the dz-platform umbrella sets it), takes precedence.
   dakrUrl: ""
   clusterToken: ""
   # Name of the Secret containing CLUSTER_TOKEN (created by the zxporter installer).
   # Takes precedence over the token in mainConfigMapName when present.
   tokenSecretName: "devzero-zxporter-token"
+  # Per-container inbound RED metrics from socket probes.
+  #
+  # Off unless switched on deliberately: it attaches kprobes and holds
+  # per-connection state on a DaemonSet that shares every node with the workloads
+  # it measures. Nothing about the chart's default behaviour changes while it is
+  # false -- the agent does not attach the probe and sends no such metrics.
+  containerRedMetrics: false
+  # pprof, for diagnosing CPU or memory behaviour on a node that is misbehaving.
+  #
+  # Empty disables it and that is the default. Keep the address on loopback: this
+  # DaemonSet runs with hostNetwork, so anything else publishes profiles on the node's
+  # own network, and a heap profile of this agent contains buffered request bytes from
+  # the traffic it is decoding. Reach it with:
+  #
+  #   kubectl port-forward -n <ns> <netmon-pod> 6060:6060
+  #   go tool pprof http://127.0.0.1:6060/debug/pprof/profile?seconds=30
+  #
+  # pprofMutexFraction and pprofBlockRate turn on contention profiling, which is off by
+  # default because it adds work to every contended lock. Switch them on for an
+  # investigation and back off afterwards.
+  pprofBindAddress: ""
+  pprofMutexFraction: 0
+  pprofBlockRate: 0
