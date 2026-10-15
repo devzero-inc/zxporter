@@ -1,0 +1,197 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "zxporter chart values",
+  "description": "Permissive by design: unknown keys are allowed and scalars stay untyped, because installers pass --set strings and releases upgrade with reused values, so every value a release already carries must keep validating. A map or list is typed only where every other value already failed to render. required lists only the keys whose absence (--set key=null) failed to render in every configuration before this schema existed.",
+  "type": "object",
+  "properties": {
+    "commonLabels": {
+      "properties": {}
+    },
+    "commonAnnotations": {
+      "properties": {}
+    },
+    "podLabels": {
+      "properties": {}
+    },
+    "podAnnotations": {
+      "properties": {}
+    },
+    "image": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "repository": {},
+        "pullPolicy": {},
+        "tag": {}
+      },
+      "required": [
+        "tag"
+      ]
+    },
+    "imagePullSecrets": {},
+    "zxporter": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "dakrUrl": {},
+        "targetNamespaces": {},
+        "clusterToken": {},
+        "patToken": {},
+        "kubeContextName": {},
+        "clusterId": {},
+        "useSecretForToken": {},
+        "logLevel": {},
+        "disableGPUMetrics": {},
+        "migPartedConfigMapName": {},
+        "migPartedConfigMapNamespace": {},
+        "nodeMetricsConcurrency": {},
+        "nodemonRequestTimeout": {},
+        "kubeletFallbackTimeout": {},
+        "schedulerMetricsScrapeInterval": {},
+        "kedaMetricsEndpoint": {},
+        "existingSecret": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "name": {},
+            "clusterTokenKey": {},
+            "patTokenKey": {}
+          }
+        },
+        "tokenCredentialsSecretName": {},
+        "tokenSecretName": {},
+        "tokenConfigMapName": {}
+      },
+      "required": [
+        "kubeContextName"
+      ]
+    },
+    "resources": {
+      "properties": {
+        "requests": {
+          "properties": {
+            "cpu": {},
+            "memory": {}
+          }
+        },
+        "limits": {
+          "properties": {}
+        }
+      }
+    },
+    "nodeSelector": {
+      "properties": {}
+    },
+    "tolerations": {},
+    "affinity": {
+      "properties": {}
+    },
+    "topologySpreadConstraints": {},
+    "highAvailability": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "enabled": {},
+        "podDisruptionBudget": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "enabled": {},
+            "minAvailable": {}
+          }
+        }
+      }
+    },
+    "mpaServer": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "port": {}
+      }
+    },
+    "global": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "k8sProvider": {},
+        "gpuRuntime": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "mode": {},
+            "runtimeClassName": {}
+          }
+        },
+        "priorityClass": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "enabled": {}
+          }
+        }
+      },
+      "required": [
+        "k8sProvider",
+        "gpuRuntime",
+        "priorityClass"
+      ]
+    },
+    "priorityClass": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "value": {},
+        "description": {},
+        "preemptionPolicy": {}
+      }
+    },
+    "zxporter-nodemon": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "priorityClass": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "create": {}
+          }
+        }
+      },
+      "required": [
+        "priorityClass"
+      ]
+    }
+  },
+  "required": [
+    "image",
+    "zxporter",
+    "highAvailability",
+    "mpaServer",
+    "global",
+    "priorityClass"
+  ]
+}

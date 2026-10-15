@@ -1,0 +1,13 @@
+apiVersion: v2
+name: devzero-common
+description: >-
+  DevZero platform library chart (D3). Exports the shared named templates every
+  DevZero subchart imports — labels, image resolution, resources, telemetry,
+  TLS, secrets, and service account — so cross-chart conventions live in one
+  place instead of ten diverged _helpers.tpl copies. Not installable on its own.
+type: library
+version: 0.1.0
+# appVersion intentionally omitted: a library chart ships no application.
+maintainers:
+  - name: DevZero
+    url: https://github.com/devzero-inc/services
