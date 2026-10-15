@@ -29,6 +29,9 @@ const (
 	ClusterService_GetNodeTypeCounts_FullMethodName           = "/api.v1.ClusterService/GetNodeTypeCounts"
 	ClusterService_GetClusterIDByName_FullMethodName          = "/api.v1.ClusterService/GetClusterIDByName"
 	ClusterService_GetClusterInfoByName_FullMethodName        = "/api.v1.ClusterService/GetClusterInfoByName"
+	ClusterService_GetClustersCurrentState_FullMethodName     = "/api.v1.ClusterService/GetClustersCurrentState"
+	ClusterService_GetTeamTimeSeries_FullMethodName           = "/api.v1.ClusterService/GetTeamTimeSeries"
+	ClusterService_GetClustersPeriodDeltas_FullMethodName     = "/api.v1.ClusterService/GetClustersPeriodDeltas"
 )
 
 // ClusterServiceClient is the client API for ClusterService service.
@@ -55,6 +58,12 @@ type ClusterServiceClient interface {
 	GetClusterIDByName(ctx context.Context, in *GetClusterIDByNameRequest, opts ...grpc.CallOption) (*GetClusterIDByNameResponse, error)
 	// GetClusterInfoByName retrieves full info of the first active cluster matching the given team and name
 	GetClusterInfoByName(ctx context.Context, in *GetClusterInfoByNameRequest, opts ...grpc.CallOption) (*GetClusterInfoByNameResponse, error)
+	// GetClustersCurrentState returns identity plus the latest observed resource snapshot per
+	// cluster. Nothing in the response depends on a time range.
+	GetClustersCurrentState(ctx context.Context, in *GetClustersCurrentStateRequest, opts ...grpc.CallOption) (*GetClustersCurrentStateResponse, error)
+	// GetTeamTimeSeries returns fleet-level points over [start_time, end_time).
+	GetTeamTimeSeries(ctx context.Context, in *GetTeamTimeSeriesRequest, opts ...grpc.CallOption) (*GetTeamTimeSeriesResponse, error)
+	GetClustersPeriodDeltas(ctx context.Context, in *GetClustersPeriodDeltasRequest, opts ...grpc.CallOption) (*GetClustersPeriodDeltasResponse, error)
 }
 
 type clusterServiceClient struct {
@@ -155,6 +164,33 @@ func (c *clusterServiceClient) GetClusterInfoByName(ctx context.Context, in *Get
 	return out, nil
 }
 
+func (c *clusterServiceClient) GetClustersCurrentState(ctx context.Context, in *GetClustersCurrentStateRequest, opts ...grpc.CallOption) (*GetClustersCurrentStateResponse, error) {
+	out := new(GetClustersCurrentStateResponse)
+	err := c.cc.Invoke(ctx, ClusterService_GetClustersCurrentState_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *clusterServiceClient) GetTeamTimeSeries(ctx context.Context, in *GetTeamTimeSeriesRequest, opts ...grpc.CallOption) (*GetTeamTimeSeriesResponse, error) {
+	out := new(GetTeamTimeSeriesResponse)
+	err := c.cc.Invoke(ctx, ClusterService_GetTeamTimeSeries_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *clusterServiceClient) GetClustersPeriodDeltas(ctx context.Context, in *GetClustersPeriodDeltasRequest, opts ...grpc.CallOption) (*GetClustersPeriodDeltasResponse, error) {
+	out := new(GetClustersPeriodDeltasResponse)
+	err := c.cc.Invoke(ctx, ClusterService_GetClustersPeriodDeltas_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ClusterServiceServer is the server API for ClusterService service.
 // All implementations must embed UnimplementedClusterServiceServer
 // for forward compatibility
@@ -179,6 +215,12 @@ type ClusterServiceServer interface {
 	GetClusterIDByName(context.Context, *GetClusterIDByNameRequest) (*GetClusterIDByNameResponse, error)
 	// GetClusterInfoByName retrieves full info of the first active cluster matching the given team and name
 	GetClusterInfoByName(context.Context, *GetClusterInfoByNameRequest) (*GetClusterInfoByNameResponse, error)
+	// GetClustersCurrentState returns identity plus the latest observed resource snapshot per
+	// cluster. Nothing in the response depends on a time range.
+	GetClustersCurrentState(context.Context, *GetClustersCurrentStateRequest) (*GetClustersCurrentStateResponse, error)
+	// GetTeamTimeSeries returns fleet-level points over [start_time, end_time).
+	GetTeamTimeSeries(context.Context, *GetTeamTimeSeriesRequest) (*GetTeamTimeSeriesResponse, error)
+	GetClustersPeriodDeltas(context.Context, *GetClustersPeriodDeltasRequest) (*GetClustersPeriodDeltasResponse, error)
 	mustEmbedUnimplementedClusterServiceServer()
 }
 
@@ -215,6 +257,15 @@ func (UnimplementedClusterServiceServer) GetClusterIDByName(context.Context, *Ge
 }
 func (UnimplementedClusterServiceServer) GetClusterInfoByName(context.Context, *GetClusterInfoByNameRequest) (*GetClusterInfoByNameResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetClusterInfoByName not implemented")
+}
+func (UnimplementedClusterServiceServer) GetClustersCurrentState(context.Context, *GetClustersCurrentStateRequest) (*GetClustersCurrentStateResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetClustersCurrentState not implemented")
+}
+func (UnimplementedClusterServiceServer) GetTeamTimeSeries(context.Context, *GetTeamTimeSeriesRequest) (*GetTeamTimeSeriesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetTeamTimeSeries not implemented")
+}
+func (UnimplementedClusterServiceServer) GetClustersPeriodDeltas(context.Context, *GetClustersPeriodDeltasRequest) (*GetClustersPeriodDeltasResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetClustersPeriodDeltas not implemented")
 }
 func (UnimplementedClusterServiceServer) mustEmbedUnimplementedClusterServiceServer() {}
 
@@ -409,6 +460,60 @@ func _ClusterService_GetClusterInfoByName_Handler(srv interface{}, ctx context.C
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ClusterService_GetClustersCurrentState_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetClustersCurrentStateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterServiceServer).GetClustersCurrentState(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterService_GetClustersCurrentState_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterServiceServer).GetClustersCurrentState(ctx, req.(*GetClustersCurrentStateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ClusterService_GetTeamTimeSeries_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetTeamTimeSeriesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterServiceServer).GetTeamTimeSeries(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterService_GetTeamTimeSeries_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterServiceServer).GetTeamTimeSeries(ctx, req.(*GetTeamTimeSeriesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ClusterService_GetClustersPeriodDeltas_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetClustersPeriodDeltasRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterServiceServer).GetClustersPeriodDeltas(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterService_GetClustersPeriodDeltas_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterServiceServer).GetClustersPeriodDeltas(ctx, req.(*GetClustersPeriodDeltasRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ClusterService_ServiceDesc is the grpc.ServiceDesc for ClusterService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -455,6 +560,18 @@ var ClusterService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetClusterInfoByName",
 			Handler:    _ClusterService_GetClusterInfoByName_Handler,
+		},
+		{
+			MethodName: "GetClustersCurrentState",
+			Handler:    _ClusterService_GetClustersCurrentState_Handler,
+		},
+		{
+			MethodName: "GetTeamTimeSeries",
+			Handler:    _ClusterService_GetTeamTimeSeries_Handler,
+		},
+		{
+			MethodName: "GetClustersPeriodDeltas",
+			Handler:    _ClusterService_GetClustersPeriodDeltas_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

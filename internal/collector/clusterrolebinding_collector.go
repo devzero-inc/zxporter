@@ -165,8 +165,8 @@ func (c *ClusterRoleBindingCollector) clusterRoleBindingChanged(
 		oldCRB.ObjectMeta,
 		newCRB.ObjectMeta,
 	)
-	if changed != IgnoreChanges {
-		return changed == PushChanges
+	if changed == PushChanges {
+		return true
 	}
 	// Check for role reference changes
 	if oldCRB.RoleRef.Kind != newCRB.RoleRef.Kind ||

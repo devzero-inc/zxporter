@@ -19,6 +19,12 @@ runs:
   steps:
     - name: Set up Go
       uses: actions/setup-go@v5
+      # setup-go runs `go version` / `go env` from the workspace root. In the
+      # services monorepo that is the root module, whose newer go line would make
+      # GOTOOLCHAIN=auto download that toolchain (unused, and it collides with the
+      # cache restore). local keeps the Go this module's go.mod asks for.
+      env:
+        GOTOOLCHAIN: local
       with:
         go-version-file: ${{ inputs.working-directory }}/go.mod
         cache: true

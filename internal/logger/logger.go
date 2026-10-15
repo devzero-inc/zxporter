@@ -118,6 +118,14 @@ func (l *logger) Report(
 		Fields:    fields,
 	}
 
+	// After Stop nothing reads the queue; drop instead of filling it. The
+	// queue is never closed, so a Report racing Stop cannot panic either.
+	select {
+	case <-l.stopCh:
+		return
+	default:
+	}
+
 	select {
 	case l.logQueue <- entry:
 		// Log successfully queued
@@ -146,14 +154,7 @@ func (l *logger) run(ctx context.Context) {
 
 	for {
 		select {
-		case logEntry, ok := <-l.logQueue:
-			if !ok {
-				// Channel closed, flush remaining batch and exit
-				if len(batch) > 0 {
-					l.flush(ctx, batch)
-				}
-				return
-			}
+		case logEntry := <-l.logQueue:
 			batch = append(batch, logEntry)
 			if len(batch) >= l.config.BatchSize {
 				l.flush(ctx, batch)
@@ -165,8 +166,24 @@ func (l *logger) run(ctx context.Context) {
 				batch = make([]*gen.LogEntry, 0, l.config.BatchSize)
 			}
 		case <-l.stopCh:
-			// flush the queue one last time before exiting
-			close(l.logQueue)
+			// Flush what is queued once and exit. The queue is never closed:
+			// Report may still be sending, and the stop channel stays ready on
+			// every later select, so closing here closed it twice.
+		drain:
+			for {
+				select {
+				case logEntry := <-l.logQueue:
+					batch = append(batch, logEntry)
+					if len(batch) >= l.config.BatchSize {
+						l.flush(ctx, batch)
+						batch = make([]*gen.LogEntry, 0, l.config.BatchSize)
+					}
+				default:
+					break drain
+				}
+			}
+			l.flush(ctx, batch)
+			return
 		}
 	}
 }
