@@ -139,7 +139,12 @@ ZXporter can also be deployed using Helm, which provides a more flexible and cus
 
 #### Quick Install
 
+The charts vendor their dependencies (the shared `devzero-common` library, and
+`zxporter-nodemon` for `zxporter`) into a `charts/` directory that is not
+committed, so build it once in a fresh checkout:
+
 ```sh
+make helm-deps
 helm install zxporter ./helm-chart/zxporter --namespace devzero-system --create-namespace
 
 # With Makefile
@@ -185,6 +190,57 @@ helm upgrade zxporter ./helm-chart/zxporter
 # Uninstall
 helm uninstall zxporter
 ```
+
+## Site labels and annotations (admission policy)
+
+Clusters that run an admission policy engine often require site-specific
+metadata on every object before they will admit it. A Gatekeeper
+`K8sRequiredLabels` constraint, for example, denies the chart's objects outright
+and the install fails. All three charts (`zxporter`, `zxporter-nodemon`,
+`zxporter-netmon`) accept four values for this, each defaulting to `{}`:
+
+| Value | Applies to |
+|---|---|
+| `commonLabels` | every object **and** every pod template |
+| `commonAnnotations` | every object **and** every pod template |
+| `podLabels` | pod templates only, on top of `commonLabels` |
+| `podAnnotations` | pod templates only, on top of `commonAnnotations` |
+
+```bash
+helm upgrade --install zxporter ./helm-chart/zxporter \
+  --set global.commonLabels.example\\.com/cost-center=platform \
+  --set global.commonLabels.example\\.com/tier=infra
+```
+
+Use `global.commonLabels` to cover the whole release. Helm values are
+chart-scoped, so a chart-local `commonLabels` set on `zxporter` applies only to
+that chart and does **not** reach the bundled `zxporter-nodemon` subchart;
+`global.*` does, and a chart-local value still wins on a key collision.
+
+These reach the pod template as well as the owning object on purpose:
+Gatekeeper's `expand-workloads` evaluates constraints against the Pod a workload
+*would* create, so metadata on the DaemonSet alone is still denied.
+
+Keys a chart owns always win and are dropped from these values, so a collision
+can neither rewrite chart state nor emit a duplicate YAML key:
+`app.kubernetes.io/*`, `helm.sh/*`, `app`, `control-plane`, config checksums,
+`kubectl.kubernetes.io/default-container`, and the `ignore-check.kube-linter.io/*`
+and `devzero.io/gpu-runtime-*` annotations. Selector labels are never modified,
+so setting these on an existing release is a safe upgrade — with all four unset
+each chart renders byte-identically to before they existed.
+
+Independently of these values, every object (not pod templates) also carries
+`app.kubernetes.io/part-of: dz-platform` and `devzero.io/component: <chart>`, the
+labels all DevZero charts share. Setting either key in `commonLabels` or
+`global.commonLabels` overrides it.
+
+**Not covered:** the curl/`dist` installer path. `dist/install.yaml` is built
+from `config/` with kustomize and has no values file, so a cluster with such a
+policy has to use the Helm charts.
+
+The contract is enforced by `helm-chart/internal/charttest`, which sweeps every
+rendered object rather than a fixed sample — a template that starts emitting a
+new label fails CI until that key is added to the chart's drop list.
 
 ## Configuration
 

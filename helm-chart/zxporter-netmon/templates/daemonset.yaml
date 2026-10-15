@@ -1,6 +1,10 @@
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
+  {{- with (include "zxporter-netmon.commonAnnotations" $) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
   name: {{ include "zxporter-netmon.fullname" . }}
   namespace: {{ .Release.Namespace }}
   labels:
@@ -11,16 +15,22 @@ spec:
       {{- include "zxporter-netmon.selectorLabels" . | nindent 6 }}
   template:
     metadata:
-      {{- with .Values.podAnnotations }}
+      {{- /* podExtraAnnotations already merges .Values.podAnnotations with the
+             common and global values, so this emits the merged map once. A
+             second `toYaml .Values.podAnnotations` here would duplicate every
+             key it holds. */}}
+      {{- with (include "zxporter-netmon.podExtraAnnotations" $) }}
       annotations:
-        {{- toYaml . | nindent 8 }}
+        {{- . | nindent 8 }}
       {{- end }}
       labels:
+        {{- with (include "zxporter-netmon.podExtraLabels" $) }}
+        {{- . | nindent 8 }}
+        {{- end }}
         {{- include "zxporter-netmon.selectorLabels" . | nindent 8 }}
     spec:
-      {{- with .Values.imagePullSecrets }}
-      imagePullSecrets:
-        {{- toYaml . | nindent 8 }}
+      {{- with include "zxporter-netmon.imagePullSecrets" . }}
+      {{- . | nindent 6 }}
       {{- end }}
       serviceAccountName: {{ include "zxporter-netmon.serviceAccountName" . }}
       securityContext:
@@ -31,7 +41,7 @@ spec:
         - name: {{ .Chart.Name }}
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          image: {{ include "zxporter-netmon.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - name: http
@@ -51,9 +61,9 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
-            {{- if .Values.config.dakrUrl }}
+            {{- with include "devzero-common.dakrUrl" (list . .Values.config.dakrUrl) }}
             - name: DAKR_URL
-              value: {{ .Values.config.dakrUrl | quote }}
+              value: {{ . | quote }}
             {{- end }}
             {{- if .Values.config.clusterToken }}
             - name: CLUSTER_TOKEN
@@ -63,9 +73,26 @@ spec:
               value: {{ .Values.config.exportInterval | quote }}
           args:
             - "-collector-mode={{ .Values.config.collectorMode }}"
+            - "-metrics-bind-address=:{{ .Values.config.containerPort }}"
+            {{- if .Values.config.containerRedMetrics }}
+            - "-container-red-metrics"
+            {{- end }}
+            {{- if .Values.config.pprofBindAddress }}
+            - "-pprof-bind-address={{ .Values.config.pprofBindAddress }}"
+            {{- if .Values.config.pprofMutexFraction }}
+            - "-pprof-mutex-fraction={{ .Values.config.pprofMutexFraction }}"
+            {{- end }}
+            {{- if .Values.config.pprofBlockRate }}
+            - "-pprof-block-rate={{ .Values.config.pprofBlockRate }}"
+            {{- end }}
+            {{- end }}
             # - "-log-level={{ .Values.config.logLevel }}"
           resources:
+            {{- if .Values.config.containerRedMetrics }}
+            {{- toYaml .Values.containerRedMetricsResources | nindent 12 }}
+            {{- else }}
             {{- toYaml .Values.resources | nindent 12 }}
+            {{- end }}
           volumeMounts:
             - name: zxporter-config
               mountPath: /etc/zxporter

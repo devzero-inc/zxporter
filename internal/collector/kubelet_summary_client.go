@@ -27,12 +27,12 @@ const defaultKubeletFallbackTimeout = 15 * time.Second
 // guarantee that a DaemonSet alone cannot.
 //
 // The Summary API exposes the same kubelet stats nodemon itself is built on
-// (usageNanoCores / workingSetBytes), so results are returned in the existing
+// (usageNanoCores / workingSetBytes) plus node filesystem occupancy
+// (node.fs and node.runtime.imageFs), so results are returned in the existing
 // UnifiedNodeMetric / UnifiedContainerMetric shapes and reuse all downstream
-// conversion. Only CPU + memory are available here — network/disk rates,
-// CPU-throttle, GPU and JVM metrics remain nodemon-only and stay zero for
-// fallback nodes (a deliberate degraded mode, on par with what metrics-server
-// would have provided).
+// conversion. Network and disk-I/O rates, CPU-throttle, GPU and JVM metrics
+// remain nodemon-only and stay zero for fallback nodes (a deliberate degraded
+// mode, on par with what metrics-server would have provided).
 type KubeletSummaryClient struct {
 	k8sClient      kubernetes.Interface
 	log            logr.Logger
@@ -62,9 +62,11 @@ type kubeletSummary struct {
 }
 
 type kubeletNodeStats struct {
-	NodeName string              `json:"nodeName"`
-	CPU      *kubeletCPUStats    `json:"cpu"`
-	Memory   *kubeletMemoryStats `json:"memory"`
+	NodeName string               `json:"nodeName"`
+	CPU      *kubeletCPUStats     `json:"cpu"`
+	Memory   *kubeletMemoryStats  `json:"memory"`
+	Fs       *kubeletFsStats      `json:"fs"`
+	Runtime  *kubeletRuntimeStats `json:"runtime"`
 }
 
 type kubeletPodStats struct {
@@ -92,6 +94,19 @@ type kubeletMemoryStats struct {
 	WorkingSetBytes *uint64 `json:"workingSetBytes"`
 	UsageBytes      *uint64 `json:"usageBytes"`
 	RSSBytes        *uint64 `json:"rssBytes"`
+}
+
+type kubeletFsStats struct {
+	AvailableBytes *uint64 `json:"availableBytes"`
+	CapacityBytes  *uint64 `json:"capacityBytes"`
+	UsedBytes      *uint64 `json:"usedBytes"`
+	Inodes         *uint64 `json:"inodes"`
+	InodesFree     *uint64 `json:"inodesFree"`
+	InodesUsed     *uint64 `json:"inodesUsed"`
+}
+
+type kubeletRuntimeStats struct {
+	ImageFs *kubeletFsStats `json:"imageFs"`
 }
 
 // fetchSummary retrieves and parses the kubelet Summary API for a single node
@@ -150,7 +165,70 @@ func nodeMetricFromSummary(nodeName string, summary *kubeletSummary) *UnifiedNod
 	if mem := summary.Node.Memory; mem != nil && mem.WorkingSetBytes != nil {
 		m.MemoryWorkingSet = *mem.WorkingSetBytes
 	}
+	applyNodeStorage(m, summary.Node.Fs, summary.Node.Runtime)
 	return m
+}
+
+// applyNodeStorage copies filesystem occupancy from a kubelet node summary onto
+// a UnifiedNodeMetric. Shared by the full node-metrics fallback and by the
+// storage-only top-up FetchNodeStorageByNode uses.
+func applyNodeStorage(m *UnifiedNodeMetric, fs *kubeletFsStats, runtime *kubeletRuntimeStats) {
+	if fs != nil {
+		m.NodefsUsedBytes = derefKubeletU64(fs.UsedBytes)
+		m.NodefsCapacityBytes = derefKubeletU64(fs.CapacityBytes)
+		m.NodefsAvailableBytes = derefKubeletU64(fs.AvailableBytes)
+		m.NodefsInodesUsed = derefKubeletU64(fs.InodesUsed)
+		m.NodefsInodesTotal = derefKubeletU64(fs.Inodes)
+	}
+	if runtime != nil && runtime.ImageFs != nil {
+		m.ImagefsUsedBytes = derefKubeletU64(runtime.ImageFs.UsedBytes)
+		m.ImagefsCapacityBytes = derefKubeletU64(runtime.ImageFs.CapacityBytes)
+		m.ImagefsAvailableBytes = derefKubeletU64(runtime.ImageFs.AvailableBytes)
+		m.ImagefsSharedDevice = kubeletImagefsShared(fs, runtime.ImageFs)
+	}
+}
+
+func derefKubeletU64(v *uint64) uint64 {
+	if v == nil {
+		return 0
+	}
+	return *v
+}
+
+// kubeletImagefsShared mirrors nodemon's imagefsSharesDeviceWithNodefs so both
+// collection paths classify a node identically. Shared iff total capacity and
+// total inode count both match; zero capacity is not evidence of sharing.
+func kubeletImagefsShared(nodefs, imagefs *kubeletFsStats) bool {
+	if nodefs == nil || imagefs == nil {
+		return false
+	}
+	capacity := derefKubeletU64(nodefs.CapacityBytes)
+	inodes := derefKubeletU64(nodefs.Inodes)
+	if capacity == 0 || inodes == 0 {
+		return false
+	}
+	return capacity == derefKubeletU64(imagefs.CapacityBytes) && inodes == derefKubeletU64(imagefs.Inodes)
+}
+
+// FetchNodeStorageByNode returns ONLY the filesystem occupancy fields for a
+// node, leaving CPU and memory zeroed.
+//
+// This exists for the rollout window: a nodemon pod that predates the storage
+// fields returns a snapshot with no filesystem data, and the node collector
+// tops it up from the kubelet rather than waiting for the DaemonSet to roll.
+// It is deliberately NOT called unconditionally — that would reintroduce the
+// per-node redundant round trip removed in issue 9410.
+func (c *KubeletSummaryClient) FetchNodeStorageByNode(
+	ctx context.Context,
+	nodeName string,
+) (*UnifiedNodeMetric, error) {
+	summary, err := c.fetchSummary(ctx, nodeName)
+	if err != nil {
+		return nil, err
+	}
+	m := &UnifiedNodeMetric{NodeName: nodeName}
+	applyNodeStorage(m, summary.Node.Fs, summary.Node.Runtime)
+	return m, nil
 }
 
 // FetchContainerMetricsByNode returns per-container CPU/memory usage for all pods

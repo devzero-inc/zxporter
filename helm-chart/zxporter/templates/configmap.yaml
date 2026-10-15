@@ -42,22 +42,33 @@ data:
   EXCLUDED_STORAGECLASSES: ""
   EXCLUDED_VPAS: ""
   K8S_PROVIDER: "{{ .Values.global.k8sProvider }}"
-  KUBE_CONTEXT_NAME: "{{ .Values.zxporter.kubeContextName }}"
+  KUBE_CONTEXT_NAME: "{{ include "devzero-common.clusterName" (list . .Values.zxporter.kubeContextName) }}"
   LOG_LEVEL: "{{ .Values.zxporter.logLevel }}"
   MASK_SECRET_DATA: ""
   NODE_METRICS_INTERVAL: ""
   NODE_METRICS_CONCURRENCY: "{{ .Values.zxporter.nodeMetricsConcurrency }}"
   NODEMON_REQUEST_TIMEOUT: "{{ .Values.zxporter.nodemonRequestTimeout }}"
   KUBELET_FALLBACK_TIMEOUT: "{{ .Values.zxporter.kubeletFallbackTimeout }}"
-  DAKR_URL: "{{ .Values.zxporter.dakrUrl }}"
+  SCHEDULER_METRICS_SCRAPE_INTERVAL: "{{ .Values.zxporter.schedulerMetricsScrapeInterval }}"
+  KEDA_METRICS_ENDPOINT: "{{ .Values.zxporter.kedaMetricsEndpoint }}"
+  DAKR_URL: "{{ include "devzero-common.dakrUrl" (list . .Values.zxporter.dakrUrl) }}"
   TARGET_NAMESPACES: "{{ .Values.zxporter.targetNamespaces }}"
   TOKEN_CONFIGMAP_NAME: "{{ .Values.zxporter.tokenConfigMapName }}"
   TOKEN_CREDENTIALS_SECRET_NAME: "{{ .Values.zxporter.tokenCredentialsSecretName }}"
   TOKEN_RUNTIME_SECRET_NAME: "{{ .Values.zxporter.tokenSecretName }}"
   TOKEN_SECRET_NAME: "{{ .Values.zxporter.tokenSecretName }}"
+  CLUSTER_ID: "{{ .Values.zxporter.clusterId }}"
   USE_SECRET_FOR_TOKEN: "{{ .Values.zxporter.useSecretForToken }}"
   WATCHED_CRDS: ""
 kind: ConfigMap
 metadata:
+  {{- with (include "zxporter.commonLabels" $) }}
+  labels:
+    {{- . | nindent 4 }}
+  {{- end }}
+  {{- with (include "zxporter.commonAnnotations" $) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
   name: {{ .Values.zxporter.tokenConfigMapName }}
   namespace: {{ .Release.Namespace }}

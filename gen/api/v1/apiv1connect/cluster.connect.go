@@ -63,6 +63,15 @@ const (
 	// ClusterServiceGetClusterInfoByNameProcedure is the fully-qualified name of the ClusterService's
 	// GetClusterInfoByName RPC.
 	ClusterServiceGetClusterInfoByNameProcedure = "/api.v1.ClusterService/GetClusterInfoByName"
+	// ClusterServiceGetClustersCurrentStateProcedure is the fully-qualified name of the
+	// ClusterService's GetClustersCurrentState RPC.
+	ClusterServiceGetClustersCurrentStateProcedure = "/api.v1.ClusterService/GetClustersCurrentState"
+	// ClusterServiceGetTeamTimeSeriesProcedure is the fully-qualified name of the ClusterService's
+	// GetTeamTimeSeries RPC.
+	ClusterServiceGetTeamTimeSeriesProcedure = "/api.v1.ClusterService/GetTeamTimeSeries"
+	// ClusterServiceGetClustersPeriodDeltasProcedure is the fully-qualified name of the
+	// ClusterService's GetClustersPeriodDeltas RPC.
+	ClusterServiceGetClustersPeriodDeltasProcedure = "/api.v1.ClusterService/GetClustersPeriodDeltas"
 )
 
 // ClusterServiceClient is a client for the api.v1.ClusterService service.
@@ -87,6 +96,12 @@ type ClusterServiceClient interface {
 	GetClusterIDByName(context.Context, *connect.Request[v1.GetClusterIDByNameRequest]) (*connect.Response[v1.GetClusterIDByNameResponse], error)
 	// GetClusterInfoByName retrieves full info of the first active cluster matching the given team and name
 	GetClusterInfoByName(context.Context, *connect.Request[v1.GetClusterInfoByNameRequest]) (*connect.Response[v1.GetClusterInfoByNameResponse], error)
+	// GetClustersCurrentState returns identity plus the latest observed resource snapshot per
+	// cluster. Nothing in the response depends on a time range.
+	GetClustersCurrentState(context.Context, *connect.Request[v1.GetClustersCurrentStateRequest]) (*connect.Response[v1.GetClustersCurrentStateResponse], error)
+	// GetTeamTimeSeries returns fleet-level points over [start_time, end_time).
+	GetTeamTimeSeries(context.Context, *connect.Request[v1.GetTeamTimeSeriesRequest]) (*connect.Response[v1.GetTeamTimeSeriesResponse], error)
+	GetClustersPeriodDeltas(context.Context, *connect.Request[v1.GetClustersPeriodDeltasRequest]) (*connect.Response[v1.GetClustersPeriodDeltasResponse], error)
 }
 
 // NewClusterServiceClient constructs a client for the api.v1.ClusterService service. By default, it
@@ -149,6 +164,21 @@ func NewClusterServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			baseURL+ClusterServiceGetClusterInfoByNameProcedure,
 			opts...,
 		),
+		getClustersCurrentState: connect.NewClient[v1.GetClustersCurrentStateRequest, v1.GetClustersCurrentStateResponse](
+			httpClient,
+			baseURL+ClusterServiceGetClustersCurrentStateProcedure,
+			opts...,
+		),
+		getTeamTimeSeries: connect.NewClient[v1.GetTeamTimeSeriesRequest, v1.GetTeamTimeSeriesResponse](
+			httpClient,
+			baseURL+ClusterServiceGetTeamTimeSeriesProcedure,
+			opts...,
+		),
+		getClustersPeriodDeltas: connect.NewClient[v1.GetClustersPeriodDeltasRequest, v1.GetClustersPeriodDeltasResponse](
+			httpClient,
+			baseURL+ClusterServiceGetClustersPeriodDeltasProcedure,
+			opts...,
+		),
 	}
 }
 
@@ -164,6 +194,9 @@ type clusterServiceClient struct {
 	getNodeTypeCounts           *connect.Client[v1.GetNodeTypeCountsRequest, v1.GetNodeTypeCountsResponse]
 	getClusterIDByName          *connect.Client[v1.GetClusterIDByNameRequest, v1.GetClusterIDByNameResponse]
 	getClusterInfoByName        *connect.Client[v1.GetClusterInfoByNameRequest, v1.GetClusterInfoByNameResponse]
+	getClustersCurrentState     *connect.Client[v1.GetClustersCurrentStateRequest, v1.GetClustersCurrentStateResponse]
+	getTeamTimeSeries           *connect.Client[v1.GetTeamTimeSeriesRequest, v1.GetTeamTimeSeriesResponse]
+	getClustersPeriodDeltas     *connect.Client[v1.GetClustersPeriodDeltasRequest, v1.GetClustersPeriodDeltasResponse]
 }
 
 // GetClustersBasicInfo calls api.v1.ClusterService.GetClustersBasicInfo.
@@ -216,6 +249,21 @@ func (c *clusterServiceClient) GetClusterInfoByName(ctx context.Context, req *co
 	return c.getClusterInfoByName.CallUnary(ctx, req)
 }
 
+// GetClustersCurrentState calls api.v1.ClusterService.GetClustersCurrentState.
+func (c *clusterServiceClient) GetClustersCurrentState(ctx context.Context, req *connect.Request[v1.GetClustersCurrentStateRequest]) (*connect.Response[v1.GetClustersCurrentStateResponse], error) {
+	return c.getClustersCurrentState.CallUnary(ctx, req)
+}
+
+// GetTeamTimeSeries calls api.v1.ClusterService.GetTeamTimeSeries.
+func (c *clusterServiceClient) GetTeamTimeSeries(ctx context.Context, req *connect.Request[v1.GetTeamTimeSeriesRequest]) (*connect.Response[v1.GetTeamTimeSeriesResponse], error) {
+	return c.getTeamTimeSeries.CallUnary(ctx, req)
+}
+
+// GetClustersPeriodDeltas calls api.v1.ClusterService.GetClustersPeriodDeltas.
+func (c *clusterServiceClient) GetClustersPeriodDeltas(ctx context.Context, req *connect.Request[v1.GetClustersPeriodDeltasRequest]) (*connect.Response[v1.GetClustersPeriodDeltasResponse], error) {
+	return c.getClustersPeriodDeltas.CallUnary(ctx, req)
+}
+
 // ClusterServiceHandler is an implementation of the api.v1.ClusterService service.
 type ClusterServiceHandler interface {
 	// GetClustersBasicInfo retrieves basic information for all clusters in a team
@@ -238,6 +286,12 @@ type ClusterServiceHandler interface {
 	GetClusterIDByName(context.Context, *connect.Request[v1.GetClusterIDByNameRequest]) (*connect.Response[v1.GetClusterIDByNameResponse], error)
 	// GetClusterInfoByName retrieves full info of the first active cluster matching the given team and name
 	GetClusterInfoByName(context.Context, *connect.Request[v1.GetClusterInfoByNameRequest]) (*connect.Response[v1.GetClusterInfoByNameResponse], error)
+	// GetClustersCurrentState returns identity plus the latest observed resource snapshot per
+	// cluster. Nothing in the response depends on a time range.
+	GetClustersCurrentState(context.Context, *connect.Request[v1.GetClustersCurrentStateRequest]) (*connect.Response[v1.GetClustersCurrentStateResponse], error)
+	// GetTeamTimeSeries returns fleet-level points over [start_time, end_time).
+	GetTeamTimeSeries(context.Context, *connect.Request[v1.GetTeamTimeSeriesRequest]) (*connect.Response[v1.GetTeamTimeSeriesResponse], error)
+	GetClustersPeriodDeltas(context.Context, *connect.Request[v1.GetClustersPeriodDeltasRequest]) (*connect.Response[v1.GetClustersPeriodDeltasResponse], error)
 }
 
 // NewClusterServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -296,6 +350,21 @@ func NewClusterServiceHandler(svc ClusterServiceHandler, opts ...connect.Handler
 		svc.GetClusterInfoByName,
 		opts...,
 	)
+	clusterServiceGetClustersCurrentStateHandler := connect.NewUnaryHandler(
+		ClusterServiceGetClustersCurrentStateProcedure,
+		svc.GetClustersCurrentState,
+		opts...,
+	)
+	clusterServiceGetTeamTimeSeriesHandler := connect.NewUnaryHandler(
+		ClusterServiceGetTeamTimeSeriesProcedure,
+		svc.GetTeamTimeSeries,
+		opts...,
+	)
+	clusterServiceGetClustersPeriodDeltasHandler := connect.NewUnaryHandler(
+		ClusterServiceGetClustersPeriodDeltasProcedure,
+		svc.GetClustersPeriodDeltas,
+		opts...,
+	)
 	return "/api.v1.ClusterService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case ClusterServiceGetClustersBasicInfoProcedure:
@@ -318,6 +387,12 @@ func NewClusterServiceHandler(svc ClusterServiceHandler, opts ...connect.Handler
 			clusterServiceGetClusterIDByNameHandler.ServeHTTP(w, r)
 		case ClusterServiceGetClusterInfoByNameProcedure:
 			clusterServiceGetClusterInfoByNameHandler.ServeHTTP(w, r)
+		case ClusterServiceGetClustersCurrentStateProcedure:
+			clusterServiceGetClustersCurrentStateHandler.ServeHTTP(w, r)
+		case ClusterServiceGetTeamTimeSeriesProcedure:
+			clusterServiceGetTeamTimeSeriesHandler.ServeHTTP(w, r)
+		case ClusterServiceGetClustersPeriodDeltasProcedure:
+			clusterServiceGetClustersPeriodDeltasHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -365,4 +440,16 @@ func (UnimplementedClusterServiceHandler) GetClusterIDByName(context.Context, *c
 
 func (UnimplementedClusterServiceHandler) GetClusterInfoByName(context.Context, *connect.Request[v1.GetClusterInfoByNameRequest]) (*connect.Response[v1.GetClusterInfoByNameResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.ClusterService.GetClusterInfoByName is not implemented"))
+}
+
+func (UnimplementedClusterServiceHandler) GetClustersCurrentState(context.Context, *connect.Request[v1.GetClustersCurrentStateRequest]) (*connect.Response[v1.GetClustersCurrentStateResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.ClusterService.GetClustersCurrentState is not implemented"))
+}
+
+func (UnimplementedClusterServiceHandler) GetTeamTimeSeries(context.Context, *connect.Request[v1.GetTeamTimeSeriesRequest]) (*connect.Response[v1.GetTeamTimeSeriesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.ClusterService.GetTeamTimeSeries is not implemented"))
+}
+
+func (UnimplementedClusterServiceHandler) GetClustersPeriodDeltas(context.Context, *connect.Request[v1.GetClustersPeriodDeltasRequest]) (*connect.Response[v1.GetClustersPeriodDeltasResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.v1.ClusterService.GetClustersPeriodDeltas is not implemented"))
 }
