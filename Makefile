@@ -194,16 +194,24 @@ COMMIT_HASH ?= $(shell git rev-parse --short HEAD 2>/dev/null)
 GIT_TREE_STATE ?= $(if $(shell git status --porcelain),dirty,clean)
 BUILD_DATE ?= $(shell date -u +'%Y-%m-%dT%H:%M:%SZ')
 
-GO_VERSION = $(shell go version | awk '{print $$3}')
+# The image version interface (KUB-151 S7) is VERSION / COMMIT / BUILD_DATE.
+# VERSION is not the bundle VERSION above, so it gets its own name here.
+IMAGE_VERSION := v$(MAJOR).$(MINOR).$(PATCH)
+# Shared by every image target, so local manager, netmon and nodemon builds
+# all stamp the checkout's version, commit and tree state.
+IMAGE_VERSION_ARGS := --build-arg VERSION=$(IMAGE_VERSION) \
+	--build-arg COMMIT=$(COMMIT_HASH) \
+	--build-arg BUILD_DATE=$(BUILD_DATE) \
+	--build-arg GIT_TREE_STATE=$(GIT_TREE_STATE)
 
-LDFLAGS += -X github.com/devzero-inc/zxporter/internal/version.Get=*github.com/devzero-inc/zxporter/internal/version.Info
-LDFLAGS += -X github.com/devzero-inc/zxporter/internal/version.Get.Major=$(MAJOR)
-LDFLAGS += -X github.com/devzero-inc/zxporter/internal/version.Get.Minor=$(MINOR)
-LDFLAGS += -X github.com/devzero-inc/zxporter/internal/version.Get.Patch=$(PATCH)
-LDFLAGS += -X github.com/devzero-inc/zxporter/internal/version.Get.GitCommit=$(COMMIT_HASH)
-LDFLAGS += -X github.com/devzero-inc/zxporter/internal/version.Get.GitTreeState=$(GIT_TREE_STATE)
-LDFLAGS += -X github.com/devzero-inc/zxporter/internal/version.Get.BuildDate=$(BUILD_DATE)
-LDFLAGS += -X github.com/devzero-inc/zxporter/internal/version.Get.GoVersion=$(GO_VERSION)
+# -X only sets package-level string variables: the lowercase vars in
+# internal/version (Go reports its own version via runtime.Version()).
+LDFLAGS += -X github.com/devzero-inc/zxporter/internal/version.major=$(MAJOR)
+LDFLAGS += -X github.com/devzero-inc/zxporter/internal/version.minor=$(MINOR)
+LDFLAGS += -X github.com/devzero-inc/zxporter/internal/version.patch=$(PATCH)
+LDFLAGS += -X github.com/devzero-inc/zxporter/internal/version.gitCommit=$(COMMIT_HASH)
+LDFLAGS += -X github.com/devzero-inc/zxporter/internal/version.gitTreeState=$(GIT_TREE_STATE)
+LDFLAGS += -X github.com/devzero-inc/zxporter/internal/version.buildDate=$(BUILD_DATE)
 
 ##@ Build
 
@@ -220,15 +228,9 @@ run: manifests generate fmt vet ## Run a controller from your host.
 # More info: https://docs.docker.com/develop/develop-images/build_enhancements/
 .PHONY: docker-build
 docker-build: helm ## Build docker image with the manager.
-	@echo "[INFO] For debug -> $(GO_VERSION), major  $(MAJOR), minor  $(MINOR), patch  $(PATCH)"
+	@echo "[INFO] version $(IMAGE_VERSION), commit $(COMMIT_HASH), tree $(GIT_TREE_STATE)"
 	$(CONTAINER_TOOL) build --load \
-			--build-arg MAJOR=$(MAJOR) \
-			--build-arg MINOR=$(MINOR) \
-			--build-arg PATCH=$(PATCH) \
-			--build-arg COMMIT_HASH=$(COMMIT_HASH) \
-			--build-arg GIT_TREE_STATE=$(GIT_TREE_STATE) \
-			--build-arg BUILD_DATE=$(BUILD_DATE) \
-			--build-arg GO_VERSION="$(GO_VERSION)" \
+			$(IMAGE_VERSION_ARGS) \
 			-t ${IMG} .
 
 .PHONY: docker-push
@@ -256,7 +258,7 @@ IMG_NETMON ?= ttl.sh/zxporter-netmon:latest
 
 .PHONY: docker-build-netmon
 docker-build-netmon: ## Build docker image for zxporter-netmon
-	$(CONTAINER_TOOL) buildx build $(BUILD_ARGS) -t ${IMG_NETMON} -f Dockerfile.netmon .
+	$(CONTAINER_TOOL) buildx build $(IMAGE_VERSION_ARGS) $(BUILD_ARGS) -t ${IMG_NETMON} -f Dockerfile.netmon .
 
 .PHONY: docker-push-netmon
 docker-push-netmon: ## Push docker image for zxporter-netmon
@@ -267,7 +269,7 @@ IMG_NODEMON ?= ttl.sh/zxporter-nodemon:latest
 
 .PHONY: docker-build-nodemon
 docker-build-nodemon: ## Build docker image for zxporter-nodemon
-	$(CONTAINER_TOOL) buildx build $(BUILD_ARGS) -t ${IMG_NODEMON} -f Dockerfile.nodemon .
+	$(CONTAINER_TOOL) buildx build $(IMAGE_VERSION_ARGS) $(BUILD_ARGS) -t ${IMG_NODEMON} -f Dockerfile.nodemon .
 
 .PHONY: docker-push-nodemon
 docker-push-nodemon: ## Push docker image for zxporter-nodemon
@@ -282,13 +284,12 @@ docker-push-nodemon: ## Push docker image for zxporter-nodemon
 PLATFORMS ?= linux/arm64,linux/amd64,linux/s390x,linux/ppc64le
 .PHONY: docker-buildx
 docker-buildx: ## Build and push docker image for the manager for cross-platform support
-	# copy existing Dockerfile and insert --platform=${BUILDPLATFORM} into Dockerfile.cross, and preserve the original Dockerfile
-	sed -e '1 s/\(^FROM\)/FROM --platform=\$$\{BUILDPLATFORM\}/; t' -e ' 1,// s//FROM --platform=\$$\{BUILDPLATFORM\}/' Dockerfile > Dockerfile.cross
+	# The Dockerfile's builder already runs on $$BUILDPLATFORM and cross-compiles,
+	# so it is built as is (no Dockerfile.cross rewrite).
 	- $(CONTAINER_TOOL) buildx create --name zxporter-builder
 	$(CONTAINER_TOOL) buildx use zxporter-builder
-	- $(CONTAINER_TOOL) buildx build --push --platform=$(PLATFORMS) --tag ${IMG} -f Dockerfile.cross .
+	- $(CONTAINER_TOOL) buildx build --push --platform=$(PLATFORMS) $(IMAGE_VERSION_ARGS) --tag ${IMG} -f Dockerfile .
 	- $(CONTAINER_TOOL) buildx rm zxporter-builder
-	rm Dockerfile.cross
 
 .PHONY: final-installer
 # public.ecr.aws/devzeroinc only mirrors versioned release tags, never :latest.
@@ -344,7 +345,7 @@ installer-without-configmap:
 		$(DIST_INSTALLER_UPDATER_BUNDLE) > $(DIST_INSTALLER_UPDATER_BUNDLE).tmp && mv $(DIST_INSTALLER_UPDATER_BUNDLE).tmp $(DIST_INSTALLER_UPDATER_BUNDLE)
 
 .PHONY: build-installer
-build-installer: manifests generate kustomize yq helm ## Generate a consolidated YAML with deployment.
+build-installer: manifests generate kustomize yq helm helm-deps ## Generate a consolidated YAML with deployment.
 	@mkdir -p $(DIST_DIR)
 
 	@echo "[INFO] Generating installer bundle..."
@@ -472,8 +473,18 @@ build-chart: build-installer ## Generate a consolidated helm chart from the inst
 HELM_CHART_DIR := helm-chart/zxporter
 HELM_CHART_PACKAGE_DIR := helm-chart/packages
 
+# Every chart vendors devzero-common (and zxporter vendors zxporter-nodemon) into
+# its gitignored charts/ directory, and helm refuses to render a chart whose
+# dependencies are missing. nodemon builds first so the copy zxporter packages
+# carries its own devzero-common.
+.PHONY: helm-deps
+helm-deps: helm ## Vendor each chart's dependencies into its charts/ directory
+	@for chart in zxporter-nodemon zxporter-netmon zxporter; do \
+		$(HELM) dependency build helm-chart/$$chart > /dev/null || exit 1; \
+	done
+
 .PHONY: helm-chart-build
-helm-chart-build: helm ## Build and package the Helm chart
+helm-chart-build: helm helm-deps ## Build and package the Helm chart
 	@echo "[INFO] Building Helm chart..."
 	@mkdir -p $(HELM_CHART_PACKAGE_DIR)
 	
@@ -486,12 +497,12 @@ helm-chart-build: helm ## Build and package the Helm chart
 	@echo "[INFO] Helm chart packaged successfully"
 
 .PHONY: helm-chart-lint
-helm-chart-lint: helm ## Lint the Helm chart
+helm-chart-lint: helm helm-deps ## Lint the Helm chart
 	@echo "[INFO] Linting Helm chart..."
 	@$(HELM) lint $(HELM_CHART_DIR)
 
 .PHONY: helm-chart-template
-helm-chart-template: helm ## Generate Kubernetes manifests from the Helm chart
+helm-chart-template: helm helm-deps ## Generate Kubernetes manifests from the Helm chart
 	@echo "[INFO] Generating manifests from Helm chart..."
 	@$(HELM) template zxporter $(HELM_CHART_DIR) \
 		--namespace devzero-system \
@@ -596,7 +607,11 @@ HELMIFY ?= helmify
 GO_MOD_TOOLCHAIN ?= go$(shell awk '/^go [0-9]/{print $$2; exit}' go.mod)
 KUSTOMIZE_VERSION ?= v5.4.3
 CONTROLLER_TOOLS_VERSION ?= v0.16.5
-ENVTEST_VERSION ?= release-0.19
+# setup-envtest from the release branch of the controller-runtime in go.mod,
+# the same derivation operators/tunr/Makefile uses, so the two operators no
+# longer pin the tool separately (KUB-154). The tool only fetches the envtest
+# assets; the Kubernetes version under test is ENVTEST_K8S_VERSION above.
+ENVTEST_VERSION ?= $(shell go list -m -f "{{ .Version }}" sigs.k8s.io/controller-runtime | awk -F'[v.]' '{printf "release-%d.%d", $$2, $$3}')
 GOLANGCI_LINT_VERSION ?= v1.62.2
 HELM_VERSION ?= v3.14.2
 YQ_VERSION ?= v4.40.5
@@ -612,8 +627,11 @@ $(CONTROLLER_GEN): $(LOCALBIN)
 	$(call go-install-tool,$(CONTROLLER_GEN),sigs.k8s.io/controller-tools/cmd/controller-gen,$(CONTROLLER_TOOLS_VERSION))
 
 .PHONY: envtest
-envtest: $(ENVTEST) ## Download setup-envtest locally if necessary.
-$(ENVTEST): $(LOCALBIN)
+# Recipe on the phony target, not on the bin/setup-envtest file: once that
+# symlink exists a file target never reruns, so a controller-runtime bump would
+# keep the old tool. go-install-tool skips the install when the versioned
+# binary is already there and just repoints the symlink.
+envtest: $(LOCALBIN) ## Download setup-envtest locally if necessary.
 	$(call go-install-tool,$(ENVTEST),sigs.k8s.io/controller-runtime/tools/setup-envtest,$(ENVTEST_VERSION))
 
 .PHONY: golangci-lint
@@ -736,48 +754,65 @@ catalog-build: opm ## Build a catalog image.
 catalog-push: ## Push a catalog image.
 	$(MAKE) docker-push IMG=$(CATALOG_IMG)
 
-# DAKR_* files are related to generating a gRPC client to send resource metadata to Dakr.
+# DAKR_DIR is where build-installer syncs the dakr installer bundles (see above).
 DAKR_DIR ?= ../services/dakr
-DAKR_BUF_GEN_FILE ?= buf.gen.yaml
-DAKR_BUF_GEN ?= $(DAKR_DIR)/$(DAKR_BUF_GEN_FILE)
-DAKR_METRICS_COLLECTOR_PROTO_FILE ?= metrics_collector.proto
-DAKR_METRICS_COLLECTOR_PROTO ?= $(DAKR_DIR)/proto/api/v1/$(DAKR_METRICS_COLLECTOR_PROTO_FILE)
-DAKR_MPA_PROTO_FILE ?= mpa.proto
-DAKR_MPA_PROTO ?= internal/proto/$(DAKR_MPA_PROTO_FILE)
-DAKR_CLUSTER_PROTO_FILE ?= cluster.proto
-DAKR_CLUSTER_PROTO ?= $(DAKR_DIR)/proto/api/v1/$(DAKR_CLUSTER_PROTO_FILE)
-DAKR_OPERATOR_HEALTH_PROTO_FILE ?= operator_health.proto
-DAKR_OPERATOR_HEALTH_PROTO ?= $(DAKR_DIR)/proto/api/v1/$(DAKR_OPERATOR_HEALTH_PROTO_FILE)
+
+# gen/api/v1 holds two kinds of bindings:
+#   - mpa.proto (MpaService, which tunr consumes) is zxporter's own. Its only
+#     source is proto/api/v1/mpa.proto; `generate-mpa-proto` runs buf on it.
+#   - Every other file is dakr's. dakr/proto is their source and dakr/gen holds
+#     the bindings generated from it. zxporter keeps a copy of the ones it needs
+#     because the public devzero-inc/zxporter mirror has no dakr tree to import.
+#     The copy is byte-for-byte, except that the connect files import this
+#     module's gen/api/v1 instead of dakr's. tools/zxporterprotocopy, in the
+#     monorepo's root module, fails CI when the copy differs from dakr/gen.
+#     DAKR_GEN_PROTOS is the manifest of copied protos; that test reads it.
+# copy-dakr-gen only works inside the services monorepo.
+DAKR_GEN_DIR ?= ../../dakr/gen/api/v1
+DAKR_GEN_PROTOS := cluster common instance k8s metrics_collector operator operator_health
 
 # BUF_VERSION and BUF_BINARY_NAME are to generate a Dakr protobuf/gRPC client.
-BUF_VERSION := 1.31.0
+# buf.yaml / buf.gen.yaml are v2 configs, which need buf >= 1.32; kept equal to
+# dakr's pin (dakr/Justfile, dakr/Makefile).
+BUF_VERSION := 1.56.0
+BUF_MIN_VERSION := 1.32.0
 BUF_BINARY_NAME := buf
 
-# Install buf
+# Install buf. An existing buf older than BUF_MIN_VERSION (e.g. the 1.31.0 this
+# target used to pin) cannot read the v2 configs, so it is replaced; a newer one
+# on PATH is left alone.
 .PHONY: install-buf
-install-buf: ## Install buf if not already installed
-	@if ! command -v $(BUF_BINARY_NAME) >/dev/null 2>&1; then \
-		echo "Installing $(BUF_BINARY_NAME)..."; \
+install-buf: ## Install buf if missing or too old for the v2 configs
+	@have="$$($(BUF_BINARY_NAME) --version 2>/dev/null)"; \
+	if [ -z "$$have" ] || ! awk -v h="$$have" -v m="$(BUF_MIN_VERSION)" 'BEGIN { split(h, a, "."); split(m, b, "."); for (i = 1; i <= 3; i++) if (a[i] + 0 != b[i] + 0) exit !(a[i] + 0 > b[i] + 0); exit 0 }'; then \
+		echo "Installing $(BUF_BINARY_NAME) $(BUF_VERSION) (found: $${have:-none})..."; \
 		curl -sSL "https://github.com/bufbuild/buf/releases/download/v${BUF_VERSION}/${BUF_BINARY_NAME}-$(shell uname -s)-$(shell uname -m)" -o "/usr/local/bin/${BUF_BINARY_NAME}"; \
 		chmod +x "/usr/local/bin/${BUF_BINARY_NAME}"; \
 	else \
-		echo "$(BUF_BINARY_NAME) is already installed."; \
+		echo "$(BUF_BINARY_NAME) $$have is already installed."; \
 	fi
 
-# (for local dev) Get metadata to generate a Dakr client. 
 .PHONY: generate-proto
-generate-proto: install-buf ## Fetch latest Dakr protobuf
-	@PROTO_DIR="$(PWD)/proto"; \
-	echo "Cleaning $$PROTO_DIR..."; \
-	rm -rf "$$PROTO_DIR"/*; \
-	rm -rf "$(PWD)/gen"; \
-	mkdir -p "$$PROTO_DIR"; \
-	mkdir -p "$$PROTO_DIR/api/v1"; \
-	cp "$(DAKR_MPA_PROTO)" "$$PROTO_DIR/api/v1"; \
-	find "$$PROTO_DIR" -type f -name "*.yaml" -exec perl -pi -e 's|github.com/devzero-inc/services/dakr/gen|github.com/devzero-inc/zxporter/gen|g' {} +; \
-	buf build "$(DAKR_DIR)" --path "$(DAKR_METRICS_COLLECTOR_PROTO)" --path "$(DAKR_CLUSTER_PROTO)" --path "$(DAKR_OPERATOR_HEALTH_PROTO)" -o "$$PROTO_DIR"/dakr_proto_descriptor.bin; \
-	buf generate --include-imports "$$PROTO_DIR"/dakr_proto_descriptor.bin; 
-	buf generate --verbose --include-imports --timeout=5m .
+generate-proto: copy-dakr-gen generate-mpa-proto ## Refresh gen/api/v1: copy dakr's bindings, generate mpa.proto
+
+.PHONY: generate-mpa-proto
+generate-mpa-proto: install-buf ## Generate zxporter's own mpa.proto into gen/api/v1
+	rm -f gen/api/v1/mpa.pb.go gen/api/v1/mpa_grpc.pb.go gen/api/v1/apiv1connect/mpa.connect.go
+	buf generate --verbose --timeout=5m .
+
+.PHONY: copy-dakr-gen
+copy-dakr-gen: ## Copy dakr's generated bindings for the dakr protos zxporter speaks (monorepo only)
+	@test -d "$(DAKR_GEN_DIR)" || { echo "$(DAKR_GEN_DIR) not found: dakr's bindings are copied from the services monorepo's dakr/gen (set DAKR_GEN_DIR)"; exit 1; }
+	@set -e; for p in $(DAKR_GEN_PROTOS); do \
+		rm -f "gen/api/v1/$$p.pb.go" "gen/api/v1/$${p}_grpc.pb.go" "gen/api/v1/apiv1connect/$$p.connect.go"; \
+		cp "$(DAKR_GEN_DIR)/$$p.pb.go" gen/api/v1/; \
+		if [ -f "$(DAKR_GEN_DIR)/$${p}_grpc.pb.go" ]; then cp "$(DAKR_GEN_DIR)/$${p}_grpc.pb.go" gen/api/v1/; fi; \
+		if [ -f "$(DAKR_GEN_DIR)/apiv1connect/$$p.connect.go" ]; then \
+			sed 's|github.com/devzero-inc/services/dakr/gen/api/v1"|github.com/devzero-inc/zxporter/gen/api/v1"|' \
+				"$(DAKR_GEN_DIR)/apiv1connect/$$p.connect.go" > "gen/api/v1/apiv1connect/$$p.connect.go"; \
+		fi; \
+	done; \
+	echo "Copied dakr's bindings for: $(DAKR_GEN_PROTOS)"
 
 ##@ Verification
 

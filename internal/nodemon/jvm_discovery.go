@@ -1,10 +1,17 @@
 package nodemon
 
 import (
+	"errors"
 	"fmt"
+	"io"
+	"io/fs"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
+
+	"github.com/go-logr/logr"
 )
 
 const (
@@ -28,8 +35,10 @@ type JavaProcess struct {
 
 // discoverJavaProcesses scans procRoot (usually "/proc") for Java processes
 // running inside Kubernetes container cgroups.
-// Returns nil, nil if procRoot does not exist (non-Linux hosts).
-func discoverJavaProcesses(procRoot string) ([]JavaProcess, error) {
+// Returns nil, nil if procRoot does not exist (non-Linux hosts). denied, if
+// non-nil, is told about JVMs whose hsperfdata could not be read because access
+// to the container's /tmp was refused.
+func discoverJavaProcesses(procRoot string, denied *hsperfDeniedReporter) ([]JavaProcess, error) {
 	entries, err := walkProcEntries(procRoot, classifyJavaOnly)
 	if err != nil {
 		return nil, err
@@ -37,7 +46,7 @@ func discoverJavaProcesses(procRoot string) ([]JavaProcess, error) {
 
 	procs := make([]JavaProcess, 0, len(entries))
 	for _, e := range entries {
-		if jp, ok := javaProcessFromEntry(e); ok {
+		if jp, ok := javaProcessFromEntry(e, denied); ok {
 			procs = append(procs, jp)
 		}
 	}
@@ -58,9 +67,14 @@ func classifyJavaOnly(comm, cmdline string) processKind {
 // as processKindJava, reading the JVM-specific bits (hsperfdata path, env-injected
 // options) that walkProcEntries doesn't itself resolve. Returns ok=false if no
 // hsperfdata file is found (e.g. -XX:-UsePerfData, or the process just exited).
-func javaProcessFromEntry(e procEntry) (JavaProcess, bool) {
-	hsperfPath := findHsperfdata(e.PidDir, e.PidNS)
+// A permission denial on the container's /tmp is also ok=false, and is passed
+// to denied (which may be nil) so it does not pass silently as "no hsperfdata".
+func javaProcessFromEntry(e procEntry, denied *hsperfDeniedReporter) (JavaProcess, bool) {
+	hsperfPath, accessErr := findHsperfdata(e.PidDir, e.PidNS)
 	if hsperfPath == "" {
+		if accessErr != nil {
+			denied.report(e, accessErr)
+		}
 		return JavaProcess{}, false
 	}
 
@@ -93,14 +107,93 @@ func isJavaProcess(comm, cmdline string) bool {
 
 // findHsperfdata returns the hsperfdata path for a Java process via its /proc/<pid>/root
 // overlay: /proc/<pid>/root/tmp/hsperfdata_*/<nsPid>
-// Returns "" if no file is found.
-func findHsperfdata(pidDir string, nsPid int) string {
-	pattern := filepath.Join(pidDir, "root", "tmp", "hsperfdata_*", strconv.Itoa(nsPid))
-	matches, err := filepath.Glob(pattern)
-	if err != nil || len(matches) == 0 {
-		return ""
+// Returns "" if no file is found. The error is non-nil only when the lookup
+// was refused (EACCES/EPERM) rather than finding nothing: filepath.Glob drops
+// I/O errors, so without this check a denial (for example SELinux MCS
+// isolation between containers) is indistinguishable from a JVM that writes
+// no hsperfdata. The path result is "" in both cases.
+func findHsperfdata(pidDir string, nsPid int) (string, error) {
+	tmpDir := filepath.Join(pidDir, "root", "tmp")
+	pid := strconv.Itoa(nsPid)
+	if matches, err := filepath.Glob(filepath.Join(tmpDir, "hsperfdata_*", pid)); err == nil && len(matches) > 0 {
+		return matches[0], nil
 	}
-	return matches[0]
+
+	// No match. Re-walk the two directory levels Glob read, keeping only
+	// permission errors; anything else (missing /tmp, exited process) is the
+	// ordinary "not found".
+	f, err := os.Open(tmpDir)
+	if err != nil {
+		return "", permissionError(err)
+	}
+	_, err = f.Readdirnames(1)
+	_ = f.Close()
+	if err != nil && !errors.Is(err, io.EOF) {
+		return "", permissionError(err)
+	}
+	userDirs, _ := filepath.Glob(filepath.Join(tmpDir, "hsperfdata_*"))
+	for _, dir := range userDirs {
+		if _, err := os.Lstat(filepath.Join(dir, pid)); err != nil && errors.Is(err, fs.ErrPermission) {
+			return "", err
+		}
+	}
+	return "", nil
+}
+
+// permissionError returns err if it is a permission denial, else nil.
+func permissionError(err error) error {
+	if errors.Is(err, fs.ErrPermission) {
+		return err
+	}
+	return nil
+}
+
+// hsperfDeniedReporterMaxSeen bounds the dedupe set. When it fills, the set is
+// cleared, so a long-lived nodemon logs a still-denied container again at
+// most once per that many distinct containers.
+const hsperfDeniedReporterMaxSeen = 1024
+
+// hsperfDeniedReporter logs, once per container, that a JVM's hsperfdata could
+// not be read because access to the container's /tmp was refused. Discovery
+// runs every collection tick, so logging every occurrence would repeat the same
+// line for each JVM every cycle. A nil *hsperfDeniedReporter discards reports.
+type hsperfDeniedReporter struct {
+	log logr.Logger
+
+	mu   sync.Mutex
+	seen map[string]struct{}
+}
+
+func newHsperfDeniedReporter(log logr.Logger) *hsperfDeniedReporter {
+	return &hsperfDeniedReporter{log: log, seen: make(map[string]struct{})}
+}
+
+// report logs err for e unless this container (or, without a container ID,
+// this host PID) was already reported. It returns whether it logged.
+func (r *hsperfDeniedReporter) report(e procEntry, err error) bool {
+	if r == nil {
+		return false
+	}
+	key := e.ContainerID
+	if key == "" {
+		key = "pid:" + strconv.Itoa(e.PidHost)
+	}
+
+	r.mu.Lock()
+	if _, ok := r.seen[key]; ok {
+		r.mu.Unlock()
+		return false
+	}
+	if len(r.seen) >= hsperfDeniedReporterMaxSeen {
+		clear(r.seen)
+	}
+	r.seen[key] = struct{}{}
+	r.mu.Unlock()
+
+	r.log.Info("Permission denied reading a JVM's /tmp through /proc/<pid>/root; no heap metrics for it. "+
+		"On SELinux-enforcing nodes nodemon needs seLinuxOptions.level s0:c0.c1023",
+		"pid", e.PidHost, "containerID", e.ContainerID, "error", err.Error())
+	return true
 }
 
 // ParseJVMFlags parses JVM memory and container-awareness flags from a process cmdline string.

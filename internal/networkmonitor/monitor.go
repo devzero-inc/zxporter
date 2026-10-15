@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"hash/maphash"
 	"net/http"
 	"sync"
@@ -16,6 +17,7 @@ import (
 	"github.com/devzero-inc/zxporter/internal/health"
 	"github.com/devzero-inc/zxporter/internal/networkmonitor/dns"
 	"github.com/devzero-inc/zxporter/internal/networkmonitor/ebpf"
+	"github.com/devzero-inc/zxporter/internal/networkmonitor/redmetrics"
 	"github.com/devzero-inc/zxporter/internal/transport"
 
 	gen "github.com/devzero-inc/zxporter/gen/api/v1"
@@ -38,6 +40,12 @@ type NetworkFlow struct {
 	DstIP     string `json:"dst_ip"`
 	SrcDomain string `json:"src_domain,omitempty"`
 	DstDomain string `json:"dst_domain,omitempty"`
+
+	// Post-DNAT destination, empty when the kernel did not translate one.
+	// DstIP stays the address the client dialed (a ClusterIP, typically); these
+	// name the backend that actually answered. See Entry.DstTranslated.
+	DstIPTranslated   string `json:"dst_ip_translated,omitempty"`
+	DstPortTranslated uint16 `json:"dst_port_translated,omitempty"`
 
 	// Pod Metadata
 	SrcPodName      string `json:"src_pod_name,omitempty"`
@@ -81,6 +89,17 @@ type Monitor struct {
 	dakrClient    transport.DakrClient
 	healthManager *health.HealthManager
 
+	// redMetrics is nil unless container RED metrics were explicitly enabled. The
+	// feature ships off, so the nil case is the normal one and every use of this
+	// field is guarded.
+	redMetrics *redmetrics.Aggregator
+
+	// egressPath reads this node's instance metadata once and caches it, so the
+	// control plane can tell traffic that leaves through a NAT gateway from
+	// traffic that leaves directly. Nil-safe: a node with no metadata service
+	// reports no egress path at all.
+	egressPath *EgressPathResolver
+
 	mu sync.RWMutex
 
 	// Cache of previous conntrack entries for delta calculation
@@ -105,7 +124,20 @@ func NewMonitor(cfg Config, log logr.Logger, podCache *PodCache, ct Client, trac
 		healthManager: healthManager,
 		entriesCache:  make(map[uint64]*Entry),
 		podMetrics:    make(map[uint64]*NetworkFlow),
+		egressPath:    NewEgressPathResolver(log.WithName("egress-path")),
 	}, nil
+}
+
+// EnableContainerRedMetrics attaches a container RED metrics aggregator, whose
+// closed minute buckets are drained on every flush.
+//
+// It is a setter rather than a NewMonitor parameter because the feature is off by
+// default: a nil aggregator has to remain an ordinary, well-tested state, and
+// threading a nil through the constructor invites the opposite.
+func (m *Monitor) EnableContainerRedMetrics(agg *redmetrics.Aggregator) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.redMetrics = agg
 }
 
 func (m *Monitor) updateHealth(component string, status health.HealthStatus, message string) {
@@ -130,6 +162,13 @@ func (m *Monitor) Start(ctx context.Context) {
 				m.log.Error(err, "DNS collector failed")
 			}
 		}()
+	}
+
+	// Read the node's egress path off the collection path entirely. Probing can
+	// cost several seconds when the link-local route black-holes, and flush
+	// holds the collection lock, so doing it inline would stall collect().
+	if m.egressPath != nil {
+		go m.egressPath.Prime(ctx)
 	}
 
 	for {
@@ -265,7 +304,7 @@ func (m *Monitor) collect() error {
 			}
 			pm.Timestamp = time.Now()
 		} else {
-			m.podMetrics[groupKey] = &NetworkFlow{
+			flow := &NetworkFlow{
 				SrcIP:     entry.Src.IP().String(),
 				DstIP:     entry.Dst.IP().String(),
 				Protocol:  entry.Proto,
@@ -277,6 +316,11 @@ func (m *Monitor) collect() error {
 				Timestamp: time.Now(),
 				lifetime:  entry.Lifetime,
 			}
+			if entry.HasTranslatedDst() {
+				flow.DstIPTranslated = entry.DstTranslated.IP().String()
+				flow.DstPortTranslated = entry.DstTranslated.Port()
+			}
+			m.podMetrics[groupKey] = flow
 		}
 	}
 
@@ -322,7 +366,14 @@ func (m *Monitor) GetMetricsHandler(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 
-			if dstIP, err := netaddr.ParseIP(f.DstIP); err == nil {
+			// Look the destination pod up by the address that answered. For a
+			// DNAT'd flow that is the translated address; the dialed ClusterIP
+			// belongs to a Service and never resolves to a pod.
+			dstLookupIP := f.DstIP
+			if f.DstIPTranslated != "" {
+				dstLookupIP = f.DstIPTranslated
+			}
+			if dstIP, err := netaddr.ParseIP(dstLookupIP); err == nil {
 				if dstPod, ok := m.podCache.GetPodByIP(dstIP); ok {
 					f.DstPodName = dstPod.Name
 					f.DstPodNamespace = dstPod.Namespace
@@ -332,19 +383,21 @@ func (m *Monitor) GetMetricsHandler(w http.ResponseWriter, r *http.Request) {
 
 		// Create a copy to return (Peek behavior, no reset)
 		flows = append(flows, &NetworkFlow{
-			SrcIP:           f.SrcIP,
-			DstIP:           f.DstIP,
-			SrcPodName:      f.SrcPodName,
-			SrcPodNamespace: f.SrcPodNamespace,
-			DstPodName:      f.DstPodName,
-			DstPodNamespace: f.DstPodNamespace,
-			Protocol:        f.Protocol,
-			DstPort:         f.DstPort,
-			TxBytes:         f.TxBytes,
-			RxBytes:         f.RxBytes,
-			TxPackets:       f.TxPackets,
-			RxPackets:       f.RxPackets,
-			Timestamp:       f.Timestamp,
+			SrcIP:             f.SrcIP,
+			DstIP:             f.DstIP,
+			DstIPTranslated:   f.DstIPTranslated,
+			DstPortTranslated: f.DstPortTranslated,
+			SrcPodName:        f.SrcPodName,
+			SrcPodNamespace:   f.SrcPodNamespace,
+			DstPodName:        f.DstPodName,
+			DstPodNamespace:   f.DstPodNamespace,
+			Protocol:          f.Protocol,
+			DstPort:           f.DstPort,
+			TxBytes:           f.TxBytes,
+			RxBytes:           f.RxBytes,
+			TxPackets:         f.TxPackets,
+			RxPackets:         f.RxPackets,
+			Timestamp:         f.Timestamp,
 		})
 	}
 
@@ -404,6 +457,15 @@ func conntrackEntryKey(e *Entry) uint64 {
 	binary.LittleEndian.PutUint16(dstPort[:], e.Dst.Port())
 	h.Write(dstPort[:])
 
+	// Included for the same reason as in entryGroupKey: if conntrack reuses an
+	// origin tuple against a new backend, the cached counters belong to the old
+	// one and must not be subtracted from the new one's.
+	translatedIP := e.DstTranslated.IP().As16()
+	h.Write(translatedIP[:])
+	var translatedPort [2]byte
+	binary.LittleEndian.PutUint16(translatedPort[:], e.DstTranslated.Port())
+	h.Write(translatedPort[:])
+
 	h.WriteByte(e.Proto)
 	return h.Sum64()
 }
@@ -421,6 +483,17 @@ func entryGroupKey(e *Entry) uint64 {
 	binary.LittleEndian.PutUint16(dstPort[:], e.Dst.Port())
 	h.Write(dstPort[:])
 
+	// The translated destination is part of the identity of a flow, not a
+	// decoration on it. Two connections to the same ClusterIP that kube-proxy
+	// steered to different backend pods are different flows -- possibly in
+	// different availability zones, and so at different prices -- and folding
+	// them into one group would report a single backend for all of them.
+	translatedIP := e.DstTranslated.IP().As16()
+	h.Write(translatedIP[:])
+	var translatedPort [2]byte
+	binary.LittleEndian.PutUint16(translatedPort[:], e.DstTranslated.Port())
+	h.Write(translatedPort[:])
+
 	h.WriteByte(e.Proto)
 	return h.Sum64()
 }
@@ -429,6 +502,11 @@ func entryGroupKey(e *Entry) uint64 {
 func (m *Monitor) flush(ctx context.Context) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
+	// Drained before the client check, not after. A minute bucket closes when the
+	// wall clock passes it whether or not anyone is listening, and an aggregate
+	// nobody drains would grow for as long as the process runs.
+	redItems := m.flushContainerRedMetricsLocked()
 
 	if m.dakrClient == nil {
 		return nil
@@ -484,7 +562,14 @@ func (m *Monitor) flush(ctx context.Context) error {
 					f.SrcPodNamespace = srcPod.Namespace
 				}
 			}
-			if dstIP, err := netaddr.ParseIP(f.DstIP); err == nil {
+			// Look the destination pod up by the address that answered. For a
+			// DNAT'd flow that is the translated address; the dialed ClusterIP
+			// belongs to a Service and never resolves to a pod.
+			dstLookupIP := f.DstIP
+			if f.DstIPTranslated != "" {
+				dstLookupIP = f.DstIPTranslated
+			}
+			if dstIP, err := netaddr.ParseIP(dstLookupIP); err == nil {
 				if dstPod, ok := m.podCache.GetPodByIP(dstIP); ok {
 					f.DstPodName = dstPod.Name
 					f.DstPodNamespace = dstPod.Namespace
@@ -515,6 +600,9 @@ func (m *Monitor) flush(ctx context.Context) error {
 			TxPackets:       int64(f.TxPackets),
 			RxPackets:       int64(f.RxPackets),
 			Timestamp:       timestamppb.New(f.Timestamp),
+
+			DstIpTranslated:   f.DstIPTranslated,
+			DstPortTranslated: int32(f.DstPortTranslated),
 		})
 
 		// Reset counters (Delta behavior for Control Plane)
@@ -530,7 +618,7 @@ func (m *Monitor) flush(ctx context.Context) error {
 	}
 
 	if len(items) == 0 && len(dnsLookupItems) == 0 {
-		return nil
+		return m.sendContainerRedMetricsLocked(ctx, redItems)
 	}
 
 	// 4. Send Request
@@ -543,6 +631,54 @@ func (m *Monitor) flush(ctx context.Context) error {
 		OperatorCommit:  &m.cfg.OperatorCommit,
 	}
 
+	// Describes the node, not any single flow, so it rides once per report.
+	//
+	// Cached never touches the network: this runs under m.mu, and a probe here
+	// would block collect() for as long as the metadata service takes to fail.
+	// If the answer is still unknown -- a node that started before its metadata
+	// service did -- kick another attempt off the lock. The resolver rate-limits
+	// those itself and keeps the first success forever.
+	if m.egressPath != nil {
+		if egress := m.egressPath.Cached(); egress != nil {
+			req.NodeEgress = egress
+		} else {
+			go m.egressPath.Prime(ctx)
+		}
+	}
+
 	_, err := m.dakrClient.SendNetworkTrafficMetrics(ctx, req)
+
+	// Both sends are attempted and both errors are reported. They carry different
+	// grains to different tables, so letting one failure skip the other would
+	// discard data that was ready to go for a reason unrelated to it.
+	return errors.Join(err, m.sendContainerRedMetricsLocked(ctx, redItems))
+}
+
+// flushContainerRedMetricsLocked drains the aggregator's closed minute buckets,
+// returning nil when the feature is off. The caller holds the lock.
+func (m *Monitor) flushContainerRedMetricsLocked() []*gen.ContainerRedMetricsItem {
+	if m.redMetrics == nil {
+		return nil
+	}
+	return m.redMetrics.Flush()
+}
+
+// sendContainerRedMetricsLocked ships one batch of closed minute buckets.
+//
+// There is no retry and no buffering of a failed batch. The items are per-minute
+// deltas destined for a SummingMergeTree, so a re-sent batch adds to whatever
+// already landed and reads as real extra traffic. A lost minute is visible as a
+// gap; a doubled one is invisible and wrong.
+func (m *Monitor) sendContainerRedMetricsLocked(ctx context.Context, items []*gen.ContainerRedMetricsItem) error {
+	if len(items) == 0 || m.dakrClient == nil {
+		return nil
+	}
+
+	_, err := m.dakrClient.SendContainerRedMetrics(ctx, &gen.SendContainerRedMetricsRequest{
+		NodeName:        m.cfg.NodeName,
+		Items:           items,
+		OperatorVersion: &m.cfg.OperatorVersion,
+		OperatorCommit:  &m.cfg.OperatorCommit,
+	})
 	return err
 }
