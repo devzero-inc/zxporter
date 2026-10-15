@@ -138,7 +138,7 @@ func TestCollectors_CompositeAvoids4NLegacyCalls(t *testing.T) {
 	nc := &NodeCollector{
 		metricsClient:   &metricsv1.Clientset{},
 		nodemonClient:   newClient(),
-		kubeletClient:   NewKubeletSummaryClient(nil, logr.Discard(), 0),
+		kubeletClient:   newInertFakeKubeletClient(t),
 		nodeInformer:    nodeInformer,
 		batchChan:       nodeBatch,
 		config:          NodeCollectorConfig{DisableGPUMetrics: false},

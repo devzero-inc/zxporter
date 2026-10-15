@@ -2,6 +2,10 @@
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
+  {{- with (include "zxporter.commonAnnotations" $) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
   {{- /* Hardcoded to match the kustomize-generated dist/ bundles, which double-apply the
          "devzero-zxporter-" namePrefix. Keep identical to config/manager/poddisruptionbudget.yaml's
          rendered name so `helm install` and dist/installer_updater.yaml target the SAME PDB. */}}

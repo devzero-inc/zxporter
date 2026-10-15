@@ -2,6 +2,10 @@
 apiVersion: scheduling.k8s.io/v1
 kind: PriorityClass
 metadata:
+  {{- with (include "zxporter-nodemon.commonAnnotations" $) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
   {{- /* Hardcoded (not release-derived) to match the same-named PriorityClass the parent
          zxporter chart and the kustomize dist/ bundles create, so a standalone nodemon install
          (CI, helm-release-nodemon) targets the SAME class the parent would. When installed via

@@ -1,0 +1,77 @@
+name: "zxporter: node-storage-kind"
+description: |
+  End-to-end validation of node storage occupancy collection against a real
+  kubelet on a real kind cluster: the production KubeletSummaryClient reads
+  node.fs and node.runtime.imageFs through the API-server nodes/proxy
+  subresource, and the spec asserts the invariants the feature rests on.
+
+  Why a live cluster earns its keep here. Every other test of this feature
+  reads a captured fixture, which cannot catch the kubelet dropping a
+  section, renaming a field, or the nodes/proxy RBAC verb going missing.
+  More importantly, imagefs-is-a-subset-of-nodefs -- the invariant that
+  stops consumers double-counting disk -- has otherwise only ever been
+  checked against numbers we wrote ourselves, and the shared-device
+  classifier is a heuristic precisely because the kubelet does not name the
+  device, so the only honest test of it is a node whose real layout we know.
+
+  The cheapest kind spec in this tree: no image to build, no operator to
+  install, no fixture workload, and no port-forward. The client reads
+  through the API server, the same path kubectl already proves reachable
+  from the runner, so a plain cluster with no add-ons is enough.
+
+  Assertions live in a Go/Ginkgo spec (test/e2e/node_storage_test.go) rather
+  than a shell heredoc, matching oom-flow-kind: the interesting logic is
+  Kubernetes-API-shaped, not HTTP-response-shaped.
+
+  Consumed by two callers:
+    - operators/zxporter/.github/workflows/node-storage-kind-test.yml
+      (published to devzero-inc/zxporter; uses this via
+      ./.github/actions/node-storage-kind)
+    - .github/workflows/zxporter-node-storage-kind.yml at services root
+      (uses this via ./operators/zxporter/.github/actions/node-storage-kind
+      with working-directory: operators/zxporter)
+
+  Caller checks out the repo; this action assumes cwd contains the
+  zxporter source (or the working-directory input points at it).
+
+inputs:
+  working-directory:
+    description: "Path to the zxporter tree relative to the repo root."
+    required: false
+    default: "."
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      # setup-go runs `go version` / `go env` from the workspace root. In the
+      # services monorepo that is the root module, whose newer go line would make
+      # GOTOOLCHAIN=auto download that toolchain (unused, and it collides with the
+      # cache restore). local keeps the Go this module's go.mod asks for.
+      env:
+        GOTOOLCHAIN: local
+      with:
+        go-version-file: ${{ inputs.working-directory }}/go.mod
+        cache: true
+        cache-dependency-path: ${{ inputs.working-directory }}/go.sum
+
+    # Two nodes on purpose: the spec walks every node in the cluster, so a
+    # multi-node cluster exercises the per-node loop rather than a
+    # single-node special case. kind's control-plane and worker both run
+    # containerd with its state on the same filesystem as the kubelet's,
+    # which is what makes the shared-device assertion meaningful.
+    - name: Create kind cluster
+      uses: helm/kind-action@v1
+      with:
+        version: v0.27.0
+        node_image: kindest/node:v1.32.3
+        cluster_name: kind-node-storage
+        config: ${{ inputs.working-directory }}/.github/actions/node-storage-kind/kind-config.yaml
+        wait: 120s
+
+    - name: Run node-storage e2e spec
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        go test ./test/e2e/... -v -ginkgo.v -ginkgo.label-filter=node-storage -timeout 10m

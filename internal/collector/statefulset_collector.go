@@ -172,8 +172,8 @@ func (c *StatefulSetCollector) statefulSetChanged(
 		oldStatefulSet.ObjectMeta,
 		newStatefulSet.ObjectMeta,
 	)
-	if changed != IgnoreChanges {
-		return changed == PushChanges
+	if changed == PushChanges {
+		return true
 	}
 
 	// Check for spec changes
@@ -299,7 +299,7 @@ func (c *StatefulSetCollector) GetResourceChannel() <-chan []CollectedResource {
 
 // GetType returns the type of resource this collector handles
 func (c *StatefulSetCollector) GetType() string {
-	return "statefulset"
+	return StatefulSet.String()
 }
 
 // IsAvailable checks if StatefulSet resources can be accessed in the cluster

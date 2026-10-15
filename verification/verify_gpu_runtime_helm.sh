@@ -29,6 +29,11 @@ if [ ! -x "$HELM_BIN" ]; then
   exit 1
 fi
 
+# The charts vendor devzero-common into their gitignored charts/ directories.
+for chart in zxporter-nodemon zxporter; do
+  "$HELM_BIN" dependency build "helm-chart/$chart" >/dev/null
+done
+
 if [ ! -x "$YQ_BIN" ]; then
   echo "yq not found; run 'make yq' first" >&2
   exit 1
