@@ -482,3 +482,52 @@ func TestProbeRust_CommentWithoutRustcIsNotRust(t *testing.T) {
 	makeELFWithComment(t, pidDir, "GCC: (GNU) 12.2.0\x00")
 	assert.Equal(t, processKindUnknown, probeRuntimeProcess(procEntry{PidDir: pidDir, Comm: "nginx"}))
 }
+
+// TestResolveJavaVersion covers the fallback path taken when a JVM has no
+// hsperfdata file (readOnlyRootFilesystem, -XX:-UsePerfData): the dedicated JVM
+// pipeline can't read java.property.java.version, so the generic bucket
+// resolves it passively instead.
+func TestResolveJavaVersion(t *testing.T) {
+	t.Run("from env", func(t *testing.T) {
+		pidDir := t.TempDir()
+		// openzipkin/zipkin-slim and the eclipse-temurin images both set this.
+		writePidFile(t, pidDir, "environ", []byte("PATH=/usr/bin\x00JAVA_VERSION=21.0.7_p6\x00"))
+		v, src := resolveJavaVersion(pidDir)
+		assert.Equal(t, "21.0.7_p6", v)
+		assert.Equal(t, runtimeVersionSourceEnv, src)
+	})
+
+	t.Run("from exe path", func(t *testing.T) {
+		pidDir := t.TempDir()
+		require.NoError(t, os.Symlink("/usr/lib/jvm/java-21-openjdk/bin/java", filepath.Join(pidDir, "exe")))
+		v, src := resolveJavaVersion(pidDir)
+		assert.Equal(t, "21", v)
+		assert.Equal(t, runtimeVersionSourceExePath, src)
+	})
+
+	t.Run("from JAVA_HOME when exe path carries no version", func(t *testing.T) {
+		pidDir := t.TempDir()
+		// Temurin's exe path (/opt/java/openjdk/bin/java) has no version in it.
+		require.NoError(t, os.Symlink("/opt/java/openjdk/bin/java", filepath.Join(pidDir, "exe")))
+		writePidFile(t, pidDir, "environ", []byte("JAVA_HOME=/usr/lib/jvm/jdk-17.0.9\x00"))
+		v, src := resolveJavaVersion(pidDir)
+		assert.Equal(t, "17.0.9", v)
+		assert.Equal(t, runtimeVersionSourceEnv, src)
+	})
+
+	t.Run("unresolvable", func(t *testing.T) {
+		pidDir := t.TempDir()
+		writePidFile(t, pidDir, "environ", []byte("PATH=/usr/bin\x00"))
+		v, src := resolveJavaVersion(pidDir)
+		assert.Empty(t, v)
+		assert.Empty(t, src)
+	})
+
+	t.Run("dispatched by resolveRuntimeVersion", func(t *testing.T) {
+		pidDir := t.TempDir()
+		writePidFile(t, pidDir, "environ", []byte("JAVA_VERSION=11.0.22\x00"))
+		v, src := resolveRuntimeVersion(processKindJava, pidDir)
+		assert.Equal(t, "11.0.22", v)
+		assert.Equal(t, runtimeVersionSourceEnv, src)
+	})
+}
