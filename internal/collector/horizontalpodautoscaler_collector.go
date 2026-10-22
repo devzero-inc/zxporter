@@ -177,8 +177,8 @@ func (c *HorizontalPodAutoscalerCollector) hpaChanged(
 		oldHPA.ObjectMeta,
 		newHPA.ObjectMeta,
 	)
-	if changed != IgnoreChanges {
-		return changed == PushChanges
+	if changed == PushChanges {
+		return true
 	}
 
 	// Check for min/max replicas changes

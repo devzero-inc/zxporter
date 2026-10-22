@@ -498,3 +498,56 @@ func TestProcessContainerMetrics_UnknownContainerSkipped(t *testing.T) {
 		// expected: nothing emitted
 	}
 }
+
+func TestOOMAdjustedMemoryUsage(t *testing.T) {
+	now := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
+	const usage, limit = int64(65 << 20), int64(1 << 30)
+
+	terminatedAt := func(at time.Time) *corev1.ContainerStatus {
+		return &corev1.ContainerStatus{
+			LastTerminationState: corev1.ContainerState{
+				Terminated: &corev1.ContainerStateTerminated{
+					Reason:     ReasonOOMKilled,
+					FinishedAt: metav1.NewTime(at),
+				},
+			},
+		}
+	}
+
+	restartedAt := func(killed, started time.Time) *corev1.ContainerStatus {
+		s := terminatedAt(killed)
+		s.State.Running = &corev1.ContainerStateRunning{StartedAt: metav1.NewTime(started)}
+		return s
+	}
+
+	tests := []struct {
+		name   string
+		reason string
+		limit  int64
+		status *corev1.ContainerStatus
+		want   int64
+	}{
+		{"reports the limit when the OOM kill just happened", ReasonOOMKilled, limit, terminatedAt(now.Add(-time.Minute)), limit},
+		// CrashLoopBackOff at its 5m cap: the restart, not the kill, opens the window.
+		{"reports the limit right after a backed-off restart", ReasonOOMKilled, limit, restartedAt(now.Add(-6*time.Minute), now.Add(-time.Minute)), limit},
+		{"reports measured usage once the restarted run is past the window", ReasonOOMKilled, limit, restartedAt(now.Add(-12*time.Minute), now.Add(-6*time.Minute)), usage},
+		// In-place resize keeps the same run, so a days-old start does not reopen it.
+		{"reports measured usage when the run started days ago", ReasonOOMKilled, limit, restartedAt(now.Add(-48*time.Hour), now.Add(-48*time.Hour+10*time.Second)), usage},
+		{"reports the limit when the kill time is slightly ahead of this clock", ReasonOOMKilled, limit, terminatedAt(now.Add(30 * time.Second)), limit},
+		{"reports measured usage when the kill time is far ahead of this clock", ReasonOOMKilled, limit, terminatedAt(now.Add(time.Hour)), usage},
+		{"reports the limit at the edge of the window", ReasonOOMKilled, limit, terminatedAt(now.Add(-oomUsageProxyWindow)), limit},
+		// The prod incident: the container kept running for days after one OOM
+		// while in-place resizes raised its limit, and status still said OOMKilled.
+		{"reports measured usage when the OOM kill is days old", ReasonOOMKilled, limit, terminatedAt(now.Add(-48 * time.Hour)), usage},
+		{"reports measured usage just past the window", ReasonOOMKilled, limit, terminatedAt(now.Add(-oomUsageProxyWindow - time.Second)), usage},
+		{"reports measured usage when the kill time is unknown", ReasonOOMKilled, limit, terminatedAt(time.Time{}), usage},
+		{"reports measured usage without a container status", ReasonOOMKilled, limit, nil, usage},
+		{"reports measured usage when the last termination was not an OOM", "Error", limit, terminatedAt(now), usage},
+		{"reports measured usage when the container has no limit", ReasonOOMKilled, 0, terminatedAt(now), usage},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, oomAdjustedMemoryUsage(usage, tt.limit, tt.reason, tt.status, now))
+		})
+	}
+}

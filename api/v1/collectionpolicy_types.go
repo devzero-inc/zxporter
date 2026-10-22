@@ -94,6 +94,9 @@ type Exclusions struct {
 	ExcludedCSIStorageCapacities []ExcludedCSIStorageCapacity `json:"excludedCSIStorageCapacities,omitempty"`
 	ExcludedVolumeAttachments    []string                     `json:"excludedVolumeAttachments,omitempty"`
 
+	// RuntimeClass Exclusions (cluster-scoped, so names only)
+	ExcludedRuntimeClasses []string `json:"excludedRuntimeClasses,omitempty"`
+
 	// Kubeflow Notebooks Exclusions
 	ExcludedKubeflowNotebooks []ExcludedKubeflowNotebook `json:"excludedKubeflowNotebooks,omitempty"`
 
@@ -106,6 +109,37 @@ type Exclusions struct {
 
 	// CloudNativePG Exclusions
 	ExcludedCNPGClusters []ExcludedCNPGCluster `json:"excludedCNPGClusters,omitempty"`
+
+	// Argo CD Exclusions
+	ExcludedArgoCDApplications    []ExcludedArgoCDApplication    `json:"excludedArgoCDApplications,omitempty"`
+	ExcludedArgoCDApplicationSets []ExcludedArgoCDApplicationSet `json:"excludedArgoCDApplicationSets,omitempty"`
+
+	// FluxCD Exclusions -- full-explorer kinds
+	ExcludedFluxGitRepositories  []ExcludedFluxGitRepository  `json:"excludedFluxGitRepositories,omitempty"`
+	ExcludedFluxOCIRepositories  []ExcludedFluxOCIRepository  `json:"excludedFluxOCIRepositories,omitempty"`
+	ExcludedFluxHelmRepositories []ExcludedFluxHelmRepository `json:"excludedFluxHelmRepositories,omitempty"`
+	ExcludedFluxHelmCharts       []ExcludedFluxHelmChart      `json:"excludedFluxHelmCharts,omitempty"`
+	ExcludedFluxBuckets          []ExcludedFluxBucket         `json:"excludedFluxBuckets,omitempty"`
+	ExcludedFluxKustomizations   []ExcludedFluxKustomization  `json:"excludedFluxKustomizations,omitempty"`
+	ExcludedFluxHelmReleases     []ExcludedFluxHelmRelease    `json:"excludedFluxHelmReleases,omitempty"`
+
+	// FluxCD Exclusions -- collector-only kinds
+	ExcludedFluxExternalArtifacts         []ExcludedFluxExternalArtifact         `json:"excludedFluxExternalArtifacts,omitempty"`
+	ExcludedFluxAlerts                    []ExcludedFluxAlert                    `json:"excludedFluxAlerts,omitempty"`
+	ExcludedFluxProviders                 []ExcludedFluxProvider                 `json:"excludedFluxProviders,omitempty"`
+	ExcludedFluxReceivers                 []ExcludedFluxReceiver                 `json:"excludedFluxReceivers,omitempty"`
+	ExcludedFluxInstances                 []ExcludedFluxInstance                 `json:"excludedFluxInstances,omitempty"`
+	ExcludedFluxReports                   []ExcludedFluxReport                   `json:"excludedFluxReports,omitempty"`
+	ExcludedFluxResourceSetInputProviders []ExcludedFluxResourceSetInputProvider `json:"excludedFluxResourceSetInputProviders,omitempty"`
+	ExcludedFluxResourceSets              []ExcludedFluxResourceSet              `json:"excludedFluxResourceSets,omitempty"`
+	ExcludedFluxImageRepositories         []ExcludedFluxImageRepository          `json:"excludedFluxImageRepositories,omitempty"`
+	ExcludedFluxImagePolicies             []ExcludedFluxImagePolicy              `json:"excludedFluxImagePolicies,omitempty"`
+	ExcludedFluxImageUpdateAutomations    []ExcludedFluxImageUpdateAutomation    `json:"excludedFluxImageUpdateAutomations,omitempty"`
+
+	// Flagger Exclusions
+	ExcludedFlaggerCanaries        []ExcludedFlaggerCanary         `json:"excludedFlaggerCanaries,omitempty"`
+	ExcludedFlaggerMetricTemplates []ExcludedFlaggerMetricTemplate `json:"excludedFlaggerMetricTemplates,omitempty"`
+	ExcludedFlaggerAlertProviders  []ExcludedFlaggerAlertProvider  `json:"excludedFlaggerAlertProviders,omitempty"`
 }
 
 // Common exclusion patterns
@@ -434,6 +468,150 @@ type ExcludedCNPGCluster struct {
 	Name string `json:"name"`
 }
 
+// ExcludedArgoCDApplication identifies an Argo CD Application to exclude from collection
+type ExcludedArgoCDApplication struct {
+	// Namespace is the Argo CD Application's namespace
+	Namespace string `json:"namespace"`
+
+	// Name is the Argo CD Application's name
+	Name string `json:"name"`
+}
+
+// ExcludedArgoCDApplicationSet identifies an Argo CD ApplicationSet to exclude from collection
+type ExcludedArgoCDApplicationSet struct {
+	// Namespace is the Argo CD ApplicationSet's namespace
+	Namespace string `json:"namespace"`
+
+	// Name is the Argo CD ApplicationSet's name
+	Name string `json:"name"`
+}
+
+// ExcludedFluxGitRepository identifies a FluxCD GitRepository to exclude from collection
+type ExcludedFluxGitRepository struct {
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
+}
+
+// ExcludedFluxOCIRepository identifies a FluxCD OCIRepository to exclude from collection
+type ExcludedFluxOCIRepository struct {
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
+}
+
+// ExcludedFluxHelmRepository identifies a FluxCD HelmRepository to exclude from collection
+type ExcludedFluxHelmRepository struct {
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
+}
+
+// ExcludedFluxHelmChart identifies a FluxCD HelmChart to exclude from collection
+type ExcludedFluxHelmChart struct {
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
+}
+
+// ExcludedFluxBucket identifies a FluxCD Bucket to exclude from collection
+type ExcludedFluxBucket struct {
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
+}
+
+// ExcludedFluxKustomization identifies a FluxCD Kustomization to exclude from collection
+type ExcludedFluxKustomization struct {
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
+}
+
+// ExcludedFluxHelmRelease identifies a FluxCD HelmRelease to exclude from collection
+type ExcludedFluxHelmRelease struct {
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
+}
+
+// ExcludedFluxExternalArtifact identifies a FluxCD ExternalArtifact to exclude from collection
+type ExcludedFluxExternalArtifact struct {
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
+}
+
+// ExcludedFluxAlert identifies a FluxCD Alert to exclude from collection
+type ExcludedFluxAlert struct {
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
+}
+
+// ExcludedFluxProvider identifies a FluxCD Provider to exclude from collection
+type ExcludedFluxProvider struct {
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
+}
+
+// ExcludedFluxReceiver identifies a FluxCD Receiver to exclude from collection
+type ExcludedFluxReceiver struct {
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
+}
+
+// ExcludedFluxInstance identifies a Flux Operator FluxInstance to exclude from collection
+type ExcludedFluxInstance struct {
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
+}
+
+// ExcludedFluxReport identifies a Flux Operator FluxReport to exclude from collection
+type ExcludedFluxReport struct {
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
+}
+
+// ExcludedFluxResourceSetInputProvider identifies a Flux Operator ResourceSetInputProvider to exclude from collection
+type ExcludedFluxResourceSetInputProvider struct {
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
+}
+
+// ExcludedFluxResourceSet identifies a Flux Operator ResourceSet to exclude from collection
+type ExcludedFluxResourceSet struct {
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
+}
+
+// ExcludedFluxImageRepository identifies a FluxCD ImageRepository to exclude from collection
+type ExcludedFluxImageRepository struct {
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
+}
+
+// ExcludedFluxImagePolicy identifies a FluxCD ImagePolicy to exclude from collection
+type ExcludedFluxImagePolicy struct {
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
+}
+
+// ExcludedFluxImageUpdateAutomation identifies a FluxCD ImageUpdateAutomation to exclude from collection
+type ExcludedFluxImageUpdateAutomation struct {
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
+}
+
+// ExcludedFlaggerCanary identifies a Flagger Canary to exclude from collection
+type ExcludedFlaggerCanary struct {
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
+}
+
+// ExcludedFlaggerMetricTemplate identifies a Flagger MetricTemplate to exclude from collection
+type ExcludedFlaggerMetricTemplate struct {
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
+}
+
+// ExcludedFlaggerAlertProvider identifies a Flagger AlertProvider to exclude from collection
+type ExcludedFlaggerAlertProvider struct {
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
+}
+
 // Policies defines collection behavior
 type Policies struct {
 	// KubeContextName is the name of the current context being used to apply the installation yaml
@@ -504,15 +682,33 @@ type Policies struct {
 	// +optional
 	KubeletFallbackTimeout string `json:"kubeletFallbackTimeout,omitempty"`
 
+	// SchedulerMetricsScrapeInterval bounds how often the SchedulerMetrics
+	// collector scrapes dz-scheduler's /metrics endpoint (defaults to 60s --
+	// see collector.DefaultSchedulerMetricsScrapeInterval's doc comment for
+	// why). A Go duration string (e.g. "60s", "30s").
+	// +optional
+	SchedulerMetricsScrapeInterval string `json:"schedulerMetricsScrapeInterval,omitempty"`
+
+	// KEDAMetricsEndpoint is the full URL of the KEDA operator /metrics endpoint
+	// that the KedaScalerMetrics collector scrapes. Defaults to
+	// collector.DefaultKedaMetricsEndpoint (KEDA in the devzero-system namespace).
+	// Override only when KEDA runs in a different namespace or on a different port.
+	// +optional
+	KEDAMetricsEndpoint string `json:"kedaMetricsEndpoint,omitempty"`
+
 	// ClusterSnapshotInterval is how often to take cluster snapshots (defaults to 3h)
 	ClusterSnapshotInterval string `json:"clusterSnapshotInterval,omitempty"`
 
 	// WatchedCRDs is a list of custom resource definitions to explicitly watch
 	WatchedCRDs []string `json:"watchedCRDs,omitempty"`
 
-	// DisabledCollectors is a list of collector types to completely disable
-	// Valid values include: "pod", "deployment", "statefulset", "daemonset", "service",
-	// "configmap", "secret", "node", "event", etc.
+	// DisabledCollectors is a list of collector types to completely disable, by their
+	// canonical names, e.g. "pod", "deployment", "stateful_set", "daemon_set", "service",
+	// "node", "event", "persistent_volume", "persistent_volume_claim",
+	// "custom_resource_definition", "keda_scaled_job", "keda_scaled_object".
+	// The legacy spellings "statefulset", "daemonset", "persistentvolume",
+	// "persistentvolumeclaim", "crd", "scaledjob" and "scaledobject" are still accepted
+	// and mean the same collectors.
 	DisabledCollectors []string `json:"disabledCollectors,omitempty"`
 
 	// MigPartedConfigMapName is the name of the NVIDIA mig-parted ConfigMap to

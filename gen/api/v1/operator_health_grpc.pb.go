@@ -19,8 +19,7 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	OperatorHealthService_ReportHealth_FullMethodName          = "/api.v1.OperatorHealthService/ReportHealth"
-	OperatorHealthService_ReportConnectorHealth_FullMethodName = "/api.v1.OperatorHealthService/ReportConnectorHealth"
+	OperatorHealthService_ReportHealth_FullMethodName = "/api.v1.OperatorHealthService/ReportHealth"
 )
 
 // OperatorHealthServiceClient is the client API for OperatorHealthService service.
@@ -28,7 +27,6 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type OperatorHealthServiceClient interface {
 	ReportHealth(ctx context.Context, in *ReportHealthRequest, opts ...grpc.CallOption) (*ReportHealthResponse, error)
-	ReportConnectorHealth(ctx context.Context, in *ReportConnectorHealthRequest, opts ...grpc.CallOption) (*ReportConnectorHealthResponse, error)
 }
 
 type operatorHealthServiceClient struct {
@@ -48,21 +46,11 @@ func (c *operatorHealthServiceClient) ReportHealth(ctx context.Context, in *Repo
 	return out, nil
 }
 
-func (c *operatorHealthServiceClient) ReportConnectorHealth(ctx context.Context, in *ReportConnectorHealthRequest, opts ...grpc.CallOption) (*ReportConnectorHealthResponse, error) {
-	out := new(ReportConnectorHealthResponse)
-	err := c.cc.Invoke(ctx, OperatorHealthService_ReportConnectorHealth_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // OperatorHealthServiceServer is the server API for OperatorHealthService service.
 // All implementations must embed UnimplementedOperatorHealthServiceServer
 // for forward compatibility
 type OperatorHealthServiceServer interface {
 	ReportHealth(context.Context, *ReportHealthRequest) (*ReportHealthResponse, error)
-	ReportConnectorHealth(context.Context, *ReportConnectorHealthRequest) (*ReportConnectorHealthResponse, error)
 	mustEmbedUnimplementedOperatorHealthServiceServer()
 }
 
@@ -72,9 +60,6 @@ type UnimplementedOperatorHealthServiceServer struct {
 
 func (UnimplementedOperatorHealthServiceServer) ReportHealth(context.Context, *ReportHealthRequest) (*ReportHealthResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ReportHealth not implemented")
-}
-func (UnimplementedOperatorHealthServiceServer) ReportConnectorHealth(context.Context, *ReportConnectorHealthRequest) (*ReportConnectorHealthResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ReportConnectorHealth not implemented")
 }
 func (UnimplementedOperatorHealthServiceServer) mustEmbedUnimplementedOperatorHealthServiceServer() {}
 
@@ -107,24 +92,6 @@ func _OperatorHealthService_ReportHealth_Handler(srv interface{}, ctx context.Co
 	return interceptor(ctx, in, info, handler)
 }
 
-func _OperatorHealthService_ReportConnectorHealth_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ReportConnectorHealthRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(OperatorHealthServiceServer).ReportConnectorHealth(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: OperatorHealthService_ReportConnectorHealth_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(OperatorHealthServiceServer).ReportConnectorHealth(ctx, req.(*ReportConnectorHealthRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 // OperatorHealthService_ServiceDesc is the grpc.ServiceDesc for OperatorHealthService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -135,10 +102,6 @@ var OperatorHealthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ReportHealth",
 			Handler:    _OperatorHealthService_ReportHealth_Handler,
-		},
-		{
-			MethodName: "ReportConnectorHealth",
-			Handler:    _OperatorHealthService_ReportConnectorHealth_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

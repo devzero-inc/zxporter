@@ -1,0 +1,19 @@
+# Binds metrics-reader (nonResourceURLs: ["/metrics"], verb: get) to the
+# controller's own ServiceAccount so the SchedulerMetrics collector can scrape
+# dz-scheduler's /metrics endpoint. dz-scheduler runs kube-scheduler with
+# delegated authorization to the API server (SubjectAccessReview), and
+# "/metrics" is not in kube-scheduler's default AlwaysAllowPaths -- unlike
+# /healthz and /livez, an authenticated caller still needs an explicit RBAC
+# grant for this nonResourceURL, or every scrape 403s.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: metrics-reader-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: metrics-reader
+subjects:
+- kind: ServiceAccount
+  name: controller-manager
+  namespace: system

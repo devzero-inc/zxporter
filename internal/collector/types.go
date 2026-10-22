@@ -16,6 +16,14 @@ func AllResourceTypes() []ResourceType {
 		CNPGCluster,
 		KyvernoPolicy, KyvernoPolicyReport, GatekeeperConstraintTemplate, GatekeeperConstraint,
 		MigPartedConfig,
+		ArgoCDApplication, ArgoCDApplicationSet,
+		FluxGitRepository, FluxOCIRepository, FluxHelmRepository, FluxHelmChart, FluxBucket,
+		FluxKustomization, FluxHelmRelease,
+		FluxExternalArtifact, FluxAlert, FluxProvider, FluxReceiver, FluxInstance, FluxReport,
+		FluxResourceSetInputProvider, FluxResourceSet,
+		FluxImageRepository, FluxImagePolicy, FluxImageUpdateAutomation,
+		FlaggerCanary, FlaggerMetricTemplate, FlaggerAlertProvider,
+		RuntimeClass,
 	}
 }
 
@@ -197,11 +205,162 @@ type ExcludedScheduledSparkApplication struct {
 	Name string `json:"name"`
 }
 
+// ExcludedArgoCDApplication identifies an Argo CD Application to exclude
+type ExcludedArgoCDApplication struct {
+	// Namespace is the Argo CD Application's namespace
+	Namespace string `json:"namespace"`
+
+	// Name is the Argo CD Application's name
+	Name string `json:"name"`
+}
+
+// ExcludedArgoCDApplicationSet identifies an Argo CD ApplicationSet to exclude
+type ExcludedArgoCDApplicationSet struct {
+	// Namespace is the Argo CD ApplicationSet's namespace
+	Namespace string `json:"namespace"`
+
+	// Name is the Argo CD ApplicationSet's name
+	Name string `json:"name"`
+}
+
 // ExcludedCNPGCluster identifies a CloudNativePG cluster to exclude from collection
 type ExcludedCNPGCluster struct {
 	// Namespace is the CNPG cluster's namespace
 	Namespace string `json:"namespace"`
 
 	// Name is the CNPG cluster's name
+	Name string `json:"name"`
+}
+
+// ExcludedFluxGitRepository identifies a FluxCD GitRepository to exclude
+type ExcludedFluxGitRepository struct {
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
+}
+
+// ExcludedFluxOCIRepository identifies a FluxCD OCIRepository to exclude
+type ExcludedFluxOCIRepository struct {
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
+}
+
+// ExcludedFluxHelmRepository identifies a FluxCD HelmRepository to exclude
+type ExcludedFluxHelmRepository struct {
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
+}
+
+// ExcludedFluxHelmChart identifies a FluxCD HelmChart to exclude
+type ExcludedFluxHelmChart struct {
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
+}
+
+// ExcludedFluxBucket identifies a FluxCD Bucket to exclude
+type ExcludedFluxBucket struct {
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
+}
+
+// ExcludedFluxKustomization identifies a FluxCD Kustomization to exclude
+type ExcludedFluxKustomization struct {
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
+}
+
+// ExcludedFluxHelmRelease identifies a FluxCD HelmRelease to exclude
+type ExcludedFluxHelmRelease struct {
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
+}
+
+// ExcludedFluxExternalArtifact identifies a FluxCD ExternalArtifact to exclude
+type ExcludedFluxExternalArtifact struct {
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
+}
+
+// ExcludedFluxAlert identifies a FluxCD Alert to exclude
+type ExcludedFluxAlert struct {
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
+}
+
+// ExcludedFluxProvider identifies a FluxCD Provider to exclude
+type ExcludedFluxProvider struct {
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
+}
+
+// ExcludedFluxReceiver identifies a FluxCD Receiver to exclude
+type ExcludedFluxReceiver struct {
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
+}
+
+// ExcludedFluxInstance identifies a Flux Operator FluxInstance to exclude
+type ExcludedFluxInstance struct {
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
+}
+
+// ExcludedFluxReport identifies a Flux Operator FluxReport to exclude
+type ExcludedFluxReport struct {
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
+}
+
+// ExcludedFluxResourceSetInputProvider identifies a Flux Operator ResourceSetInputProvider to exclude
+type ExcludedFluxResourceSetInputProvider struct {
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
+}
+
+// ExcludedFluxResourceSet identifies a Flux Operator ResourceSet to exclude
+type ExcludedFluxResourceSet struct {
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
+}
+
+// ExcludedFluxImageRepository identifies a FluxCD ImageRepository to exclude
+type ExcludedFluxImageRepository struct {
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
+}
+
+// ExcludedFluxImagePolicy identifies a FluxCD ImagePolicy to exclude
+type ExcludedFluxImagePolicy struct {
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
+}
+
+// ExcludedFluxImageUpdateAutomation identifies a FluxCD ImageUpdateAutomation to exclude
+type ExcludedFluxImageUpdateAutomation struct {
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
+}
+
+// ExcludedFlaggerResource identifies a Flagger object to exclude from
+// collection. One shape serves all three Flagger kinds because one collector
+// does -- see FlaggerResourceCollector. The per-kind aliases below name the
+// kind each CollectionPolicy list belongs to, and give a future kind-specific
+// shape somewhere to land.
+type ExcludedFlaggerResource struct {
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
+}
+
+// ExcludedFlaggerCanary identifies a Flagger Canary to exclude
+type ExcludedFlaggerCanary = ExcludedFlaggerResource
+
+// ExcludedFlaggerMetricTemplate identifies a Flagger MetricTemplate to exclude
+type ExcludedFlaggerMetricTemplate = ExcludedFlaggerResource
+
+// ExcludedFlaggerAlertProvider identifies a Flagger AlertProvider to exclude
+type ExcludedFlaggerAlertProvider = ExcludedFlaggerResource
+
+// ExcludedRuntimeClass identifies a RuntimeClass to exclude from collection.
+// RuntimeClasses are cluster-scoped, so the name alone identifies one.
+type ExcludedRuntimeClass struct {
 	Name string `json:"name"`
 }

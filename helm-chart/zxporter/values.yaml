@@ -1,19 +1,50 @@
+# Labels and annotations added to every object this chart creates, for clusters
+# whose admission policy (OPA Gatekeeper, Kyverno) requires site-specific
+# metadata before it will admit a resource. Without these, such a cluster
+# rejects the chart's objects and the install fails.
+#
+#   commonLabels:
+#     example.com/cost-center: platform
+#     example.com/tier: infra
+#
+# commonLabels/commonAnnotations land on both the object and its pod template --
+# Gatekeeper evaluates constraints against the Pod a workload would create, so
+# metadata on the DaemonSet alone is not enough. podLabels/podAnnotations add
+# pod-only metadata on top.
+#
+# Set these under `global:` to cover subcharts as well (zxporter-nodemon ships as one); a chart-local
+# value applies only to this chart and wins on a collision.
+#
+# Keys this chart owns win over these and are dropped from the values:
+# app.kubernetes.io/*, helm.sh/*, selector labels, and config checksums.
+# Selector labels are never modified, so setting these on an existing release is
+# a safe upgrade.
+commonLabels: {}
+commonAnnotations: {}
+podLabels: {}
+podAnnotations: {}
 # Default values for zxporter.
 #
 # REQUIRED FIELDS:
 # The following fields MUST be configured before deployment:
 # 1. zxporter.clusterToken OR zxporter.patToken (at least one required)
-# 2. zxporter.kubeContextName - unique identifier for your cluster
+# 2. zxporter.kubeContextName - unique identifier for your cluster (or
+#    global.clusterName, which takes precedence when set)
 # 3. global.k8sProvider - one of: aws, gcp, azure, oci, other
 #
 # For production deployments, we recommend using patToken for automatic token exchange.
-
 image:
   repository: public.ecr.aws/devzeroinc/zxporter
   pullPolicy: IfNotPresent
-  tag: "v0.1.6"
+  # -- Image tag. The release sets it to the version being released.
+  # @default -- the released version, v-prefixed
+  tag: "v0.1.25"
+# -- Pull secrets for the controller pod, merged with `global.imagePullSecrets`
+# and deduplicated. Entries are secret names or `{name: ...}` objects.
+imagePullSecrets: []
 # ZXPorter configuration
 zxporter:
+  # global.dakrUrl, when set (the dz-platform umbrella sets it), takes precedence.
   dakrUrl: "https://dakr.devzero.io"
   targetNamespaces: ""
   # Cluster token for authentication with the DevZero platform
@@ -33,7 +64,17 @@ zxporter:
   #   - AKS: "my-aks-cluster"
   #   - OCI: "ocid1.cluster.oc1.iad.aaaaaaaa..."
   #   - Other: "production-cluster" or "staging-cluster"
+  # global.clusterName, when set (the dz-platform umbrella sets it), takes
+  # precedence and satisfies this requirement.
   kubeContextName: ""
+  # Existing DevZero cluster ID to attach this install to. Leave empty: a
+  # re-install finds its cluster by the kube-system namespace UID. Set it only to
+  # pin an install to a specific cluster; an ID that is not a live cluster of
+  # the token's team makes zxporter refuse to start. It is honoured when
+  # zxporter registers, that is when no token is stored (a fresh install, or
+  # after the token Secret was wiped). To move an existing install to another
+  # cluster, delete the devzero-zxporter-token Secret before restarting.
+  clusterId: ""
   # Set to true to store CLUSTER_TOKEN and PAT_TOKEN in Kubernetes Secrets instead of ConfigMap
   # Default is false for backward compatibility
   useSecretForToken: true
@@ -62,6 +103,17 @@ zxporter:
   # API (the metrics fallback for nodes with no nodemon pod) before giving
   # up. Go duration string, e.g. "15s".
   kubeletFallbackTimeout: "15s"
+  # How often the SchedulerMetrics collector scrapes dz-scheduler's /metrics
+  # endpoint. Go duration string, e.g. "60s". Empty uses the collector's
+  # built-in default (60s) -- see DefaultSchedulerMetricsScrapeInterval in
+  # internal/collector/scheduler_metrics_collector.go for the reasoning.
+  schedulerMetricsScrapeInterval: ""
+  # Full URL of the KEDA operator /metrics endpoint scraped by the KedaScalerMetrics
+  # collector. Empty uses the collector's built-in default, which targets KEDA in the
+  # devzero-system namespace (DefaultKedaMetricsEndpoint in
+  # internal/collector/keda_scaler_metrics_collector.go). Override only when KEDA runs
+  # in a different namespace or on a different port.
+  kedaMetricsEndpoint: ""
   # Point to a pre-existing Secret that already holds the auth token(s), instead of
   # passing clusterToken/patToken through this values file. This is intended for
   # GitOps/SOPS workflows where you want to encrypt only the Secret, not the whole
@@ -101,6 +153,18 @@ resources:
 nodeSelector: {}
 tolerations: []
 affinity: {}
+# Topology spread for the controller-manager Deployment. None by default. Needed
+# for clusters whose admission policy requires a zone spread on Deployments
+# (for example a Gatekeeper K8sRequiredTopologySpreadByZone constraint). An
+# entry without labelSelector is scoped to the controller-manager's own pods:
+#
+#   topologySpreadConstraints:
+#     - maxSkew: 1
+#       topologyKey: topology.kubernetes.io/zone
+#       whenUnsatisfiable: ScheduleAnyway
+#
+# The nodemon DaemonSets are unaffected: they already run on every node.
+topologySpreadConstraints: []
 # High Availability Configuration
 highAvailability:
   enabled: true
@@ -142,3 +206,30 @@ priorityClass:
 zxporter-nodemon:
   priorityClass:
     create: false
+# -- A pre-install/pre-upgrade hook that adopts the chart's CRD
+# (collectionpolicies.devzero.io) into this Helm release. Helm installs `crds/`
+# once and never upgrades it, so a CRD change never reaches an existing
+# install. A later release renders the CRD from `templates/` instead, which
+# Helm can only do for a CRD that already carries this release's ownership
+# metadata. The hook adds it: the `app.kubernetes.io/managed-by: Helm` label,
+# the `meta.helm.sh/release-name` and `meta.helm.sh/release-namespace`
+# annotations, and `helm.sh/resource-policy: keep`, so that `helm uninstall`
+# never deletes the CRD or the CollectionPolicies in it. It patches metadata
+# only, may only `get` and `patch` this chart's CRDs, and skips a CRD that is
+# not installed (`--skip-crds`).
+crdAdoption:
+  # -- Run the hook. With it off, an install has to be adopted by hand before
+  # the release that moves the CRDs to `templates/`, or that upgrade fails.
+  enabled: true
+  # -- Image with `kubectl` and `/bin/sh`, pinned by digest: the one the dakr
+  # operator chart uses for its hooks. `global.imageRegistry` replaces its
+  # registry host; the controller's pull secrets apply.
+  image: public.ecr.aws/devzeroinc/kubectl@sha256:caa4d1d17c91ff54e058f2411cb28c9b0d2e2a5be4030cbb013b5c833da4579a
+  # -- Resources for the hook pod.
+  resources:
+    requests:
+      cpu: 10m
+      memory: 16Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi

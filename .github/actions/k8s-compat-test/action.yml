@@ -16,6 +16,10 @@ inputs:
   k8s-version:
     description: "Kubernetes version to spin up the kind cluster on (e.g. v1.35.1)."
     required: true
+  node-image-digest:
+    description: "Optional \"@sha256:...\" suffix pinning the kindest/node image to the build made for the kind release this action runs."
+    required: false
+    default: ""
   deployment-method:
     description: "helm or manifest — how zxporter is deployed into kind."
     required: true
@@ -52,6 +56,12 @@ runs:
 
     - name: Set up Go
       uses: actions/setup-go@v5
+      # setup-go runs `go version` / `go env` from the workspace root. In the
+      # services monorepo that is the root module, whose newer go line would make
+      # GOTOOLCHAIN=auto download that toolchain (unused, and it collides with the
+      # cache restore). local keeps the Go this module's go.mod asks for.
+      env:
+        GOTOOLCHAIN: local
       with:
         go-version-file: ${{ inputs.working-directory }}/go.mod
         cache: true
@@ -67,8 +77,8 @@ runs:
     - name: Create k8s Kind Cluster
       uses: helm/kind-action@v1
       with:
-        version: v0.32.0
-        node_image: kindest/node:${{ inputs.k8s-version }}
+        version: v0.33.0
+        node_image: kindest/node:${{ inputs.k8s-version }}${{ inputs.node-image-digest }}
         cluster_name: kind-${{ inputs.k8s-version }}
         wait: 120s
 
@@ -91,6 +101,21 @@ runs:
           docker pull "$img"
           kind load docker-image "$img" --name "kind-${{ inputs.k8s-version }}"
         done
+
+    # The chart's CRD-adoption hook runs a digest-pinned image from
+    # public.ecr.aws, which answers anonymous pulls from shared runner IPs
+    # with "429 Too Many Requests: Data limit exceeded". Pull it once on the
+    # runner (authenticated if the calling job logged in to public.ecr.aws,
+    # retried otherwise) and import it into the nodes; the hook pulls
+    # IfNotPresent. `kind load docker-image` cannot do this for a multi-arch
+    # image referenced by digest: see the script's header.
+    - name: Preload the chart's CRD-adoption hook image
+      if: ${{ inputs.deployment-method == 'helm' }}
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        image="$(yq eval '.crdAdoption.image' helm-chart/zxporter/values.yaml)"
+        hack/kind-preload-images.sh "kind-${{ inputs.k8s-version }}" "$image"
 
     - name: Deploy testserver to Kubernetes
       shell: bash
