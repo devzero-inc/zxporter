@@ -162,8 +162,8 @@ func (c *CSIDriverCollector) csiDriverChanged(oldDriver, newDriver *storagev1.CS
 		oldDriver.ObjectMeta,
 		newDriver.ObjectMeta,
 	)
-	if changed != IgnoreChanges {
-		return changed == PushChanges
+	if changed == PushChanges {
+		return true
 	}
 
 	// Check for spec changes

@@ -38,14 +38,18 @@ type JVMCollector struct {
 // started concurrently) — JVMCollector only reads from it. procRoot defaults to
 // "/proc".
 func NewJVMCollector(nodeName string, index *PodContainerIndex, log logr.Logger) *JVMCollector {
+	log = log.WithName("jvm-collector")
+	denied := newHsperfDeniedReporter(log)
 	return &JVMCollector{
 		nodeName:  nodeName,
 		index:     index,
 		procRoot:  "/proc",
-		log:       log.WithName("jvm-collector"),
+		log:       log,
 		cachedErr: errMetricsNotYetCollected,
-		discover:  discoverJavaProcesses,
-		build:     buildJVMMetrics,
+		discover: func(procRoot string) ([]JavaProcess, error) {
+			return discoverJavaProcesses(procRoot, denied)
+		},
+		build: buildJVMMetrics,
 	}
 }
 

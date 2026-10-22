@@ -44,13 +44,11 @@ jobs:
           if [[ ! "$VERSION" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
             echo "::error::version '$VERSION' must match vX.Y.Z"; exit 1
           fi
+          # The image's version interface (KUB-151 S7). The Dockerfile splits
+          # VERSION into the major/minor/patch the binary reports.
           {
-            echo "MAJOR=${BASH_REMATCH[1]}"
-            echo "MINOR=${BASH_REMATCH[2]}"
-            echo "PATCH=${BASH_REMATCH[3]}"
-            echo "GITVERSION=${VERSION}"
-            echo "COMMIT_HASH=$(git rev-parse --short HEAD)"
-            echo "GIT_TREE_STATE=clean"
+            echo "VERSION=${VERSION}"
+            echo "COMMIT=$(git rev-parse --short HEAD)"
             echo "BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
           } >> "$GITHUB_ENV"
 
@@ -82,11 +80,7 @@ jobs:
             -t public.ecr.aws/devzeroinc/zxporter:${{ inputs.version }} \
             --build-arg TARGETOS \
             --build-arg TARGETARCH \
-            --build-arg MAJOR="$MAJOR" \
-            --build-arg MINOR="$MINOR" \
-            --build-arg PATCH="$PATCH" \
-            --build-arg GITVERSION="$GITVERSION" \
-            --build-arg COMMIT_HASH="$COMMIT_HASH" \
-            --build-arg GIT_TREE_STATE="$GIT_TREE_STATE" \
+            --build-arg VERSION="$VERSION" \
+            --build-arg COMMIT="$COMMIT" \
             --build-arg BUILD_DATE="$BUILD_DATE" \
             .
