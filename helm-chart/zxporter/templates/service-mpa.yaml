@@ -1,6 +1,10 @@
 apiVersion: v1
 kind: Service
 metadata:
+  {{- with (include "zxporter.commonAnnotations" $) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
   name: devzero-zxporter-controller-manager-mpa
   namespace: {{ .Release.Namespace }}
   labels:

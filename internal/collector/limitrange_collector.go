@@ -167,8 +167,8 @@ func (c *LimitRangeCollector) limitRangeChanged(oldLR, newLR *corev1.LimitRange)
 		oldLR.ObjectMeta,
 		newLR.ObjectMeta,
 	)
-	if changed != IgnoreChanges {
-		return changed == PushChanges
+	if changed == PushChanges {
+		return true
 	}
 
 	// Check for limit changes

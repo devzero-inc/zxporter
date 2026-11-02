@@ -200,7 +200,7 @@ func (c *CRDCollector) GetResourceChannel() <-chan []CollectedResource {
 }
 
 func (c *CRDCollector) GetType() string {
-	return "crd"
+	return CustomResourceDefinition.String()
 }
 
 func (c *CRDCollector) IsAvailable(ctx context.Context) bool {

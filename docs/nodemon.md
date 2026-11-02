@@ -15,6 +15,9 @@ The Nodemon scrapes metrics from NVIDIA DCGM (Data Center GPU Manager) exporters
 
 ## Quick Start
 
+From a source checkout, run `make helm-deps` first: the chart vendors the
+shared `devzero-common` library into its uncommitted `charts/` directory.
+
 ### Deploy with Embedded DCGM Exporter (Recommended)
 
 ```bash

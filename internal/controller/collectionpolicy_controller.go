@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"slices"
 	"strconv"
 	"sync"
 	"time"
@@ -146,6 +147,12 @@ type PolicyConfig struct {
 	ExcludedSparkApplications          []collector.ExcludedSparkApplication
 	ExcludedScheduledSparkApplications []collector.ExcludedScheduledSparkApplication
 	ExcludedCNPGClusters               []collector.ExcludedCNPGCluster
+	ExcludedArgoCDApplications         []collector.ExcludedArgoCDApplication
+	ExcludedArgoCDApplicationSets      []collector.ExcludedArgoCDApplicationSet
+	ExcludedFlaggerCanaries            []collector.ExcludedFlaggerCanary
+	ExcludedFlaggerMetricTemplates     []collector.ExcludedFlaggerMetricTemplate
+	ExcludedFlaggerAlertProviders      []collector.ExcludedFlaggerAlertProvider
+	ExcludedRuntimeClasses             []string
 
 	DisabledCollectors []string
 
@@ -167,6 +174,17 @@ type PolicyConfig struct {
 	NodeMetricsConcurrency  int
 	NodemonRequestTimeout   time.Duration
 	KubeletFallbackTimeout  time.Duration
+
+	// SchedulerMetricsScrapeInterval bounds how often the SchedulerMetrics
+	// collector scrapes dz-scheduler's /metrics endpoint. See
+	// collector.DefaultSchedulerMetricsScrapeInterval's doc comment for the
+	// default's reasoning.
+	SchedulerMetricsScrapeInterval time.Duration
+
+	// KEDAMetricsEndpoint is the full URL of the KEDA operator /metrics endpoint
+	// scraped by the KedaScalerMetrics collector. Empty means the collector
+	// applies collector.DefaultKedaMetricsEndpoint (KEDA in devzero-system).
+	KEDAMetricsEndpoint string
 }
 
 // ========================================
@@ -218,6 +236,16 @@ type PolicyConfig struct {
 // nodes/proxy: kubelet Summary API fallback (/stats/summary) for nodes without a nodemon pod
 // +kubebuilder:rbac:groups="",resources=nodes/proxy,verbs=get
 
+// SchedulerMetricsCollector (issue #10055): reads the dz-scheduler Lease's holderIdentity
+// to scrape the current leader pod directly instead of the Service VIP, which could
+// otherwise get stuck scraping a standby replica that reports all-zero placement metrics.
+// Restricted to the one named Lease dz-scheduler ships -- this collector never needs any
+// other Lease in the cluster. zxporter's own leader-election Role (config/rbac/leader_election_role.yaml)
+// does NOT cover this: that Role is namespaced to wherever zxporter itself is deployed,
+// which is not always devzero-system (dz-scheduler's namespace) -- see
+// docs/prometheus-migration-guide.md's devzero-zxporter examples.
+// +kubebuilder:rbac:groups=coordination.k8s.io,resources=leases,resourceNames=dz-scheduler,verbs=get
+
 // Core Kubernetes resources (READ-ONLY monitoring and collection)
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=pods/status,verbs=get
@@ -266,6 +294,7 @@ type PolicyConfig struct {
 // +kubebuilder:rbac:groups=storage.k8s.io,resources=csidrivers,verbs=get;list;watch
 // +kubebuilder:rbac:groups=storage.k8s.io,resources=csistoragecapacities,verbs=get;list;watch
 // +kubebuilder:rbac:groups=storage.k8s.io,resources=volumeattachments,verbs=get;list;watch
+// +kubebuilder:rbac:groups=node.k8s.io,resources=runtimeclasses,verbs=get;list;watch
 
 // ========================================
 // OPTIONAL THIRD-PARTY RESOURCES
@@ -287,6 +316,9 @@ type PolicyConfig struct {
 // Optional third-party monitoring integrations
 // +kubebuilder:rbac:groups=datadoghq.com,resources=extendeddaemonsetreplicasets,verbs=get;list;watch
 // +kubebuilder:rbac:groups=argoproj.io,resources=rollouts,verbs=get;list;watch
+// applications and applicationsets are Argo CD, a different project from the
+// Argo Rollouts rollouts above that happens to share the argoproj.io group.
+// +kubebuilder:rbac:groups=argoproj.io,resources=applications;applicationsets,verbs=get;list;watch
 // +kubebuilder:rbac:groups=keda.sh,resources=scaledobjects;scaledjobs;triggerauthentications;clustertriggerauthentications,verbs=get;list;watch
 // +kubebuilder:rbac:groups=kubeflow.org,resources=notebooks,verbs=get;list;watch
 // +kubebuilder:rbac:groups=batch.volcano.sh,resources=jobs,verbs=get;list;watch
@@ -308,6 +340,19 @@ type PolicyConfig struct {
 // +kubebuilder:rbac:groups=templates.gatekeeper.sh,resources=constrainttemplates,verbs=get;list;watch
 // +kubebuilder:rbac:groups=constraints.gatekeeper.sh,resources=*,verbs=get;list;watch
 // +kubebuilder:rbac:groups=status.gatekeeper.sh,resources=*,verbs=get;list;watch
+
+// FluxCD GitOps sources, reconcilers and notification kinds (optional - only
+// if Flux installed). image.toolkit.fluxcd.io is the image-reflector/
+// image-automation controllers, an optional add-on even on Flux clusters.
+// +kubebuilder:rbac:groups=source.toolkit.fluxcd.io,resources=gitrepositories;ocirepositories;helmrepositories;helmcharts;buckets;externalartifacts,verbs=get;list;watch
+// +kubebuilder:rbac:groups=kustomize.toolkit.fluxcd.io,resources=kustomizations,verbs=get;list;watch
+// +kubebuilder:rbac:groups=helm.toolkit.fluxcd.io,resources=helmreleases,verbs=get;list;watch
+// +kubebuilder:rbac:groups=notification.toolkit.fluxcd.io,resources=alerts;providers;receivers,verbs=get;list;watch
+// +kubebuilder:rbac:groups=fluxcd.controlplane.io,resources=fluxinstances;fluxreports;resourcesetinputproviders;resourcesets,verbs=get;list;watch
+// +kubebuilder:rbac:groups=image.toolkit.fluxcd.io,resources=imagerepositories;imagepolicies;imageupdateautomations,verbs=get;list;watch
+
+// Flagger progressive-delivery kinds (optional - only if Flagger installed).
+// +kubebuilder:rbac:groups=flagger.app,resources=canaries;metrictemplates;alertproviders,verbs=get;list;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -369,8 +414,12 @@ func (r *CollectionPolicyReconciler) Reconcile(
 	return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
 }
 
-// retryPendingCollectors checks if previously unavailable collectors (e.g., CRDs installed
-// after zxporter startup) have become available and registers/starts them.
+// retryPendingCollectors registers and starts collectors that could not run earlier:
+// CRD-based collectors whose CRD was absent at startup (e.g. KEDA installed after
+// zxporter), and collectors whose Start failed on a restart or re-enable path (see
+// requeueFailedStart). An entry stays pending until its collector is running, so one
+// failed Start is retried on the next reconcile rather than disabling the collector
+// until the pod restarts.
 func (r *CollectionPolicyReconciler) retryPendingCollectors(ctx context.Context) {
 	r.pendingMu.Lock()
 	defer r.pendingMu.Unlock()
@@ -383,27 +432,136 @@ func (r *CollectionPolicyReconciler) retryPendingCollectors(ctx context.Context)
 	var stillPending []pendingCollector
 
 	for _, pc := range r.pendingCollectors {
-		newCollector := pc.factory()
-		if newCollector.IsAvailable(ctx) {
-			logger.Info("Previously unavailable collector is now available, registering",
-				"type", pc.name.String())
-			if err := r.CollectionManager.RegisterCollector(newCollector); err != nil {
-				logger.Error(err, "Failed to register collector", "type", pc.name.String())
-				stillPending = append(stillPending, pc)
-				continue
-			}
-			if err := r.CollectionManager.StartCollector(ctx, pc.name.String()); err != nil {
-				logger.Error(err, "Failed to start collector", "type", pc.name.String())
-				continue
-			}
-			logger.Info("Successfully started previously unavailable collector",
-				"type", pc.name.String())
-		} else {
-			stillPending = append(stillPending, pc)
+		if r.CurrentConfig != nil && slices.Contains(r.CurrentConfig.DisabledCollectors, pc.name.String()) {
+			logger.Info("Pending collector has since been disabled, dropping it", "type", pc.name.String())
+			continue
 		}
+		newCollector := pc.factory()
+		if newCollector == nil {
+			logger.Info("No collector can be built for pending type, dropping it", "type", pc.name.String())
+			continue
+		}
+		if !newCollector.IsAvailable(ctx) {
+			stillPending = append(stillPending, pc)
+			continue
+		}
+
+		// RegisterCollector keys the collector by its GetType(), so every lookup below
+		// uses that same key. Starting by pc.name used to fail as "not registered" for any
+		// collector whose GetType() differed from its ResourceType name (the KEDA
+		// ScaledJob/ScaledObject collectors did), and that failure path leaked the
+		// manager mutex. TestResourceCollectorSpecs_TypeMatchesName pins the two equal.
+		key := newCollector.GetType()
+		if r.CollectionManager.IsCollectorRunning(key) {
+			logger.Info("Pending collector is already running, dropping it", "type", key)
+			continue
+		}
+		if r.CollectionManager.GetCollector(key) != nil {
+			// A registered instance that is not running is one whose Start failed. It
+			// would refuse this fresh instance as "already registered"; replace it.
+			_ = r.CollectionManager.DeregisterCollector(key)
+		}
+
+		logger.Info("Previously unavailable collector is now available, registering", "type", key)
+		if err := r.CollectionManager.RegisterCollector(newCollector); err != nil {
+			logger.Error(err, "Failed to register collector", "type", key)
+			stillPending = append(stillPending, pc)
+			continue
+		}
+		if err := r.CollectionManager.StartCollector(ctx, key); err != nil {
+			logger.Error(err, "Failed to start collector, will retry", "type", key)
+			// Deregister the failed instance so the next attempt can register a fresh
+			// one, and keep the entry: dropping it made one transient failure permanent.
+			_ = r.CollectionManager.DeregisterCollector(key)
+			stillPending = append(stillPending, pc)
+			continue
+		}
+		r.rewireCollector(key)
+		logger.Info("Successfully started previously unavailable collector", "type", key)
 	}
 
 	r.pendingCollectors = stillPending
+}
+
+// requeueFailedStart handles a collector that registered but failed to Start on the
+// restart or re-enable path: it deregisters the failed instance (which would otherwise
+// refuse any replacement as "already registered") and queues the type for
+// retryPendingCollectors, which rebuilds it from the configuration current at retry time.
+func (r *CollectionPolicyReconciler) requeueFailedStart(
+	logger logr.Logger,
+	registeredKey string,
+	collectorType string,
+	metricsClient *metricsv1.Clientset,
+) {
+	_ = r.CollectionManager.DeregisterCollector(registeredKey)
+
+	var resourceType collector.ResourceType
+	found := false
+	for _, rt := range collector.AllResourceTypes() {
+		if rt.String() == collectorType {
+			resourceType, found = rt, true
+			break
+		}
+	}
+	if !found {
+		logger.Info("No resource type for failed collector, it will not be retried", "type", collectorType)
+		return
+	}
+
+	r.pendingMu.Lock()
+	defer r.pendingMu.Unlock()
+	for _, pc := range r.pendingCollectors {
+		if pc.name == resourceType {
+			return
+		}
+	}
+	r.pendingCollectors = append(r.pendingCollectors, pendingCollector{
+		name: resourceType,
+		factory: func() collector.ResourceCollector {
+			return r.buildCollectorFromSpecs(logger, resourceType, metricsClient)
+		},
+	})
+	logger.Info("Queued collector for retry after a failed start", "type", collectorType)
+}
+
+// buildCollectorFromSpecs builds a fresh collector of the given type from the current
+// configuration, or returns nil when registerResourceCollectors does not manage that type.
+func (r *CollectionPolicyReconciler) buildCollectorFromSpecs(
+	logger logr.Logger,
+	resourceType collector.ResourceType,
+	metricsClient *metricsv1.Clientset,
+) collector.ResourceCollector {
+	config := r.CurrentConfig
+	if config == nil {
+		config = &PolicyConfig{}
+	}
+	for _, spec := range r.resourceCollectorSpecs(logger, config, metricsClient) {
+		if spec.name != resourceType {
+			continue
+		}
+		if spec.factory != nil {
+			return spec.factory()
+		}
+		return spec.collector
+	}
+	return nil
+}
+
+// rewireCollector restores the cross-collector wiring a freshly started collector of this
+// type needs. A replacement is a new object and has lost whatever was set on the old one.
+func (r *CollectionPolicyReconciler) rewireCollector(collectorType string) {
+	switch collectorType {
+	case collector.Pod.String():
+		r.wireMpaPublisherIntoPodCollector()
+		r.wireOOMReconcilerIntoPodCollector()
+	case collector.Event.String():
+		// The PDB / node / Karpenter collectors need no equivalent handling: the
+		// EventCollector resolves those through the CollectionManager on every event, so
+		// replacing one of them is picked up without re-wiring.
+		r.wireDisruptionSourcesIntoEventCollector()
+	case collector.Node.String():
+		r.wireNodeClaimSourceIntoNodeCollector()
+	}
 }
 
 // createNewConfig creates a new config by merging policy and environment variables
@@ -427,7 +585,7 @@ func (r *CollectionPolicyReconciler) createNewConfig(
 		ClusterToken:       envSpec.Policies.ClusterToken,
 		DisableGPUMetrics:  envSpec.Policies.DisableGPUMetrics,
 		MaskSecretData:     envSpec.Policies.MaskSecretData,
-		DisabledCollectors: envSpec.Policies.DisabledCollectors,
+		DisabledCollectors: collector.CanonicalCollectorTypes(envSpec.Policies.DisabledCollectors),
 		BufferSize:         envSpec.Policies.BufferSize,
 
 		MigPartedConfigMapName:      envSpec.Policies.MigPartedConfigMapName,
@@ -512,6 +670,25 @@ func (r *CollectionPolicyReconciler) createNewConfig(
 	} else {
 		newConfig.KubeletFallbackTimeout = 15 * time.Second // Default
 	}
+
+	// Bound how often the SchedulerMetrics collector scrapes dz-scheduler's
+	// /metrics endpoint.
+	schedulerMetricsScrapeIntervalStr := envSpec.Policies.SchedulerMetricsScrapeInterval
+	if schedulerMetricsScrapeIntervalStr != "" {
+		if interval, err := time.ParseDuration(schedulerMetricsScrapeIntervalStr); err == nil && interval > 0 {
+			newConfig.SchedulerMetricsScrapeInterval = interval
+		} else {
+			logger.Error(err, "Error parsing scheduler metrics scrape interval", "interval", schedulerMetricsScrapeIntervalStr)
+			newConfig.SchedulerMetricsScrapeInterval = collector.DefaultSchedulerMetricsScrapeInterval
+		}
+	} else {
+		newConfig.SchedulerMetricsScrapeInterval = collector.DefaultSchedulerMetricsScrapeInterval
+	}
+
+	// KEDA operator /metrics endpoint for the KedaScalerMetrics collector.
+	// Passed through verbatim; empty lets the collector apply its default
+	// (collector.DefaultKedaMetricsEndpoint, KEDA in devzero-system).
+	newConfig.KEDAMetricsEndpoint = envSpec.Policies.KEDAMetricsEndpoint
 
 	// Set cluster snapshot interval (defaults to 3h for reduced network usage)
 	clusterSnapshotIntervalStr := envSpec.Policies.ClusterSnapshotInterval
@@ -828,6 +1005,61 @@ func (r *CollectionPolicyReconciler) createNewConfig(
 		})
 	}
 
+	// Argo CD Applications
+	for _, app := range envSpec.Exclusions.ExcludedArgoCDApplications {
+		newConfig.ExcludedArgoCDApplications = append(
+			newConfig.ExcludedArgoCDApplications,
+			collector.ExcludedArgoCDApplication{
+				Namespace: app.Namespace,
+				Name:      app.Name,
+			},
+		)
+	}
+
+	// Argo CD ApplicationSets
+	for _, appSet := range envSpec.Exclusions.ExcludedArgoCDApplicationSets {
+		newConfig.ExcludedArgoCDApplicationSets = append(
+			newConfig.ExcludedArgoCDApplicationSets,
+			collector.ExcludedArgoCDApplicationSet{
+				Namespace: appSet.Namespace,
+				Name:      appSet.Name,
+			},
+		)
+	}
+
+	// Flagger Canaries
+	for _, canary := range envSpec.Exclusions.ExcludedFlaggerCanaries {
+		newConfig.ExcludedFlaggerCanaries = append(
+			newConfig.ExcludedFlaggerCanaries,
+			collector.ExcludedFlaggerCanary{
+				Namespace: canary.Namespace,
+				Name:      canary.Name,
+			},
+		)
+	}
+
+	// Flagger MetricTemplates
+	for _, template := range envSpec.Exclusions.ExcludedFlaggerMetricTemplates {
+		newConfig.ExcludedFlaggerMetricTemplates = append(
+			newConfig.ExcludedFlaggerMetricTemplates,
+			collector.ExcludedFlaggerMetricTemplate{
+				Namespace: template.Namespace,
+				Name:      template.Name,
+			},
+		)
+	}
+
+	// Flagger AlertProviders
+	for _, provider := range envSpec.Exclusions.ExcludedFlaggerAlertProviders {
+		newConfig.ExcludedFlaggerAlertProviders = append(
+			newConfig.ExcludedFlaggerAlertProviders,
+			collector.ExcludedFlaggerAlertProvider{
+				Namespace: provider.Namespace,
+				Name:      provider.Name,
+			},
+		)
+	}
+
 	// Events - these are special with more fields
 	for _, event := range envSpec.Exclusions.ExcludedEvents {
 		newConfig.ExcludedEvents = append(newConfig.ExcludedEvents, collector.ExcludedEvent{
@@ -835,6 +1067,9 @@ func (r *CollectionPolicyReconciler) createNewConfig(
 			Name:      event.Name,
 		})
 	}
+
+	// RuntimeClasses - cluster-scoped, names only
+	newConfig.ExcludedRuntimeClasses = envSpec.Exclusions.ExcludedRuntimeClasses
 
 	// Watched CRDs
 	newConfig.WatchedCRDs = envSpec.Policies.WatchedCRDs
@@ -1004,6 +1239,14 @@ func (r *CollectionPolicyReconciler) identifyAffectedCollectors(
 		affectedCollectors["cluster_snapshot"] = true
 	}
 
+	if oldConfig.SchedulerMetricsScrapeInterval != newConfig.SchedulerMetricsScrapeInterval {
+		affectedCollectors["scheduler_placement_metric"] = true
+	}
+
+	if oldConfig.KEDAMetricsEndpoint != newConfig.KEDAMetricsEndpoint {
+		affectedCollectors[collector.KedaScalerMetrics.String()] = true
+	}
+
 	if !reflect.DeepEqual(oldConfig.ExcludedCSINodes, newConfig.ExcludedCSINodes) {
 		affectedCollectors["csi_node"] = true
 	}
@@ -1037,6 +1280,10 @@ func (r *CollectionPolicyReconciler) identifyAffectedCollectors(
 		affectedCollectors["volume_attachment"] = true
 	}
 
+	if !reflect.DeepEqual(oldConfig.ExcludedRuntimeClasses, newConfig.ExcludedRuntimeClasses) {
+		affectedCollectors["runtime_class"] = true
+	}
+
 	if !reflect.DeepEqual(
 		oldConfig.ExcludedKubeflowNotebooks,
 		newConfig.ExcludedKubeflowNotebooks,
@@ -1064,6 +1311,38 @@ func (r *CollectionPolicyReconciler) identifyAffectedCollectors(
 
 	if !reflect.DeepEqual(oldConfig.ExcludedCNPGClusters, newConfig.ExcludedCNPGClusters) {
 		affectedCollectors["cnpg_cluster"] = true
+	}
+
+	if !reflect.DeepEqual(
+		oldConfig.ExcludedArgoCDApplications,
+		newConfig.ExcludedArgoCDApplications,
+	) {
+		affectedCollectors[collector.ArgoCDApplication.String()] = true
+	}
+
+	if !reflect.DeepEqual(
+		oldConfig.ExcludedArgoCDApplicationSets,
+		newConfig.ExcludedArgoCDApplicationSets,
+	) {
+		affectedCollectors[collector.ArgoCDApplicationSet.String()] = true
+	}
+
+	if !reflect.DeepEqual(oldConfig.ExcludedFlaggerCanaries, newConfig.ExcludedFlaggerCanaries) {
+		affectedCollectors[collector.FlaggerCanary.String()] = true
+	}
+
+	if !reflect.DeepEqual(
+		oldConfig.ExcludedFlaggerMetricTemplates,
+		newConfig.ExcludedFlaggerMetricTemplates,
+	) {
+		affectedCollectors[collector.FlaggerMetricTemplate.String()] = true
+	}
+
+	if !reflect.DeepEqual(
+		oldConfig.ExcludedFlaggerAlertProviders,
+		newConfig.ExcludedFlaggerAlertProviders,
+	) {
+		affectedCollectors[collector.FlaggerAlertProvider.String()] = true
 	}
 
 	// Check if the special node collectors are affected by the update interval change
@@ -1792,6 +2071,15 @@ func (r *CollectionPolicyReconciler) restartCollectors(
 				logger,
 				r.TelemetryLogger,
 			)
+		case "runtime_class":
+			replacedCollector = collector.NewRuntimeClassCollector(
+				r.K8sClient,
+				newConfig.ExcludedRuntimeClasses,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+				r.TelemetryLogger,
+			)
 		case "kubeflow_notebook":
 			replacedCollector = collector.NewKubeflowNotebookCollector(
 				r.DynamicClient,
@@ -1862,6 +2150,83 @@ func (r *CollectionPolicyReconciler) restartCollectors(
 				logger,
 				r.TelemetryLogger,
 			)
+		case collector.ArgoCDApplication.String():
+			replacedCollector = collector.NewArgoCDApplicationCollector(
+				r.DynamicClient,
+				newConfig.TargetNamespaces,
+				newConfig.ExcludedArgoCDApplications,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+				r.TelemetryLogger,
+			)
+		case collector.ArgoCDApplicationSet.String():
+			replacedCollector = collector.NewArgoCDApplicationSetCollector(
+				r.DynamicClient,
+				newConfig.TargetNamespaces,
+				newConfig.ExcludedArgoCDApplicationSets,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+				r.TelemetryLogger,
+			)
+		case collector.FlaggerCanary.String():
+			replacedCollector = collector.NewFlaggerResourceCollector(
+				r.DynamicClient,
+				collector.FlaggerCanaryGVR,
+				collector.FlaggerCanary,
+				newConfig.TargetNamespaces,
+				newConfig.ExcludedFlaggerCanaries,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+				r.TelemetryLogger,
+			)
+		case collector.FlaggerMetricTemplate.String():
+			replacedCollector = collector.NewFlaggerResourceCollector(
+				r.DynamicClient,
+				collector.FlaggerMetricTemplateGVR,
+				collector.FlaggerMetricTemplate,
+				newConfig.TargetNamespaces,
+				newConfig.ExcludedFlaggerMetricTemplates,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+				r.TelemetryLogger,
+			)
+		case collector.FlaggerAlertProvider.String():
+			replacedCollector = collector.NewFlaggerResourceCollector(
+				r.DynamicClient,
+				collector.FlaggerAlertProviderGVR,
+				collector.FlaggerAlertProvider,
+				newConfig.TargetNamespaces,
+				newConfig.ExcludedFlaggerAlertProviders,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+				r.TelemetryLogger,
+			)
+		case "scheduler_placement_metric":
+			replacedCollector = collector.NewSchedulerMetricsCollector(
+				r.K8sClient,
+				collector.NewSchedulerMetricsHTTPClientOrFailing(logger),
+				newConfig.SchedulerMetricsScrapeInterval,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+				r.TelemetryLogger,
+			)
+		case collector.KedaScalerMetrics.String():
+			// Rebuild with the (possibly changed) KEDA metrics endpoint so a
+			// KEDA_METRICS_ENDPOINT change actually takes effect. Without this
+			// case the collector is stopped above but never recreated.
+			replacedCollector = collector.NewKedaScalerMetricsCollector(
+				collector.KedaScalerMetricsConfig{Endpoint: newConfig.KEDAMetricsEndpoint},
+				r.KEDAClient,
+				r.DakrClient,
+				logger,
+				r.TelemetryLogger,
+			)
 		default:
 			logger.Info("Collector type not handled in selective restart", "type", collectorType)
 			continue
@@ -1880,7 +2245,8 @@ func (r *CollectionPolicyReconciler) restartCollectors(
 		}
 
 		// Start the collector
-		if err := r.CollectionManager.StartCollector(ctx, collectorType); err != nil {
+		// Start by the key RegisterCollector stored it under, as retryPendingCollectors does.
+		if err := r.CollectionManager.StartCollector(ctx, replacedCollector.GetType()); err != nil {
 			logger.Error(err, "Failed to start collector", "type", collectorType)
 			r.TelemetryLogger.Report(
 				gen.LogLevel_LOG_LEVEL_ERROR,
@@ -1893,6 +2259,7 @@ func (r *CollectionPolicyReconciler) restartCollectors(
 					"zxporter_version": version.Get().String(),
 				},
 			)
+			r.requeueFailedStart(logger, replacedCollector.GetType(), collectorType, metricsClient)
 		} else {
 			r.TelemetryLogger.Report(
 				gen.LogLevel_LOG_LEVEL_INFO,
@@ -1907,24 +2274,9 @@ func (r *CollectionPolicyReconciler) restartCollectors(
 			)
 			logger.Info("Successfully restarted collector", "type", collectorType)
 
-			// Re-wire MPA publisher and OOM reconciler into replaced PodCollector
-			if collectorType == "pod" {
-				r.wireMpaPublisherIntoPodCollector()
-				r.wireOOMReconcilerIntoPodCollector()
-			}
-
-			// A replaced EventCollector is a fresh object and has lost its disruption
-			// sources. The PDB / node / Karpenter collectors need no equivalent handling:
-			// the EventCollector resolves those through the CollectionManager on every
-			// event, so replacing one of them is picked up without re-wiring.
-			if collectorType == "event" {
-				r.wireDisruptionSourcesIntoEventCollector()
-			}
-
-			// Same for a replaced NodeCollector and its NodeClaim lookup.
-			if collectorType == "node" {
-				r.wireNodeClaimSourceIntoNodeCollector()
-			}
+			// Re-wire the MPA publisher / OOM reconciler (pod), disruption sources
+			// (event) and NodeClaim lookup (node) into the replacement.
+			r.rewireCollector(collectorType)
 		}
 	}
 
@@ -2601,13 +2953,108 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 		disabledCollectorsMap[collectorType] = true
 	}
 
-	// List of collectors to register
-	// factory is non-nil for CRD-based collectors that may not be available at startup
-	collectors := []struct {
-		collector collector.ResourceCollector
-		name      collector.ResourceType
-		factory   func() collector.ResourceCollector
-	}{
+	collectors := r.resourceCollectorSpecs(logger, config, metricsClient)
+
+	// Register all collectors
+	for _, c := range collectors {
+		if disabledCollectorsMap[c.name.String()] {
+			r.TelemetryLogger.Report(
+				gen.LogLevel_LOG_LEVEL_WARN,
+				"CollectionPolicyReconciler_registerResourceCollectors",
+				"Collector is disabled, skipping registration",
+				nil,
+				map[string]string{
+					"collector_type":   c.name.String(),
+					"event_type":       "collector_disabled",
+					"zxporter_version": version.Get().String(),
+				},
+			)
+			logger.Info("Skipping disabled collector", "type", c.name.String())
+			continue
+		}
+		if c.collector.IsAvailable(context.Background()) {
+			logger.Info("Registering collector", "name", c.name.String())
+			if err := r.CollectionManager.RegisterCollector(c.collector); err != nil {
+				r.TelemetryLogger.Report(
+					gen.LogLevel_LOG_LEVEL_ERROR,
+					"CollectionPolicyReconciler_registerResourceCollectors",
+					"Failed to register collector",
+					err,
+					map[string]string{
+						"collector_type":   c.name.String(),
+						"error_type":       "collector_registration_failed",
+						"zxporter_version": version.Get().String(),
+					},
+				)
+				logger.Error(err, "Failed to register collector", "collector", c.name.String())
+			} else {
+				r.TelemetryLogger.Report(
+					gen.LogLevel_LOG_LEVEL_INFO,
+					"CollectionPolicyReconciler_registerResourceCollectors",
+					"Successfully registered collector",
+					nil,
+					map[string]string{
+						"collector_type":   c.name.String(),
+						"event_type":       "collector_registration_success",
+						"zxporter_version": version.Get().String(),
+					},
+				)
+				logger.Info("Registered collector", "collector", c.name.String())
+			}
+		} else {
+			r.TelemetryLogger.Report(
+				gen.LogLevel_LOG_LEVEL_WARN,
+				"CollectionPolicyReconciler_registerResourceCollectors",
+				"Collector is not available, skipping registration",
+				nil,
+				map[string]string{ // Note: we should get the reason why it's not available
+					"collector_type":   c.name.String(),
+					"event_type":       "collector_not_available",
+					"zxporter_version": version.Get().String(),
+				},
+			)
+			logger.Info("Collector not available, skipping registration", "type", c.name.String())
+
+			// Track CRD-based collectors for deferred retry when their CRDs become available
+			if c.factory != nil {
+				r.pendingMu.Lock()
+				r.pendingCollectors = append(r.pendingCollectors, pendingCollector{
+					name:    c.name,
+					factory: c.factory,
+				})
+				r.pendingMu.Unlock()
+				logger.Info("Added collector to pending retry list", "type", c.name.String())
+			}
+		}
+	}
+
+	return nil
+}
+
+// resourceCollectorSpec is one entry of the collector set registerResourceCollectors
+// installs.
+//
+// Invariant: collector.GetType() (and factory().GetType(), when factory is set) equals
+// name.String(). The CollectionManager keys collectors by GetType(), while the reconciler
+// starts, restarts and disables them by name, so any drift makes those lookups miss.
+// TestResourceCollectorSpecs_TypeMatchesName enforces it.
+type resourceCollectorSpec struct {
+	collector collector.ResourceCollector
+	name      collector.ResourceType
+	// factory is non-nil for CRD-based collectors that may not be available at startup;
+	// it builds a fresh collector for the deferred retry in retryPendingCollectors.
+	factory func() collector.ResourceCollector
+}
+
+// resourceCollectorSpecs builds the list of collectors to register.
+//
+//nolint:gocyclo
+func (r *CollectionPolicyReconciler) resourceCollectorSpecs(
+	logger logr.Logger,
+	config *PolicyConfig,
+	metricsClient *metricsv1.Clientset,
+) []resourceCollectorSpec {
+	return []resourceCollectorSpec{
 		{
 			collector: collector.NewEndpointCollector(
 				r.K8sClient,
@@ -3147,6 +3594,29 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 			},
 		},
 		{
+			// KedaScalerMetrics scrapes the KEDA operator /metrics endpoint and
+			// forwards per-trigger scaler values directly to dakr via
+			// SendScalerMetrics.  IsAvailable returns false when the endpoint is
+			// unreachable so the collector is silently skipped on non-KEDA clusters.
+			collector: collector.NewKedaScalerMetricsCollector(
+				collector.KedaScalerMetricsConfig{Endpoint: config.KEDAMetricsEndpoint},
+				r.KEDAClient,
+				r.DakrClient,
+				logger,
+				r.TelemetryLogger,
+			),
+			name: collector.KedaScalerMetrics,
+			factory: func() collector.ResourceCollector {
+				return collector.NewKedaScalerMetricsCollector(
+					collector.KedaScalerMetricsConfig{Endpoint: config.KEDAMetricsEndpoint},
+					r.KEDAClient,
+					r.DakrClient,
+					logger,
+					r.TelemetryLogger,
+				)
+			},
+		},
+		{
 			collector: snap.NewClusterSnapshotter(
 				r.K8sClient,
 				r.KEDAClient,
@@ -3195,6 +3665,17 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 				r.TelemetryLogger,
 			),
 			name: collector.VolumeAttachment,
+		},
+		{
+			collector: collector.NewRuntimeClassCollector(
+				r.K8sClient,
+				config.ExcludedRuntimeClasses,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+				r.TelemetryLogger,
+			),
+			name: collector.RuntimeClass,
 		},
 		{
 			collector: collector.NewKubeflowNotebookCollector(
@@ -3345,6 +3826,212 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 			name: collector.CNPGCluster,
 		},
 		{
+			// factory is set: Argo CD is frequently installed after zxporter, so
+			// the CRD can be absent at startup and appear later.
+			collector: collector.NewArgoCDApplicationCollector(
+				r.DynamicClient,
+				config.TargetNamespaces,
+				config.ExcludedArgoCDApplications,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+				r.TelemetryLogger,
+			),
+			name: collector.ArgoCDApplication,
+			factory: func() collector.ResourceCollector {
+				return collector.NewArgoCDApplicationCollector(
+					r.DynamicClient,
+					config.TargetNamespaces,
+					config.ExcludedArgoCDApplications,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+					r.TelemetryLogger,
+				)
+			},
+		},
+		{
+			collector: collector.NewArgoCDApplicationSetCollector(
+				r.DynamicClient,
+				config.TargetNamespaces,
+				config.ExcludedArgoCDApplicationSets,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+				r.TelemetryLogger,
+			),
+			name: collector.ArgoCDApplicationSet,
+			factory: func() collector.ResourceCollector {
+				return collector.NewArgoCDApplicationSetCollector(
+					r.DynamicClient,
+					config.TargetNamespaces,
+					config.ExcludedArgoCDApplicationSets,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+					r.TelemetryLogger,
+				)
+			},
+		},
+		// FluxCD GitOps kinds. factory is set for every one of them: like Argo
+		// CD, Flux (and especially the Flux Operator and image automation
+		// controllers, which are optional add-ons) is frequently installed
+		// after zxporter, so the CRD can be absent at startup and appear
+		// later. All eighteen share FluxResourceCollector -- see its doc
+		// comment for why a generic collector replaces per-kind files here.
+		{
+			collector: collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxGitRepositoryGVR, collector.FluxGitRepository, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger),
+			name:      collector.FluxGitRepository,
+			factory: func() collector.ResourceCollector {
+				return collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxGitRepositoryGVR, collector.FluxGitRepository, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger)
+			},
+		},
+		{
+			collector: collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxOCIRepositoryGVR, collector.FluxOCIRepository, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger),
+			name:      collector.FluxOCIRepository,
+			factory: func() collector.ResourceCollector {
+				return collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxOCIRepositoryGVR, collector.FluxOCIRepository, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger)
+			},
+		},
+		{
+			collector: collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxHelmRepositoryGVR, collector.FluxHelmRepository, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger),
+			name:      collector.FluxHelmRepository,
+			factory: func() collector.ResourceCollector {
+				return collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxHelmRepositoryGVR, collector.FluxHelmRepository, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger)
+			},
+		},
+		{
+			collector: collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxHelmChartGVR, collector.FluxHelmChart, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger),
+			name:      collector.FluxHelmChart,
+			factory: func() collector.ResourceCollector {
+				return collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxHelmChartGVR, collector.FluxHelmChart, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger)
+			},
+		},
+		{
+			collector: collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxBucketGVR, collector.FluxBucket, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger),
+			name:      collector.FluxBucket,
+			factory: func() collector.ResourceCollector {
+				return collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxBucketGVR, collector.FluxBucket, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger)
+			},
+		},
+		{
+			collector: collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxKustomizationGVR, collector.FluxKustomization, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger),
+			name:      collector.FluxKustomization,
+			factory: func() collector.ResourceCollector {
+				return collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxKustomizationGVR, collector.FluxKustomization, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger)
+			},
+		},
+		{
+			collector: collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxHelmReleaseGVR, collector.FluxHelmRelease, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger),
+			name:      collector.FluxHelmRelease,
+			factory: func() collector.ResourceCollector {
+				return collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxHelmReleaseGVR, collector.FluxHelmRelease, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger)
+			},
+		},
+		{
+			collector: collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxExternalArtifactGVR, collector.FluxExternalArtifact, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger),
+			name:      collector.FluxExternalArtifact,
+			factory: func() collector.ResourceCollector {
+				return collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxExternalArtifactGVR, collector.FluxExternalArtifact, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger)
+			},
+		},
+		{
+			collector: collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxAlertGVR, collector.FluxAlert, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger),
+			name:      collector.FluxAlert,
+			factory: func() collector.ResourceCollector {
+				return collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxAlertGVR, collector.FluxAlert, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger)
+			},
+		},
+		{
+			collector: collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxProviderGVR, collector.FluxProvider, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger),
+			name:      collector.FluxProvider,
+			factory: func() collector.ResourceCollector {
+				return collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxProviderGVR, collector.FluxProvider, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger)
+			},
+		},
+		{
+			collector: collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxReceiverGVR, collector.FluxReceiver, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger),
+			name:      collector.FluxReceiver,
+			factory: func() collector.ResourceCollector {
+				return collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxReceiverGVR, collector.FluxReceiver, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger)
+			},
+		},
+		{
+			collector: collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxInstanceGVR, collector.FluxInstance, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger),
+			name:      collector.FluxInstance,
+			factory: func() collector.ResourceCollector {
+				return collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxInstanceGVR, collector.FluxInstance, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger)
+			},
+		},
+		{
+			collector: collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxReportGVR, collector.FluxReport, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger),
+			name:      collector.FluxReport,
+			factory: func() collector.ResourceCollector {
+				return collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxReportGVR, collector.FluxReport, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger)
+			},
+		},
+		{
+			collector: collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxResourceSetInputProviderGVR, collector.FluxResourceSetInputProvider, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger),
+			name:      collector.FluxResourceSetInputProvider,
+			factory: func() collector.ResourceCollector {
+				return collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxResourceSetInputProviderGVR, collector.FluxResourceSetInputProvider, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger)
+			},
+		},
+		{
+			collector: collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxResourceSetGVR, collector.FluxResourceSet, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger),
+			name:      collector.FluxResourceSet,
+			factory: func() collector.ResourceCollector {
+				return collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxResourceSetGVR, collector.FluxResourceSet, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger)
+			},
+		},
+		{
+			collector: collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxImageRepositoryGVR, collector.FluxImageRepository, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger),
+			name:      collector.FluxImageRepository,
+			factory: func() collector.ResourceCollector {
+				return collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxImageRepositoryGVR, collector.FluxImageRepository, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger)
+			},
+		},
+		{
+			collector: collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxImagePolicyGVR, collector.FluxImagePolicy, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger),
+			name:      collector.FluxImagePolicy,
+			factory: func() collector.ResourceCollector {
+				return collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxImagePolicyGVR, collector.FluxImagePolicy, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger)
+			},
+		},
+		{
+			collector: collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxImageUpdateAutomationGVR, collector.FluxImageUpdateAutomation, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger),
+			name:      collector.FluxImageUpdateAutomation,
+			factory: func() collector.ResourceCollector {
+				return collector.NewFluxResourceCollector(r.DynamicClient, collector.FluxImageUpdateAutomationGVR, collector.FluxImageUpdateAutomation, config.TargetNamespaces, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger)
+			},
+		},
+		// Flagger progressive-delivery kinds. factory is set for all three:
+		// Flagger is an optional add-on, so its CRDs are frequently absent at
+		// startup and appear later. All three share FlaggerResourceCollector --
+		// see its doc comment for why one generic collector replaces three
+		// per-kind files here.
+		{
+			collector: collector.NewFlaggerResourceCollector(r.DynamicClient, collector.FlaggerCanaryGVR, collector.FlaggerCanary, config.TargetNamespaces, config.ExcludedFlaggerCanaries, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger),
+			name:      collector.FlaggerCanary,
+			factory: func() collector.ResourceCollector {
+				return collector.NewFlaggerResourceCollector(r.DynamicClient, collector.FlaggerCanaryGVR, collector.FlaggerCanary, config.TargetNamespaces, config.ExcludedFlaggerCanaries, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger)
+			},
+		},
+		{
+			collector: collector.NewFlaggerResourceCollector(r.DynamicClient, collector.FlaggerMetricTemplateGVR, collector.FlaggerMetricTemplate, config.TargetNamespaces, config.ExcludedFlaggerMetricTemplates, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger),
+			name:      collector.FlaggerMetricTemplate,
+			factory: func() collector.ResourceCollector {
+				return collector.NewFlaggerResourceCollector(r.DynamicClient, collector.FlaggerMetricTemplateGVR, collector.FlaggerMetricTemplate, config.TargetNamespaces, config.ExcludedFlaggerMetricTemplates, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger)
+			},
+		},
+		{
+			collector: collector.NewFlaggerResourceCollector(r.DynamicClient, collector.FlaggerAlertProviderGVR, collector.FlaggerAlertProvider, config.TargetNamespaces, config.ExcludedFlaggerAlertProviders, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger),
+			name:      collector.FlaggerAlertProvider,
+			factory: func() collector.ResourceCollector {
+				return collector.NewFlaggerResourceCollector(r.DynamicClient, collector.FlaggerAlertProviderGVR, collector.FlaggerAlertProvider, config.TargetNamespaces, config.ExcludedFlaggerAlertProviders, collector.DefaultMaxBatchSize, collector.DefaultMaxBatchTime, logger, r.TelemetryLogger)
+			},
+		},
+		{
 			collector: collector.NewKyvernoPolicyCollector(
 				r.DynamicClient,
 				config.TargetNamespaces,
@@ -3427,6 +4114,29 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 			},
 		},
 		{
+			collector: collector.NewSchedulerMetricsCollector(
+				r.K8sClient,
+				collector.NewSchedulerMetricsHTTPClientOrFailing(logger),
+				config.SchedulerMetricsScrapeInterval,
+				collector.DefaultMaxBatchSize,
+				collector.DefaultMaxBatchTime,
+				logger,
+				r.TelemetryLogger,
+			),
+			name: collector.SchedulerPlacementMetric,
+			factory: func() collector.ResourceCollector {
+				return collector.NewSchedulerMetricsCollector(
+					r.K8sClient,
+					collector.NewSchedulerMetricsHTTPClientOrFailing(logger),
+					config.SchedulerMetricsScrapeInterval,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+					r.TelemetryLogger,
+				)
+			},
+		},
+		{
 			collector: collector.NewMigPartedConfigCollector(
 				r.K8sClient,
 				config.MigPartedConfigMapName,
@@ -3449,81 +4159,6 @@ func (r *CollectionPolicyReconciler) registerResourceCollectors(
 			name: collector.ClusterAutoscalerStatus,
 		},
 	}
-
-	// Register all collectors
-	for _, c := range collectors {
-		if disabledCollectorsMap[c.name.String()] {
-			r.TelemetryLogger.Report(
-				gen.LogLevel_LOG_LEVEL_WARN,
-				"CollectionPolicyReconciler_registerResourceCollectors",
-				"Collector is disabled, skipping registration",
-				nil,
-				map[string]string{
-					"collector_type":   c.name.String(),
-					"event_type":       "collector_disabled",
-					"zxporter_version": version.Get().String(),
-				},
-			)
-			logger.Info("Skipping disabled collector", "type", c.name.String())
-			continue
-		}
-		if c.collector.IsAvailable(context.Background()) {
-			logger.Info("Registering collector", "name", c.name.String())
-			if err := r.CollectionManager.RegisterCollector(c.collector); err != nil {
-				r.TelemetryLogger.Report(
-					gen.LogLevel_LOG_LEVEL_ERROR,
-					"CollectionPolicyReconciler_registerResourceCollectors",
-					"Failed to register collector",
-					err,
-					map[string]string{
-						"collector_type":   c.name.String(),
-						"error_type":       "collector_registration_failed",
-						"zxporter_version": version.Get().String(),
-					},
-				)
-				logger.Error(err, "Failed to register collector", "collector", c.name.String())
-			} else {
-				r.TelemetryLogger.Report(
-					gen.LogLevel_LOG_LEVEL_INFO,
-					"CollectionPolicyReconciler_registerResourceCollectors",
-					"Successfully registered collector",
-					nil,
-					map[string]string{
-						"collector_type":   c.name.String(),
-						"event_type":       "collector_registration_success",
-						"zxporter_version": version.Get().String(),
-					},
-				)
-				logger.Info("Registered collector", "collector", c.name.String())
-			}
-		} else {
-			r.TelemetryLogger.Report(
-				gen.LogLevel_LOG_LEVEL_WARN,
-				"CollectionPolicyReconciler_registerResourceCollectors",
-				"Collector is not available, skipping registration",
-				nil,
-				map[string]string{ // Note: we should get the reason why it's not available
-					"collector_type":   c.name.String(),
-					"event_type":       "collector_not_available",
-					"zxporter_version": version.Get().String(),
-				},
-			)
-			logger.Info("Collector not available, skipping registration", "type", c.name.String())
-
-			// Track CRD-based collectors for deferred retry when their CRDs become available
-			if c.factory != nil {
-				r.pendingMu.Lock()
-				r.pendingCollectors = append(r.pendingCollectors, pendingCollector{
-					name:    c.name,
-					factory: c.factory,
-				})
-				r.pendingMu.Unlock()
-				logger.Info("Added collector to pending retry list", "type", c.name.String())
-			}
-		}
-	}
-
-	return nil
 }
 
 // processCollectedResources reads from collection channel and forwards to sender
@@ -4151,6 +4786,15 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					logger,
 					r.TelemetryLogger,
 				)
+			case "runtime_class":
+				replacedCollector = collector.NewRuntimeClassCollector(
+					r.K8sClient,
+					newConfig.ExcludedRuntimeClasses,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+					r.TelemetryLogger,
+				)
 			case "kubeflow_notebook":
 				replacedCollector = collector.NewKubeflowNotebookCollector(
 					r.DynamicClient,
@@ -4201,6 +4845,62 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 					logger,
 					r.TelemetryLogger,
 				)
+			case collector.ArgoCDApplication.String():
+				replacedCollector = collector.NewArgoCDApplicationCollector(
+					r.DynamicClient,
+					newConfig.TargetNamespaces,
+					newConfig.ExcludedArgoCDApplications,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+					r.TelemetryLogger,
+				)
+			case collector.ArgoCDApplicationSet.String():
+				replacedCollector = collector.NewArgoCDApplicationSetCollector(
+					r.DynamicClient,
+					newConfig.TargetNamespaces,
+					newConfig.ExcludedArgoCDApplicationSets,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+					r.TelemetryLogger,
+				)
+			case collector.FlaggerCanary.String():
+				replacedCollector = collector.NewFlaggerResourceCollector(
+					r.DynamicClient,
+					collector.FlaggerCanaryGVR,
+					collector.FlaggerCanary,
+					newConfig.TargetNamespaces,
+					newConfig.ExcludedFlaggerCanaries,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+					r.TelemetryLogger,
+				)
+			case collector.FlaggerMetricTemplate.String():
+				replacedCollector = collector.NewFlaggerResourceCollector(
+					r.DynamicClient,
+					collector.FlaggerMetricTemplateGVR,
+					collector.FlaggerMetricTemplate,
+					newConfig.TargetNamespaces,
+					newConfig.ExcludedFlaggerMetricTemplates,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+					r.TelemetryLogger,
+				)
+			case collector.FlaggerAlertProvider.String():
+				replacedCollector = collector.NewFlaggerResourceCollector(
+					r.DynamicClient,
+					collector.FlaggerAlertProviderGVR,
+					collector.FlaggerAlertProvider,
+					newConfig.TargetNamespaces,
+					newConfig.ExcludedFlaggerAlertProviders,
+					collector.DefaultMaxBatchSize,
+					collector.DefaultMaxBatchTime,
+					logger,
+					r.TelemetryLogger,
+				)
 			default:
 				logger.Info("Unknown collector type, skipping", "type", collectorType)
 				continue
@@ -4222,7 +4922,8 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 				continue
 			}
 
-			if err := r.CollectionManager.StartCollector(ctx, collectorType); err != nil {
+			// Start by the key RegisterCollector stored it under, as retryPendingCollectors does.
+			if err := r.CollectionManager.StartCollector(ctx, replacedCollector.GetType()); err != nil {
 				logger.Error(err, "Failed to start collector", "type", collectorType)
 				r.TelemetryLogger.Report(
 					gen.LogLevel_LOG_LEVEL_ERROR,
@@ -4234,7 +4935,10 @@ func (r *CollectionPolicyReconciler) handleDisabledCollectorsChange(
 						"zxporter_version": version.Get().String(),
 					},
 				)
+				r.requeueFailedStart(logger, replacedCollector.GetType(), collectorType, metricsClient)
+				continue
 			}
+			r.rewireCollector(collectorType)
 		}
 	}
 

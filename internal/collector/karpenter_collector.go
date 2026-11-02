@@ -8,7 +8,9 @@ import (
 	"sync"
 	"time"
 
+	gen "github.com/devzero-inc/zxporter/gen/api/v1"
 	telemetry_logger "github.com/devzero-inc/zxporter/internal/logger"
+	"github.com/devzero-inc/zxporter/internal/version"
 	"github.com/go-logr/logr"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -18,14 +20,33 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
-// karpenterControllerLabelSelector selects the Karpenter controller Deployment.
-// See karpenterLabelName in internal/health/node_operator_monitor.go for why
-// the release-name label is the only usable selector and why both names are
-// accepted — the two constants must stay in sync.
+// karpenterControllerNameSelector matches the Karpenter controller Deployment
+// by its chart-name label. Every upstream provider chart (AWS, Azure, GCP, and
+// both OCI providers — zoom's fork and Oracle's KPO) names its chart
+// "karpenter", so app.kubernetes.io/name=karpenter holds for every charted
+// install whatever release name the installer chose. A production cluster
+// (2026-11-02, apm1.dp.navi-tech.in) released its karpenter-oci fork as
+// "karpenter-oci" and was invisible to a release-name-only selector.
 //
-// Unlike the health monitor, this collector deliberately does not filter by
-// image: it ingests any Karpenter controller, upstream or DevZero-managed.
-const karpenterControllerLabelSelector = "app.kubernetes.io/instance in (karpenter,dzkarp)"
+// karpenterControllerInstanceSelector matches by Helm release name and exists
+// for the DevZero-managed charts, whose name label is their own chart name
+// ("dzkarp-<cloud>-karpenter"), not "karpenter": dz-installer installs as
+// release "dzkarp" (dz-installer/pkg/component/dzkarp: HelmReleaseName) so it
+// can coexist with a pre-existing OSS Karpenter release during migration.
+//
+// Both are discovery selectors for enrichment only — see
+// listControllerDeployments. Availability (IsAvailable) is decided by the
+// served CRDs, so an install neither selector recognizes still gets collected
+// and only loses its installation metric and version.
+//
+// The health monitor keeps its own selector for a different job
+// (karpenterLabelName in internal/health/node_operator_monitor.go, dzkarp
+// migration health) and is deliberately not shared with these: its probe must
+// target the one live release, not every charted controller.
+const (
+	karpenterControllerNameSelector     = "app.kubernetes.io/name=karpenter"
+	karpenterControllerInstanceSelector = "app.kubernetes.io/instance in (karpenter,dzkarp)"
+)
 
 // KarpenterResource defines a Karpenter resource to be watched
 type KarpenterResource struct {
@@ -154,37 +175,15 @@ func (c *KarpenterCollector) sendBatchResource(resource CollectedResource) {
 	c.batchChan <- resource
 }
 
-// Start begins the Karpenter resources collection process
-func (c *KarpenterCollector) Start(ctx context.Context) error {
-	c.logger.Info("Starting Karpenter collector")
-
-	// Get Karpenter deployment for installation metric
-	gvr := schema.GroupVersionResource{
-		Group:    "apps",
-		Version:  "v1",
-		Resource: "deployments",
-	}
-	labelSelector := karpenterControllerLabelSelector
-
-	deployments, err := c.dynamicClient.Resource(gvr).List(ctx, metav1.ListOptions{
-		LabelSelector: labelSelector,
-	})
-	if err == nil && len(deployments.Items) > 0 {
-		for _, d := range deployments.Items {
-			status, found, _ := unstructured.NestedMap(d.Object, "status")
-			if found {
-				readyReplicas, found, _ := unstructured.NestedInt64(status, "readyReplicas")
-				if found && readyReplicas > 0 {
-					c.detectKarpenterVersion(&d)
-					c.sendInstallationMetric(&d)
-					break
-				}
-			}
-		}
-	}
-
-	// Define all Karpenter resources to watch
-	resources := []KarpenterResource{
+// karpenterWatchedResources is the single roster of Karpenter-family GVRs this
+// collector can watch. IsAvailable and Start share it so the availability
+// question and the actual watch list cannot drift apart: available means
+// exactly "the API server serves at least one of these", which is also the
+// condition under which Start does not fail — startResourceInformer skips
+// every GVR the API server does not serve, and Start errors only when none of
+// them sync.
+func karpenterWatchedResources() []KarpenterResource {
+	return []KarpenterResource{
 		// v1alpha5 resources
 		{
 			GroupVersion: schema.GroupVersion{Group: "karpenter.sh", Version: "v1alpha5"},
@@ -275,6 +274,29 @@ func (c *KarpenterCollector) Start(ctx context.Context) error {
 			Kind:         "EC2NodeClass",
 		},
 	}
+}
+
+// Start begins the Karpenter resources collection process
+func (c *KarpenterCollector) Start(ctx context.Context) error {
+	c.logger.Info("Starting Karpenter collector")
+
+	// Report the controller as the Karpenter installation when discovery finds
+	// a ready one. Best-effort enrichment: a cluster whose install shape no
+	// discovery selector recognizes (or whose controller is down) is still
+	// collected below — the inventory exists whether or not the controller pod
+	// is running.
+	for _, d := range c.listControllerDeployments(ctx) {
+		readyReplicas, found, _ := unstructured.NestedInt64(d.Object, "status", "readyReplicas")
+		if !found || readyReplicas <= 0 {
+			continue
+		}
+		c.detectKarpenterVersion(d)
+		c.sendInstallationMetric(d)
+		break
+	}
+
+	// Define all Karpenter resources to watch
+	resources := karpenterWatchedResources()
 
 	// Create informers for each resource type
 	var syncErrors []string
@@ -1122,42 +1144,82 @@ func (c *KarpenterCollector) detectKarpenterVersion(obj *unstructured.Unstructur
 	c.logger.V(4).Info("Could not detect Karpenter version from deployment")
 }
 
-// Update IsAvailable to detect version
-func (c *KarpenterCollector) IsAvailable(ctx context.Context) bool {
+// listControllerDeployments returns the Karpenter controller Deployments
+// visible under either discovery selector, deduplicated by UID. Two List calls
+// are needed because a Kubernetes label selector cannot OR across different
+// keys. A list error on one selector is ignored so it cannot discard the
+// other's hits; discovery is best-effort enrichment, and collection does not
+// depend on it.
+func (c *KarpenterCollector) listControllerDeployments(ctx context.Context) []*unstructured.Unstructured {
 	gvr := schema.GroupVersionResource{
 		Group:    "apps",
 		Version:  "v1",
 		Resource: "deployments",
 	}
 
-	labelSelector := karpenterControllerLabelSelector
-
-	deployments, err := c.dynamicClient.Resource(gvr).List(ctx, metav1.ListOptions{
-		LabelSelector: labelSelector,
-	})
-	if err != nil {
-		c.logger.Error(err, "Failed to list deployments")
-		return false
-	}
-
-	if len(deployments.Items) == 0 {
-		c.logger.V(1).Info("No Karpenter deployment found")
-		return false
-	}
-
-	// Check if at least one deployment is ready
-	for _, d := range deployments.Items {
-		status, found, _ := unstructured.NestedMap(d.Object, "status")
-		if found {
-			readyReplicas, found, _ := unstructured.NestedInt64(status, "readyReplicas")
-			if found && readyReplicas > 0 {
-				c.detectKarpenterVersion(&d)
-				return true
+	var controllers []*unstructured.Unstructured
+	seen := make(map[string]bool)
+	for _, selector := range []string{karpenterControllerNameSelector, karpenterControllerInstanceSelector} {
+		deployments, err := c.dynamicClient.Resource(gvr).List(ctx, metav1.ListOptions{
+			LabelSelector: selector,
+		})
+		if err != nil {
+			continue
+		}
+		for i := range deployments.Items {
+			uid := string(deployments.Items[i].GetUID())
+			if uid == "" || seen[uid] {
+				continue
 			}
+			seen[uid] = true
+			controllers = append(controllers, &deployments.Items[i])
+		}
+	}
+	return controllers
+}
+
+// IsAvailable reports whether the cluster serves any Karpenter resource this
+// collector watches. Availability is the API server serving the CRDs — the
+// objects the collector collects — and deliberately not the controller
+// Deployment's labels: the Helm release name is customer-chosen free text, and
+// the old release-name gate silently skipped a production cluster whose
+// karpenter-oci fork was released as "karpenter-oci" (2026-11-02), collecting
+// nothing while 451 Karpenter-owned nodes flowed through the node collector. A
+// manifest install with no labels, or any provider chart under any release
+// name, serves the same CRDs and must not depend on how the controller was
+// deployed. This also matches Start's own contract — startResourceInformer
+// skips every GVR the API server does not serve, and Start errors only when
+// none of them sync — so true here means exactly "Start would find something
+// to watch". Controller readiness is not required either: the inventory exists
+// whether or not the controller pod is currently running.
+func (c *KarpenterCollector) IsAvailable(ctx context.Context) bool {
+	for _, res := range karpenterWatchedResources() {
+		gvr := schema.GroupVersionResource{
+			Group:    res.GroupVersion.Group,
+			Version:  res.GroupVersion.Version,
+			Resource: res.Resource,
+		}
+		if _, err := c.dynamicClient.Resource(gvr).List(ctx, metav1.ListOptions{Limit: 1}); err == nil {
+			return true
 		}
 	}
 
-	c.logger.V(1).Info("No ready Karpenter deployment found")
+	// Same telemetry shape as the other CRD collectors (see
+	// KubeflowNotebookCollector.IsAvailable): an absent Karpenter is a normal
+	// cluster state, but it should be visible from the control plane rather
+	// than a silent gap — the old gate logged this at V(1) locally only.
+	if c.telemetryLogger != nil {
+		c.telemetryLogger.Report(
+			gen.LogLevel_LOG_LEVEL_WARN,
+			"KarpenterCollector_IsAvailable",
+			"Karpenter resources not available in the cluster",
+			nil,
+			map[string]string{
+				"zxporter_version": version.Get().String(),
+			},
+		)
+	}
+	c.logger.V(1).Info("No Karpenter resources available in cluster")
 	return false
 }
 

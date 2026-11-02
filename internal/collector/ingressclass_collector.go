@@ -167,8 +167,8 @@ func (c *IngressClassCollector) ingressClassChanged(
 		oldIngressClass.ObjectMeta,
 		newIngressClass.ObjectMeta,
 	)
-	if changed != IgnoreChanges {
-		return changed == PushChanges
+	if changed == PushChanges {
+		return true
 	}
 
 	// Check for controller changes

@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -16,7 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
-	k8sfake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/rest"
 	metricsv1 "k8s.io/metrics/pkg/client/clientset/versioned"
 )
@@ -113,6 +113,27 @@ func (rt *nodemonRoundTripper) RoundTrip(req *http.Request) (*http.Response, err
 // from the path since that's the only identifying information available.
 type kubeletProxyRoundTripper struct {
 	delayByNode map[string]time.Duration
+	// nodefsByNode / imagefsByNode, when set for a node, are attached to that
+	// node's summary response, simulating a kubelet whose Summary API reports
+	// filesystem occupancy. A node present in delayByNode but absent from
+	// these maps gets a summary with only cpu/memory — the shape a real
+	// kubelet's Summary API never actually produces, but the one nodemon's
+	// composite snapshot produces when it predates the storage fields,
+	// exercised here for the node-storage top-up path.
+	nodefsByNode  map[string]*kubeletFsStats
+	imagefsByNode map[string]*kubeletFsStats
+
+	mu            sync.Mutex
+	requestCounts map[string]int
+}
+
+// count returns how many summary requests this round tripper has served for
+// nodeName. Used to assert the node-storage top-up is conditional — exactly
+// one call when needed, zero when not — rather than an unconditional refetch.
+func (rt *kubeletProxyRoundTripper) count(nodeName string) int {
+	rt.mu.Lock()
+	defer rt.mu.Unlock()
+	return rt.requestCounts[nodeName]
 }
 
 func (rt *kubeletProxyRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -133,6 +154,13 @@ func (rt *kubeletProxyRoundTripper) RoundTrip(req *http.Request) (*http.Response
 		return nil, err
 	}
 
+	rt.mu.Lock()
+	if rt.requestCounts == nil {
+		rt.requestCounts = map[string]int{}
+	}
+	rt.requestCounts[nodeName]++
+	rt.mu.Unlock()
+
 	usage := uint64(300_000_000)
 	working := uint64(512 * 1024 * 1024)
 	summary := kubeletSummary{
@@ -141,6 +169,12 @@ func (rt *kubeletProxyRoundTripper) RoundTrip(req *http.Request) (*http.Response
 			CPU:      &kubeletCPUStats{Time: time.Now(), UsageNanoCores: &usage},
 			Memory:   &kubeletMemoryStats{WorkingSetBytes: &working},
 		},
+	}
+	if fs, ok := rt.nodefsByNode[nodeName]; ok {
+		summary.Node.Fs = fs
+	}
+	if imagefs, ok := rt.imagefsByNode[nodeName]; ok {
+		summary.Node.Runtime = &kubeletRuntimeStats{ImageFs: imagefs}
 	}
 	return jsonResponse(http.StatusOK, summary), nil
 }
@@ -364,7 +398,7 @@ func TestStop_DoesNotRaceInFlightSweep(t *testing.T) {
 	c := &NodeCollector{
 		metricsClient:   &metricsv1.Clientset{},
 		nodemonClient:   nmClient,
-		kubeletClient:   NewKubeletSummaryClient(k8sfake.NewSimpleClientset(), logr.Discard(), 0),
+		kubeletClient:   newInertFakeKubeletClient(t),
 		nodeInformer:    informer,
 		batchChan:       make(chan CollectedResource, numNodes),
 		stopCh:          make(chan struct{}),
