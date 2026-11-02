@@ -43,7 +43,11 @@ spec:
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
-              containerPort: 8081
+              # Must match the -metrics-bind-address default in cmd/zxporter-netmon.
+              # Not 8081: dakr-operator is hostNetwork and binds :8081 for its health
+              # probe, and hostNetwork makes this containerPort a real node-port
+              # reservation, so the two pods cannot share a node.
+              containerPort: 9101
               protocol: TCP
           envFrom:
             - configMapRef:

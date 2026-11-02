@@ -52,6 +52,28 @@ func newFakeKubeletClientForNode(t *testing.T, nodeName string, usageNanoCores, 
 	return NewKubeletSummaryClient(client, logr.Discard(), 0)
 }
 
+// newInertFakeKubeletClient returns a KubeletSummaryClient backed by the same
+// in-memory API-server proxy round tripper as newFakeKubeletClientForNode, but
+// with no node simulated. Every request 404s, so fetchSummary returns a clean
+// error instead of a nil-pointer panic.
+//
+// Tests that build a NodeCollector directly (rather than through
+// newNodeCollectorForTest) need a kubeletClient wired the same way: the
+// composite fixtures those tests use predate the storage fields, so
+// nodeStorageNeedsTopUp now fires a real FetchNodeStorageByNode call for them.
+// k8sfake.NewSimpleClientset()'s CoreV1().RESTClient() is nil, which panics
+// the moment fetchSummary calls it — this fake exists so that call fails
+// gracefully instead, leaving the rest of the test's assertions unaffected.
+func newInertFakeKubeletClient(t *testing.T) *KubeletSummaryClient {
+	t.Helper()
+	client, err := kubernetes.NewForConfigAndClient(
+		&rest.Config{Host: "http://fake-apiserver", QPS: -1},
+		&http.Client{Transport: &kubeletProxyRoundTripper{delayByNode: map[string]time.Duration{}}},
+	)
+	require.NoError(t, err)
+	return NewKubeletSummaryClient(client, logr.Discard(), 0)
+}
+
 // pathCountingNodemon is a fake nodemon that records how many requests hit each
 // path, so tests can assert the collector makes exactly one composite request
 // per node and never falls back to the legacy endpoints in steady state.
@@ -92,11 +114,11 @@ func newNodemonClientForServer(t *testing.T, server *httptest.Server, nodeName s
 	}
 }
 
-func newNodeCollectorForTest(nmClient *NodemonClient, informer cache.SharedIndexInformer) *NodeCollector {
+func newNodeCollectorForTest(t *testing.T, nmClient *NodemonClient, informer cache.SharedIndexInformer) *NodeCollector {
 	return &NodeCollector{
 		metricsClient:   &metricsv1.Clientset{},
 		nodemonClient:   nmClient,
-		kubeletClient:   NewKubeletSummaryClient(k8sfake.NewSimpleClientset(), logr.Discard(), 0),
+		kubeletClient:   newInertFakeKubeletClient(t),
 		nodeInformer:    informer,
 		batchChan:       make(chan CollectedResource, 10),
 		config:          NodeCollectorConfig{DisableGPUMetrics: false},
@@ -149,7 +171,7 @@ func TestCollectAllNodeResources_UsesSingleCompositeRequest(t *testing.T) {
 	defer server.Close()
 
 	nmClient := newNodemonClientForServer(t, server, node.Name)
-	c := newNodeCollectorForTest(nmClient, informer)
+	c := newNodeCollectorForTest(t, nmClient, informer)
 
 	c.collectAllNodeResources(context.Background())
 
@@ -200,7 +222,7 @@ func TestCollectAllNodeResources_NodeNotReadyFallsBackToKubelet(t *testing.T) {
 	defer server.Close()
 
 	nmClient := newNodemonClientForServer(t, server, node.Name)
-	c := newNodeCollectorForTest(nmClient, informer)
+	c := newNodeCollectorForTest(t, nmClient, informer)
 	// Composite node section is not_ready, so node CPU/memory must come from the
 	// kubelet Summary API fallback — while the usable GPU section is preserved.
 	c.kubeletClient = newFakeKubeletClientForNode(t, node.Name, 300_000_000, 512*1024*1024)
@@ -255,7 +277,7 @@ func TestCollectAllNodeResources_StaleGPUDropped(t *testing.T) {
 
 	nmClient := newNodemonClientForServer(t, server, node.Name)
 	fakeLogger := &fakeTelemetryLogger{}
-	c := newNodeCollectorForTest(nmClient, informer)
+	c := newNodeCollectorForTest(t, nmClient, informer)
 	c.telemetryLogger = fakeLogger
 
 	c.collectAllNodeResources(context.Background())
@@ -309,7 +331,7 @@ func TestCollectAllNodeResources_LegacyFallbackEmitsTelemetry(t *testing.T) {
 	c := &NodeCollector{
 		metricsClient:   &metricsv1.Clientset{},
 		nodemonClient:   nmClient,
-		kubeletClient:   NewKubeletSummaryClient(k8sfake.NewSimpleClientset(), logr.Discard(), 0),
+		kubeletClient:   newInertFakeKubeletClient(t),
 		nodeInformer:    informer,
 		batchChan:       make(chan CollectedResource, 10),
 		config:          NodeCollectorConfig{DisableGPUMetrics: false},
@@ -478,7 +500,7 @@ func TestCollectAllNodeResources_SurvivesNodeDeletedDuringNodemonFetch(t *testin
 	c := &NodeCollector{
 		metricsClient:   &metricsv1.Clientset{},
 		nodemonClient:   nmClient,
-		kubeletClient:   NewKubeletSummaryClient(k8sfake.NewSimpleClientset(), logr.Discard(), 0),
+		kubeletClient:   newInertFakeKubeletClient(t),
 		nodeInformer:    informer,
 		batchChan:       make(chan CollectedResource, 10),
 		config:          NodeCollectorConfig{DisableGPUMetrics: true},
@@ -507,4 +529,133 @@ func TestCollectAllNodeResources_SurvivesNodeDeletedDuringNodemonFetch(t *testin
 
 	require.Empty(t, fakeLogger.reportsWithErrorType("node_cache_fail"),
 		"collector should not report a cache miss when the node was captured before the race window")
+}
+
+// newBarePodTrackingCollector builds just enough of a NodeCollector to exercise
+// handlePodEvent/PodsOnNode, without the nodemon/kubelet/metrics wiring the collection
+// tests above need.
+func newBarePodTrackingCollector() *NodeCollector {
+	return &NodeCollector{
+		excludedNodes: map[string]bool{},
+		logger:        logr.Discard(),
+		nodeToPodsMap: make(map[string]map[string]*corev1.Pod),
+	}
+}
+
+// boundPodNodeName is the node every fixture in the pod-tracking tests below binds to. Only
+// the rescheduling case cares about a second node, and it names that one inline.
+const boundPodNodeName = "ip-10-0-1-5"
+
+// boundPod is a pod the scheduler has already bound to a node, which is the only pod shape
+// this collector tracks.
+func boundPod() *corev1.Pod {
+	return &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "payments", Name: "checkout-9f8b7d"},
+		Spec:       corev1.PodSpec{NodeName: boundPodNodeName},
+	}
+}
+
+// TestHandlePodEvent_TracksPodsOnNode pins the state machine PodsOnNode depends on, which is
+// what classifyDisruptionBlocked reads to find the pod blocking a node.
+//
+// The last case is the regression guard for #9897 on this side of the seam: this collector
+// used to keep a SECOND map keyed by pod.Status.NominatedNodeName, maintained on every pod
+// event cluster-wide, to serve a PodsNominatedFor lookup. That field is kube-scheduler
+// preemption state rather than Karpenter nomination, so the lookup was unsound and both it
+// and the bookkeeping are gone. A pending pod is now tracked for no node at all.
+func TestHandlePodEvent_TracksPodsOnNode(t *testing.T) {
+	t.Run("a bound pod is tracked for its node", func(t *testing.T) {
+		c := newBarePodTrackingCollector()
+
+		c.handlePodEvent(boundPod(), EventTypeAdd)
+
+		got := c.PodsOnNode("ip-10-0-1-5")
+		require.Len(t, got, 1)
+		require.Equal(t, "checkout-9f8b7d", got[0].Name)
+	})
+
+	t.Run("an excluded node is not tracked", func(t *testing.T) {
+		c := newBarePodTrackingCollector()
+		c.excludedNodes["ip-10-0-1-5"] = true
+
+		c.handlePodEvent(boundPod(), EventTypeAdd)
+
+		require.Empty(t, c.PodsOnNode("ip-10-0-1-5"))
+	})
+
+	// Reproduces the pod informer's UpdateFunc exactly: it calls handlePodEvent(newPod, ...)
+	// for the new state, THEN separately diffs oldPod/newPod to clear the stale node bucket
+	// handlePodEvent cannot know about on its own, since it only ever sees the new object.
+	t.Run("a rescheduled pod leaves its old node's bucket", func(t *testing.T) {
+		c := newBarePodTrackingCollector()
+		oldPod := boundPod()
+		c.handlePodEvent(oldPod, EventTypeAdd)
+
+		newPod := oldPod.DeepCopy()
+		newPod.Spec.NodeName = "ip-10-0-1-9"
+		c.handlePodEvent(newPod, EventTypeUpdate)
+		if oldPod.Spec.NodeName != newPod.Spec.NodeName {
+			c.removePodFromNode(oldPod)
+		}
+
+		require.Empty(t, c.PodsOnNode("ip-10-0-1-5"), "stale bucket under the old node must be cleared")
+		require.Len(t, c.PodsOnNode("ip-10-0-1-9"), 1)
+	})
+
+	t.Run("delete clears the pod", func(t *testing.T) {
+		c := newBarePodTrackingCollector()
+		pod := boundPod()
+		c.handlePodEvent(pod, EventTypeAdd)
+
+		c.handlePodEvent(pod, EventTypeDelete)
+
+		require.Empty(t, c.PodsOnNode("ip-10-0-1-5"))
+	})
+
+	t.Run("a pending pod nominated for a node is tracked for no node", func(t *testing.T) {
+		c := newBarePodTrackingCollector()
+		pending := &corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{Namespace: "payments", Name: "checkout-7d9f8b"},
+			Status:     corev1.PodStatus{NominatedNodeName: "ip-10-0-1-5"},
+		}
+
+		c.handlePodEvent(pending, EventTypeAdd)
+
+		require.Empty(t, c.PodsOnNode("ip-10-0-1-5"),
+			"an unbound pod must not appear as ON the node, nominated or otherwise — see #9897")
+	})
+}
+
+// BenchmarkHandlePodEvent measures the per-pod-event bookkeeping the pod informer runs for
+// EVERY pod in the cluster, on every add and every update — the highest-frequency path in
+// this collector by a wide margin. A cluster of a few thousand pods re-delivers each of
+// them on every status change, so a constant factor here is paid tens of thousands of times
+// a minute, which is why unjustified work in this function is worth benchmarking at all.
+//
+// The bound case is the overwhelmingly common one (a pod with Spec.NodeName set); the
+// pending case is a pod the scheduler has not bound, which reaches only the exclusion check.
+func BenchmarkHandlePodEvent(b *testing.B) {
+	bound := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "payments", Name: "checkout-7d9f8b"},
+		Spec:       corev1.PodSpec{NodeName: "ip-10-0-1-5"},
+	}
+	pending := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "payments", Name: "checkout-9f8b7d"},
+	}
+
+	for _, tc := range []struct {
+		name string
+		pod  *corev1.Pod
+	}{
+		{"bound", bound},
+		{"pending", pending},
+	} {
+		b.Run(tc.name, func(b *testing.B) {
+			c := newBarePodTrackingCollector()
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				c.handlePodEvent(tc.pod, EventTypeUpdate)
+			}
+		})
+	}
 }

@@ -174,8 +174,8 @@ func (c *CSIStorageCapacityCollector) csiStorageCapacityChanged(
 		oldCSC.ObjectMeta,
 		newCSC.ObjectMeta,
 	)
-	if changed != IgnoreChanges {
-		return changed == PushChanges
+	if changed == PushChanges {
+		return true
 	}
 
 	// Check for capacity changes

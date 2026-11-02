@@ -29,6 +29,12 @@ runs:
   steps:
     - name: Set up Go
       uses: actions/setup-go@v5
+      # setup-go runs `go version` / `go env` from the workspace root. In the
+      # services monorepo that is the root module, whose newer go line would make
+      # GOTOOLCHAIN=auto download that toolchain (unused, and it collides with the
+      # cache restore). local keeps the Go this module's go.mod asks for.
+      env:
+        GOTOOLCHAIN: local
       with:
         go-version-file: ${{ inputs.working-directory }}/go.mod
         cache: true
@@ -58,6 +64,7 @@ runs:
         # The deprecated key must render the exact same manifests as the
         # canonical one (privileges, env, RBAC), and disabling via the
         # deprecated key alone must still work.
+        helm dependency build ./helm-chart/zxporter-nodemon
         helm template zxporter-nodemon ./helm-chart/zxporter-nodemon \
           --set global.k8sProvider=other --set dcgmExporter.enabled=false \
           --set jvmMetrics.enabled=true > /tmp/render-deprecated.yaml
@@ -149,6 +156,8 @@ runs:
         kubectl -n jvm-spike rollout status deploy/java21-precedence-env --timeout=300s
         kubectl -n jvm-spike rollout status deploy/java21-precedence-cmdline --timeout=300s
         kubectl -n jvm-spike rollout status deploy/java21-per-flag-sources --timeout=300s
+        kubectl -n jvm-spike rollout status deploy/zipkin-writable-rootfs --timeout=300s
+        kubectl -n jvm-spike rollout status deploy/zipkin-readonly-rootfs --timeout=300s
         kubectl -n jvm-spike rollout status deploy/not-java --timeout=300s
 
     - name: Deploy Node.js test workloads
@@ -213,10 +222,17 @@ runs:
         # until everything expected has appeared, then run the strict
         # assertions (which give precise failure messages if it never does).
         need_versions = ['node-version-env', 'node-version-binaryscan', 'python-app',
-                         'ruby-app', 'go-app', 'dotnet-app', 'deno-app', 'bun-app', 'rust-app']
+                         'ruby-app', 'go-app', 'dotnet-app', 'deno-app', 'bun-app', 'rust-app',
+                         # hsperfdata-less JVM: version comes from the image's
+                         # JAVA_VERSION env, so it resolves like any other.
+                         'zipkin-readonly-rootfs']
+        need_jvm = ['java8-xmx-only', 'zipkin-writable-rootfs']
         def all_present():
             c = fetch('/container/runtime-metrics')
-            if not any((m.get('pod') or '').startswith('java8-xmx-only') for m in c.get('jvm', [])):
+            jvm = c.get('jvm', [])
+            if not all(
+                    any((m.get('pod') or '').startswith(p) for m in jvm)
+                    for p in need_jvm):
                 return False
             rt = c.get('runtimes', [])
             return all(
@@ -380,6 +396,49 @@ runs:
             raise SystemExit(f'runtime-metrics missing node-version-env in runtimes bucket; got {all_runtime_pods}')
         if any((p or '').startswith('not-node') for p in all_runtime_pods):
             raise SystemExit(f'runtime-metrics unexpectedly includes not-node in runtimes bucket; got {all_runtime_pods}')
+
+        # ============ hsperfdata-less JVM fallback ============
+        # zipkin-{writable,readonly}-rootfs are the same image and uid, differing
+        # only in readOnlyRootFilesystem. With a read-only rootfs and no writable
+        # /tmp, HotSpot cannot create /tmp/hsperfdata_<user>/<pid>, so the
+        # hsperfdata pipeline has nothing to read — the process must still be
+        # reported, as runtime "java" in the generic bucket.
+        jvm_entries = runtime.get('jvm', [])
+
+        # Writable rootfs: full JVM pipeline, real heap metrics.
+        m_rw = [m for m in jvm_entries if (m.get('pod') or '').startswith('zipkin-writable-rootfs')]
+        if not m_rw:
+            raise SystemExit(f'zipkin-writable-rootfs missing from jvm bucket; got {jvm_pods}')
+        if (m_rw[0].get('heap_max_size_bytes') or 0) <= 0:
+            raise SystemExit(f'zipkin-writable-rootfs expected heap.max_bytes > 0; got {m_rw[0]!r}')
+        # The image's entrypoint sets -Xms160m -Xmx160m; proves the flags are
+        # read from the live cmdline, not from the pod spec (which has neither).
+        if m_rw[0].get('flags_extracted', {}).get('xmx_bytes') != 167772160:
+            raise SystemExit(
+                f'zipkin-writable-rootfs expected xmx_bytes=167772160 from the image entrypoint; '
+                f'got {m_rw[0].get("flags_extracted")!r}')
+        if any((p or '').startswith('zipkin-writable-rootfs') for p in all_runtime_pods):
+            raise SystemExit('zipkin-writable-rootfs must not be double-reported in the runtimes bucket')
+
+        # Read-only rootfs: no heap metrics are possible, so it must NOT be in
+        # the jvm bucket — and must NOT vanish entirely either.
+        if any((p or '').startswith('zipkin-readonly-rootfs') for p in jvm_pods):
+            raise SystemExit('zipkin-readonly-rootfs has no hsperfdata and must not appear in the jvm bucket')
+        m_ro = [m for m in runtime.get('runtimes', [])
+                if (m.get('pod') or '').startswith('zipkin-readonly-rootfs')]
+        if not m_ro:
+            raise SystemExit(
+                'zipkin-readonly-rootfs missing from BOTH buckets — a JVM without hsperfdata '
+                f'must fall back to the runtimes bucket; got runtimes={all_runtime_pods} jvm={jvm_pods}')
+        if m_ro[0].get('runtime') != 'java':
+            raise SystemExit(f'zipkin-readonly-rootfs expected runtime="java"; got {m_ro[0]!r}')
+        # Version still resolves passively (JAVA_VERSION env in the image).
+        if not (m_ro[0].get('version') or '').startswith('21.'):
+            raise SystemExit(f'zipkin-readonly-rootfs expected a 21.x version from env; got {m_ro[0]!r}')
+        if m_ro[0].get('version_source') != 'env':
+            raise SystemExit(f'zipkin-readonly-rootfs expected version_source=env; got {m_ro[0]!r}')
+        if m_ro[0].get('namespace') != 'jvm-spike' or not m_ro[0].get('container_id'):
+            raise SystemExit(f'zipkin-readonly-rootfs has bad pod metadata: {m_ro[0]!r}')
 
         # ============ Generic runtimes bucket ============
         # dotnet-app deliberately exercises the apphost probe path (comm is the

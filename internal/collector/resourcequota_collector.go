@@ -170,8 +170,8 @@ func (c *ResourceQuotaCollector) resourceQuotaChanged(oldRQ, newRQ *corev1.Resou
 		oldRQ.ObjectMeta,
 		newRQ.ObjectMeta,
 	)
-	if changed != IgnoreChanges {
-		return changed == PushChanges
+	if changed == PushChanges {
+		return true
 	}
 
 	// Check for spec resource changes

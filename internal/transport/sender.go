@@ -243,13 +243,13 @@ func (c *SimpleDakrClient) SendTelemetryLogs(
 // ExchangePATForClusterToken implements SimpleDakrClient.
 func (c *SimpleDakrClient) ExchangePATForClusterToken(
 	ctx context.Context,
-	patToken, clusterName, k8sProvider string,
-) (string, string, error) {
+	req ClusterTokenExchangeRequest,
+) (ClusterTokenExchangeResult, error) {
 	c.logger.Info("Would exchange PAT token for cluster token",
-		"clusterName", clusterName,
-		"k8sProvider", k8sProvider)
+		"clusterName", req.ClusterName,
+		"k8sProvider", req.K8sProvider)
 	// Return empty values for simple client
-	return "", "", fmt.Errorf("PAT token exchange not supported in simple client")
+	return ClusterTokenExchangeResult{}, fmt.Errorf("PAT token exchange not supported in simple client")
 }
 
 // SendNetworkTrafficMetrics implements SimpleDakrClient.
@@ -262,6 +262,30 @@ func (c *SimpleDakrClient) SendNetworkTrafficMetrics(
 		"itemsCount", len(req.Items),
 		"lookupsCount", len(req.DnsLookups))
 	return &gen.SendNetworkTrafficMetricsResponse{ProcessedCount: int32(len(req.Items))}, nil
+}
+
+// SendScalerMetrics implements SimpleDakrClient (no-op).
+func (c *SimpleDakrClient) SendScalerMetrics(
+	ctx context.Context,
+	clusterID string,
+	teamID string,
+	samples []*gen.ScalerMetricSample,
+) error {
+	c.logger.Info("Would send KEDA scaler metrics to Dakr",
+		"clusterID", clusterID,
+		"samplesCount", len(samples))
+	return nil
+}
+
+// SendContainerRedMetrics implements SimpleDakrClient.
+func (c *SimpleDakrClient) SendContainerRedMetrics(
+	ctx context.Context,
+	req *gen.SendContainerRedMetricsRequest,
+) (*gen.SendContainerRedMetricsResponse, error) {
+	c.logger.Info("Would send container RED metrics to Dakr",
+		"nodeName", req.NodeName,
+		"itemsCount", len(req.Items))
+	return &gen.SendContainerRedMetricsResponse{ProcessedCount: int32(len(req.Items))}, nil
 }
 
 // ReportHealth implements SimpleDakrClient.

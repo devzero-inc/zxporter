@@ -172,8 +172,8 @@ func (c *ServiceAccountCollector) serviceAccountChanged(oldSA, newSA *corev1.Ser
 		oldSA.ObjectMeta,
 		newSA.ObjectMeta,
 	)
-	if changed != IgnoreChanges {
-		return changed == PushChanges
+	if changed == PushChanges {
+		return true
 	}
 
 	// Check for secret reference changes

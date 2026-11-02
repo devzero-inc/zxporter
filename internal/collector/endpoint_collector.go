@@ -167,8 +167,8 @@ func (c *EndpointCollector) endpointsChanged(oldEndpoints, newEndpoints *corev1.
 		oldEndpoints.ObjectMeta,
 		newEndpoints.ObjectMeta,
 	)
-	if changed != IgnoreChanges {
-		return changed == PushChanges
+	if changed == PushChanges {
+		return true
 	}
 
 	// Check for changes in subsets
