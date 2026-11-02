@@ -155,6 +155,15 @@ func blockedPod(namespace, name string, podLabels, annotations map[string]string
 	}
 }
 
+// preemptingPod is a pod whose Status.NominatedNodeName is set — kube-scheduler preemption
+// state, which is exactly the signal a deleted PodNominated derivation used to read. Only
+// TestClassifyDisruptionBlocked_NeverDerivesPodNominated needs it.
+func preemptingPod(namespace, name, nominatedNodeName string, podLabels, annotations map[string]string) *corev1.Pod {
+	pod := blockedPod(namespace, name, podLabels, annotations)
+	pod.Status.NominatedNodeName = nominatedNodeName
+	return pod
+}
+
 func blockingPDB(namespace, name string, matchLabels map[string]string, disruptionsAllowed int32) *policyv1.PodDisruptionBudget {
 	return &policyv1.PodDisruptionBudget{
 		ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: name},
@@ -331,6 +340,8 @@ func TestClassifyDisruptionBlocked(t *testing.T) {
 
 		assert.Equal(t, disruptionBlockReasonDoNotDisruptAnnotation, got.Reason)
 		assert.Nil(t, got.BlockingPDBName)
+		require.NotNil(t, got.RelatedPodName)
+		assert.Equal(t, "payments/ledger-0", *got.RelatedPodName)
 	})
 
 	// Only the literal "true" opts out, matching Karpenter's own check — "false" or a
@@ -532,8 +543,11 @@ func TestClassifyDisruptionBlocked(t *testing.T) {
 	})
 
 	// The node-level blocks Karpenter rejects on before it ever looks at pods —
-	// uninitialized, deleting, nominated for a pending pod. Nothing in the caches explains
-	// them, and Other is the honest answer.
+	// uninitialized, deleting, missing its NodePool label. Nothing in the caches explains
+	// them, and Other is the honest answer. Note the message says "nominated for a pending
+	// pod": Other is correct HERE even so, because this classifier never reads the message,
+	// and the nominated bucket that message maps to is a read-side classification (see
+	// TestClassifyDisruptionBlocked_NeverDerivesPodNominated).
 	t.Run("nothing on the node explains the block", func(t *testing.T) {
 		state := clusterState{
 			podsByNode: map[string][]*corev1.Pod{
@@ -550,6 +564,80 @@ func TestClassifyDisruptionBlocked(t *testing.T) {
 		assert.Equal(t, disruptionBlockReasonOther, got.Reason)
 		assert.Nil(t, got.BlockingPDBName)
 	})
+}
+
+// TestClassifyDisruptionBlocked_NeverDerivesPodNominated is the regression guard for #9897.
+//
+// A pod with Status.NominatedNodeName set is being PREEMPTED by kube-scheduler — Karpenter's
+// own helper for that field is IsPreempting — and says nothing about Karpenter's nomination
+// window, which lives only in the Karpenter controller's memory for ~20s and is not
+// observable through the API. A previous version of this classifier derived PodNominated from
+// it and consequently emitted that bucket zero times in production while ~36% of blocking
+// events carried the corresponding message. The bucket now belongs to the read-side message
+// parse in dakr, so this classifier must never produce it from cluster state again.
+//
+// Each case below puts a preempting pod on the blocked node and asserts the verdict is
+// whatever the node's REAL state says — never PodNominated.
+func TestClassifyDisruptionBlocked_NeverDerivesPodNominated(t *testing.T) {
+	now := time.Date(2026, 8, 4, 12, 0, 0, 0, time.UTC)
+	const nominatedMessage = "Cannot disrupt Node: state node is nominated for a pending pod"
+
+	cases := []struct {
+		name  string
+		state clusterState
+		want  string
+	}{
+		{
+			// The exact shape the deleted derivation used to claim as PodNominated: a
+			// preempting pod on the node and nothing else blocking. Other is the honest
+			// answer, because live state genuinely does not explain this block.
+			name: "a preempting pod alone does not explain the block",
+			state: clusterState{
+				podsByNode: map[string][]*corev1.Pod{
+					"ip-10-0-1-5": {preemptingPod("payments", "checkout-9f8b7d", "ip-10-0-1-5",
+						map[string]string{"app": "checkout"}, nil)},
+				},
+			},
+			want: disruptionBlockReasonOther,
+		},
+		{
+			name: "a preempting pod does not mask a blocking pdb",
+			state: clusterState{
+				podsByNode: map[string][]*corev1.Pod{
+					"ip-10-0-1-5": {preemptingPod("payments", "checkout-7d9f8b", "ip-10-0-1-5",
+						map[string]string{"app": "checkout"}, nil)},
+				},
+				pdbs: map[string][]*policyv1.PodDisruptionBudget{
+					"payments": {blockingPDB("payments", "checkout-pdb", map[string]string{"app": "checkout"}, 0)},
+				},
+			},
+			want: disruptionBlockReasonPDBViolation,
+		},
+		{
+			name: "a preempting pod does not mask a do-not-disrupt annotation",
+			state: clusterState{
+				podsByNode: map[string][]*corev1.Pod{
+					"ip-10-0-1-5": {preemptingPod("payments", "ledger-0", "ip-10-0-1-5", nil, map[string]string{
+						"karpenter.sh/do-not-disrupt": "true",
+					})},
+				},
+			},
+			want: disruptionBlockReasonDoNotDisruptAnnotation,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := classifyDisruptionBlocked(
+				disruptionBlockedEvent("ip-10-0-1-5", nominatedMessage),
+				tc.state.sources(), now,
+			)
+
+			assert.Equal(t, tc.want, got.Reason)
+			assert.NotEqual(t, "PodNominated", got.Reason,
+				"PodNominated is not derivable from cluster state — see #9897")
+		})
+	}
 }
 
 // TestClassifyDisruptionBlocked_NeverUnclassified is the contract the empty ClickHouse

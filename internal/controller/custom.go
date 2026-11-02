@@ -401,54 +401,50 @@ func (c *EnvBasedController) initializeTelemetryComponents(ctx context.Context) 
 		// Continue with default values
 	}
 
-	// Handle PAT token exchange if no cluster token is available
-	if envSpec.Policies.ClusterToken == "" && envSpec.Policies.PATToken != "" {
-		// First try to recover existing stored token
-		if storedToken := c.tryRecoverStoredClusterToken(ctx); storedToken != "" {
-			c.Log.Info("Found existing cluster token in storage, skipping PAT exchange")
-			envSpec.Policies.ClusterToken = storedToken
-		} else {
-			// Only do PAT exchange if no stored token found
-			c.Log.Info("No stored cluster token found, attempting PAT token exchange")
-
-			// Get cluster name and provider
-			clusterName := envSpec.Policies.KubeContextName
-			if clusterName == "" {
-				clusterName = "zxporter-cluster"
-			}
-
-			k8sProvider := "other"
-			if provider := os.Getenv("K8S_PROVIDER"); provider != "" {
-				k8sProvider = provider
-			}
-
-			// Use a temporary DakrClient just for PAT exchange
-			dakrURL := envSpec.Policies.DakrURL
-			if dakrURL == "" {
-				dakrURL = "https://dakr.devzero.io"
-			}
-
-			// Create a temporary client with empty cluster token for PAT exchange
-			tempClient := c.dakrClientFactory(dakrURL, "", c.Log)
-
-			// Exchange PAT for cluster token
-			token, clusterId, err := tempClient.ExchangePATForClusterToken(ctx, envSpec.Policies.PATToken, clusterName, k8sProvider)
-			if err != nil {
-				c.Log.Error(err, "Failed to exchange PAT for cluster token")
-				return fmt.Errorf("failed to exchange PAT for cluster token: %w", err)
-			}
-			c.Log.Info("Successfully obtained cluster token", "clusterId", clusterId)
-			envSpec.Policies.ClusterToken = token
+	// Resolve the cluster token: env or the stored mirror (the live mirror
+	// first when the chart marks env as its snapshot), then a PAT exchange
+	// that re-attaches to this cluster by its kube-system UID (KUB-158).
+	if envSpec.Policies.ClusterToken != "" || envSpec.Policies.PATToken != "" {
+		clusterName := envSpec.Policies.KubeContextName
+		if clusterName == "" {
+			clusterName = "zxporter-cluster"
 		}
+		k8sProvider := "other"
+		if provider := util.GetConfigValue("K8S_PROVIDER"); provider != "" {
+			k8sProvider = provider
+		}
+		dakrURL := envSpec.Policies.DakrURL
+		if dakrURL == "" {
+			dakrURL = "https://dakr.devzero.io"
+		}
+		resolver := &clusterTokenResolver{
+			k8s:        c.K8sClient,
+			mirrorFed:  envTokenIsMirrorFed(c.shouldUseSecretStorage(), util.GetConfigValue("CLUSTER_TOKEN_SOURCE")),
+			readStored: c.tryRecoverStoredClusterToken,
+			exchange: func(ctx context.Context, req transport.ClusterTokenExchangeRequest) (transport.ClusterTokenExchangeResult, error) {
+				return c.dakrClientFactory(dakrURL, "", c.Log).ExchangePATForClusterToken(ctx, req)
+			},
+			log: c.Log,
+		}
+		token, err := resolver.resolve(ctx, envSpec.Policies.ClusterToken, envSpec.Policies.PATToken,
+			clusterName, k8sProvider, util.GetConfigValue("CLUSTER_ID"))
+		if err != nil {
+			c.Log.Error(err, "Failed to resolve cluster token")
+			return fmt.Errorf("failed to resolve cluster token: %w", err)
+		}
+		envSpec.Policies.ClusterToken = token
 	}
 
-	// Persist the resolved token to the runtime Secret so other operators (dakr, trezr, etc.)
-	// can read it via secretKeyRef. This covers both direct-token installs (where the token
-	// arrives via env var from devzero-zxporter-credentials and was never written to the
-	// runtime Secret) and PAT-exchange installs. Idempotent — safe on every startup.
-	if envSpec.Policies.ClusterToken != "" && c.shouldUseSecretStorage() {
+	// Persist the resolved token to the store this install uses: the runtime
+	// Secret in Secret mode, the env ConfigMap (TOKEN_CONFIGMAP_NAME) in
+	// ConfigMap mode. Other operators (trezr, tunr) read it from there, and the
+	// next start reads it back instead of exchanging the PAT again, which since
+	// KUB-158 would rotate the token. This covers direct-token installs (the
+	// token arrives via env and was never written to the store) and
+	// PAT-exchange installs. Idempotent, safe on every startup.
+	if envSpec.Policies.ClusterToken != "" {
 		if err := c.persistClusterToken(ctx, envSpec.Policies.ClusterToken); err != nil {
-			c.Log.Error(err, "Failed to persist cluster token to runtime Secret")
+			c.Log.Error(err, "Failed to persist cluster token")
 		}
 	}
 
@@ -573,17 +569,7 @@ func (c *EnvBasedController) persistClusterTokenToConfigMap(
 	token string,
 ) error {
 	// Get namespace from environment variable or use default
-	namespace := os.Getenv("POD_NAMESPACE")
-	if namespace == "" {
-		// Try to read from service account namespace file
-		if data, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace"); err == nil {
-			namespace = strings.TrimSpace(string(data))
-		} else {
-			// Fall back to default if all else fails
-			namespace = defaultNamespace
-			c.Log.Info("Could not determine namespace, using default", "namespace", namespace)
-		}
-	}
+	namespace := c.podNamespace()
 	// Get ConfigMap name from environment variable with fallback to default
 	configMapName := os.Getenv("TOKEN_CONFIGMAP_NAME")
 	if configMapName == "" {
@@ -626,17 +612,7 @@ func (c *EnvBasedController) persistClusterTokenToConfigMap(
 // persistClusterTokenToSecret persists the cluster token to a Kubernetes Secret
 func (c *EnvBasedController) persistClusterTokenToSecret(ctx context.Context, token string) error {
 	// Get namespace from environment variable or use default
-	namespace := os.Getenv("POD_NAMESPACE")
-	if namespace == "" {
-		// Try to read from service account namespace file
-		if data, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace"); err == nil {
-			namespace = strings.TrimSpace(string(data))
-		} else {
-			// Fall back to default if all else fails
-			namespace = defaultNamespace
-			c.Log.Info("Could not determine namespace, using default", "namespace", namespace)
-		}
-	}
+	namespace := c.podNamespace()
 
 	// Get runtime Secret name from environment variable with fallback to default
 	// This is the Secret where exchanged tokens are stored (system-managed)
@@ -724,16 +700,7 @@ func (c *EnvBasedController) tryRecoverStoredClusterToken(ctx context.Context) s
 // readClusterTokenFromSecret reads cluster token from runtime secret
 func (c *EnvBasedController) readClusterTokenFromSecret(ctx context.Context) string {
 	// Get namespace from environment variable or use default
-	namespace := os.Getenv("POD_NAMESPACE")
-	if namespace == "" {
-		// Try to read from service account namespace file
-		if data, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace"); err == nil {
-			namespace = strings.TrimSpace(string(data))
-		} else {
-			// Fall back to default if all else fails
-			namespace = defaultNamespace
-		}
-	}
+	namespace := c.podNamespace()
 
 	// Get runtime Secret name from environment variable with fallback to default
 	runtimeSecretName := os.Getenv("TOKEN_RUNTIME_SECRET_NAME")
@@ -795,16 +762,7 @@ func (c *EnvBasedController) readClusterTokenFromSecret(ctx context.Context) str
 // readClusterTokenFromConfigMap reads cluster token from configmap
 func (c *EnvBasedController) readClusterTokenFromConfigMap(ctx context.Context) string {
 	// Get namespace from environment variable or use default
-	namespace := os.Getenv("POD_NAMESPACE")
-	if namespace == "" {
-		// Try to read from service account namespace file
-		if data, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace"); err == nil {
-			namespace = strings.TrimSpace(string(data))
-		} else {
-			// Fall back to default if all else fails
-			namespace = defaultNamespace
-		}
-	}
+	namespace := c.podNamespace()
 
 	// Get ConfigMap name from environment variable with fallback to default
 	configMapName := os.Getenv("TOKEN_CONFIGMAP_NAME")
@@ -852,4 +810,15 @@ func (c *EnvBasedController) readClusterTokenFromConfigMap(ctx context.Context) 
 
 	c.Log.Info("No cluster token found in ConfigMap", "configMap", configMapName)
 	return ""
+}
+
+// podNamespace is the namespace zxporter runs in.
+func (c *EnvBasedController) podNamespace() string {
+	if ns := os.Getenv("POD_NAMESPACE"); ns != "" {
+		return ns
+	}
+	if data, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace"); err == nil {
+		return strings.TrimSpace(string(data))
+	}
+	return defaultNamespace
 }

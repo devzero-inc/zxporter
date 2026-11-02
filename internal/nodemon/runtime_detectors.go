@@ -41,6 +41,12 @@ const (
 	runtimeNameDeno    = "deno"
 	runtimeNameBun     = "bun"
 	runtimeNameRust    = "rust"
+	// runtimeNameJava is only ever reported for a JVM that has no hsperfdata
+	// file — see the processKindJava branch in discoverRuntimeProcesses. A JVM
+	// with hsperfdata goes to the dedicated JVMMetric pipeline instead and is
+	// deliberately absent from this bucket, so the two never double-report the
+	// same process.
+	runtimeNameJava = "java"
 )
 
 // version sources reported in RuntimeProcessMetric.VersionSource.
@@ -85,6 +91,14 @@ var (
 	// embeds in panic/backtrace metadata — the fallback detection signal for
 	// binaries whose .comment section was stripped.
 	rustcPathMarkerRe = regexp.MustCompile(`(/rustc/[0-9a-f]{40}/)`)
+	// javaPathVersionRe extracts a JDK version from a filesystem path that names
+	// one, e.g. /usr/lib/jvm/java-21-openjdk/bin/java, /usr/lib/jvm/jdk-17.0.9,
+	// /usr/lib/jvm/zulu11.60.19-ca-jdk11.0.17. Distro and vendor layouts all put
+	// the major (and often the full) version in the JDK directory name. Used only
+	// for JVMs with no hsperfdata, where java.property.java.version is
+	// unavailable; a path that carries no version (Temurin's /opt/java/openjdk)
+	// simply doesn't match and the caller falls through.
+	javaPathVersionRe = regexp.MustCompile(`(?:java|jdk|jre)-?(\d+(?:[._]\d+)*)`)
 	// graalVMVersionRe best-effort matches the GraalVM release string embedded in
 	// native-image binaries, e.g. "GraalVM CE 22.3.1" or "Oracle GraalVM 21+35.1".
 	graalVMVersionRe = regexp.MustCompile(`GraalVM (?:[A-Z]{2} )?(\d+(?:\.\d+)*(?:\+[\d.]+)?)`)
@@ -146,6 +160,37 @@ func isNodeProcess(comm, cmdline string) bool {
 		return false
 	}
 	return filepath.Base(parts[0]) == nodeBinName
+}
+
+// resolveJavaVersion resolves a JVM's version without hsperfdata, for the
+// processes the dedicated JVM pipeline has to skip (no perf file to read
+// java.property.java.version from). Three passive sources, in descending order
+// of precision:
+//
+//	JAVA_VERSION env — set by eclipse-temurin, the Alpine openjdk packages and
+//	  images built on them (openzipkin/zipkin-slim among them), and carries the
+//	  full version ("21.0.7_p6").
+//	/proc/<pid>/exe — distro JDK layouts name the version in the directory
+//	  (/usr/lib/jvm/java-21-openjdk/bin/java), usually major-only.
+//	JAVA_HOME env — same shape, for images whose exe path is version-free
+//	  (Temurin's /opt/java/openjdk/bin/java).
+//
+// Nothing is executed: `java -version` would fork a second JVM per scrape.
+func resolveJavaVersion(pidDir string) (version, source string) {
+	if v := envVersion(pidDir, "JAVA_VERSION"); v != "" {
+		return v, runtimeVersionSourceEnv
+	}
+	if exe := resolveExePath(pidDir); exe != "" {
+		if m := javaPathVersionRe.FindStringSubmatch(exe); len(m) == 2 {
+			return m[1], runtimeVersionSourceExePath
+		}
+	}
+	if home := envVersion(pidDir, "JAVA_HOME"); home != "" {
+		if m := javaPathVersionRe.FindStringSubmatch(home); len(m) == 2 {
+			return m[1], runtimeVersionSourceEnv
+		}
+	}
+	return "", ""
 }
 
 // resolveNodeVersion best-effort resolves the Node.js version: NODE_VERSION env
@@ -211,10 +256,13 @@ var extraRuntimeDetectors = []runtimeDetector{
 }
 
 // runtimeNameForKind maps a processKind to the runtime name reported to the
-// control plane. Covers every runtime except java, which has its own metric
-// type and pipeline.
+// control plane. java is included for the hsperfdata-less fallback only — a JVM
+// with hsperfdata is reported through its own metric type and pipeline, and
+// never reaches this bucket.
 func runtimeNameForKind(kind processKind) string {
 	switch kind {
+	case processKindJava:
+		return runtimeNameJava
 	case processKindNode:
 		return runtimeNameNodeJS
 	case processKindDotnet:
@@ -241,6 +289,8 @@ func runtimeNameForKind(kind processKind) string {
 // resolveRuntimeVersion dispatches to the per-runtime passive version resolver.
 func resolveRuntimeVersion(kind processKind, pidDir string) (version, source string) {
 	switch kind {
+	case processKindJava:
+		return resolveJavaVersion(pidDir)
 	case processKindGo:
 		return resolveGoVersion(pidDir)
 	case processKindGraalVM:

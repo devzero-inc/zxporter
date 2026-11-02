@@ -24,6 +24,12 @@ runs:
   steps:
     - name: Set up Go
       uses: actions/setup-go@v5
+      # setup-go runs `go version` / `go env` from the workspace root. In the
+      # services monorepo that is the root module, whose newer go line would make
+      # GOTOOLCHAIN=auto download that toolchain (unused, and it collides with the
+      # cache restore). local keeps the Go this module's go.mod asks for.
+      env:
+        GOTOOLCHAIN: local
       with:
         go-version-file: ${{ inputs.working-directory }}/go.mod
         cache: true
@@ -33,6 +39,15 @@ runs:
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       run: go mod download
+
+    # helm-chart/*/chart_resources_test.go shells out to `helm template`, and
+    # skips itself when helm is absent. Install it explicitly so the chart
+    # guards actually run instead of reporting a silent green -- the runner
+    # image is not guaranteed to carry helm. Pinned to the same version the
+    # tunr chart tests use (.github/workflows/tunr-test.yml).
+    - uses: azure/setup-helm@v5
+      with:
+        version: "3.12.3"
 
     - name: Run make test
       shell: bash

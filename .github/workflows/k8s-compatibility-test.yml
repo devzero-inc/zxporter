@@ -71,6 +71,7 @@ jobs:
           - v1.34.3
           - v1.35.1
           - v1.36.1
+          - v1.37.0
         deployment-method:
           - helm
           # "manifest" (unchanged name — required-status-check contexts in the
@@ -81,6 +82,13 @@ jobs:
           # coverage, extended to the no-hostPID/root/SYS_PTRACE bundle.
           - manifest
           - manifest-lowpriv
+        # kind publishes each release's node images by digest and only
+        # guarantees a build made for that release when pulled by it (kind
+        # v0.33.0 release notes). The digest rides on the v1.37.0 jobs only,
+        # so the version, the job name and the check name stay as they are.
+        include:
+          - k8s-version: v1.37.0
+            node-digest: "@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5"
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -89,6 +97,7 @@ jobs:
         uses: ./.github/actions/k8s-compat-test
         with:
           k8s-version: ${{ matrix.k8s-version }}
+          node-image-digest: ${{ matrix.node-digest }}
           deployment-method: ${{ matrix.deployment-method }}
           zxporter-img: ${{ needs.build.outputs.image }}
           commit-hash: ${{ needs.build.outputs.commit_hash }}

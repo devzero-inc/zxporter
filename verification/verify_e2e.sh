@@ -11,6 +11,11 @@ set -e
 CLUSTER_CONTEXT=${1:-kind-kind}
 NAMESPACE=${2:-devzero-zxporter}
 
+# The charts vendor devzero-common into their gitignored charts/ directories.
+for chart in zxporter-nodemon zxporter-netmon zxporter; do
+    helm dependency build "helm-chart/$chart" >/dev/null
+done
+
 echo "Using cluster context: $CLUSTER_CONTEXT"
 
 # 0. Ensure Kind cluster exists if using Kind

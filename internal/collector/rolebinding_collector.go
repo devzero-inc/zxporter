@@ -167,8 +167,8 @@ func (c *RoleBindingCollector) roleBindingChanged(oldRB, newRB *rbacv1.RoleBindi
 		oldRB.ObjectMeta,
 		newRB.ObjectMeta,
 	)
-	if changed != IgnoreChanges {
-		return changed == PushChanges
+	if changed == PushChanges {
+		return true
 	}
 
 	// Check for role reference changes

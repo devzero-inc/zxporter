@@ -4,6 +4,14 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
+  {{- with (include "zxporter.commonLabels" $) }}
+  labels:
+    {{- . | nindent 4 }}
+  {{- end }}
+  {{- with (include "zxporter.commonAnnotations" $) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
   name: devzero-zxporter-gpu-runtime-reader
 rules:
   - apiGroups:
@@ -18,6 +26,14 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
+  {{- with (include "zxporter.commonLabels" $) }}
+  labels:
+    {{- . | nindent 4 }}
+  {{- end }}
+  {{- with (include "zxporter.commonAnnotations" $) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
   name: devzero-zxporter-gpu-runtime-reader-rolebinding
 subjects:
   - kind: ServiceAccount
@@ -31,6 +47,14 @@ roleRef:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
+  {{- with (include "zxporter.commonLabels" $) }}
+  labels:
+    {{- . | nindent 4 }}
+  {{- end }}
+  {{- with (include "zxporter.commonAnnotations" $) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
   name: devzero-zxporter-gpu-runtime-patcher
   namespace: {{ .Release.Namespace }}
 rules:
@@ -47,6 +71,14 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
+  {{- with (include "zxporter.commonLabels" $) }}
+  labels:
+    {{- . | nindent 4 }}
+  {{- end }}
+  {{- with (include "zxporter.commonAnnotations" $) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
   name: devzero-zxporter-gpu-runtime-patcher-rolebinding
   namespace: {{ .Release.Namespace }}
 subjects:
