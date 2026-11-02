@@ -13,14 +13,31 @@ import (
 
 // Entry represents a single conntrack entry
 type Entry struct {
-	Src       netaddr.IPPort
-	Dst       netaddr.IPPort
-	TxBytes   uint64
-	TxPackets uint64
-	RxBytes   uint64
-	RxPackets uint64
-	Lifetime  time.Time
-	Proto     uint8
+	Src netaddr.IPPort
+	// Dst is the destination the client dialed, taken from conntrack's ORIGINAL
+	// tuple. For a ClusterIP connection that is the service address, not the pod
+	// that answered.
+	Dst netaddr.IPPort
+	// DstTranslated is the post-DNAT destination, taken from the source of
+	// conntrack's REPLY tuple: the backend that actually served the connection.
+	//
+	// It is the zero IPPort when the kernel did not translate the destination,
+	// which is the common case for pod-to-pod and egress traffic. Use
+	// HasTranslatedDst to test it rather than comparing against Dst, since a
+	// non-DNAT'd flow leaves this zero rather than echoing Dst.
+	DstTranslated netaddr.IPPort
+	TxBytes       uint64
+	TxPackets     uint64
+	RxBytes       uint64
+	RxPackets     uint64
+	Lifetime      time.Time
+	Proto         uint8
+}
+
+// HasTranslatedDst reports whether the kernel DNAT'd this connection, i.e.
+// whether the address that answered differs from the address the client dialed.
+func (e *Entry) HasTranslatedDst() bool {
+	return e.DstTranslated.IP().IsValid()
 }
 
 type EntriesFilter func(e *Entry) bool
@@ -112,9 +129,15 @@ func processSessions(sessions []ct.Con, filter EntriesFilter) []*Entry {
 			entry.Lifetime = now.Add(time.Second * time.Duration(*sess.Timeout))
 		}
 
+		// A DNAT'd connection (the kernel rewrote the destination, e.g. kube-proxy
+		// steering a ClusterIP to one backend pod) shows up as a REPLY tuple whose
+		// source is not the destination the client dialed. Record the backend
+		// separately instead of overwriting Dst: the control plane needs the
+		// dialed address to name the service and the backend address to decide
+		// which node -- and so which availability zone -- actually served it.
 		replySrc := netaddr.IPPortFrom(ipFromStdIP(*reply.Src), *reply.Proto.SrcPort)
 		if entry.Dst != replySrc {
-			entry.Dst = replySrc
+			entry.DstTranslated = replySrc
 		}
 
 		if filter == nil || filter(entry) {

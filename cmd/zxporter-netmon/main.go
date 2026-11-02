@@ -3,13 +3,27 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"net/http"
+	"net/http/pprof"
 	"os"
 	"os/signal"
+	"runtime"
+	"runtime/debug"
 	"syscall"
 	"time"
+
+	// Sets GOMEMLIMIT to 0.9 x the container's cgroup memory limit at startup so
+	// the GC collects aggressively before the kernel OOM-kills the pod. No-ops
+	// safely when no cgroup memory limit is set. Mirrors the controller-manager
+	// (operators/zxporter/cmd/main.go) and nodemon.
+	//
+	// Without it this binary ran at GOGC=100 with no knowledge of its cgroup
+	// ceiling: it idles at ~98MiB and the GC will not collect until the heap has
+	// doubled, so the first decodable load on the node OOM-killed it in 26s.
+	_ "github.com/KimMachineGun/automemlimit"
 
 	"github.com/cilium/ebpf/rlimit"
 	gen "github.com/devzero-inc/zxporter/gen/api/v1"
@@ -17,8 +31,11 @@ import (
 	"github.com/devzero-inc/zxporter/internal/networkmonitor"
 	"github.com/devzero-inc/zxporter/internal/networkmonitor/dns"
 	"github.com/devzero-inc/zxporter/internal/networkmonitor/ebpf"
+	"github.com/devzero-inc/zxporter/internal/networkmonitor/redmetrics"
+	"github.com/devzero-inc/zxporter/internal/networkmonitor/redmetrics/socketprobe"
 	"github.com/devzero-inc/zxporter/internal/transport"
 	"github.com/devzero-inc/zxporter/internal/version"
+	"github.com/go-logr/logr"
 	"github.com/go-logr/zapr"
 	"go.uber.org/zap"
 
@@ -32,7 +49,7 @@ import (
 var (
 	metricsAddr = flag.String(
 		"metrics-bind-address",
-		":8081",
+		":9101",
 		"The address the metric endpoint binds to.",
 	)
 	readInterval = flag.Duration(
@@ -59,6 +76,33 @@ var (
 		"standalone",
 		false,
 		"Run in standalone mode without K8s connection",
+	)
+	containerRedMetrics = flag.Bool(
+		"container-red-metrics",
+		false,
+		"Record per-container inbound RED metrics using socket probes. Off by default: "+
+			"it attaches kprobes and holds per-connection state, so it must be switched on deliberately.",
+	)
+	pprofAddr = flag.String(
+		"pprof-bind-address",
+		"",
+		"Address for the pprof server, e.g. 127.0.0.1:6060. Empty disables it entirely. "+
+			"Bind to loopback: this pod runs with hostNetwork, so any other address publishes "+
+			"profiles on the node's network, and a heap profile of this binary contains "+
+			"buffered request bytes from the traffic it is decoding.",
+	)
+	pprofMutexFraction = flag.Int(
+		"pprof-mutex-fraction",
+		0,
+		"runtime.SetMutexProfileFraction: report 1/N contended mutex events. 0 disables "+
+			"mutex profiling. Requires -pprof-bind-address, and costs something on every "+
+			"contended lock, so switch it on for an investigation and off again after.",
+	)
+	pprofBlockRate = flag.Int(
+		"pprof-block-rate",
+		0,
+		"runtime.SetBlockProfileRate: sample one blocking event per N nanoseconds blocked. "+
+			"0 disables block profiling. Same caveats as -pprof-mutex-fraction.",
 	)
 )
 
@@ -214,6 +258,11 @@ func main() {
 		}
 	}
 
+	// Read back the GOMEMLIMIT set by the automemlimit side-effect import above,
+	// so a pod that is still being OOM-killed can be told apart from one whose
+	// limit was never applied.
+	logger.Info("effective GOMEMLIMIT", "bytes", debug.SetMemoryLimit(-1))
+
 	versionInfo := version.Get()
 	monitorCfg := networkmonitor.Config{
 		ReadInterval:    *readInterval,
@@ -253,6 +302,11 @@ func main() {
 
 	// Start Monitor in background
 	go monitor.Start(ctx)
+
+	stopRedMetrics := startContainerRedMetrics(
+		ctx, *containerRedMetrics, logger, monitor, podCache, healthManager,
+	)
+	defer stopRedMetrics()
 
 	// Start heartbeat sender if dakr is configured
 	if dakrClient != nil {
@@ -359,6 +413,8 @@ func main() {
 		}
 	}()
 
+	pprofServer := startPprofServer(logger)
+
 	// Signal handling
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
@@ -371,6 +427,80 @@ func main() {
 	if err := server.Shutdown(shutdownCtx); err != nil {
 		logger.Error(err, "HTTP server shutdown failed")
 	}
+	shutdownPprofServer(shutdownCtx, pprofServer, logger)
+}
+
+// shutdownPprofServer is a nil-tolerant Shutdown. It lives outside main because main is
+// already over this repo's cyclomatic complexity threshold, and a diagnostic that is off by
+// default has no business pushing it further.
+func shutdownPprofServer(ctx context.Context, srv *http.Server, logger logr.Logger) {
+	if srv == nil {
+		return
+	}
+	if err := srv.Shutdown(ctx); err != nil {
+		logger.Error(err, "pprof server shutdown failed")
+	}
+}
+
+// startPprofServer brings up net/http/pprof on its own listener, returning nil when
+// -pprof-bind-address is empty, which is the default.
+//
+// It is deliberately NOT mounted on the metrics mux. That listener is published on the
+// node -- this DaemonSet runs with hostNetwork -- and the profiles here are not the same
+// kind of data as the counters there: the aggregator holds the leading bytes of requests
+// it has not finished decoding, so a heap profile of this process contains fragments of
+// whatever traffic the node is serving. It gets its own address so that exposing metrics
+// can never expose profiles as a side effect, and the flag's default of "" means an
+// operator has to ask for it.
+//
+// Access is via kubectl port-forward, which dials into the pod's network namespace and so
+// reaches a loopback bind.
+func startPprofServer(logger logr.Logger) *http.Server {
+	if *pprofAddr == "" {
+		return nil
+	}
+
+	// Both are off unless asked for: each adds work to every contended lock and every
+	// blocking operation, which would distort the very measurement they are here to
+	// provide. Set on the runtime rather than per-request because the runtime has to be
+	// collecting before the profile is fetched.
+	if *pprofMutexFraction > 0 {
+		runtime.SetMutexProfileFraction(*pprofMutexFraction)
+	}
+	if *pprofBlockRate > 0 {
+		runtime.SetBlockProfileRate(*pprofBlockRate)
+	}
+
+	// Registered explicitly rather than by importing net/http/pprof for its side effect:
+	// that init() writes to http.DefaultServeMux, which this binary does not serve, so a
+	// blank import would look like it enabled profiling and quietly do nothing.
+	mux := http.NewServeMux()
+	mux.HandleFunc("/debug/pprof/", pprof.Index)
+	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+
+	// No write timeout, and that is the point: a CPU profile blocks for its full
+	// -seconds duration and an execution trace for longer, so any timeout short enough
+	// to be worth having would truncate exactly the profiles this exists to serve.
+	srv := &http.Server{
+		Addr:              *pprofAddr,
+		Handler:           mux,
+		ReadHeaderTimeout: 5 * time.Second,
+	}
+
+	go func() {
+		logger.Info("Starting pprof server", "addr", *pprofAddr,
+			"mutex_fraction", *pprofMutexFraction, "block_rate", *pprofBlockRate)
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			// Not fatal. Profiling is a diagnostic; losing it must not take the node's
+			// network monitoring down with it.
+			logger.Error(err, "pprof server failed")
+		}
+	}()
+
+	return srv
 }
 
 func getKubeConfig(kubeconfigPath string) (*rest.Config, error) {
@@ -384,4 +514,87 @@ func getKubeConfig(kubeconfigPath string) (*rest.Config, error) {
 	}
 	// Fallback to default local rules (e.g. ~/.kube/config)
 	return clientcmd.BuildConfigFromFlags("", clientcmd.RecommendedHomeFile)
+}
+
+// socketProbe is the part of the socket probe this file uses. Naming it here
+// rather than depending on the concrete type keeps the wiring testable without a
+// kernel.
+type socketProbe interface {
+	Attach() error
+	Run(ctx context.Context, sink func(redmetrics.SocketEvent)) error
+	Close() error
+}
+
+// redMetricsSink is the part of the monitor this file uses.
+type redMetricsSink interface {
+	EnableContainerRedMetrics(agg *redmetrics.Aggregator)
+}
+
+// startContainerRedMetrics switches on container RED metrics, returning a stop
+// function. When the feature is off -- which is the default -- it does nothing
+// and returns a no-op, so the disabled path costs one branch and touches no
+// kernel state at all.
+func startContainerRedMetrics(
+	ctx context.Context,
+	enabled bool,
+	logger logr.Logger,
+	monitor redMetricsSink,
+	pods redmetrics.PodLookup,
+	healthManager *health.HealthManager,
+) func() {
+	if !enabled {
+		return func() {}
+	}
+	return enableContainerRedMetrics(ctx, logger, monitor, pods, healthManager, socketprobe.New(logger))
+}
+
+// enableContainerRedMetrics does the work, against an injected probe.
+func enableContainerRedMetrics(
+	ctx context.Context,
+	logger logr.Logger,
+	monitor redMetricsSink,
+	pods redmetrics.PodLookup,
+	healthManager *health.HealthManager,
+	probe socketProbe,
+) func() {
+	healthManager.Register(health.ComponentContainerRedMetrics)
+
+	if err := probe.Attach(); err != nil {
+		if errors.Is(err, socketprobe.ErrUnsupported) {
+			// The kernel cannot carry the probe. That is a node that will never
+			// report, not a node that is failing, so the component is removed from
+			// the report rather than left in it as unhealthy -- otherwise a
+			// privileged DaemonSet sits in a permanent alarm state over something no
+			// operator action can fix.
+			logger.Info("Container RED metrics unsupported on this kernel, continuing without them")
+			healthManager.Deregister(health.ComponentContainerRedMetrics)
+			return func() {}
+		}
+		logger.Error(err, "Failed to attach container RED metrics socket probe")
+		healthManager.UpdateStatus(
+			health.ComponentContainerRedMetrics, health.HealthStatusUnhealthy, err.Error(), nil,
+		)
+		return func() {}
+	}
+
+	aggregator := redmetrics.NewAggregator(redmetrics.DefaultConfig(), redmetrics.SystemClock{}, pods, logger)
+	monitor.EnableContainerRedMetrics(aggregator)
+	healthManager.UpdateStatus(
+		health.ComponentContainerRedMetrics, health.HealthStatusHealthy, "attached", nil,
+	)
+
+	go func() {
+		if err := probe.Run(ctx, aggregator.Observe); err != nil && !errors.Is(err, context.Canceled) {
+			logger.Error(err, "Container RED metrics socket probe stopped")
+			healthManager.UpdateStatus(
+				health.ComponentContainerRedMetrics, health.HealthStatusUnhealthy, err.Error(), nil,
+			)
+		}
+	}()
+
+	return func() {
+		if err := probe.Close(); err != nil {
+			logger.Error(err, "Failed to close container RED metrics socket probe")
+		}
+	}
 }

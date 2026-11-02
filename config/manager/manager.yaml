@@ -86,6 +86,10 @@ spec:
                   name: token
                   key: CLUSTER_TOKEN
                   optional: true
+            # CLUSTER_TOKEN above is a pod-start copy of the mirror Secret
+            # zxporter writes, so zxporter reads that Secret live (KUB-158).
+            - name: CLUSTER_TOKEN_SOURCE
+              value: mirror
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:

@@ -1,12 +1,21 @@
 package collector
 
 import (
+	"context"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	dynamicfake "k8s.io/client-go/dynamic/fake"
+	clienttesting "k8s.io/client-go/testing"
 )
 
 // newTestKarpenterCollector builds a minimal KarpenterCollector sufficient to exercise
@@ -201,4 +210,242 @@ func TestNodeLifecycleTransitionProtoType(t *testing.T) {
 		NodeLifecycleTransition.ProtoType().String(),
 	)
 	assert.Equal(t, "node_lifecycle_transition", NodeLifecycleTransition.String())
+}
+
+// --- availability and controller discovery ----------------------------------
+//
+// karpenterTestGVRs is the collector's watch roster spelled out as literals,
+// mirroring flaggerKinds: IsAvailable's contract is defined against this list,
+// so a drift between the production roster and the one the availability probe
+// walks should surface here.
+var karpenterTestGVRs = []schema.GroupVersionResource{
+	{Group: "karpenter.sh", Version: "v1alpha5", Resource: "provisioners"},
+	{Group: "karpenter.sh", Version: "v1alpha5", Resource: "machines"},
+	{Group: "karpenter.azure.com", Version: "v1alpha2", Resource: "aksnodeclasses"},
+	{Group: "karpenter.k8s.aws", Version: "v1alpha1", Resource: "awsnodetemplates"},
+	{Group: "karpenter.sh", Version: "v1alpha1", Resource: "nodeoverlays"},
+	{Group: "karpenter.k8s.oracle", Version: "v1alpha1", Resource: "ocinodeclasses"},
+	{Group: "karpenter.k8s.gcp", Version: "v1alpha1", Resource: "gcenodeclasses"},
+	{Group: "karpenter.sh", Version: "v1beta1", Resource: "nodepools"},
+	{Group: "karpenter.sh", Version: "v1beta1", Resource: "nodeclaims"},
+	{Group: "karpenter.k8s.aws", Version: "v1beta1", Resource: "ec2nodeclasses"},
+	{Group: "karpenter.azure.com", Version: "v1beta1", Resource: "aksnodeclasses"},
+	{Group: "karpenter.sh", Version: "v1", Resource: "nodepools"},
+	{Group: "karpenter.sh", Version: "v1", Resource: "nodeclaims"},
+	{Group: "karpenter.k8s.aws", Version: "v1", Resource: "ec2nodeclasses"},
+}
+
+// karpenterControllerDeployment builds an unstructured Karpenter controller
+// Deployment the way a provider chart renders one: chart-name label
+// app.kubernetes.io/name=karpenter, release-name label
+// app.kubernetes.io/instance=<releaseName>, a ready-replica count, and the
+// container image detectKarpenterVersion parses the version out of.
+func karpenterControllerDeployment(name, namespace, releaseName string, readyReplicas int64, image string) *unstructured.Unstructured {
+	return &unstructured.Unstructured{Object: map[string]interface{}{
+		"apiVersion": "apps/v1",
+		"kind":       "Deployment",
+		"metadata": map[string]interface{}{
+			"name":      name,
+			"namespace": namespace,
+			"uid":       "controller-uid-1",
+			"labels": map[string]interface{}{
+				"app.kubernetes.io/name":     "karpenter",
+				"app.kubernetes.io/instance": releaseName,
+				"helm.sh/chart":              "karpenter-1.4.1",
+			},
+		},
+		"spec": map[string]interface{}{
+			"template": map[string]interface{}{
+				"spec": map[string]interface{}{
+					"containers": []interface{}{map[string]interface{}{
+						"name":  "controller",
+						"image": image,
+					}},
+				},
+			},
+		},
+		"status": map[string]interface{}{"readyReplicas": readyReplicas},
+	}}
+}
+
+// newKarpenterTestCollector builds a collector over a fake API server that
+// serves every GVR in karpenterTestGVRs plus the controller Deployments handed
+// in controllers. The fake panics on a GVR with no registered list kind, so
+// every GVR is registered and "the CRD is not installed" is expressed as a
+// NotFound reactor per resource (same shape as newFlaggerTestCollector). Note
+// the fake matches reactors by resource name only, so a NotFound reactor on
+// "nodeclaims" covers both karpenter.sh/v1 and /v1beta1 — precise enough here,
+// where an absent resource name means absent in every group/version that
+// serves it.
+//
+// Deployments are served through a dedicated reactor because the fake ignores
+// label selectors on List: without faithful selector matching, a Deployment
+// whose labels do NOT satisfy the collector's selector would still be
+// returned, and "the selector missed it" — the production failure — would be
+// indistinguishable from a match.
+func newKarpenterTestCollector(t *testing.T, absent []schema.GroupVersionResource, controllers []*unstructured.Unstructured, objects ...runtime.Object) *KarpenterCollector {
+	t.Helper()
+
+	listKinds := map[schema.GroupVersionResource]string{}
+	for _, gvr := range karpenterTestGVRs {
+		listKinds[gvr] = strings.TrimSuffix(gvr.Resource, "s") + "List"
+	}
+	listKinds[schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"}] = "DeploymentList"
+
+	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), listKinds, objects...)
+	client.PrependReactor("list", "deployments", func(action clienttesting.Action) (bool, runtime.Object, error) {
+		selector := action.(clienttesting.ListAction).GetListRestrictions().Labels
+		list := &unstructured.UnstructuredList{}
+		for i := range controllers {
+			if selector.Matches(labels.Set(controllers[i].GetLabels())) {
+				list.Items = append(list.Items, *controllers[i])
+			}
+		}
+		return true, list, nil
+	})
+	for _, missing := range absent {
+		client.PrependReactor("list", missing.Resource, func(action clienttesting.Action) (bool, runtime.Object, error) {
+			return true, nil, apierrors.NewNotFound(action.GetResource().GroupResource(), "")
+		})
+	}
+
+	return NewKarpenterCollector(client, 10, 10*time.Millisecond, logr.Discard(), nil)
+}
+
+// drainCollectedBatches empties the collector's batched-output channel without
+// blocking, tolerating a closed channel.
+func drainCollectedBatches(ch <-chan []CollectedResource) []CollectedResource {
+	var all []CollectedResource
+	for {
+		select {
+		case batch, ok := <-ch:
+			if !ok {
+				return all
+			}
+			all = append(all, batch...)
+		default:
+			return all
+		}
+	}
+}
+
+// awaitCollectedKeys polls the batched-output channel until every key in
+// wantKeys has arrived or the deadline passes, then returns everything seen.
+// The batcher flushes on a timer and informer handlers dispatch on their own
+// goroutines, so a fixed sleep would be a flake waiting to happen.
+func awaitCollectedKeys(t *testing.T, ch <-chan []CollectedResource, wantKeys ...string) []CollectedResource {
+	t.Helper()
+
+	var all []CollectedResource
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		all = append(all, drainCollectedBatches(ch)...)
+
+		have := make(map[string]bool)
+		for _, resource := range all {
+			have[resource.Key] = true
+		}
+		complete := true
+		for _, key := range wantKeys {
+			if !have[key] {
+				complete = false
+			}
+		}
+		if complete || time.Now().After(deadline) {
+			return all
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+// TestKarpenterCollector_IsAvailableGatesOnServedCRDsNotControllerLabels pins
+// the production incident of 2026-11-02: cluster apm1.dp.navi-tech.in (OKE,
+// zoom/karpenter-oci fork) served karpenter.sh/v1 NodePools/NodeClaims and
+// karpenter.k8s.oracle/v1alpha1 OciNodeClasses with 451 Karpenter-owned nodes,
+// but the collector never started — its availability gate matched the
+// controller Deployment only by Helm release name
+// (`app.kubernetes.io/instance in (karpenter,dzkarp)`), and the fork was
+// released as "karpenter-oci". No karpenter resource was ever collected, and
+// the gate's failure mode logged at V(1) locally, invisibly.
+//
+// The contract this pins: availability is the API server serving a watched
+// CRD — what the collector collects — never how the controller was deployed.
+func TestKarpenterCollector_IsAvailableGatesOnServedCRDsNotControllerLabels(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("karpenter CRDs served, controller released under a nonstandard name", func(t *testing.T) {
+		incidentController := karpenterControllerDeployment(
+			"karpenter-apm1-dp-navi-tech", "kube-system", "karpenter-oci", 2,
+			"public.ecr.aws/karpenter/controller:0.37.7",
+		)
+		c := newKarpenterTestCollector(t, nil, []*unstructured.Unstructured{incidentController}, nodeClaim("nodeclaim-abc", ""))
+
+		assert.True(t, c.IsAvailable(ctx),
+			"a cluster serving karpenter.sh/v1 NodeClaims must be available whatever the controller Deployment's release name says")
+	})
+
+	t.Run("no karpenter CRDs served even with a ready labeled controller", func(t *testing.T) {
+		classicController := karpenterControllerDeployment(
+			"karpenter", "karpenter", "karpenter", 1,
+			"public.ecr.aws/karpenter/controller:0.37.7",
+		)
+		c := newKarpenterTestCollector(t, karpenterTestGVRs, []*unstructured.Unstructured{classicController})
+
+		assert.False(t, c.IsAvailable(ctx),
+			"a cluster serving none of the watched GVRs must not run the collector, whatever the controller Deployment says")
+	})
+}
+
+// TestKarpenterCollector_StartCollectsUnderNonstandardReleaseName walks the
+// full Start path over the incident shape: the controller Deployment is found
+// through the chart-name label (not the release name), so its installation
+// metric carries the detected version, and the served NodeClaim is collected
+// through the informer. On the production cluster the collection half of this
+// never happened because IsAvailable never let the collector start; the
+// discovery half failed too, so even the installation metric was absent from
+// k8s_karpenter_resources.
+func TestKarpenterCollector_StartCollectsUnderNonstandardReleaseName(t *testing.T) {
+	ctx := context.Background()
+
+	incidentController := karpenterControllerDeployment(
+		"karpenter-apm1-dp-navi-tech", "kube-system", "karpenter-oci", 2,
+		"public.ecr.aws/karpenter/controller:0.37.7",
+	)
+	c := newKarpenterTestCollector(t, nil, []*unstructured.Unstructured{incidentController}, nodeClaim("nodeclaim-abc", ""))
+
+	require.NoError(t, c.Start(ctx))
+	t.Cleanup(func() {
+		_ = c.Stop()
+	})
+
+	resources := awaitCollectedKeys(t, c.GetResourceChannel(),
+		"karpenter/installation/controller-uid-1",
+		"nodeclaims/nodeclaim-abc",
+	)
+
+	var installation, nodeClaimRow *CollectedResource
+	for i := range resources {
+		switch resources[i].Key {
+		case "karpenter/installation/controller-uid-1":
+			installation = &resources[i]
+		case "nodeclaims/nodeclaim-abc":
+			nodeClaimRow = &resources[i]
+		}
+	}
+
+	require.NotNil(t, installation,
+		"the controller found through the chart-name label must be reported as the Karpenter installation")
+	installObj, ok := installation.Object.(map[string]interface{})
+	require.True(t, ok, "installation object should be a map, got %T", installation.Object)
+	assert.Equal(t, "0.37.7", installObj["karpenterVersion"])
+	assert.Equal(t, "karpenter-apm1-dp-navi-tech", installObj["name"])
+	assert.Equal(t, Karpenter, installation.ResourceType)
+
+	require.NotNil(t, nodeClaimRow,
+		"the served NodeClaim must be collected — on the incident cluster none of this ever arrived")
+	claimObj, ok := nodeClaimRow.Object.(map[string]interface{})
+	require.True(t, ok, "node claim object should be a map, got %T", nodeClaimRow.Object)
+	assert.Equal(t, "NodeClaim", claimObj["kind"])
+	assert.Equal(t, "nodeclaim-abc", claimObj["name"])
+	assert.Equal(t, Karpenter, nodeClaimRow.ResourceType)
 }

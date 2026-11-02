@@ -1,0 +1,183 @@
+{{- /*
+Adopts the chart's CRDs into this Helm release, before every install and upgrade.
+
+Helm installs crds/ once and never upgrades it, so a CRD change never reaches an
+existing install. The fix is to render the CRDs from templates/ instead, but
+Helm refuses to take over an object that already exists unless it carries the
+release's ownership metadata, and the CRDs crds/ installed carry none. This hook
+adds it, so a later release can move the CRDs to templates/ and upgrade cleanly:
+
+  label       app.kubernetes.io/managed-by: Helm
+  annotation  meta.helm.sh/release-name / meta.helm.sh/release-namespace
+  annotation  helm.sh/resource-policy: keep
+
+keep makes Helm leave the CRD, and every CollectionPolicy in it, in place on
+`helm uninstall` and when a release stops rendering it.
+
+It only patches metadata: the CRD's schema and its objects are untouched. A CRD
+that is not installed (`helm install --skip-crds`) is skipped. Patching a CRD
+that already carries this metadata changes nothing, so the hook is safe to run
+on every upgrade and under Argo CD, which runs it as a PreSync hook on every
+sync. The release-name annotation is rewritten to this release, so a CRD kept
+by an uninstalled release is adopted by the next one.
+
+The CRD names come from crds/ itself, so a new CRD is adopted without editing
+this file. Values are read through `default dict` because `helm upgrade
+--reuse-values` reuses the previous release's stored values, which predate
+crdAdoption. enabled is compared as a string because installers pass --set
+values as strings, and the string "false" is truthy.
+*/}}
+{{- $ca := .Values.crdAdoption | default dict }}
+{{- $enabled := true }}
+{{- if hasKey $ca "enabled" }}{{ $enabled = ne (toString $ca.enabled) "false" }}{{ end }}
+{{- $crds := list }}
+{{- range $path, $_ := .Files.Glob "crds/*.yaml" }}
+{{- $crds = append $crds (($.Files.Get $path | fromYaml).metadata.name) }}
+{{- end }}
+{{- if and $enabled $crds }}
+{{- /* Truncated so the Job name stays within 63 characters: the Job controller copies it into the pod's job-name label. */}}
+{{- $name := printf "%s-crd-adopt" (include "zxporter.fullname" . | trunc 52 | trimSuffix "-") }}
+{{- $image := include "devzero-common.imageRef" (dict "ref" ($ca.image | default "public.ecr.aws/devzeroinc/kubectl@sha256:caa4d1d17c91ff54e058f2411cb28c9b0d2e2a5be4030cbb013b5c833da4579a") "global" .Values.global) }}
+{{- $hook := dict "helm.sh/hook" "pre-install,pre-upgrade" "helm.sh/hook-weight" "-10" "helm.sh/hook-delete-policy" "before-hook-creation,hook-succeeded" }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    {{- with (include "zxporter.commonAnnotations" .) }}
+    {{- . | nindent 4 }}
+    {{- end }}
+    {{- toYaml $hook | nindent 4 }}
+  labels:
+    {{- include "zxporter.labels" . | nindent 4 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ $name }}
+  annotations:
+    {{- with (include "zxporter.commonAnnotations" .) }}
+    {{- . | nindent 4 }}
+    {{- end }}
+    {{- toYaml $hook | nindent 4 }}
+  labels:
+    {{- include "zxporter.labels" . | nindent 4 }}
+rules:
+  # Only this chart's CRDs, and only to read and patch their metadata.
+  - apiGroups: ["apiextensions.k8s.io"]
+    resources: ["customresourcedefinitions"]
+    resourceNames:
+      {{- range $crds }}
+      - {{ . | quote }}
+      {{- end }}
+    verbs: ["get", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ $name }}
+  annotations:
+    {{- with (include "zxporter.commonAnnotations" .) }}
+    {{- . | nindent 4 }}
+    {{- end }}
+    {{- toYaml $hook | nindent 4 }}
+  labels:
+    {{- include "zxporter.labels" . | nindent 4 }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ $name }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    {{- with (include "zxporter.commonAnnotations" .) }}
+    {{- . | nindent 4 }}
+    {{- end }}
+    {{- /* After the RBAC above. A failed Job is kept for its log; the next run replaces it. */}}
+    {{- toYaml (merge (dict "helm.sh/hook-weight" "-9") $hook) | nindent 4 }}
+  labels:
+    {{- include "zxporter.labels" . | nindent 4 }}
+spec:
+  backoffLimit: 2
+  {{- /* Counts the image pull, which queues behind every other pull on the node (the
+       kubelet serializes pulls by default): on a fresh kind node running dakr-security
+       scans it took over 3 minutes. Above Helm's default 5m --timeout, so a slow pull
+       surfaces as a Helm timeout, while a pod that can never start still ends. */}}
+  activeDeadlineSeconds: 600
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      {{- with (include "zxporter.podExtraAnnotations" .) }}
+      annotations:
+        {{- . | nindent 8 }}
+      {{- end }}
+      {{- /* No selector labels: the controller's Service and PDB must not select this pod. */}}
+      labels:
+        {{- with (include "zxporter.podExtraLabels" .) }}
+        {{- . | nindent 8 }}
+        {{- end }}
+        app.kubernetes.io/component: crd-adoption
+    spec:
+      serviceAccountName: {{ $name }}
+      restartPolicy: Never
+      {{- with include "zxporter.imagePullSecrets" . }}
+      {{- . | nindent 6 }}
+      {{- end }}
+      nodeSelector:
+        {{- toYaml (merge (dict "kubernetes.io/os" "linux") (deepCopy (.Values.nodeSelector | default dict))) | nindent 8 }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: adopt
+          image: {{ $image | quote }}
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            {{- toYaml ($ca.resources | default (dict "requests" (dict "cpu" "10m" "memory" "16Mi") "limits" (dict "cpu" "100m" "memory" "64Mi"))) | nindent 12 }}
+          env:
+            - name: HOME
+              value: /tmp
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -eu
+              patch='{"metadata":{"labels":{"app.kubernetes.io/managed-by":"Helm"},"annotations":{"meta.helm.sh/release-name":{{ .Release.Name | quote }},"meta.helm.sh/release-namespace":{{ .Release.Namespace | quote }},"helm.sh/resource-policy":"keep"}}}'
+              for crd in {{ join " " $crds }}; do
+                # --ignore-not-found prints nothing for an absent CRD; any other
+                # failure (Forbidden, an unreachable API server) exits non-zero,
+                # and set -e fails the hook on the assignment.
+                found=$(kubectl get crd "$crd" -o name --ignore-not-found)
+                if [ -z "$found" ]; then
+                  echo "$crd is not installed; nothing to adopt"
+                  continue
+                fi
+                kubectl patch crd "$crd" --type=merge -p "$patch"
+              done
+      volumes:
+        - name: tmp
+          emptyDir: {}
+{{- end }}

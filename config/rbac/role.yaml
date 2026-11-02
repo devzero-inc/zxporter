@@ -110,6 +110,8 @@ rules:
 - apiGroups:
   - argoproj.io
   resources:
+  - applications
+  - applicationsets
   - rollouts
   verbs:
   - get
@@ -158,6 +160,14 @@ rules:
   - list
   - watch
 - apiGroups:
+  - coordination.k8s.io
+  resourceNames:
+  - dz-scheduler
+  resources:
+  - leases
+  verbs:
+  - get
+- apiGroups:
   - dakr.devzero.io
   resources:
   - workloadrecommendations
@@ -204,6 +214,45 @@ rules:
   - devzero.karpenter.sh
   resources:
   - karpentersettings
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - flagger.app
+  resources:
+  - alertproviders
+  - canaries
+  - metrictemplates
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - fluxcd.controlplane.io
+  resources:
+  - fluxinstances
+  - fluxreports
+  - resourcesetinputproviders
+  - resourcesets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - helm.toolkit.fluxcd.io
+  resources:
+  - helmreleases
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - image.toolkit.fluxcd.io
+  resources:
+  - imagepolicies
+  - imagerepositories
+  - imageupdateautomations
   verbs:
   - get
   - list
@@ -273,6 +322,14 @@ rules:
   - list
   - watch
 - apiGroups:
+  - kustomize.toolkit.fluxcd.io
+  resources:
+  - kustomizations
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - kyverno.io
   resources:
   - clusterpolicies
@@ -296,6 +353,24 @@ rules:
   - ingressclasses
   - ingresses
   - networkpolicies
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - node.k8s.io
+  resources:
+  - runtimeclasses
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - notification.toolkit.fluxcd.io
+  resources:
+  - alerts
+  - providers
+  - receivers
   verbs:
   - get
   - list
@@ -333,6 +408,19 @@ rules:
   - rbac.authorization.k8s.io
   resources:
   - roles
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - source.toolkit.fluxcd.io
+  resources:
+  - buckets
+  - externalartifacts
+  - gitrepositories
+  - helmcharts
+  - helmrepositories
+  - ocirepositories
   verbs:
   - get
   - list

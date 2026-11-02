@@ -1,0 +1,133 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "zxporter-netmon chart values",
+  "description": "Permissive by design: unknown keys are allowed and scalars stay untyped, because installers pass --set strings and releases upgrade with reused values, so every value a release already carries must keep validating. A map or list is typed only where every other value already failed to render. required lists only the keys whose absence (--set key=null) failed to render in every configuration before this schema existed.",
+  "type": "object",
+  "properties": {
+    "commonLabels": {
+      "properties": {}
+    },
+    "commonAnnotations": {
+      "properties": {}
+    },
+    "podLabels": {
+      "properties": {}
+    },
+    "image": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "repository": {},
+        "pullPolicy": {},
+        "tag": {}
+      }
+    },
+    "imagePullSecrets": {},
+    "nameOverride": {},
+    "fullnameOverride": {},
+    "serviceAccount": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "create": {},
+        "annotations": {
+          "properties": {}
+        },
+        "name": {}
+      }
+    },
+    "podAnnotations": {
+      "properties": {
+        "container.apparmor.security.beta.kubernetes.io/zxporter-netmon": {}
+      }
+    },
+    "podSecurityContext": {
+      "properties": {}
+    },
+    "securityContext": {
+      "properties": {
+        "privileged": {},
+        "appArmorProfile": {
+          "properties": {
+            "type": {}
+          }
+        },
+        "capabilities": {
+          "properties": {
+            "add": {}
+          }
+        }
+      }
+    },
+    "resources": {
+      "properties": {
+        "limits": {
+          "properties": {
+            "cpu": {},
+            "memory": {}
+          }
+        },
+        "requests": {
+          "properties": {
+            "cpu": {},
+            "memory": {}
+          }
+        }
+      }
+    },
+    "containerRedMetricsResources": {
+      "properties": {
+        "limits": {
+          "properties": {
+            "cpu": {},
+            "memory": {}
+          }
+        },
+        "requests": {
+          "properties": {
+            "cpu": {},
+            "memory": {}
+          }
+        }
+      }
+    },
+    "nodeSelector": {
+      "properties": {}
+    },
+    "tolerations": {},
+    "affinity": {
+      "properties": {}
+    },
+    "hostNetwork": {},
+    "dnsPolicy": {},
+    "config": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "containerPort": {},
+        "logLevel": {},
+        "mainConfigMapName": {},
+        "exportInterval": {},
+        "collectorMode": {},
+        "dakrUrl": {},
+        "clusterToken": {},
+        "tokenSecretName": {},
+        "containerRedMetrics": {},
+        "pprofBindAddress": {},
+        "pprofMutexFraction": {},
+        "pprofBlockRate": {}
+      }
+    }
+  },
+  "required": [
+    "image",
+    "serviceAccount",
+    "config"
+  ]
+}

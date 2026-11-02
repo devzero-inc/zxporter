@@ -77,7 +77,9 @@ func (s *scraper) Scrape(ctx context.Context, urls []string) ([]MetricFamilyMap,
 	metrics := make([]MetricFamilyMap, 0, len(urls))
 	for r := range resultsChan {
 		if r.err != nil {
-			s.log.Error(r.err, "Failed to scrape metrics")
+			// Debug level: on non-GPU nodes the dcgm-exporter sidecar never
+			// listens, so this fails on every refresh by design.
+			s.log.V(1).Info("Failed to scrape metrics", "error", r.err.Error())
 			continue
 		}
 		metrics = append(metrics, r.metricFamilyMap)

@@ -170,8 +170,8 @@ func (c *DaemonSetCollector) daemonSetChanged(oldDaemonSet, newDaemonSet *appsv1
 		oldDaemonSet.ObjectMeta,
 		newDaemonSet.ObjectMeta,
 	)
-	if changed != IgnoreChanges {
-		return changed == PushChanges
+	if changed == PushChanges {
+		return true
 	}
 
 	// Check for status changes
@@ -290,7 +290,7 @@ func (c *DaemonSetCollector) GetResourceChannel() <-chan []CollectedResource {
 
 // GetType returns the type of resource this collector handles
 func (c *DaemonSetCollector) GetType() string {
-	return "daemonset"
+	return DaemonSet.String()
 }
 
 // IsAvailable checks if DaemonSet resources can be accessed in the cluster

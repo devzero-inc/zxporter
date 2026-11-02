@@ -216,6 +216,96 @@ spec:
               javac /tmp/DummyMain.java
               exec java -cp /tmp DummyMain
 ---
+# The next two deployments are a matched pair: the same real-world JVM image,
+# the same non-root uid, differing ONLY in readOnlyRootFilesystem. With a
+# read-only root filesystem and no writable volume at /tmp, HotSpot cannot
+# create /tmp/hsperfdata_<user>/<pid> and silently falls back to non-shared perf
+# memory — the JVM runs fine, but nodemon's hsperfdata-backed pipeline has
+# nothing to read. The pair pins both halves of that behaviour:
+#
+#   zipkin-writable-rootfs -> jvm bucket, with heap metrics
+#   zipkin-readonly-rootfs -> runtimes bucket as runtime "java", no heap metrics
+#
+# Before the fallback existed the read-only half appeared in neither bucket, so
+# the container looked like it ran no known runtime at all.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zipkin-writable-rootfs
+  namespace: jvm-spike
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: zipkin-writable-rootfs
+  template:
+    metadata:
+      labels:
+        app: zipkin-writable-rootfs
+    spec:
+      containers:
+        - name: app
+          # Entrypoint execs `java -Xms160m -Xmx160m ...`, so comm is "java"
+          # and the flags come from the image, not from the pod spec.
+          image: openzipkin/zipkin-slim:3.5
+          env:
+            - name: STORAGE_TYPE
+              value: mem
+          securityContext:
+            runAsUser: 1000
+            runAsNonRoot: true
+            readOnlyRootFilesystem: false
+          resources:
+            requests:
+              memory: 256Mi
+            limits:
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 9411
+            initialDelaySeconds: 5
+            periodSeconds: 5
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zipkin-readonly-rootfs
+  namespace: jvm-spike
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: zipkin-readonly-rootfs
+  template:
+    metadata:
+      labels:
+        app: zipkin-readonly-rootfs
+    spec:
+      containers:
+        - name: app
+          image: openzipkin/zipkin-slim:3.5
+          env:
+            - name: STORAGE_TYPE
+              value: mem
+          securityContext:
+            runAsUser: 1000
+            runAsNonRoot: true
+            # The variable under test. Deliberately no volume at /tmp — adding
+            # one is the customer-side workaround and would defeat the fixture.
+            readOnlyRootFilesystem: true
+          resources:
+            requests:
+              memory: 256Mi
+            limits:
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 9411
+            initialDelaySeconds: 5
+            periodSeconds: 5
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:

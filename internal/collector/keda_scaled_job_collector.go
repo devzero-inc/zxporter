@@ -194,8 +194,8 @@ func (c *ScaledJobCollector) scaledJobChanged(
 		oldScaledJob.ObjectMeta,
 		newScaledJob.ObjectMeta,
 	)
-	if changed != IgnoreChanges {
-		return changed == PushChanges
+	if changed == PushChanges {
+		return true
 	}
 
 	// Check for spec changes (most important for KEDA jobs)
@@ -320,9 +320,11 @@ func (c *ScaledJobCollector) GetResourceChannel() <-chan []CollectedResource {
 	return c.resourceChan
 }
 
-// GetType returns the type of resource this collector handles
+// GetType returns the type of resource this collector handles. It must be the wire name
+// the controller registers, starts and disables this collector under: it used to be
+// "scaledjob", so a deferred start after the KEDA CRDs appeared failed as "not registered".
 func (c *ScaledJobCollector) GetType() string {
-	return "scaledjob"
+	return KedaScaledJob.String()
 }
 
 // IsAvailable checks if ScaledJob resources can be accessed in the cluster

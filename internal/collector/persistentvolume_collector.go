@@ -163,8 +163,8 @@ func (c *PersistentVolumeCollector) pvChanged(oldPV, newPV *corev1.PersistentVol
 		oldPV.ObjectMeta,
 		newPV.ObjectMeta,
 	)
-	if changed != IgnoreChanges {
-		return changed == PushChanges
+	if changed == PushChanges {
+		return true
 	}
 
 	// Check for phase changes
@@ -338,7 +338,7 @@ func (c *PersistentVolumeCollector) GetResourceChannel() <-chan []CollectedResou
 
 // GetType returns the type of resource this collector handles
 func (c *PersistentVolumeCollector) GetType() string {
-	return "persistentvolume"
+	return PersistentVolume.String()
 }
 
 // IsAvailable checks if PersistentVolume resources can be accessed in the cluster

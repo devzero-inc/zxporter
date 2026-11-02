@@ -84,6 +84,17 @@ type UnifiedNodeMetric struct {
 	DiskWriteBytesPerSec   float64   `json:"disk_write_bytes_per_sec"`
 	DiskReadOpsPerSec      float64   `json:"disk_read_ops_per_sec"`
 	DiskWriteOpsPerSec     float64   `json:"disk_write_ops_per_sec"`
+	// Filesystem occupancy gauges. Mirrors nodemon.NodeMetricsResponse; see
+	// ImagefsSharedDevice there for why imagefs and nodefs must not be summed.
+	NodefsUsedBytes       uint64 `json:"nodefs_used_bytes,omitempty"`
+	NodefsCapacityBytes   uint64 `json:"nodefs_capacity_bytes,omitempty"`
+	NodefsAvailableBytes  uint64 `json:"nodefs_available_bytes,omitempty"`
+	NodefsInodesUsed      uint64 `json:"nodefs_inodes_used,omitempty"`
+	NodefsInodesTotal     uint64 `json:"nodefs_inodes_total,omitempty"`
+	ImagefsUsedBytes      uint64 `json:"imagefs_used_bytes,omitempty"`
+	ImagefsCapacityBytes  uint64 `json:"imagefs_capacity_bytes,omitempty"`
+	ImagefsAvailableBytes uint64 `json:"imagefs_available_bytes,omitempty"`
+	ImagefsSharedDevice   bool   `json:"imagefs_shared_device,omitempty"`
 }
 
 // UnifiedPVCMetric mirrors nodemon's PVCMetricsResponse.

@@ -278,6 +278,8 @@ rules:
 - apiGroups:
   - argoproj.io
   resources:
+  - applications
+  - applicationsets
   - rollouts
   verbs:
   - get
@@ -326,6 +328,14 @@ rules:
   - list
   - watch
 - apiGroups:
+  - coordination.k8s.io
+  resourceNames:
+  - dz-scheduler
+  resources:
+  - leases
+  verbs:
+  - get
+- apiGroups:
   - dakr.devzero.io
   resources:
   - workloadrecommendations
@@ -372,6 +382,45 @@ rules:
   - devzero.karpenter.sh
   resources:
   - karpentersettings
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - flagger.app
+  resources:
+  - alertproviders
+  - canaries
+  - metrictemplates
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - fluxcd.controlplane.io
+  resources:
+  - fluxinstances
+  - fluxreports
+  - resourcesetinputproviders
+  - resourcesets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - helm.toolkit.fluxcd.io
+  resources:
+  - helmreleases
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - image.toolkit.fluxcd.io
+  resources:
+  - imagepolicies
+  - imagerepositories
+  - imageupdateautomations
   verbs:
   - get
   - list
@@ -441,6 +490,14 @@ rules:
   - list
   - watch
 - apiGroups:
+  - kustomize.toolkit.fluxcd.io
+  resources:
+  - kustomizations
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - kyverno.io
   resources:
   - clusterpolicies
@@ -464,6 +521,24 @@ rules:
   - ingressclasses
   - ingresses
   - networkpolicies
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - node.k8s.io
+  resources:
+  - runtimeclasses
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - notification.toolkit.fluxcd.io
+  resources:
+  - alerts
+  - providers
+  - receivers
   verbs:
   - get
   - list
@@ -501,6 +576,19 @@ rules:
   - rbac.authorization.k8s.io
   resources:
   - roles
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - source.toolkit.fluxcd.io
+  resources:
+  - buckets
+  - externalartifacts
+  - gitrepositories
+  - helmcharts
+  - helmrepositories
+  - ocirepositories
   verbs:
   - get
   - list
@@ -645,6 +733,19 @@ subjects:
   name: devzero-zxporter-controller-manager
   namespace: devzero-system
 ---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: devzero-zxporter-metrics-reader-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: devzero-zxporter-metrics-reader
+subjects:
+- kind: ServiceAccount
+  name: devzero-zxporter-controller-manager
+  namespace: devzero-system
+---
 apiVersion: v1
 data:
   BUFFER_SIZE: ""
@@ -684,6 +785,7 @@ data:
   EXCLUDED_STORAGECLASSES: ""
   EXCLUDED_VPAS: ""
   K8S_PROVIDER: '{{ .k8s_provider }}'
+  KEDA_METRICS_ENDPOINT: ""
   KUBE_CONTEXT_NAME: '{{ .kube_context_name }}'
   KUBELET_FALLBACK_TIMEOUT: 15s
   MASK_SECRET_DATA: ""
@@ -692,6 +794,7 @@ data:
   NODE_METRICS_CONCURRENCY: "20"
   NODE_METRICS_INTERVAL: ""
   NODEMON_REQUEST_TIMEOUT: 15s
+  SCHEDULER_METRICS_SCRAPE_INTERVAL: ""
   TARGET_NAMESPACES: ""
   TOKEN_CONFIGMAP_NAME: devzero-zxporter-env-config
   TOKEN_CREDENTIALS_SECRET_NAME: devzero-zxporter-credentials
@@ -802,6 +905,8 @@ spec:
               key: CLUSTER_TOKEN
               name: devzero-zxporter-token
               optional: true
+        - name: CLUSTER_TOKEN_SOURCE
+          value: mirror
         image: ttl.sh/zxporter:latest
         livenessProbe:
           httpGet:

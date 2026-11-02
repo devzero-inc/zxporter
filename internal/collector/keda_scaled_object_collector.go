@@ -194,8 +194,8 @@ func (c *ScaledObjectCollector) scaledObjectChanged(
 		oldScaledObject.ObjectMeta,
 		newScaledObject.ObjectMeta,
 	)
-	if changed != IgnoreChanges {
-		return changed == PushChanges
+	if changed == PushChanges {
+		return true
 	}
 
 	// Check for spec changes (most important for KEDA)
@@ -330,9 +330,12 @@ func (c *ScaledObjectCollector) GetResourceChannel() <-chan []CollectedResource 
 	return c.resourceChan
 }
 
-// GetType returns the type of resource this collector handles
+// GetType returns the type of resource this collector handles. It must be the wire name
+// the controller registers, starts and disables this collector under: it used to be
+// "scaledobject", so a deferred start after the KEDA CRDs appeared failed as "not
+// registered".
 func (c *ScaledObjectCollector) GetType() string {
-	return "scaledobject"
+	return KedaScaledObject.String()
 }
 
 // IsAvailable checks if ScaledObject resources can be accessed in the cluster
