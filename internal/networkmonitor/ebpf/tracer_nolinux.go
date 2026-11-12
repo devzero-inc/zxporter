@@ -15,7 +15,7 @@ func (t *Tracer) Run(ctx context.Context) error {
 	return nil
 }
 
-func (t *Tracer) Events() <-chan DNSEvent {
+func (t *Tracer) Events() <-chan []DNSEvent {
 	return t.events
 }
 

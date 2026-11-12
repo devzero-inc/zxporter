@@ -164,8 +164,8 @@ func (c *StorageClassCollector) storageClassChanged(oldSC, newSC *storagev1.Stor
 		oldSC.ObjectMeta,
 		newSC.ObjectMeta,
 	)
-	if changed != IgnoreChanges {
-		return changed == PushChanges
+	if changed == PushChanges {
+		return true
 	}
 
 	// Check for provisioner changes

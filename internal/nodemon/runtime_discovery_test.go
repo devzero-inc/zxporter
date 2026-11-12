@@ -83,7 +83,7 @@ func TestDiscoverRuntimeProcesses_SingleWalkBucketsAllKinds(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, os.Symlink(self, filepath.Join(procRoot, "400", "exe")))
 
-	javaProcs, runtimeProcs, err := discoverRuntimeProcesses(procRoot, probeRuntimeProcess)
+	javaProcs, runtimeProcs, err := discoverRuntimeProcesses(procRoot, probeRuntimeProcess, nil)
 	require.NoError(t, err)
 
 	require.Len(t, javaProcs, 1)
@@ -106,7 +106,7 @@ func TestDiscoverRuntimeProcesses_UnprobeableUnknownIsDropped(t *testing.T) {
 	procRoot := t.TempDir()
 	buildFakeProcTree(t, procRoot, 500, "someapp") // no exe symlink: probe fails
 
-	javaProcs, runtimeProcs, err := discoverRuntimeProcesses(procRoot, probeRuntimeProcess)
+	javaProcs, runtimeProcs, err := discoverRuntimeProcesses(procRoot, probeRuntimeProcess, nil)
 	require.NoError(t, err)
 	assert.Empty(t, javaProcs)
 	assert.Empty(t, runtimeProcs)
@@ -114,8 +114,57 @@ func TestDiscoverRuntimeProcesses_UnprobeableUnknownIsDropped(t *testing.T) {
 
 func TestDiscoverRuntimeProcesses_NoMatches(t *testing.T) {
 	procRoot := t.TempDir()
-	javaProcs, runtimeProcs, err := discoverRuntimeProcesses(procRoot, probeRuntimeProcess)
+	javaProcs, runtimeProcs, err := discoverRuntimeProcesses(procRoot, probeRuntimeProcess, nil)
 	require.NoError(t, err)
 	assert.Empty(t, javaProcs)
 	assert.Empty(t, runtimeProcs)
+}
+
+// buildFakeJavaProcTreeWithoutHsperfdata builds a Java /proc entry whose
+// container has no hsperfdata file — what a JVM looks like when it could not
+// write to /tmp (readOnlyRootFilesystem with no writable /tmp volume) or was
+// started with -XX:-UsePerfData.
+func buildFakeJavaProcTreeWithoutHsperfdata(t *testing.T, procRoot string, pid int) (containerID string) {
+	t.Helper()
+	containerID = buildFakeProcTree(t, procRoot, pid, javaComm)
+	require.NoError(t, os.RemoveAll(filepath.Join(procRoot, strconv.Itoa(pid), "root", "tmp")))
+	return containerID
+}
+
+func TestDiscoverRuntimeProcesses_JavaWithoutHsperfdataFallsBackToRuntimeBucket(t *testing.T) {
+	procRoot := t.TempDir()
+	noPerfID := buildFakeJavaProcTreeWithoutHsperfdata(t, procRoot, 600)
+
+	javaProcs, runtimeProcs, err := discoverRuntimeProcesses(procRoot, probeRuntimeProcess, nil)
+	require.NoError(t, err)
+
+	// No hsperfdata means no heap metrics are possible, so it must not appear
+	// in the JVM bucket...
+	assert.Empty(t, javaProcs)
+
+	// ...but the process must still be reported as a Java runtime rather than
+	// disappearing from both surfaces.
+	require.Len(t, runtimeProcs, 1)
+	assert.Equal(t, runtimeNameJava, runtimeProcs[0].Runtime)
+	assert.Equal(t, processKindJava, runtimeProcs[0].Kind)
+	assert.Equal(t, noPerfID, runtimeProcs[0].ContainerID)
+	assert.NotEmpty(t, runtimeProcs[0].CmdLine)
+}
+
+func TestDiscoverRuntimeProcesses_JavaWithHsperfdataStaysOutOfRuntimeBucket(t *testing.T) {
+	procRoot := t.TempDir()
+	perfID := buildFakeProcTree(t, procRoot, 700, javaComm)
+
+	javaProcs, runtimeProcs, err := discoverRuntimeProcesses(procRoot, probeRuntimeProcess, nil)
+	require.NoError(t, err)
+
+	// A JVM with hsperfdata keeps the richer dedicated pipeline and must not be
+	// double-reported in the generic bucket.
+	require.Len(t, javaProcs, 1)
+	assert.Equal(t, perfID, javaProcs[0].ContainerID)
+	assert.Empty(t, runtimeProcs)
+}
+
+func TestRuntimeNameForKind_Java(t *testing.T) {
+	assert.Equal(t, runtimeNameJava, runtimeNameForKind(processKindJava))
 }

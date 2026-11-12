@@ -172,8 +172,8 @@ func (c *DeploymentCollector) deploymentChanged(
 		oldDeployment.ObjectMeta,
 		newDeployment.ObjectMeta,
 	)
-	if changed != IgnoreChanges {
-		return changed == PushChanges
+	if changed == PushChanges {
+		return true
 	}
 
 	// Check for spec changes

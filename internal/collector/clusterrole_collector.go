@@ -163,8 +163,8 @@ func (c *ClusterRoleCollector) clusterRoleChanged(oldRole, newRole *rbacv1.Clust
 		oldRole.ObjectMeta,
 		newRole.ObjectMeta,
 	)
-	if changed != IgnoreChanges {
-		return changed == PushChanges
+	if changed == PushChanges {
+		return true
 	}
 
 	// Check for rules changes

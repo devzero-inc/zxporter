@@ -35,6 +35,11 @@ done
 echo ""
 echo "=== Installing zxporter (nodemon mode, no Prometheus) ==="
 
+# The charts vendor devzero-common into their gitignored charts/ directories.
+for chart in zxporter-nodemon zxporter; do
+  helm dependency build "./helm-chart/$chart" >/dev/null
+done
+
 helm install "$RELEASE_NAME" ./helm-chart/zxporter \
   --namespace "$NAMESPACE" --create-namespace \
   --set image.repository="$IMAGE_REPO" \

@@ -1,30 +1,30 @@
 # Releasing zxporter
 
-Releases are **one command**; CI does the rest.
+zxporter is developed and released from DevZero's internal monorepo, where
+this directory lives at `operators/zxporter/`. The public
+[devzero-inc/zxporter](https://github.com/devzero-inc/zxporter) repository is
+a published mirror: each release pushes this directory's tree to it as branch
+`release/vX.Y.Z`, tags that commit `vX.Y.Z`, and opens a PR to bring its `main`
+up to date.
 
-```bash
-just release zxporter vX.Y.Z        # cut release vX.Y.Z
-just release zxporter vX.Y.Z dry    # preview only
-just tag-list                       # recent release/chart tags
-```
+## Consuming a release
 
-Prereq: `gh` CLI authenticated with access to `devzero-inc/zxporter`.
+Each release `vX.Y.Z` publishes:
 
-`just release` validates `vX.Y.Z` and dispatches the **Release** workflow
-(`.github/workflows/release.yml`), which:
+- images `zxporter`, `zxporter-nodemon` and `zxporter-netmon`, tag `vX.Y.Z`, on
+  `docker.io/devzeroinc/` and `public.ecr.aws/devzeroinc/`
+- Helm charts `zxporter` (bundles `zxporter-nodemon`), `zxporter-nodemon` and
+  `zxporter-netmon`, version `X.Y.Z`, at `oci://registry-1.docker.io/devzeroinc`
+- the `vX.Y.Z` tag on the public mirror, whose `helm-chart/` and `dist/` carry
+  that version (pin it as an ArgoCD `targetRevision`)
 
-1. Bumps chart/image versions, regenerates `Chart.lock` + `dist/`, and tags
-   `vX.Y.Z` on the bumped commit.
-2. Builds & pushes the `zxporter`, `zxporter-nodemon`, `zxporter-netmon` images
-   and publishes the three OCI Helm charts at `vX.Y.Z`.
-3. Creates the GitHub Release and triggers the `devzero-inc/services` metadata
-   update.
+## Cutting a release
 
-Watch: <https://github.com/devzero-inc/zxporter/actions/workflows/release.yml>
+From the monorepo root: `just release zxporter [vX.Y.Z]`. The full procedure,
+what the release workflow does, how the version reaches DevZero's backend, and
+recovery and rollback are in the root `RELEASE.md` of the monorepo (section
+"zxporter").
 
-## Merge the two PRs
-
-The release opens two PRs — **approve and merge both** to finish:
-
-1. **zxporter** – `release/bump-vX.Y.Z` (version bump).
-2. **../services** – metadata update opened by the metadata retriever workflow.
+`.github/workflows/release.yml` and the `release` recipe in `justfile` in this
+directory are the pre-monorepo release flow. They are still present in the
+mirror but are not how zxporter is released; do not run them.

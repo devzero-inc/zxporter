@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	gen "github.com/devzero-inc/zxporter/gen/api/v1"
@@ -43,9 +44,17 @@ type CollectionConfig struct {
 
 // CollectionManager orchestrates multiple collectors
 type CollectionManager struct {
-	collectors       map[string]ResourceCollector
-	collectorCtxs    map[string]context.CancelFunc // Track context cancellation functions for each collector
-	processorWg      map[string]*sync.WaitGroup    // Track processor goroutines for each collector
+	collectors map[string]ResourceCollector
+	// collectorView is a copy-on-write snapshot of collectors, republished under mu by
+	// every mutation of that map. GetCollector reads it without taking mu, because its
+	// callers include informer event handlers (the node lifecycle fallback and the
+	// DisruptionBlocked classifier resolve other collectors' caches through it), and a
+	// handler that waits on mu stalls that informer's whole listener for as long as mu is
+	// held. mu is held for seconds at a time by stopCollectorInternal, and on 2026-09-25 a
+	// leaked mu stopped every Node event from reaching the control plane.
+	collectorView    atomic.Pointer[map[string]ResourceCollector]
+	collectorCtxs    map[string]*collectorRun   // The live run of each running (or starting) collector
+	processorWg      map[string]*sync.WaitGroup // Track processor goroutines for each collector
 	combinedChannel  chan []CollectedResource
 	telemetryMetrics *TelemetryMetrics // Metrics for telemetry
 	wg               sync.WaitGroup
@@ -71,9 +80,9 @@ func NewCollectionManager(config *CollectionConfig,
 		bufferSize = config.BufferSize
 	}
 
-	return &CollectionManager{
+	m := &CollectionManager{
 		collectors:       make(map[string]ResourceCollector),
-		collectorCtxs:    make(map[string]context.CancelFunc),
+		collectorCtxs:    make(map[string]*collectorRun),
 		processorWg:      make(map[string]*sync.WaitGroup),
 		combinedChannel:  make(chan []CollectedResource, bufferSize),
 		telemetryMetrics: telemetryMetrics,
@@ -84,6 +93,32 @@ func NewCollectionManager(config *CollectionConfig,
 		telemetryLogger:  telemetryLogger,
 		healthManager:    healthManager,
 	}
+	m.publishCollectorViewLocked()
+	return m
+}
+
+// collectorRun is one start of a collector, from reserveStart until it is stopped. It is
+// compared by pointer: launchCollector re-checks, once Start returns, that its run is
+// still the current entry in collectorCtxs, which is how a stop that landed during Start
+// is detected even if a new run for the same type has been reserved since.
+type collectorRun struct {
+	cancel context.CancelFunc
+	// starting is true from reserveStart until launchCollector's handshake. While it is
+	// set, the goroutine inside Start owns the collector: a stop cancels the run and
+	// unregisters it but leaves the Stop call to that goroutine, because stopping a
+	// collector concurrently with its own Start is not safe for the collectors here, and
+	// calling Stop from both sides would double-close their channels.
+	starting bool
+}
+
+// publishCollectorViewLocked republishes the lock-free snapshot GetCollector reads. Must
+// be called with mu held, after every write to m.collectors.
+func (m *CollectionManager) publishCollectorViewLocked() {
+	view := make(map[string]ResourceCollector, len(m.collectors))
+	for collectorType, collector := range m.collectors {
+		view[collectorType] = collector
+	}
+	m.collectorView.Store(&view)
 }
 
 // RegisterCollector adds a new collector
@@ -98,6 +133,7 @@ func (m *CollectionManager) RegisterCollector(collector ResourceCollector) error
 
 	m.logger.Info("Registering collector", "type", collectorType)
 	m.collectors[collectorType] = collector
+	m.publishCollectorViewLocked()
 
 	// Initialize wait group for this collector type if it doesn't exist
 	if _, exists := m.processorWg[collectorType]; !exists {
@@ -130,16 +166,34 @@ func (m *CollectionManager) stopCollectorInternal(collectorType string) error {
 		return fmt.Errorf("collector for type %s not registered", collectorType)
 	}
 
-	cancel, ctxExists := m.collectorCtxs[collectorType]
-	if !ctxExists {
-		return fmt.Errorf("collector %s is not running", collectorType)
+	run, running := m.collectorCtxs[collectorType]
+
+	// Unpublish before Stop and the drain wait below, so lock-free readers stop being
+	// handed a collector that is shutting down.
+	delete(m.collectors, collectorType)
+	m.publishCollectorViewLocked()
+
+	if !running {
+		// Registered but not running: its Start failed, or it was never started. It is
+		// still removed, or the replacement a restart registers next is refused as
+		// "already registered" and the type stays dark until the pod restarts.
+		m.logger.Info("Removed collector that was not running", "type", collectorType)
+		return nil
 	}
 
 	m.logger.Info("Stopping collector", "type", collectorType)
 
 	// Cancel the context for this collector
-	cancel()
+	run.cancel()
 	delete(m.collectorCtxs, collectorType)
+
+	if run.starting {
+		// Its Start is still in flight. Waiting for it here would deadlock (the starter
+		// needs mu to finish), so hand over instead: with the run gone, launchCollector's
+		// handshake stops the collector itself and never attaches a processor.
+		m.logger.Info("Collector stopped while starting; its starter will stop it", "type", collectorType)
+		return nil
+	}
 
 	// Stop the collector
 	if err := collector.Stop(); err != nil {
@@ -166,9 +220,6 @@ func (m *CollectionManager) stopCollectorInternal(collectorType string) error {
 			)
 		}
 	}
-
-	// Remove the collector from the map
-	delete(m.collectors, collectorType)
 
 	return nil
 }
@@ -287,19 +338,11 @@ func (m *CollectionManager) StartAll(ctx context.Context) error {
 
 // StartCollector starts a specific collector
 func (m *CollectionManager) StartCollector(ctx context.Context, collectorType string) error {
-	m.mu.Lock()
-
-	collector, exists := m.collectors[collectorType]
-	if !exists {
-		return fmt.Errorf("collector for type %s not registered", collectorType)
+	collector, collectorCtx, run, wg, err := m.reserveStart(collectorType, nil)
+	if err != nil {
+		return err
 	}
-
-	if _, ctxExists := m.collectorCtxs[collectorType]; ctxExists {
-		return fmt.Errorf("collector %s is already running", collectorType)
-	}
-	m.mu.Unlock()
-
-	return m.startCollectorInternal(collectorType, collector)
+	return m.launchCollector(collectorType, collector, collectorCtx, run, wg)
 }
 
 // startCollectorInternal is a helper function to start a collector with appropriate context management
@@ -307,25 +350,81 @@ func (m *CollectionManager) startCollectorInternal(
 	collectorType string,
 	collector ResourceCollector,
 ) error {
+	_, collectorCtx, run, wg, err := m.reserveStart(collectorType, collector)
+	if err != nil {
+		return err
+	}
+	return m.launchCollector(collectorType, collector, collectorCtx, run, wg)
+}
+
+// reserveStart claims collectorType for starting, in one critical section: it resolves
+// the collector (when known is nil, or confirms known is still the registered instance),
+// refuses one that is already running, and records the run that marks it running. The
+// check and the claim are atomic so two concurrent starts cannot both pass the "already
+// running" check.
+//
+// The mutex is released by defer on every path. The early returns here used to leave it
+// held, which on 2026-09-25 wedged the manager, and every informer handler that looks a
+// collector up through it, until the pod restarted.
+func (m *CollectionManager) reserveStart(
+	collectorType string,
+	known ResourceCollector,
+) (ResourceCollector, context.Context, *collectorRun, *sync.WaitGroup, error) {
 	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	registered, exists := m.collectors[collectorType]
+	if !exists {
+		return nil, nil, nil, nil, fmt.Errorf("collector for type %s not registered", collectorType)
+	}
+	// StartAll hands its goroutines the instance it saw; if that was stopped or replaced
+	// before the goroutine got here, starting it would run an unregistered collector.
+	if known != nil && known != registered {
+		return nil, nil, nil, nil, fmt.Errorf("collector for type %s was replaced before it started", collectorType)
+	}
+	collector := registered
+
+	if _, running := m.collectorCtxs[collectorType]; running {
+		return nil, nil, nil, nil, fmt.Errorf("collector %s is already running", collectorType)
+	}
+
 	m.logger.Info("Starting collector", "type", collectorType)
 
 	// Create a new context for this collector that can be cancelled individually
 	collectorCtx, cancel := context.WithCancel(context.Background())
-	m.collectorCtxs[collectorType] = cancel
+	run := &collectorRun{cancel: cancel, starting: true}
+	m.collectorCtxs[collectorType] = run
 
 	// Make sure the processor wait group exists for this collector
-	if _, exists := m.processorWg[collectorType]; !exists {
-		m.processorWg[collectorType] = &sync.WaitGroup{}
+	wg, exists := m.processorWg[collectorType]
+	if !exists || wg == nil {
+		wg = &sync.WaitGroup{}
+		m.processorWg[collectorType] = wg
 	}
 
-	m.mu.Unlock() // we can unlock it here to unblock other go routines to progress, without depend on the start method of other collectors
+	return collector, collectorCtx, run, wg, nil
+}
 
-	// Start this collector
+// launchCollector runs the collector's Start outside the manager mutex (Start can block,
+// and must not hold up other collectors), then attaches its channel processor.
+//
+// After Start returns it re-checks, under mu, that run is still the current entry. A stop
+// that landed during Start has removed it and left the collector to this goroutine (see
+// collectorRun.starting), so this goroutine stops the collector and does not attach a
+// processor: its channel may never close, and the processor would leak.
+func (m *CollectionManager) launchCollector(
+	collectorType string,
+	collector ResourceCollector,
+	collectorCtx context.Context,
+	run *collectorRun,
+	wg *sync.WaitGroup,
+) error {
 	if err := collector.Start(collectorCtx); err != nil { // this is the blocking call some time.
-		cancel() // Clean up the context
+		run.cancel() // Clean up the context
 		m.mu.Lock()
-		delete(m.collectorCtxs, collectorType)
+		if m.collectorCtxs[collectorType] == run {
+			delete(m.collectorCtxs, collectorType)
+		}
 		m.mu.Unlock()
 		m.updateHealthStatus(
 			health.ComponentCollectorManager,
@@ -336,10 +435,24 @@ func (m *CollectionManager) startCollectorInternal(
 		return fmt.Errorf("failed to start collector %s: %w", collectorType, err)
 	}
 
-	// Start a goroutine to read from this collector's channel
+	m.mu.Lock()
+	if m.collectorCtxs[collectorType] != run {
+		m.mu.Unlock()
+		m.logger.Info("Collector was stopped while starting; stopping it", "type", collectorType)
+		if err := collector.Stop(); err != nil {
+			m.logger.Error(err, "Error stopping collector that was stopped while starting", "type", collectorType)
+		}
+		return fmt.Errorf("collector %s was stopped while it was starting", collectorType)
+	}
+	run.starting = false
+	// The Adds are taken under mu because StopAll and stopCollectorInternal Wait on
+	// these groups while holding it; without that edge an Add is unordered with a
+	// concurrent Wait (a WaitGroup misuse the race detector reports).
 	m.wg.Add(1)
-	wg := m.processorWg[collectorType]
 	wg.Add(1)
+	m.mu.Unlock()
+
+	// Start a goroutine to read from this collector's channel
 	go m.processCollectorChannel(collectorType, collector, wg)
 
 	return nil
@@ -359,13 +472,19 @@ func (m *CollectionManager) StopAll() error {
 	m.logger.Info("Stopping all collectors", "count", len(m.collectors))
 
 	// Cancel the contexts for all collectors
-	for collectorType, cancel := range m.collectorCtxs {
+	for collectorType, run := range m.collectorCtxs {
 		m.logger.Info("Cancelling context for collector", "type", collectorType)
-		cancel()
+		run.cancel()
 	}
 
 	// Stop each collector
 	for collectorType, collector := range m.collectors {
+		if run, ok := m.collectorCtxs[collectorType]; ok && run.starting {
+			// Its Start is in flight; the reset of collectorCtxs below hands it to
+			// launchCollector's handshake, which stops it. See collectorRun.starting.
+			m.logger.Info("Collector is still starting; its starter will stop it", "type", collectorType)
+			continue
+		}
 		m.logger.Info("Stopping collector", "type", collectorType)
 		if err := collector.Stop(); err != nil {
 			m.logger.Error(err, "Error stopping collector", "type", collectorType)
@@ -400,7 +519,7 @@ func (m *CollectionManager) StopAll() error {
 	m.combinedChannel = make(chan []CollectedResource, originalBufferSize)
 
 	// Clear all tracking maps
-	m.collectorCtxs = make(map[string]context.CancelFunc)
+	m.collectorCtxs = make(map[string]*collectorRun)
 	m.processorWg = make(map[string]*sync.WaitGroup)
 
 	// Wait for all goroutines to finish (with timeout)
@@ -517,12 +636,17 @@ func (m *CollectionManager) IsCollectorRunning(collectorType string) bool {
 	return exists
 }
 
-// GetCollector returns a specific collector by type, or nil if not found
+// GetCollector returns a specific collector by type, or nil if not found.
+//
+// Lock-free by design: it reads the snapshot published by publishCollectorViewLocked and
+// never waits on mu, so it is safe to call from an informer event handler. See the
+// collectorView field.
 func (m *CollectionManager) GetCollector(collectorType string) ResourceCollector {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	collector, exists := m.collectors[collectorType]
+	view := m.collectorView.Load()
+	if view == nil {
+		return nil
+	}
+	collector, exists := (*view)[collectorType]
 	if !exists {
 		return nil
 	}

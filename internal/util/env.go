@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	v1 "github.com/devzero-inc/zxporter/api/v1"
+	"github.com/devzero-inc/zxporter/internal/collector"
 )
 
 // Configuration environment variables
@@ -67,6 +68,11 @@ const (
 	// Default value: false
 	_ENV_MASK_SECRET_DATA = "MASK_SECRET_DATA"
 
+	// ENV_VAR_COLLECTION controls whether container environment variables are
+	// sent to Dakr: "enabled" or "disabled".
+	// Default value: enabled
+	_ENV_ENV_VAR_COLLECTION = "ENV_VAR_COLLECTION"
+
 	// NODE_METRICS_INTERVAL is how often to collect node metrics.
 	// Default value: collection frequency * 6
 	_ENV_NODE_METRICS_INTERVAL = "NODE_METRICS_INTERVAL"
@@ -87,6 +93,16 @@ const (
 	// Default value: 15s
 	_ENV_KUBELET_FALLBACK_TIMEOUT = "KUBELET_FALLBACK_TIMEOUT"
 
+	// SCHEDULER_METRICS_SCRAPE_INTERVAL bounds how often the SchedulerMetrics
+	// collector scrapes dz-scheduler's /metrics endpoint.
+	// Default value: 60s
+	_ENV_SCHEDULER_METRICS_SCRAPE_INTERVAL = "SCHEDULER_METRICS_SCRAPE_INTERVAL"
+
+	// KEDA_METRICS_ENDPOINT is the full URL of the KEDA operator /metrics endpoint
+	// scraped by the KedaScalerMetrics collector.
+	// Default value: http://dzkeda-operator.devzero-system.svc.cluster.local:8080/metrics
+	_ENV_KEDA_METRICS_ENDPOINT = "KEDA_METRICS_ENDPOINT"
+
 	// CLUSTER_SNAPSHOT_INTERVAL is how often to take cluster snapshots.
 	// Default value: 3h
 	_ENV_CLUSTER_SNAPSHOT_INTERVAL = "CLUSTER_SNAPSHOT_INTERVAL"
@@ -97,7 +113,8 @@ const (
 	_ENV_WATCHED_CRDS = "WATCHED_CRDS"
 
 	// DISABLED_COLLECTORS is a list of collector types to completely disable.
-	// This is a comma-separated list.
+	// This is a comma-separated list. It takes the same names as a CollectionPolicy's
+	// disabledCollectors, legacy spellings included (see collector.CanonicalCollectorType).
 	// Default value: []
 	_ENV_DISABLED_COLLECTORS = "DISABLED_COLLECTORS"
 
@@ -281,6 +298,10 @@ const (
 
 const configVolumeMountPath = "/etc/zxporter/config"
 
+// GetConfigValue returns key from the environment, else from the file the
+// chart mounts at /etc/zxporter/config/<key>.
+func GetConfigValue(key string) string { return getEnv(key) }
+
 func getEnv(key string) string {
 	if data := os.Getenv(key); data != "" {
 		return data
@@ -299,6 +320,20 @@ func getEnv(key string) string {
 // indicating whether any field changed, or an error if parsing fails.
 func LoadCollectionPolicySpecFromEnv() (v1.CollectionPolicySpec, error) {
 	newSpec := v1.CollectionPolicySpec{}
+
+	// ENV_VAR_COLLECTION is read before every parser that can return early.
+	// Reconcile logs a load error and still applies the spec it got back, so a
+	// typo in an unrelated setting must not leave this opt-out unset (unset
+	// reads as enabled and sends env vars). An invalid value is kept, which the
+	// controller reads as disabled, and its error is returned only at the end so
+	// the settings parsed after it still load.
+	var envVarCollectionErr error
+	if v := getEnv(_ENV_ENV_VAR_COLLECTION); v != "" {
+		newSpec.Policies.EnvVarCollection = strings.ToLower(strings.TrimSpace(v))
+		if _, err := collector.ParseEnvVarCollection(v); err != nil {
+			envVarCollectionErr = fmt.Errorf("invalid %s: %w", _ENV_ENV_VAR_COLLECTION, err)
+		}
+	}
 
 	// Helper to split comma-separated lists
 	splitCSV := func(envKey string) []string {
@@ -584,6 +619,12 @@ func LoadCollectionPolicySpecFromEnv() (v1.CollectionPolicySpec, error) {
 	if v := getEnv(_ENV_KUBELET_FALLBACK_TIMEOUT); v != "" {
 		newSpec.Policies.KubeletFallbackTimeout = v
 	}
+	if v := getEnv(_ENV_SCHEDULER_METRICS_SCRAPE_INTERVAL); v != "" {
+		newSpec.Policies.SchedulerMetricsScrapeInterval = v
+	}
+	if v := getEnv(_ENV_KEDA_METRICS_ENDPOINT); v != "" {
+		newSpec.Policies.KEDAMetricsEndpoint = v
+	}
 	if v := getEnv(_ENV_CLUSTER_SNAPSHOT_INTERVAL); v != "" {
 		newSpec.Policies.ClusterSnapshotInterval = v
 	}
@@ -601,5 +642,5 @@ func LoadCollectionPolicySpecFromEnv() (v1.CollectionPolicySpec, error) {
 	}
 
 	// Detect any change
-	return newSpec, nil
+	return newSpec, envVarCollectionErr
 }

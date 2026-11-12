@@ -169,8 +169,8 @@ func (c *IngressCollector) ingressChanged(oldIngress, newIngress *networkingv1.I
 		oldIngress.ObjectMeta,
 		newIngress.ObjectMeta,
 	)
-	if changed != IgnoreChanges {
-		return changed == PushChanges
+	if changed == PushChanges {
+		return true
 	}
 
 	// Check for ingress class changes
