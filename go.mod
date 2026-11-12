@@ -23,6 +23,7 @@ require (
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	google.golang.org/genproto v0.0.0-20260904194346-d0f1323225a4
 	inet.af/netaddr v0.0.0-20230525184311-b8eac61e914a
+	k8s.io/component-helpers v0.36.6
 )
 
 require (
@@ -56,7 +57,7 @@ require (
 	github.com/go-openapi/swag/yamlutils v0.29.1 // indirect
 	github.com/go-openapi/validate v0.26.1 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
-	github.com/gopacket/gopacket v1.6.1 // indirect
+	github.com/gopacket/gopacket v1.7.2 // indirect
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674 // indirect
 	github.com/josharian/native v1.1.0 // indirect
 	github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de // indirect
@@ -87,7 +88,6 @@ require (
 	go4.org/netipx v0.0.0-20231129151722-fdeea329fbba // indirect
 	go4.org/unsafe/assume-no-moving-gc v0.0.0-20230525183740-e7c30c78aeb2 // indirect
 	golang.org/x/mod v0.41.0 // indirect
-	k8s.io/component-helpers v0.36.6 // indirect
 	k8s.io/streaming v0.36.6 // indirect
 	sigs.k8s.io/gateway-api v1.4.0-rc.2 // indirect
 	sigs.k8s.io/mcs-api v0.3.1-0.20260224125735-0f775a3eff97 // indirect
