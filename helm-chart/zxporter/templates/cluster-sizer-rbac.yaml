@@ -1,0 +1,48 @@
+{{- if (.Values.clusterSizer | default dict).enabled -}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  {{- with (include "zxporter.commonLabels" $) }}
+  labels:
+    {{- . | nindent 4 }}
+  {{- end }}
+  {{- with (include "zxporter.commonAnnotations" $) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
+  name: devzero-zxporter-cluster-sizer
+  namespace: {{ .Release.Namespace }}
+rules:
+  # The sizer resizes the controller's own Deployment and nothing else.
+  - apiGroups:
+      - apps
+    resources:
+      - deployments
+    resourceNames:
+      - devzero-zxporter-controller-manager
+    verbs:
+      - get
+      - patch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  {{- with (include "zxporter.commonLabels" $) }}
+  labels:
+    {{- . | nindent 4 }}
+  {{- end }}
+  {{- with (include "zxporter.commonAnnotations" $) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
+  name: devzero-zxporter-cluster-sizer-rolebinding
+  namespace: {{ .Release.Namespace }}
+subjects:
+  - kind: ServiceAccount
+    name: devzero-zxporter-controller-manager
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: devzero-zxporter-cluster-sizer
+{{- end }}

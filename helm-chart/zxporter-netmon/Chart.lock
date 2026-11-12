@@ -1,0 +1,6 @@
+dependencies:
+- name: devzero-common
+  repository: file://../devzero-common
+  version: 0.1.0
+digest: sha256:95ad29cb5f46a1e2219d1280d118b1c6a51d3c7dad9c60cd87cc7bdc28228892
+generated: "2026-10-07T11:42:30.632495-03:00"

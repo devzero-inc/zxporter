@@ -1,6 +1,9 @@
 dependencies:
+- name: devzero-common
+  repository: file://../devzero-common
+  version: 0.1.0
 - name: zxporter-nodemon
   repository: file://../zxporter-nodemon
-  version: 0.1.6
-digest: sha256:6d5a88673e5b4997a8f2e75733aa6fce062b81bff4110d2e0042a343e1e12f27
-generated: "2026-08-04T08:42:16.511514311Z"
+  version: 0.1.29
+digest: sha256:2f493212dd516943f45f6607a6af7b71faea3efe7cd44274fa95e94929388496
+generated: "2026-11-12T18:31:11.960885903Z"

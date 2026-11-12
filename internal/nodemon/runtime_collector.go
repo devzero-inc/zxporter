@@ -57,6 +57,9 @@ type RuntimeCollector struct {
 	index    *PodContainerIndex
 	procRoot string
 	log      logr.Logger
+	// hsperfDenied logs, once per container, JVMs whose /tmp nodemon was
+	// refused access to (see findHsperfdata).
+	hsperfDenied *hsperfDeniedReporter
 
 	mu sync.RWMutex
 	// versionCache caches version resolution keyed by containerID+"/"+runtime,
@@ -88,11 +91,13 @@ type RuntimeCollector struct {
 // (or be started concurrently) — RuntimeCollector only reads from it. procRoot
 // defaults to "/proc".
 func NewRuntimeCollector(nodeName string, index *PodContainerIndex, log logr.Logger) *RuntimeCollector {
+	log = log.WithName("runtime-collector")
 	return &RuntimeCollector{
 		nodeName:     nodeName,
 		index:        index,
 		procRoot:     "/proc",
-		log:          log.WithName("runtime-collector"),
+		log:          log,
+		hsperfDenied: newHsperfDeniedReporter(log),
 		versionCache: make(map[string]versionResolveInfo),
 		probeCache:   make(map[string]probeCacheEntry),
 		cachedErr:    errMetricsNotYetCollected,
@@ -224,7 +229,7 @@ func (c *RuntimeCollector) collect(ctx context.Context) (RuntimeMetrics, error) 
 	c.mu.Unlock()
 	probe, nextProbeCache := newMemoizedProbe(prevProbeCache, probeRuntimeProcess)
 
-	javaProcs, runtimeProcs, err := discoverRuntimeProcesses(c.procRoot, probe)
+	javaProcs, runtimeProcs, err := discoverRuntimeProcesses(c.procRoot, probe, c.hsperfDenied)
 	if err != nil {
 		return RuntimeMetrics{}, fmt.Errorf("discovering runtime processes: %w", err)
 	}

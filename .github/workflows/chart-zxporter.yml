@@ -73,6 +73,9 @@ jobs:
       - name: Package and push chart
         run: |
           rm -f helm-chart/zxporter/charts/zxporter-nodemon-*.tgz
+          # Vendor nodemon's own devzero-common first, so the nodemon copy
+          # bundled into this chart is complete on its own.
+          helm dependency build helm-chart/zxporter-nodemon
           helm dependency update helm-chart/${{ env.CHART_NAME }}
           helm lint helm-chart/${{ env.CHART_NAME }}
           mkdir -p helm-chart/packages

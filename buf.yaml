@@ -1,0 +1,21 @@
+version: v2
+# Was buf.work.yaml (v1) with no module buf.yaml, i.e. v1's default rules.
+# Those are pinned explicitly so the v2 defaults do not widen them: v1 DEFAULT
+# is v2 STANDARD minus FIELD_NOT_REQUIRED and PACKAGE_NO_IMPORT_CYCLE, v1 FILE
+# is v2 FILE minus EXTENSION_NO_DELETE and FIELD_SAME_DEFAULT, and v1 did not
+# honour `// buf:lint:ignore` comments.
+modules:
+  - path: proto
+lint:
+  use:
+    - STANDARD
+  except:
+    - FIELD_NOT_REQUIRED
+    - PACKAGE_NO_IMPORT_CYCLE
+  disallow_comment_ignores: true
+breaking:
+  use:
+    - FILE
+  except:
+    - EXTENSION_NO_DELETE
+    - FIELD_SAME_DEFAULT

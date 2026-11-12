@@ -31,7 +31,9 @@ var _ DNSCollector = (*IP2DNS)(nil)
 
 type tracer interface {
 	Run(ctx context.Context) error
-	Events() <-chan ebpf.DNSEvent
+	// Events yields DNS events in batches. The tracer groups them so that a busy node
+	// costs one channel handoff and one wakeup per batch rather than per packet.
+	Events() <-chan []ebpf.DNSEvent
 }
 
 var defaultDNSTTL = 2 * time.Minute
@@ -64,52 +66,70 @@ func (d *IP2DNS) Start(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case ev, ok := <-evCh:
+		case batch, ok := <-evCh:
 			if !ok {
 				return nil
 			}
-
-			// Process DNS Event
-			var resolvedIPs []string
-			var domain string
-
-			for _, answer := range ev.Answers {
-				name := string(answer.Name)
-				if domain == "" {
-					domain = name
-				}
-
-				switch answer.Type {
-				case layers.DNSTypeA:
-					ip, ok := netaddr.FromStdIP(answer.IP)
-					if !ok {
-						continue
-					}
-					resolvedIPs = append(resolvedIPs, ip.String())
-					d.ipToName.Set(ip.String(), name, cache.WithExpiration(defaultDNSTTL))
-				case layers.DNSTypeCNAME:
-					// CNAME handling if needed
-				}
-			}
-
-			if len(resolvedIPs) > 0 {
-				var clientIP string
-				// eBPF Tracer (CgroupIngress): SrcIP = Server, DstIP = Client (Pod)
-				if ip, ok := netaddr.FromStdIP(ev.DstIP); ok {
-					clientIP = ip.String()
-				}
-
-				d.mu.Lock()
-				d.lookups = append(d.lookups, DNSLookup{
-					ClientIP:    clientIP,
-					Domain:      domain,
-					ResolvedIPs: resolvedIPs,
-					Timestamp:   time.Now(),
-				})
-				d.mu.Unlock()
-			}
+			d.handleBatch(batch)
 		}
 	}
+}
+
+// handleBatch records the lookups in one batch of DNS events, taking the lock once for
+// the whole batch rather than once per event.
+func (d *IP2DNS) handleBatch(batch []ebpf.DNSEvent) {
+	lookups := make([]DNSLookup, 0, len(batch))
+	now := time.Now()
+
+	for i := range batch {
+		ev := &batch[i]
+
+		var resolvedIPs []string
+		var domain string
+
+		for _, answer := range ev.Answers {
+			if domain == "" {
+				domain = answer.Name
+			}
+
+			switch answer.Type {
+			case layers.DNSTypeA:
+				ip, ok := netaddr.FromStdIP(answer.IP)
+				if !ok {
+					continue
+				}
+				resolvedIPs = append(resolvedIPs, ip.String())
+				d.ipToName.Set(ip.String(), answer.Name, cache.WithExpiration(defaultDNSTTL))
+			case layers.DNSTypeCNAME:
+				// CNAME handling if needed
+			}
+		}
+
+		if len(resolvedIPs) == 0 {
+			continue
+		}
+
+		var clientIP string
+		// eBPF Tracer (CgroupIngress): SrcIP = Server, DstIP = Client (Pod)
+		if ip, ok := netaddr.FromStdIP(ev.DstIP); ok {
+			clientIP = ip.String()
+		}
+
+		lookups = append(lookups, DNSLookup{
+			ClientIP:    clientIP,
+			Domain:      domain,
+			ResolvedIPs: resolvedIPs,
+			Timestamp:   now,
+		})
+	}
+
+	if len(lookups) == 0 {
+		return
+	}
+
+	d.mu.Lock()
+	d.lookups = append(d.lookups, lookups...)
+	d.mu.Unlock()
 }
 
 // Lookups returns the accumulated lookups and clears the buffer (Delta)

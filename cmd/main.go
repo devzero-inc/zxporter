@@ -161,6 +161,7 @@ func main() {
 	healthManager.Register(health.ComponentMpaServer)
 	healthManager.Register(health.ComponentPrometheus)
 	healthManager.Register(health.ComponentGPURuntimeResolver)
+	healthManager.Register(health.ComponentClusterSizer)
 
 	// Allow 2 minutes for the controller to win leader election and start
 	// reconciling before enforcing readiness checks.
@@ -225,6 +226,12 @@ func main() {
 		mgr.GetClient(), mgr.GetAPIReader(), namespace, 30*time.Second, healthManager,
 	)); err != nil {
 		setupLog.Error(err, "unable to add GPU runtime resolver")
+		os.Exit(1)
+	}
+	if err := mgr.Add(controller.NewClusterSizer(
+		mgr.GetClient(), mgr.GetAPIReader(), namespace, healthManager,
+	)); err != nil {
+		setupLog.Error(err, "unable to add cluster sizer")
 		os.Exit(1)
 	}
 

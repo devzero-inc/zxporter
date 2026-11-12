@@ -40,17 +40,34 @@ type DakrClient interface {
 	) (SnapshotBatchStream, error)
 	// telemetry_logger.TelemetryLogSender sends a batch of log entries to Dakr
 	telemetry_logger.TelemetryLogSender
-	// ExchangePATForClusterToken exchanges a PAT token for a cluster token
-	ExchangePATForClusterToken(
-		ctx context.Context,
-		patToken, clusterName, k8sProvider string,
-	) (string, string, error)
+	// ExchangePATForClusterToken exchanges a personal access token for a
+	// cluster token. KubeSystemUID and ClusterID let dakr re-attach to an
+	// existing cluster instead of creating one (KUB-158).
+	ExchangePATForClusterToken(ctx context.Context, req ClusterTokenExchangeRequest) (ClusterTokenExchangeResult, error)
 
 	// SendNetworkTrafficMetrics pushes network traffic metrics from a node
 	SendNetworkTrafficMetrics(
 		ctx context.Context,
 		req *gen.SendNetworkTrafficMetricsRequest,
 	) (*gen.SendNetworkTrafficMetricsResponse, error)
+
+	// SendScalerMetrics pushes a batch of KEDA scaler metric samples from a cluster.
+	SendScalerMetrics(
+		ctx context.Context,
+		clusterID string,
+		teamID string,
+		samples []*gen.ScalerMetricSample,
+	) error
+
+	// SendContainerRedMetrics pushes per-container inbound RED metrics from a node.
+	// It is a separate call from SendNetworkTrafficMetrics rather than a field on it
+	// because the two carry different grains -- flows between endpoints versus
+	// per-container per-minute aggregates -- and because a failure to deliver one
+	// must not discard the other.
+	SendContainerRedMetrics(
+		ctx context.Context,
+		req *gen.SendContainerRedMetricsRequest,
+	) (*gen.SendContainerRedMetricsResponse, error)
 
 	// ReportHealth
 	ReportHealth(ctx context.Context, req *gen.ReportHealthRequest) error
@@ -106,3 +123,19 @@ type DirectSender interface {
 // 	// Flush attempts to send all buffered items
 // 	Flush(ctx context.Context) error
 // }
+
+// ClusterTokenExchangeRequest is the input to a PAT-for-cluster-token exchange.
+type ClusterTokenExchangeRequest struct {
+	PATToken      string
+	ClusterName   string
+	K8sProvider   string
+	KubeSystemUID string
+	ClusterID     string
+}
+
+// ClusterTokenExchangeResult is the cluster token dakr issued and the cluster it belongs to.
+type ClusterTokenExchangeResult struct {
+	Token      string
+	ClusterID  string
+	Reattached bool
+}

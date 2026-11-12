@@ -328,21 +328,15 @@ func (c *NodeCollector) Start(ctx context.Context) error {
 
 // Add these new methods for pod event handling
 func (c *NodeCollector) handlePodEvent(pod *corev1.Pod, eventType EventType) {
-	// Skip pods not assigned to nodes yet
-	if pod.Spec.NodeName == "" {
-		return
-	}
-
-	// Skip excluded nodes
-	if c.isExcluded(pod.Spec.NodeName) {
-		return
-	}
-
 	switch eventType {
 	case EventTypeAdd, EventTypeUpdate:
-		c.addPodToNode(pod)
+		if pod.Spec.NodeName != "" && !c.isExcluded(pod.Spec.NodeName) {
+			c.addPodToNode(pod)
+		}
 	case EventTypeDelete:
-		c.removePodFromNode(pod)
+		if pod.Spec.NodeName != "" {
+			c.removePodFromNode(pod)
+		}
 	}
 }
 
@@ -385,6 +379,14 @@ func (c *NodeCollector) removePodFromNode(pod *corev1.Pod) {
 //
 // Returns nil for an unknown node, which is indistinguishable from "node has no pods".
 // Both mean "no pod here can be blocking", so the distinction has no caller.
+//
+// Pods are tracked by pod.Spec.NodeName ONLY, so a pending pod appears here for no node.
+// A second map keyed by pod.Status.NominatedNodeName used to be maintained alongside this
+// one — on every pod add, update and delete cluster-wide — to serve a PodsNominatedFor
+// lookup for the disruption classifier. Both are gone: that field is kube-scheduler
+// preemption state, not Karpenter nomination, so the lookup had no correct consumer and the
+// bookkeeping was pure per-event cost. Do not reintroduce it without reading the
+// PodNominated note on classifyDisruptionBlocked first.
 func (c *NodeCollector) PodsOnNode(nodeName string) []*corev1.Pod {
 	c.podMapMutex.RLock()
 	defer c.podMapMutex.RUnlock()
@@ -407,12 +409,14 @@ func (c *NodeCollector) calculateNodeWorkloadResources(nodeName string) map[stri
 	defer c.podMapMutex.RUnlock()
 
 	result := map[string]interface{}{
-		"cpuRequestsMillis":   int64(0),
-		"cpuLimitsMillis":     int64(0),
-		"memoryRequestsBytes": int64(0),
-		"memoryLimitsBytes":   int64(0),
-		"gpuRequestCount":     int64(0),
-		"gpuLimitCount":       int64(0),
+		"cpuRequestsMillis":             int64(0),
+		"cpuLimitsMillis":               int64(0),
+		"memoryRequestsBytes":           int64(0),
+		"memoryLimitsBytes":             int64(0),
+		"gpuRequestCount":               int64(0),
+		"gpuLimitCount":                 int64(0),
+		"ephemeralStorageRequestsBytes": int64(0),
+		"ephemeralStorageLimitsBytes":   int64(0),
 	}
 
 	// Check if we have pods for this node
@@ -458,6 +462,19 @@ func (c *NodeCollector) calculateNodeWorkloadResources(nodeName string) map[stri
 			// GPU limits
 			if val, ok := container.Resources.Limits[gpuconst.GpuResource]; ok {
 				result["gpuLimitCount"] = result["gpuLimitCount"].(int64) + val.Value()
+			}
+
+			// Ephemeral-storage requests. This is the quantity the scheduler
+			// admits pods against, so it is what makes a node's disk
+			// commitment comparable to its allocatable — unlike the kubelet's
+			// nodefs numbers, which measure actual consumption.
+			if val, ok := container.Resources.Requests[corev1.ResourceEphemeralStorage]; ok {
+				result["ephemeralStorageRequestsBytes"] = result["ephemeralStorageRequestsBytes"].(int64) + val.Value()
+			}
+
+			// Ephemeral-storage limits.
+			if val, ok := container.Resources.Limits[corev1.ResourceEphemeralStorage]; ok {
+				result["ephemeralStorageLimitsBytes"] = result["ephemeralStorageLimitsBytes"].(int64) + val.Value()
 			}
 		}
 	}
@@ -729,6 +746,11 @@ func (c *NodeCollector) nodeStatusChanged(oldNode, newNode *corev1.Node) bool {
 	if !oldAllocGPU.Equal(newAllocGPU) {
 		return true
 	}
+	oldAllocEphemeral := oldNode.Status.Allocatable[corev1.ResourceEphemeralStorage]
+	newAllocEphemeral := newNode.Status.Allocatable[corev1.ResourceEphemeralStorage]
+	if !oldAllocEphemeral.Equal(newAllocEphemeral) {
+		return true
+	}
 
 	// Check if capacity changed (CPU, memory, GPU)
 	if !oldNode.Status.Capacity.Cpu().Equal(*newNode.Status.Capacity.Cpu()) ||
@@ -738,6 +760,11 @@ func (c *NodeCollector) nodeStatusChanged(oldNode, newNode *corev1.Node) bool {
 	oldCapGPU := oldNode.Status.Capacity[corev1.ResourceName(gpuconst.GpuResource)]
 	newCapGPU := newNode.Status.Capacity[corev1.ResourceName(gpuconst.GpuResource)]
 	if !oldCapGPU.Equal(newCapGPU) {
+		return true
+	}
+	oldCapEphemeral := oldNode.Status.Capacity[corev1.ResourceEphemeralStorage]
+	newCapEphemeral := newNode.Status.Capacity[corev1.ResourceEphemeralStorage]
+	if !oldCapEphemeral.Equal(newCapEphemeral) {
 		return true
 	}
 
@@ -807,6 +834,17 @@ type nodeCollectionOutcome struct {
 	// DCGM refresh is failing) and therefore dropped. Aggregated per sweep so the
 	// DCGM problem is visible in DAKR telemetry, not only in nodemon's logs.
 	gpuStale bool
+	// storageToppedUp is true when nodemon returned a node section with no
+	// filesystem data and the kubelet top-up recovered it. Aggregated per sweep
+	// so a nodemon rollout that never converges is visible in DAKR telemetry --
+	// every one of these nodes is paying an extra API-server call per sweep.
+	storageToppedUp bool
+	// storageMissing is true when the node was shipped with no filesystem data
+	// at all: the top-up was needed and the kubelet could not supply it. This is
+	// the count that corresponds to an empty storage chart, so it must not
+	// include nodes the top-up rescued, nor excluded nodes (which are never
+	// enriched and never sent).
+	storageMissing bool
 }
 
 type nodeCoverage int
@@ -881,6 +919,15 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 	// dropped — surfaced as a per-sweep signal so a DCGM problem is visible in
 	// DAKR telemetry, not just nodemon logs.
 	var gpuStaleNodes []string
+	// Nodes whose nodemon reported no filesystem data, forcing a kubelet
+	// top-up that succeeded. Expected transiently during a nodemon rolling
+	// upgrade; a persistent nonzero count means the fleet never converged and
+	// every one of these nodes is paying an extra API-server call per sweep.
+	var storageToppedUpNodes []string
+	// Nodes shipped with no filesystem data at all — the top-up was needed and
+	// the kubelet could not supply it. These are the nodes whose storage charts
+	// are actually empty.
+	var storageMissingNodes []string
 	for _, o := range outcomes {
 		switch o.coverage {
 		case nodeCoverageNodemon:
@@ -896,6 +943,12 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 		}
 		if o.gpuStale {
 			gpuStaleNodes = append(gpuStaleNodes, o.nodeName)
+		}
+		if o.storageToppedUp {
+			storageToppedUpNodes = append(storageToppedUpNodes, o.nodeName)
+		}
+		if o.storageMissing {
+			storageMissingNodes = append(storageMissingNodes, o.nodeName)
 		}
 	}
 	c.logger.V(1).Info("Built node metrics",
@@ -985,6 +1038,59 @@ func (c *NodeCollector) collectAllNodeResources(ctx context.Context) {
 		}
 	}
 
+	// Two distinct signals, so the counts mean what their names say: a
+	// topped-up node has complete storage and cost an extra API-server call,
+	// while a missing one shipped without storage at all. Reporting both under
+	// node_storage_missing made a fully-recovered fleet look like a data gap.
+	const maxStorageSample = 20
+	storageSample := func(nodes []string) string {
+		sample := nodes
+		suffix := ""
+		if len(sample) > maxStorageSample {
+			suffix = fmt.Sprintf(" (+%d more)", len(sample)-maxStorageSample)
+			sample = sample[:maxStorageSample]
+		}
+		return fmt.Sprintf("%v", sample) + suffix
+	}
+
+	if len(storageToppedUpNodes) > 0 {
+		c.logger.Info("Node storage topped up from kubelet (nodemon reported no filesystem data)",
+			"count", len(storageToppedUpNodes))
+		if c.telemetryLogger != nil {
+			c.telemetryLogger.Report(
+				gen.LogLevel_LOG_LEVEL_WARN,
+				"NodeCollector",
+				"Node storage unavailable from nodemon; topped up from kubelet",
+				nil,
+				map[string]string{
+					"storage_topped_up": fmt.Sprintf("%d", len(storageToppedUpNodes)),
+					"sample_nodes":      storageSample(storageToppedUpNodes),
+					"event_type":        "node_storage_topped_up",
+					"zxporter_version":  version.Get().String(),
+				},
+			)
+		}
+	}
+
+	if len(storageMissingNodes) > 0 {
+		c.logger.Info("Node storage unavailable from both nodemon and the kubelet",
+			"count", len(storageMissingNodes))
+		if c.telemetryLogger != nil {
+			c.telemetryLogger.Report(
+				gen.LogLevel_LOG_LEVEL_WARN,
+				"NodeCollector",
+				"Node storage unavailable from nodemon and the kubelet top-up failed",
+				nil,
+				map[string]string{
+					"storage_missing":  fmt.Sprintf("%d", len(storageMissingNodes)),
+					"sample_nodes":     storageSample(storageMissingNodes),
+					"event_type":       "node_storage_missing",
+					"zxporter_version": version.Get().String(),
+				},
+			)
+		}
+	}
+
 	// Surface coverage gaps: nodes where neither nodemon nor the kubelet fallback
 	// produced metrics. This converts previously-silent blind spots into a signal.
 	if len(uncoveredNodes) > 0 {
@@ -1066,6 +1172,41 @@ func (c *NodeCollector) collectSingleNodeResources(ctx context.Context, node *co
 		return outcome
 	}
 
+	// Bridge the nodemon rollout window: an older nodemon reports no filesystem
+	// section, so fetch just that from the kubelet for this node. Conditional by
+	// design — an unconditional second fetch is exactly what issue 9410 removed.
+	//
+	// Below the isExcluded return because the top-up is enrichment: an excluded
+	// node's metrics are discarded, so fetching its filesystem would spend an
+	// API-server call on data nobody reads and would put a node that was never
+	// shipped into the storage counts.
+	if nodeStorageNeedsTopUp(fromNodemon, nodeMetric) {
+		if sm, serr := c.kubeletClient.FetchNodeStorageByNode(ctx, node.Name); serr != nil {
+			c.logger.V(1).Info("Kubelet node-storage top-up failed", "node", node.Name, "error", serr)
+		} else if sm != nil {
+			nodeMetric.NodefsUsedBytes = sm.NodefsUsedBytes
+			nodeMetric.NodefsCapacityBytes = sm.NodefsCapacityBytes
+			nodeMetric.NodefsAvailableBytes = sm.NodefsAvailableBytes
+			nodeMetric.NodefsInodesUsed = sm.NodefsInodesUsed
+			nodeMetric.NodefsInodesTotal = sm.NodefsInodesTotal
+			nodeMetric.ImagefsUsedBytes = sm.ImagefsUsedBytes
+			nodeMetric.ImagefsCapacityBytes = sm.ImagefsCapacityBytes
+			nodeMetric.ImagefsAvailableBytes = sm.ImagefsAvailableBytes
+			nodeMetric.ImagefsSharedDevice = sm.ImagefsSharedDevice
+		}
+
+		// Classify on the result, not on whether the call returned an error:
+		// FetchNodeStorageByNode answers with a zero-valued metric when the
+		// kubelet's own summary has no filesystem section, so a "successful"
+		// top-up can still leave the node shipping without storage. Capacity is
+		// the same "> 0 means reported" contract the rest of this feature uses.
+		if nodeMetric.NodefsCapacityBytes > 0 {
+			outcome.storageToppedUp = true
+		} else {
+			outcome.storageMissing = true
+		}
+	}
+
 	usage := corev1.ResourceList{}
 	if nodeMetric != nil {
 		cpuMillis := int64(nodeMetric.CPUUsageNanoCores / 1_000_000)
@@ -1132,6 +1273,11 @@ func (c *NodeCollector) collectSingleNodeResources(ctx context.Context, node *co
 		// Include the full node object for any other needed details
 		"node": node,
 	}
+
+	// Storage. Unlike networkMetrics below, this is NOT gated on fromNodemon:
+	// the kubelet fallback path produces real filesystem numbers, so a node
+	// with no nodemon pod still reports disk occupancy.
+	applyNodeStorageToResourceData(resourceData, node, nodeMetric)
 
 	// Add network metrics if available
 	if len(networkMetrics) > 0 {
@@ -1222,6 +1368,59 @@ func networkIOMetricsFromNodeMetric(m *UnifiedNodeMetric) map[string]float64 {
 		"FSReads":                m.DiskReadOpsPerSec,
 		"FSWrites":               m.DiskWriteOpsPerSec,
 	}
+}
+
+// nodeStorageNeedsTopUp reports whether this node's storage must be fetched from
+// the kubelet because nodemon did not supply it.
+//
+// This is the nodemon-rollout bridge. A nodemon pod that predates the
+// filesystem fields returns a snapshot with them absent, which is
+// indistinguishable from zero on the wire — but a real node always reports a
+// nonzero nodefs capacity, so a zero there means "not reported", not "no disk".
+//
+// It is deliberately narrow. Only a nodemon-sourced metric can be missing
+// storage: the kubelet fallback path fills the fields in itself, so a
+// fallback-covered node never needs a second call. A nil metric means neither
+// source reached the node at all, and a top-up would fail for the same reason.
+func nodeStorageNeedsTopUp(fromNodemon bool, m *UnifiedNodeMetric) bool {
+	return fromNodemon && m != nil && m.NodefsCapacityBytes == 0
+}
+
+// applyNodeStorageToResourceData writes the node's storage keys into the
+// payload dakr ingests.
+//
+// The filesystem values come from whichever metrics source covered the node.
+// The ephemeral-storage values come from the Node object instead, and are
+// therefore populated even when no metrics source reached it at all — they are
+// what the scheduler admits pods against, which is a different question from
+// how full the disk actually is.
+func applyNodeStorageToResourceData(data map[string]interface{}, node *corev1.Node, m *UnifiedNodeMetric) {
+	if m != nil {
+		data["nodefsUsedBytes"] = int64(m.NodefsUsedBytes)
+		data["nodefsCapacityBytes"] = int64(m.NodefsCapacityBytes)
+		data["nodefsAvailableBytes"] = int64(m.NodefsAvailableBytes)
+		data["nodefsInodesUsed"] = int64(m.NodefsInodesUsed)
+		data["nodefsInodesTotal"] = int64(m.NodefsInodesTotal)
+		data["imagefsUsedBytes"] = int64(m.ImagefsUsedBytes)
+		data["imagefsCapacityBytes"] = int64(m.ImagefsCapacityBytes)
+		data["imagefsAvailableBytes"] = int64(m.ImagefsAvailableBytes)
+		data["imagefsSharedDevice"] = m.ImagefsSharedDevice
+	} else {
+		data["nodefsUsedBytes"] = int64(0)
+		data["nodefsCapacityBytes"] = int64(0)
+		data["nodefsAvailableBytes"] = int64(0)
+		data["nodefsInodesUsed"] = int64(0)
+		data["nodefsInodesTotal"] = int64(0)
+		data["imagefsUsedBytes"] = int64(0)
+		data["imagefsCapacityBytes"] = int64(0)
+		data["imagefsAvailableBytes"] = int64(0)
+		data["imagefsSharedDevice"] = false
+	}
+
+	ephemeralCapacity := node.Status.Capacity[corev1.ResourceEphemeralStorage]
+	ephemeralAllocatable := node.Status.Allocatable[corev1.ResourceEphemeralStorage]
+	data["ephemeralStorageCapacityBytes"] = ephemeralCapacity.Value()
+	data["ephemeralStorageAllocatableBytes"] = ephemeralAllocatable.Value()
 }
 
 // isExcluded checks if a node should be excluded from collection

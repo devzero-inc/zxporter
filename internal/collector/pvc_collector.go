@@ -172,8 +172,8 @@ func (c *PersistentVolumeClaimCollector) pvcChanged(
 		oldPVC.ObjectMeta,
 		newPVC.ObjectMeta,
 	)
-	if changed != IgnoreChanges {
-		return changed == PushChanges
+	if changed == PushChanges {
+		return true
 	}
 
 	// Check for status phase changes
@@ -301,7 +301,7 @@ func (c *PersistentVolumeClaimCollector) GetResourceChannel() <-chan []Collected
 
 // GetType returns the type of resource this collector handles
 func (c *PersistentVolumeClaimCollector) GetType() string {
-	return "persistentvolumeclaim"
+	return PersistentVolumeClaim.String()
 }
 
 // IsAvailable checks if PersistentVolumeClaim resources can be accessed in the cluster
