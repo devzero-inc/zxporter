@@ -37,19 +37,20 @@ func discoverRuntimeProcesses(procRoot string, probe func(e procEntry) processKi
 		}
 
 		if e.Kind == processKindJava {
-			if jp, ok := javaProcessFromEntry(e, denied); ok {
-				javaProcs = append(javaProcs, jp)
+			jp, hasHsperf := javaProcessFromEntry(e, denied)
+			javaProcs = append(javaProcs, jp)
+			if hasHsperf {
 				continue
 			}
-			// No hsperfdata file. The JVM is running fine — HotSpot silently
-			// falls back to non-shared perf memory when it cannot create
-			// /tmp/hsperfdata_<user>/<pid>, which is what happens under
-			// `readOnlyRootFilesystem: true` with no writable volume at /tmp
-			// (and under an explicit -XX:-UsePerfData / -XX:+PerfDisableSharedMem).
-			// Heap metrics are genuinely unavailable, but the process is still a
-			// Java workload, so report it in the generic bucket instead of
-			// dropping it from both surfaces — otherwise the container looks
-			// like it runs no known runtime at all.
+			// No readable hsperfdata file. The JVM is running fine — HotSpot
+			// silently falls back to non-shared perf memory when it cannot
+			// create /tmp/hsperfdata_<user>/<pid> (`readOnlyRootFilesystem: true`
+			// with no writable /tmp, -XX:-UsePerfData / -XX:+PerfDisableSharedMem),
+			// and a nodemon without root cannot read another user's /tmp at all.
+			// It still goes to the JVM bucket above for its flags and version,
+			// and is also reported in the generic bucket: that "java" entry is
+			// the signal the JVM CPU startup floor and the language filter have
+			// always used for JVMs without heap metrics.
 		}
 
 		runtimeProcs = append(runtimeProcs, RuntimeProcess{

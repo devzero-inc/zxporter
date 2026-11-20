@@ -38,7 +38,7 @@ image:
   pullPolicy: IfNotPresent
   # -- Image tag. The release sets it to the version being released.
   # @default -- the released version, v-prefixed
-  tag: "v0.1.29"
+  tag: "v0.1.32"
 # -- Pull secrets for the controller pod, merged with `global.imagePullSecrets`
 # and deduplicated. Entries are secret names or `{name: ...}` objects.
 imagePullSecrets: []

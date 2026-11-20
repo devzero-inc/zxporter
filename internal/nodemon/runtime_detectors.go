@@ -58,6 +58,7 @@ const (
 	runtimeVersionSourceBuildInfo  = "buildinfo"
 	runtimeVersionSourceBinaryScan = "binary-scan"
 	runtimeVersionSourceELFComment = "elf-comment"
+	runtimeVersionSourceCmdline    = "cmdline"
 )
 
 // maxMapsReadBytes caps reads of /proc/<pid>/maps for version resolution. maps
@@ -102,6 +103,22 @@ var (
 	// graalVMVersionRe best-effort matches the GraalVM release string embedded in
 	// native-image binaries, e.g. "GraalVM CE 22.3.1" or "Oracle GraalVM 21+35.1".
 	graalVMVersionRe = regexp.MustCompile(`GraalVM (?:[A-Z]{2} )?(\d+(?:\.\d+)*(?:\+[\d.]+)?)`)
+
+	// pythonCmdlineVersionRes / nodeCmdlineVersionRes extract a version from the
+	// interpreter path in argv0, most precise first: version-manager install
+	// dirs (uv's cpython-3.12.4-..., pyenv/asdf/mise .../python/3.12.1/, nvm
+	// .../versions/node/v20.11.1/, volta/asdf/mise .../node/20.11.1/, the
+	// official tarball's node-v20.11.1-linux-x64/), then CPython's versioned
+	// binary name (python3.12).
+	pythonCmdlineVersionRes = []*regexp.Regexp{
+		regexp.MustCompile(`cpython-(\d+\.\d+\.\d+)`),
+		regexp.MustCompile(`/(?:versions|python)/(\d+\.\d+\.\d+)/`),
+		regexp.MustCompile(`(?:^|/)python(\d+\.\d+)(?:/|$)`),
+	}
+	nodeCmdlineVersionRes = []*regexp.Regexp{
+		regexp.MustCompile(`/(?:node|nodejs)/v?(\d+\.\d+\.\d+)/`),
+		regexp.MustCompile(`node-v(\d+\.\d+\.\d+)`),
+	}
 )
 
 const (
@@ -164,7 +181,7 @@ func isNodeProcess(comm, cmdline string) bool {
 
 // resolveJavaVersion resolves a JVM's version without hsperfdata, for the
 // processes the dedicated JVM pipeline has to skip (no perf file to read
-// java.property.java.version from). Three passive sources, in descending order
+// java.property.java.version from). Four passive sources, in descending order
 // of precision:
 //
 //	JAVA_VERSION env — set by eclipse-temurin, the Alpine openjdk packages and
@@ -174,6 +191,8 @@ func isNodeProcess(comm, cmdline string) bool {
 //	  (/usr/lib/jvm/java-21-openjdk/bin/java), usually major-only.
 //	JAVA_HOME env — same shape, for images whose exe path is version-free
 //	  (Temurin's /opt/java/openjdk/bin/java).
+//	argv0 in /proc/<pid>/cmdline — same shape again; the only one of the four
+//	  readable without root or CAP_SYS_PTRACE.
 //
 // Nothing is executed: `java -version` would fork a second JVM per scrape.
 func resolveJavaVersion(pidDir string) (version, source string) {
@@ -190,18 +209,28 @@ func resolveJavaVersion(pidDir string) (version, source string) {
 			return m[1], runtimeVersionSourceEnv
 		}
 	}
+	if v := cmdlineVersion(pidDir, javaPathVersionRe); v != "" {
+		return v, runtimeVersionSourceCmdline
+	}
 	return "", ""
 }
 
 // resolveNodeVersion best-effort resolves the Node.js version: NODE_VERSION env
 // var (official Docker Hub node images), else a streamed scan of the on-disk
 // binary for the release-URL string Node embeds for its own process.release
-// metadata. Never executes the binary. Returns ("", "") if neither resolves.
+// metadata, else a version-manager path in argv0. Never executes the binary.
+// Returns ("", "") if nothing resolves.
 func resolveNodeVersion(pidDir string) (version, source string) {
 	if v := envVersion(pidDir, "NODE_VERSION"); v != "" {
 		return v, runtimeVersionSourceEnv
 	}
-	return scanBinaryVersion(pidDir, nodeReleaseURLRe)
+	if v, src := scanBinaryVersion(pidDir, nodeReleaseURLRe); v != "" {
+		return v, src
+	}
+	if v := cmdlineVersion(pidDir, nodeCmdlineVersionRes...); v != "" {
+		return v, runtimeVersionSourceCmdline
+	}
+	return "", ""
 }
 
 // runtimeDetector describes a runtime identifiable from comm/cmdline (an
@@ -531,7 +560,7 @@ func resolveRustVersion(pidDir string) (version, source string) {
 // resolvePythonVersion resolves the CPython version: PYTHON_VERSION env var
 // (official docker library images carry the full x.y.z), else the major.minor
 // baked into the executable name (readlink /proc/<pid>/exe → .../python3.11),
-// else the same pattern on comm.
+// else the same pattern on comm, else a versioned interpreter path in argv0.
 func resolvePythonVersion(pidDir string) (version, source string) {
 	if v := envVersion(pidDir, "PYTHON_VERSION"); v != "" {
 		return v, runtimeVersionSourceEnv
@@ -544,6 +573,9 @@ func resolvePythonVersion(pidDir string) (version, source string) {
 	comm := strings.TrimSpace(readProcFile(filepath.Join(pidDir, "comm")))
 	if m := pythonExeVersionRe.FindStringSubmatch(comm); len(m) == 2 {
 		return m[1], runtimeVersionSourceComm
+	}
+	if v := cmdlineVersion(pidDir, pythonCmdlineVersionRes...); v != "" {
+		return v, runtimeVersionSourceCmdline
 	}
 	return "", ""
 }
@@ -588,6 +620,36 @@ func envVersion(pidDir, key string) string {
 		return ""
 	}
 	return strings.TrimSpace(env[key])
+}
+
+// cmdlineArgs returns the NUL-separated arguments of /proc/<pid>/cmdline.
+func cmdlineArgs(pidDir string) []string {
+	raw := strings.TrimRight(readProcFile(filepath.Join(pidDir, "cmdline")), "\x00")
+	if raw == "" {
+		return nil
+	}
+	return strings.Split(raw, "\x00")
+}
+
+// cmdlineVersion returns the first capture group of the first regexp in res
+// that matches the process's argv0; res is tried in order, so the most precise
+// pattern wins. Only argv0 is read: it names the interpreter (for a shebang
+// script the kernel puts the interpreter there too), while later arguments are
+// application paths and data that can contain an unrelated version, e.g.
+// `node /cache/node/18.20.4/server.js`. Unlike environ, exe, maps and root/,
+// cmdline is readable by any user, so this is the version source left when
+// nodemon runs without root or CAP_SYS_PTRACE (runtimeMetrics.runAsRoot=false).
+func cmdlineVersion(pidDir string, res ...*regexp.Regexp) string {
+	args := cmdlineArgs(pidDir)
+	if len(args) == 0 {
+		return ""
+	}
+	for _, re := range res {
+		if m := re.FindStringSubmatch(args[0]); len(m) == 2 {
+			return m[1]
+		}
+	}
+	return ""
 }
 
 // exeBasename returns the basename of the readlink target of /proc/<pid>/exe,
