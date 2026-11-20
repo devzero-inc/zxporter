@@ -29,7 +29,7 @@ type RuntimeProcessMetric struct {
 	// build info, or a read-only binary scan depending on the runtime). Empty if
 	// nothing resolves — the process is still reported as a detected workload.
 	Version       string `json:"version,omitempty"`
-	VersionSource string `json:"version_source,omitempty"` // "env" | "maps" | "exe-path" | "comm" | "buildinfo" | "binary-scan"
+	VersionSource string `json:"version_source,omitempty"` // "env" | "maps" | "exe-path" | "comm" | "buildinfo" | "binary-scan" | "elf-comment" | "cmdline"
 
 	RawCmdline string    `json:"raw_cmdline,omitempty"`
 	Timestamp  time.Time `json:"timestamp"`

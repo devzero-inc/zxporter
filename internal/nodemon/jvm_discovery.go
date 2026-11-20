@@ -28,8 +28,15 @@ type JavaProcess struct {
 	CmdLine string
 	// EnvJavaOpts includes any env-injected Java options found in /proc/<pid>/environ.
 	// Keys are env var names (JAVA_TOOL_OPTIONS, JDK_JAVA_OPTIONS, JAVA_OPTS).
+	// Nil when environ is unreadable (another uid, and nodemon without root).
 	EnvJavaOpts map[string]string
 
+	// PidDir is /proc/<pid> on procRoot, kept for the passive version
+	// resolution a JVM without hsperfdata needs.
+	PidDir string
+
+	// HsperfDataPath is empty when the JVM has no readable hsperfdata file:
+	// it then reports flags and version only, with no heap metrics.
 	HsperfDataPath string
 }
 
@@ -46,9 +53,8 @@ func discoverJavaProcesses(procRoot string, denied *hsperfDeniedReporter) ([]Jav
 
 	procs := make([]JavaProcess, 0, len(entries))
 	for _, e := range entries {
-		if jp, ok := javaProcessFromEntry(e, denied); ok {
-			procs = append(procs, jp)
-		}
+		jp, _ := javaProcessFromEntry(e, denied)
+		procs = append(procs, jp)
 	}
 
 	return procs, nil
@@ -65,17 +71,16 @@ func classifyJavaOnly(comm, cmdline string) processKind {
 
 // javaProcessFromEntry builds a JavaProcess from a procEntry already classified
 // as processKindJava, reading the JVM-specific bits (hsperfdata path, env-injected
-// options) that walkProcEntries doesn't itself resolve. Returns ok=false if no
-// hsperfdata file is found (e.g. -XX:-UsePerfData, or the process just exited).
-// A permission denial on the container's /tmp is also ok=false, and is passed
-// to denied (which may be nil) so it does not pass silently as "no hsperfdata".
-func javaProcessFromEntry(e procEntry, denied *hsperfDeniedReporter) (JavaProcess, bool) {
+// options) that walkProcEntries doesn't itself resolve. hasHsperf is false when
+// no hsperfdata file is found (-XX:-UsePerfData, no writable /tmp, the process
+// just exited) or access to it is refused; the JavaProcess is still returned,
+// with an empty HsperfDataPath, so its flags and version can be reported
+// without heap metrics. A refusal is passed to denied (which may be nil) so it
+// does not pass silently as "no hsperfdata".
+func javaProcessFromEntry(e procEntry, denied *hsperfDeniedReporter) (jp JavaProcess, hasHsperf bool) {
 	hsperfPath, accessErr := findHsperfdata(e.PidDir, e.PidNS)
-	if hsperfPath == "" {
-		if accessErr != nil {
-			denied.report(e, accessErr)
-		}
-		return JavaProcess{}, false
+	if hsperfPath == "" && accessErr != nil {
+		denied.report(e, accessErr)
 	}
 
 	// Also capture env-injected JVM options (common in k8s via JAVA_TOOL_OPTIONS,
@@ -88,8 +93,9 @@ func javaProcessFromEntry(e procEntry, denied *hsperfDeniedReporter) (JavaProces
 		ContainerID:    e.ContainerID,
 		CmdLine:        e.CmdLine,
 		EnvJavaOpts:    envJavaOpts,
+		PidDir:         e.PidDir,
 		HsperfDataPath: hsperfPath,
-	}, true
+	}, hsperfPath != ""
 }
 
 // isJavaProcess returns true if the process comm is "java" or its first cmdline
@@ -190,8 +196,9 @@ func (r *hsperfDeniedReporter) report(e procEntry, err error) bool {
 	r.seen[key] = struct{}{}
 	r.mu.Unlock()
 
-	r.log.Info("Permission denied reading a JVM's /tmp through /proc/<pid>/root; no heap metrics for it. "+
-		"On SELinux-enforcing nodes nodemon needs seLinuxOptions.level s0:c0.c1023",
+	r.log.Info("Permission denied reading a JVM's /tmp through /proc/<pid>/root; reporting its flags and version "+
+		"without heap metrics. Heap metrics need nodemon to run as root (runtimeMetrics.runAsRoot=true) and, "+
+		"on SELinux-enforcing nodes, seLinuxOptions.level s0:c0.c1023",
 		"pid", e.PidHost, "containerID", e.ContainerID, "error", err.Error())
 	return true
 }

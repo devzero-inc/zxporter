@@ -91,7 +91,11 @@
       ]
     },
     "runtimeMetrics": {
-      "properties": {}
+      "properties": {
+        "runAsRoot": {
+          "type": "boolean"
+        }
+      }
     },
     "jvmMetrics": {
       "type": [
