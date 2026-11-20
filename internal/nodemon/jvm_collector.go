@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -12,8 +13,9 @@ import (
 )
 
 // JVMCollector collects JVM metrics from hsperfdata files via /proc.
-// Requires the pod to run with hostPID: true and as UID 0 to read
-// /proc/<pid>/root/tmp/hsperfdata_*/<nsPid> for other containers.
+// Requires the pod to run with hostPID: true. Heap metrics also need UID 0 to
+// read /proc/<pid>/root/tmp/hsperfdata_*/<nsPid> for other containers; without
+// it a JVM is reported with its flags and version only.
 type JVMCollector struct {
 	nodeName string
 	index    *PodContainerIndex
@@ -128,10 +130,12 @@ func (c *JVMCollector) collect(ctx context.Context) ([]JVMMetric, error) {
 }
 
 // buildJVMMetrics reads hsperfdata for each discovered Java process and builds
-// the corresponding JVMMetric. Shared by JVMCollector (the legacy
-// /container/jvm-metrics path) and RuntimeCollector (the combined
-// /container/runtime-metrics path), so there is one implementation of the
-// per-process build step regardless of which /proc walk discovered procs.
+// the corresponding JVMMetric. A process without a readable hsperfdata file
+// gets a flags-only metric (flags, version, zero heap) instead of being
+// dropped. Shared by JVMCollector (the legacy /container/jvm-metrics path) and
+// RuntimeCollector (the combined /container/runtime-metrics path), so there is
+// one implementation of the per-process build step regardless of which /proc
+// walk discovered procs.
 func buildJVMMetrics(ctx context.Context, procs []JavaProcess, index *PodContainerIndex, nodeName string, log logr.Logger) ([]JVMMetric, error) {
 	start := time.Now()
 	metrics := make([]JVMMetric, 0, len(procs))
@@ -139,8 +143,14 @@ func buildJVMMetrics(ctx context.Context, procs []JavaProcess, index *PodContain
 		select {
 		case <-ctx.Done():
 			log.Info("JVM metrics query cancelled", "collected", len(metrics), "remaining", len(procs)-len(metrics))
-			return metrics, ctx.Err()
+			return heapFirst(metrics), ctx.Err()
 		default:
+		}
+
+		if proc.HsperfDataPath == "" {
+			info, _ := index.Lookup(proc.ContainerID)
+			metrics = append(metrics, buildFlagsOnlyJVMMetric(proc, info, nodeName))
+			continue
 		}
 
 		log.Info("Reading hsperfdata", "pid", proc.PidHost, "path", proc.HsperfDataPath)
@@ -151,18 +161,40 @@ func buildJVMMetrics(ctx context.Context, procs []JavaProcess, index *PodContain
 		}
 		readStart := time.Now()
 		counters, err := readHsperfdata(proc.HsperfDataPath)
+		info, _ := index.Lookup(proc.ContainerID)
 		if err != nil {
-			log.Error(err, "Failed to read hsperfdata", "pid", proc.PidHost, "path", proc.HsperfDataPath)
+			log.Error(err, "Failed to read hsperfdata; reporting flags only", "pid", proc.PidHost, "path", proc.HsperfDataPath)
+			metrics = append(metrics, buildFlagsOnlyJVMMetric(proc, info, nodeName))
 			continue
 		}
 		log.Info("Read hsperfdata", "pid", proc.PidHost, "counters", len(counters), "took", time.Since(readStart).String())
 
-		info, _ := index.Lookup(proc.ContainerID)
 		metrics = append(metrics, buildJVMMetric(counters, proc, info, nodeName))
 	}
 	log.Info("Built JVM metrics", "count", len(metrics), "took", time.Since(start).String())
 
-	return metrics, nil
+	return heapFirst(metrics), nil
+}
+
+// heapFirst stable-sorts JVMs with heap metrics ahead of flags-only ones.
+// Consumers keep the first JVM per container (zxporter's
+// IndexJVMMetricsByContainer, including already-released versions), so
+// without this a flags-only JVM found first in the /proc walk — a launcher,
+// or a tool started with -XX:-UsePerfData — would hide the heap data of the
+// container's real JVM.
+func heapFirst(metrics []JVMMetric) []JVMMetric {
+	slices.SortStableFunc(metrics, func(a, b JVMMetric) int {
+		aHeap, bHeap := a.HeapMaxSizeBytes > 0, b.HeapMaxSizeBytes > 0
+		switch {
+		case aHeap && !bHeap:
+			return -1
+		case bHeap && !aHeap:
+			return 1
+		default:
+			return 0
+		}
+	})
+	return metrics
 }
 
 // sumSpaceCounters sums sun.gc.generation.*.space.*.{metric} across all generations
@@ -230,8 +262,10 @@ func isRegionBasedCollector(counters map[string]any) bool {
 	return false
 }
 
-// buildJVMMetric assembles a JVMMetric from parsed hsperfdata counters and process metadata.
-func buildJVMMetric(counters map[string]any, proc JavaProcess, info containerInfo, nodeName string) JVMMetric {
+// newJVMMetric fills the parts of a JVMMetric that come from the process rather
+// than from hsperfdata: identity, and the heap flags parsed from the command
+// line plus whatever env-injected options were readable.
+func newJVMMetric(proc JavaProcess, info containerInfo, nodeName string) JVMMetric {
 	m := JVMMetric{
 		NodeName:    nodeName,
 		Pod:         info.Pod,
@@ -240,10 +274,35 @@ func buildJVMMetric(counters map[string]any, proc JavaProcess, info containerInf
 		ContainerID: proc.ContainerID,
 		PidHost:     proc.PidHost,
 		PidNS:       proc.PidNS,
-		RawCmdline:  proc.CmdLine,
-		// FlagsExtracted / FlagSources are filled after hsperf parsing.
-		Timestamp: time.Now().UTC(),
+		Timestamp:   time.Now().UTC(),
 	}
+	m.FlagsExtracted, m.FlagSources, m.RawCmdline = ParseJVMFlagsWithSources(proc.CmdLine, proc.EnvJavaOpts)
+	return m
+}
+
+// buildFlagsOnlyJVMMetric builds the JVMMetric for a JVM whose hsperfdata
+// nodemon cannot read: flags and a passively resolved version, all heap fields
+// zero. dakr treats zero heap as "unknown", so the flags still drive the -Xmx
+// memory floor and JDK_JAVA_OPTIONS gating while heap-based sizing is skipped.
+func buildFlagsOnlyJVMMetric(proc JavaProcess, info containerInfo, nodeName string) JVMMetric {
+	m := newJVMMetric(proc, info, nodeName)
+	if proc.PidDir != "" {
+		v, _ := resolveJavaVersion(proc.PidDir)
+		m.JavaVersion = normalizeJavaVersion(v)
+	}
+	return m
+}
+
+// normalizeJavaVersion strips the "jdk-" prefix the eclipse-temurin images put
+// in JAVA_VERSION ("jdk-21.0.13+9"), so the value has the java.version shape
+// dakr parses the major version from.
+func normalizeJavaVersion(v string) string {
+	return strings.TrimPrefix(strings.TrimPrefix(v, "jdk-"), "jdk")
+}
+
+// buildJVMMetric assembles a JVMMetric from parsed hsperfdata counters and process metadata.
+func buildJVMMetric(counters map[string]any, proc JavaProcess, info containerInfo, nodeName string) JVMMetric {
+	m := newJVMMetric(proc, info, nodeName)
 
 	m.JavaCommand, _ = hsStr(counters, "sun.rt.javaCommand")
 	m.JavaVersion, _ = hsStr(counters, "java.property.java.version")
@@ -287,11 +346,6 @@ func buildJVMMetric(counters map[string]any, proc JavaProcess, info containerInf
 	// See: sun.rt.safepointTime, sun.rt.safepointSyncTime
 	m.SafepointTimeSecondsTotal = float64(safeTicks) / 1000.0
 	m.SafepointSyncTimeSecondsTotal = float64(syncTicks) / 1000.0
-
-	flags, sources, effectiveCmd := ParseJVMFlagsWithSources(proc.CmdLine, proc.EnvJavaOpts)
-	m.FlagsExtracted = flags
-	m.FlagSources = sources
-	m.RawCmdline = effectiveCmd
 
 	return m
 }

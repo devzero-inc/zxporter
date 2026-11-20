@@ -38,8 +38,11 @@ func IndexJVMMetricsByContainer(metrics []NodemonJVMMetrics) map[gpuContainerKey
 	index := make(map[gpuContainerKey]NodemonJVMMetrics)
 	for _, m := range metrics {
 		key := gpuContainerKey{Pod: m.Pod, Container: m.Container, Namespace: m.Namespace}
-		// If multiple JVMs in one container, keep the first for now.
-		if _, exists := index[key]; !exists {
+		// If multiple JVMs in one container, keep the first, except that a JVM
+		// with heap metrics replaces a flags-only one (no readable hsperfdata):
+		// otherwise a launcher or -XX:-UsePerfData tool JVM would hide the
+		// container's heap data.
+		if prev, exists := index[key]; !exists || (prev.HeapMaxSizeBytes <= 0 && m.HeapMaxSizeBytes > 0) {
 			index[key] = m
 		}
 	}

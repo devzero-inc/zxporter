@@ -92,8 +92,18 @@ nodemon:
 # and /container/runtime-metrics handlers may take per request (a slow /proc
 # walk or binary version-sniff otherwise stalls the HTTP server / probes).
 # Leave unset to use the built-in default (2500ms).
+#
+# runAsRoot -- with enabled: true, run nodemon as UID 0 with SYS_PTRACE (the
+# default). Set to false to keep hostPID but run nodemon with
+# nodemon.securityContext (non-root, no SYS_PTRACE) instead. Runtimes are then
+# still detected (Java, Node.js, Python, Ruby, .NET, Deno, Bun by process name),
+# versions come from argument paths where present, and JVM heap flags (-Xmx,
+# -Xms, MaxRAMPercentage) from the command line. Lost: JVM heap metrics,
+# env/binary version sources, and Go/Rust/GraalVM/.NET-apphost detection, all
+# of which read other users' /proc/<pid>/{environ,exe,root}.
 runtimeMetrics: {}
 #  enabled: true
+#  runAsRoot: true
 #  scanHandlerTimeoutMs: 2500
 # jvmMetrics.enabled -- Deprecated: renamed to runtimeMetrics.enabled now that this
 # toggle also gates Node.js detection, not just JVM. Kept for backward compatibility

@@ -17,6 +17,13 @@
 {{- if hasKey (.Values.runtimeMetrics | default dict) "enabled" }}
 {{- $runtimeMetricsEnabled = .Values.runtimeMetrics.enabled }}
 {{- end }}
+{{- /* runtimeMetrics.runAsRoot (default true) runs nodemon as UID 0 with
+       SYS_PTRACE. Set to false, it keeps hostPID but runs nodemon with
+       nodemon.securityContext (non-root, no SYS_PTRACE): runtime detection,
+       cmdline-based versions and JVM flags still work; heap metrics and
+       env/binary versions do not, since they read other users'
+       /proc/<pid>/{environ,exe,root}. */}}
+{{- $runtimeAsRoot := and $runtimeMetricsEnabled (dig "runAsRoot" true (.Values.runtimeMetrics | default dict)) }}
 {{- /* cgroupMetrics.enabled gates the read-only /sys/fs/cgroup mount + reader.
        Defaults to true and, unlike runtimeMetrics, needs no hostPID/root/SYS_PTRACE. */}}
 {{- $cgroupMetricsEnabled := dig "enabled" true (.Values.cgroupMetrics | default dict) }}
@@ -180,7 +187,7 @@ spec:
       containers:
         - name: zxporter-nodemon
           securityContext:
-          {{- if $runtimeMetricsEnabled }}
+          {{- if $runtimeAsRoot }}
             runAsNonRoot: false
             runAsUser: 0
             readOnlyRootFilesystem: true
