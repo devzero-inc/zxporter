@@ -168,9 +168,10 @@ func main() {
 	containerMetricsHandler := nodemon.NewContainerMetricsHandler(cachedGPU, logger) // GPU-only (backward compat)
 
 	// Process-introspection collectors are enabled only via Helm values
-	// (runtimeMetrics.enabled). They require hostPID: true and SYS_PTRACE, granted in
-	// the pod spec only when runtimeMetrics.enabled is true, and reuse the shared
-	// podContainerIndex started above.
+	// (runtimeMetrics.enabled). They require hostPID: true, granted in the pod spec
+	// only when runtimeMetrics.enabled is true, and reuse the shared podContainerIndex
+	// started above. Root + SYS_PTRACE is added unless runtimeMetrics.runAsRoot is false;
+	// without it, only comm/cmdline-based detection, versions and JVM flags work.
 	//
 	// /container/runtime-metrics (RuntimeCollector) is the combined endpoint the zxporter
 	// collector actually polls each cycle — one /proc walk covering every runtime. The

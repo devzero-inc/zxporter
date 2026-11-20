@@ -85,6 +85,50 @@ func TestResolvePythonVersion(t *testing.T) {
 	})
 }
 
+// TestResolveVersionFromCmdline covers the rootless path: environ, exe and
+// root/ are unreadable (absent here), only comm and cmdline remain.
+func TestResolveVersionFromCmdline(t *testing.T) {
+	cases := []struct {
+		name    string
+		kind    processKind
+		comm    string
+		cmdline string
+		want    string
+	}{
+		{"python versioned binary", processKindPython, "python", "/usr/local/bin/python3.12\x00app.py\x00", "3.12"},
+		{"python shebang script", processKindPython, "gunicorn", "/usr/local/bin/python3.11\x00/usr/local/bin/gunicorn\x00", "3.11"},
+		{"python version in a later argument is ignored", processKindPython, "gunicorn",
+			"/usr/local/bin/python\x00/usr/local/lib/python3.11/site-packages/gunicorn/__main__.py\x00", ""},
+		{"python uv-managed interpreter beats the binary name", processKindPython, "python",
+			"/root/.local/share/uv/python/cpython-3.12.4-linux-x86_64-gnu/bin/python3.12\x00-m\x00app\x00", "3.12.4"},
+		{"python pyenv", processKindPython, "python", "/root/.pyenv/versions/3.10.14/bin/python\x00main.py\x00", "3.10.14"},
+		{"python unversioned", processKindPython, "python", "python\x00-m\x00uvicorn\x00app:api\x00", ""},
+		{"node nvm", processKindNode, "node", "/home/app/.nvm/versions/node/v20.11.1/bin/node\x00server.js\x00", "20.11.1"},
+		{"node volta", processKindNode, "node", "/root/.volta/tools/image/node/22.3.0/bin/node\x00dist/main.js\x00", "22.3.0"},
+		{"node tarball", processKindNode, "node", "/opt/node-v18.20.4-linux-x64/bin/node\x00index.js\x00", "18.20.4"},
+		{"node unversioned", processKindNode, "node", "node\x00/app/node_modules/.bin/next\x00start\x00", ""},
+		{"node argv0 beats a versioned script path", processKindNode, "node",
+			"/opt/node-v20.11.1-linux-x64/bin/node\x00/cache/node/18.20.4/server.js\x00", "20.11.1"},
+		{"node version in a script path is ignored", processKindNode, "node", "node\x00/cache/node/18.20.4/server.js\x00", ""},
+		{"java distro jdk path", processKindJava, "java", "/usr/lib/jvm/java-17-openjdk-amd64/bin/java\x00-jar\x00app.jar\x00", "17"},
+		{"java only argv0 counts", processKindJava, "java", "java\x00-jar\x00/app/java-21-tools.jar\x00", ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			pidDir := t.TempDir()
+			writePidFile(t, pidDir, "comm", []byte(tc.comm+"\n"))
+			writePidFile(t, pidDir, "cmdline", []byte(tc.cmdline))
+			v, src := resolveRuntimeVersion(tc.kind, pidDir)
+			assert.Equal(t, tc.want, v)
+			if tc.want == "" {
+				assert.Empty(t, src)
+			} else {
+				assert.Equal(t, runtimeVersionSourceCmdline, src)
+			}
+		})
+	}
+}
+
 func TestResolveRubyVersion(t *testing.T) {
 	t.Run("from env", func(t *testing.T) {
 		pidDir := t.TempDir()
