@@ -17,6 +17,13 @@
 {{- if hasKey (.Values.runtimeMetrics | default dict) "enabled" }}
 {{- $runtimeMetricsEnabled = .Values.runtimeMetrics.enabled }}
 {{- end }}
+{{- /* runtimeMetrics.runAsRoot (default true) runs nodemon as UID 0 with
+       SYS_PTRACE. Set to false, it keeps hostPID but runs nodemon with
+       nodemon.securityContext (non-root, no SYS_PTRACE): runtime detection,
+       cmdline-based versions and JVM flags still work; heap metrics and
+       env/binary versions do not, since they read other users'
+       /proc/<pid>/{environ,exe,root}. */}}
+{{- $runtimeAsRoot := and $runtimeMetricsEnabled (dig "runAsRoot" true (.Values.runtimeMetrics | default dict)) }}
 {{- /* cgroupMetrics.enabled gates the read-only /sys/fs/cgroup mount + reader.
        Defaults to true and, unlike runtimeMetrics, needs no hostPID/root/SYS_PTRACE. */}}
 {{- $cgroupMetricsEnabled := dig "enabled" true (.Values.cgroupMetrics | default dict) }}
@@ -27,11 +34,98 @@
 {{- $scanHandlerTimeoutMs := dig "scanHandlerTimeoutMs" "" (.Values.runtimeMetrics | default dict) }}
 {{- $base := include "zxporter-nodemon.fullname" . }}
 {{- $gpuName := printf "%s-gpu" ($base | trunc 59 | trimSuffix "-") }}
-{{- $variants := list (dict "name" $base "instance" $base "withDcgm" .Values.dcgmExporter.enabled "gpuAff" "none") }}
-{{- if $split }}
+{{- $gpuDefaultRuntimeName := printf "%s-gpu-default-runtime" ($base | trunc 43 | trimSuffix "-") }}
+{{- $dcgmMode := .Values.dcgmExporter.mode | default "gpuOnly" | toString }}
+{{- if not (has $dcgmMode (list "gpuOnly" "everyNode")) }}
+{{-   fail (printf "dcgmExporter.mode must be gpuOnly or everyNode; got %q" $dcgmMode) }}
+{{- end }}
+{{- /* GPU detection. gpuNodeSelector (key/value) names the GPU Operator nodes,
+       the only ones known to carry the RuntimeClass; gpuNodeSelectors lists the
+       other labels clouds and provisioners put on GPU nodes. A node is a GPU
+       node when it matches ANY of them. */}}
+{{- $runtimeExpr := dict }}
+{{- if and (ne $gpuKey "") (ne $gpuVal "") }}
+{{-   $runtimeExpr = dict "key" $gpuKey "operator" "In" "values" (list $gpuVal) }}
+{{- end }}
+{{- $otherGPUExprs := list }}
+{{- range $sel := (.Values.dcgmExporter.gpuNodeSelectors | default list) }}
+{{-   if not (and (kindIs "map" $sel) $sel.key $sel.operator) }}
+{{-     fail (printf "dcgmExporter.gpuNodeSelectors entries need key and operator; got %v" $sel) }}
+{{-   end }}
+{{-   $op := toString $sel.operator }}
+{{-   $vals := $sel.values | default list }}
+{{- /* Only operators with an exact negation: the CPU DaemonSet must match
+         every node no GPU selector matches. Gt/Lt cannot be negated for a
+         node whose label is present but not an integer, which would then
+         run no nodemon at all. */}}
+{{-   if not (has $op (list "In" "NotIn" "Exists" "DoesNotExist")) }}
+{{-     fail (printf "dcgmExporter.gpuNodeSelectors: unsupported operator %q on %s (use In, NotIn, Exists or DoesNotExist)" $op (toString $sel.key)) }}
+{{-   end }}
+{{-   $expr := dict "key" (toString $sel.key) "operator" $op }}
+{{-   if has $op (list "In" "NotIn") }}
+{{-     if eq (len $vals) 0 }}
+{{-       fail (printf "dcgmExporter.gpuNodeSelectors: %s on %s needs at least one value" $op (toString $sel.key)) }}
+{{-     end }}
+{{-     $strVals := list }}
+{{-     range $v := $vals }}
+{{-       $strVals = append $strVals (toString $v) }}
+{{-     end }}
+{{-     $_ := set $expr "values" $strVals }}
+{{-   else if gt (len $vals) 0 }}
+{{-     fail (printf "dcgmExporter.gpuNodeSelectors: %s on %s takes no values" $op (toString $sel.key)) }}
+{{-   end }}
+{{-   $otherGPUExprs = append $otherGPUExprs $expr }}
+{{- end }}
+{{- $allGPUExprs := $otherGPUExprs }}
+{{- if $runtimeExpr }}
+{{-   $allGPUExprs = prepend $otherGPUExprs $runtimeExpr }}
+{{- end }}
+{{- /* "Not a GPU node" is the AND of every selector's exact negation: one
+       selector term, matching precisely the nodes no GPU selector matches. */}}
+{{- $notGPUExprs := list }}
+{{- range $e := $allGPUExprs }}
+{{-   if eq $e.operator "In" }}
+{{-     $notGPUExprs = append $notGPUExprs (dict "key" $e.key "operator" "NotIn" "values" $e.values) }}
+{{-   else if eq $e.operator "NotIn" }}
+{{-     $notGPUExprs = append $notGPUExprs (dict "key" $e.key "operator" "In" "values" $e.values) }}
+{{-   else if eq $e.operator "Exists" }}
+{{-     $notGPUExprs = append $notGPUExprs (dict "key" $e.key "operator" "DoesNotExist") }}
+{{-   else }}
+{{-     $notGPUExprs = append $notGPUExprs (dict "key" $e.key "operator" "Exists") }}
+{{-   end }}
+{{- end }}
+{{- $notGPUTerms := list $notGPUExprs }}
+{{- /* Variants. gpuAff "none" keeps the user's affinity verbatim; "terms"
+       ANDs the user's affinity with the variant's own selector terms (OR'd).
+       withDcgm adds the sidecar, its volumes and annotations; runtime marks the
+       DaemonSet the GPU runtime resolver manages (RuntimeClass + annotations).
+       dcgmHost points nodemon at a local exporter: kept on every variant while
+       DCGM is enabled so a node without one fails a cheap localhost connect
+       instead of listing pods through the API server every refresh. */}}
+{{- $dcgmOn := .Values.dcgmExporter.enabled }}
+{{- $variants := list (dict "name" $base "instance" $base "withDcgm" $dcgmOn "dcgmHost" $dcgmOn "runtime" false "gpuAff" "none" "terms" list) }}
+{{- if and $dcgmOn (eq $dcgmMode "everyNode") $split }}
 {{-   $variants = list
-        (dict "name" $base "instance" $base "withDcgm" true "gpuAff" "exclude")
-        (dict "name" $gpuName "instance" $gpuName "withDcgm" true "gpuAff" "include") }}
+        (dict "name" $base "instance" $base "withDcgm" true "dcgmHost" true "runtime" false "gpuAff" "terms" "terms" (list (list (dict "key" $gpuKey "operator" "NotIn" "values" (list $gpuVal)))))
+        (dict "name" $gpuName "instance" $gpuName "withDcgm" true "dcgmHost" true "runtime" true "gpuAff" "terms" "terms" (list (list $runtimeExpr))) }}
+{{- else if and $dcgmOn (eq $dcgmMode "gpuOnly") (gt (len $allGPUExprs) 0) }}
+{{-   $variants = list (dict "name" $base "instance" $base "withDcgm" false "dcgmHost" true "runtime" false "gpuAff" "terms" "terms" $notGPUTerms) }}
+{{-   if $split }}
+{{-     $variants = append $variants (dict "name" $gpuName "instance" $gpuName "withDcgm" true "dcgmHost" true "runtime" true "gpuAff" "terms" "terms" (list (list $runtimeExpr))) }}
+{{-     $defaultRuntimeTerms := list }}
+{{-     range $e := $otherGPUExprs }}
+{{-       $defaultRuntimeTerms = append $defaultRuntimeTerms (list $e (dict "key" $gpuKey "operator" "NotIn" "values" (list $gpuVal))) }}
+{{-     end }}
+{{-     if $defaultRuntimeTerms }}
+{{-       $variants = append $variants (dict "name" $gpuDefaultRuntimeName "instance" $gpuDefaultRuntimeName "withDcgm" true "dcgmHost" true "runtime" false "gpuAff" "terms" "terms" $defaultRuntimeTerms) }}
+{{-     end }}
+{{-   else }}
+{{-     $defaultRuntimeTerms := list }}
+{{-     range $e := $allGPUExprs }}
+{{-       $defaultRuntimeTerms = append $defaultRuntimeTerms (list $e) }}
+{{-     end }}
+{{-     $variants = append $variants (dict "name" $gpuDefaultRuntimeName "instance" $gpuDefaultRuntimeName "withDcgm" true "dcgmHost" true "runtime" false "gpuAff" "terms" "terms" $defaultRuntimeTerms) }}
+{{-   end }}
 {{- end }}
 {{- range $v := $variants }}
 ---
@@ -65,7 +159,7 @@ metadata:
     ignore-check.kube-linter.io/run-as-non-root: "This daemon set needs to run DCGM Exporter as root to access the GPU metrics."
     ignore-check.kube-linter.io/privilege-escalation-container: "This daemon set needs escalate privileges for DCGM Exporter."
     ignore-check.kube-linter.io/no-read-only-root-fs: "This daemon set needs to run DCGM Exporter with read-only root filesystem."
-    {{- if eq $v.gpuAff "include" }}
+    {{- if $v.runtime }}
     devzero.io/gpu-runtime-mode: {{ $gpuMode | quote }}
     devzero.io/gpu-runtime-class: {{ $gpuRuntime | quote }}
     {{- end }}
@@ -107,7 +201,7 @@ spec:
       {{- with include "zxporter-nodemon.imagePullSecrets" $ }}
       {{- . | nindent 6 }}
       {{- end }}
-      {{- if eq $v.gpuAff "include" }}
+      {{- if $v.runtime }}
       {{- if ne $gpuRuntime "" }}
       runtimeClassName: {{ $gpuRuntime | quote }}
       {{- end }}
@@ -148,24 +242,17 @@ spec:
       {{- $nodeAffinity := deepCopy (get $affinity "nodeAffinity" | default dict) }}
       {{- $required := deepCopy (get $nodeAffinity "requiredDuringSchedulingIgnoredDuringExecution" | default dict) }}
       {{- $userTerms := get $required "nodeSelectorTerms" | default list }}
-      {{- $gpuExpr := dict "key" $gpuKey "operator" "In" "values" (list $gpuVal) }}
-      {{- $antiGpuExpr := dict "key" $gpuKey "operator" "NotIn" "values" (list $gpuVal) }}
-      {{- $selectorTerm := dict }}
-      {{- if eq $v.gpuAff "include" }}
-      {{-   $selectorTerm = dict "matchExpressions" (list $gpuExpr) }}
-      {{- else }}
-      {{-   $selectorTerm = dict "matchExpressions" (list $antiGpuExpr) }}
-      {{- end }}
       {{- $combinedTerms := list }}
-      {{- if gt (len $userTerms) 0 }}
-      {{-   range $userTerm := $userTerms }}
-      {{-     $term := deepCopy $userTerm }}
-      {{-     $expressions := concat (get $term "matchExpressions" | default list) (get $selectorTerm "matchExpressions" | default list) }}
-      {{-     $_ := set $term "matchExpressions" $expressions }}
-      {{-     $combinedTerms = append $combinedTerms $term }}
+      {{- range $variantTerm := $v.terms }}
+      {{-   if gt (len $userTerms) 0 }}
+      {{-     range $userTerm := $userTerms }}
+      {{-       $term := deepCopy $userTerm }}
+      {{-       $_ := set $term "matchExpressions" (concat (get $term "matchExpressions" | default list) $variantTerm) }}
+      {{-       $combinedTerms = append $combinedTerms $term }}
+      {{-     end }}
+      {{-   else }}
+      {{-     $combinedTerms = append $combinedTerms (dict "matchExpressions" $variantTerm) }}
       {{-   end }}
-      {{- else }}
-      {{-   $combinedTerms = list $selectorTerm }}
       {{- end }}
       {{- $_ := set $required "nodeSelectorTerms" $combinedTerms }}
       {{- $_ := set $nodeAffinity "requiredDuringSchedulingIgnoredDuringExecution" $required }}
@@ -180,7 +267,7 @@ spec:
       containers:
         - name: zxporter-nodemon
           securityContext:
-          {{- if $runtimeMetricsEnabled }}
+          {{- if $runtimeAsRoot }}
             runAsNonRoot: false
             runAsUser: 0
             readOnlyRootFilesystem: true
@@ -241,7 +328,7 @@ spec:
               value: {{ $scanHandlerTimeoutMs | quote }}
             {{- end }}
 
-          {{- if $v.withDcgm }}
+          {{- if $v.dcgmHost }}
             - name: "DCGM_HOST"
               value: "localhost"
           {{- end }}

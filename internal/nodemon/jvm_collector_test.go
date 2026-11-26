@@ -3,6 +3,7 @@ package nodemon
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -97,6 +98,89 @@ func TestBuildJVMMetric_G1HeapMaxNotDoubled(t *testing.T) {
 	assert.Equal(t, 538*mib, m.HeapMaxSizeBytes, "G1 heap max must not be the sum of both generations")
 	assert.Equal(t, 26*mib, m.HeapUsedBytes, "heap used sums per-space counters (no overlap)")
 	assert.Equal(t, 128*mib, m.HeapSizeBytes, "committed capacity sums per-space counters")
+}
+
+// TestBuildJVMMetrics_FlagsOnlyWithoutHsperfdata covers a JVM nodemon cannot
+// read hsperfdata for (rootless, no writable /tmp): it is still reported, with
+// its command-line flags and a passively resolved version, and zero heap.
+func TestBuildJVMMetrics_FlagsOnlyWithoutHsperfdata(t *testing.T) {
+	const mib = int64(1) << 20
+	const containerID = "c0ffee"
+	pidDir := t.TempDir()
+	writePidFile(t, pidDir, "cmdline", []byte("/usr/lib/jvm/java-17-openjdk/bin/java\x00-Xms64m\x00-Xmx256m\x00-cp\x00/tmp\x00App\x00"))
+	idx := &PodContainerIndex{containerMap: map[string]containerInfo{
+		containerID: {Pod: "app-0", Namespace: "ns", Container: "app"},
+	}}
+	proc := JavaProcess{
+		PidHost:     42,
+		ContainerID: containerID,
+		CmdLine:     "/usr/lib/jvm/java-17-openjdk/bin/java -Xms64m -Xmx256m -cp /tmp App",
+		PidDir:      pidDir,
+	}
+
+	metrics, err := buildJVMMetrics(context.Background(), []JavaProcess{proc}, idx, "node-1", testr.New(t))
+	require.NoError(t, err)
+	require.Len(t, metrics, 1)
+	m := metrics[0]
+
+	assert.Equal(t, "app-0", m.Pod)
+	assert.Equal(t, "17", m.JavaVersion)
+	require.NotNil(t, m.FlagsExtracted.XmxBytes)
+	assert.Equal(t, 256*mib, *m.FlagsExtracted.XmxBytes)
+	require.NotNil(t, m.FlagsExtracted.XmsBytes)
+	assert.Equal(t, 64*mib, *m.FlagsExtracted.XmsBytes)
+	assert.Equal(t, "cmdline", m.FlagSources.XmxBytes)
+	assert.Zero(t, m.HeapUsedBytes)
+	assert.Zero(t, m.HeapMaxSizeBytes)
+}
+
+// An unreadable hsperfdata file degrades to a flags-only metric instead of
+// dropping the JVM.
+func TestBuildJVMMetrics_UnreadableHsperfdataFallsBackToFlagsOnly(t *testing.T) {
+	idx := &PodContainerIndex{containerMap: map[string]containerInfo{}}
+	proc := JavaProcess{
+		ContainerID:    "c0ffee",
+		CmdLine:        "java -Xmx128m -jar app.jar",
+		HsperfDataPath: filepath.Join(t.TempDir(), "missing"),
+	}
+
+	metrics, err := buildJVMMetrics(context.Background(), []JavaProcess{proc}, idx, "node-1", testr.New(t))
+	require.NoError(t, err)
+	require.Len(t, metrics, 1)
+	require.NotNil(t, metrics[0].FlagsExtracted.XmxBytes)
+	assert.Equal(t, int64(128)<<20, *metrics[0].FlagsExtracted.XmxBytes)
+	assert.Zero(t, metrics[0].HeapMaxSizeBytes)
+}
+
+// Two JVMs in one container, the flags-only one discovered first (here from a
+// failed hsperfdata read): the heap-bearing one must come first in the output,
+// since consumers keep the first JVM per container.
+func TestBuildJVMMetrics_HeapBearingJVMsComeFirst(t *testing.T) {
+	idx := &PodContainerIndex{containerMap: map[string]containerInfo{}}
+	flagsOnly := JavaProcess{PidHost: 1, ContainerID: "c0ffee", CmdLine: "java -Xmx64m Launcher",
+		HsperfDataPath: filepath.Join(t.TempDir(), "missing")}
+	metrics, err := buildJVMMetrics(context.Background(), []JavaProcess{flagsOnly}, idx, "node-1", testr.New(t))
+	require.NoError(t, err)
+	require.Len(t, metrics, 1)
+
+	withHeap := JVMMetric{PidHost: 2, ContainerID: "c0ffee", HeapMaxSizeBytes: 256 << 20}
+	otherFlagsOnly := JVMMetric{PidHost: 3, ContainerID: "c0ffee"}
+	got := heapFirst([]JVMMetric{metrics[0], withHeap, otherFlagsOnly})
+
+	pids := []int{got[0].PidHost, got[1].PidHost, got[2].PidHost}
+	assert.Equal(t, []int{2, 1, 3}, pids, "heap-bearing first, flags-only order kept")
+}
+
+func TestNormalizeJavaVersion(t *testing.T) {
+	for in, want := range map[string]string{
+		"jdk-21.0.13+9": "21.0.13+9",
+		"21.0.7_p6":     "21.0.7_p6",
+		"17":            "17",
+		"1.8.0_392":     "1.8.0_392",
+		"":              "",
+	} {
+		assert.Equal(t, want, normalizeJavaVersion(in), in)
+	}
 }
 
 // TestJVMCollector_QueryJVMMetrics_ServesCachedSnapshot proves

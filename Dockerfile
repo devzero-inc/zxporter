@@ -53,8 +53,11 @@ RUN --mount=type=cache,id=gomod,target=/go/pkg,sharing=shared \
 
 # Use distroless as minimal base image to package the manager binary
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
-FROM alpine:3.24.3@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a AS production
-RUN apk add --no-cache bash kubectl
+FROM alpine:3.24.4@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf AS production
+# apk upgrade: the alpine point-release image lags the v3.24 repos, which
+# already carry security fixes for base packages (zlib, openssl). Same minor,
+# so the userland stays on 3.24.
+RUN apk upgrade --no-cache && apk add --no-cache bash kubectl
 
 FROM production
 WORKDIR /

@@ -173,9 +173,10 @@ func TestDiscoverRuntimeProcesses_DeniedHsperfdataIsReportedOnce(t *testing.T) {
 		javaProcs, runtimeProcs, err := discoverRuntimeProcesses(procRoot, probeRuntimeProcess, denied)
 		require.NoError(t, err)
 
-		// Return behaviour is unchanged: no heap metrics, but the JVM is still
-		// reported as a Java runtime.
-		assert.Empty(t, javaProcs)
+		// No heap metrics: the JVM is reported flags-only in the JVM bucket
+		// and as a Java runtime.
+		require.Len(t, javaProcs, 1)
+		assert.Empty(t, javaProcs[0].HsperfDataPath)
 		require.Len(t, runtimeProcs, 1)
 		assert.Equal(t, runtimeNameJava, runtimeProcs[0].Runtime)
 	}

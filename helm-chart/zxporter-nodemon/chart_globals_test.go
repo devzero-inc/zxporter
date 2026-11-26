@@ -8,7 +8,7 @@ import (
 )
 
 // The umbrella's global.imageRegistry and global.imagePullSecrets reach every
-// nodemon pod, both DaemonSets and both containers (nodemon and the DCGM
+// nodemon pod, every DaemonSet and both containers (nodemon and the DCGM
 // exporter), in each configuration the dist installers ship.
 func TestImageGlobals(t *testing.T) {
 	charttest.AssertImageGlobals(t, platformSpec, charttest.ImageGlobals{
@@ -22,7 +22,7 @@ func TestImageGlobals(t *testing.T) {
 
 // The DCGM tag renders verbatim, as it always did, 0 and false included. The
 // nodemon tag is pinned so the release bump, which rewrites the default tag,
-// does not break the test.
+// does not break the test. The CPU-node DaemonSet carries no DCGM exporter.
 func TestImageTagScalars(t *testing.T) {
 	for _, tc := range []struct {
 		name string
@@ -38,8 +38,12 @@ func TestImageTagScalars(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			for name, tmpl := range charttest.PodTemplates(charttest.Objects(t, charttest.Render(t, platformSpec, tc.args...)), true) {
-				if got := charttest.Images(tmpl); !reflect.DeepEqual(got, tc.want) {
-					t.Errorf("%s: images %v, want %v", name, got, tc.want)
+				want := tc.want
+				if name == "DaemonSet/zxporter-nodemon" {
+					want = tc.want[:1]
+				}
+				if got := charttest.Images(tmpl); !reflect.DeepEqual(got, want) {
+					t.Errorf("%s: images %v, want %v", name, got, want)
 				}
 			}
 		})

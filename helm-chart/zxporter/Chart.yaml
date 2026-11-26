@@ -2,8 +2,8 @@ apiVersion: v2
 name: zxporter
 description: A Helm chart for DevZero ZXPorter - Kubernetes resource monitoring and optimization
 type: application
-version: 0.1.29
-appVersion: "0.1.29"
+version: 0.2.0
+appVersion: "0.2.0"
 home: https://github.com/devzero-inc/zxporter
 sources:
   - https://github.com/devzero-inc/zxporter
@@ -28,5 +28,5 @@ dependencies:
     version: 0.1.0
     repository: "file://../devzero-common"
   - name: zxporter-nodemon
-    version: "0.1.29"
+    version: "0.2.0"
     repository: "file://../zxporter-nodemon"
