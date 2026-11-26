@@ -49,9 +49,22 @@ Kubernetes: `>=1.31.0-0`
 | dcgmExporter.extraEnv | list | `[]` |  |
 | dcgmExporter.gpuNodeSelector.key | string | `"nvidia.com/gpu.present"` |  |
 | dcgmExporter.gpuNodeSelector.value | string | `"true"` |  |
+| dcgmExporter.gpuNodeSelectors[0].key | string | `"feature.node.kubernetes.io/pci-10de.present"` |  |
+| dcgmExporter.gpuNodeSelectors[0].operator | string | `"In"` |  |
+| dcgmExporter.gpuNodeSelectors[0].values[0] | string | `"true"` |  |
+| dcgmExporter.gpuNodeSelectors[1].key | string | `"k8s.amazonaws.com/accelerator"` |  |
+| dcgmExporter.gpuNodeSelectors[1].operator | string | `"Exists"` |  |
+| dcgmExporter.gpuNodeSelectors[2].key | string | `"karpenter.k8s.aws/instance-gpu-manufacturer"` |  |
+| dcgmExporter.gpuNodeSelectors[2].operator | string | `"In"` |  |
+| dcgmExporter.gpuNodeSelectors[2].values[0] | string | `"nvidia"` |  |
+| dcgmExporter.gpuNodeSelectors[3].key | string | `"cloud.google.com/gke-accelerator"` |  |
+| dcgmExporter.gpuNodeSelectors[3].operator | string | `"Exists"` |  |
+| dcgmExporter.gpuNodeSelectors[4].key | string | `"kubernetes.azure.com/accelerator"` |  |
+| dcgmExporter.gpuNodeSelectors[4].operator | string | `"Exists"` |  |
 | dcgmExporter.image.pullPolicy | string | `"IfNotPresent"` |  |
 | dcgmExporter.image.repository | string | `"public.ecr.aws/devzeroinc/dcgm-exporter"` |  |
 | dcgmExporter.image.tag | string | `"4.5.2-4.8.1-ubuntu22.04"` |  |
+| dcgmExporter.mode | string | `"gpuOnly"` |  |
 | dcgmExporter.resources.requests.cpu | string | `"50m"` |  |
 | dcgmExporter.resources.requests.memory | string | `"128Mi"` |  |
 | dcgmExporter.runtimeClassName | string | `"nvidia"` |  |
@@ -89,7 +102,7 @@ Kubernetes: `>=1.31.0-0`
 | priorityClass.description | string | `"This priority class is for critical zxporter infrastructure components."` |  |
 | priorityClass.preemptionPolicy | string | `"PreemptLowerPriority"` |  |
 | priorityClass.value | int | `1000000000` |  |
-| runtimeMetrics | object | `{}` | Enable process-introspection metrics (JVM heap via hsperfdata, Node.js detection/version). NOTE: requires hostPID + running nodemon as UID 0 + SYS_PTRACE to read other containers' /proc/<pid>/root overlay. It also sets seLinuxOptions.level "s0:c0.c1023" so SELinux-enforcing nodes (Bottlerocket), which isolate containers by MCS category, do not block that read; the type stays container_t, and the level is ignored where SELinux is not enforcing. Leave unset to fall back to the deprecated jvmMetrics.enabled below.  scanHandlerTimeoutMs -- bounds how long the scan-heavy /container/jvm-metrics and /container/runtime-metrics handlers may take per request (a slow /proc walk or binary version-sniff otherwise stalls the HTTP server / probes). Leave unset to use the built-in default (2500ms). |
+| runtimeMetrics | object | `{}` | Enable process-introspection metrics (JVM heap via hsperfdata, Node.js detection/version). NOTE: requires hostPID + running nodemon as UID 0 + SYS_PTRACE to read other containers' /proc/<pid>/root overlay. It also sets seLinuxOptions.level "s0:c0.c1023" so SELinux-enforcing nodes (Bottlerocket), which isolate containers by MCS category, do not block that read; the type stays container_t, and the level is ignored where SELinux is not enforcing. Leave unset to fall back to the deprecated jvmMetrics.enabled below.  scanHandlerTimeoutMs -- bounds how long the scan-heavy /container/jvm-metrics and /container/runtime-metrics handlers may take per request (a slow /proc walk or binary version-sniff otherwise stalls the HTTP server / probes). Leave unset to use the built-in default (2500ms).  runAsRoot -- with enabled: true, run nodemon as UID 0 with SYS_PTRACE (the default). Set to false to keep hostPID but run nodemon with nodemon.securityContext (non-root, no SYS_PTRACE) instead. Runtimes are then still detected (Java, Node.js, Python, Ruby, .NET, Deno, Bun by process name), versions come from argument paths where present, and JVM heap flags (-Xmx, -Xms, MaxRAMPercentage) from the command line. Lost: JVM heap metrics, env/binary version sources, and Go/Rust/GraalVM/.NET-apphost detection, all of which read other users' /proc/<pid>/{environ,exe,root}. |
 | serviceAccount.annotations | object | `{}` |  |
 | serviceAccount.create | bool | `true` |  |
 | updateStrategy | object | `{}` | Controls `daemonset.spec.updateStrategy` field. updateStrategy:   type: RollingUpdate   rollingUpdate:     maxUnavailable: 1 |

@@ -6,7 +6,7 @@ func TestRewriteImage(t *testing.T) {
 	for _, tc := range []struct{ ref, want string }{
 		{"public.ecr.aws/devzeroinc/zxporter:v1", "m.example/p/devzeroinc/zxporter:v1"},
 		{"devzeroinc/zxporter-netmon:v1", "m.example/p/devzeroinc/zxporter-netmon:v1"},
-		{"docker.io/devzeroinc/criu:4.2.1", "m.example/p/devzeroinc/criu:4.2.1"},
+		{"docker.io/devzeroinc/criu:4.2.1-dz.7", "m.example/p/devzeroinc/criu:4.2.1-dz.7"},
 		{"alpine:3.19", "m.example/p/library/alpine:3.19"},
 		{"docker.io/alpine", "m.example/p/library/alpine"},
 		{"localhost:5000/x", "m.example/p/x"},

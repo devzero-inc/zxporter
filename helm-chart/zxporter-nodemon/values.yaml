@@ -42,7 +42,7 @@ image:
   pullPolicy: IfNotPresent
   # -- Image tag. The release sets it to the version being released.
   # @default -- the released version, v-prefixed
-  tag: "v0.1.29"
+  tag: "v0.2.0"
 nodemon:
   # nodemon.affinity -- optional pod affinity/anti-affinity. Leave empty so nodemon schedules on
   # EVERY node (it is the sole source of node/container metrics). Only set this if you intentionally
@@ -92,8 +92,18 @@ nodemon:
 # and /container/runtime-metrics handlers may take per request (a slow /proc
 # walk or binary version-sniff otherwise stalls the HTTP server / probes).
 # Leave unset to use the built-in default (2500ms).
+#
+# runAsRoot -- with enabled: true, run nodemon as UID 0 with SYS_PTRACE (the
+# default). Set to false to keep hostPID but run nodemon with
+# nodemon.securityContext (non-root, no SYS_PTRACE) instead. Runtimes are then
+# still detected (Java, Node.js, Python, Ruby, .NET, Deno, Bun by process name),
+# versions come from argument paths where present, and JVM heap flags (-Xmx,
+# -Xms, MaxRAMPercentage) from the command line. Lost: JVM heap metrics,
+# env/binary version sources, and Go/Rust/GraalVM/.NET-apphost detection, all
+# of which read other users' /proc/<pid>/{environ,exe,root}.
 runtimeMetrics: {}
 #  enabled: true
+#  runAsRoot: true
 #  scanHandlerTimeoutMs: 2500
 # jvmMetrics.enabled -- Deprecated: renamed to runtimeMetrics.enabled now that this
 # toggle also gates Node.js detection, not just JVM. Kept for backward compatibility
@@ -138,22 +148,55 @@ priorityClass:
   preemptionPolicy: PreemptLowerPriority
 dcgmExporter:
   enabled: true
-  # runtimeClassName -- RuntimeClass applied to the GPU-only DaemonSet
+  # mode -- where the dcgm-exporter sidecar runs.
+  #   gpuOnly (default): only on GPU nodes, i.e. nodes matching gpuNodeSelector
+  #     or any entry of gpuNodeSelectors. CPU nodes run nodemon alone and never
+  #     pull the dcgm-exporter image (~240 MB compressed).
+  #   everyNode: the sidecar runs on every node and idles where there is no
+  #     GPU -- the layout before gpuOnly existed. Use it for GPU nodes that
+  #     carry none of the labels below.
+  mode: gpuOnly
+  # runtimeClassName -- RuntimeClass applied to the GPU Operator DaemonSet
   # (zxporter-nodemon-gpu). Set to "nvidia" (default) so the NVIDIA container
   # runtime injects host driver libraries (libnvidia-ml.so) into the DCGM sidecar.
-  # The GPU DaemonSet only schedules on nodes labelled nvidia.com/gpu.present=true
-  # (set by the NVIDIA GPU Operator), so the RuntimeClass is never evaluated on
-  # nodes that lack it. Set to "" to disable the split and fall back to the
-  # original single DaemonSet with an embedded DCGM sidecar (e.g. GKE COS where
-  # the driver is host-mounted via provider=gcp).
+  # That DaemonSet only schedules on nodes matching gpuNodeSelector
+  # (nvidia.com/gpu.present=true, set by the NVIDIA GPU Operator), so the
+  # RuntimeClass is never evaluated on nodes that lack it. Other GPU nodes run
+  # zxporter-nodemon-gpu-default-runtime, which sets no RuntimeClass. Set to ""
+  # to drop the RuntimeClass DaemonSet: every GPU node then runs
+  # zxporter-nodemon-gpu-default-runtime (e.g. GKE COS where the driver is
+  # host-mounted via provider=gcp).
   runtimeClassName: "nvidia"
-  # gpuNodeSelector -- label used to identify GPU Operator nodes for the split.
-  # The GPU DaemonSet includes nodes matching this label; the base DaemonSet
-  # excludes them. Only nodes where the GPU Operator's node-feature-discovery
-  # sets this label will get the runtimeClassName pod.
+  # gpuNodeSelector -- label identifying GPU Operator nodes. They run
+  # zxporter-nodemon-gpu with runtimeClassName; every other DaemonSet excludes them.
   gpuNodeSelector:
     key: "nvidia.com/gpu.present"
     value: "true"
+  # gpuNodeSelectors -- further node selector requirements, each identifying
+  # GPU nodes that are not GPU Operator nodes (key, operator In|NotIn|Exists|
+  # DoesNotExist, values for In/NotIn). A node matching any of them runs the
+  # dcgm-exporter sidecar without a RuntimeClass. Add your own label here if
+  # your GPU nodes carry none of these; replacing the list replaces the defaults.
+  # Gt/Lt are refused: a node whose label is not an integer would match
+  # neither the GPU nor the CPU DaemonSet and run no nodemon.
+  gpuNodeSelectors:
+    # Node Feature Discovery: an NVIDIA PCI device is present.
+    - key: feature.node.kubernetes.io/pci-10de.present
+      operator: In
+      values: ["true"]
+    # EKS managed node groups with a GPU AMI.
+    - key: k8s.amazonaws.com/accelerator
+      operator: Exists
+    # Karpenter on AWS: set only on instance types with an NVIDIA GPU.
+    - key: karpenter.k8s.aws/instance-gpu-manufacturer
+      operator: In
+      values: ["nvidia"]
+    # GKE GPU node pools.
+    - key: cloud.google.com/gke-accelerator
+      operator: Exists
+    # AKS GPU node pools.
+    - key: kubernetes.azure.com/accelerator
+      operator: Exists
   image:
     repository: public.ecr.aws/devzeroinc/dcgm-exporter
     pullPolicy: IfNotPresent

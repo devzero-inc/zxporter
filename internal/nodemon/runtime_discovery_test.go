@@ -131,19 +131,22 @@ func buildFakeJavaProcTreeWithoutHsperfdata(t *testing.T, procRoot string, pid i
 	return containerID
 }
 
-func TestDiscoverRuntimeProcesses_JavaWithoutHsperfdataFallsBackToRuntimeBucket(t *testing.T) {
+func TestDiscoverRuntimeProcesses_JavaWithoutHsperfdataIsReportedInBothBuckets(t *testing.T) {
 	procRoot := t.TempDir()
 	noPerfID := buildFakeJavaProcTreeWithoutHsperfdata(t, procRoot, 600)
 
 	javaProcs, runtimeProcs, err := discoverRuntimeProcesses(procRoot, probeRuntimeProcess, nil)
 	require.NoError(t, err)
 
-	// No hsperfdata means no heap metrics are possible, so it must not appear
-	// in the JVM bucket...
-	assert.Empty(t, javaProcs)
+	// No hsperfdata means no heap metrics, but the JVM bucket still carries it
+	// for its flags and version...
+	require.Len(t, javaProcs, 1)
+	assert.Equal(t, noPerfID, javaProcs[0].ContainerID)
+	assert.Empty(t, javaProcs[0].HsperfDataPath)
+	assert.NotEmpty(t, javaProcs[0].PidDir)
 
-	// ...but the process must still be reported as a Java runtime rather than
-	// disappearing from both surfaces.
+	// ...and it is also reported as a Java runtime, the signal the JVM CPU
+	// startup floor and the language filter use for heap-less JVMs.
 	require.Len(t, runtimeProcs, 1)
 	assert.Equal(t, runtimeNameJava, runtimeProcs[0].Runtime)
 	assert.Equal(t, processKindJava, runtimeProcs[0].Kind)

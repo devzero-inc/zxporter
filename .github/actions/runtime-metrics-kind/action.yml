@@ -400,9 +400,10 @@ runs:
         # ============ hsperfdata-less JVM fallback ============
         # zipkin-{writable,readonly}-rootfs are the same image and uid, differing
         # only in readOnlyRootFilesystem. With a read-only rootfs and no writable
-        # /tmp, HotSpot cannot create /tmp/hsperfdata_<user>/<pid>, so the
-        # hsperfdata pipeline has nothing to read — the process must still be
-        # reported, as runtime "java" in the generic bucket.
+        # /tmp, HotSpot cannot create /tmp/hsperfdata_<user>/<pid>, so there
+        # are no heap metrics to read. The process must still be reported:
+        # in the jvm bucket flags-only (cmdline flags, passive version, zero
+        # heap), and as runtime "java" in the generic bucket.
         jvm_entries = runtime.get('jvm', [])
 
         # Writable rootfs: full JVM pipeline, real heap metrics.
@@ -420,16 +421,25 @@ runs:
         if any((p or '').startswith('zipkin-writable-rootfs') for p in all_runtime_pods):
             raise SystemExit('zipkin-writable-rootfs must not be double-reported in the runtimes bucket')
 
-        # Read-only rootfs: no heap metrics are possible, so it must NOT be in
-        # the jvm bucket — and must NOT vanish entirely either.
-        if any((p or '').startswith('zipkin-readonly-rootfs') for p in jvm_pods):
-            raise SystemExit('zipkin-readonly-rootfs has no hsperfdata and must not appear in the jvm bucket')
+        # Read-only rootfs: flags-only in the jvm bucket. Zero heap is what
+        # tells dakr heap is unknown; the flags still drive the -Xmx floor.
+        m_ro_jvm = [m for m in jvm_entries if (m.get('pod') or '').startswith('zipkin-readonly-rootfs')]
+        if not m_ro_jvm:
+            raise SystemExit(f'zipkin-readonly-rootfs missing from jvm bucket (flags-only expected); got {jvm_pods}')
+        if (m_ro_jvm[0].get('heap_max_size_bytes') or 0) != 0 or (m_ro_jvm[0].get('heap_used_bytes') or 0) != 0:
+            raise SystemExit(f'zipkin-readonly-rootfs has no hsperfdata and must report zero heap; got {m_ro_jvm[0]!r}')
+        if m_ro_jvm[0].get('flags_extracted', {}).get('xmx_bytes') != 167772160:
+            raise SystemExit(
+                f'zipkin-readonly-rootfs expected xmx_bytes=167772160 from the image entrypoint; '
+                f'got {m_ro_jvm[0].get("flags_extracted")!r}')
+        if not (m_ro_jvm[0].get('java_version') or '').startswith('21.'):
+            raise SystemExit(f'zipkin-readonly-rootfs expected a 21.x java_version from env; got {m_ro_jvm[0]!r}')
         m_ro = [m for m in runtime.get('runtimes', [])
                 if (m.get('pod') or '').startswith('zipkin-readonly-rootfs')]
         if not m_ro:
             raise SystemExit(
-                'zipkin-readonly-rootfs missing from BOTH buckets — a JVM without hsperfdata '
-                f'must fall back to the runtimes bucket; got runtimes={all_runtime_pods} jvm={jvm_pods}')
+                'zipkin-readonly-rootfs missing from the runtimes bucket — a JVM without hsperfdata '
+                f'must also be reported as runtime "java"; got runtimes={all_runtime_pods} jvm={jvm_pods}')
         if m_ro[0].get('runtime') != 'java':
             raise SystemExit(f'zipkin-readonly-rootfs expected runtime="java"; got {m_ro[0]!r}')
         # Version still resolves passively (JAVA_VERSION env in the image).

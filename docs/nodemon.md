@@ -147,9 +147,11 @@ kubectl describe nodes | grep -A5 "Allocatable:" | grep nvidia
 | `global.gpuRuntime.runtimeClassName` | RuntimeClass rendered on `zxporter-nodemon-gpu` in `auto`/`explicit` modes. Required unless mode is `default`. | `nvidia` |
 | `dcgmExporter.enabled` | Deploy DCGM exporter sidecar | `true` |
 | `dcgmExporter.useExternalHostEngine` | Connect to host-level DCGM engine | `false` |
-| `dcgmExporter.runtimeClassName` | RuntimeClass for the GPU DaemonSet (`zxporter-nodemon-gpu`). Set to `""` to disable the split and use the original single DaemonSet with an embedded DCGM sidecar. | `"nvidia"` |
-| `dcgmExporter.gpuNodeSelector.key` | Node label key to identify GPU Operator nodes for the split. | `nvidia.com/gpu.present` |
+| `dcgmExporter.mode` | `gpuOnly`: run the DCGM sidecar only on GPU nodes. `everyNode`: run it on every node, idle where there is no GPU (the layout before `gpuOnly`). | `gpuOnly` |
+| `dcgmExporter.runtimeClassName` | RuntimeClass for the GPU Operator DaemonSet (`zxporter-nodemon-gpu`). Set to `""` to drop that DaemonSet; every GPU node then runs `zxporter-nodemon-gpu-default-runtime`. | `"nvidia"` |
+| `dcgmExporter.gpuNodeSelector.key` | Node label key identifying GPU Operator nodes (`zxporter-nodemon-gpu`). | `nvidia.com/gpu.present` |
 | `dcgmExporter.gpuNodeSelector.value` | Node label value to match. | `"true"` |
+| `dcgmExporter.gpuNodeSelectors` | Further node selector requirements (`key`, `operator` In, NotIn, Exists or DoesNotExist, `values`) that mark GPU nodes without the GPU Operator. A node matching any of them runs `zxporter-nodemon-gpu-default-runtime`. Replacing the list replaces the defaults. | NFD `pci-10de.present`, `k8s.amazonaws.com/accelerator`, `karpenter.k8s.aws/instance-gpu-manufacturer=nvidia`, `cloud.google.com/gke-accelerator`, `kubernetes.azure.com/accelerator` |
 | `dcgmExporter.image.tag` | DCGM exporter image tag. Use a `-ubuntu` variant (the chart's bash retry loop needs a shell). 4.x adds newer metrics; 4.5.1+ won't crash on inotify exhaustion. | `4.5.2-4.8.1-ubuntu22.04` |
 | `dcgmExporter.extraEnv` | Extra env vars for the DCGM sidecar (e.g. `LD_LIBRARY_PATH`). | `[]` |
 | `nodemon.config.DCGM_HOST` | Direct DCGM host (single host mode) | `""` |
@@ -158,14 +160,23 @@ kubectl describe nodes | grep -A5 "Allocatable:" | grep nvidia
 | `nodemon.affinity` | Custom node affinity | Provider-specific |
 | `nodemon.rbac.clusterWide` | Use ClusterRole for cross-namespace discovery | `true` |
 
-By default the chart always renders two DaemonSets: `zxporter-nodemon` (all
-non-GPU nodes) and `zxporter-nodemon-gpu` (GPU Operator nodes only, with
-`runtimeClassName: nvidia`). The GPU DaemonSet targets nodes labelled
-`nvidia.com/gpu.present=true`, which is set by the NVIDIA GPU Operator's
-node-feature-discovery. On GKE without the GPU Operator, these labels are absent
-so the GPU DaemonSet has zero pods and the base DaemonSet runs everywhere using
-the `global.k8sProvider=gcp` hostPath mount for NVML. GPU nodes added after install are
-picked up automatically by the DaemonSet controller.
+By default (`dcgmExporter.mode: gpuOnly`) the chart renders three DaemonSets
+that split the nodes between them, so each node runs exactly one nodemon pod:
+
+- `zxporter-nodemon` on every node without a GPU label: nodemon only. These
+  nodes never pull the `dcgm-exporter` image.
+- `zxporter-nodemon-gpu` on GPU Operator nodes (`nvidia.com/gpu.present=true`,
+  set by the GPU Operator's node-feature-discovery), with
+  `runtimeClassName: nvidia`: nodemon plus the DCGM sidecar.
+- `zxporter-nodemon-gpu-default-runtime` on other GPU nodes, identified by
+  `dcgmExporter.gpuNodeSelectors` (EKS GPU AMIs, Karpenter GPU instances, GKE
+  and AKS GPU pools, NFD): nodemon plus the DCGM sidecar on the default runtime.
+  On GKE this uses the `global.k8sProvider=gcp` hostPath mount for NVML.
+
+GPU nodes whose labels match none of these get no DCGM sidecar: add their label
+to `dcgmExporter.gpuNodeSelectors`, or set `dcgmExporter.mode=everyNode` to run
+the sidecar everywhere. GPU nodes added after install are picked up
+automatically by the DaemonSet controller.
 
 ### GPU RuntimeClass modes (`global.gpuRuntime`)
 

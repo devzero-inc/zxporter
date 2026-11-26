@@ -977,10 +977,10 @@ metadata:
   name: zxporter-nodemon
   namespace: {{.zxporter_namespace}}
   labels:
-    helm.sh/chart: zxporter-nodemon-0.1.29
+    helm.sh/chart: zxporter-nodemon-0.2.0
     app.kubernetes.io/name: zxporter-nodemon
     app.kubernetes.io/instance: zxporter-nodemon
-    app.kubernetes.io/version: "0.1.29"
+    app.kubernetes.io/version: "0.2.0"
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/part-of: dz-platform
     devzero.io/component: zxporter-nodemon
@@ -1067,10 +1067,10 @@ kind: ClusterRole
 metadata:
   name: zxporter-nodemon
   labels:
-    helm.sh/chart: zxporter-nodemon-0.1.29
+    helm.sh/chart: zxporter-nodemon-0.2.0
     app.kubernetes.io/name: zxporter-nodemon
     app.kubernetes.io/instance: zxporter-nodemon
-    app.kubernetes.io/version: "0.1.29"
+    app.kubernetes.io/version: "0.2.0"
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/part-of: dz-platform
     devzero.io/component: zxporter-nodemon
@@ -1120,10 +1120,10 @@ kind: ClusterRoleBinding
 metadata:
   name: zxporter-nodemon
   labels:
-    helm.sh/chart: zxporter-nodemon-0.1.29
+    helm.sh/chart: zxporter-nodemon-0.2.0
     app.kubernetes.io/name: zxporter-nodemon
     app.kubernetes.io/instance: zxporter-nodemon
-    app.kubernetes.io/version: "0.1.29"
+    app.kubernetes.io/version: "0.2.0"
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/part-of: dz-platform
     devzero.io/component: zxporter-nodemon
@@ -1145,16 +1145,11 @@ metadata:
   labels:
     app.kubernetes.io/part-of: dz-platform
     devzero.io/component: zxporter-nodemon
-    helm.sh/chart: zxporter-nodemon-0.1.29
+    helm.sh/chart: zxporter-nodemon-0.2.0
     app.kubernetes.io/name: zxporter-nodemon
     app.kubernetes.io/instance: zxporter-nodemon
-    app.kubernetes.io/version: "0.1.29"
+    app.kubernetes.io/version: "0.2.0"
     app.kubernetes.io/managed-by: Helm
-  annotations:
-    ignore-check.kube-linter.io/privileged-container: "This daemon set needs to run DCGM Exporter as privileged to access the GPU metrics."
-    ignore-check.kube-linter.io/run-as-non-root: "This daemon set needs to run DCGM Exporter as root to access the GPU metrics."
-    ignore-check.kube-linter.io/privilege-escalation-container: "This daemon set needs escalate privileges for DCGM Exporter."
-    ignore-check.kube-linter.io/no-read-only-root-fs: "This daemon set needs to run DCGM Exporter with read-only root filesystem."
 spec:
   selector:
     matchLabels:
@@ -1168,6 +1163,144 @@ spec:
     spec:
       priorityClassName: devzero-zxporter-devzero-zxporter-critical
       hostPID: true
+      serviceAccountName: zxporter-nodemon
+      volumes:
+        - name: cgroup
+          hostPath:
+            path: /sys/fs/cgroup
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: nvidia.com/gpu.present
+                    operator: NotIn
+                    values:
+                      - "true"
+                  - key: feature.node.kubernetes.io/pci-10de.present
+                    operator: NotIn
+                    values:
+                      - "true"
+                  - key: k8s.amazonaws.com/accelerator
+                    operator: DoesNotExist
+                  - key: karpenter.k8s.aws/instance-gpu-manufacturer
+                    operator: NotIn
+                    values:
+                      - nvidia
+                  - key: cloud.google.com/gke-accelerator
+                    operator: DoesNotExist
+                  - key: kubernetes.azure.com/accelerator
+                    operator: DoesNotExist
+      tolerations:
+        - effect: NoExecute
+          operator: Exists
+        - effect: NoSchedule
+          operator: Exists
+        - effect: PreferNoSchedule
+          operator: Exists
+      containers:
+        - name: zxporter-nodemon
+          securityContext:
+            runAsNonRoot: false
+            runAsUser: 0
+            readOnlyRootFilesystem: true
+            capabilities:
+              add:
+                - SYS_PTRACE
+            # Bottlerocket (SELinux enforcing) gives each container a unique MCS
+            # category pair, which denies reading other containers' files via
+            # /proc/<pid>/root (JVM hsperfdata, runtime binaries). Granting the
+            # full category range keeps the container_t type; it is a no-op where
+            # SELinux is not enforcing.
+            seLinuxOptions:
+              level: "s0:c0.c1023"
+          image: "docker.io/devzeroinc/zxporter-nodemon:latest"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 6061
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          envFrom:
+            - configMapRef:
+                name: zxporter-nodemon-zxporter-nodemon
+          env:
+            - name: "NODE_NAME"
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: "POD_NAME"
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: "POD_NAMESPACE"
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            # Cap GOMAXPROCS: nodemon has no CPU limit, so on high-core GPU nodes
+            # the Go runtime would otherwise size P's/GC workers to the full node
+            # core count, inflating baseline memory. nodemon's work is light.
+            - name: "GOMAXPROCS"
+              value: "2"
+            - name: "RUNTIME_METRICS_ENABLED"
+              value: "true"
+            - name: "CGROUP_METRICS_ENABLED"
+              value: "true"
+            - name: "DCGM_HOST"
+              value: "localhost"
+          volumeMounts:
+            - name: cgroup
+              mountPath: /sys/fs/cgroup
+              readOnly: true
+          resources:
+            limits:
+              memory: 256Mi
+            requests:
+              cpu: 60m
+              memory: 256Mi
+---
+# Source: zxporter-nodemon/templates/daemonset.yaml
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: zxporter-nodemon-gpu
+  namespace: {{.zxporter_namespace}}
+  labels:
+    app.kubernetes.io/part-of: dz-platform
+    devzero.io/component: zxporter-nodemon
+    helm.sh/chart: zxporter-nodemon-0.2.0
+    app.kubernetes.io/name: zxporter-nodemon
+    app.kubernetes.io/instance: zxporter-nodemon-gpu
+    app.kubernetes.io/version: "0.2.0"
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    ignore-check.kube-linter.io/privileged-container: "This daemon set needs to run DCGM Exporter as privileged to access the GPU metrics."
+    ignore-check.kube-linter.io/run-as-non-root: "This daemon set needs to run DCGM Exporter as root to access the GPU metrics."
+    ignore-check.kube-linter.io/privilege-escalation-container: "This daemon set needs escalate privileges for DCGM Exporter."
+    ignore-check.kube-linter.io/no-read-only-root-fs: "This daemon set needs to run DCGM Exporter with read-only root filesystem."
+    devzero.io/gpu-runtime-mode: "auto"
+    devzero.io/gpu-runtime-class: "nvidia"
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: zxporter-nodemon
+      app.kubernetes.io/instance: zxporter-nodemon-gpu
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: zxporter-nodemon
+        app.kubernetes.io/instance: zxporter-nodemon-gpu
+    spec:
+      priorityClassName: devzero-zxporter-devzero-zxporter-critical
+      hostPID: true
+      runtimeClassName: "nvidia"
       serviceAccountName: zxporter-nodemon
       volumes:
         - name: "pod-gpu-resources"
@@ -1185,7 +1318,7 @@ spec:
             nodeSelectorTerms:
               - matchExpressions:
                   - key: nvidia.com/gpu.present
-                    operator: NotIn
+                    operator: In
                     values:
                       - "true"
       tolerations:
@@ -1324,37 +1457,34 @@ spec:
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: zxporter-nodemon-gpu
+  name: zxporter-nodemon-gpu-default-runtime
   namespace: {{.zxporter_namespace}}
   labels:
     app.kubernetes.io/part-of: dz-platform
     devzero.io/component: zxporter-nodemon
-    helm.sh/chart: zxporter-nodemon-0.1.29
+    helm.sh/chart: zxporter-nodemon-0.2.0
     app.kubernetes.io/name: zxporter-nodemon
-    app.kubernetes.io/instance: zxporter-nodemon-gpu
-    app.kubernetes.io/version: "0.1.29"
+    app.kubernetes.io/instance: zxporter-nodemon-gpu-default-runtime
+    app.kubernetes.io/version: "0.2.0"
     app.kubernetes.io/managed-by: Helm
   annotations:
     ignore-check.kube-linter.io/privileged-container: "This daemon set needs to run DCGM Exporter as privileged to access the GPU metrics."
     ignore-check.kube-linter.io/run-as-non-root: "This daemon set needs to run DCGM Exporter as root to access the GPU metrics."
     ignore-check.kube-linter.io/privilege-escalation-container: "This daemon set needs escalate privileges for DCGM Exporter."
     ignore-check.kube-linter.io/no-read-only-root-fs: "This daemon set needs to run DCGM Exporter with read-only root filesystem."
-    devzero.io/gpu-runtime-mode: "auto"
-    devzero.io/gpu-runtime-class: "nvidia"
 spec:
   selector:
     matchLabels:
       app.kubernetes.io/name: zxporter-nodemon
-      app.kubernetes.io/instance: zxporter-nodemon-gpu
+      app.kubernetes.io/instance: zxporter-nodemon-gpu-default-runtime
   template:
     metadata:
       labels:
         app.kubernetes.io/name: zxporter-nodemon
-        app.kubernetes.io/instance: zxporter-nodemon-gpu
+        app.kubernetes.io/instance: zxporter-nodemon-gpu-default-runtime
     spec:
       priorityClassName: devzero-zxporter-devzero-zxporter-critical
       hostPID: true
-      runtimeClassName: "nvidia"
       serviceAccountName: zxporter-nodemon
       volumes:
         - name: "pod-gpu-resources"
@@ -1371,8 +1501,42 @@ spec:
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
               - matchExpressions:
-                  - key: nvidia.com/gpu.present
+                  - key: feature.node.kubernetes.io/pci-10de.present
                     operator: In
+                    values:
+                      - "true"
+                  - key: nvidia.com/gpu.present
+                    operator: NotIn
+                    values:
+                      - "true"
+              - matchExpressions:
+                  - key: k8s.amazonaws.com/accelerator
+                    operator: Exists
+                  - key: nvidia.com/gpu.present
+                    operator: NotIn
+                    values:
+                      - "true"
+              - matchExpressions:
+                  - key: karpenter.k8s.aws/instance-gpu-manufacturer
+                    operator: In
+                    values:
+                      - nvidia
+                  - key: nvidia.com/gpu.present
+                    operator: NotIn
+                    values:
+                      - "true"
+              - matchExpressions:
+                  - key: cloud.google.com/gke-accelerator
+                    operator: Exists
+                  - key: nvidia.com/gpu.present
+                    operator: NotIn
+                    values:
+                      - "true"
+              - matchExpressions:
+                  - key: kubernetes.azure.com/accelerator
+                    operator: Exists
+                  - key: nvidia.com/gpu.present
+                    operator: NotIn
                     values:
                       - "true"
       tolerations:

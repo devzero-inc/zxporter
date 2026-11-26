@@ -116,6 +116,9 @@ func TestSelectorsArePinned(t *testing.T) {
 			`"app.kubernetes.io/name":"zxporter-nodemon"}}`,
 		"DaemonSet/zxporter-nodemon-gpu": `{"matchLabels":{"app.kubernetes.io/instance":"zxporter-nodemon-gpu",` +
 			`"app.kubernetes.io/name":"zxporter-nodemon"}}`,
+		"DaemonSet/zxporter-nodemon-gpu-default-runtime": `{"matchLabels":` +
+			`{"app.kubernetes.io/instance":"zxporter-nodemon-gpu-default-runtime",` +
+			`"app.kubernetes.io/name":"zxporter-nodemon"}}`,
 		"Deployment/devzero-zxporter-controller-manager": controller,
 	}
 	got := charttest.Selectors(t, charttest.Objects(t, charttest.Render(t, platformSpec)))

@@ -18,6 +18,8 @@ func TestCommonMetadataContract(t *testing.T) {
 			// `if $v.withDcgm`, so a non-GPU install silently dropped
 			// commonAnnotations while the default render stayed green.
 			"dcgm disabled": {"--set", "dcgmExporter.enabled=false"},
+			// The pre-gpuOnly layout renders a different set of DaemonSets.
+			"dcgm on every node": {"--set", "dcgmExporter.mode=everyNode"},
 		},
 	})
 }

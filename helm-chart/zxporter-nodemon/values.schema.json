@@ -91,7 +91,11 @@
       ]
     },
     "runtimeMetrics": {
-      "properties": {}
+      "properties": {
+        "runAsRoot": {
+          "type": "boolean"
+        }
+      }
     },
     "jvmMetrics": {
       "type": [
@@ -159,6 +163,7 @@
       ],
       "properties": {
         "enabled": {},
+        "mode": {},
         "runtimeClassName": {},
         "gpuNodeSelector": {
           "type": [
@@ -169,6 +174,12 @@
             "key": {},
             "value": {}
           }
+        },
+        "gpuNodeSelectors": {
+          "type": [
+            "array",
+            "null"
+          ]
         },
         "image": {
           "type": [
